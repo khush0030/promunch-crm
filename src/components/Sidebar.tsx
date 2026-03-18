@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users, Mail, GitBranch, BarChart3, Settings,
-  Package, CheckCircle2, ChevronRight, X, Menu,
+  CheckCircle2, ChevronRight, X, Menu,
 } from "lucide-react";
 
 const navItems = [
@@ -43,11 +44,7 @@ export default function Sidebar({ isOpen, onToggle, isMobile }: { isOpen: boolea
       {/* Logo */}
       <div style={{ padding: "20px", borderBottom: "1px solid #27272a", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          {/* PROMUNCH PM logo with brand colors */}
-          <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: "linear-gradient(135deg, #B91C4A, #8B1539)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
-            <span style={{ fontWeight: 900, fontSize: "16px", color: "#fff", letterSpacing: "-1px", zIndex: 1 }}>PM</span>
-            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "3px", background: "linear-gradient(90deg, #F5B731, #00B4D8, #E87339, #B91C4A)" }} />
-          </div>
+          <Image src="/promunch-logo.png" alt="PROMUNCH" width={40} height={40} style={{ borderRadius: "8px" }} />
           <div>
             <div style={{ fontWeight: 900, fontSize: "17px", color: "#f4f4f5", letterSpacing: "2px" }}>PROMUNCH</div>
             <div style={{ fontSize: "10px", color: "#B91C4A", fontWeight: 700, letterSpacing: "2px" }}>CRM</div>
@@ -118,9 +115,7 @@ export function MobileHeader({ onToggle }: { onToggle: () => void }) {
         <Menu size={24} />
       </button>
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <div style={{ width: "28px", height: "28px", borderRadius: "8px", background: "linear-gradient(135deg, #B91C4A, #8B1539)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ fontWeight: 900, fontSize: "10px", color: "#fff" }}>PM</span>
-        </div>
+        <Image src="/promunch-logo.png" alt="PROMUNCH" width={28} height={28} style={{ borderRadius: "6px" }} />
         <span style={{ fontWeight: 900, fontSize: "15px", color: "#f4f4f5", letterSpacing: "2px" }}>PROMUNCH</span>
       </div>
       <div style={{ width: "40px" }} />
