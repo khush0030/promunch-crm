@@ -1,9 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Plus, TrendingUp, TrendingDown } from "lucide-react";
+import { Plus, TrendingUp } from "lucide-react";
 
-const campaigns = [
+const mockCampaigns = [
   { id: "1", name: "Protein Launch — April", status: "Sent", sent: 11200, openRate: 28.4, clickRate: 6.2, revenue: 8420, date: "Apr 1, 2026" },
   { id: "2", name: "Flash Sale — Weekend Blitz", status: "Sent", sent: 12450, openRate: 31.1, clickRate: 9.8, revenue: 12340, date: "Mar 22, 2026" },
   { id: "3", name: "Weekly Newsletter #42", status: "Sent", sent: 10890, openRate: 22.7, clickRate: 4.1, revenue: 1840, date: "Mar 10, 2026" },
@@ -14,27 +14,113 @@ const campaigns = [
   { id: "8", name: "VIP Re-engagement Push", status: "Scheduled", sent: 0, openRate: 0, clickRate: 0, revenue: 0, date: "Apr 8, 2026" },
 ];
 
+type CampaignRow = {
+  id: string;
+  name: string;
+  status: string;
+  sent: number;
+  openRate: number;
+  clickRate: number;
+  revenue: number;
+  date: string;
+};
+
 const statusColors: Record<string, { bg: string; color: string }> = {
   Sent: { bg: "rgba(16, 185, 129, 0.15)", color: "#10b981" },
+  sent: { bg: "rgba(16, 185, 129, 0.15)", color: "#10b981" },
   Scheduled: { bg: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" },
+  scheduled: { bg: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" },
   Draft: { bg: "rgba(113, 113, 122, 0.15)", color: "#a1a1aa" },
+  draft: { bg: "rgba(113, 113, 122, 0.15)", color: "#a1a1aa" },
+  sending: { bg: "rgba(245, 183, 49, 0.15)", color: "#F5B731" },
+  paused: { bg: "rgba(232, 115, 57, 0.15)", color: "#E87339" },
 };
 
 const tabs = ["All", "Sent", "Scheduled", "Draft"];
-
 type SortKey = "date" | "revenue" | "openRate";
 
 export default function CampaignsPage() {
   const [activeTab, setActiveTab] = useState("All");
   const [sortBy, setSortBy] = useState<SortKey>("date");
+  const [campaigns, setCampaigns] = useState<CampaignRow[]>(mockCampaigns);
+  const [usingLiveData, setUsingLiveData] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const filtered = campaigns
-    .filter((c) => activeTab === "All" || c.status === activeTab)
-    .sort((a, b) => {
-      if (sortBy === "revenue") return b.revenue - a.revenue;
-      if (sortBy === "openRate") return b.openRate - a.openRate;
-      return 0;
-    });
+  const fetchCampaigns = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: "50" });
+      if (activeTab !== "All") params.set("status", activeTab.toLowerCase());
+
+      const res = await fetch(`/api/campaigns?${params}`);
+      if (!res.ok) throw new Error("API error");
+
+      const data = await res.json();
+
+      if (data.campaigns && data.campaigns.length > 0) {
+        const mapped: CampaignRow[] = data.campaigns.map((c: {
+          id: string;
+          name: string;
+          status: string;
+          total_sent?: number;
+          total_opened?: number;
+          total_clicked?: number;
+          revenue_attributed?: number;
+          sent_at?: string;
+          scheduled_at?: string;
+          created_at?: string;
+        }) => {
+          const openRate = c.total_sent && c.total_sent > 0
+            ? parseFloat(((c.total_opened || 0) / c.total_sent * 100).toFixed(1))
+            : 0;
+          const clickRate = c.total_sent && c.total_sent > 0
+            ? parseFloat(((c.total_clicked || 0) / c.total_sent * 100).toFixed(1))
+            : 0;
+
+          const dateStr = c.sent_at || c.scheduled_at || c.created_at;
+          const date = dateStr
+            ? new Date(dateStr).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+            : "—";
+
+          return {
+            id: c.id,
+            name: c.name,
+            status: c.status.charAt(0).toUpperCase() + c.status.slice(1),
+            sent: c.total_sent || 0,
+            openRate,
+            clickRate,
+            revenue: c.revenue_attributed || 0,
+            date,
+          };
+        });
+
+        setCampaigns(mapped);
+        setUsingLiveData(true);
+      } else {
+        setCampaigns(
+          mockCampaigns.filter((c) => activeTab === "All" || c.status === activeTab)
+        );
+        setUsingLiveData(false);
+      }
+    } catch {
+      setCampaigns(
+        mockCampaigns.filter((c) => activeTab === "All" || c.status === activeTab)
+      );
+      setUsingLiveData(false);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, [fetchCampaigns]);
+
+  const filtered = [...campaigns].sort((a, b) => {
+    if (sortBy === "revenue") return b.revenue - a.revenue;
+    if (sortBy === "openRate") return b.openRate - a.openRate;
+    return 0;
+  });
 
   return (
     <div style={{ padding: "32px" }}>
@@ -44,6 +130,7 @@ export default function CampaignsPage() {
           <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#f4f4f5", letterSpacing: "-0.5px" }}>Campaigns</h1>
           <p style={{ color: "#71717a", marginTop: "4px", fontSize: "14px" }}>
             Manage and track your email campaigns
+            {usingLiveData && <span style={{ color: "#10b981", marginLeft: "8px" }}>● Live</span>}
           </p>
         </div>
         <Link href="/dashboard/campaigns/new">
@@ -114,7 +201,14 @@ export default function CampaignsPage() {
       </div>
 
       {/* Table */}
-      <div style={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "12px", overflow: "hidden" }}>
+      <div style={{
+        backgroundColor: "#18181b",
+        border: "1px solid #27272a",
+        borderRadius: "12px",
+        overflow: "hidden",
+        opacity: isLoading ? 0.7 : 1,
+        transition: "opacity 0.2s",
+      }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid #27272a", backgroundColor: "#1c1c1f" }}>
@@ -139,7 +233,14 @@ export default function CampaignsPage() {
                   </Link>
                 </td>
                 <td style={{ padding: "16px" }}>
-                  <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, backgroundColor: statusColors[c.status]?.bg, color: statusColors[c.status]?.color }}>
+                  <span style={{
+                    padding: "3px 10px",
+                    borderRadius: "20px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    backgroundColor: statusColors[c.status]?.bg || "rgba(113,113,122,0.15)",
+                    color: statusColors[c.status]?.color || "#a1a1aa",
+                  }}>
                     {c.status}
                   </span>
                 </td>

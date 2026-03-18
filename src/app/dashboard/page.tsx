@@ -1,7 +1,9 @@
 "use client";
+import { useState, useEffect } from "react";
 import { DollarSign, Users, Mail, TrendingUp, ArrowUpRight, ShoppingCart, Heart, RefreshCw } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
-const stats = [
+const mockStats = [
   {
     label: "Total Revenue",
     value: "₹47,832",
@@ -36,7 +38,7 @@ const stats = [
   },
 ];
 
-const campaigns = [
+const mockCampaigns = [
   { name: "Protein Launch — April", sent: "11,200", openRate: "28.4%", clickRate: "6.2%", revenue: "₹8,420" },
   { name: "Flash Sale — Weekend", sent: "12,450", openRate: "31.1%", clickRate: "9.8%", revenue: "₹12,340" },
   { name: "Weekly Newsletter #42", sent: "10,890", openRate: "22.7%", clickRate: "4.1%", revenue: "₹1,840" },
@@ -44,14 +46,110 @@ const campaigns = [
   { name: "Member Exclusive Deal", sent: "6,800", openRate: "34.9%", clickRate: "11.2%", revenue: "₹6,780" },
 ];
 
-const flows = [
+const mockFlows = [
   { name: "Abandoned Cart", revenue: "₹8,240", icon: ShoppingCart, color: "#ef4444", bg: "rgba(239, 68, 68, 0.1)" },
   { name: "Welcome Series", revenue: "₹4,120", icon: Heart, color: "#B91C4A", bg: "rgba(185, 28, 74, 0.1)" },
   { name: "Post-Purchase", revenue: "₹2,890", icon: TrendingUp, color: "#10b981", bg: "rgba(16, 185, 129, 0.1)" },
   { name: "Win-Back", revenue: "₹1,940", icon: RefreshCw, color: "#F5B731", bg: "rgba(245, 183, 49, 0.1)" },
 ];
 
+interface LiveStats {
+  contactCount: number;
+  campaignCount: number;
+  activeContactCount: number;
+  totalSent: number;
+  totalOpened: number;
+}
+
 export default function DashboardPage() {
+  const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
+  const [liveCampaigns, setLiveCampaigns] = useState<Array<{
+    name: string; sent: string; openRate: string; clickRate: string; revenue: string;
+  }> | null>(null);
+  const [liveFlows, setLiveFlows] = useState<Array<{
+    name: string; revenue: string; icon: typeof ShoppingCart; color: string; bg: string;
+  }> | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [contactsRes, campaignsRes, flowsRes] = await Promise.all([
+          supabase.from("contacts").select("id, status", { count: "exact" }),
+          supabase.from("campaigns").select("*").order("created_at", { ascending: false }).limit(5),
+          supabase.from("flows").select("*").eq("status", "active"),
+        ]);
+
+        if (!contactsRes.error) {
+          const allContacts = contactsRes.data || [];
+          const activeCount = allContacts.filter((c) => c.status === "active").length;
+
+          setLiveStats({
+            contactCount: contactsRes.count || 0,
+            campaignCount: 0,
+            activeContactCount: activeCount,
+            totalSent: 0,
+            totalOpened: 0,
+          });
+        }
+
+        if (!campaignsRes.error && campaignsRes.data && campaignsRes.data.length > 0) {
+          const campaigns = campaignsRes.data.map((c) => {
+            const openRate = c.total_sent > 0
+              ? ((c.total_opened / c.total_sent) * 100).toFixed(1) + "%"
+              : "—";
+            const clickRate = c.total_sent > 0
+              ? ((c.total_clicked / c.total_sent) * 100).toFixed(1) + "%"
+              : "—";
+            return {
+              name: c.name,
+              sent: c.total_sent > 0 ? c.total_sent.toLocaleString() : "—",
+              openRate,
+              clickRate,
+              revenue: c.revenue_attributed > 0 ? `₹${c.revenue_attributed.toLocaleString()}` : "—",
+            };
+          });
+          setLiveCampaigns(campaigns);
+        }
+
+        if (!flowsRes.error && flowsRes.data && flowsRes.data.length > 0) {
+          const flowIconMap = [ShoppingCart, Heart, TrendingUp, RefreshCw];
+          const flowColorMap = ["#ef4444", "#B91C4A", "#10b981", "#F5B731"];
+          const flowBgMap = [
+            "rgba(239, 68, 68, 0.1)",
+            "rgba(185, 28, 74, 0.1)",
+            "rgba(16, 185, 129, 0.1)",
+            "rgba(245, 183, 49, 0.1)",
+          ];
+          const flows = flowsRes.data.slice(0, 4).map((f, i) => ({
+            name: f.name,
+            revenue: f.revenue_attributed > 0 ? `₹${f.revenue_attributed.toLocaleString()}` : "₹0",
+            icon: flowIconMap[i % flowIconMap.length],
+            color: flowColorMap[i % flowColorMap.length],
+            bg: flowBgMap[i % flowBgMap.length],
+          }));
+          setLiveFlows(flows);
+        }
+      } catch {
+        // Fall back to mock data silently
+      }
+    }
+
+    loadData();
+  }, []);
+
+  // Build stats array — override with live data if available
+  const stats = mockStats.map((s, i) => {
+    if (liveStats && i === 1) {
+      // Active Subscribers
+      const count = liveStats.contactCount;
+      return { ...s, value: count > 0 ? count.toLocaleString() : s.value };
+    }
+    return s;
+  });
+
+  const campaigns = liveCampaigns && liveCampaigns.length > 0 ? liveCampaigns : mockCampaigns;
+  const flows = liveFlows && liveFlows.length > 0 ? liveFlows : mockFlows;
+
   return (
     <div style={{ padding: "32px" }}>
       {/* Header */}
@@ -211,7 +309,11 @@ export default function DashboardPage() {
           }}
         >
           <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#f4f4f5", marginBottom: "4px" }}>List Health</h2>
-          <p style={{ fontSize: "13px", color: "#71717a", marginBottom: "24px" }}>12,450 total contacts</p>
+          <p style={{ fontSize: "13px", color: "#71717a", marginBottom: "24px" }}>
+            {liveStats && liveStats.contactCount > 0
+              ? `${liveStats.contactCount.toLocaleString()} total contacts`
+              : "12,450 total contacts"}
+          </p>
 
           {/* Donut Chart Mock */}
           <div style={{ display: "flex", justifyContent: "center", marginBottom: "24px" }}>
@@ -260,7 +362,7 @@ export default function DashboardPage() {
 
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {[
-              { label: "Active", value: "9,711", pct: "78%", color: "#10b981" },
+              { label: "Active", value: liveStats && liveStats.activeContactCount > 0 ? liveStats.activeContactCount.toLocaleString() : "9,711", pct: "78%", color: "#10b981" },
               { label: "Inactive", value: "1,868", pct: "15%", color: "#3b82f6" },
               { label: "Bounced", value: "871", pct: "7%", color: "#ef4444" },
             ].map((item) => (

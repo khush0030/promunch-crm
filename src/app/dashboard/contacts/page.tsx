@@ -1,9 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Search, Upload, ChevronLeft, ChevronRight, Filter } from "lucide-react";
 
-const contacts = [
+const mockContacts = [
   { id: "1", name: "Alex Mitchell", email: "alex.m@gmail.com", orders: 8, ltv: "₹432.50", lastOrder: "Mar 12, 2026", status: "VIP", tags: ["VIP", "Protein Lover"] },
   { id: "2", name: "Sarah Chen", email: "sarah.chen@outlook.com", orders: 5, ltv: "₹287.80", lastOrder: "Mar 10, 2026", status: "Active", tags: ["Repeat Buyer"] },
   { id: "3", name: "Marcus Johnson", email: "m.johnson@gmail.com", orders: 2, ltv: "₹98.40", lastOrder: "Feb 28, 2026", status: "At Risk", tags: ["New"] },
@@ -21,11 +21,26 @@ const contacts = [
   { id: "15", name: "Lucas Davis", email: "ldavis@yahoo.com", orders: 11, ltv: "₹621.50", lastOrder: "Mar 14, 2026", status: "VIP", tags: ["VIP", "Repeat Buyer"] },
 ];
 
+type ContactRow = {
+  id: string;
+  name: string;
+  email: string;
+  orders: number;
+  ltv: string;
+  lastOrder: string;
+  status: string;
+  tags: string[];
+};
+
 const statusColors: Record<string, { bg: string; color: string }> = {
   VIP: { bg: "rgba(185, 28, 74, 0.15)", color: "#E8658B" },
   Active: { bg: "rgba(16, 185, 129, 0.15)", color: "#10b981" },
+  active: { bg: "rgba(16, 185, 129, 0.15)", color: "#10b981" },
   "At Risk": { bg: "rgba(239, 68, 68, 0.15)", color: "#ef4444" },
+  inactive: { bg: "rgba(239, 68, 68, 0.15)", color: "#ef4444" },
   New: { bg: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" },
+  unsubscribed: { bg: "rgba(113, 113, 122, 0.15)", color: "#a1a1aa" },
+  bounced: { bg: "rgba(239, 68, 68, 0.15)", color: "#ef4444" },
 };
 
 const filters = ["All", "Active", "VIP", "At Risk", "New"];
@@ -33,14 +48,95 @@ const filters = ["All", "Active", "VIP", "At Risk", "New"];
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
+  const [contacts, setContacts] = useState<ContactRow[]>(mockContacts);
+  const [total, setTotal] = useState(mockContacts.length);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [usingLiveData, setUsingLiveData] = useState(false);
 
-  const filtered = contacts.filter((c) => {
-    const matchSearch =
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.email.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = activeFilter === "All" || c.status === activeFilter;
-    return matchSearch && matchFilter;
-  });
+  const fetchContacts = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: "15",
+      });
+
+      if (search) params.set("search", search);
+      if (activeFilter !== "All") params.set("status", activeFilter);
+
+      const res = await fetch(`/api/contacts?${params}`);
+      if (!res.ok) throw new Error("API error");
+
+      const data = await res.json();
+
+      if (data.contacts && data.contacts.length > 0) {
+        const mapped: ContactRow[] = data.contacts.map((c: {
+          id: string;
+          first_name?: string;
+          last_name?: string;
+          email: string;
+          total_orders?: number;
+          total_spent?: number;
+          last_purchase_date?: string;
+          status?: string;
+          tags?: string[];
+        }) => ({
+          id: c.id,
+          name: [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email.split("@")[0],
+          email: c.email,
+          orders: c.total_orders || 0,
+          ltv: c.total_spent ? `₹${parseFloat(String(c.total_spent)).toFixed(2)}` : "₹0",
+          lastOrder: c.last_purchase_date
+            ? new Date(c.last_purchase_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+            : "—",
+          status: c.status
+            ? c.status.charAt(0).toUpperCase() + c.status.slice(1)
+            : "Active",
+          tags: c.tags || [],
+        }));
+
+        setContacts(mapped);
+        setTotal(data.total);
+        setTotalPages(data.pages || 1);
+        setUsingLiveData(true);
+      } else {
+        // DB empty — show mock data filtered
+        const filtered = mockContacts.filter((c) => {
+          const matchSearch =
+            c.name.toLowerCase().includes(search.toLowerCase()) ||
+            c.email.toLowerCase().includes(search.toLowerCase());
+          const matchFilter = activeFilter === "All" || c.status === activeFilter;
+          return matchSearch && matchFilter;
+        });
+        setContacts(filtered);
+        setTotal(filtered.length);
+        setTotalPages(1);
+        setUsingLiveData(false);
+      }
+    } catch {
+      // Fallback to mock
+      const filtered = mockContacts.filter((c) => {
+        const matchSearch =
+          c.name.toLowerCase().includes(search.toLowerCase()) ||
+          c.email.toLowerCase().includes(search.toLowerCase());
+        const matchFilter = activeFilter === "All" || c.status === activeFilter;
+        return matchSearch && matchFilter;
+      });
+      setContacts(filtered);
+      setTotal(filtered.length);
+      setTotalPages(1);
+      setUsingLiveData(false);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [search, activeFilter, page]);
+
+  useEffect(() => {
+    const timer = setTimeout(fetchContacts, 300);
+    return () => clearTimeout(timer);
+  }, [fetchContacts]);
 
   return (
     <div style={{ padding: "32px" }}>
@@ -51,7 +147,8 @@ export default function ContactsPage() {
             Contacts
           </h1>
           <p style={{ color: "#71717a", marginTop: "4px", fontSize: "14px" }}>
-            {contacts.length} total contacts · manage your subscriber base
+            {total} total contacts · manage your subscriber base
+            {usingLiveData && <span style={{ color: "#10b981", marginLeft: "8px" }}>● Live</span>}
           </p>
         </div>
         <button
@@ -82,7 +179,7 @@ export default function ContactsPage() {
             type="text"
             placeholder="Search by name or email..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             style={{
               width: "100%",
               padding: "10px 12px 10px 38px",
@@ -99,7 +196,7 @@ export default function ContactsPage() {
           {filters.map((f) => (
             <button
               key={f}
-              onClick={() => setActiveFilter(f)}
+              onClick={() => { setActiveFilter(f); setPage(1); }}
               style={{
                 padding: "8px 16px",
                 borderRadius: "8px",
@@ -141,6 +238,8 @@ export default function ContactsPage() {
           border: "1px solid #27272a",
           borderRadius: "12px",
           overflow: "hidden",
+          opacity: isLoading ? 0.7 : 1,
+          transition: "opacity 0.2s",
         }}
       >
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -165,11 +264,11 @@ export default function ContactsPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((c, i) => (
+            {contacts.map((c, i) => (
               <tr
                 key={c.id}
                 style={{
-                  borderBottom: i < filtered.length - 1 ? "1px solid #27272a" : "none",
+                  borderBottom: i < contacts.length - 1 ? "1px solid #27272a" : "none",
                   transition: "background 0.1s",
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#1c1c1f")}
@@ -193,7 +292,7 @@ export default function ContactsPage() {
                           flexShrink: 0,
                         }}
                       >
-                        {c.name.split(" ").map((n) => n[0]).join("")}
+                        {c.name.split(" ").map((n: string) => n[0]).join("").substring(0, 2)}
                       </div>
                       <span style={{ fontSize: "14px", fontWeight: 600, color: "#f4f4f5", cursor: "pointer" }}>
                         {c.name}
@@ -212,8 +311,8 @@ export default function ContactsPage() {
                       borderRadius: "20px",
                       fontSize: "12px",
                       fontWeight: 600,
-                      backgroundColor: statusColors[c.status]?.bg,
-                      color: statusColors[c.status]?.color,
+                      backgroundColor: statusColors[c.status]?.bg || "rgba(113,113,122,0.15)",
+                      color: statusColors[c.status]?.color || "#a1a1aa",
                     }}
                   >
                     {c.status}
@@ -221,7 +320,7 @@ export default function ContactsPage() {
                 </td>
                 <td style={{ padding: "14px 16px" }}>
                   <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                    {c.tags.map((tag) => (
+                    {c.tags.map((tag: string) => (
                       <span
                         key={tag}
                         style={{
@@ -246,48 +345,53 @@ export default function ContactsPage() {
       {/* Pagination */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px" }}>
         <span style={{ fontSize: "13px", color: "#71717a" }}>
-          Showing {filtered.length} of {contacts.length} contacts
+          Showing {contacts.length} of {total} contacts
         </span>
         <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
           <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
             style={{
               padding: "7px 12px",
               backgroundColor: "#18181b",
               border: "1px solid #27272a",
               borderRadius: "8px",
-              color: "#a1a1aa",
-              cursor: "pointer",
+              color: page <= 1 ? "#3f3f46" : "#a1a1aa",
+              cursor: page <= 1 ? "not-allowed" : "pointer",
               display: "flex",
               alignItems: "center",
             }}
           >
             <ChevronLeft size={16} />
           </button>
-          {[1, 2, 3].map((p) => (
+          {Array.from({ length: Math.min(totalPages, 3) }, (_, i) => i + 1).map((p) => (
             <button
               key={p}
+              onClick={() => setPage(p)}
               style={{
                 padding: "7px 12px",
-                backgroundColor: p === 1 ? "rgba(185, 28, 74, 0.15)" : "#18181b",
-                border: p === 1 ? "1px solid #B91C4A" : "1px solid #27272a",
+                backgroundColor: page === p ? "rgba(185, 28, 74, 0.15)" : "#18181b",
+                border: page === p ? "1px solid #B91C4A" : "1px solid #27272a",
                 borderRadius: "8px",
-                color: p === 1 ? "#E8658B" : "#a1a1aa",
+                color: page === p ? "#E8658B" : "#a1a1aa",
                 cursor: "pointer",
                 fontSize: "13px",
-                fontWeight: p === 1 ? 600 : 400,
+                fontWeight: page === p ? 600 : 400,
               }}
             >
               {p}
             </button>
           ))}
           <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
             style={{
               padding: "7px 12px",
               backgroundColor: "#18181b",
               border: "1px solid #27272a",
               borderRadius: "8px",
-              color: "#a1a1aa",
-              cursor: "pointer",
+              color: page >= totalPages ? "#3f3f46" : "#a1a1aa",
+              cursor: page >= totalPages ? "not-allowed" : "pointer",
               display: "flex",
               alignItems: "center",
             }}
