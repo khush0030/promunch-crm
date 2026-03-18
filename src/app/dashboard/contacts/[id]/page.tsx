@@ -9,17 +9,17 @@ const mockContact = {
   location: "San Francisco, CA",
   since: "August 2024",
   totalOrders: 12,
-  ltv: "$684.20",
-  aov: "$57.02",
+  ltv: "₹684.20",
+  aov: "₹57.02",
   lastPurchase: "Mar 15, 2026",
 };
 
 const orders = [
-  { id: "#PM-4821", products: "Chocolate Protein Bar (x3), Whey Protein 1kg", value: "$82.40", status: "Delivered", date: "Mar 15, 2026" },
-  { id: "#PM-4612", products: "Mixed Snack Box, Energy Bars (x6)", value: "$64.80", status: "Delivered", date: "Feb 28, 2026" },
-  { id: "#PM-4401", products: "Peanut Butter Protein Bar (x5)", value: "$44.99", status: "Delivered", date: "Feb 10, 2026" },
-  { id: "#PM-4188", products: "Whey Protein 2kg, Creatine 300g", value: "$124.50", status: "Delivered", date: "Jan 22, 2026" },
-  { id: "#PM-3942", products: "Vegan Protein Bar (x4), Electrolyte Mix", value: "$56.20", status: "Delivered", date: "Jan 5, 2026" },
+  { id: "#PM-4821", products: "Chocolate Protein Bar (x3), Whey Protein 1kg", value: "₹82.40", status: "Delivered", date: "Mar 15, 2026" },
+  { id: "#PM-4612", products: "Mixed Snack Box, Energy Bars (x6)", value: "₹64.80", status: "Delivered", date: "Feb 28, 2026" },
+  { id: "#PM-4401", products: "Peanut Butter Protein Bar (x5)", value: "₹44.99", status: "Delivered", date: "Feb 10, 2026" },
+  { id: "#PM-4188", products: "Whey Protein 2kg, Creatine 300g", value: "₹124.50", status: "Delivered", date: "Jan 22, 2026" },
+  { id: "#PM-3942", products: "Vegan Protein Bar (x4), Electrolyte Mix", value: "₹56.20", status: "Delivered", date: "Jan 5, 2026" },
 ];
 
 const emailTimeline = [
@@ -36,7 +36,7 @@ const emailTimeline = [
 ];
 
 const statusColors: Record<string, { bg: string; color: string }> = {
-  Clicked: { bg: "rgba(124, 58, 237, 0.15)", color: "#a78bfa" },
+  Clicked: { bg: "rgba(185, 28, 74, 0.15)", color: "#E8658B" },
   Opened: { bg: "rgba(16, 185, 129, 0.15)", color: "#10b981" },
   Sent: { bg: "rgba(113, 113, 122, 0.15)", color: "#a1a1aa" },
 };
@@ -79,7 +79,7 @@ export default function ContactDetailPage() {
             width: "72px",
             height: "72px",
             borderRadius: "50%",
-            background: "linear-gradient(135deg, #7c3aed, #4f46e5)",
+            background: "linear-gradient(135deg, #B91C4A, #8B1539)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -94,7 +94,7 @@ export default function ContactDetailPage() {
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
             <h1 style={{ fontSize: "24px", fontWeight: 700, color: "#f4f4f5" }}>{mockContact.name}</h1>
-            <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, backgroundColor: "rgba(124, 58, 237, 0.15)", color: "#a78bfa" }}>
+            <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, backgroundColor: "rgba(185, 28, 74, 0.15)", color: "#E8658B" }}>
               VIP
             </span>
           </div>
@@ -124,8 +124,8 @@ export default function ContactDetailPage() {
         {[
           { label: "Total Orders", value: mockContact.totalOrders, sub: "all time", color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)" },
           { label: "Total Spent (LTV)", value: mockContact.ltv, sub: "lifetime value", color: "#10b981", bg: "rgba(16, 185, 129, 0.1)" },
-          { label: "Avg Order Value", value: mockContact.aov, sub: "per order", color: "#7c3aed", bg: "rgba(124, 58, 237, 0.1)" },
-          { label: "Last Purchase", value: "Mar 15", sub: "2026", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.1)" },
+          { label: "Avg Order Value", value: mockContact.aov, sub: "per order", color: "#B91C4A", bg: "rgba(185, 28, 74, 0.1)" },
+          { label: "Last Purchase", value: "Mar 15", sub: "2026", color: "#F5B731", bg: "rgba(245, 183, 49, 0.1)" },
         ].map((s) => (
           <div key={s.label} style={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "12px", padding: "20px" }}>
             <div style={{ width: "36px", height: "36px", borderRadius: "8px", backgroundColor: s.bg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "12px" }}>
@@ -154,7 +154,7 @@ export default function ContactDetailPage() {
             <tbody>
               {orders.map((o, i) => (
                 <tr key={i} style={{ borderBottom: i < orders.length - 1 ? "1px solid #27272a" : "none" }}>
-                  <td style={{ padding: "12px 0", fontSize: "12px", fontWeight: 600, color: "#7c3aed" }}>{o.id}</td>
+                  <td style={{ padding: "12px 0", fontSize: "12px", fontWeight: 600, color: "#B91C4A" }}>{o.id}</td>
                   <td style={{ padding: "12px 8px", fontSize: "12px", color: "#a1a1aa", maxWidth: "200px" }}>
                     <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.products}</div>
                   </td>
@@ -204,7 +204,7 @@ export default function ContactDetailPage() {
         {/* Tags */}
         <div style={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "12px", padding: "24px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-            <Tag size={16} color="#7c3aed" />
+            <Tag size={16} color="#B91C4A" />
             <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#f4f4f5" }}>Tags</h2>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -229,11 +229,11 @@ export default function ContactDetailPage() {
             <button
               style={{
                 padding: "6px 12px",
-                backgroundColor: "rgba(124, 58, 237, 0.1)",
-                border: "1px dashed #7c3aed",
+                backgroundColor: "rgba(185, 28, 74, 0.1)",
+                border: "1px dashed #B91C4A",
                 borderRadius: "8px",
                 fontSize: "13px",
-                color: "#7c3aed",
+                color: "#B91C4A",
                 cursor: "pointer",
               }}
             >
@@ -245,7 +245,7 @@ export default function ContactDetailPage() {
         {/* Flow History */}
         <div style={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "12px", padding: "24px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-            <GitBranch size={16} color="#7c3aed" />
+            <GitBranch size={16} color="#B91C4A" />
             <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#f4f4f5" }}>Flow History</h2>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>

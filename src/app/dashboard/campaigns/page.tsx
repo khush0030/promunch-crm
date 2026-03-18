@@ -53,7 +53,7 @@ export default function CampaignsPage() {
               alignItems: "center",
               gap: "8px",
               padding: "10px 18px",
-              background: "linear-gradient(135deg, #7c3aed, #4f46e5)",
+              background: "linear-gradient(135deg, #B91C4A, #8B1539)",
               border: "none",
               borderRadius: "9px",
               color: "#fff",
@@ -99,9 +99,9 @@ export default function CampaignsPage() {
               style={{
                 padding: "6px 14px",
                 borderRadius: "7px",
-                border: sortBy === s ? "1px solid #7c3aed" : "1px solid #27272a",
-                backgroundColor: sortBy === s ? "rgba(124, 58, 237, 0.1)" : "#18181b",
-                color: sortBy === s ? "#a78bfa" : "#a1a1aa",
+                border: sortBy === s ? "1px solid #B91C4A" : "1px solid #27272a",
+                backgroundColor: sortBy === s ? "rgba(185, 28, 74, 0.1)" : "#18181b",
+                color: sortBy === s ? "#E8658B" : "#a1a1aa",
                 fontSize: "12px",
                 fontWeight: sortBy === s ? 600 : 400,
                 cursor: "pointer",
@@ -158,7 +158,7 @@ export default function CampaignsPage() {
                   {c.clickRate > 0 ? `${c.clickRate}%` : "—"}
                 </td>
                 <td style={{ padding: "16px", fontSize: "14px", fontWeight: 600, color: c.revenue > 0 ? "#10b981" : "#52525b" }}>
-                  {c.revenue > 0 ? `$${c.revenue.toLocaleString()}` : "—"}
+                  {c.revenue > 0 ? `₹${c.revenue.toLocaleString()}` : "—"}
                 </td>
                 <td style={{ padding: "16px", fontSize: "13px", color: "#71717a" }}>{c.date}</td>
               </tr>

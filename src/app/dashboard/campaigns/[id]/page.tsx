@@ -18,8 +18,8 @@ const campaign = {
 
 const funnelSteps = [
   { label: "Sent", value: 12450, pct: 100, color: "#3b82f6" },
-  { label: "Delivered", value: 12218, pct: 98.1, color: "#7c3aed" },
-  { label: "Opened", value: 3800, pct: 30.5, color: "#f59e0b" },
+  { label: "Delivered", value: 12218, pct: 98.1, color: "#B91C4A" },
+  { label: "Opened", value: 3800, pct: 30.5, color: "#F5B731" },
   { label: "Clicked", value: 1220, pct: 9.8, color: "#10b981" },
   { label: "Converted", value: 341, pct: 2.7, color: "#ef4444" },
 ];
@@ -32,7 +32,7 @@ const links = [
 ];
 
 const devices = [
-  { label: "Mobile", pct: 62, color: "#7c3aed", icon: Smartphone },
+  { label: "Mobile", pct: 62, color: "#B91C4A", icon: Smartphone },
   { label: "Desktop", pct: 35, color: "#3b82f6", icon: Monitor },
   { label: "Tablet", pct: 3, color: "#10b981", icon: Tablet },
 ];
@@ -64,11 +64,11 @@ export default function CampaignDetailPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "12px", marginBottom: "24px" }}>
         {[
           { label: "Sent", value: campaign.stats.sent.toLocaleString(), color: "#3b82f6" },
-          { label: "Delivered", value: campaign.stats.delivered.toLocaleString(), color: "#7c3aed" },
-          { label: "Opened", value: campaign.stats.opened.toLocaleString(), color: "#f59e0b" },
+          { label: "Delivered", value: campaign.stats.delivered.toLocaleString(), color: "#B91C4A" },
+          { label: "Opened", value: campaign.stats.opened.toLocaleString(), color: "#F5B731" },
           { label: "Clicked", value: campaign.stats.clicked.toLocaleString(), color: "#10b981" },
           { label: "Converted", value: campaign.stats.converted.toLocaleString(), color: "#ef4444" },
-          { label: "Revenue", value: `$${campaign.stats.revenue.toLocaleString()}`, color: "#10b981" },
+          { label: "Revenue", value: `₹${campaign.stats.revenue.toLocaleString()}`, color: "#10b981" },
         ].map((s) => (
           <div key={s.label} style={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "10px", padding: "16px" }}>
             <div style={{ fontSize: "20px", fontWeight: 700, color: s.color, marginBottom: "4px" }}>{s.value}</div>
@@ -151,13 +151,13 @@ export default function CampaignDetailPage() {
               const share = Math.round((l.clicks / 1220) * 100);
               return (
                 <tr key={i} style={{ borderBottom: i < links.length - 1 ? "1px solid #27272a" : "none" }}>
-                  <td style={{ padding: "14px 0", fontSize: "13px", color: "#7c3aed" }}>{l.url}</td>
+                  <td style={{ padding: "14px 0", fontSize: "13px", color: "#B91C4A" }}>{l.url}</td>
                   <td style={{ padding: "14px 16px", fontSize: "14px", fontWeight: 600, color: "#f4f4f5" }}>{l.clicks}</td>
                   <td style={{ padding: "14px 16px", fontSize: "14px", color: "#a1a1aa" }}>{l.unique}</td>
                   <td style={{ padding: "14px 0", width: "200px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                       <div style={{ flex: 1, height: "6px", backgroundColor: "#27272a", borderRadius: "3px" }}>
-                        <div style={{ height: "100%", width: `${share}%`, backgroundColor: "#7c3aed", borderRadius: "3px" }} />
+                        <div style={{ height: "100%", width: `${share}%`, backgroundColor: "#B91C4A", borderRadius: "3px" }} />
                       </div>
                       <span style={{ fontSize: "12px", color: "#71717a", width: "32px" }}>{share}%</span>
                     </div>

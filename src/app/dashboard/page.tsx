@@ -4,51 +4,51 @@ import { DollarSign, Users, Mail, TrendingUp, ArrowUpRight, ShoppingCart, Heart,
 const stats = [
   {
     label: "Total Revenue",
-    value: "$47,832",
+    value: "₹47,832",
     change: "+12.5%",
     icon: DollarSign,
-    color: "#10b981",
-    bg: "rgba(16, 185, 129, 0.1)",
+    color: "#F5B731",
+    bg: "rgba(245, 183, 49, 0.1)",
   },
   {
     label: "Active Subscribers",
     value: "12,450",
     change: "+3.2%",
     icon: Users,
-    color: "#3b82f6",
-    bg: "rgba(59, 130, 246, 0.1)",
+    color: "#00B4D8",
+    bg: "rgba(0, 180, 216, 0.1)",
   },
   {
     label: "Email Open Rate",
     value: "24.3%",
     change: "+1.8%",
     icon: Mail,
-    color: "#7c3aed",
-    bg: "rgba(124, 58, 237, 0.1)",
+    color: "#B91C4A",
+    bg: "rgba(185, 28, 74, 0.1)",
   },
   {
     label: "Flow Revenue",
-    value: "$18,240",
+    value: "₹18,240",
     change: "+8.7%",
     icon: TrendingUp,
-    color: "#f59e0b",
-    bg: "rgba(245, 158, 11, 0.1)",
+    color: "#E87339",
+    bg: "rgba(232, 115, 57, 0.1)",
   },
 ];
 
 const campaigns = [
-  { name: "Protein Launch — April", sent: "11,200", openRate: "28.4%", clickRate: "6.2%", revenue: "$8,420" },
-  { name: "Flash Sale — Weekend", sent: "12,450", openRate: "31.1%", clickRate: "9.8%", revenue: "$12,340" },
-  { name: "Weekly Newsletter #42", sent: "10,890", openRate: "22.7%", clickRate: "4.1%", revenue: "$1,840" },
-  { name: "New Flavor Announcement", sent: "12,100", openRate: "26.3%", clickRate: "5.5%", revenue: "$3,210" },
-  { name: "Member Exclusive Deal", sent: "6,800", openRate: "34.9%", clickRate: "11.2%", revenue: "$6,780" },
+  { name: "Protein Launch — April", sent: "11,200", openRate: "28.4%", clickRate: "6.2%", revenue: "₹8,420" },
+  { name: "Flash Sale — Weekend", sent: "12,450", openRate: "31.1%", clickRate: "9.8%", revenue: "₹12,340" },
+  { name: "Weekly Newsletter #42", sent: "10,890", openRate: "22.7%", clickRate: "4.1%", revenue: "₹1,840" },
+  { name: "New Flavor Announcement", sent: "12,100", openRate: "26.3%", clickRate: "5.5%", revenue: "₹3,210" },
+  { name: "Member Exclusive Deal", sent: "6,800", openRate: "34.9%", clickRate: "11.2%", revenue: "₹6,780" },
 ];
 
 const flows = [
-  { name: "Abandoned Cart", revenue: "$8,240", icon: ShoppingCart, color: "#ef4444", bg: "rgba(239, 68, 68, 0.1)" },
-  { name: "Welcome Series", revenue: "$4,120", icon: Heart, color: "#7c3aed", bg: "rgba(124, 58, 237, 0.1)" },
-  { name: "Post-Purchase", revenue: "$2,890", icon: TrendingUp, color: "#10b981", bg: "rgba(16, 185, 129, 0.1)" },
-  { name: "Win-Back", revenue: "$1,940", icon: RefreshCw, color: "#f59e0b", bg: "rgba(245, 158, 11, 0.1)" },
+  { name: "Abandoned Cart", revenue: "₹8,240", icon: ShoppingCart, color: "#ef4444", bg: "rgba(239, 68, 68, 0.1)" },
+  { name: "Welcome Series", revenue: "₹4,120", icon: Heart, color: "#B91C4A", bg: "rgba(185, 28, 74, 0.1)" },
+  { name: "Post-Purchase", revenue: "₹2,890", icon: TrendingUp, color: "#10b981", bg: "rgba(16, 185, 129, 0.1)" },
+  { name: "Win-Back", revenue: "₹1,940", icon: RefreshCw, color: "#F5B731", bg: "rgba(245, 183, 49, 0.1)" },
 ];
 
 export default function DashboardPage() {
@@ -60,7 +60,7 @@ export default function DashboardPage() {
           Dashboard
         </h1>
         <p style={{ color: "#71717a", marginTop: "4px", fontSize: "14px" }}>
-          Welcome back — here's what's happening with ProMunch CRM
+          Welcome back — here&apos;s what&apos;s happening with PROMUNCH CRM
         </p>
       </div>
 
@@ -167,8 +167,8 @@ export default function DashboardPage() {
             <svg width="100%" height="200" viewBox="0 0 600 200" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.3" />
-                  <stop offset="100%" stopColor="#7c3aed" stopOpacity="0" />
+                  <stop offset="0%" stopColor="#B91C4A" stopOpacity="0.3" />
+                  <stop offset="100%" stopColor="#B91C4A" stopOpacity="0" />
                 </linearGradient>
               </defs>
               <path
@@ -178,14 +178,14 @@ export default function DashboardPage() {
               <path
                 d="M0,160 C50,140 100,120 150,100 C200,80 220,70 260,60 C300,50 320,55 360,45 C400,35 430,40 470,30 C510,20 550,25 600,20"
                 fill="none"
-                stroke="#7c3aed"
+                stroke="#B91C4A"
                 strokeWidth="2.5"
               />
               {/* Data points */}
               {[
                 [0, 160], [100, 120], [200, 80], [300, 50], [400, 35], [500, 25], [600, 20]
               ].map(([x, y], i) => (
-                <circle key={i} cx={x} cy={y} r="4" fill="#7c3aed" />
+                <circle key={i} cx={x} cy={y} r="4" fill="#B91C4A" />
               ))}
               {/* Grid lines */}
               {[40, 80, 120, 160].map((y) => (
@@ -194,7 +194,7 @@ export default function DashboardPage() {
             </svg>
             {/* Y-axis labels */}
             <div style={{ position: "absolute", left: 0, top: 0, height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              {["$20k", "$15k", "$10k", "$5k", "$0"].map((l) => (
+              {["₹20k", "₹15k", "₹10k", "₹5k", "₹0"].map((l) => (
                 <span key={l} style={{ fontSize: "10px", color: "#52525b" }}>{l}</span>
               ))}
             </div>
@@ -288,7 +288,7 @@ export default function DashboardPage() {
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
             <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#f4f4f5" }}>Recent Campaigns</h2>
-            <a href="/dashboard/campaigns" style={{ fontSize: "13px", color: "#7c3aed", fontWeight: 500 }}>View all →</a>
+            <a href="/dashboard/campaigns" style={{ fontSize: "13px", color: "#B91C4A", fontWeight: 500 }}>View all →</a>
           </div>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -327,7 +327,7 @@ export default function DashboardPage() {
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
             <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#f4f4f5" }}>Active Flows</h2>
-            <a href="/dashboard/flows" style={{ fontSize: "13px", color: "#7c3aed", fontWeight: 500 }}>View all →</a>
+            <a href="/dashboard/flows" style={{ fontSize: "13px", color: "#B91C4A", fontWeight: 500 }}>View all →</a>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {flows.map((flow) => (
