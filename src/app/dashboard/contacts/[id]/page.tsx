@@ -1,59 +1,149 @@
 "use client";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, MapPin, Phone, Mail, Calendar, Tag, X, ShoppingBag, GitBranch } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
-const mockContact = {
-  name: "Priya Sharma",
-  email: "priya.s@yahoo.com",
-  phone: "+1 (555) 842-9371",
-  location: "San Francisco, CA",
-  since: "August 2024",
-  totalOrders: 12,
-  ltv: "₹684.20",
-  aov: "₹57.02",
-  lastPurchase: "Mar 15, 2026",
+type Contact = {
+  id: string;
+  email: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  address1?: string | null;
+  address2?: string | null;
+  zip?: string | null;
+  locale?: string | null;
+  timezone?: string | null;
+  total_orders?: number;
+  total_spent?: number;
+  average_order_value?: number;
+  first_purchase_date?: string | null;
+  last_purchase_date?: string | null;
+  created_at?: string;
+  status?: string;
+  tags?: string[] | null;
+  klaviyo_id?: string | null;
+  external_id?: string | null;
+  accepts_marketing?: boolean | null;
+  email_consent?: string | null;
+  sms_consent?: string | null;
+  consent_source?: string | null;
+  klaviyo_created_at?: string | null;
+  klaviyo_updated_at?: string | null;
+  last_event_at?: string | null;
+  klaviyo_lists?: string[] | null;
+  klaviyo_segments?: string[] | null;
+  properties?: Record<string, unknown> | null;
+  predictive_analytics?: Record<string, unknown> | null;
 };
 
-const orders = [
-  { id: "#PM-4821", products: "Chocolate Protein Bar (x3), Whey Protein 1kg", value: "₹82.40", status: "Delivered", date: "Mar 15, 2026" },
-  { id: "#PM-4612", products: "Mixed Snack Box, Energy Bars (x6)", value: "₹64.80", status: "Delivered", date: "Feb 28, 2026" },
-  { id: "#PM-4401", products: "Peanut Butter Protein Bar (x5)", value: "₹44.99", status: "Delivered", date: "Feb 10, 2026" },
-  { id: "#PM-4188", products: "Whey Protein 2kg, Creatine 300g", value: "₹124.50", status: "Delivered", date: "Jan 22, 2026" },
-  { id: "#PM-3942", products: "Vegan Protein Bar (x4), Electrolyte Mix", value: "₹56.20", status: "Delivered", date: "Jan 5, 2026" },
-];
-
-const emailTimeline = [
-  { campaign: "Flash Sale — Weekend", status: "Clicked", date: "Mar 13, 2026" },
-  { campaign: "Weekly Newsletter #42", status: "Opened", date: "Mar 10, 2026" },
-  { campaign: "New Flavor Announcement", status: "Opened", date: "Mar 5, 2026" },
-  { campaign: "Abandoned Cart Recovery", status: "Clicked", date: "Feb 25, 2026" },
-  { campaign: "Weekly Newsletter #41", status: "Opened", date: "Mar 3, 2026" },
-  { campaign: "VIP Exclusive Deal", status: "Clicked", date: "Feb 18, 2026" },
-  { campaign: "Post-Purchase Follow-up", status: "Opened", date: "Feb 11, 2026" },
-  { campaign: "Weekly Newsletter #38", status: "Sent", date: "Feb 10, 2026" },
-  { campaign: "Win-Back Attempt", status: "Sent", date: "Jan 30, 2026" },
-  { campaign: "New Year Promo", status: "Opened", date: "Jan 2, 2026" },
-];
-
-const statusColors: Record<string, { bg: string; color: string }> = {
-  Clicked: { bg: "rgba(185, 28, 74, 0.15)", color: "#E8658B" },
-  Opened: { bg: "rgba(16, 185, 129, 0.15)", color: "#10b981" },
-  Sent: { bg: "rgba(113, 113, 122, 0.15)", color: "#a1a1aa" },
+type Order = {
+  id: string;
+  order_number?: string | null;
+  total_amount?: number | null;
+  currency?: string;
+  status?: string | null;
+  products?: { items?: string[]; itemCount?: number; discountCodes?: string[] } | null;
+  placed_at?: string | null;
 };
 
-const flowHistory = [
-  { name: "Welcome Series", status: "Completed", date: "Aug 2024", emails: 4 },
-  { name: "Post-Purchase Thank You", status: "Completed", date: "Sep 2024", emails: 2 },
-  { name: "Abandoned Cart Recovery", status: "Completed", date: "Feb 2026", emails: 2 },
-  { name: "VIP Customer Flow", status: "Active", date: "Jan 2026", emails: 1 },
-];
+type EmailEvent = {
+  id: string;
+  event_type: string;
+  created_at: string;
+  campaign_email_id?: string | null;
+};
 
-const tags = ["VIP", "Protein Lover", "Repeat Buyer", "Snack Fan", "High LTV"];
+const eventColors: Record<string, { bg: string; color: string }> = {
+  clicked: { bg: "rgba(185, 28, 74, 0.15)", color: "#E8658B" },
+  opened: { bg: "rgba(16, 185, 129, 0.15)", color: "#10b981" },
+  delivered: { bg: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" },
+  sent: { bg: "rgba(113, 113, 122, 0.15)", color: "#a1a1aa" },
+  bounced: { bg: "rgba(239, 68, 68, 0.15)", color: "#ef4444" },
+  unsubscribed: { bg: "rgba(113, 113, 122, 0.15)", color: "#a1a1aa" },
+};
 
-export default function ContactDetailPage() {
+function formatDate(d?: string | null) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function formatMonth(d?: string | null) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+}
+
+export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const [contact, setContact] = useState<Contact | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [events, setEvents] = useState<EmailEvent[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      const [contactRes, ordersRes, eventsRes] = await Promise.all([
+        supabase.from("contacts").select("*").eq("id", id).maybeSingle(),
+        supabase.from("orders").select("*").eq("contact_id", id).order("placed_at", { ascending: false }).limit(20),
+        supabase.from("email_events").select("*").eq("contact_id", id).order("created_at", { ascending: false }).limit(15),
+      ]);
+
+      if (contactRes.error || !contactRes.data) {
+        setNotFound(true);
+      } else {
+        setContact(contactRes.data as Contact);
+        setOrders((ordersRes.data || []) as Order[]);
+        setEvents((eventsRes.data || []) as EmailEvent[]);
+      }
+      setLoaded(true);
+    }
+    load();
+  }, [id]);
+
+  if (!loaded) {
+    return <div style={{ padding: "32px", color: "#71717a" }}>Loading…</div>;
+  }
+
+  if (notFound || !contact) {
+    return (
+      <div style={{ padding: "32px" }}>
+        <Link href="/dashboard/contacts">
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#71717a", fontSize: "14px", marginBottom: "24px", cursor: "pointer" }}>
+            <ChevronLeft size={16} />
+            Back to Contacts
+          </div>
+        </Link>
+        <div style={{ color: "#a1a1aa" }}>Contact not found.</div>
+      </div>
+    );
+  }
+
+  const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || contact.email.split("@")[0];
+  const initials = fullName.split(" ").map((n) => n[0]).join("").substring(0, 2).toUpperCase();
+  const location = [contact.city, contact.state, contact.country].filter(Boolean).join(", ") || "—";
+  const fullAddress = [contact.address1, contact.address2, contact.city, contact.state, contact.zip, contact.country].filter(Boolean).join(", ");
+  const ltv = contact.total_spent ? `₹${Number(contact.total_spent).toLocaleString("en-IN", { maximumFractionDigits: 2 })}` : "₹0";
+  const aov = contact.average_order_value ? `₹${Number(contact.average_order_value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}` : "₹0";
+  const tags = contact.tags || [];
+  const lists = contact.klaviyo_lists || [];
+  const segments = contact.klaviyo_segments || [];
+  const status = contact.status || "active";
+  const consentColor = (val?: string | null) => {
+    if (val === "SUBSCRIBED") return "#10b981";
+    if (val === "UNSUBSCRIBED" || val === "NEVER_SUBSCRIBED") return "#ef4444";
+    return "#a1a1aa";
+  };
+  const propEntries = contact.properties
+    ? Object.entries(contact.properties).filter(([k]) => !k.startsWith("$consent") && k !== "$source")
+    : [];
+
   return (
     <div style={{ padding: "32px" }}>
-      {/* Back */}
       <Link href="/dashboard/contacts">
         <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#71717a", fontSize: "14px", marginBottom: "24px", cursor: "pointer" }}>
           <ChevronLeft size={16} />
@@ -61,7 +151,6 @@ export default function ContactDetailPage() {
         </div>
       </Link>
 
-      {/* Profile Header */}
       <div
         style={{
           backgroundColor: "#18181b",
@@ -89,43 +178,44 @@ export default function ContactDetailPage() {
             flexShrink: 0,
           }}
         >
-          PS
+          {initials}
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
-            <h1 style={{ fontSize: "24px", fontWeight: 700, color: "#f4f4f5" }}>{mockContact.name}</h1>
-            <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, backgroundColor: "rgba(185, 28, 74, 0.15)", color: "#E8658B" }}>
-              VIP
+            <h1 style={{ fontSize: "24px", fontWeight: 700, color: "#f4f4f5" }}>{fullName}</h1>
+            <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: 600, backgroundColor: "rgba(16, 185, 129, 0.15)", color: "#10b981" }}>
+              {status}
             </span>
           </div>
           <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#a1a1aa", fontSize: "13px" }}>
               <Mail size={14} />
-              {mockContact.email}
+              {contact.email}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#a1a1aa", fontSize: "13px" }}>
-              <Phone size={14} />
-              {mockContact.phone}
-            </div>
+            {contact.phone && (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#a1a1aa", fontSize: "13px" }}>
+                <Phone size={14} />
+                {contact.phone}
+              </div>
+            )}
             <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#a1a1aa", fontSize: "13px" }}>
               <MapPin size={14} />
-              {mockContact.location}
+              {location}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#a1a1aa", fontSize: "13px" }}>
               <Calendar size={14} />
-              Customer since {mockContact.since}
+              Customer since {formatMonth(contact.created_at)}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Stats Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "20px" }}>
         {[
-          { label: "Total Orders", value: mockContact.totalOrders, sub: "all time", color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)" },
-          { label: "Total Spent (LTV)", value: mockContact.ltv, sub: "lifetime value", color: "#10b981", bg: "rgba(16, 185, 129, 0.1)" },
-          { label: "Avg Order Value", value: mockContact.aov, sub: "per order", color: "#B91C4A", bg: "rgba(185, 28, 74, 0.1)" },
-          { label: "Last Purchase", value: "Mar 15", sub: "2026", color: "#F5B731", bg: "rgba(245, 183, 49, 0.1)" },
+          { label: "Total Orders", value: contact.total_orders ?? 0, sub: "all time", color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)" },
+          { label: "Total Spent (LTV)", value: ltv, sub: "lifetime value", color: "#10b981", bg: "rgba(16, 185, 129, 0.1)" },
+          { label: "Avg Order Value", value: aov, sub: "per order", color: "#B91C4A", bg: "rgba(185, 28, 74, 0.1)" },
+          { label: "Last Purchase", value: formatDate(contact.last_purchase_date), sub: "", color: "#F5B731", bg: "rgba(245, 183, 49, 0.1)" },
         ].map((s) => (
           <div key={s.label} style={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "12px", padding: "20px" }}>
             <div style={{ width: "36px", height: "36px", borderRadius: "8px", backgroundColor: s.bg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "12px" }}>
@@ -138,138 +228,256 @@ export default function ContactDetailPage() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "20px" }}>
-        {/* Order History */}
         <div style={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "12px", padding: "24px" }}>
           <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#f4f4f5", marginBottom: "20px" }}>Order History</h2>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                {["Order ID", "Products", "Value", "Status", "Date"].map((h) => (
-                  <th key={h} style={{ textAlign: "left", padding: "0 0 10px 0", fontSize: "11px", fontWeight: 600, color: "#52525b", textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: "1px solid #27272a" }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((o, i) => (
-                <tr key={i} style={{ borderBottom: i < orders.length - 1 ? "1px solid #27272a" : "none" }}>
-                  <td style={{ padding: "12px 0", fontSize: "12px", fontWeight: 600, color: "#B91C4A" }}>{o.id}</td>
-                  <td style={{ padding: "12px 8px", fontSize: "12px", color: "#a1a1aa", maxWidth: "200px" }}>
-                    <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.products}</div>
-                  </td>
-                  <td style={{ padding: "12px 8px", fontSize: "13px", color: "#10b981", fontWeight: 600 }}>{o.value}</td>
-                  <td style={{ padding: "12px 8px" }}>
-                    <span style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "20px", backgroundColor: "rgba(16, 185, 129, 0.15)", color: "#10b981", fontWeight: 600 }}>
-                      {o.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: "12px 0", fontSize: "12px", color: "#71717a" }}>{o.date}</td>
+          {orders.length > 0 ? (
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  {["Order", "Items", "Value", "Date"].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "0 0 10px 0", fontSize: "11px", fontWeight: 600, color: "#52525b", textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: "1px solid #27272a" }}>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {orders.map((o, i) => {
+                  const items = o.products?.items || [];
+                  const itemsLabel = items.length > 0 ? items.join(", ") : "—";
+                  return (
+                    <tr key={o.id} style={{ borderBottom: i < orders.length - 1 ? "1px solid #27272a" : "none" }}>
+                      <td style={{ padding: "12px 0", fontSize: "12px", fontWeight: 600, color: "#B91C4A" }}>
+                        {o.order_number ? `#${o.order_number}` : o.id.substring(0, 8)}
+                      </td>
+                      <td style={{ padding: "12px 8px", fontSize: "12px", color: "#a1a1aa", maxWidth: "240px" }} title={itemsLabel}>
+                        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {itemsLabel}
+                        </div>
+                      </td>
+                      <td style={{ padding: "12px 8px", fontSize: "13px", color: "#10b981", fontWeight: 600 }}>
+                        {o.total_amount ? `₹${Number(o.total_amount).toLocaleString("en-IN", { maximumFractionDigits: 2 })}` : "—"}
+                      </td>
+                      <td style={{ padding: "12px 0", fontSize: "12px", color: "#71717a" }}>{formatDate(o.placed_at)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : (
+            <div style={{ color: "#52525b", fontSize: "13px", padding: "16px 0" }}>No orders yet.</div>
+          )}
         </div>
 
-        {/* Email Timeline */}
         <div style={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "12px", padding: "24px" }}>
           <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#f4f4f5", marginBottom: "20px" }}>Email Engagement</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {emailTimeline.map((e, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: statusColors[e.status]?.color, flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "13px", color: "#f4f4f5" }}>{e.campaign}</div>
-                  <div style={{ fontSize: "11px", color: "#52525b" }}>{e.date}</div>
+          {events.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {events.map((e) => (
+                <div key={e.id} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: eventColors[e.event_type]?.color || "#a1a1aa", flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "13px", color: "#f4f4f5" }}>{e.event_type}</div>
+                    <div style={{ fontSize: "11px", color: "#52525b" }}>{formatDate(e.created_at)}</div>
+                  </div>
+                  <span
+                    style={{
+                      padding: "2px 8px",
+                      borderRadius: "20px",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      backgroundColor: eventColors[e.event_type]?.bg || "rgba(113, 113, 122, 0.15)",
+                      color: eventColors[e.event_type]?.color || "#a1a1aa",
+                    }}
+                  >
+                    {e.event_type}
+                  </span>
                 </div>
-                <span
-                  style={{
-                    padding: "2px 8px",
-                    borderRadius: "20px",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    backgroundColor: statusColors[e.status]?.bg,
-                    color: statusColors[e.status]?.color,
-                  }}
-                >
-                  {e.status}
-                </span>
+              ))}
+            </div>
+          ) : (
+            <div style={{ color: "#52525b", fontSize: "13px", padding: "16px 0" }}>No email events yet.</div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "20px" }}>
+        <div style={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "12px", padding: "24px" }}>
+          <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#f4f4f5", marginBottom: "16px" }}>Marketing Consent</h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "#71717a" }}>Email</span>
+              <span style={{ color: consentColor(contact.email_consent), fontWeight: 600 }}>
+                {contact.email_consent || "—"}
+              </span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "#71717a" }}>SMS</span>
+              <span style={{ color: consentColor(contact.sms_consent), fontWeight: 600 }}>
+                {contact.sms_consent || "—"}
+              </span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "#71717a" }}>Accepts marketing</span>
+              <span style={{ color: contact.accepts_marketing ? "#10b981" : "#a1a1aa", fontWeight: 600 }}>
+                {contact.accepts_marketing == null ? "—" : contact.accepts_marketing ? "Yes" : "No"}
+              </span>
+            </div>
+            {contact.consent_source && (
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#71717a" }}>Source</span>
+                <span style={{ color: "#f4f4f5" }}>{contact.consent_source}</span>
               </div>
-            ))}
+            )}
+            {contact.last_event_at && (
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#71717a" }}>Last activity</span>
+                <span style={{ color: "#f4f4f5" }}>{formatDate(contact.last_event_at)}</span>
+              </div>
+            )}
+            {contact.first_purchase_date && (
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#71717a" }}>First purchase</span>
+                <span style={{ color: "#f4f4f5" }}>{formatDate(contact.first_purchase_date)}</span>
+              </div>
+            )}
+            {contact.locale && (
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#71717a" }}>Locale</span>
+                <span style={{ color: "#f4f4f5" }}>{contact.locale}</span>
+              </div>
+            )}
+            {contact.timezone && (
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#71717a" }}>Timezone</span>
+                <span style={{ color: "#f4f4f5" }}>{contact.timezone}</span>
+              </div>
+            )}
           </div>
+        </div>
+
+        <div style={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "12px", padding: "24px" }}>
+          <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#f4f4f5", marginBottom: "16px" }}>Address</h2>
+          {fullAddress ? (
+            <div style={{ fontSize: "13px", color: "#a1a1aa", lineHeight: 1.7 }}>{fullAddress}</div>
+          ) : (
+            <div style={{ color: "#52525b", fontSize: "13px" }}>No address on file.</div>
+          )}
+          {(contact.klaviyo_id || contact.external_id) && (
+            <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #27272a", display: "flex", flexDirection: "column", gap: "8px", fontSize: "12px" }}>
+              {contact.klaviyo_id && (
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "#71717a" }}>Klaviyo ID</span>
+                  <span style={{ color: "#a1a1aa", fontFamily: "monospace" }}>{contact.klaviyo_id}</span>
+                </div>
+              )}
+              {contact.external_id && (
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "#71717a" }}>External ID</span>
+                  <span style={{ color: "#a1a1aa", fontFamily: "monospace" }}>{contact.external_id}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "20px" }}>
+        <div style={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "12px", padding: "24px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+            <Tag size={16} color="#B91C4A" />
+            <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#f4f4f5" }}>Lists & Segments</h2>
+          </div>
+          {lists.length === 0 && segments.length === 0 ? (
+            <div style={{ color: "#52525b", fontSize: "13px" }}>Not in any list or segment.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {lists.length > 0 && (
+                <div>
+                  <div style={{ fontSize: "11px", color: "#71717a", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Lists</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    {lists.map((l) => (
+                      <span key={l} style={{ padding: "4px 10px", borderRadius: "20px", backgroundColor: "rgba(0, 180, 216, 0.1)", color: "#00B4D8", fontSize: "12px", fontWeight: 500 }}>{l}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {segments.length > 0 && (
+                <div>
+                  <div style={{ fontSize: "11px", color: "#71717a", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Segments</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    {segments.map((s) => (
+                      <span key={s} style={{ padding: "4px 10px", borderRadius: "20px", backgroundColor: "rgba(245, 183, 49, 0.1)", color: "#F5B731", fontSize: "12px", fontWeight: 500 }}>{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div style={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "12px", padding: "24px" }}>
+          <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#f4f4f5", marginBottom: "16px" }}>Custom Properties</h2>
+          {propEntries.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "12px" }}>
+              {propEntries.slice(0, 12).map(([k, v]) => (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+                  <span style={{ color: "#71717a", flexShrink: 0 }}>{k}</span>
+                  <span style={{ color: "#a1a1aa", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: typeof v === "string" ? undefined : "monospace" }}>
+                    {Array.isArray(v) ? v.join(", ") || "—" : typeof v === "object" ? JSON.stringify(v) : String(v)}
+                  </span>
+                </div>
+              ))}
+              {propEntries.length > 12 && (
+                <div style={{ color: "#52525b", fontSize: "11px", marginTop: "6px" }}>
+                  +{propEntries.length - 12} more properties
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ color: "#52525b", fontSize: "13px" }}>No custom properties.</div>
+          )}
         </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-        {/* Tags */}
         <div style={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "12px", padding: "24px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
             <Tag size={16} color="#B91C4A" />
             <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#f4f4f5" }}>Tags</h2>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-            {tags.map((tag) => (
-              <div
-                key={tag}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "6px 12px",
-                  backgroundColor: "#27272a",
-                  borderRadius: "8px",
-                  fontSize: "13px",
-                  color: "#a1a1aa",
-                }}
-              >
-                {tag}
-                <X size={12} color="#71717a" style={{ cursor: "pointer" }} />
-              </div>
-            ))}
-            <button
-              style={{
-                padding: "6px 12px",
-                backgroundColor: "rgba(185, 28, 74, 0.1)",
-                border: "1px dashed #B91C4A",
-                borderRadius: "8px",
-                fontSize: "13px",
-                color: "#B91C4A",
-                cursor: "pointer",
-              }}
-            >
-              + Add Tag
-            </button>
+            {tags.length > 0 ? (
+              tags.map((tag) => (
+                <div
+                  key={tag}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 12px",
+                    backgroundColor: "#27272a",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    color: "#a1a1aa",
+                  }}
+                >
+                  {tag}
+                  <X size={12} color="#71717a" style={{ cursor: "pointer" }} />
+                </div>
+              ))
+            ) : (
+              <div style={{ color: "#52525b", fontSize: "13px" }}>No tags.</div>
+            )}
           </div>
         </div>
 
-        {/* Flow History */}
         <div style={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "12px", padding: "24px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
             <GitBranch size={16} color="#B91C4A" />
             <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#f4f4f5" }}>Flow History</h2>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {flowHistory.map((f, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px", backgroundColor: "#1c1c1f", borderRadius: "8px" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#f4f4f5" }}>{f.name}</div>
-                  <div style={{ fontSize: "11px", color: "#71717a" }}>{f.date} · {f.emails} emails</div>
-                </div>
-                <span
-                  style={{
-                    padding: "3px 10px",
-                    borderRadius: "20px",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    backgroundColor: f.status === "Active" ? "rgba(16, 185, 129, 0.15)" : "rgba(113, 113, 122, 0.15)",
-                    color: f.status === "Active" ? "#10b981" : "#a1a1aa",
-                  }}
-                >
-                  {f.status}
-                </span>
-              </div>
-            ))}
-          </div>
+          <div style={{ color: "#52525b", fontSize: "13px" }}>No flow enrollments yet.</div>
         </div>
       </div>
     </div>

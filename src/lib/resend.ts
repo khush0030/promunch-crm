@@ -1,8 +1,16 @@
 import { Resend } from 'resend';
 
-const resendApiKey = process.env.RESEND_API_KEY!;
+let _client: Resend | null = null;
 
-export const resendClient = new Resend(resendApiKey);
+function getClient(): Resend {
+  if (_client) return _client;
+  const key = process.env.RESEND_API_KEY;
+  if (!key) {
+    throw new Error('RESEND_API_KEY is not set. Add it to .env.local or Vercel project env.');
+  }
+  _client = new Resend(key);
+  return _client;
+}
 
 export const DEFAULT_FROM = 'PROMUNCH <onboarding@resend.dev>';
 
@@ -14,7 +22,7 @@ export interface SendEmailOptions {
 }
 
 export async function sendEmail({ to, subject, html, from }: SendEmailOptions) {
-  const result = await resendClient.emails.send({
+  const result = await getClient().emails.send({
     from: from || DEFAULT_FROM,
     to: Array.isArray(to) ? to : [to],
     subject,
@@ -38,11 +46,11 @@ export async function sendBatchEmails(emails: BatchEmailItem[]) {
     html: e.html,
   }));
 
-  // Resend batch API allows up to 100 emails per request
+  const client = getClient();
   const results = [];
   for (let i = 0; i < batches.length; i += 100) {
     const chunk = batches.slice(i, i + 100);
-    const result = await resendClient.batch.send(chunk);
+    const result = await client.batch.send(chunk);
     results.push(result);
   }
   return results;

@@ -8,13 +8,32 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search') || '';
   const status = searchParams.get('status') || '';
   const tag = searchParams.get('tag') || '';
+  const minOrders = parseInt(searchParams.get('minOrders') || '0');
+  const maxOrders = parseInt(searchParams.get('maxOrders') || '0');
+  const minLtv = parseFloat(searchParams.get('minLtv') || '0');
+  const maxLtv = parseFloat(searchParams.get('maxLtv') || '0');
+  const lastOrderDays = parseInt(searchParams.get('lastOrderDays') || '0');
+  const lastOrderOp = searchParams.get('lastOrderOp') || 'within';
+  const sort = searchParams.get('sort') || 'created_at';
+  const dir = (searchParams.get('dir') || 'desc') === 'asc' ? true : false;
+
+  const allowedSorts = new Set([
+    'created_at',
+    'total_orders',
+    'total_spent',
+    'average_order_value',
+    'last_purchase_date',
+    'first_purchase_date',
+    'email',
+  ]);
+  const sortCol = allowedSorts.has(sort) ? sort : 'created_at';
 
   const offset = (page - 1) * limit;
 
   let query = supabase
     .from('contacts')
     .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false })
+    .order(sortCol, { ascending: dir, nullsFirst: false })
     .range(offset, offset + limit - 1);
 
   if (search) {
@@ -27,6 +46,20 @@ export async function GET(request: NextRequest) {
 
   if (tag) {
     query = query.contains('tags', [tag]);
+  }
+
+  if (minOrders > 0) query = query.gte('total_orders', minOrders);
+  if (maxOrders > 0) query = query.lte('total_orders', maxOrders);
+  if (minLtv > 0) query = query.gte('total_spent', minLtv);
+  if (maxLtv > 0) query = query.lte('total_spent', maxLtv);
+
+  if (lastOrderDays > 0) {
+    const cutoff = new Date(Date.now() - lastOrderDays * 24 * 60 * 60 * 1000).toISOString();
+    if (lastOrderOp === 'within') {
+      query = query.gte('last_purchase_date', cutoff);
+    } else if (lastOrderOp === 'before') {
+      query = query.lt('last_purchase_date', cutoff);
+    }
   }
 
   const { data, error, count } = await query;
