@@ -1,9 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronDown, Menu, X } from "lucide-react";
+import { ChevronDown, LogOut, Menu, X } from "lucide-react";
+import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 type NavLink = { href: string; label: string; icon: React.ReactNode; countKey?: string };
 type NavGroup = { id: string; label: string; items: NavLink[] };
@@ -138,7 +140,14 @@ export function MobileHeader({ onToggle }: { onToggle: () => void }) {
         <Menu size={20} />
       </button>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div className="brand-mark" style={{ width: 26, height: 26, fontSize: 11 }}>PM</div>
+        <Image
+          src="/pm-logo-p.png"
+          alt="PROMUNCH"
+          width={26}
+          height={26}
+          style={{ borderRadius: 6, display: "block" }}
+          priority
+        />
         <div className="brand-text">
           <b>PROMUNCH</b>
         </div>
@@ -160,8 +169,11 @@ export default function Sidebar({
   counts?: Record<string, number | string | undefined>;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [hydrated, setHydrated] = useState(false);
+  const [user, setUser] = useState<{ email: string; name: string } | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     setHydrated(true);
@@ -171,7 +183,44 @@ export default function Sidebar({
       if (raw === "1") next[g.id] = true;
     }
     setCollapsed(next);
+
+    const supabase = createSupabaseBrowserClient();
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        const meta = data.user.user_metadata || {};
+        const name =
+          (typeof meta.full_name === "string" && meta.full_name) ||
+          (typeof meta.name === "string" && meta.name) ||
+          (data.user.email ? data.user.email.split("@")[0] : "User");
+        setUser({ email: data.user.email || "", name });
+      }
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (session?.user) {
+        const meta = session.user.user_metadata || {};
+        const name =
+          (typeof meta.full_name === "string" && meta.full_name) ||
+          (typeof meta.name === "string" && meta.name) ||
+          (session.user.email ? session.user.email.split("@")[0] : "User");
+        setUser({ email: session.user.email || "", name });
+      } else {
+        setUser(null);
+      }
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      const supabase = createSupabaseBrowserClient();
+      await supabase.auth.signOut();
+      router.replace("/login");
+      router.refresh();
+    } finally {
+      setSigningOut(false);
+    }
+  }
 
   const toggleGroup = (id: string) => {
     setCollapsed((prev) => {
@@ -188,10 +237,11 @@ export default function Sidebar({
     return pathname === href || pathname.startsWith(href + "/");
   };
 
-  const userName = "Khush Mutha";
-  const userEmail = "khush@promunch.in";
-  const userInitials = userName
-    .split(/\s+/)
+  const userName = user?.name || "Signed out";
+  const userEmail = user?.email || "—";
+  const userInitials = (user?.name || user?.email || "?")
+    .split(/[\s@.]+/)
+    .filter(Boolean)
     .map((p) => p[0])
     .slice(0, 2)
     .join("")
@@ -208,9 +258,15 @@ export default function Sidebar({
       )}
       <aside className={`sidebar${isMobile && isOpen ? " open" : ""}`}>
         <div className="brand">
-          <div className="brand-mark">PM</div>
-          <div className="brand-text">
-            <b>PROMUNCH</b>
+          <Image
+            src="/pm-logo-wide.png"
+            alt="PROMUNCH"
+            width={120}
+            height={61}
+            style={{ height: 30, width: "auto", display: "block" }}
+            priority
+          />
+          <div className="brand-text" style={{ marginLeft: 2 }}>
             <span>CRM</span>
           </div>
           {isMobile && (
@@ -278,6 +334,26 @@ export default function Sidebar({
             <b>{userName}</b>
             <span>{userEmail}</span>
           </div>
+          {user && (
+            <button
+              type="button"
+              onClick={handleSignOut}
+              disabled={signingOut}
+              aria-label="Sign out"
+              title="Sign out"
+              style={{
+                marginLeft: "auto",
+                background: "none",
+                border: "none",
+                color: "var(--side-text)",
+                cursor: signingOut ? "not-allowed" : "pointer",
+                padding: 4,
+                borderRadius: 6,
+              }}
+            >
+              <LogOut size={14} />
+            </button>
+          )}
         </div>
       </aside>
     </>

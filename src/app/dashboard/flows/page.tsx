@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ui/Toast";
 
 const statusPill: Record<string, { cls: string; label: string }> = {
   active: { cls: "green", label: "Active" },
@@ -32,8 +34,32 @@ type FlowRow = {
 };
 
 export default function FlowsPage() {
+  const router = useRouter();
+  const toast = useToast();
   const [flows, setFlows] = useState<FlowRow[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  async function handleCreate() {
+    const name = prompt("Name your new flow:");
+    if (!name) return;
+    setCreating(true);
+    try {
+      const res = await fetch("/api/flows", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.flow) throw new Error(data.error || "Failed to create");
+      toast.push({ kind: "success", text: `Flow "${name}" created.` });
+      router.push(`/dashboard/flows/${data.flow.id}`);
+    } catch (e) {
+      toast.push({ kind: "error", text: `Create failed: ${e instanceof Error ? e.message : "unknown"}` });
+    } finally {
+      setCreating(false);
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -77,8 +103,8 @@ export default function FlowsPage() {
           <h1>Flows</h1>
           <div className="sub">Automated email sequences triggered by customer behaviour</div>
         </div>
-        <button type="button" className="btn primary">
-          <Plus size={14} /> Create flow
+        <button type="button" className="btn primary" onClick={handleCreate} disabled={creating}>
+          <Plus size={14} /> {creating ? "Creating…" : "Create flow"}
         </button>
       </div>
 

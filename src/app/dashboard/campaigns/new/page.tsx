@@ -1,21 +1,10 @@
 "use client";
+
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, CheckCircle2, Send, Calendar, Users, Mail, FileText, Eye } from "lucide-react";
-
-const steps = [
-  { id: 1, label: "Campaign Info", icon: FileText },
-  { id: 2, label: "Audience", icon: Users },
-  { id: 3, label: "Email Body", icon: Mail },
-  { id: 4, label: "Review & Send", icon: Send },
-];
-
-const audiences = [
-  "All Subscribers",
-  "VIP Customers",
-  "New Customers (last 30 days)",
-  "Lapsed Customers (90d+)",
-];
+import { useRouter } from "next/navigation";
+import { ChevronLeft, CheckCircle2, Send, Save } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 
 interface FormData {
   name: string;
@@ -25,474 +14,210 @@ interface FormData {
   body: string;
 }
 
+const audiences = [
+  { value: "all", label: "All subscribers" },
+  { value: "vip", label: "VIP customers" },
+  { value: "new", label: "New customers (last 30 days)" },
+  { value: "lapsed", label: "Lapsed (90+ days)" },
+];
+
 export default function NewCampaignPage() {
-  const [currentStep, setCurrentStep] = useState(1);
+  const router = useRouter();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormData>({
     name: "",
     subject: "",
     preview: "",
-    audience: "",
+    audience: "all",
     body: "",
   });
-  const [sent, setSent] = useState(false);
+  const update = (k: keyof FormData, v: string) => setFormData((p) => ({ ...p, [k]: v }));
 
-  const updateField = (field: keyof FormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  async function persist(send: boolean) {
+    if (!formData.name.trim() || !formData.subject.trim()) {
+      toast.push({ kind: "error", text: "Name and subject are required." });
+      return;
+    }
+    setBusy(true);
+    try {
+      const payload = {
+        name: formData.name,
+        subject: formData.subject,
+        preview_text: formData.preview,
+        body_html: formData.body,
+        segment_filter: { audience: formData.audience },
+        status: "draft",
+      };
+      const res = await fetch("/api/campaigns", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.campaign) throw new Error(data.error || "Save failed");
+      setSavedId(data.campaign.id);
+      toast.push({ kind: "success", text: "Draft saved." });
+      if (send) {
+        const sendRes = await fetch(`/api/campaigns/${data.campaign.id}/send`, { method: "POST" });
+        const sendData = await sendRes.json();
+        if (!sendRes.ok) throw new Error(sendData.error || "Send failed");
+        toast.push({ kind: "success", text: "Campaign sent." });
+        router.push(`/dashboard/campaigns/${data.campaign.id}`);
+      } else {
+        router.push(`/dashboard/campaigns/${data.campaign.id}`);
+      }
+    } catch (e) {
+      toast.push({ kind: "error", text: e instanceof Error ? e.message : "Failed" });
+    } finally {
+      setBusy(false);
+    }
+  }
 
-  const canNext = () => {
-    if (currentStep === 1) return formData.name.trim() && formData.subject.trim();
-    if (currentStep === 2) return formData.audience !== "";
-    if (currentStep === 3) return formData.body.trim().length > 0;
-    return true;
-  };
-
-  if (sent) {
+  if (savedId) {
     return (
-      <div style={{ padding: "32px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
-        <div
-          style={{
-            width: "80px",
-            height: "80px",
-            borderRadius: "50%",
-            backgroundColor: "rgba(16,185,129,0.15)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: "24px",
-          }}
-        >
-          <CheckCircle2 size={40} color="var(--green)" />
-        </div>
-        <h2 style={{ fontSize: "24px", fontWeight: 700, color: "var(--text)", marginBottom: "8px" }}>Campaign Sent!</h2>
-        <p style={{ fontSize: "15px", color: "var(--text-2)", marginBottom: "28px" }}>
-          &ldquo;{formData.name}&rdquo; has been sent to {formData.audience}.
-        </p>
-        <Link href="/dashboard/campaigns">
-          <button
+      <div className="page" style={{ maxWidth: 640 }}>
+        <div className="card card-pad" style={{ textAlign: "center", padding: 48 }}>
+          <div
             style={{
-              padding: "10px 24px",
-              borderRadius: "9px",
-              background: "linear-gradient(135deg, var(--accent), #9b1740)",
-              border: "none",
-              color: "var(--card-bg)",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: "pointer",
+              width: 56,
+              height: 56,
+              borderRadius: 14,
+              background: "var(--green-soft)",
+              display: "grid",
+              placeItems: "center",
+              margin: "0 auto 18px",
             }}
           >
-            Back to Campaigns
-          </button>
-        </Link>
+            <CheckCircle2 size={28} color="var(--green)" />
+          </div>
+          <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 6 }}>Campaign saved</h2>
+          <p className="muted" style={{ fontSize: 13, marginBottom: 20 }}>
+            &ldquo;{formData.name}&rdquo; — review and send when ready.
+          </p>
+          <Link href={`/dashboard/campaigns/${savedId}`} className="btn primary">
+            Open campaign
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: "32px" }}>
-      {/* Back */}
-      <Link href="/dashboard/campaigns" style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "var(--text-2)", fontSize: "13px", textDecoration: "none", marginBottom: "20px" }}>
-        <ChevronLeft size={16} />
-        Back to Campaigns
-      </Link>
-
-      {/* Header */}
-      <div style={{ marginBottom: "32px" }}>
-        <h1 style={{ fontSize: "28px", fontWeight: 700, color: "var(--text)", letterSpacing: "-0.5px" }}>Create Campaign</h1>
-        <p style={{ color: "var(--text-2)", marginTop: "4px", fontSize: "14px" }}>
-          Set up and send your email campaign to PROMUNCH subscribers
-        </p>
-      </div>
-
-      {/* Step indicator */}
-      <div style={{ display: "flex", alignItems: "center", marginBottom: "36px", position: "relative" }}>
-        {/* Progress bar background */}
-        <div
-          style={{
-            position: "absolute",
-            top: "20px",
-            left: "20px",
-            right: "20px",
-            height: "2px",
-            backgroundColor: "var(--border)",
-            zIndex: 0,
-          }}
-        />
-        {/* Progress bar fill */}
-        <div
-          style={{
-            position: "absolute",
-            top: "20px",
-            left: "20px",
-            height: "2px",
-            backgroundColor: "var(--accent)",
-            width: `${((currentStep - 1) / (steps.length - 1)) * 100}%`,
-            zIndex: 1,
-            transition: "width 0.3s ease",
-          }}
-        />
-
-        {steps.map((step) => {
-          const done = step.id < currentStep;
-          const active = step.id === currentStep;
-          return (
-            <div
-              key={step.id}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                flex: 1,
-                position: "relative",
-                zIndex: 2,
-              }}
-            >
-              <div
-                style={{
-                  width: "40px",
-                  height: "40px",
-                  borderRadius: "50%",
-                  backgroundColor: done ? "var(--accent)" : active ? "var(--accent)" : "var(--border)",
-                  border: active ? "3px solid var(--text)" : done ? "none" : "2px solid var(--border-2)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: "8px",
-                  transition: "all 0.2s",
-                }}
-              >
-                {done ? (
-                  <CheckCircle2 size={18} color="var(--card-bg)" />
-                ) : (
-                  <step.icon size={16} color={active ? "var(--card-bg)" : "var(--text-3)"} />
-                )}
-              </div>
-              <div
-                style={{
-                  fontSize: "12px",
-                  fontWeight: active || done ? 600 : 400,
-                  color: active ? "var(--text)" : done ? "var(--accent)" : "var(--text-3)",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {step.label}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Step Content */}
-      <div
+    <div className="page" style={{ maxWidth: 760 }}>
+      <Link
+        href="/dashboard/campaigns"
         style={{
-          backgroundColor: "var(--card-bg)",
-          border: "1px solid var(--border)",
-          borderRadius: "12px",
-          padding: "32px",
-          marginBottom: "20px",
-          maxWidth: "680px",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          color: "var(--text-2)",
+          fontSize: 13,
+          marginBottom: 16,
         }}
       >
-        {/* Step 1 */}
-        {currentStep === 1 && (
-          <div>
-            <h2 style={{ fontSize: "18px", fontWeight: 600, color: "var(--text)", marginBottom: "8px" }}>Campaign Details</h2>
-            <p style={{ fontSize: "13px", color: "var(--text-2)", marginBottom: "24px" }}>Give your campaign a name and set the email subject</p>
+        <ChevronLeft size={14} /> Back to Campaigns
+      </Link>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-              <div>
-                <label style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-2)", display: "block", marginBottom: "8px" }}>
-                  Campaign Name <span style={{ color: "var(--accent)" }}>*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder=""
-                  value={formData.name}
-                  onChange={(e) => updateField("name", e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "12px 16px",
-                    backgroundColor: "var(--border)",
-                    border: "1px solid var(--border-2)",
-                    borderRadius: "8px",
-                    color: "var(--text)",
-                    fontSize: "14px",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-2)", display: "block", marginBottom: "8px" }}>
-                  Subject Line <span style={{ color: "var(--accent)" }}>*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder=""
-                  value={formData.subject}
-                  onChange={(e) => updateField("subject", e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "12px 16px",
-                    backgroundColor: "var(--border)",
-                    border: "1px solid var(--border-2)",
-                    borderRadius: "8px",
-                    color: "var(--text)",
-                    fontSize: "14px",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-2)", display: "block", marginBottom: "8px" }}>
-                  Preview Text
-                </label>
-                <input
-                  type="text"
-                  placeholder=""
-                  value={formData.preview}
-                  onChange={(e) => updateField("preview", e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "12px 16px",
-                    backgroundColor: "var(--border)",
-                    border: "1px solid var(--border-2)",
-                    borderRadius: "8px",
-                    color: "var(--text)",
-                    fontSize: "14px",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                />
-                <p style={{ fontSize: "12px", color: "var(--text-3)", marginTop: "6px" }}>Optional. Displays after the subject line in email clients.</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2 */}
-        {currentStep === 2 && (
-          <div>
-            <h2 style={{ fontSize: "18px", fontWeight: 600, color: "var(--text)", marginBottom: "8px" }}>Select Audience</h2>
-            <p style={{ fontSize: "13px", color: "var(--text-2)", marginBottom: "24px" }}>Choose who will receive this campaign</p>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {audiences.map((audience) => (
-                <div
-                  key={audience}
-                  onClick={() => updateField("audience", audience)}
-                  style={{
-                    padding: "16px 20px",
-                    borderRadius: "10px",
-                    border: formData.audience === audience ? "2px solid var(--accent)" : "1px solid var(--border-2)",
-                    backgroundColor: formData.audience === audience ? "rgba(185,28,74,0.08)" : "var(--border)",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <Users size={18} color={formData.audience === audience ? "var(--accent)" : "var(--text-2)"} />
-                    <span style={{ fontSize: "14px", fontWeight: 600, color: formData.audience === audience ? "var(--text)" : "var(--text-2)" }}>
-                      {audience}
-                    </span>
-                  </div>
-                  {formData.audience === audience && (
-                    <CheckCircle2 size={18} color="var(--accent)" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Step 3 */}
-        {currentStep === 3 && (
-          <div>
-            <h2 style={{ fontSize: "18px", fontWeight: 600, color: "var(--text)", marginBottom: "8px" }}>Email Content</h2>
-            <p style={{ fontSize: "13px", color: "var(--text-2)", marginBottom: "24px" }}>Write your email body — a visual drag-drop builder is coming soon</p>
-
-            <div
-              style={{
-                backgroundColor: "var(--border)",
-                border: "1px solid var(--border-2)",
-                borderRadius: "8px",
-                marginBottom: "12px",
-                padding: "8px 12px",
-                display: "flex",
-                gap: "8px",
-                alignItems: "center",
-              }}
-            >
-              {["B", "I", "U", "Link", "Image"].map((tool) => (
-                <button
-                  key={tool}
-                  style={{
-                    padding: "4px 10px",
-                    borderRadius: "4px",
-                    border: "1px solid var(--border-2)",
-                    backgroundColor: "transparent",
-                    color: "var(--text-2)",
-                    fontSize: "12px",
-                    fontWeight: tool === "B" ? 700 : 400,
-                    cursor: "pointer",
-                  }}
-                >
-                  {tool}
-                </button>
-              ))}
-            </div>
-
-            <textarea
-              placeholder={`Hi {{first_name}},\n\nWrite your email content here...\n\nThis is a preview area. A full drag-and-drop email builder is coming soon.\n\nBest,\nThe PROMUNCH Team`}
-              value={formData.body}
-              onChange={(e) => updateField("body", e.target.value)}
-              rows={14}
-              style={{
-                width: "100%",
-                padding: "16px",
-                backgroundColor: "var(--border)",
-                border: "1px solid var(--border-2)",
-                borderRadius: "8px",
-                color: "var(--text)",
-                fontSize: "14px",
-                lineHeight: "1.7",
-                outline: "none",
-                resize: "vertical",
-                fontFamily: "inherit",
-                boxSizing: "border-box",
-              }}
-            />
-            <p style={{ fontSize: "12px", color: "var(--text-3)", marginTop: "8px" }}>
-              Use {"{{first_name}}"} for personalisation. HTML is supported.
-            </p>
-          </div>
-        )}
-
-        {/* Step 4 */}
-        {currentStep === 4 && (
-          <div>
-            <h2 style={{ fontSize: "18px", fontWeight: 600, color: "var(--text)", marginBottom: "8px" }}>Review & Send</h2>
-            <p style={{ fontSize: "13px", color: "var(--text-2)", marginBottom: "24px" }}>Confirm your campaign details before sending</p>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginBottom: "28px" }}>
-              {[
-                { label: "Campaign Name", value: formData.name || "", icon: FileText },
-                { label: "Subject Line", value: formData.subject || "", icon: Mail },
-                { label: "Preview Text", value: formData.preview || "Not set", icon: Eye },
-                { label: "Audience", value: formData.audience || "", icon: Users },
-                { label: "Email Body", value: formData.body ? `${formData.body.slice(0, 80)}...` : "", icon: Mail },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  style={{
-                    padding: "14px 16px",
-                    backgroundColor: "var(--border)",
-                    borderRadius: "10px",
-                    border: "1px solid var(--border-2)",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "12px",
-                  }}
-                >
-                  <item.icon size={16} color="var(--text-2)" style={{ marginTop: "2px", flexShrink: 0 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>
-                      {item.label}
-                    </div>
-                    <div style={{ fontSize: "14px", color: "var(--text)" }}>{item.value}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button
-                onClick={() => setSent(true)}
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                  padding: "12px 24px",
-                  borderRadius: "9px",
-                  background: "linear-gradient(135deg, var(--accent), #9b1740)",
-                  border: "none",
-                  color: "var(--card-bg)",
-                  fontSize: "14px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                <Send size={16} />
-                Send Now
-              </button>
-              <button
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                  padding: "12px 24px",
-                  borderRadius: "9px",
-                  border: "1px solid var(--border-2)",
-                  backgroundColor: "var(--border)",
-                  color: "var(--text)",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                <Calendar size={16} />
-                Schedule
-              </button>
-            </div>
-          </div>
-        )}
+      <div className="page-head">
+        <div>
+          <h1>New campaign</h1>
+          <div className="sub">Compose a one-off email send.</div>
+        </div>
       </div>
 
-      {/* Navigation buttons */}
-      {currentStep < 4 && (
-        <div style={{ display: "flex", justifyContent: "space-between", maxWidth: "680px" }}>
-          <button
-            onClick={() => setCurrentStep(s => Math.max(1, s - 1))}
-            disabled={currentStep === 1}
-            style={{
-              padding: "10px 20px",
-              borderRadius: "8px",
-              border: "1px solid var(--border)",
-              backgroundColor: "transparent",
-              color: currentStep === 1 ? "var(--border-2)" : "var(--text-2)",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: currentStep === 1 ? "not-allowed" : "pointer",
-            }}
-          >
-            ← Back
-          </button>
-          <button
-            onClick={() => setCurrentStep(s => Math.min(4, s + 1))}
-            disabled={!canNext()}
-            style={{
-              padding: "10px 24px",
-              borderRadius: "8px",
-              background: canNext() ? "linear-gradient(135deg, var(--accent), #9b1740)" : "var(--border)",
-              border: "none",
-              color: canNext() ? "var(--card-bg)" : "var(--text-3)",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: canNext() ? "pointer" : "not-allowed",
-            }}
-          >
-            Next →
-          </button>
+      <div className="card card-pad section">
+        <div className="card-title">Campaign info</div>
+        <div className="grid-2" style={{ marginTop: 14 }}>
+          <div className="field">
+            <label>Campaign name</label>
+            <input
+              className="input"
+              title="Campaign name"
+              placeholder="Weekend sale — March"
+              value={formData.name}
+              onChange={(e) => update("name", e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label>Audience</label>
+            <select
+              className="input"
+              title="Audience"
+              value={formData.audience}
+              onChange={(e) => update("audience", e.target.value)}
+            >
+              {audiences.map((a) => (
+                <option key={a.value} value={a.value}>
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-      )}
+      </div>
+
+      <div className="card card-pad section">
+        <div className="card-title">Subject line</div>
+        <div className="card-sub">Shown in the inbox preview alongside the preview text.</div>
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="field">
+            <label>Subject</label>
+            <input
+              className="input"
+              title="Subject"
+              placeholder="Get 20% off this weekend only"
+              value={formData.subject}
+              onChange={(e) => update("subject", e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label>Preview text</label>
+            <input
+              className="input"
+              title="Preview text"
+              placeholder="Use this 24 hours to grab your favourites"
+              value={formData.preview}
+              onChange={(e) => update("preview", e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="card card-pad section">
+        <div className="card-title">Email body</div>
+        <div className="card-sub">Plain HTML works. Paste or write your message below.</div>
+        <textarea
+          className="input"
+          title="Email body HTML"
+          placeholder="<p>Hi {{first_name}}, …</p>"
+          value={formData.body}
+          onChange={(e) => update("body", e.target.value)}
+          style={{ marginTop: 14, minHeight: 240, fontFamily: "var(--font-geist-mono), monospace", fontSize: 13 }}
+        />
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => persist(false)}
+          disabled={busy}
+        >
+          <Save size={14} /> Save draft
+        </button>
+        <button
+          type="button"
+          className="btn primary"
+          onClick={() => {
+            if (confirm("Send this campaign now?")) persist(true);
+          }}
+          disabled={busy}
+        >
+          <Send size={14} /> {busy ? "Sending…" : "Save & send"}
+        </button>
+      </div>
     </div>
   );
 }

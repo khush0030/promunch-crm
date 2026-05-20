@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
+import { ToastProvider } from "@/components/ui/Toast";
 import { supabase } from "@/lib/supabase";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -46,15 +47,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, []);
 
   return (
-    <div className="app">
-      {isMobile && <MobileHeader onToggle={() => setSidebarOpen(!sidebarOpen)} />}
-      <Sidebar
-        isOpen={isMobile ? sidebarOpen : true}
-        onToggle={() => setSidebarOpen(false)}
-        isMobile={isMobile}
-        counts={counts}
-      />
-      <main className="main">{children}</main>
-    </div>
+    <ToastProvider>
+      <div className="app">
+        {isMobile && <MobileHeader onToggle={() => setSidebarOpen(!sidebarOpen)} />}
+        <Sidebar
+          isOpen={isMobile ? sidebarOpen : true}
+          onToggle={() => setSidebarOpen(false)}
+          isMobile={isMobile}
+          counts={counts}
+        />
+        <main className="main">{children}</main>
+      </div>
+    </ToastProvider>
   );
 }
