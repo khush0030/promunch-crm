@@ -60,7 +60,7 @@ type KbDoc = {
   created_at: string;
 };
 
-const BRAND = "#B91C4A";
+const BRAND = "var(--accent)";
 const BRAND_DARK = "#8B1539";
 const WA_GREEN = "#25D366";
 
@@ -77,28 +77,28 @@ function timeAgo(iso: string | null): string {
 }
 
 const priorityStyle: Record<string, { bg: string; color: string }> = {
-  urgent: { bg: "rgba(239,68,68,0.12)", color: "#b91c1c" },
-  high:   { bg: "rgba(249,115,22,0.12)", color: "#c2410c" },
+  urgent: { bg: "rgba(239,68,68,0.12)", color: "var(--accent)" },
+  high:   { bg: "rgba(249,115,22,0.12)", color: "var(--amber)" },
   normal: { bg: "rgba(59,130,246,0.10)", color: "#1d4ed8" },
-  low:    { bg: "rgba(107,114,128,0.10)", color: "#4b5563" },
+  low:    { bg: "rgba(107,114,128,0.10)", color: "var(--text-2)" },
 };
 
 const ticketStatusStyle: Record<string, { bg: string; color: string; label: string }> = {
   open:     { bg: "rgba(245,183,49,0.14)", color: "#92400e", label: "Open" },
   pending:  { bg: "rgba(59,130,246,0.14)", color: "#1d4ed8", label: "Pending" },
-  resolved: { bg: "rgba(16,185,129,0.14)", color: "#047857", label: "Resolved" },
-  closed:   { bg: "rgba(107,114,128,0.14)", color: "#4b5563", label: "Closed" },
-  none:     { bg: "rgba(229,231,235,0.6)",  color: "#6b7280", label: "—" },
+  resolved: { bg: "rgba(16,185,129,0.14)", color: "var(--green)", label: "Resolved" },
+  closed:   { bg: "rgba(107,114,128,0.14)", color: "var(--text-2)", label: "Closed" },
+  none:     { bg: "rgba(229,231,235,0.6)",  color: "var(--text-2)", label: "—" },
 };
 
 export default function WhatsAppPage() {
   const [tab, setTab] = useState<Tab>("inbox");
 
   return (
-    <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+    <div className="page">
       <Header />
       <Tabs tab={tab} onChange={setTab} />
-      <div style={{ marginTop: 16 }}>
+      <div>
         {tab === "inbox" && <InboxView ticketsOnly={false} />}
         {tab === "tickets" && <InboxView ticketsOnly={true} />}
         {tab === "templates" && <TemplatesView />}
@@ -110,50 +110,41 @@ export default function WhatsAppPage() {
 
 function Header() {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+    <div className="page-head">
       <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 10, background: WA_GREEN,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <MessageSquare size={22} color="#fff" />
-          </div>
-          <div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, color: "#111827", margin: 0 }}>WhatsApp</h1>
-            <div style={{ fontSize: 13, color: "#6b7280" }}>Inbox, AI agent, templates & tickets</div>
-          </div>
-        </div>
+        <h1>
+          <span className="head-icon" style={{ background: "var(--green-soft)" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="1.9">
+              <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 21l2-5.5a8.5 8.5 0 0 1 7.5-12 8.38 8.38 0 0 1 8.5 8z" />
+            </svg>
+          </span>
+          WhatsApp
+        </h1>
+        <div className="sub">Inbox, AI agent, templates &amp; tickets</div>
       </div>
     </div>
   );
 }
 
 function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
-  const items: Array<{ key: Tab; label: string; icon: any }> = [
-    { key: "inbox", label: "Inbox", icon: InboxIcon },
-    { key: "tickets", label: "Tickets", icon: TicketIcon },
-    { key: "templates", label: "Templates", icon: Megaphone },
-    { key: "kb", label: "Knowledge Base", icon: FileText },
+  const items: Array<{ key: Tab; label: string }> = [
+    { key: "inbox", label: "Inbox" },
+    { key: "tickets", label: "Tickets" },
+    { key: "templates", label: "Templates" },
+    { key: "kb", label: "Knowledge Base" },
   ];
   return (
-    <div style={{ display: "flex", gap: 4, borderBottom: "1px solid #e5e7eb" }}>
-      {items.map((it) => {
-        const active = tab === it.key;
-        return (
-          <button key={it.key} onClick={() => onChange(it.key)}
-            style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "12px 16px", border: "none", background: "none",
-              fontSize: 14, fontWeight: 600,
-              color: active ? BRAND : "#6b7280",
-              borderBottom: active ? `2px solid ${BRAND}` : "2px solid transparent",
-              cursor: "pointer", marginBottom: -1,
-            }}>
-            <it.icon size={16} /> {it.label}
-          </button>
-        );
-      })}
+    <div className="tabs">
+      {items.map((it) => (
+        <button
+          key={it.key}
+          type="button"
+          className={`tab${tab === it.key ? " active" : ""}`}
+          onClick={() => onChange(it.key)}
+        >
+          {it.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -192,18 +183,18 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 16, height: "calc(100vh - 200px)" }}>
       <div style={{
-        background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12,
+        background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 12,
         overflow: "hidden", display: "flex", flexDirection: "column",
       }}>
-        <div style={{ padding: 12, borderBottom: "1px solid #e5e7eb" }}>
+        <div style={{ padding: 12, borderBottom: "1px solid var(--border)" }}>
           <div style={{ position: "relative", marginBottom: 8 }}>
-            <Search size={14} style={{ position: "absolute", left: 10, top: 10, color: "#9ca3af" }} />
+            <Search size={14} style={{ position: "absolute", left: 10, top: 10, color: "var(--text-3)" }} />
             <input
               value={search} onChange={(e) => setSearch(e.target.value)}
               placeholder="Search phone or message…"
               style={{
                 width: "100%", padding: "8px 8px 8px 32px", borderRadius: 8,
-                border: "1px solid #e5e7eb", fontSize: 13, outline: "none",
+                border: "1px solid var(--border)", fontSize: 13, outline: "none",
               }}
             />
           </div>
@@ -228,18 +219,18 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
                   onClick={() => (ticketsOnly ? setTicket(f.k) : setStatus(f.k))}
                   style={{
                     padding: "4px 10px", borderRadius: 999, fontSize: 12, fontWeight: 600,
-                    border: "1px solid " + (active ? BRAND : "#e5e7eb"),
-                    background: active ? "rgba(185,28,74,0.08)" : "#fff",
-                    color: active ? BRAND : "#4b5563", cursor: "pointer",
+                    border: "1px solid " + (active ? BRAND : "var(--border)"),
+                    background: active ? "rgba(185,28,74,0.08)" : "var(--card-bg)",
+                    color: active ? BRAND : "var(--text-2)", cursor: "pointer",
                   }}>{f.l}</button>
               );
             })}
           </div>
         </div>
         <div style={{ flex: 1, overflowY: "auto" }}>
-          {loading && <div style={{ padding: 24, color: "#9ca3af", fontSize: 13 }}>Loading…</div>}
+          {loading && <div style={{ padding: 24, color: "var(--text-3)", fontSize: 13 }}>Loading…</div>}
           {!loading && threads.length === 0 && (
-            <div style={{ padding: 24, color: "#9ca3af", fontSize: 13 }}>No conversations yet.</div>
+            <div style={{ padding: 24, color: "var(--text-3)", fontSize: 13 }}>No conversations yet.</div>
           )}
           {threads.map((t) => {
             const active = selected?.id === t.id;
@@ -247,23 +238,23 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
               <button key={t.id} onClick={() => setSelected(t)}
                 style={{
                   width: "100%", textAlign: "left", padding: 12,
-                  border: "none", borderBottom: "1px solid #f3f4f6",
-                  background: active ? "rgba(185,28,74,0.06)" : "#fff",
+                  border: "none", borderBottom: "1px solid var(--border)",
+                  background: active ? "rgba(185,28,74,0.06)" : "var(--card-bg)",
                   cursor: "pointer",
                 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: "var(--text)" }}>
                     {t.contact.name || t.contact.phone}
                   </div>
-                  <div style={{ fontSize: 11, color: "#9ca3af" }}>{timeAgo(t.last_inbound_at)}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-3)" }}>{timeAgo(t.last_inbound_at)}</div>
                 </div>
-                <div style={{ fontSize: 12, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ fontSize: 12, color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {t.last_message_snippet || "—"}
                 </div>
                 <div style={{ display: "flex", gap: 6, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}>
                   <Pill icon={t.status === "bot" ? Bot : UserIcon} label={t.status}
                     bg={t.status === "bot" ? "rgba(37,211,102,0.12)" : "rgba(59,130,246,0.12)"}
-                    color={t.status === "bot" ? "#047857" : "#1d4ed8"} />
+                    color={t.status === "bot" ? "var(--green)" : "#1d4ed8"} />
                   {t.ticket_status !== "none" && (
                     <Pill icon={TicketIcon} label={`#${t.ticket_number} ${ticketStatusStyle[t.ticket_status].label}`}
                       bg={ticketStatusStyle[t.ticket_status].bg} color={ticketStatusStyle[t.ticket_status].color} />
@@ -274,7 +265,7 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
                   )}
                   {t.unread_count > 0 && (
                     <span style={{
-                      marginLeft: "auto", background: BRAND, color: "#fff", fontSize: 11,
+                      marginLeft: "auto", background: BRAND, color: "var(--card-bg)", fontSize: 11,
                       fontWeight: 700, padding: "1px 7px", borderRadius: 999,
                     }}>{t.unread_count}</span>
                   )}
@@ -331,8 +322,8 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
   if (!thread) {
     return (
       <div style={{
-        background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12,
-        display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: 14,
+        background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 12,
+        display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-3)", fontSize: 14,
       }}>
         Pick a conversation
       </div>
@@ -370,19 +361,19 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
 
   return (
     <div style={{
-      background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12,
+      background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 12,
       display: "flex", flexDirection: "column", overflow: "hidden",
     }}>
-      <div style={{ padding: 14, borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ padding: 14, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <div style={{ fontWeight: 700, color: "#111827" }}>
+          <div style={{ fontWeight: 700, color: "var(--text)" }}>
             {thread.contact.name || thread.contact.phone}
-            <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 500, color: "#6b7280" }}>{thread.contact.phone}</span>
+            <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 500, color: "var(--text-2)" }}>{thread.contact.phone}</span>
           </div>
           <div style={{ marginTop: 4, display: "flex", gap: 6, flexWrap: "wrap" }}>
             <Pill icon={thread.status === "bot" ? Bot : UserIcon} label={thread.status}
               bg={thread.status === "bot" ? "rgba(37,211,102,0.12)" : "rgba(59,130,246,0.12)"}
-              color={thread.status === "bot" ? "#047857" : "#1d4ed8"} />
+              color={thread.status === "bot" ? "var(--green)" : "#1d4ed8"} />
             {thread.ticket_status !== "none" && (
               <Pill icon={TicketIcon} label={`#${thread.ticket_number} ${ticketStatusStyle[thread.ticket_status].label}`}
                 bg={ticketStatusStyle[thread.ticket_status].bg} color={ticketStatusStyle[thread.ticket_status].color} />
@@ -430,8 +421,8 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
           return (
             <div key={m.id} style={{ display: "flex", justifyContent: out ? "flex-end" : "flex-start", marginBottom: 8 }}>
               <div style={{
-                maxWidth: "70%", background: out ? "#dcf8c6" : "#fff",
-                color: "#111827", padding: "8px 12px", borderRadius: 10,
+                maxWidth: "70%", background: out ? "#dcf8c6" : "var(--card-bg)",
+                color: "var(--text)", padding: "8px 12px", borderRadius: 10,
                 boxShadow: "0 1px 1px rgba(0,0,0,0.06)", fontSize: 14, lineHeight: 1.45,
               }}>
                 {m.template_name && (
@@ -445,7 +436,7 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
                   </a>
                 )}
                 <div style={{ whiteSpace: "pre-wrap" }}>{m.body}</div>
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 4, fontSize: 10, color: "#6b7280" }}>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 4, fontSize: 10, color: "var(--text-2)" }}>
                   {m.sent_by === "bot" && <span style={{ color: WA_GREEN, fontWeight: 600 }}><Sparkles size={10} style={{ verticalAlign: -1 }} /> AI</span>}
                   <span>{timeAgo(m.created_at)}</span>
                   {out && <span>· {m.status}</span>}
@@ -463,11 +454,11 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
           onSend={(tpl, vars) => send("template", { name: tpl.name, language: tpl.language, vars })}
         />
       ) : (
-        <div style={{ padding: 12, borderTop: "1px solid #e5e7eb", display: "flex", gap: 8 }}>
+        <div style={{ padding: 12, borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
           <button onClick={() => setPickingTemplate(true)} title="Send template"
             style={{
-              padding: "10px 14px", borderRadius: 10, border: "1px solid #e5e7eb",
-              background: "#fff", cursor: "pointer", color: BRAND, fontWeight: 600, fontSize: 13,
+              padding: "10px 14px", borderRadius: 10, border: "1px solid var(--border)",
+              background: "var(--card-bg)", cursor: "pointer", color: BRAND, fontWeight: 600, fontSize: 13,
               display: "flex", alignItems: "center", gap: 6,
             }}>
             <Megaphone size={14} /> Template
@@ -478,14 +469,14 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
             placeholder="Type a message…"
             style={{
               flex: 1, padding: "10px 14px", borderRadius: 10,
-              border: "1px solid #e5e7eb", outline: "none", fontSize: 14,
+              border: "1px solid var(--border)", outline: "none", fontSize: 14,
             }}
           />
           <button disabled={!text.trim() || sending} onClick={() => send("text")}
             style={{
               padding: "10px 16px", borderRadius: 10, border: "none",
-              background: text.trim() ? BRAND : "#e5e7eb",
-              color: "#fff", fontWeight: 600, cursor: text.trim() ? "pointer" : "not-allowed",
+              background: text.trim() ? BRAND : "var(--border)",
+              color: "var(--card-bg)", fontWeight: 600, cursor: text.trim() ? "pointer" : "not-allowed",
               display: "flex", alignItems: "center", gap: 6,
             }}>
             <Send size={14} /> Send
@@ -497,8 +488,8 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
 }
 
 const selectStyle: React.CSSProperties = {
-  padding: "6px 8px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12,
-  background: "#fff", color: "#374151", outline: "none",
+  padding: "6px 8px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12,
+  background: "var(--card-bg)", color: "var(--text)", outline: "none",
 };
 
 function TemplatePicker({ templates, onCancel, onSend }: {
@@ -517,22 +508,22 @@ function TemplatePicker({ templates, onCancel, onSend }: {
   }, [pick, vars]);
 
   return (
-    <div style={{ padding: 12, borderTop: "1px solid #e5e7eb", maxHeight: 320, overflowY: "auto" }}>
+    <div style={{ padding: 12, borderTop: "1px solid var(--border)", maxHeight: 320, overflowY: "auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
         <strong style={{ fontSize: 13 }}>Send approved template</strong>
-        <button onClick={onCancel} style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer" }}>Cancel</button>
+        <button onClick={onCancel} style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer" }}>Cancel</button>
       </div>
       {!pick && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {templates.length === 0 && <div style={{ fontSize: 12, color: "#9ca3af" }}>No approved templates yet.</div>}
+          {templates.length === 0 && <div style={{ fontSize: 12, color: "var(--text-3)" }}>No approved templates yet.</div>}
           {templates.map((t) => (
             <button key={t.id} onClick={() => setPick(t)} style={{
-              textAlign: "left", padding: 10, borderRadius: 8, border: "1px solid #e5e7eb",
-              background: "#fff", cursor: "pointer",
+              textAlign: "left", padding: 10, borderRadius: 8, border: "1px solid var(--border)",
+              background: "var(--card-bg)", cursor: "pointer",
             }}>
               <div style={{ fontWeight: 600, fontSize: 13 }}>{t.name}</div>
-              <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{t.category} · {t.language}</div>
-              <div style={{ fontSize: 12, color: "#374151", marginTop: 6, lineHeight: 1.3 }}>
+              <div style={{ fontSize: 11, color: "var(--text-2)", marginTop: 2 }}>{t.category} · {t.language}</div>
+              <div style={{ fontSize: 12, color: "var(--text)", marginTop: 6, lineHeight: 1.3 }}>
                 {t.body.slice(0, 100)}{t.body.length > 100 ? "…" : ""}
               </div>
             </button>
@@ -545,14 +536,14 @@ function TemplatePicker({ templates, onCancel, onSend }: {
           {varNames.map((n) => (
             <input key={n} placeholder={`{{${n}}}`} value={vars[n] ?? ""}
               onChange={(e) => setVars({ ...vars, [n]: e.target.value })}
-              style={{ width: "100%", padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 8, marginBottom: 6, fontSize: 13 }} />
+              style={{ width: "100%", padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 8, marginBottom: 6, fontSize: 13 }} />
           ))}
-          <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: 10, fontSize: 13, whiteSpace: "pre-wrap", marginBottom: 8 }}>
+          <div style={{ background: "var(--canvas)", border: "1px solid var(--border)", borderRadius: 8, padding: 10, fontSize: 13, whiteSpace: "pre-wrap", marginBottom: 8 }}>
             {preview}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setPick(null)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff", cursor: "pointer", fontSize: 13 }}>Back</button>
-            <button onClick={() => onSend(pick, vars)} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: BRAND, color: "#fff", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Send</button>
+            <button onClick={() => setPick(null)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card-bg)", cursor: "pointer", fontSize: 13 }}>Back</button>
+            <button onClick={() => onSend(pick, vars)} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: BRAND, color: "var(--card-bg)", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Send</button>
           </div>
         </div>
       )}
@@ -595,7 +586,7 @@ function TemplatesView() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
-        <div style={{ fontSize: 13, color: "#6b7280" }}>
+        <div style={{ fontSize: 13, color: "var(--text-2)" }}>
           Templates sent through Meta WABA. Submit them for approval, then send to opted-in contacts.
         </div>
         <button onClick={() => setEditing({ category: "marketing", language: "en", status: "draft", body: "" })}
@@ -612,17 +603,17 @@ function TemplatesView() {
               <Pill icon={t.category === "offer" ? Megaphone : FileText} label={t.category}
                 bg="rgba(185,28,74,0.08)" color={BRAND} />
             </div>
-            <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 8 }}>
               {t.language} · <span style={{
-                color: t.status === "approved" ? "#047857" : t.status === "rejected" ? "#b91c1c" : "#92400e", fontWeight: 600,
+                color: t.status === "approved" ? "var(--green)" : t.status === "rejected" ? "var(--accent)" : "#92400e", fontWeight: 600,
               }}>{t.status}</span>
             </div>
             {t.header_text && <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{t.header_text}</div>}
-            <div style={{ fontSize: 13, color: "#374151", whiteSpace: "pre-wrap", lineHeight: 1.4 }}>{t.body}</div>
-            {t.footer && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 6 }}>{t.footer}</div>}
+            <div style={{ fontSize: 13, color: "var(--text)", whiteSpace: "pre-wrap", lineHeight: 1.4 }}>{t.body}</div>
+            {t.footer && <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 6 }}>{t.footer}</div>}
             <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
               <button onClick={() => setEditing(t)} style={smallBtn}>Edit</button>
-              <button onClick={() => remove(t.id)} style={{ ...smallBtn, color: "#b91c1c" }}>
+              <button onClick={() => remove(t.id)} style={{ ...smallBtn, color: "var(--accent)" }}>
                 <Trash2 size={12} />
               </button>
             </div>
@@ -723,7 +714,7 @@ function KbView() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
-        <div style={{ fontSize: 13, color: "#6b7280" }}>
+        <div style={{ fontSize: 13, color: "var(--text-2)" }}>
           Documents feed the AI agent. Upload PDFs/TXT or paste content. PDFs are parsed, chunked, and embedded.
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -738,7 +729,7 @@ function KbView() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 12 }}>
         {docs.length === 0 && (
-          <div style={{ gridColumn: "1/-1", padding: 32, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>
+          <div style={{ gridColumn: "1/-1", padding: 32, textAlign: "center", color: "var(--text-3)", fontSize: 13 }}>
             No documents yet. Upload to start training the AI agent.
           </div>
         )}
@@ -748,16 +739,16 @@ function KbView() {
               <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</div>
               <KbStatus s={d.status} />
             </div>
-            <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 8 }}>
               {d.source_type} · {d.mime_type ?? "—"}
             </div>
-            <div style={{ fontSize: 12, color: "#374151" }}>
+            <div style={{ fontSize: 12, color: "var(--text)" }}>
               {d.chunk_count} chunks · {timeAgo(d.created_at)} ago
             </div>
-            {d.error && <div style={{ fontSize: 11, color: "#b91c1c", marginTop: 6 }}>{d.error}</div>}
+            {d.error && <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 6 }}>{d.error}</div>}
             <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
               <button onClick={() => reingest(d.id)} style={smallBtn}><RefreshCw size={12} /> Re-ingest</button>
-              <button onClick={() => remove(d.id)} style={{ ...smallBtn, color: "#b91c1c" }}><Trash2 size={12} /></button>
+              <button onClick={() => remove(d.id)} style={{ ...smallBtn, color: "var(--accent)" }}><Trash2 size={12} /></button>
             </div>
           </div>
         ))}
@@ -770,10 +761,10 @@ function KbView() {
 
 function KbStatus({ s }: { s: KbDoc["status"] }) {
   const map: Record<KbDoc["status"], { c: string; bg: string; icon: any }> = {
-    ready:      { c: "#047857", bg: "rgba(16,185,129,0.12)", icon: CheckCircle2 },
+    ready:      { c: "var(--green)", bg: "rgba(16,185,129,0.12)", icon: CheckCircle2 },
     processing: { c: "#1d4ed8", bg: "rgba(59,130,246,0.12)", icon: RefreshCw },
     pending:    { c: "#92400e", bg: "rgba(245,183,49,0.12)", icon: RefreshCw },
-    failed:     { c: "#b91c1c", bg: "rgba(239,68,68,0.12)",  icon: AlertTriangle },
+    failed:     { c: "var(--accent)", bg: "rgba(239,68,68,0.12)",  icon: AlertTriangle },
   };
   const m = map[s];
   const I = m.icon;
@@ -825,7 +816,7 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
       display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200,
     }}>
       <div onClick={(e) => e.stopPropagation()} style={{
-        background: "#fff", borderRadius: 12, padding: 20, width: "min(560px,92vw)", maxHeight: "88vh", overflowY: "auto",
+        background: "var(--card-bg)", borderRadius: 12, padding: 20, width: "min(560px,92vw)", maxHeight: "88vh", overflowY: "auto",
       }}>
         <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>{title}</div>
         {children}
@@ -837,26 +828,26 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>{label}</div>
       {children}
     </div>
   );
 }
 
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "8px 10px", border: "1px solid #e5e7eb",
-  borderRadius: 8, fontSize: 13, outline: "none", background: "#fff", color: "#111827",
+  width: "100%", padding: "8px 10px", border: "1px solid var(--border)",
+  borderRadius: 8, fontSize: 13, outline: "none", background: "var(--card-bg)", color: "var(--text)",
 };
 const cardStyle: React.CSSProperties = {
-  background: "#fff", border: "1px solid #e5e7eb", borderRadius: 12, padding: 14,
+  background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 14,
 };
 const primaryBtn: React.CSSProperties = {
   padding: "8px 14px", borderRadius: 8, border: "none", background: BRAND,
-  color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer",
+  color: "var(--card-bg)", fontWeight: 600, fontSize: 13, cursor: "pointer",
   display: "inline-flex", alignItems: "center", gap: 6,
 };
 const smallBtn: React.CSSProperties = {
-  padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb",
-  background: "#fff", color: "#374151", fontSize: 12, fontWeight: 600,
+  padding: "6px 10px", borderRadius: 8, border: "1px solid var(--border)",
+  background: "var(--card-bg)", color: "var(--text)", fontSize: 12, fontWeight: 600,
   cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4,
 };

@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Plus, TrendingUp } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 
 type CampaignRow = {
   id: string;
@@ -14,23 +15,24 @@ type CampaignRow = {
   date: string;
 };
 
-const statusColors: Record<string, { bg: string; color: string }> = {
-  Sent: { bg: "rgba(16, 185, 129, 0.15)", color: "#10b981" },
-  sent: { bg: "rgba(16, 185, 129, 0.15)", color: "#10b981" },
-  Scheduled: { bg: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" },
-  scheduled: { bg: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" },
-  Draft: { bg: "rgba(113, 113, 122, 0.15)", color: "#4b5563" },
-  draft: { bg: "rgba(113, 113, 122, 0.15)", color: "#4b5563" },
-  sending: { bg: "rgba(245, 183, 49, 0.15)", color: "#F5B731" },
-  Sending: { bg: "rgba(245, 183, 49, 0.15)", color: "#F5B731" },
-  paused: { bg: "rgba(232, 115, 57, 0.15)", color: "#E87339" },
-  Paused: { bg: "rgba(232, 115, 57, 0.15)", color: "#E87339" },
+const statusPill: Record<string, { cls: string; label: string }> = {
+  sent: { cls: "green", label: "Sent" },
+  Sent: { cls: "green", label: "Sent" },
+  scheduled: { cls: "blue", label: "Scheduled" },
+  Scheduled: { cls: "blue", label: "Scheduled" },
+  draft: { cls: "grey", label: "Draft" },
+  Draft: { cls: "grey", label: "Draft" },
+  sending: { cls: "amber", label: "Sending" },
+  Sending: { cls: "amber", label: "Sending" },
+  paused: { cls: "amber", label: "Paused" },
+  Paused: { cls: "amber", label: "Paused" },
 };
 
 const tabs = ["All", "Sent", "Scheduled", "Draft"];
 type SortKey = "date" | "revenue" | "openRate";
 
 export default function CampaignsPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("All");
   const [sortBy, setSortBy] = useState<SortKey>("date");
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
@@ -59,18 +61,22 @@ export default function CampaignsPage() {
         scheduled_at?: string;
         created_at?: string;
       }) => {
-        const openRate = c.total_sent && c.total_sent > 0
-          ? parseFloat(((c.total_opened || 0) / c.total_sent * 100).toFixed(1))
-          : 0;
-        const clickRate = c.total_sent && c.total_sent > 0
-          ? parseFloat(((c.total_clicked || 0) / c.total_sent * 100).toFixed(1))
-          : 0;
-
+        const openRate =
+          c.total_sent && c.total_sent > 0
+            ? parseFloat((((c.total_opened || 0) / c.total_sent) * 100).toFixed(1))
+            : 0;
+        const clickRate =
+          c.total_sent && c.total_sent > 0
+            ? parseFloat((((c.total_clicked || 0) / c.total_sent) * 100).toFixed(1))
+            : 0;
         const dateStr = c.sent_at || c.scheduled_at || c.created_at;
         const date = dateStr
-          ? new Date(dateStr).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+          ? new Date(dateStr).toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })
           : "";
-
         return {
           id: c.id,
           name: c.name,
@@ -82,7 +88,6 @@ export default function CampaignsPage() {
           date,
         };
       });
-
       setCampaigns(mapped);
     } catch {
       setCampaigns([]);
@@ -103,159 +108,123 @@ export default function CampaignsPage() {
   });
 
   return (
-    <div style={{ padding: "32px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "28px" }}>
+    <div className="page">
+      <div className="page-head">
         <div>
-          <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#111827", letterSpacing: "-0.5px" }}>Campaigns</h1>
-          <p style={{ color: "#6b7280", marginTop: "4px", fontSize: "14px" }}>
-            Manage and track your email campaigns
-          </p>
+          <h1>Campaigns</h1>
+          <div className="sub">Manage and track your email campaigns</div>
         </div>
-        <Link href="/dashboard/campaigns/new">
-          <button
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "10px 18px",
-              background: "linear-gradient(135deg, #B91C4A, #8B1539)",
-              border: "none",
-              borderRadius: "9px",
-              color: "#fff",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            <Plus size={16} />
-            Create Campaign
-          </button>
+        <Link href="/dashboard/campaigns/new" className="btn primary">
+          <Plus size={14} /> Create campaign
         </Link>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <div style={{ display: "flex", gap: "4px", backgroundColor: "#ffffff", padding: "4px", borderRadius: "10px", border: "1px solid #e5e7eb" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 18,
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div className="tabs" style={{ marginBottom: 0, border: "none" }}>
           {tabs.map((t) => (
             <button
               key={t}
+              type="button"
+              className={`tab${activeTab === t ? " active" : ""}`}
               onClick={() => setActiveTab(t)}
-              style={{
-                padding: "7px 18px",
-                borderRadius: "7px",
-                border: "none",
-                backgroundColor: activeTab === t ? "#e5e7eb" : "transparent",
-                color: activeTab === t ? "#111827" : "#6b7280",
-                fontSize: "13px",
-                fontWeight: activeTab === t ? 600 : 400,
-                cursor: "pointer",
-              }}
             >
               {t}
             </button>
           ))}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontSize: "13px", color: "#6b7280" }}>Sort by:</span>
-          {(["date", "revenue", "openRate"] as SortKey[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => setSortBy(s)}
-              style={{
-                padding: "6px 14px",
-                borderRadius: "7px",
-                border: sortBy === s ? "1px solid #B91C4A" : "1px solid #e5e7eb",
-                backgroundColor: sortBy === s ? "rgba(185, 28, 74, 0.1)" : "#ffffff",
-                color: sortBy === s ? "#E8658B" : "#4b5563",
-                fontSize: "12px",
-                fontWeight: sortBy === s ? 600 : 400,
-                cursor: "pointer",
-              }}
-            >
-              {s === "date" ? "Date" : s === "revenue" ? "Revenue" : "Open Rate"}
-            </button>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--text-3)" }}>
+          Sort by
+          <div className="chips">
+            {(["date", "revenue", "openRate"] as SortKey[]).map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`chip${sortBy === s ? " active" : ""}`}
+                onClick={() => setSortBy(s)}
+              >
+                {s === "date" ? "Date" : s === "revenue" ? "Revenue" : "Open rate"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div style={{
-        backgroundColor: "#ffffff",
-        border: "1px solid #e5e7eb",
-        borderRadius: "12px",
-        overflow: "hidden",
-        opacity: isLoading ? 0.7 : 1,
-        transition: "opacity 0.2s",
-      }}>
-        {filtered.length > 0 ? (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      {filtered.length > 0 ? (
+        <div className="card" style={{ opacity: isLoading ? 0.7 : 1, transition: "opacity 0.2s" }}>
+          <table className="tbl">
             <thead>
-              <tr style={{ borderBottom: "1px solid #e5e7eb", backgroundColor: "#f3f4f6" }}>
-                {["Campaign Name", "Status", "Sent", "Open Rate", "Click Rate", "Revenue", "Date"].map((h) => (
-                  <th key={h} style={{ textAlign: "left", padding: "12px 16px", fontSize: "11px", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                    {h}
-                  </th>
-                ))}
+              <tr>
+                <th>Campaign</th>
+                <th>Status</th>
+                <th>Sent</th>
+                <th>Open</th>
+                <th>Click</th>
+                <th>Revenue</th>
+                <th>Date</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c, i) => (
-                <tr
-                  key={c.id}
-                  style={{ borderBottom: i < filtered.length - 1 ? "1px solid #e5e7eb" : "none", cursor: "pointer", transition: "background 0.1s" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f6")}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                >
-                  <td style={{ padding: "16px" }}>
-                    <Link href={`/dashboard/campaigns/${c.id}`}>
-                      <div style={{ fontSize: "14px", fontWeight: 600, color: "#111827" }}>{c.name}</div>
-                    </Link>
-                  </td>
-                  <td style={{ padding: "16px" }}>
-                    <span style={{
-                      padding: "3px 10px",
-                      borderRadius: "20px",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      backgroundColor: statusColors[c.status]?.bg || "rgba(113,113,122,0.15)",
-                      color: statusColors[c.status]?.color || "#4b5563",
-                    }}>
-                      {c.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563" }}>
-                    {c.sent > 0 ? c.sent.toLocaleString() : ""}
-                  </td>
-                  <td style={{ padding: "16px" }}>
-                    {c.openRate > 0 ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        <TrendingUp size={13} color="#10b981" />
-                        <span style={{ fontSize: "14px", color: "#111827", fontWeight: 500 }}>{c.openRate}%</span>
+              {filtered.map((c) => {
+                const sp = statusPill[c.status] || { cls: "grey", label: c.status };
+                return (
+                  <tr
+                    key={c.id}
+                    className="clickable"
+                    onClick={() => router.push(`/dashboard/campaigns/${c.id}`)}
+                  >
+                    <td>
+                      <div className="cell-main">
+                        <span className="nm">{c.name}</span>
                       </div>
-                    ) : null}
-                  </td>
-                  <td style={{ padding: "16px", fontSize: "14px", color: c.clickRate > 0 ? "#111827" : "#9ca3af" }}>
-                    {c.clickRate > 0 ? `${c.clickRate}%` : ""}
-                  </td>
-                  <td style={{ padding: "16px", fontSize: "14px", fontWeight: 600, color: c.revenue > 0 ? "#10b981" : "#9ca3af" }}>
-                    {c.revenue > 0 ? `₹${c.revenue.toLocaleString()}` : ""}
-                  </td>
-                  <td style={{ padding: "16px", fontSize: "13px", color: "#6b7280" }}>{c.date}</td>
-                </tr>
-              ))}
+                    </td>
+                    <td>
+                      <span className={`pill ${sp.cls}`}>{sp.label}</span>
+                    </td>
+                    <td className="num">{c.sent > 0 ? c.sent.toLocaleString() : "—"}</td>
+                    <td className="num">{c.openRate > 0 ? `${c.openRate}%` : "—"}</td>
+                    <td className="num">{c.clickRate > 0 ? `${c.clickRate}%` : "—"}</td>
+                    <td
+                      className="num"
+                      style={{
+                        color: c.revenue > 0 ? "var(--green)" : "var(--text-3)",
+                        fontWeight: c.revenue > 0 ? 500 : 400,
+                      }}
+                    >
+                      {c.revenue > 0 ? `₹${c.revenue.toLocaleString()}` : "—"}
+                    </td>
+                    <td className="muted">{c.date}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-        ) : (
-          <div style={{ padding: "64px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: "15px", color: "#4b5563", fontWeight: 600, marginBottom: "8px" }}>
-              {loaded ? "No campaigns yet" : ""}
-            </div>
-            {loaded && (
-              <div style={{ fontSize: "13px", color: "#6b7280", maxWidth: "360px", margin: "0 auto" }}>
-                Create your first campaign to start sending emails to your contacts.
-              </div>
-            )}
+        </div>
+      ) : (
+        <div className="empty">
+          <div className="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="m3 11 18-5v12L3 14v-3z" />
+              <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+            </svg>
           </div>
-        )}
-      </div>
+          <h3>{loaded ? "No campaigns yet" : "Loading…"}</h3>
+          {loaded && <p>Create your first campaign to start sending emails to your contacts and tracking revenue.</p>}
+          {loaded && (
+            <Link href="/dashboard/campaigns/new" className="btn primary">
+              <Plus size={14} /> Create campaign
+            </Link>
+          )}
+        </div>
+      )}
     </div>
   );
 }

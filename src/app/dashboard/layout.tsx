@@ -1,10 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
+import { supabase } from "@/lib/supabase";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [counts, setCounts] = useState<Record<string, number | string>>({});
 
   useEffect(() => {
     const check = () => {
@@ -17,32 +19,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  return (
-    <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "#f9fafb" }}>
-      {isMobile && <MobileHeader onToggle={() => setSidebarOpen(!sidebarOpen)} />}
-      
-      {/* Mobile overlay */}
-      {isMobile && sidebarOpen && (
-        <div
-          onClick={() => setSidebarOpen(false)}
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(17,24,39,0.4)", zIndex: 90 }}
-        />
-      )}
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const [contactsRes, supportRes] = await Promise.all([
+        supabase.from("contacts").select("id", { count: "exact", head: true }),
+        supabase
+          .from("email_threads")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending"),
+      ]);
+      if (cancelled) return;
+      const next: Record<string, number | string> = {};
+      if (typeof contactsRes.count === "number" && contactsRes.count > 0) {
+        next.contactsTotal = contactsRes.count.toLocaleString("en-IN");
+      }
+      if (typeof supportRes.count === "number" && supportRes.count > 0) {
+        next.supportPending = supportRes.count;
+      }
+      setCounts(next);
+    }
+    load().catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-      <Sidebar isOpen={isMobile ? sidebarOpen : true} onToggle={() => setSidebarOpen(false)} isMobile={isMobile} />
-      
-      <main
-        style={{
-          flex: 1,
-          marginLeft: isMobile ? 0 : "260px",
-          overflowY: "auto",
-          minHeight: "100vh",
-          backgroundColor: "#f9fafb",
-          padding: isMobile ? "72px 16px 32px" : "32px",
-        }}
-      >
-        {children}
-      </main>
+  return (
+    <div className="app">
+      {isMobile && <MobileHeader onToggle={() => setSidebarOpen(!sidebarOpen)} />}
+      <Sidebar
+        isOpen={isMobile ? sidebarOpen : true}
+        onToggle={() => setSidebarOpen(false)}
+        isMobile={isMobile}
+        counts={counts}
+      />
+      <main className="main">{children}</main>
     </div>
   );
 }

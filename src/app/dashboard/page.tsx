@@ -1,24 +1,38 @@
 "use client";
 import { useState, useEffect } from "react";
-import { DollarSign, Users, Mail, TrendingUp, ShoppingCart, Heart, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
-const flowIconMap = [ShoppingCart, Heart, TrendingUp, RefreshCw];
-const flowColorMap = ["#ef4444", "#B91C4A", "#10b981", "#F5B731"];
-const flowBgMap = [
-  "rgba(239, 68, 68, 0.1)",
-  "rgba(185, 28, 74, 0.1)",
-  "rgba(16, 185, 129, 0.1)",
-  "rgba(245, 183, 49, 0.1)",
-];
-
-interface StatCard { label: string; value: string; icon: typeof DollarSign; color: string; bg: string; }
-interface CampaignRow { name: string; sent: string; openRate: string; clickRate: string; revenue: string; }
-interface FlowRow { name: string; revenue: string; icon: typeof ShoppingCart; color: string; bg: string; }
-interface ListHealth { total: number; active: number; inactive: number; bounced: number; unsubscribed: number; }
+interface CampaignRow {
+  name: string;
+  sent: string;
+  openRate: string;
+  clickRate: string;
+  revenue: string;
+}
+interface FlowRow {
+  name: string;
+  revenue: string;
+}
+interface ListHealth {
+  total: number;
+  active: number;
+  inactive: number;
+  bounced: number;
+  unsubscribed: number;
+}
+interface Kpis {
+  revenue: string;
+  subscribers: string;
+  openRate: string;
+  flowRevenue: string;
+  revenueDelta: string;
+  subscribersDelta: string;
+  flowRevenueDelta: string;
+}
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<StatCard[]>([]);
+  const [kpis, setKpis] = useState<Kpis | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [flows, setFlows] = useState<FlowRow[]>([]);
   const [listHealth, setListHealth] = useState<ListHealth | null>(null);
@@ -46,140 +60,292 @@ export default function DashboardPage() {
       const campaignRows = campaignsRes.data || [];
       const totalSent = campaignRows.reduce((s, c) => s + (c.total_sent || 0), 0);
       const totalOpened = campaignRows.reduce((s, c) => s + (c.total_opened || 0), 0);
-      const flowRevenue = (flowsRes.data || []).reduce((s, f) => s + (Number(f.revenue_attributed) || 0), 0);
+      const flowRevenue = (flowsRes.data || []).reduce(
+        (s, f) => s + (Number(f.revenue_attributed) || 0),
+        0
+      );
       const openRatePct = totalSent > 0 ? ((totalOpened / totalSent) * 100).toFixed(1) + "%" : "0%";
 
-      setStats([
-        { label: "Total Revenue", value: `₹${totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`, icon: DollarSign, color: "#F5B731", bg: "rgba(245, 183, 49, 0.1)" },
-        { label: "Active Subscribers", value: totalContacts.toLocaleString(), icon: Users, color: "#00B4D8", bg: "rgba(0, 180, 216, 0.1)" },
-        { label: "Email Open Rate", value: openRatePct, icon: Mail, color: "#B91C4A", bg: "rgba(185, 28, 74, 0.1)" },
-        { label: "Flow Revenue", value: `₹${flowRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: "#E87339", bg: "rgba(232, 115, 57, 0.1)" },
-      ]);
+      setKpis({
+        revenue: `₹${totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`,
+        subscribers: totalContacts.toLocaleString("en-IN"),
+        openRate: openRatePct,
+        flowRevenue: `₹${flowRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`,
+        revenueDelta: totalRevenue > 0 ? "▲ this period" : "No orders yet",
+        subscribersDelta:
+          totalContacts > 0 ? `▲ ${totalContacts.toLocaleString("en-IN")} this period` : "—",
+        flowRevenueDelta: flowRevenue > 0 ? "▲ this period" : "No flows live yet",
+      });
 
       setCampaigns(
         campaignRows.map((c) => ({
           name: c.name,
           sent: c.total_sent > 0 ? c.total_sent.toLocaleString() : "0",
-          openRate: c.total_sent > 0 ? ((c.total_opened / c.total_sent) * 100).toFixed(1) + "%" : "0%",
-          clickRate: c.total_sent > 0 ? ((c.total_clicked / c.total_sent) * 100).toFixed(1) + "%" : "0%",
+          openRate:
+            c.total_sent > 0 ? ((c.total_opened / c.total_sent) * 100).toFixed(1) + "%" : "0%",
+          clickRate:
+            c.total_sent > 0 ? ((c.total_clicked / c.total_sent) * 100).toFixed(1) + "%" : "0%",
           revenue: c.revenue_attributed > 0 ? `₹${Number(c.revenue_attributed).toLocaleString()}` : "₹0",
         }))
       );
 
       setFlows(
-        (flowsRes.data || []).slice(0, 4).map((f, i) => ({
+        (flowsRes.data || []).slice(0, 4).map((f) => ({
           name: f.name,
-          revenue: f.revenue_attributed > 0 ? `₹${Number(f.revenue_attributed).toLocaleString()}` : "₹0",
-          icon: flowIconMap[i % flowIconMap.length],
-          color: flowColorMap[i % flowColorMap.length],
-          bg: flowBgMap[i % flowBgMap.length],
+          revenue:
+            f.revenue_attributed > 0 ? `₹${Number(f.revenue_attributed).toLocaleString()}` : "₹0",
         }))
       );
 
       setListHealth({
-        total: totalContacts, active: activeCount, inactive: inactiveCount,
-        bounced: bouncedCount, unsubscribed: unsubCount,
+        total: totalContacts,
+        active: activeCount,
+        inactive: inactiveCount,
+        bounced: bouncedCount,
+        unsubscribed: unsubCount,
       });
       setLoaded(true);
     }
     loadData();
   }, []);
 
-  if (!loaded) return null;
+  if (!loaded || !kpis) {
+    return (
+      <div className="page">
+        <div className="page-head">
+          <div>
+            <h1>Dashboard</h1>
+            <div className="sub">Loading…</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  const activePct = listHealth && listHealth.total > 0 ? (listHealth.active / listHealth.total) * 100 : 0;
-  const card = {
-    backgroundColor: "#ffffff",
-    border: "1px solid #e5e7eb",
-    borderRadius: "12px",
-    padding: "24px",
-    boxShadow: "0 1px 2px rgba(17,24,39,0.04)",
-  } as const;
+  const activePct =
+    listHealth && listHealth.total > 0 ? (listHealth.active / listHealth.total) * 100 : 0;
+
+  const legendItems: { label: string; value: number; color: string }[] = listHealth
+    ? [
+        { label: "Active", value: listHealth.active, color: "var(--green)" },
+        { label: "Inactive", value: listHealth.inactive, color: "var(--blue)" },
+        { label: "Bounced", value: listHealth.bounced, color: "var(--accent)" },
+        { label: "Unsubscribed", value: listHealth.unsubscribed, color: "var(--text-3)" },
+      ]
+    : [];
 
   return (
-    <div style={{ padding: "32px", maxWidth: "1400px", margin: "0 auto" }}>
-      <div style={{ marginBottom: "28px" }}>
-        <h1 style={{ fontSize: "24px", fontWeight: 700, color: "#111827", letterSpacing: "-0.3px" }}>Dashboard</h1>
-        <p style={{ color: "#6b7280", marginTop: "4px", fontSize: "14px" }}>Overview of your CRM activity</p>
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1>Dashboard</h1>
+          <div className="sub">Overview of your CRM activity · last 30 days</div>
+        </div>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => window.location.reload()}
+          aria-label="Sync now"
+        >
+          <RefreshCw size={14} /> Sync now
+        </button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "24px" }}>
-        {stats.map((stat) => (
-          <div key={stat.label} style={{ ...card, padding: "20px", minHeight: "120px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
-              <div style={{ width: "40px", height: "40px", borderRadius: "10px", backgroundColor: stat.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <stat.icon size={20} color={stat.color} />
-              </div>
-            </div>
-            <div style={{ fontSize: "26px", fontWeight: 700, color: "#111827", letterSpacing: "-0.3px", marginBottom: "4px" }}>{stat.value}</div>
-            <div style={{ fontSize: "13px", color: "#6b7280" }}>{stat.label}</div>
+      <div className="kpi-grid">
+        <div className="kpi">
+          <div className="ico" style={{ background: "var(--green-soft)" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2">
+              <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
           </div>
-        ))}
+          <div className="label">Total revenue</div>
+          <div className="value">{kpis.revenue}</div>
+          <div className={`delta ${kpis.revenue !== "₹0" ? "up" : "flat"}`}>{kpis.revenueDelta}</div>
+        </div>
+
+        <div className="kpi">
+          <div className="ico" style={{ background: "var(--blue-soft)" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" strokeWidth="2">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+            </svg>
+          </div>
+          <div className="label">Active subscribers</div>
+          <div className="value">{kpis.subscribers}</div>
+          <div className={`delta ${kpis.subscribers !== "0" ? "up" : "flat"}`}>
+            {kpis.subscribersDelta}
+          </div>
+        </div>
+
+        <div className="kpi">
+          <div className="ico" style={{ background: "var(--accent-soft)" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2">
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <path d="m3 7 9 6 9-6" />
+            </svg>
+          </div>
+          <div className="label">Email open rate</div>
+          <div className="value">{kpis.openRate}</div>
+          <div className={`delta ${kpis.openRate !== "0%" ? "up" : "flat"}`}>
+            {kpis.openRate !== "0%" ? "▲ vs prev. period" : "No campaigns sent yet"}
+          </div>
+        </div>
+
+        <div className="kpi">
+          <div className="ico" style={{ background: "var(--amber-soft)" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" strokeWidth="2">
+              <path d="M3 17 9 11l4 4 8-8" />
+              <path d="M17 7h4v4" />
+            </svg>
+          </div>
+          <div className="label">Flow revenue</div>
+          <div className="value">{kpis.flowRevenue}</div>
+          <div className={`delta ${kpis.flowRevenue !== "₹0" ? "up" : "flat"}`}>
+            {kpis.flowRevenueDelta}
+          </div>
+        </div>
       </div>
 
       {listHealth && listHealth.total > 0 && (
-        <div style={{ ...card, marginBottom: "24px" }}>
-          <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827", marginBottom: "4px" }}>List Health</h2>
-          <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "20px" }}>{listHealth.total.toLocaleString()} total contacts</p>
-          <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: "32px", alignItems: "center" }}>
-            <div style={{ position: "relative", width: "140px", height: "140px" }}>
-              <svg width="140" height="140" viewBox="0 0 140 140">
-                <circle cx="70" cy="70" r="54" fill="none" stroke="#e5e7eb" strokeWidth="18" />
-                <circle cx="70" cy="70" r="54" fill="none" stroke="#10b981" strokeWidth="18"
-                  strokeDasharray={`${(activePct / 100) * 339.29} 339.29`}
-                  transform="rotate(-90 70 70)" strokeLinecap="round" />
-                <text x="70" y="66" textAnchor="middle" fill="#111827" fontSize="20" fontWeight="700">{Math.round(activePct)}%</text>
-                <text x="70" y="84" textAnchor="middle" fill="#6b7280" fontSize="11">Active</text>
-              </svg>
+        <div className="grid-2 section">
+          <div className="card card-pad">
+            <div className="card-title">List health</div>
+            <div className="card-sub">{listHealth.total.toLocaleString("en-IN")} total contacts</div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 26,
+                marginTop: 18,
+              }}
+            >
+              <div
+                className="donut"
+                style={{
+                  background: `conic-gradient(var(--green) 0 ${activePct}%, var(--hover-2) ${activePct}% 100%)`,
+                }}
+              >
+                <div className="hole">
+                  <b>{Math.round(activePct)}%</b>
+                  <span>Active</span>
+                </div>
+              </div>
+              <div style={{ flex: 1 }}>
+                {legendItems.map((it) => {
+                  const pct =
+                    listHealth.total > 0
+                      ? ((it.value / listHealth.total) * 100).toFixed(0)
+                      : "0";
+                  return (
+                    <div key={it.label} className="legend-row">
+                      <div className="legend-l">
+                        <span className="dot" style={{ background: it.color }} />
+                        {it.label}
+                      </div>
+                      <div className="legend-r">
+                        <b>{it.value.toLocaleString("en-IN")}</b>
+                        {pct}%
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 24px" }}>
-              {[
-                { label: "Active", value: listHealth.active, color: "#10b981" },
-                { label: "Inactive", value: listHealth.inactive, color: "#3b82f6" },
-                { label: "Bounced", value: listHealth.bounced, color: "#ef4444" },
-                { label: "Unsubscribed", value: listHealth.unsubscribed, color: "#9ca3af" },
-              ].map((item) => {
-                const pct = listHealth.total > 0 ? ((item.value / listHealth.total) * 100).toFixed(0) : "0";
-                return (
-                  <div key={item.label} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <div style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: item.color, flexShrink: 0 }} />
-                    <span style={{ fontSize: "13px", color: "#4b5563", flex: 1 }}>{item.label}</span>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#111827" }}>{item.value.toLocaleString()}</span>
-                    <span style={{ fontSize: "12px", color: "#9ca3af", width: "36px", textAlign: "right" }}>{pct}%</span>
-                  </div>
-                );
-              })}
+          </div>
+
+          <div className="card card-pad">
+            <div className="card-title">Channels</div>
+            <div className="card-sub">Connected data sources</div>
+            <div style={{ marginTop: 16 }}>
+              <div className="legend-row">
+                <div className="legend-l">
+                  <span className="dot" style={{ background: "var(--green)" }} />
+                  Shopify · promunch.myshopify.com
+                </div>
+                <span className="pill green">
+                  <span className="dot" style={{ background: "var(--green)" }} />
+                  Synced
+                </span>
+              </div>
+              <div className="legend-row">
+                <div className="legend-l">
+                  <span className="dot" style={{ background: "var(--amber)" }} />
+                  Amazon Seller · SP-API
+                </div>
+                <span className="pill amber">Setup pending</span>
+              </div>
+              <div className="legend-row">
+                <div className="legend-l">
+                  <span className="dot" style={{ background: "var(--green)" }} />
+                  Email · Resend
+                </div>
+                <span className="pill green">
+                  <span className="dot" style={{ background: "var(--green)" }} />
+                  Verified
+                </span>
+              </div>
+              <div className="legend-row">
+                <div className="legend-l">
+                  <span className="dot" style={{ background: "var(--text-3)" }} />
+                  WhatsApp Business
+                </div>
+                <span className="pill grey">Not connected</span>
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {(campaigns.length > 0 || flows.length > 0) && (
-        <div style={{ display: "grid", gridTemplateColumns: campaigns.length && flows.length ? "1fr 1fr" : "1fr", gap: "16px" }}>
+        <div
+          className={campaigns.length && flows.length ? "grid-2" : ""}
+          style={{ marginTop: 16 }}
+        >
           {campaigns.length > 0 && (
-            <div style={card}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827" }}>Recent Campaigns</h2>
-                <a href="/dashboard/campaigns" style={{ fontSize: "13px", color: "#B91C4A", fontWeight: 500 }}>View all →</a>
+            <div className="card card-pad">
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 14,
+                }}
+              >
+                <div>
+                  <div className="card-title">Recent campaigns</div>
+                  <div className="card-sub">Last 5 sends</div>
+                </div>
+                <a
+                  href="/dashboard/campaigns"
+                  style={{ fontSize: 12.5, color: "var(--accent)", fontWeight: 500 }}
+                >
+                  View all →
+                </a>
               </div>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <table className="tbl">
                 <thead>
                   <tr>
-                    {["Campaign", "Sent", "Open", "Click", "Revenue"].map((h) => (
-                      <th key={h} style={{ textAlign: "left", fontSize: "11px", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px", paddingBottom: "10px", borderBottom: "1px solid #e5e7eb" }}>{h}</th>
-                    ))}
+                    <th>Campaign</th>
+                    <th>Sent</th>
+                    <th>Open</th>
+                    <th>Click</th>
+                    <th>Revenue</th>
                   </tr>
                 </thead>
                 <tbody>
                   {campaigns.map((c, i) => (
-                    <tr key={i} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                      <td style={{ padding: "12px 0", fontSize: "13px", color: "#111827", fontWeight: 500, maxWidth: "180px" }}>
-                        <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
+                    <tr key={i}>
+                      <td>
+                        <div className="cell-main">
+                          <span className="nm">{c.name}</span>
+                        </div>
                       </td>
-                      <td style={{ padding: "12px 8px", fontSize: "13px", color: "#4b5563" }}>{c.sent}</td>
-                      <td style={{ padding: "12px 8px", fontSize: "13px", color: "#4b5563" }}>{c.openRate}</td>
-                      <td style={{ padding: "12px 8px", fontSize: "13px", color: "#4b5563" }}>{c.clickRate}</td>
-                      <td style={{ padding: "12px 0", fontSize: "13px", color: "#10b981", fontWeight: 600 }}>{c.revenue}</td>
+                      <td className="num">{c.sent}</td>
+                      <td className="num">{c.openRate}</td>
+                      <td className="num">{c.clickRate}</td>
+                      <td className="num" style={{ color: "var(--green)", fontWeight: 500 }}>
+                        {c.revenue}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -188,23 +354,35 @@ export default function DashboardPage() {
           )}
 
           {flows.length > 0 && (
-            <div style={card}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827" }}>Active Flows</h2>
-                <a href="/dashboard/flows" style={{ fontSize: "13px", color: "#B91C4A", fontWeight: 500 }}>View all →</a>
+            <div className="card card-pad">
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 14,
+                }}
+              >
+                <div>
+                  <div className="card-title">Active flows</div>
+                  <div className="card-sub">Earning automations</div>
+                </div>
+                <a
+                  href="/dashboard/flows"
+                  style={{ fontSize: 12.5, color: "var(--accent)", fontWeight: 500 }}
+                >
+                  View all →
+                </a>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {flows.map((flow) => (
-                  <div key={flow.name} style={{ display: "flex", alignItems: "center", gap: "14px", padding: "12px", backgroundColor: "#f9fafb", borderRadius: "10px", border: "1px solid #e5e7eb" }}>
-                    <div style={{ width: "40px", height: "40px", borderRadius: "10px", backgroundColor: flow.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <flow.icon size={18} color={flow.color} />
+              <div>
+                {flows.map((f) => (
+                  <div key={f.name} className="legend-row">
+                    <div className="legend-l">
+                      <span className="dot" style={{ background: "var(--accent)" }} />
+                      {f.name}
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: "14px", fontWeight: 600, color: "#111827" }}>{flow.name}</div>
-                      <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>Automated</div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: "15px", fontWeight: 700, color: "#10b981" }}>{flow.revenue}</div>
+                    <div className="legend-r">
+                      <b style={{ color: "var(--green)" }}>{f.revenue}</b>
                     </div>
                   </div>
                 ))}

@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
-import { Search, Upload, ChevronLeft, ChevronRight, ArrowUpDown } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search, Upload, ChevronLeft, ChevronRight } from "lucide-react";
+import { Avatar } from "@/components/ui/Avatar";
 
 type ContactRow = {
   id: string;
@@ -16,17 +17,18 @@ type ContactRow = {
   segments: string[];
 };
 
-const statusColors: Record<string, { bg: string; color: string }> = {
-  VIP: { bg: "rgba(185, 28, 74, 0.15)", color: "#E8658B" },
-  Active: { bg: "rgba(16, 185, 129, 0.15)", color: "#10b981" },
-  active: { bg: "rgba(16, 185, 129, 0.15)", color: "#10b981" },
-  "At Risk": { bg: "rgba(239, 68, 68, 0.15)", color: "#ef4444" },
-  inactive: { bg: "rgba(239, 68, 68, 0.15)", color: "#ef4444" },
-  New: { bg: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" },
-  unsubscribed: { bg: "rgba(113, 113, 122, 0.15)", color: "#4b5563" },
-  Unsubscribed: { bg: "rgba(113, 113, 122, 0.15)", color: "#4b5563" },
-  bounced: { bg: "rgba(239, 68, 68, 0.15)", color: "#ef4444" },
-  Bounced: { bg: "rgba(239, 68, 68, 0.15)", color: "#ef4444" },
+const statusPill: Record<string, { cls: string; label: string }> = {
+  active: { cls: "green", label: "Active" },
+  Active: { cls: "green", label: "Active" },
+  inactive: { cls: "amber", label: "Inactive" },
+  Inactive: { cls: "amber", label: "Inactive" },
+  unsubscribed: { cls: "grey", label: "Unsubscribed" },
+  Unsubscribed: { cls: "grey", label: "Unsubscribed" },
+  bounced: { cls: "accent", label: "Bounced" },
+  Bounced: { cls: "accent", label: "Bounced" },
+  VIP: { cls: "accent", label: "VIP" },
+  "At Risk": { cls: "accent", label: "At Risk" },
+  New: { cls: "blue", label: "New" },
 };
 
 const filters = ["All", "active", "inactive", "unsubscribed", "bounced"];
@@ -39,6 +41,7 @@ const filterLabels: Record<string, string> = {
 };
 
 export default function ContactsPage() {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
   const [contacts, setContacts] = useState<ContactRow[]>([]);
@@ -60,11 +63,7 @@ export default function ContactsPage() {
   const fetchContacts = useCallback(async () => {
     setIsLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: "15",
-      });
-
+      const params = new URLSearchParams({ page: String(page), limit: "15" });
       if (search) params.set("search", search);
       if (activeFilter !== "All") params.set("status", activeFilter);
       if (minOrders) params.set("minOrders", minOrders);
@@ -78,7 +77,6 @@ export default function ContactsPage() {
 
       const res = await fetch(`/api/contacts?${params}`);
       if (!res.ok) throw new Error("API error");
-
       const data = await res.json();
 
       const mapped: ContactRow[] = (data.contacts || []).map((c: {
@@ -100,7 +98,11 @@ export default function ContactsPage() {
         orders: c.total_orders || 0,
         ltv: c.total_spent ? `₹${parseFloat(String(c.total_spent)).toFixed(2)}` : "₹0",
         lastOrder: c.last_purchase_date
-          ? new Date(c.last_purchase_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+          ? new Date(c.last_purchase_date).toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })
           : "",
         status: c.status || "active",
         tags: c.tags || [],
@@ -133,7 +135,9 @@ export default function ContactsPage() {
       const res = await fetch(`/api/import/${source}`, { method: "POST" });
       const data = await res.json();
       if (data.ok) {
-        setImportMsg(`Imported ${data.imported} contacts (${data.scanned} scanned, ${data.skippedNoEmail || 0} skipped without email).`);
+        setImportMsg(
+          `Imported ${data.imported} contacts (${data.scanned} scanned, ${data.skippedNoEmail || 0} skipped without email).`
+        );
         fetchContacts();
       } else {
         setImportMsg(`Import failed: ${data.error || "unknown error"}`);
@@ -146,103 +150,71 @@ export default function ContactsPage() {
   }
 
   return (
-    <div style={{ padding: "32px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "28px" }}>
+    <div className="page">
+      <div className="page-head">
         <div>
-          <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#111827", letterSpacing: "-0.5px" }}>
-            Contacts
-          </h1>
-          <p style={{ color: "#6b7280", marginTop: "4px", fontSize: "14px" }}>
-            {total.toLocaleString()} total contacts · manage your subscriber base
-          </p>
+          <h1>Contacts</h1>
+          <div className="sub">
+            {total.toLocaleString("en-IN")} total contacts · manage your subscriber base
+          </div>
         </div>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {importMsg && (
-            <span style={{ fontSize: "12px", color: importMsg.startsWith("Imported") ? "#10b981" : importMsg.startsWith("Importing") ? "#4b5563" : "#ef4444" }}>
+            <span
+              style={{
+                fontSize: 12,
+                color: importMsg.startsWith("Imported")
+                  ? "var(--green)"
+                  : importMsg.startsWith("Importing")
+                  ? "var(--text-2)"
+                  : "var(--accent)",
+              }}
+            >
               {importMsg}
             </span>
           )}
           <button
             type="button"
+            className="btn"
             disabled={importing}
             onClick={() => runImport("klaviyo")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "10px 18px",
-              background: importing ? "#e5e7eb" : "linear-gradient(135deg, #00B4D8, #0084a8)",
-              border: "none",
-              borderRadius: "9px",
-              color: "#fff",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: importing ? "not-allowed" : "pointer",
-              opacity: importing ? 0.6 : 1,
-            }}
           >
-            <Upload size={16} />
+            <Upload size={14} />
             {importing ? "Importing…" : "Import from Klaviyo"}
           </button>
           <button
             type="button"
+            className="btn primary"
             disabled={importing}
             onClick={() => runImport("shopify")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "10px 18px",
-              background: importing ? "#e5e7eb" : "linear-gradient(135deg, #B91C4A, #8B1539)",
-              border: "none",
-              borderRadius: "9px",
-              color: "#fff",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: importing ? "not-allowed" : "pointer",
-              opacity: importing ? 0.6 : 1,
-            }}
           >
-            <Upload size={16} />
+            <Upload size={14} />
             Import from Shopify
           </button>
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: "12px", marginBottom: "20px", alignItems: "center" }}>
-        <div style={{ position: "relative", flex: 1, maxWidth: "400px" }}>
-          <Search size={16} color="#6b7280" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+        <div className="search">
+          <Search size={15} />
           <input
-            type="text"
-            placeholder=""
+            placeholder="Search contacts…"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            style={{
-              width: "100%",
-              padding: "10px 12px 10px 38px",
-              backgroundColor: "#ffffff",
-              border: "1px solid #e5e7eb",
-              borderRadius: "9px",
-              color: "#111827",
-              fontSize: "14px",
-              outline: "none",
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
             }}
           />
         </div>
-        <div style={{ display: "flex", gap: "6px" }}>
+        <div className="chips">
           {filters.map((f) => (
             <button
               key={f}
-              onClick={() => { setActiveFilter(f); setPage(1); }}
-              style={{
-                padding: "8px 16px",
-                borderRadius: "8px",
-                border: activeFilter === f ? "1px solid #B91C4A" : "1px solid #e5e7eb",
-                backgroundColor: activeFilter === f ? "rgba(185, 28, 74, 0.15)" : "#ffffff",
-                color: activeFilter === f ? "#E8658B" : "#4b5563",
-                fontSize: "13px",
-                fontWeight: activeFilter === f ? 600 : 400,
-                cursor: "pointer",
+              type="button"
+              className={`chip${activeFilter === f ? " active" : ""}`}
+              onClick={() => {
+                setActiveFilter(f);
+                setPage(1);
               }}
             >
               {filterLabels[f]}
@@ -251,41 +223,25 @@ export default function ContactsPage() {
         </div>
         <button
           type="button"
+          className={`chip${showFilters ? " active" : ""}`}
           onClick={() => setShowFilters((v) => !v)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            padding: "9px 14px",
-            backgroundColor: showFilters ? "rgba(185, 28, 74, 0.1)" : "#ffffff",
-            border: showFilters ? "1px solid #B91C4A" : "1px solid #e5e7eb",
-            borderRadius: "8px",
-            color: showFilters ? "#E8658B" : "#4b5563",
-            fontSize: "13px",
-            cursor: "pointer",
-          }}
         >
           More filters
         </button>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <ArrowUpDown size={14} color="#6b7280" />
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--text-3)" }}>
+          Sort by
           <select
-            aria-label="Sort contacts by"
-            title="Sort by"
+            aria-label="Sort"
+            className="input"
+            style={{ padding: "5px 8px", fontSize: 12.5, width: "auto" }}
             value={sort}
-            onChange={(e) => { setSort(e.target.value); setPage(1); }}
-            style={{
-              padding: "8px 10px",
-              backgroundColor: "#ffffff",
-              border: "1px solid #e5e7eb",
-              borderRadius: "8px",
-              color: "#4b5563",
-              fontSize: "13px",
-              outline: "none",
+            onChange={(e) => {
+              setSort(e.target.value);
+              setPage(1);
             }}
           >
             <option value="created_at">Recently added</option>
-            <option value="last_purchase_date">Last order date</option>
+            <option value="last_purchase_date">Last order</option>
             <option value="total_spent">LTV</option>
             <option value="total_orders">Order count</option>
             <option value="average_order_value">Avg order value</option>
@@ -293,17 +249,9 @@ export default function ContactsPage() {
           </select>
           <button
             type="button"
+            className="btn ghost sm"
             onClick={() => setDir((d) => (d === "asc" ? "desc" : "asc"))}
-            style={{
-              padding: "8px 12px",
-              backgroundColor: "#ffffff",
-              border: "1px solid #e5e7eb",
-              borderRadius: "8px",
-              color: "#4b5563",
-              fontSize: "13px",
-              cursor: "pointer",
-              minWidth: "44px",
-            }}
+            aria-label="Toggle direction"
           >
             {dir === "desc" ? "↓" : "↑"}
           </button>
@@ -311,76 +259,46 @@ export default function ContactsPage() {
       </div>
 
       {showFilters && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr) auto",
-            gap: "12px",
-            marginBottom: "20px",
-            padding: "16px",
-            backgroundColor: "#ffffff",
-            border: "1px solid #e5e7eb",
-            borderRadius: "10px",
-            alignItems: "end",
-          }}
-        >
-          <div>
-            <label style={{ display: "block", fontSize: "11px", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Min orders</label>
+        <div className="card card-pad section" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr) auto", gap: 12, alignItems: "end" }}>
+          <div className="field">
+            <label>Min orders</label>
             <input
               type="number"
               min={0}
+              className="input"
+              title="Minimum orders"
+              placeholder="0"
               value={minOrders}
-              onChange={(e) => { setMinOrders(e.target.value); setPage(1); }}
-              placeholder=""
-              style={{
-                width: "100%",
-                padding: "8px 10px",
-                backgroundColor: "#f9fafb",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-                color: "#111827",
-                fontSize: "13px",
-                outline: "none",
+              onChange={(e) => {
+                setMinOrders(e.target.value);
+                setPage(1);
               }}
             />
           </div>
-          <div>
-            <label style={{ display: "block", fontSize: "11px", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Min LTV (₹)</label>
+          <div className="field">
+            <label>Min LTV (₹)</label>
             <input
               type="number"
               min={0}
+              className="input"
+              title="Minimum lifetime value"
+              placeholder="0"
               value={minLtv}
-              onChange={(e) => { setMinLtv(e.target.value); setPage(1); }}
-              placeholder=""
-              style={{
-                width: "100%",
-                padding: "8px 10px",
-                backgroundColor: "#f9fafb",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-                color: "#111827",
-                fontSize: "13px",
-                outline: "none",
+              onChange={(e) => {
+                setMinLtv(e.target.value);
+                setPage(1);
               }}
             />
           </div>
-          <div>
-            <label style={{ display: "block", fontSize: "11px", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Last order</label>
-            <div style={{ display: "flex", gap: "6px" }}>
+          <div className="field">
+            <label>Last order</label>
+            <div style={{ display: "flex", gap: 6 }}>
               <select
                 aria-label="Last order comparison"
-                title="Last order comparison"
+                className="input"
+                style={{ width: "auto" }}
                 value={lastOrderOp}
                 onChange={(e) => setLastOrderOp(e.target.value as "within" | "before")}
-                style={{
-                  padding: "8px 10px",
-                  backgroundColor: "#f9fafb",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "8px",
-                  color: "#4b5563",
-                  fontSize: "13px",
-                  outline: "none",
-                }}
               >
                 <option value="within">Within last</option>
                 <option value="before">Before last</option>
@@ -388,24 +306,21 @@ export default function ContactsPage() {
               <input
                 type="number"
                 min={0}
+                className="input"
+                style={{ flex: 1 }}
+                title="Days"
+                placeholder="Days"
                 value={lastOrderDays}
-                onChange={(e) => { setLastOrderDays(e.target.value); setPage(1); }}
-                placeholder=""
-                style={{
-                  flex: 1,
-                  padding: "8px 10px",
-                  backgroundColor: "#f9fafb",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "8px",
-                  color: "#111827",
-                  fontSize: "13px",
-                  outline: "none",
+                onChange={(e) => {
+                  setLastOrderDays(e.target.value);
+                  setPage(1);
                 }}
               />
             </div>
           </div>
           <button
             type="button"
+            className="btn ghost"
             onClick={() => {
               setMinOrders("");
               setMinLtv("");
@@ -413,239 +328,135 @@ export default function ContactsPage() {
               setLastOrderOp("within");
               setPage(1);
             }}
-            style={{
-              padding: "8px 14px",
-              backgroundColor: "transparent",
-              border: "1px solid #e5e7eb",
-              borderRadius: "8px",
-              color: "#4b5563",
-              fontSize: "13px",
-              cursor: "pointer",
-            }}
           >
             Clear
           </button>
         </div>
       )}
 
-      <div
-        style={{
-          backgroundColor: "#ffffff",
-          border: "1px solid #e5e7eb",
-          borderRadius: "12px",
-          overflow: "hidden",
-          opacity: isLoading ? 0.7 : 1,
-          transition: "opacity 0.2s",
-        }}
-      >
+      <div className="card" style={{ opacity: isLoading ? 0.7 : 1, transition: "opacity 0.2s" }}>
         {contacts.length > 0 ? (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table className="tbl">
             <thead>
-              <tr style={{ borderBottom: "1px solid #e5e7eb", backgroundColor: "#f3f4f6" }}>
-                {["Name", "Email", "Orders", "LTV", "Last Order", "Status", "Lists & Segments"].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      textAlign: "left",
-                      padding: "12px 16px",
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      color: "#9ca3af",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Orders</th>
+                <th>Lifetime value</th>
+                <th>Last order</th>
+                <th>Status</th>
+                <th>Lists &amp; Segments</th>
               </tr>
             </thead>
             <tbody>
-              {contacts.map((c, i) => (
-                <tr
-                  key={c.id}
-                  style={{
-                    borderBottom: i < contacts.length - 1 ? "1px solid #e5e7eb" : "none",
-                    transition: "background 0.1s",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f6")}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                >
-                  <td style={{ padding: "14px 16px" }}>
-                    <Link href={`/dashboard/contacts/${c.id}`}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <div
-                          style={{
-                            width: "34px",
-                            height: "34px",
-                            borderRadius: "50%",
-                            background: "linear-gradient(135deg, #B91C4A, #8B1539)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: "13px",
-                            fontWeight: 700,
-                            color: "#fff",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {c.name.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase()}
-                        </div>
-                        <span style={{ fontSize: "14px", fontWeight: 600, color: "#111827", cursor: "pointer" }}>
-                          {c.name}
-                        </span>
+              {contacts.map((c) => {
+                const sp = statusPill[c.status] || { cls: "grey", label: c.status };
+                return (
+                  <tr
+                    key={c.id}
+                    className="clickable"
+                    onClick={() => router.push(`/dashboard/contacts/${c.id}`)}
+                  >
+                    <td>
+                      <div className="cell-main">
+                        <Avatar name={c.name} size={26} />
+                        <span className="nm">{c.name}</span>
                       </div>
-                    </Link>
-                  </td>
-                  <td style={{ padding: "14px 16px", fontSize: "13px", color: "#4b5563" }}>{c.email}</td>
-                  <td style={{ padding: "14px 16px", fontSize: "13px", color: "#111827", fontWeight: 500 }}>{c.orders}</td>
-                  <td style={{ padding: "14px 16px", fontSize: "13px", fontWeight: 600, color: "#10b981" }}>{c.ltv}</td>
-                  <td style={{ padding: "14px 16px", fontSize: "13px", color: "#4b5563" }}>{c.lastOrder}</td>
-                  <td style={{ padding: "14px 16px" }}>
-                    <span
+                    </td>
+                    <td className="muted">{c.email}</td>
+                    <td className="num">{c.orders}</td>
+                    <td
+                      className="num"
                       style={{
-                        padding: "3px 10px",
-                        borderRadius: "20px",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        backgroundColor: statusColors[c.status]?.bg || "rgba(113,113,122,0.15)",
-                        color: statusColors[c.status]?.color || "#4b5563",
+                        color: c.orders > 0 ? "var(--green)" : "var(--text-3)",
+                        fontWeight: c.orders > 0 ? 500 : 400,
                       }}
                     >
-                      {c.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: "14px 16px" }}>
-                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", maxWidth: "240px" }}>
-                      {c.lists.slice(0, 2).map((l) => (
-                        <span
-                          key={`l-${l}`}
-                          title={l}
-                          style={{
-                            padding: "2px 8px",
-                            borderRadius: "4px",
-                            fontSize: "11px",
-                            backgroundColor: "rgba(0, 180, 216, 0.1)",
-                            color: "#00B4D8",
-                            maxWidth: "120px",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {l}
-                        </span>
-                      ))}
-                      {c.segments.slice(0, 2).map((s) => (
-                        <span
-                          key={`s-${s}`}
-                          title={s}
-                          style={{
-                            padding: "2px 8px",
-                            borderRadius: "4px",
-                            fontSize: "11px",
-                            backgroundColor: "rgba(245, 183, 49, 0.1)",
-                            color: "#F5B731",
-                            maxWidth: "120px",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {s}
-                        </span>
-                      ))}
-                      {c.lists.length + c.segments.length > 4 && (
-                        <span style={{ padding: "2px 6px", fontSize: "11px", color: "#9ca3af" }}>
-                          +{c.lists.length + c.segments.length - 4}
-                        </span>
-                      )}
-                      
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                      {c.ltv}
+                    </td>
+                    <td className="muted">{c.lastOrder || "—"}</td>
+                    <td>
+                      <span className={`pill ${sp.cls}`}>
+                        <span className="dot" style={{ background: `var(--${sp.cls === "grey" ? "text-3" : sp.cls})` }} />
+                        {sp.label}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", flexWrap: "wrap", maxWidth: 240 }}>
+                        {c.lists.slice(0, 2).map((l) => (
+                          <span key={`l-${l}`} className="tag" title={l}>
+                            {l}
+                          </span>
+                        ))}
+                        {c.segments.slice(0, 2).map((s) => (
+                          <span key={`s-${s}`} className="tag" title={s}>
+                            {s}
+                          </span>
+                        ))}
+                        {c.lists.length + c.segments.length > 4 && (
+                          <span className="muted" style={{ fontSize: 11 }}>
+                            +{c.lists.length + c.segments.length - 4}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         ) : (
           <div style={{ padding: "64px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: "15px", color: "#4b5563", fontWeight: 600, marginBottom: "8px" }}>
-              {loaded ? "No contacts yet" : ""}
+            <div style={{ fontSize: 15, color: "var(--text-2)", fontWeight: 600, marginBottom: 8 }}>
+              {loaded ? "No contacts yet" : "Loading…"}
             </div>
             {loaded && (
-              <div style={{ fontSize: "13px", color: "#6b7280", maxWidth: "360px", margin: "0 auto" }}>
+              <div className="muted" style={{ fontSize: 13, maxWidth: 360, margin: "0 auto" }}>
                 Import contacts from Shopify or Klaviyo to get started, or add them manually.
               </div>
             )}
           </div>
         )}
-      </div>
 
-      {contacts.length > 0 && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px" }}>
-          <span style={{ fontSize: "13px", color: "#6b7280" }}>
-            Showing {contacts.length} of {total} contacts
-          </span>
-          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-            <button
-              type="button"
-              aria-label="Previous page"
-              title="Previous page"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              style={{
-                padding: "7px 12px",
-                backgroundColor: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-                color: page <= 1 ? "#d1d5db" : "#4b5563",
-                cursor: page <= 1 ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              <ChevronLeft size={16} />
-            </button>
-            {Array.from({ length: Math.min(totalPages, 3) }, (_, i) => i + 1).map((p) => (
+        {contacts.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "12px 16px",
+              borderTop: "1px solid var(--border)",
+            }}
+          >
+            <span className="muted" style={{ fontSize: 12.5 }}>
+              Showing {contacts.length} of {total.toLocaleString("en-IN")}
+            </span>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <button
-                key={p}
-                onClick={() => setPage(p)}
-                style={{
-                  padding: "7px 12px",
-                  backgroundColor: page === p ? "rgba(185, 28, 74, 0.15)" : "#ffffff",
-                  border: page === p ? "1px solid #B91C4A" : "1px solid #e5e7eb",
-                  borderRadius: "8px",
-                  color: page === p ? "#E8658B" : "#4b5563",
-                  cursor: "pointer",
-                  fontSize: "13px",
-                  fontWeight: page === p ? 600 : 400,
-                }}
+                type="button"
+                aria-label="Previous"
+                className="btn ghost sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
               >
-                {p}
+                <ChevronLeft size={14} /> Previous
               </button>
-            ))}
-            <button
-              type="button"
-              aria-label="Next page"
-              title="Next page"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              style={{
-                padding: "7px 12px",
-                backgroundColor: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-                color: page >= totalPages ? "#d1d5db" : "#4b5563",
-                cursor: page >= totalPages ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              <ChevronRight size={16} />
-            </button>
+              <span className="muted" style={{ fontSize: 12.5, padding: "0 8px" }}>
+                Page {page} / {totalPages}
+              </span>
+              <button
+                type="button"
+                aria-label="Next"
+                className="btn sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+              >
+                Next <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

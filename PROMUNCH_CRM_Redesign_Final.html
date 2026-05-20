@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PROMUNCH CRM — Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============ DESIGN TOKENS — Warm / soft & editorial ============ */
+:root{
+  --bg:#faf8f4; --canvas:#faf8f4; --card-bg:#ffffff;
+  --text:#39342c; --text-2:#857d6f; --text-3:#aaa193;
+  --border:#ebe5d9; --border-2:#e2dccd;
+  --hover:#efe9de; --hover-2:#e7e0d2;
+  --accent:#b9303f; --accent-soft:#f5e7e1;
+  --green:#5a8c52; --green-soft:#ecf0e2;
+  --amber:#bb8a2c; --amber-soft:#f6eed9;
+  --blue:#5b7e96; --blue-soft:#e9eef0;
+  --radius:14px; --radius-sm:10px; --radius-pill:999px;
+  --card-border:1px solid #efe9dd;
+  --card-shadow:0 1px 2px rgba(67,55,32,.05),0 8px 22px rgba(67,55,32,.06);
+  --h1-size:25px; --h1-weight:600; --h1-spacing:-0.018em;
+  --kpi-size:28px; --kpi-weight:600;
+  --side-bg:#f2ede3; --side-text:#857d6f; --side-text-strong:#39342c;
+  --side-hover:#e8e2d6; --side-active-bg:#ffffff; --side-active-text:#39342c;
+  --side-border:#e6e0d3; --side-icon:#aaa193; --side-active-icon:#b9303f;
+  --side-badge-bg:#fff; --side-badge-text:#aaa193; --side-badge-border:#e2dccd;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  font-family:'Geist',-apple-system,BlinkMacSystemFont,sans-serif;
+  background:var(--canvas);color:var(--text);
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  letter-spacing:-0.006em;
+}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-thumb{background:#ddd4c2;border-radius:6px;border:3px solid transparent;background-clip:padding-box;}
+
+/* ============ LAYOUT ============ */
+.app{display:flex;min-height:100vh;}
+.sidebar{
+  width:248px;flex-shrink:0;background:var(--side-bg);
+  border-right:1px solid var(--side-border);
+  display:flex;flex-direction:column;
+  position:sticky;top:0;height:100vh;
+}
+.main{flex:1;min-width:0;background:var(--canvas);}
+
+/* ============ SIDEBAR ============ */
+.brand{display:flex;align-items:center;gap:10px;padding:18px 16px 16px;}
+.brand-mark{
+  width:30px;height:30px;border-radius:8px;
+  background:linear-gradient(135deg,#b9303f,#d6566a);
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:600;font-size:13px;flex-shrink:0;letter-spacing:-0.02em;
+}
+.brand-text{display:flex;flex-direction:column;line-height:1.15;}
+.brand-text b{font-size:14px;font-weight:600;letter-spacing:0.01em;color:var(--side-text-strong);}
+.brand-text span{font-size:10px;color:var(--side-text);letter-spacing:0.14em;font-weight:500;}
+.nav{padding:6px 8px;flex:1;overflow-y:auto;}
+.nav-group{margin-bottom:1px;}
+.nav-group-head{display:flex;align-items:center;gap:5px;
+  font-size:11px;color:var(--side-text);font-weight:600;
+  padding:11px 8px 5px;letter-spacing:0.05em;text-transform:uppercase;
+  cursor:pointer;user-select:none;opacity:.72;transition:opacity .12s;}
+.nav-group-head:hover{opacity:1;}
+.nav-group-head .chev{width:11px;height:11px;flex-shrink:0;
+  transition:transform .15s;color:var(--side-icon);}
+.nav-group.collapsed .chev{transform:rotate(-90deg);}
+.nav-group.collapsed .nav-group-items{display:none;}
+.nav-item{
+  display:flex;align-items:center;gap:9px;padding:7px 8px;
+  border-radius:var(--radius-sm);color:var(--side-text);cursor:pointer;
+  font-size:13.5px;font-weight:450;margin-bottom:1px;user-select:none;
+  transition:background .12s,color .12s;
+}
+.nav-item:hover{background:var(--side-hover);}
+.nav-item.active{background:var(--side-active-bg);color:var(--side-active-text);
+  font-weight:500;box-shadow:0 1px 2px rgba(67,55,32,.06);}
+.nav-item svg{width:16px;height:16px;flex-shrink:0;color:var(--side-icon);}
+.nav-item.active svg{color:var(--side-active-icon);}
+.nav-item .count{
+  margin-left:auto;font-size:11px;color:var(--side-badge-text);
+  background:var(--side-badge-bg);border:1px solid var(--side-badge-border);
+  border-radius:999px;padding:0 6px;line-height:16px;
+}
+.user{display:flex;align-items:center;gap:9px;padding:12px 14px;
+  border-top:1px solid var(--side-border);cursor:pointer;}
+.user:hover{background:var(--side-hover);}
+.avatar{width:28px;height:28px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:600;color:#fff;}
+.user .meta{line-height:1.25;min-width:0;}
+.user .meta b{font-size:13px;font-weight:500;display:block;color:var(--side-text-strong);}
+.user .meta span{font-size:11.5px;color:var(--side-text);display:block;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+/* ============ PAGE ============ */
+.screen{display:none;}
+.screen.active{display:block;}
+.page{padding:34px 44px 70px;max-width:1180px;}
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;
+  gap:24px;margin-bottom:26px;}
+.page-head h1{font-size:var(--h1-size);font-weight:var(--h1-weight);
+  letter-spacing:var(--h1-spacing);display:flex;align-items:center;gap:9px;}
+.page-head .sub{font-size:13.5px;color:var(--text-2);margin-top:3px;}
+.head-icon{width:32px;height:32px;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.head-icon svg{width:18px;height:18px;}
+
+/* ============ BUTTONS ============ */
+.btn{display:inline-flex;align-items:center;gap:6px;font-family:inherit;
+  font-size:13px;font-weight:500;padding:7px 13px;border-radius:var(--radius-sm);
+  border:1px solid var(--border-2);background:var(--card-bg);color:var(--text);
+  cursor:pointer;transition:background .12s,border-color .12s;letter-spacing:-0.005em;}
+.btn:hover{background:var(--hover);}
+.btn svg{width:14px;height:14px;}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn.primary:hover{filter:brightness(.93);}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--text-2);}
+.btn.ghost:hover{background:var(--hover);}
+
+/* ============ CARDS ============ */
+.card{background:var(--card-bg);border:var(--card-border);
+  border-radius:var(--radius);box-shadow:var(--card-shadow);}
+.card-pad{padding:20px 22px;}
+.card-title{font-size:13px;font-weight:600;letter-spacing:-0.005em;}
+.card-sub{font-size:12px;color:var(--text-3);margin-top:2px;}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px;}
+.kpi{background:var(--card-bg);border:var(--card-border);border-radius:var(--radius);
+  box-shadow:var(--card-shadow);padding:18px 18px 16px;}
+.kpi .ico{width:32px;height:32px;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;margin-bottom:14px;}
+.kpi .ico svg{width:15px;height:15px;}
+.kpi .label{font-size:12.5px;color:var(--text-2);font-weight:450;}
+.kpi .value{font-size:var(--kpi-size);font-weight:var(--kpi-weight);
+  letter-spacing:-0.025em;margin-top:3px;}
+.kpi .delta{font-size:11.5px;font-weight:500;margin-top:6px;
+  display:flex;align-items:center;gap:4px;}
+.delta.up{color:var(--green);}
+.delta.flat{color:var(--text-3);}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.section{margin-bottom:16px;}
+
+/* ============ TABLE ============ */
+.tbl{width:100%;border-collapse:collapse;}
+.tbl thead th{font-size:11px;font-weight:500;color:var(--text-3);text-align:left;
+  padding:0 16px 9px;letter-spacing:0.04em;text-transform:uppercase;}
+.tbl tbody td{padding:11px 16px;border-top:1px solid var(--border);
+  font-size:13px;vertical-align:middle;}
+.tbl tbody tr{cursor:pointer;transition:background .1s;}
+.tbl tbody tr:hover{background:var(--hover);}
+.tbl .num{font-variant-numeric:tabular-nums;}
+.cell-main{display:flex;align-items:center;gap:10px;}
+.cell-main .nm{font-weight:500;}
+.cell-sub{font-size:12px;color:var(--text-3);}
+
+/* ============ PILLS / TAGS ============ */
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;
+  font-weight:500;padding:2px 9px;border-radius:var(--radius-pill);
+  line-height:1.7;white-space:nowrap;}
+.pill.green{background:var(--green-soft);color:var(--green);}
+.pill.amber{background:var(--amber-soft);color:var(--amber);}
+.pill.blue{background:var(--blue-soft);color:var(--blue);}
+.pill.grey{background:var(--hover-2);color:var(--text-2);}
+.pill.accent{background:var(--accent-soft);color:var(--accent);}
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block;}
+.tag{display:inline-block;font-size:11px;color:var(--text-2);
+  background:var(--hover);border:1px solid var(--border-2);
+  border-radius:6px;padding:1px 7px;margin:1px 3px 1px 0;}
+
+/* ============ TABS / CHIPS ============ */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:20px;}
+.tab{padding:8px 12px;font-size:13.5px;color:var(--text-2);cursor:pointer;
+  border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:450;transition:color .12s;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--text);border-bottom-color:var(--accent);font-weight:500;}
+.chips{display:flex;gap:6px;flex-wrap:wrap;}
+.chip{padding:5px 12px;font-size:12.5px;border-radius:var(--radius-pill);
+  border:1px solid var(--border-2);color:var(--text-2);cursor:pointer;
+  background:var(--card-bg);transition:background .12s;}
+.chip:hover{background:var(--hover);}
+.chip.active{background:var(--accent-soft);color:var(--accent);
+  border-color:transparent;font-weight:500;}
+
+/* ============ INPUTS ============ */
+.field label{display:block;font-size:11px;color:var(--text-3);font-weight:500;
+  letter-spacing:0.04em;text-transform:uppercase;margin-bottom:6px;}
+.input{width:100%;font-family:inherit;font-size:13.5px;color:var(--text);
+  padding:8px 12px;border:1px solid var(--border-2);border-radius:var(--radius-sm);
+  background:var(--hover);}
+.input:focus{outline:none;border-color:var(--accent);background:var(--card-bg);}
+.search{display:flex;align-items:center;gap:8px;border:1px solid var(--border-2);
+  border-radius:var(--radius-sm);padding:7px 12px;background:var(--hover);
+  max-width:340px;flex:1;}
+.search svg{width:15px;height:15px;color:var(--text-3);}
+.search input{border:none;background:none;font-family:inherit;font-size:13.5px;flex:1;color:var(--text);}
+.search input:focus{outline:none;}
+
+/* ============ EMPTY STATE ============ */
+.empty{border:1px dashed var(--border-2);border-radius:var(--radius);
+  padding:64px 24px;text-align:center;}
+.empty .ico{width:48px;height:48px;border-radius:13px;background:var(--hover);
+  display:flex;align-items:center;justify-content:center;margin:0 auto 16px;}
+.empty .ico svg{width:22px;height:22px;color:var(--text-3);}
+.empty h3{font-size:15px;font-weight:600;margin-bottom:5px;}
+.empty p{font-size:13px;color:var(--text-2);max-width:340px;margin:0 auto 18px;}
+
+/* ============ DONUT ============ */
+.donut{width:118px;height:118px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;}
+.donut .hole{width:84px;height:84px;border-radius:50%;background:var(--card-bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.donut .hole b{font-size:21px;font-weight:600;letter-spacing:-0.02em;}
+.donut .hole span{font-size:10.5px;color:var(--text-3);}
+.legend-row{display:flex;align-items:center;justify-content:space-between;
+  padding:8px 0;font-size:13px;}
+.legend-row + .legend-row{border-top:1px solid var(--border);}
+.legend-l{display:flex;align-items:center;gap:8px;}
+.legend-r{display:flex;align-items:center;gap:10px;color:var(--text-3);font-size:12px;}
+.legend-r b{color:var(--text);font-size:13px;font-variant-numeric:tabular-nums;}
+
+/* ============ ANALYTICS ============ */
+.health-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.health-tile{border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 15px;}
+.health-tile .top{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
+.health-tile .top svg{width:15px;height:15px;}
+.health-tile .top span{font-size:12.5px;color:var(--text-2);}
+.health-tile .big{font-size:20px;font-weight:600;letter-spacing:-0.02em;}
+.bar{height:5px;border-radius:3px;background:var(--hover-2);margin-top:9px;overflow:hidden;}
+.bar > i{display:block;height:100%;border-radius:3px;}
+.stat-line{display:flex;align-items:center;justify-content:space-between;
+  padding:9px 0;font-size:13px;}
+.stat-line + .stat-line{border-top:1px solid var(--border);}
+.stat-line .v{font-weight:600;font-variant-numeric:tabular-nums;}
+.note{font-size:12px;color:var(--text-3);background:var(--hover);
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:9px 12px;margin-top:14px;}
+.conn-row{display:flex;align-items:center;gap:14px;}
+.conn-logo{width:40px;height:40px;border-radius:11px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;}
+.conn-logo svg{width:19px;height:19px;}
+.meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:18px;}
+.meta-grid .k{font-size:11px;color:var(--text-3);text-transform:uppercase;
+  letter-spacing:0.04em;font-weight:500;margin-bottom:4px;}
+.meta-grid .v{font-size:13.5px;font-weight:450;}
+.muted{color:var(--text-3);}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">PM</div>
+      <div class="brand-text"><b>PROMUNCH</b><span>CRM</span></div>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="nav-group">
+        <div class="nav-group-head"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m6 9 6 6 6-6"/></svg>Overview</div>
+        <div class="nav-group-items">
+      <div class="nav-item active" data-screen="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Dashboard</div>
+        </div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-head"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m6 9 6 6 6-6"/></svg>Inbox</div>
+        <div class="nav-group-items">
+      <div class="nav-item" data-screen="support">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+        Support Emails<span class="count">7</span></div>
+      <div class="nav-item" data-screen="whatsapp">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 21l2-5.5a8.5 8.5 0 0 1 7.5-12 8.38 8.38 0 0 1 8.5 8z"/></svg>
+        WhatsApp</div>
+        </div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-head"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m6 9 6 6 6-6"/></svg>Audience</div>
+        <div class="nav-group-items">
+      <div class="nav-item" data-screen="contacts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
+        Contacts<span class="count">1,032</span></div>
+        </div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-head"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m6 9 6 6 6-6"/></svg>Marketing</div>
+        <div class="nav-group-items">
+      <div class="nav-item" data-screen="campaigns">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
+        Campaigns</div>
+      <div class="nav-item" data-screen="flows">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M8.5 6H14a3 3 0 0 1 3 3v.5M8.5 18H14a3 3 0 0 0 3-3v-.5"/></svg>
+        Flows</div>
+      <div class="nav-item" data-screen="analytics">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="M7 15v-4M12 15V7M17 15v-7"/></svg>
+        Analytics</div>
+        </div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-head"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m6 9 6 6 6-6"/></svg>System</div>
+        <div class="nav-group-items">
+      <div class="nav-item" data-screen="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.62.78 1.05 1.42 1.05H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings</div>
+        </div>
+      </div>
+    </nav>
+    <div class="user">
+      <div class="avatar" style="background:#b9303f">KM</div>
+      <div class="meta"><b>Khush Mutha</b><span>khush@promunch.in</span></div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+
+  <!-- ===== DASHBOARD ===== -->
+  <section class="screen active" id="screen-dashboard">
+    <div class="page">
+      <div class="page-head">
+        <div><h1>Dashboard</h1><div class="sub">Overview of your CRM activity · last 30 days</div></div>
+        <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Sync now</button>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi">
+          <div class="ico" style="background:var(--green-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div class="label">Total revenue</div><div class="value">₹2,72,463</div>
+          <div class="delta up">▲ 12.4% vs prev. period</div>
+        </div>
+        <div class="kpi">
+          <div class="ico" style="background:var(--blue-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+          <div class="label">Active subscribers</div><div class="value">1,000</div>
+          <div class="delta up">▲ 1,000 this period</div>
+        </div>
+        <div class="kpi">
+          <div class="ico" style="background:var(--accent-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></div>
+          <div class="label">Email open rate</div><div class="value">0%</div>
+          <div class="delta flat">No campaigns sent yet</div>
+        </div>
+        <div class="kpi">
+          <div class="ico" style="background:var(--amber-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M3 17 9 11l4 4 8-8"/><path d="M17 7h4v4"/></svg></div>
+          <div class="label">Flow revenue</div><div class="value">₹0</div>
+          <div class="delta flat">No flows live yet</div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card card-pad">
+          <div class="card-title">List health</div>
+          <div class="card-sub">1,000 total contacts</div>
+          <div style="display:flex;align-items:center;gap:26px;margin-top:18px;">
+            <div class="donut" style="background:conic-gradient(var(--green) 0 100%,var(--hover-2) 0)">
+              <div class="hole"><b>100%</b><span>Active</span></div>
+            </div>
+            <div style="flex:1;">
+              <div class="legend-row"><div class="legend-l"><span class="dot" style="background:var(--green)"></span>Active</div><div class="legend-r"><b>1,000</b>100%</div></div>
+              <div class="legend-row"><div class="legend-l"><span class="dot" style="background:var(--blue)"></span>Inactive</div><div class="legend-r"><b>0</b>0%</div></div>
+              <div class="legend-row"><div class="legend-l"><span class="dot" style="background:var(--accent)"></span>Bounced</div><div class="legend-r"><b>0</b>0%</div></div>
+              <div class="legend-row"><div class="legend-l"><span class="dot" style="background:var(--text-3)"></span>Unsubscribed</div><div class="legend-r"><b>0</b>0%</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="card card-pad">
+          <div class="card-title">Channels</div>
+          <div class="card-sub">Connected data sources</div>
+          <div style="margin-top:16px;">
+            <div class="legend-row"><div class="legend-l"><span class="dot" style="background:var(--green)"></span>Shopify · promunch.myshopify.com</div><span class="pill green"><span class="dot" style="background:var(--green)"></span>Synced 2m ago</span></div>
+            <div class="legend-row"><div class="legend-l"><span class="dot" style="background:var(--amber)"></span>Amazon Seller · SP-API</div><span class="pill amber">Setup pending</span></div>
+            <div class="legend-row"><div class="legend-l"><span class="dot" style="background:var(--green)"></span>Email · SendGrid</div><span class="pill green"><span class="dot" style="background:var(--green)"></span>Verified</span></div>
+            <div class="legend-row"><div class="legend-l"><span class="dot" style="background:var(--text-3)"></span>WhatsApp Business</div><span class="pill grey">Not connected</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SUPPORT EMAILS ===== -->
+  <section class="screen" id="screen-support">
+    <div class="page">
+      <div class="page-head">
+        <div>
+          <h1><span class="head-icon" style="background:var(--accent-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.9"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span>Customer Support Emails</h1>
+          <div class="sub">Inbox replies handled by the Slack approval bot · 7 threads</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="Search threads…"></div>
+        <div class="chips">
+          <div class="chip active">All</div><div class="chip">Pending</div>
+          <div class="chip">Sent</div><div class="chip">Skipped</div><div class="chip">Failed</div>
+        </div>
+      </div>
+      <div class="card">
+        <table class="tbl">
+          <thead><tr><th>From</th><th>Subject</th><th>Category</th><th>Urgency</th><th>Score</th><th>Status</th><th>Received</th></tr></thead>
+          <tbody>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#8a6fb0;width:26px;height:26px;font-size:10px">TS</div><div><div class="nm">Think School</div><div class="cell-sub">hello@thethinkschool.com</div></div></div></td><td><div>Your seat is locked, Parth Mutha. See you on 7th June.</div><div class="cell-sub">Quick Commerce</div></td><td><span class="tag">transactional</span></td><td class="muted">Low</td><td class="num">1</td><td><span class="pill grey">Skipped</span></td><td class="muted">3h ago</td></tr>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#5b7e96;width:26px;height:26px;font-size:10px">RP</div><div><div class="nm">Payments</div><div class="cell-sub">no-reply@razorpay.com</div></div></div></td><td><div>Payment successful for Think School</div><div class="cell-sub">Think School ₹9000.00 paid successfully</div></td><td><span class="tag">transactional</span></td><td class="muted">Low</td><td class="num">1</td><td><span class="pill grey">Skipped</span></td><td class="muted">3h ago</td></tr>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#c0667f;width:26px;height:26px;font-size:10px">TK</div><div><div class="nm">Tanisha Kapoor</div><div class="cell-sub">tanisha@fitreak.com</div></div></div></td><td><div>Re: PROMUNCH &lt;&gt; FITREAK</div><div class="cell-sub">Looping in @promunch@vippysoya.com…</div></td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td><td><span class="pill amber">Pending</span></td><td class="muted">4h ago</td></tr>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#5a8c52;width:26px;height:26px;font-size:10px">QC</div><div><div class="nm">QuickComm Support</div><div class="cell-sub">help@thethinkschool.com</div></div></div></td><td><div>Re: You're in, Parth. Lock your seat for 7th June.</div><div class="cell-sub">Hey Parth, thank you for writing to us…</div></td><td><span class="tag">General</span></td><td><span class="pill blue">Medium</span></td><td class="num">5</td><td><span class="pill grey">Skipped</span></td><td class="muted">4h ago</td></tr>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#bb8a2c;width:26px;height:26px;font-size:10px">BS</div><div><div class="nm">Bhanu Priy Singh</div><div class="cell-sub">bpsingh@rk.world</div></div></div></td><td><div>Re: Amazon Now &lt;&gt; PROMUNCH Protein Snacks</div><div class="cell-sub">Dear Promunch team, apologies for the delayed response…</div></td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td><td><span class="pill amber">Pending</span></td><td class="muted">4h ago</td></tr>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#b9303f;width:26px;height:26px;font-size:10px">KM</div><div><div class="nm">Khush Mutha</div><div class="cell-sub">khush@oltaflock.ai</div></div></div></td><td><div>TEST</div><div class="cell-sub">Where is my order — Khush Mutha, Founder, Oltaflock AI…</div></td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td><td><span class="pill amber">Pending</span></td><td class="muted">4h ago</td></tr>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#b9303f;width:26px;height:26px;font-size:10px">KM</div><div><div class="nm">Khush Mutha</div><div class="cell-sub">khush@oltaflock.ai</div></div></div></td><td><div>Where is my order</div><div class="cell-sub">Hi, I have an order #123456 and I want to know the tracking…</div></td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td><td><span class="pill amber">Pending</span></td><td class="muted">4h ago</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== WHATSAPP ===== -->
+  <section class="screen" id="screen-whatsapp">
+    <div class="page">
+      <div class="page-head">
+        <div>
+          <h1><span class="head-icon" style="background:var(--green-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.9"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 21l2-5.5a8.5 8.5 0 0 1 7.5-12 8.38 8.38 0 0 1 8.5 8z"/></svg></span>WhatsApp</h1>
+          <div class="sub">Inbox, AI agent, templates &amp; tickets</div>
+        </div>
+        <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Connect number</button>
+      </div>
+      <div class="tabs">
+        <div class="tab active">Inbox</div><div class="tab">Tickets</div>
+        <div class="tab">Templates</div><div class="tab">Knowledge Base</div>
+      </div>
+      <div style="display:grid;grid-template-columns:300px 1fr;gap:14px;">
+        <div class="card" style="padding:14px;">
+          <div class="search" style="max-width:none;margin-bottom:12px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="Search phone or message…"></div>
+          <div class="chips" style="margin-bottom:6px;">
+            <div class="chip active">All</div><div class="chip">Bot</div>
+            <div class="chip">Human</div><div class="chip">Closed</div>
+          </div>
+          <div style="text-align:center;color:var(--text-3);font-size:12.5px;padding:40px 0;">No conversations yet</div>
+        </div>
+        <div class="card" style="display:flex;align-items:center;justify-content:center;min-height:420px;">
+          <div class="empty" style="border:none;padding:0;">
+            <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 21l2-5.5a8.5 8.5 0 0 1 7.5-12 8.38 8.38 0 0 1 8.5 8z"/></svg></div>
+            <h3>Pick a conversation</h3>
+            <p>Select a thread from the list to view messages, or connect a WhatsApp Business number to start.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== CONTACTS ===== -->
+  <section class="screen" id="screen-contacts">
+    <div class="page">
+      <div class="page-head">
+        <div><h1>Contacts</h1><div class="sub">1,032 total contacts · manage your subscriber base</div></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>Import from Klaviyo</button>
+          <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>Import from Shopify</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="Search contacts…"></div>
+        <div class="chips">
+          <div class="chip active">All</div><div class="chip">Active</div>
+          <div class="chip">Inactive</div><div class="chip">Unsubscribed</div><div class="chip">Bounced</div>
+        </div>
+      </div>
+      <div class="card">
+        <table class="tbl">
+          <thead><tr><th>Name</th><th>Email</th><th>Orders</th><th>Lifetime value</th><th>Last order</th><th>Status</th><th>Segments</th></tr></thead>
+          <tbody>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#8a6fb0;width:26px;height:26px;font-size:10px">PT</div><span class="nm">Prashant Tamrakar</span></div></td><td class="muted">chotu.tamrakar1@gmail.com</td><td class="num">1</td><td class="num" style="color:var(--green);font-weight:500">₹550.80</td><td class="muted">9 Jan 2026</td><td><span class="pill green"><span class="dot" style="background:var(--green)"></span>Active</span></td><td><span class="tag">Email List</span><span class="tag">First-time</span></td></tr>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#5a8c52;width:26px;height:26px;font-size:10px">HS</div><span class="nm">Himanshu Sharma</span></div></td><td class="muted">himanshusharma2603@gmail.com</td><td class="num">1</td><td class="num" style="color:var(--green);font-weight:500">₹963.00</td><td class="muted">4 Feb 2026</td><td><span class="pill green"><span class="dot" style="background:var(--green)"></span>Active</span></td><td><span class="tag">First-time</span></td></tr>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#bb8a2c;width:26px;height:26px;font-size:10px">R</div><span class="nm">rajashekhareddy366</span></div></td><td class="muted">rajashekhareddy366@gmail.com</td><td class="num">0</td><td class="num muted">₹0</td><td class="muted">—</td><td><span class="pill green"><span class="dot" style="background:var(--green)"></span>Active</span></td><td><span class="tag">Winback</span></td></tr>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#5b7e96;width:26px;height:26px;font-size:10px">MY</div><span class="nm">Manoj Yelmule</span></div></td><td class="muted">manojyelmule475@gmail.com</td><td class="num">0</td><td class="num muted">₹0</td><td class="muted">—</td><td><span class="pill green"><span class="dot" style="background:var(--green)"></span>Active</span></td><td><span class="tag">Email List</span></td></tr>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#c0667f;width:26px;height:26px;font-size:10px">S</div><span class="nm">saisasankrvsl</span></div></td><td class="muted">saisasankrvsl@gmail.com</td><td class="num">0</td><td class="num muted">₹0</td><td class="muted">—</td><td><span class="pill green"><span class="dot" style="background:var(--green)"></span>Active</span></td><td><span class="tag">Winback</span></td></tr>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#8a6fb0;width:26px;height:26px;font-size:10px">MS</div><span class="nm">Mridul Saini</span></div></td><td class="muted">mridulhello99@gmail.com</td><td class="num">0</td><td class="num muted">₹0</td><td class="muted">—</td><td><span class="pill green"><span class="dot" style="background:var(--green)"></span>Active</span></td><td><span class="tag">Inactive subs</span></td></tr>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#5a8c52;width:26px;height:26px;font-size:10px">SA</div><span class="nm">siddhantaggarwal2005</span></div></td><td class="muted">siddhantaggarwal2005@gmail.com</td><td class="num">0</td><td class="num muted">₹0</td><td class="muted">—</td><td><span class="pill green"><span class="dot" style="background:var(--green)"></span>Active</span></td><td><span class="tag">Email List</span></td></tr>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#bb8a2c;width:26px;height:26px;font-size:10px">TA</div><span class="nm">Tanish Agarwal</span></div></td><td class="muted">agarwaltanishcool999@gmail.com</td><td class="num">0</td><td class="num muted">₹0</td><td class="muted">—</td><td><span class="pill green"><span class="dot" style="background:var(--green)"></span>Active</span></td><td><span class="tag">Winback</span></td></tr>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#5b7e96;width:26px;height:26px;font-size:10px">YK</div><span class="nm">Yash Khairajani</span></div></td><td class="muted">yashkhairajani@yahoo.com</td><td class="num">1</td><td class="num" style="color:var(--green);font-weight:500">₹531.65</td><td class="muted">25 Jan 2026</td><td><span class="pill green"><span class="dot" style="background:var(--green)"></span>Active</span></td><td><span class="tag">First-time</span></td></tr>
+            <tr><td><div class="cell-main"><div class="avatar" style="background:#b9303f;width:26px;height:26px;font-size:10px">KM</div><span class="nm">Kartikey Mittal</span></div></td><td class="muted">g6.kartikey@gmail.com</td><td class="num">0</td><td class="num muted">₹0</td><td class="muted">—</td><td><span class="pill green"><span class="dot" style="background:var(--green)"></span>Active</span></td><td><span class="tag">Inactive subs</span></td></tr>
+          </tbody>
+        </table>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--border);">
+          <span class="muted" style="font-size:12.5px;">Showing 1–10 of 1,032</span>
+          <div style="display:flex;gap:6px;">
+            <button class="btn ghost" style="padding:5px 9px;">Previous</button>
+            <button class="btn" style="padding:5px 9px;">Next</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== CAMPAIGNS ===== -->
+  <section class="screen" id="screen-campaigns">
+    <div class="page">
+      <div class="page-head">
+        <div><h1>Campaigns</h1><div class="sub">Manage and track your email campaigns</div></div>
+        <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Create campaign</button>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+        <div class="tabs" style="margin-bottom:0;border:none;">
+          <div class="tab active">All</div><div class="tab">Sent</div>
+          <div class="tab">Scheduled</div><div class="tab">Draft</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-3);">
+          Sort by <div class="chips"><div class="chip active">Date</div><div class="chip">Revenue</div><div class="chip">Open rate</div></div>
+        </div>
+      </div>
+      <div class="empty">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg></div>
+        <h3>No campaigns yet</h3>
+        <p>Create your first campaign to start sending emails to your contacts and tracking revenue.</p>
+        <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Create campaign</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FLOWS ===== -->
+  <section class="screen" id="screen-flows">
+    <div class="page">
+      <div class="page-head">
+        <div><h1>Flows</h1><div class="sub">Automated email sequences triggered by customer behaviour</div></div>
+        <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Create flow</button>
+      </div>
+      <div class="empty">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M8.5 6H14a3 3 0 0 1 3 3v.5M8.5 18H14a3 3 0 0 0 3-3v-.5"/></svg></div>
+        <h3>No flows yet</h3>
+        <p>Create automated flows like abandoned-cart recovery, welcome series, or post-purchase upsells.</p>
+        <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Create flow</button>
+      </div>
+      <div class="grid-3" style="margin-top:18px;">
+        <div class="card card-pad"><div class="card-title">Abandoned cart</div><div class="card-sub" style="margin-top:6px;">Recover checkouts left behind. Recommended first flow.</div></div>
+        <div class="card card-pad"><div class="card-title">Welcome series</div><div class="card-sub" style="margin-top:6px;">Greet new subscribers and introduce PROMUNCH.</div></div>
+        <div class="card card-pad"><div class="card-title">Post-purchase</div><div class="card-sub" style="margin-top:6px;">Thank buyers and drive the second order.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== ANALYTICS ===== -->
+  <section class="screen" id="screen-analytics">
+    <div class="page">
+      <div class="page-head">
+        <div><h1>Analytics</h1><div class="sub">Performance overview for PROMUNCH email marketing</div></div>
+        <div class="chips"><div class="chip">Last 7 days</div><div class="chip active">Last 30 days</div><div class="chip">Last 90 days</div></div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="ico" style="background:var(--green-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="label">Email revenue</div><div class="value">₹0</div><div class="delta flat">No sends in range</div></div>
+        <div class="kpi"><div class="ico" style="background:var(--accent-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></div><div class="label">Emails sent</div><div class="value">0</div><div class="delta flat">No campaigns yet</div></div>
+        <div class="kpi"><div class="ico" style="background:var(--amber-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M3 17 9 11l4 4 8-8"/><path d="M17 7h4v4"/></svg></div><div class="label">Revenue per email</div><div class="value">₹0</div><div class="delta flat">—</div></div>
+        <div class="kpi"><div class="ico" style="background:var(--blue-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="label">List growth</div><div class="value">+100%</div><div class="delta up">▲ 1,000 net new</div></div>
+      </div>
+      <div class="grid-2 section">
+        <div class="card card-pad"><div class="card-title">Top campaigns</div><div style="text-align:center;color:var(--text-3);font-size:12.5px;padding:42px 0;">No campaigns in this range</div></div>
+        <div class="card card-pad"><div class="card-title">Top flows</div><div style="text-align:center;color:var(--text-3);font-size:12.5px;padding:42px 0;">No flows yet</div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card card-pad">
+          <div class="card-title">Email health</div>
+          <div class="card-sub">Deliverability signals</div>
+          <div class="health-grid" style="margin-top:14px;">
+            <div class="health-tile"><div class="top"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span>Delivery rate</span></div><div class="big">—</div><div class="bar"><i style="width:0;background:var(--green)"></i></div></div>
+            <div class="health-tile"><div class="top"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Bounce rate</span></div><div class="big">—</div><div class="bar"><i style="width:0;background:var(--amber)"></i></div></div>
+            <div class="health-tile"><div class="top"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>Spam rate</span></div><div class="big">—</div><div class="bar"><i style="width:0;background:var(--blue)"></i></div></div>
+            <div class="health-tile"><div class="top"><svg viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 8 4 4-4 4"/></svg><span>Unsubscribe rate</span></div><div class="big">—</div><div class="bar"><i style="width:0;background:var(--text-3)"></i></div></div>
+          </div>
+          <div class="note">Health metrics populate after your first campaign is sent.</div>
+        </div>
+        <div class="card card-pad">
+          <div class="card-title">Subscriber growth</div>
+          <div class="card-sub">This period</div>
+          <div style="margin-top:8px;">
+            <div class="stat-line"><span>New subscribers</span><span class="v" style="color:var(--green)">+1,000</span></div>
+            <div class="stat-line"><span>Unsubscribed</span><span class="v" style="color:var(--accent)">−0</span></div>
+            <div class="stat-line"><span>Net growth</span><span class="v" style="color:var(--green)">+1,000</span></div>
+          </div>
+          <div style="margin-top:16px;background:var(--green-soft);border-radius:var(--radius-sm);padding:18px;text-align:center;">
+            <div style="font-size:26px;font-weight:600;letter-spacing:-0.025em;color:var(--green)">1,000</div>
+            <div style="font-size:12px;color:var(--text-2);margin-top:2px;">Total active subscribers</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SETTINGS ===== -->
+  <section class="screen" id="screen-settings">
+    <div class="page">
+      <div class="page-head">
+        <div><h1>Settings</h1><div class="sub">Manage your PROMUNCH CRM configuration</div></div>
+      </div>
+      <div class="section card card-pad">
+        <div class="conn-row">
+          <div class="conn-logo" style="background:var(--green-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.9"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/></svg></div>
+          <div style="flex:1;"><div class="card-title">Shopify connection</div><div class="card-sub">Sync your Shopify store data</div></div>
+          <button class="btn" style="color:var(--accent);border-color:var(--accent-soft);">Disconnect</button>
+        </div>
+        <div class="meta-grid">
+          <div><div class="k">Store URL</div><div class="v">promunch.myshopify.com</div></div>
+          <div><div class="k">Status</div><div class="v"><span class="pill green"><span class="dot" style="background:var(--green)"></span>Connected</span></div></div>
+          <div><div class="k">Last sync</div><div class="v">2 minutes ago</div></div>
+        </div>
+      </div>
+      <div class="section card card-pad">
+        <div class="conn-row">
+          <div class="conn-logo" style="background:var(--accent-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.9"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></div>
+          <div style="flex:1;"><div class="card-title">Email sending</div><div class="card-sub">Configure your email provider and sender details</div></div>
+        </div>
+        <div class="grid-3" style="margin-top:18px;">
+          <div class="field"><label>Provider</label><input class="input" value="SendGrid"></div>
+          <div class="field"><label>From name</label><input class="input" value="PROMUNCH"></div>
+          <div class="field"><label>From email</label><input class="input" value="hello@promunch.in"></div>
+        </div>
+        <div style="margin-top:18px;"><div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;font-weight:500;margin-bottom:8px;">Domain authentication</div>
+          <span class="pill green"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>SPF</span>
+          <span class="pill green" style="margin-left:6px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>DKIM</span>
+          <span class="pill green" style="margin-left:6px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>DMARC</span>
+        </div>
+      </div>
+      <div class="section card card-pad">
+        <div class="conn-row">
+          <div class="conn-logo" style="background:var(--blue-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.9"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="6.5" cy="12" r="2.5"/><circle cx="16.5" cy="14" r="2.5"/><circle cx="8.5" cy="19" r="2.5"/></svg></div>
+          <div style="flex:1;"><div class="card-title">Brand settings</div><div class="card-sub">Customise your brand appearance</div></div>
+        </div>
+        <div class="grid-3" style="margin-top:18px;">
+          <div class="field"><label>Brand name</label><input class="input" value="PROMUNCH"></div>
+          <div class="field"><label>Primary colour</label><input class="input" value="#B91C4A" style="font-family:'Geist Mono',monospace;"></div>
+          <div class="field"><label>Logo</label>
+            <div class="input" style="display:flex;align-items:center;gap:8px;color:var(--text-3);cursor:pointer;background:var(--card-bg);border-style:dashed;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Click to upload logo</div>
+          </div>
+        </div>
+      </div>
+      <div class="section card card-pad">
+        <div class="conn-row">
+          <div class="conn-logo" style="background:var(--amber-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.9"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg></div>
+          <div style="flex:1;"><div class="card-title">Team members</div><div class="card-sub">Manage access to PROMUNCH CRM</div></div>
+          <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>Invite member</button>
+        </div>
+        <table class="tbl" style="margin-top:14px;">
+          <thead><tr><th>Member</th><th>Email</th><th>Role</th></tr></thead>
+          <tbody><tr>
+            <td><div class="cell-main"><div class="avatar" style="background:#b9303f;width:26px;height:26px;font-size:10px">KM</div><span class="nm">Khush Mutha</span></div></td>
+            <td class="muted">khush@promunch.in</td>
+            <td><span class="pill accent">Admin</span></td>
+          </tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  </main>
+</div>
+
+<script>
+  document.getElementById('nav').addEventListener('click', e=>{
+    const head = e.target.closest('.nav-group-head');
+    if(head){ head.parentElement.classList.toggle('collapsed'); return; }
+    const item = e.target.closest('.nav-item');
+    if(!item) return;
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    item.classList.add('active');
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById('screen-'+item.dataset.screen).classList.add('active');
+    window.scrollTo(0,0);
+  });
+  document.addEventListener('click', e=>{
+    const tab = e.target.closest('.tab');
+    if(tab){tab.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active');}
+    const chip = e.target.closest('.chip');
+    if(chip){chip.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));chip.classList.add('active');}
+  });
+</script>
+</body>
+</html>

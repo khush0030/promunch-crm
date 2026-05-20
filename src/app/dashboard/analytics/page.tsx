@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { DollarSign, Mail, TrendingUp, Users, CheckCircle2, AlertTriangle, ShieldAlert, UserMinus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 const dateRanges = ["Last 7 Days", "Last 30 Days", "Last 90 Days"];
@@ -13,9 +12,10 @@ const rangeDays: Record<string, number> = {
 type TopMetric = {
   label: string;
   value: string;
-  icon: typeof DollarSign;
-  color: string;
-  bg: string;
+  iconBg: string;
+  iconColor: string;
+  iconPath: React.ReactNode;
+  deltaText: string;
 };
 
 type CampaignPerf = {
@@ -36,10 +36,9 @@ type FlowPerf = {
 type EmailHealthRow = {
   label: string;
   value: string;
-  icon: typeof CheckCircle2;
+  pct: number;
   color: string;
-  bg: string;
-  note: string;
+  iconPath: React.ReactNode;
 };
 
 type Growth = {
@@ -48,6 +47,45 @@ type Growth = {
   net: number;
   totalActive: number;
 };
+
+const ICON_REVENUE = (
+  <>
+    <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+  </>
+);
+const ICON_MAIL = (
+  <>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="m3 7 9 6 9-6" />
+  </>
+);
+const ICON_TREND = (
+  <>
+    <path d="M3 17 9 11l4 4 8-8" />
+    <path d="M17 7h4v4" />
+  </>
+);
+const ICON_USERS = (
+  <>
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+  </>
+);
+const ICON_CHECK = <path d="M20 6 9 17l-5-5" />;
+const ICON_WARN = (
+  <>
+    <path d="M12 9v4M12 17h.01" />
+    <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+  </>
+);
+const ICON_SHIELD = <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />;
+const ICON_UNSUB = (
+  <>
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="m17 8 4 4-4 4" />
+  </>
+);
 
 export default function AnalyticsPage() {
   const [activeRange, setActiveRange] = useState("Last 30 Days");
@@ -83,135 +121,121 @@ export default function AnalyticsPage() {
       const delivered = events.filter((e) => e.event_type === "delivered").length;
       const bounced = events.filter((e) => e.event_type === "bounced").length;
       const totalEvts = events.length || 1;
-
       const listGrowthPct = totalActive > 0 ? ((newSubs - unsubscribed) / totalActive) * 100 : 0;
 
       setTopMetrics([
         {
-          label: "Email Revenue",
-          value: totalRevenue > 0 ? `₹${totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "",
-          icon: DollarSign,
-          color: "#10b981",
-          bg: "rgba(16,185,129,0.1)",
+          label: "Email revenue",
+          value: totalRevenue > 0 ? `₹${totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "₹0",
+          iconBg: "var(--green-soft)",
+          iconColor: "var(--green)",
+          iconPath: ICON_REVENUE,
+          deltaText: totalRevenue > 0 ? "▲ this period" : "No sends in range",
         },
         {
-          label: "Emails Sent",
-          value: totalSent > 0 ? totalSent.toLocaleString() : "",
-          icon: Mail,
-          color: "#00B4D8",
-          bg: "rgba(0,180,216,0.1)",
+          label: "Emails sent",
+          value: totalSent > 0 ? totalSent.toLocaleString() : "0",
+          iconBg: "var(--accent-soft)",
+          iconColor: "var(--accent)",
+          iconPath: ICON_MAIL,
+          deltaText: totalSent > 0 ? "▲ this period" : "No campaigns yet",
         },
         {
-          label: "Revenue per Email",
-          value: rpe > 0 ? `₹${rpe.toFixed(2)}` : "",
-          icon: TrendingUp,
-          color: "#F5B731",
-          bg: "rgba(245,183,49,0.1)",
+          label: "Revenue per email",
+          value: rpe > 0 ? `₹${rpe.toFixed(2)}` : "₹0",
+          iconBg: "var(--amber-soft)",
+          iconColor: "var(--amber)",
+          iconPath: ICON_TREND,
+          deltaText: rpe > 0 ? "▲ vs prev." : "—",
         },
         {
-          label: "List Growth",
-          value: totalActive > 0 ? `${listGrowthPct >= 0 ? "+" : ""}${listGrowthPct.toFixed(1)}%` : "",
-          icon: Users,
-          color: "#B91C4A",
-          bg: "rgba(185,28,74,0.1)",
+          label: "List growth",
+          value: totalActive > 0 ? `${listGrowthPct >= 0 ? "+" : ""}${listGrowthPct.toFixed(1)}%` : "0%",
+          iconBg: "var(--blue-soft)",
+          iconColor: "var(--blue)",
+          iconPath: ICON_USERS,
+          deltaText: newSubs > 0 ? `▲ ${newSubs} net new` : "—",
         },
       ]);
 
       setCampaignPerf(
         campaigns.slice(0, 5).map((c) => ({
           name: c.name,
-          sent: c.total_sent > 0 ? c.total_sent.toLocaleString() : "",
-          openRate: c.total_sent > 0 ? ((c.total_opened / c.total_sent) * 100).toFixed(1) + "%" : "",
-          clickRate: c.total_sent > 0 ? ((c.total_clicked / c.total_sent) * 100).toFixed(1) + "%" : "",
-          revenue: c.revenue_attributed > 0 ? `₹${Number(c.revenue_attributed).toLocaleString()}` : "",
+          sent: c.total_sent > 0 ? c.total_sent.toLocaleString() : "—",
+          openRate: c.total_sent > 0 ? ((c.total_opened / c.total_sent) * 100).toFixed(1) + "%" : "—",
+          clickRate: c.total_sent > 0 ? ((c.total_clicked / c.total_sent) * 100).toFixed(1) + "%" : "—",
+          revenue: c.revenue_attributed > 0 ? `₹${Number(c.revenue_attributed).toLocaleString()}` : "—",
         }))
       );
 
       setFlowPerf(
         (flowsRes.data || []).slice(0, 5).map((f) => {
-          const conv = f.total_entered > 0
-            ? ((f.total_converted / f.total_entered) * 100).toFixed(1) + "%"
-            : "";
+          const conv =
+            f.total_entered > 0 ? ((f.total_converted / f.total_entered) * 100).toFixed(1) + "%" : "—";
           return {
             name: f.name,
             trigger: (f.trigger_type || "").replace(/_/g, " "),
-            revenue: f.revenue_attributed > 0 ? `₹${Number(f.revenue_attributed).toLocaleString()}` : "",
+            revenue:
+              f.revenue_attributed > 0 ? `₹${Number(f.revenue_attributed).toLocaleString()}` : "—",
             conversion: conv,
           };
         })
       );
 
+      const deliveryPct = events.length > 0 ? (delivered / totalEvts) * 100 : 0;
+      const bouncePct = events.length > 0 ? (bounced / totalEvts) * 100 : 0;
+      const unsubPct = events.length > 0 ? (unsubscribed / totalEvts) * 100 : 0;
       setEmailHealth([
         {
-          label: "Delivery Rate",
-          value: events.length > 0 ? `${((delivered / totalEvts) * 100).toFixed(1)}%` : "",
-          icon: CheckCircle2,
-          color: "#10b981",
-          bg: "rgba(16,185,129,0.1)",
-          note: "",
+          label: "Delivery rate",
+          value: events.length > 0 ? `${deliveryPct.toFixed(1)}%` : "—",
+          pct: deliveryPct,
+          color: "var(--green)",
+          iconPath: ICON_CHECK,
         },
         {
-          label: "Bounce Rate",
-          value: events.length > 0 ? `${((bounced / totalEvts) * 100).toFixed(2)}%` : "",
-          icon: AlertTriangle,
-          color: "#F5B731",
-          bg: "rgba(245,183,49,0.1)",
-          note: "",
+          label: "Bounce rate",
+          value: events.length > 0 ? `${bouncePct.toFixed(2)}%` : "—",
+          pct: Math.min(100, bouncePct * 10),
+          color: "var(--amber)",
+          iconPath: ICON_WARN,
         },
         {
-          label: "Spam Rate",
-          value: "",
-          icon: ShieldAlert,
-          color: "#10b981",
-          bg: "rgba(16,185,129,0.1)",
-          note: "",
+          label: "Spam rate",
+          value: "—",
+          pct: 0,
+          color: "var(--blue)",
+          iconPath: ICON_SHIELD,
         },
         {
-          label: "Unsubscribe Rate",
-          value: events.length > 0 ? `${((unsubscribed / totalEvts) * 100).toFixed(2)}%` : "",
-          icon: UserMinus,
-          color: "#4b5563",
-          bg: "rgba(161,161,170,0.1)",
-          note: "",
+          label: "Unsubscribe rate",
+          value: events.length > 0 ? `${unsubPct.toFixed(2)}%` : "—",
+          pct: Math.min(100, unsubPct * 10),
+          color: "var(--text-3)",
+          iconPath: ICON_UNSUB,
         },
       ]);
 
-      setGrowth({
-        newSubs,
-        unsubscribed,
-        net: newSubs - unsubscribed,
-        totalActive,
-      });
-
+      setGrowth({ newSubs, unsubscribed, net: newSubs - unsubscribed, totalActive });
       setLoaded(true);
     }
     load();
   }, [activeRange]);
 
   return (
-    <div style={{ padding: "32px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px" }}>
+    <div className="page">
+      <div className="page-head">
         <div>
-          <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#111827", letterSpacing: "-0.5px" }}>Analytics</h1>
-          <p style={{ color: "#6b7280", marginTop: "4px", fontSize: "14px" }}>
-            Performance overview for PROMUNCH email marketing
-          </p>
+          <h1>Analytics</h1>
+          <div className="sub">Performance overview for PROMUNCH email marketing</div>
         </div>
-        <div style={{ display: "flex", gap: "4px", backgroundColor: "#ffffff", padding: "4px", borderRadius: "10px", border: "1px solid #e5e7eb" }}>
+        <div className="chips">
           {dateRanges.map((r) => (
             <button
               key={r}
+              type="button"
+              className={`chip${activeRange === r ? " active" : ""}`}
               onClick={() => setActiveRange(r)}
-              style={{
-                padding: "7px 18px",
-                borderRadius: "7px",
-                border: "none",
-                backgroundColor: activeRange === r ? "#e5e7eb" : "transparent",
-                color: activeRange === r ? "#111827" : "#6b7280",
-                fontSize: "13px",
-                fontWeight: activeRange === r ? 600 : 400,
-                cursor: "pointer",
-              }}
             >
               {r}
             </button>
@@ -219,210 +243,199 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginBottom: "24px" }}>
-        {(topMetrics.length > 0 ? topMetrics : Array(4).fill(null)).map((metric, idx) => (
-          <div
-            key={metric?.label || idx}
-            style={{
-              backgroundColor: "#ffffff",
-              border: "1px solid #e5e7eb",
-              borderRadius: "12px",
-              padding: "20px",
-              position: "relative",
-              overflow: "hidden",
-              minHeight: "128px",
-            }}
-          >
-            {metric ? (
-              <>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "16px" }}>
-                  <div
-                    style={{
-                      width: "44px",
-                      height: "44px",
-                      borderRadius: "10px",
-                      backgroundColor: metric.bg,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <metric.icon size={20} color={metric.color} />
-                  </div>
-                </div>
-                <div style={{ fontSize: "26px", fontWeight: 700, color: "#111827", letterSpacing: "-0.5px", marginBottom: "4px" }}>
-                  {metric.value}
-                </div>
-                <div style={{ fontSize: "13px", color: "#6b7280" }}>{metric.label}</div>
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: 0,
-                    right: 0,
-                    width: "80px",
-                    height: "80px",
-                    background: `radial-gradient(circle at 100% 100%, ${metric.bg}, transparent)`,
-                    pointerEvents: "none",
-                  }}
-                />
-              </>
-            ) : (
-              <div style={{ color: "#d1d5db", fontSize: "13px" }}></div>
-            )}
-          </div>
-        ))}
+      <div className="kpi-grid">
+        {topMetrics.map((m) => {
+          const isFlat = m.deltaText.startsWith("No") || m.deltaText === "—";
+          return (
+            <div key={m.label} className="kpi">
+              <div className="ico" style={{ background: m.iconBg }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke={m.iconColor} strokeWidth="2">
+                  {m.iconPath}
+                </svg>
+              </div>
+              <div className="label">{m.label}</div>
+              <div className="value">{m.value}</div>
+              <div className={`delta ${isFlat ? "flat" : "up"}`}>{m.deltaText}</div>
+            </div>
+          );
+        })}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
-        <div style={{ backgroundColor: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "24px" }}>
-          <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827", marginBottom: "20px" }}>Top Campaigns</h2>
+      <div className="grid-2 section">
+        <div className="card card-pad">
+          <div className="card-title">Top campaigns</div>
           {campaignPerf.length > 0 ? (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <table className="tbl" style={{ marginTop: 10 }}>
               <thead>
                 <tr>
-                  {["Campaign", "Sent", "Open", "Click", "Revenue"].map((h) => (
-                    <th key={h} style={{ textAlign: "left", fontSize: "11px", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px", paddingBottom: "10px", borderBottom: "1px solid #e5e7eb" }}>
-                      {h}
-                    </th>
-                  ))}
+                  <th>Campaign</th>
+                  <th>Sent</th>
+                  <th>Open</th>
+                  <th>Click</th>
+                  <th>Revenue</th>
                 </tr>
               </thead>
               <tbody>
                 {campaignPerf.map((c, i) => (
-                  <tr key={i} style={{ borderBottom: i < campaignPerf.length - 1 ? "1px solid #e5e7eb" : "none" }}>
-                    <td style={{ padding: "12px 0", fontSize: "13px", color: "#111827", fontWeight: 500, maxWidth: "140px" }}>
-                      <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", paddingRight: "8px" }}>{c.name}</div>
+                  <tr key={i}>
+                    <td>
+                      <div
+                        style={{
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          maxWidth: 160,
+                          fontWeight: 500,
+                        }}
+                      >
+                        {c.name}
+                      </div>
                     </td>
-                    <td style={{ padding: "12px 4px", fontSize: "12px", color: "#4b5563" }}>{c.sent}</td>
-                    <td style={{ padding: "12px 4px", fontSize: "12px", color: "#00B4D8" }}>{c.openRate}</td>
-                    <td style={{ padding: "12px 4px", fontSize: "12px", color: "#F5B731" }}>{c.clickRate}</td>
-                    <td style={{ padding: "12px 0", fontSize: "13px", fontWeight: 700, color: "#10b981" }}>{c.revenue}</td>
+                    <td className="num">{c.sent}</td>
+                    <td className="num">{c.openRate}</td>
+                    <td className="num">{c.clickRate}</td>
+                    <td className="num" style={{ color: "var(--green)", fontWeight: 500 }}>
+                      {c.revenue}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           ) : (
-            <div style={{ color: "#9ca3af", fontSize: "13px", padding: "24px 0", textAlign: "center" }}>
-              {loaded ? "No campaigns in this range" : ""}
+            <div style={{ textAlign: "center", color: "var(--text-3)", fontSize: 12.5, padding: "42px 0" }}>
+              {loaded ? "No campaigns in this range" : "Loading…"}
             </div>
           )}
         </div>
 
-        <div style={{ backgroundColor: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "24px" }}>
-          <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827", marginBottom: "20px" }}>Top Flows</h2>
+        <div className="card card-pad">
+          <div className="card-title">Top flows</div>
           {flowPerf.length > 0 ? (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <table className="tbl" style={{ marginTop: 10 }}>
               <thead>
                 <tr>
-                  {["Flow", "Trigger", "Revenue", "Conv."].map((h) => (
-                    <th key={h} style={{ textAlign: "left", fontSize: "11px", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px", paddingBottom: "10px", borderBottom: "1px solid #e5e7eb" }}>
-                      {h}
-                    </th>
-                  ))}
+                  <th>Flow</th>
+                  <th>Trigger</th>
+                  <th>Revenue</th>
+                  <th>Conv.</th>
                 </tr>
               </thead>
               <tbody>
                 {flowPerf.map((f, i) => (
-                  <tr key={i} style={{ borderBottom: i < flowPerf.length - 1 ? "1px solid #e5e7eb" : "none" }}>
-                    <td style={{ padding: "12px 0", fontSize: "13px", color: "#111827", fontWeight: 500, maxWidth: "130px" }}>
-                      <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", paddingRight: "8px" }}>{f.name}</div>
+                  <tr key={i}>
+                    <td>
+                      <div
+                        style={{
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          maxWidth: 130,
+                          fontWeight: 500,
+                        }}
+                      >
+                        {f.name}
+                      </div>
                     </td>
-                    <td style={{ padding: "12px 4px", fontSize: "12px", color: "#4b5563", maxWidth: "120px" }}>
-                      <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.trigger}</div>
+                    <td className="muted" style={{ textTransform: "capitalize" }}>
+                      {f.trigger}
                     </td>
-                    <td style={{ padding: "12px 4px", fontSize: "13px", fontWeight: 700, color: "#10b981" }}>{f.revenue}</td>
-                    <td style={{ padding: "12px 0", fontSize: "13px", color: "#F5B731", fontWeight: 600 }}>{f.conversion}</td>
+                    <td className="num" style={{ color: "var(--green)", fontWeight: 500 }}>
+                      {f.revenue}
+                    </td>
+                    <td className="num" style={{ color: "var(--amber)" }}>
+                      {f.conversion}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           ) : (
-            <div style={{ color: "#9ca3af", fontSize: "13px", padding: "24px 0", textAlign: "center" }}>
-              {loaded ? "No flows yet" : ""}
+            <div style={{ textAlign: "center", color: "var(--text-3)", fontSize: 12.5, padding: "42px 0" }}>
+              {loaded ? "No flows yet" : "Loading…"}
             </div>
           )}
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "16px" }}>
-        <div style={{ backgroundColor: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "24px" }}>
-          <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827", marginBottom: "20px" }}>Email Health</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+      <div className="grid-2">
+        <div className="card card-pad">
+          <div className="card-title">Email health</div>
+          <div className="card-sub">Deliverability signals</div>
+          <div className="health-grid" style={{ marginTop: 14 }}>
             {emailHealth.map((item) => (
-              <div
-                key={item.label}
-                style={{
-                  backgroundColor: "#f3f4f6",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "10px",
-                  padding: "16px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "14px",
-                }}
-              >
-                <div
-                  style={{
-                    width: "44px",
-                    height: "44px",
-                    borderRadius: "10px",
-                    backgroundColor: item.bg,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  <item.icon size={20} color={item.color} />
+              <div key={item.label} className="health-tile">
+                <div className="top">
+                  <svg viewBox="0 0 24 24" fill="none" stroke={item.color} strokeWidth="2">
+                    {item.iconPath}
+                  </svg>
+                  <span>{item.label}</span>
                 </div>
-                <div>
-                  <div style={{ fontSize: "20px", fontWeight: 700, color: "#111827" }}>{item.value}</div>
-                  <div style={{ fontSize: "12px", color: "#6b7280" }}>{item.label}</div>
+                <div className="big">{item.value}</div>
+                <div className="bar">
+                  <i style={{ width: `${item.pct}%`, background: item.color }} />
                 </div>
               </div>
             ))}
           </div>
+          {!loaded || emailHealth.every((h) => h.value === "—") ? (
+            <div className="note">Health metrics populate after your first campaign is sent.</div>
+          ) : null}
         </div>
 
-        <div style={{ backgroundColor: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "24px" }}>
-          <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827", marginBottom: "8px" }}>Subscriber Growth</h2>
-          <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "24px" }}>This period</p>
-
+        <div className="card card-pad">
+          <div className="card-title">Subscriber growth</div>
+          <div className="card-sub">This period</div>
           {growth ? (
             <>
-              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                {[
-                  { label: "New Subscribers", value: `+${growth.newSubs}`, color: "#10b981" },
-                  { label: "Unsubscribed", value: `-${growth.unsubscribed}`, color: "#ef4444" },
-                  { label: "Net Growth", value: `${growth.net >= 0 ? "+" : ""}${growth.net}`, color: "#00B4D8" },
-                ].map((item) => (
-                  <div key={item.label}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                      <span style={{ fontSize: "13px", color: "#4b5563" }}>{item.label}</span>
-                      <span style={{ fontSize: "15px", fontWeight: 700, color: item.color }}>{item.value}</span>
-                    </div>
-                  </div>
-                ))}
+              <div style={{ marginTop: 8 }}>
+                <div className="stat-line">
+                  <span>New subscribers</span>
+                  <span className="v" style={{ color: "var(--green)" }}>
+                    +{growth.newSubs}
+                  </span>
+                </div>
+                <div className="stat-line">
+                  <span>Unsubscribed</span>
+                  <span className="v" style={{ color: "var(--accent)" }}>
+                    −{growth.unsubscribed}
+                  </span>
+                </div>
+                <div className="stat-line">
+                  <span>Net growth</span>
+                  <span className="v" style={{ color: growth.net >= 0 ? "var(--green)" : "var(--accent)" }}>
+                    {growth.net >= 0 ? "+" : ""}
+                    {growth.net}
+                  </span>
+                </div>
               </div>
-
               <div
                 style={{
-                  marginTop: "24px",
-                  padding: "16px",
-                  backgroundColor: "rgba(0,180,216,0.06)",
-                  border: "1px solid rgba(0,180,216,0.2)",
-                  borderRadius: "10px",
+                  marginTop: 16,
+                  background: "var(--green-soft)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: 18,
                   textAlign: "center",
                 }}
               >
-                <div style={{ fontSize: "28px", fontWeight: 700, color: "#00B4D8" }}>
-                  {growth.totalActive.toLocaleString()}
+                <div
+                  style={{
+                    fontSize: 26,
+                    fontWeight: 600,
+                    letterSpacing: "-0.025em",
+                    color: "var(--green)",
+                  }}
+                >
+                  {growth.totalActive.toLocaleString("en-IN")}
                 </div>
-                <div style={{ fontSize: "13px", color: "#6b7280", marginTop: "4px" }}>Total Active Subscribers</div>
+                <div style={{ fontSize: 12, color: "var(--text-2)", marginTop: 2 }}>
+                  Total active subscribers
+                </div>
               </div>
             </>
           ) : (
-            <div style={{ color: "#9ca3af", fontSize: "13px" }}></div>
+            <div className="muted" style={{ fontSize: 13, marginTop: 14 }}>
+              Loading…
+            </div>
           )}
         </div>
       </div>

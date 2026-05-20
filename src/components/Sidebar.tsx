@@ -1,108 +1,285 @@
 "use client";
-import Link from "next/link";
-import Image from "next/image";
-import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard, Users, Mail, GitBranch, BarChart3, Settings,
-  Inbox, ChevronRight, X, Menu, MessageSquare,
-} from "lucide-react";
 
-const navItems = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/dashboard/support-emails", icon: Inbox, label: "Customer Support Emails" },
-  { href: "/dashboard/whatsapp", icon: MessageSquare, label: "WhatsApp" },
-  { href: "/dashboard/contacts", icon: Users, label: "Contacts" },
-  { href: "/dashboard/campaigns", icon: Mail, label: "Campaigns" },
-  { href: "/dashboard/flows", icon: GitBranch, label: "Flows" },
-  { href: "/dashboard/analytics", icon: BarChart3, label: "Analytics" },
-  { href: "/dashboard/settings", icon: Settings, label: "Settings" },
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { ChevronDown, Menu, X } from "lucide-react";
+
+type NavLink = { href: string; label: string; icon: React.ReactNode; countKey?: string };
+type NavGroup = { id: string; label: string; items: NavLink[] };
+
+const ICON_PROPS = { fill: "none", stroke: "currentColor", strokeWidth: 1.8 } as const;
+
+const groups: NavGroup[] = [
+  {
+    id: "overview",
+    label: "Overview",
+    items: [
+      {
+        href: "/dashboard",
+        label: "Dashboard",
+        icon: (
+          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
+            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+            <rect x="14" y="3" width="7" height="7" rx="1.5" />
+            <rect x="3" y="14" width="7" height="7" rx="1.5" />
+            <rect x="14" y="14" width="7" height="7" rx="1.5" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    id: "inbox",
+    label: "Inbox",
+    items: [
+      {
+        href: "/dashboard/support-emails",
+        label: "Support Emails",
+        countKey: "supportPending",
+        icon: (
+          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
+            <rect x="3" y="5" width="18" height="14" rx="2" />
+            <path d="m3 7 9 6 9-6" />
+          </svg>
+        ),
+      },
+      {
+        href: "/dashboard/whatsapp",
+        label: "WhatsApp",
+        icon: (
+          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
+            <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 21l2-5.5a8.5 8.5 0 0 1 7.5-12 8.38 8.38 0 0 1 8.5 8z" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    id: "audience",
+    label: "Audience",
+    items: [
+      {
+        href: "/dashboard/contacts",
+        label: "Contacts",
+        countKey: "contactsTotal",
+        icon: (
+          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    id: "marketing",
+    label: "Marketing",
+    items: [
+      {
+        href: "/dashboard/campaigns",
+        label: "Campaigns",
+        icon: (
+          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
+            <path d="m3 11 18-5v12L3 14v-3z" />
+            <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+          </svg>
+        ),
+      },
+      {
+        href: "/dashboard/flows",
+        label: "Flows",
+        icon: (
+          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
+            <circle cx="6" cy="6" r="2.5" />
+            <circle cx="6" cy="18" r="2.5" />
+            <circle cx="18" cy="12" r="2.5" />
+            <path d="M8.5 6H14a3 3 0 0 1 3 3v.5M8.5 18H14a3 3 0 0 0 3-3v-.5" />
+          </svg>
+        ),
+      },
+      {
+        href: "/dashboard/analytics",
+        label: "Analytics",
+        icon: (
+          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
+            <path d="M3 3v18h18" />
+            <path d="M7 15v-4M12 15V7M17 15v-7" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    id: "system",
+    label: "System",
+    items: [
+      {
+        href: "/dashboard/settings",
+        label: "Settings",
+        icon: (
+          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.62.78 1.05 1.42 1.05H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        ),
+      },
+    ],
+  },
 ];
 
-export default function Sidebar({ isOpen, onToggle, isMobile }: { isOpen: boolean; onToggle: () => void; isMobile: boolean }) {
-  const pathname = usePathname();
-  const isActive = (href: string) => {
-    if (href === "/dashboard") return pathname === "/dashboard";
-    return pathname.startsWith(href);
-  };
-
-  return (
-    <div
-      style={{
-        width: "260px", minWidth: "260px", height: "100vh",
-        backgroundColor: "#ffffff", borderRight: "1px solid #e5e7eb",
-        display: "flex", flexDirection: "column",
-        position: "fixed", top: 0, left: isOpen ? 0 : -280,
-        zIndex: 100, transition: "left 0.25s ease",
-      }}
-    >
-      <div style={{ padding: "20px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <Image src="/promunch-logo.png" alt="PROMUNCH" width={40} height={40} style={{ borderRadius: "8px" }} />
-          <div>
-            <div style={{ fontWeight: 900, fontSize: "17px", color: "#111827", letterSpacing: "2px" }}>PROMUNCH</div>
-            <div style={{ fontSize: "10px", color: "#B91C4A", fontWeight: 700, letterSpacing: "2px" }}>CRM</div>
-          </div>
-        </div>
-        {isMobile && (
-          <button onClick={onToggle} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: "4px" }}>
-            <X size={20} />
-          </button>
-        )}
-      </div>
-
-      <nav style={{ flex: 1, padding: "12px", overflowY: "auto" }}>
-        <div style={{ fontSize: "10px", fontWeight: 600, color: "#9ca3af", letterSpacing: "1px", textTransform: "uppercase", padding: "8px 8px 8px" }}>
-          Main Menu
-        </div>
-        {navItems.map((item) => {
-          const active = isActive(item.href);
-          return (
-            <Link key={item.href} href={item.href} onClick={isMobile ? onToggle : undefined} style={{ textDecoration: "none" }}>
-              <div style={{
-                display: "flex", alignItems: "center", gap: "10px",
-                padding: "10px 12px", borderRadius: "8px", marginBottom: "2px", cursor: "pointer",
-                borderLeft: active ? "3px solid #B91C4A" : "3px solid transparent",
-                backgroundColor: active ? "rgba(185, 28, 74, 0.08)" : "transparent",
-                color: active ? "#B91C4A" : "#4b5563",
-                fontWeight: active ? 600 : 500, fontSize: "14px",
-              }}>
-                <item.icon size={18} />
-                {item.label}
-                {active && <ChevronRight size={14} style={{ marginLeft: "auto", opacity: 0.6 }} />}
-              </div>
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div style={{ padding: "16px", borderTop: "1px solid #e5e7eb" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "linear-gradient(135deg, #B91C4A, #8B1539)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 700, color: "#fff", flexShrink: 0 }}>K</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: "13px", fontWeight: 600, color: "#111827" }}>Khush Mutha</div>
-            <div style={{ fontSize: "11px", color: "#6b7280" }}>khush@promunch.in</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+const STORAGE_PREFIX = "promunch.sidebar.";
 
 export function MobileHeader({ onToggle }: { onToggle: () => void }) {
   return (
-    <div style={{
-      position: "fixed", top: 0, left: 0, right: 0,
-      height: "56px", backgroundColor: "#ffffff", borderBottom: "1px solid #e5e7eb",
-      display: "flex", alignItems: "center", padding: "0 16px", zIndex: 80, justifyContent: "space-between",
-    }}>
-      <button onClick={onToggle} style={{ background: "none", border: "none", cursor: "pointer", color: "#4b5563", padding: "8px" }}>
-        <Menu size={24} />
+    <header className="mobile-header">
+      <button type="button" onClick={onToggle} aria-label="Open menu">
+        <Menu size={20} />
       </button>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <Image src="/promunch-logo.png" alt="PROMUNCH" width={28} height={28} style={{ borderRadius: "6px" }} />
-        <span style={{ fontWeight: 900, fontSize: "15px", color: "#111827", letterSpacing: "2px" }}>PROMUNCH</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="brand-mark" style={{ width: 26, height: 26, fontSize: 11 }}>PM</div>
+        <div className="brand-text">
+          <b>PROMUNCH</b>
+        </div>
       </div>
-      <div style={{ width: "40px" }} />
-    </div>
+      <div style={{ width: 28 }} />
+    </header>
+  );
+}
+
+export default function Sidebar({
+  isOpen,
+  onToggle,
+  isMobile,
+  counts,
+}: {
+  isOpen: boolean;
+  onToggle: () => void;
+  isMobile: boolean;
+  counts?: Record<string, number | string | undefined>;
+}) {
+  const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+    const next: Record<string, boolean> = {};
+    for (const g of groups) {
+      const raw = localStorage.getItem(STORAGE_PREFIX + g.id);
+      if (raw === "1") next[g.id] = true;
+    }
+    setCollapsed(next);
+  }, []);
+
+  const toggleGroup = (id: string) => {
+    setCollapsed((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      try {
+        localStorage.setItem(STORAGE_PREFIX + id, next[id] ? "1" : "0");
+      } catch {}
+      return next;
+    });
+  };
+
+  const isActive = (href: string) => {
+    if (href === "/dashboard") return pathname === "/dashboard";
+    return pathname === href || pathname.startsWith(href + "/");
+  };
+
+  const userName = "Khush Mutha";
+  const userEmail = "khush@promunch.in";
+  const userInitials = userName
+    .split(/\s+/)
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  return (
+    <>
+      {isMobile && (
+        <div
+          className={`sidebar-overlay${isOpen ? " show" : ""}`}
+          onClick={onToggle}
+          aria-hidden
+        />
+      )}
+      <aside className={`sidebar${isMobile && isOpen ? " open" : ""}`}>
+        <div className="brand">
+          <div className="brand-mark">PM</div>
+          <div className="brand-text">
+            <b>PROMUNCH</b>
+            <span>CRM</span>
+          </div>
+          {isMobile && (
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-label="Close menu"
+              style={{
+                marginLeft: "auto",
+                background: "none",
+                border: "none",
+                color: "var(--side-text)",
+                cursor: "pointer",
+              }}
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
+
+        <nav className="nav">
+          {groups.map((g) => {
+            const isCollapsed = hydrated && !!collapsed[g.id];
+            return (
+              <div key={g.id} className={`nav-group${isCollapsed ? " collapsed" : ""}`}>
+                <button
+                  type="button"
+                  className="nav-group-head"
+                  onClick={() => toggleGroup(g.id)}
+                  aria-expanded={isCollapsed ? "false" : "true"}
+                >
+                  <ChevronDown className="chev" size={11} />
+                  {g.label}
+                </button>
+                <div className="nav-group-items">
+                  {g.items.map((it) => {
+                    const active = isActive(it.href);
+                    const count = it.countKey ? counts?.[it.countKey] : undefined;
+                    return (
+                      <Link
+                        key={it.href}
+                        href={it.href}
+                        className={`nav-item${active ? " active" : ""}`}
+                        onClick={isMobile ? onToggle : undefined}
+                      >
+                        {it.icon}
+                        <span style={{ flex: 1 }}>{it.label}</span>
+                        {count !== undefined && count !== null && count !== "" && (
+                          <span className="count">{count}</span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </nav>
+
+        <div className="user">
+          <div className="avatar" style={{ background: "var(--accent)" }}>
+            {userInitials}
+          </div>
+          <div className="meta">
+            <b>{userName}</b>
+            <span>{userEmail}</span>
+          </div>
+        </div>
+      </aside>
+    </>
   );
 }
