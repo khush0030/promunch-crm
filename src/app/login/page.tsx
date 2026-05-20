@@ -58,7 +58,7 @@ function LoginInner() {
       <div className="card card-pad" style={{ width: "100%", maxWidth: 400, padding: 32 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
           <Image
-            src="/pm-logo-p.png"
+            src="/pm-logo-square.png"
             alt="PROMUNCH"
             width={36}
             height={36}

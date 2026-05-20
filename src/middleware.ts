@@ -32,7 +32,10 @@ export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
   const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + "/"));
   const isApi = path.startsWith("/api/");
-  const isStatic = path.startsWith("/_next/") || path.startsWith("/favicon") || path === "/pm-logo-p.png" || path === "/pm-logo-wide.png" || path === "/pm-logo.png";
+  const isStatic =
+    path.startsWith("/_next/") ||
+    path.startsWith("/favicon") ||
+    path.startsWith("/pm-logo");
 
   if (!user && !isPublic && !isApi && !isStatic) {
     const url = req.nextUrl.clone();

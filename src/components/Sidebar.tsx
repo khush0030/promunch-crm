@@ -141,10 +141,10 @@ export function MobileHeader({ onToggle }: { onToggle: () => void }) {
       </button>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Image
-          src="/pm-logo-p.png"
+          src="/pm-logo-square.png"
           alt="PROMUNCH"
-          width={26}
-          height={26}
+          width={28}
+          height={28}
           style={{ borderRadius: 6, display: "block" }}
           priority
         />
@@ -259,14 +259,15 @@ export default function Sidebar({
       <aside className={`sidebar${isMobile && isOpen ? " open" : ""}`}>
         <div className="brand">
           <Image
-            src="/pm-logo-wide.png"
+            src="/pm-logo-square.png"
             alt="PROMUNCH"
-            width={120}
-            height={61}
-            style={{ height: 30, width: "auto", display: "block" }}
+            width={36}
+            height={36}
+            style={{ borderRadius: 8, display: "block" }}
             priority
           />
-          <div className="brand-text" style={{ marginLeft: 2 }}>
+          <div className="brand-text">
+            <b>PROMUNCH</b>
             <span>CRM</span>
           </div>
           {isMobile && (
