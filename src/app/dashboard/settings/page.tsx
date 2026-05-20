@@ -1,28 +1,19 @@
 "use client";
-import { useState } from "react";
 import {
   ShoppingBag,
   Mail,
   Palette,
   Users,
-  Key,
   CheckCircle2,
   Unlink,
   UserPlus,
-  RefreshCw,
-  Eye,
-  EyeOff,
 } from "lucide-react";
 
 const teamMembers = [
   { name: "Khush Mutha", email: "khush@promunch.in", role: "Admin", initials: "KM", color: "#B91C4A" },
-  { name: "Priya Sharma", email: "priya@promunch.in", role: "Member", initials: "PS", color: "#00B4D8" },
-  { name: "Rahul Desai", email: "rahul@promunch.in", role: "Member", initials: "RD", color: "#10b981" },
 ];
 
 export default function SettingsPage() {
-  const [showKey, setShowKey] = useState(false);
-
   return (
     <div style={{ padding: "32px" }}>
       {/* Header */}
@@ -281,66 +272,6 @@ export default function SettingsPage() {
               ))}
             </tbody>
           </table>
-        </div>
-
-        {/* API Keys */}
-        <div style={{ backgroundColor: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "24px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
-            <div style={{ width: "40px", height: "40px", borderRadius: "10px", backgroundColor: "rgba(113,113,122,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Key size={20} color="#4b5563" />
-            </div>
-            <div>
-              <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827" }}>API Keys</h2>
-              <p style={{ fontSize: "13px", color: "#6b7280" }}>Manage your secret API keys</p>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div
-              style={{
-                flex: 1,
-                padding: "12px 16px",
-                backgroundColor: "#e5e7eb",
-                borderRadius: "8px",
-                border: "1px solid #d1d5db",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <span style={{ fontSize: "14px", color: "#111827", fontFamily: "monospace", letterSpacing: "1px" }}>
-                {showKey ? "sk-pm-abc123defghijklmnopqrst7x4f" : "sk-...7x4f"}
-              </span>
-              <button
-                onClick={() => setShowKey(s => !s)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", display: "flex", alignItems: "center" }}
-              >
-                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            <button
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "12px 16px",
-                borderRadius: "8px",
-                border: "1px solid #d1d5db",
-                backgroundColor: "#e5e7eb",
-                color: "#111827",
-                fontSize: "13px",
-                fontWeight: 600,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <RefreshCw size={14} />
-              Regenerate
-            </button>
-          </div>
-          <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "10px" }}>
-            Keep your API key secret. Never share it in public repositories or client-side code.
-          </p>
         </div>
 
       </div>
