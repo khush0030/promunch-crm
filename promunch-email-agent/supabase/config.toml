@@ -1,0 +1,55 @@
+# Supabase local development config.
+# Edge function specifics — most options here only matter for `supabase functions serve`.
+
+project_id = "promunch-email-agent"
+
+[functions.gmail-webhook]
+verify_jwt = false                    # Pub/Sub doesn't send a Supabase JWT
+
+[functions.gmail-poll]
+verify_jwt = false                    # invoked by scheduled cron
+
+[functions.gmail-watch-renew]
+verify_jwt = false                    # invoked by scheduled cron
+
+[functions.slack-events]
+verify_jwt = false                    # Slack uses its own signing-secret check
+
+[functions.slack-interactivity]
+verify_jwt = false                    # Slack uses its own signing-secret check
+
+[functions.oauth-callback]
+verify_jwt = false                    # gated by SETUP_TOKEN query param instead
+
+[functions.backfill-brand]
+verify_jwt = false                    # gated by SETUP_TOKEN query param instead
+
+[functions.dbg-mailbox]
+verify_jwt = false
+
+[functions.nudge-pending]
+verify_jwt = false                    # invoked by pg_cron
+
+[functions.shopify-webhook]
+verify_jwt = false                    # Shopify uses HMAC header
+
+[functions.shopify-daily-summary]
+verify_jwt = false                    # invoked by pg_cron at 18:29 UTC
+
+[functions.shopify-status]
+verify_jwt = false                    # Shopify uses HMAC header
+
+[functions.shopify-slash]
+verify_jwt = false                    # Slack signing-secret check
+
+[functions.wa-webhook]
+verify_jwt = false                    # Meta verifies via X-Hub-Signature-256
+
+[functions.wa-send]
+verify_jwt = true                     # called by Next.js API with service role bearer
+
+[functions.wa-ai-reply]
+verify_jwt = true                     # invoked by wa-webhook with service role bearer
+
+[functions.kb-ingest]
+verify_jwt = true                     # invoked by Next.js API with service role bearer

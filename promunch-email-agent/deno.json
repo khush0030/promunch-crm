@@ -1,0 +1,18 @@
+{
+  "lint": {
+    "include": ["supabase/functions/"],
+    "rules": {
+      "tags": ["recommended"]
+    }
+  },
+  "fmt": {
+    "include": ["supabase/functions/"],
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "semiColons": true,
+    "singleQuote": false
+  },
+  "imports": {
+    "@/_shared/": "./supabase/functions/_shared/"
+  }
+}

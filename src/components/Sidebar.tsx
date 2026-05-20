@@ -4,12 +4,13 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users, Mail, GitBranch, BarChart3, Settings,
-  Inbox, ChevronRight, X, Menu,
+  Inbox, ChevronRight, X, Menu, MessageSquare,
 } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/dashboard/support-emails", icon: Inbox, label: "Customer Support Emails" },
+  { href: "/dashboard/whatsapp", icon: MessageSquare, label: "WhatsApp" },
   { href: "/dashboard/contacts", icon: Users, label: "Contacts" },
   { href: "/dashboard/campaigns", icon: Mail, label: "Campaigns" },
   { href: "/dashboard/flows", icon: GitBranch, label: "Flows" },
