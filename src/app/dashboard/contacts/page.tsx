@@ -23,8 +23,8 @@ const statusColors: Record<string, { bg: string; color: string }> = {
   "At Risk": { bg: "rgba(239, 68, 68, 0.15)", color: "#ef4444" },
   inactive: { bg: "rgba(239, 68, 68, 0.15)", color: "#ef4444" },
   New: { bg: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" },
-  unsubscribed: { bg: "rgba(113, 113, 122, 0.15)", color: "#a1a1aa" },
-  Unsubscribed: { bg: "rgba(113, 113, 122, 0.15)", color: "#a1a1aa" },
+  unsubscribed: { bg: "rgba(113, 113, 122, 0.15)", color: "#4b5563" },
+  Unsubscribed: { bg: "rgba(113, 113, 122, 0.15)", color: "#4b5563" },
   bounced: { bg: "rgba(239, 68, 68, 0.15)", color: "#ef4444" },
   Bounced: { bg: "rgba(239, 68, 68, 0.15)", color: "#ef4444" },
 };
@@ -101,7 +101,7 @@ export default function ContactsPage() {
         ltv: c.total_spent ? `₹${parseFloat(String(c.total_spent)).toFixed(2)}` : "₹0",
         lastOrder: c.last_purchase_date
           ? new Date(c.last_purchase_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-          : "—",
+          : "",
         status: c.status || "active",
         tags: c.tags || [],
         lists: c.klaviyo_lists || [],
@@ -149,16 +149,16 @@ export default function ContactsPage() {
     <div style={{ padding: "32px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "28px" }}>
         <div>
-          <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#f4f4f5", letterSpacing: "-0.5px" }}>
+          <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#111827", letterSpacing: "-0.5px" }}>
             Contacts
           </h1>
-          <p style={{ color: "#71717a", marginTop: "4px", fontSize: "14px" }}>
+          <p style={{ color: "#6b7280", marginTop: "4px", fontSize: "14px" }}>
             {total.toLocaleString()} total contacts · manage your subscriber base
           </p>
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           {importMsg && (
-            <span style={{ fontSize: "12px", color: importMsg.startsWith("Imported") ? "#10b981" : importMsg.startsWith("Importing") ? "#a1a1aa" : "#ef4444" }}>
+            <span style={{ fontSize: "12px", color: importMsg.startsWith("Imported") ? "#10b981" : importMsg.startsWith("Importing") ? "#4b5563" : "#ef4444" }}>
               {importMsg}
             </span>
           )}
@@ -171,7 +171,7 @@ export default function ContactsPage() {
               alignItems: "center",
               gap: "8px",
               padding: "10px 18px",
-              background: importing ? "#27272a" : "linear-gradient(135deg, #00B4D8, #0084a8)",
+              background: importing ? "#e5e7eb" : "linear-gradient(135deg, #00B4D8, #0084a8)",
               border: "none",
               borderRadius: "9px",
               color: "#fff",
@@ -193,7 +193,7 @@ export default function ContactsPage() {
               alignItems: "center",
               gap: "8px",
               padding: "10px 18px",
-              background: importing ? "#27272a" : "linear-gradient(135deg, #B91C4A, #8B1539)",
+              background: importing ? "#e5e7eb" : "linear-gradient(135deg, #B91C4A, #8B1539)",
               border: "none",
               borderRadius: "9px",
               color: "#fff",
@@ -211,19 +211,19 @@ export default function ContactsPage() {
 
       <div style={{ display: "flex", gap: "12px", marginBottom: "20px", alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1, maxWidth: "400px" }}>
-          <Search size={16} color="#71717a" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)" }} />
+          <Search size={16} color="#6b7280" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)" }} />
           <input
             type="text"
-            placeholder="Search by name or email..."
+            placeholder=""
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             style={{
               width: "100%",
               padding: "10px 12px 10px 38px",
-              backgroundColor: "#18181b",
-              border: "1px solid #27272a",
+              backgroundColor: "#ffffff",
+              border: "1px solid #e5e7eb",
               borderRadius: "9px",
-              color: "#f4f4f5",
+              color: "#111827",
               fontSize: "14px",
               outline: "none",
             }}
@@ -237,9 +237,9 @@ export default function ContactsPage() {
               style={{
                 padding: "8px 16px",
                 borderRadius: "8px",
-                border: activeFilter === f ? "1px solid #B91C4A" : "1px solid #27272a",
-                backgroundColor: activeFilter === f ? "rgba(185, 28, 74, 0.15)" : "#18181b",
-                color: activeFilter === f ? "#E8658B" : "#a1a1aa",
+                border: activeFilter === f ? "1px solid #B91C4A" : "1px solid #e5e7eb",
+                backgroundColor: activeFilter === f ? "rgba(185, 28, 74, 0.15)" : "#ffffff",
+                color: activeFilter === f ? "#E8658B" : "#4b5563",
                 fontSize: "13px",
                 fontWeight: activeFilter === f ? 600 : 400,
                 cursor: "pointer",
@@ -257,10 +257,10 @@ export default function ContactsPage() {
             alignItems: "center",
             gap: "6px",
             padding: "9px 14px",
-            backgroundColor: showFilters ? "rgba(185, 28, 74, 0.1)" : "#18181b",
-            border: showFilters ? "1px solid #B91C4A" : "1px solid #27272a",
+            backgroundColor: showFilters ? "rgba(185, 28, 74, 0.1)" : "#ffffff",
+            border: showFilters ? "1px solid #B91C4A" : "1px solid #e5e7eb",
             borderRadius: "8px",
-            color: showFilters ? "#E8658B" : "#a1a1aa",
+            color: showFilters ? "#E8658B" : "#4b5563",
             fontSize: "13px",
             cursor: "pointer",
           }}
@@ -268,7 +268,7 @@ export default function ContactsPage() {
           More filters
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <ArrowUpDown size={14} color="#71717a" />
+          <ArrowUpDown size={14} color="#6b7280" />
           <select
             aria-label="Sort contacts by"
             title="Sort by"
@@ -276,10 +276,10 @@ export default function ContactsPage() {
             onChange={(e) => { setSort(e.target.value); setPage(1); }}
             style={{
               padding: "8px 10px",
-              backgroundColor: "#18181b",
-              border: "1px solid #27272a",
+              backgroundColor: "#ffffff",
+              border: "1px solid #e5e7eb",
               borderRadius: "8px",
-              color: "#a1a1aa",
+              color: "#4b5563",
               fontSize: "13px",
               outline: "none",
             }}
@@ -296,10 +296,10 @@ export default function ContactsPage() {
             onClick={() => setDir((d) => (d === "asc" ? "desc" : "asc"))}
             style={{
               padding: "8px 12px",
-              backgroundColor: "#18181b",
-              border: "1px solid #27272a",
+              backgroundColor: "#ffffff",
+              border: "1px solid #e5e7eb",
               borderRadius: "8px",
-              color: "#a1a1aa",
+              color: "#4b5563",
               fontSize: "13px",
               cursor: "pointer",
               minWidth: "44px",
@@ -318,54 +318,54 @@ export default function ContactsPage() {
             gap: "12px",
             marginBottom: "20px",
             padding: "16px",
-            backgroundColor: "#18181b",
-            border: "1px solid #27272a",
+            backgroundColor: "#ffffff",
+            border: "1px solid #e5e7eb",
             borderRadius: "10px",
             alignItems: "end",
           }}
         >
           <div>
-            <label style={{ display: "block", fontSize: "11px", color: "#71717a", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Min orders</label>
+            <label style={{ display: "block", fontSize: "11px", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Min orders</label>
             <input
               type="number"
               min={0}
               value={minOrders}
               onChange={(e) => { setMinOrders(e.target.value); setPage(1); }}
-              placeholder="e.g. 1"
+              placeholder=""
               style={{
                 width: "100%",
                 padding: "8px 10px",
-                backgroundColor: "#0e0e10",
-                border: "1px solid #27272a",
+                backgroundColor: "#f9fafb",
+                border: "1px solid #e5e7eb",
                 borderRadius: "8px",
-                color: "#f4f4f5",
+                color: "#111827",
                 fontSize: "13px",
                 outline: "none",
               }}
             />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: "11px", color: "#71717a", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Min LTV (₹)</label>
+            <label style={{ display: "block", fontSize: "11px", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Min LTV (₹)</label>
             <input
               type="number"
               min={0}
               value={minLtv}
               onChange={(e) => { setMinLtv(e.target.value); setPage(1); }}
-              placeholder="e.g. 500"
+              placeholder=""
               style={{
                 width: "100%",
                 padding: "8px 10px",
-                backgroundColor: "#0e0e10",
-                border: "1px solid #27272a",
+                backgroundColor: "#f9fafb",
+                border: "1px solid #e5e7eb",
                 borderRadius: "8px",
-                color: "#f4f4f5",
+                color: "#111827",
                 fontSize: "13px",
                 outline: "none",
               }}
             />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: "11px", color: "#71717a", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Last order</label>
+            <label style={{ display: "block", fontSize: "11px", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Last order</label>
             <div style={{ display: "flex", gap: "6px" }}>
               <select
                 aria-label="Last order comparison"
@@ -374,10 +374,10 @@ export default function ContactsPage() {
                 onChange={(e) => setLastOrderOp(e.target.value as "within" | "before")}
                 style={{
                   padding: "8px 10px",
-                  backgroundColor: "#0e0e10",
-                  border: "1px solid #27272a",
+                  backgroundColor: "#f9fafb",
+                  border: "1px solid #e5e7eb",
                   borderRadius: "8px",
-                  color: "#a1a1aa",
+                  color: "#4b5563",
                   fontSize: "13px",
                   outline: "none",
                 }}
@@ -390,14 +390,14 @@ export default function ContactsPage() {
                 min={0}
                 value={lastOrderDays}
                 onChange={(e) => { setLastOrderDays(e.target.value); setPage(1); }}
-                placeholder="days"
+                placeholder=""
                 style={{
                   flex: 1,
                   padding: "8px 10px",
-                  backgroundColor: "#0e0e10",
-                  border: "1px solid #27272a",
+                  backgroundColor: "#f9fafb",
+                  border: "1px solid #e5e7eb",
                   borderRadius: "8px",
-                  color: "#f4f4f5",
+                  color: "#111827",
                   fontSize: "13px",
                   outline: "none",
                 }}
@@ -416,9 +416,9 @@ export default function ContactsPage() {
             style={{
               padding: "8px 14px",
               backgroundColor: "transparent",
-              border: "1px solid #27272a",
+              border: "1px solid #e5e7eb",
               borderRadius: "8px",
-              color: "#a1a1aa",
+              color: "#4b5563",
               fontSize: "13px",
               cursor: "pointer",
             }}
@@ -430,8 +430,8 @@ export default function ContactsPage() {
 
       <div
         style={{
-          backgroundColor: "#18181b",
-          border: "1px solid #27272a",
+          backgroundColor: "#ffffff",
+          border: "1px solid #e5e7eb",
           borderRadius: "12px",
           overflow: "hidden",
           opacity: isLoading ? 0.7 : 1,
@@ -441,7 +441,7 @@ export default function ContactsPage() {
         {contacts.length > 0 ? (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #27272a", backgroundColor: "#1c1c1f" }}>
+              <tr style={{ borderBottom: "1px solid #e5e7eb", backgroundColor: "#f3f4f6" }}>
                 {["Name", "Email", "Orders", "LTV", "Last Order", "Status", "Lists & Segments"].map((h) => (
                   <th
                     key={h}
@@ -450,7 +450,7 @@ export default function ContactsPage() {
                       padding: "12px 16px",
                       fontSize: "11px",
                       fontWeight: 600,
-                      color: "#52525b",
+                      color: "#9ca3af",
                       textTransform: "uppercase",
                       letterSpacing: "0.5px",
                     }}
@@ -465,10 +465,10 @@ export default function ContactsPage() {
                 <tr
                   key={c.id}
                   style={{
-                    borderBottom: i < contacts.length - 1 ? "1px solid #27272a" : "none",
+                    borderBottom: i < contacts.length - 1 ? "1px solid #e5e7eb" : "none",
                     transition: "background 0.1s",
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#1c1c1f")}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f6")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
                   <td style={{ padding: "14px 16px" }}>
@@ -491,16 +491,16 @@ export default function ContactsPage() {
                         >
                           {c.name.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase()}
                         </div>
-                        <span style={{ fontSize: "14px", fontWeight: 600, color: "#f4f4f5", cursor: "pointer" }}>
+                        <span style={{ fontSize: "14px", fontWeight: 600, color: "#111827", cursor: "pointer" }}>
                           {c.name}
                         </span>
                       </div>
                     </Link>
                   </td>
-                  <td style={{ padding: "14px 16px", fontSize: "13px", color: "#a1a1aa" }}>{c.email}</td>
-                  <td style={{ padding: "14px 16px", fontSize: "13px", color: "#f4f4f5", fontWeight: 500 }}>{c.orders}</td>
+                  <td style={{ padding: "14px 16px", fontSize: "13px", color: "#4b5563" }}>{c.email}</td>
+                  <td style={{ padding: "14px 16px", fontSize: "13px", color: "#111827", fontWeight: 500 }}>{c.orders}</td>
                   <td style={{ padding: "14px 16px", fontSize: "13px", fontWeight: 600, color: "#10b981" }}>{c.ltv}</td>
-                  <td style={{ padding: "14px 16px", fontSize: "13px", color: "#a1a1aa" }}>{c.lastOrder}</td>
+                  <td style={{ padding: "14px 16px", fontSize: "13px", color: "#4b5563" }}>{c.lastOrder}</td>
                   <td style={{ padding: "14px 16px" }}>
                     <span
                       style={{
@@ -509,7 +509,7 @@ export default function ContactsPage() {
                         fontSize: "12px",
                         fontWeight: 600,
                         backgroundColor: statusColors[c.status]?.bg || "rgba(113,113,122,0.15)",
-                        color: statusColors[c.status]?.color || "#a1a1aa",
+                        color: statusColors[c.status]?.color || "#4b5563",
                       }}
                     >
                       {c.status}
@@ -556,13 +556,11 @@ export default function ContactsPage() {
                         </span>
                       ))}
                       {c.lists.length + c.segments.length > 4 && (
-                        <span style={{ padding: "2px 6px", fontSize: "11px", color: "#52525b" }}>
+                        <span style={{ padding: "2px 6px", fontSize: "11px", color: "#9ca3af" }}>
                           +{c.lists.length + c.segments.length - 4}
                         </span>
                       )}
-                      {c.lists.length === 0 && c.segments.length === 0 && (
-                        <span style={{ fontSize: "11px", color: "#3f3f46" }}>—</span>
-                      )}
+                      
                     </div>
                   </td>
                 </tr>
@@ -571,11 +569,11 @@ export default function ContactsPage() {
           </table>
         ) : (
           <div style={{ padding: "64px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: "15px", color: "#a1a1aa", fontWeight: 600, marginBottom: "8px" }}>
-              {loaded ? "No contacts yet" : "Loading…"}
+            <div style={{ fontSize: "15px", color: "#4b5563", fontWeight: 600, marginBottom: "8px" }}>
+              {loaded ? "No contacts yet" : ""}
             </div>
             {loaded && (
-              <div style={{ fontSize: "13px", color: "#71717a", maxWidth: "360px", margin: "0 auto" }}>
+              <div style={{ fontSize: "13px", color: "#6b7280", maxWidth: "360px", margin: "0 auto" }}>
                 Import contacts from Shopify or Klaviyo to get started, or add them manually.
               </div>
             )}
@@ -585,7 +583,7 @@ export default function ContactsPage() {
 
       {contacts.length > 0 && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px" }}>
-          <span style={{ fontSize: "13px", color: "#71717a" }}>
+          <span style={{ fontSize: "13px", color: "#6b7280" }}>
             Showing {contacts.length} of {total} contacts
           </span>
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
@@ -597,10 +595,10 @@ export default function ContactsPage() {
               disabled={page <= 1}
               style={{
                 padding: "7px 12px",
-                backgroundColor: "#18181b",
-                border: "1px solid #27272a",
+                backgroundColor: "#ffffff",
+                border: "1px solid #e5e7eb",
                 borderRadius: "8px",
-                color: page <= 1 ? "#3f3f46" : "#a1a1aa",
+                color: page <= 1 ? "#d1d5db" : "#4b5563",
                 cursor: page <= 1 ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
@@ -614,10 +612,10 @@ export default function ContactsPage() {
                 onClick={() => setPage(p)}
                 style={{
                   padding: "7px 12px",
-                  backgroundColor: page === p ? "rgba(185, 28, 74, 0.15)" : "#18181b",
-                  border: page === p ? "1px solid #B91C4A" : "1px solid #27272a",
+                  backgroundColor: page === p ? "rgba(185, 28, 74, 0.15)" : "#ffffff",
+                  border: page === p ? "1px solid #B91C4A" : "1px solid #e5e7eb",
                   borderRadius: "8px",
-                  color: page === p ? "#E8658B" : "#a1a1aa",
+                  color: page === p ? "#E8658B" : "#4b5563",
                   cursor: "pointer",
                   fontSize: "13px",
                   fontWeight: page === p ? 600 : 400,
@@ -634,10 +632,10 @@ export default function ContactsPage() {
               disabled={page >= totalPages}
               style={{
                 padding: "7px 12px",
-                backgroundColor: "#18181b",
-                border: "1px solid #27272a",
+                backgroundColor: "#ffffff",
+                border: "1px solid #e5e7eb",
                 borderRadius: "8px",
-                color: page >= totalPages ? "#3f3f46" : "#a1a1aa",
+                color: page >= totalPages ? "#d1d5db" : "#4b5563",
                 cursor: page >= totalPages ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",

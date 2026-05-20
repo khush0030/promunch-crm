@@ -19,8 +19,8 @@ const statusColors: Record<string, { bg: string; color: string }> = {
   sent: { bg: "rgba(16, 185, 129, 0.15)", color: "#10b981" },
   Scheduled: { bg: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" },
   scheduled: { bg: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" },
-  Draft: { bg: "rgba(113, 113, 122, 0.15)", color: "#a1a1aa" },
-  draft: { bg: "rgba(113, 113, 122, 0.15)", color: "#a1a1aa" },
+  Draft: { bg: "rgba(113, 113, 122, 0.15)", color: "#4b5563" },
+  draft: { bg: "rgba(113, 113, 122, 0.15)", color: "#4b5563" },
   sending: { bg: "rgba(245, 183, 49, 0.15)", color: "#F5B731" },
   Sending: { bg: "rgba(245, 183, 49, 0.15)", color: "#F5B731" },
   paused: { bg: "rgba(232, 115, 57, 0.15)", color: "#E87339" },
@@ -69,7 +69,7 @@ export default function CampaignsPage() {
         const dateStr = c.sent_at || c.scheduled_at || c.created_at;
         const date = dateStr
           ? new Date(dateStr).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-          : "—";
+          : "";
 
         return {
           id: c.id,
@@ -106,8 +106,8 @@ export default function CampaignsPage() {
     <div style={{ padding: "32px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "28px" }}>
         <div>
-          <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#f4f4f5", letterSpacing: "-0.5px" }}>Campaigns</h1>
-          <p style={{ color: "#71717a", marginTop: "4px", fontSize: "14px" }}>
+          <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#111827", letterSpacing: "-0.5px" }}>Campaigns</h1>
+          <p style={{ color: "#6b7280", marginTop: "4px", fontSize: "14px" }}>
             Manage and track your email campaigns
           </p>
         </div>
@@ -134,7 +134,7 @@ export default function CampaignsPage() {
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <div style={{ display: "flex", gap: "4px", backgroundColor: "#18181b", padding: "4px", borderRadius: "10px", border: "1px solid #27272a" }}>
+        <div style={{ display: "flex", gap: "4px", backgroundColor: "#ffffff", padding: "4px", borderRadius: "10px", border: "1px solid #e5e7eb" }}>
           {tabs.map((t) => (
             <button
               key={t}
@@ -143,8 +143,8 @@ export default function CampaignsPage() {
                 padding: "7px 18px",
                 borderRadius: "7px",
                 border: "none",
-                backgroundColor: activeTab === t ? "#27272a" : "transparent",
-                color: activeTab === t ? "#f4f4f5" : "#71717a",
+                backgroundColor: activeTab === t ? "#e5e7eb" : "transparent",
+                color: activeTab === t ? "#111827" : "#6b7280",
                 fontSize: "13px",
                 fontWeight: activeTab === t ? 600 : 400,
                 cursor: "pointer",
@@ -155,7 +155,7 @@ export default function CampaignsPage() {
           ))}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontSize: "13px", color: "#71717a" }}>Sort by:</span>
+          <span style={{ fontSize: "13px", color: "#6b7280" }}>Sort by:</span>
           {(["date", "revenue", "openRate"] as SortKey[]).map((s) => (
             <button
               key={s}
@@ -163,9 +163,9 @@ export default function CampaignsPage() {
               style={{
                 padding: "6px 14px",
                 borderRadius: "7px",
-                border: sortBy === s ? "1px solid #B91C4A" : "1px solid #27272a",
-                backgroundColor: sortBy === s ? "rgba(185, 28, 74, 0.1)" : "#18181b",
-                color: sortBy === s ? "#E8658B" : "#a1a1aa",
+                border: sortBy === s ? "1px solid #B91C4A" : "1px solid #e5e7eb",
+                backgroundColor: sortBy === s ? "rgba(185, 28, 74, 0.1)" : "#ffffff",
+                color: sortBy === s ? "#E8658B" : "#4b5563",
                 fontSize: "12px",
                 fontWeight: sortBy === s ? 600 : 400,
                 cursor: "pointer",
@@ -178,8 +178,8 @@ export default function CampaignsPage() {
       </div>
 
       <div style={{
-        backgroundColor: "#18181b",
-        border: "1px solid #27272a",
+        backgroundColor: "#ffffff",
+        border: "1px solid #e5e7eb",
         borderRadius: "12px",
         overflow: "hidden",
         opacity: isLoading ? 0.7 : 1,
@@ -188,9 +188,9 @@ export default function CampaignsPage() {
         {filtered.length > 0 ? (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #27272a", backgroundColor: "#1c1c1f" }}>
+              <tr style={{ borderBottom: "1px solid #e5e7eb", backgroundColor: "#f3f4f6" }}>
                 {["Campaign Name", "Status", "Sent", "Open Rate", "Click Rate", "Revenue", "Date"].map((h) => (
-                  <th key={h} style={{ textAlign: "left", padding: "12px 16px", fontSize: "11px", fontWeight: 600, color: "#52525b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  <th key={h} style={{ textAlign: "left", padding: "12px 16px", fontSize: "11px", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                     {h}
                   </th>
                 ))}
@@ -200,13 +200,13 @@ export default function CampaignsPage() {
               {filtered.map((c, i) => (
                 <tr
                   key={c.id}
-                  style={{ borderBottom: i < filtered.length - 1 ? "1px solid #27272a" : "none", cursor: "pointer", transition: "background 0.1s" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#1c1c1f")}
+                  style={{ borderBottom: i < filtered.length - 1 ? "1px solid #e5e7eb" : "none", cursor: "pointer", transition: "background 0.1s" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f6")}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
                   <td style={{ padding: "16px" }}>
                     <Link href={`/dashboard/campaigns/${c.id}`}>
-                      <div style={{ fontSize: "14px", fontWeight: 600, color: "#f4f4f5" }}>{c.name}</div>
+                      <div style={{ fontSize: "14px", fontWeight: 600, color: "#111827" }}>{c.name}</div>
                     </Link>
                   </td>
                   <td style={{ padding: "16px" }}>
@@ -216,40 +216,40 @@ export default function CampaignsPage() {
                       fontSize: "12px",
                       fontWeight: 600,
                       backgroundColor: statusColors[c.status]?.bg || "rgba(113,113,122,0.15)",
-                      color: statusColors[c.status]?.color || "#a1a1aa",
+                      color: statusColors[c.status]?.color || "#4b5563",
                     }}>
                       {c.status}
                     </span>
                   </td>
-                  <td style={{ padding: "16px", fontSize: "14px", color: "#a1a1aa" }}>
-                    {c.sent > 0 ? c.sent.toLocaleString() : "—"}
+                  <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563" }}>
+                    {c.sent > 0 ? c.sent.toLocaleString() : ""}
                   </td>
                   <td style={{ padding: "16px" }}>
                     {c.openRate > 0 ? (
                       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                         <TrendingUp size={13} color="#10b981" />
-                        <span style={{ fontSize: "14px", color: "#f4f4f5", fontWeight: 500 }}>{c.openRate}%</span>
+                        <span style={{ fontSize: "14px", color: "#111827", fontWeight: 500 }}>{c.openRate}%</span>
                       </div>
-                    ) : <span style={{ color: "#52525b" }}>—</span>}
+                    ) : null}
                   </td>
-                  <td style={{ padding: "16px", fontSize: "14px", color: c.clickRate > 0 ? "#f4f4f5" : "#52525b" }}>
-                    {c.clickRate > 0 ? `${c.clickRate}%` : "—"}
+                  <td style={{ padding: "16px", fontSize: "14px", color: c.clickRate > 0 ? "#111827" : "#9ca3af" }}>
+                    {c.clickRate > 0 ? `${c.clickRate}%` : ""}
                   </td>
-                  <td style={{ padding: "16px", fontSize: "14px", fontWeight: 600, color: c.revenue > 0 ? "#10b981" : "#52525b" }}>
-                    {c.revenue > 0 ? `₹${c.revenue.toLocaleString()}` : "—"}
+                  <td style={{ padding: "16px", fontSize: "14px", fontWeight: 600, color: c.revenue > 0 ? "#10b981" : "#9ca3af" }}>
+                    {c.revenue > 0 ? `₹${c.revenue.toLocaleString()}` : ""}
                   </td>
-                  <td style={{ padding: "16px", fontSize: "13px", color: "#71717a" }}>{c.date}</td>
+                  <td style={{ padding: "16px", fontSize: "13px", color: "#6b7280" }}>{c.date}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : (
           <div style={{ padding: "64px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: "15px", color: "#a1a1aa", fontWeight: 600, marginBottom: "8px" }}>
-              {loaded ? "No campaigns yet" : "Loading…"}
+            <div style={{ fontSize: "15px", color: "#4b5563", fontWeight: 600, marginBottom: "8px" }}>
+              {loaded ? "No campaigns yet" : ""}
             </div>
             {loaded && (
-              <div style={{ fontSize: "13px", color: "#71717a", maxWidth: "360px", margin: "0 auto" }}>
+              <div style={{ fontSize: "13px", color: "#6b7280", maxWidth: "360px", margin: "0 auto" }}>
                 Create your first campaign to start sending emails to your contacts.
               </div>
             )}

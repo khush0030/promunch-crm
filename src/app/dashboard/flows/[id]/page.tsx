@@ -88,24 +88,24 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   if (!loaded) {
-    return <div style={{ padding: "32px", color: "#71717a" }}>Loading…</div>;
+    return <div style={{ padding: "32px", color: "#6b7280" }}></div>;
   }
 
   if (notFound || !flow) {
     return (
       <div style={{ padding: "32px" }}>
-        <Link href="/dashboard/flows" style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#71717a", fontSize: "13px", textDecoration: "none", marginBottom: "20px" }}>
+        <Link href="/dashboard/flows" style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#6b7280", fontSize: "13px", textDecoration: "none", marginBottom: "20px" }}>
           <ChevronLeft size={16} />
           Back to Flows
         </Link>
-        <div style={{ color: "#a1a1aa" }}>Flow not found.</div>
+        <div style={{ color: "#4b5563" }}>Flow not found.</div>
       </div>
     );
   }
 
   const triggerMeta = triggerIcons[flow.trigger_type || ""] || {
     icon: Mail,
-    color: "#a1a1aa",
+    color: "#4b5563",
     bg: "rgba(161, 161, 170, 0.1)",
   };
   const TriggerIcon = triggerMeta.icon;
@@ -114,20 +114,20 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
   const revenue = Number(flow.revenue_attributed) || 0;
   const entered = flow.total_entered || 0;
   const converted = flow.total_converted || 0;
-  const convRate = entered > 0 ? ((converted / entered) * 100).toFixed(1) + "%" : "—";
+  const convRate = entered > 0 ? ((converted / entered) * 100).toFixed(1) + "%" : "";
   const steps: Step[] = Array.isArray(flow.steps) ? flow.steps : [];
 
   return (
     <div style={{ padding: "32px" }}>
-      <Link href="/dashboard/flows" style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#71717a", fontSize: "13px", textDecoration: "none", marginBottom: "20px" }}>
+      <Link href="/dashboard/flows" style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#6b7280", fontSize: "13px", textDecoration: "none", marginBottom: "20px" }}>
         <ChevronLeft size={16} />
         Back to Flows
       </Link>
 
       <div
         style={{
-          backgroundColor: "#18181b",
-          border: "1px solid #27272a",
+          backgroundColor: "#ffffff",
+          border: "1px solid #e5e7eb",
           borderRadius: "12px",
           padding: "24px",
           marginBottom: "24px",
@@ -151,7 +151,7 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
             <TriggerIcon size={24} color={triggerMeta.color} />
           </div>
           <div>
-            <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#f4f4f5", letterSpacing: "-0.3px" }}>{flow.name}</h1>
+            <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#111827", letterSpacing: "-0.3px" }}>{flow.name}</h1>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "6px" }}>
               <span
                 style={{
@@ -165,8 +165,8 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
               >
                 {status}
               </span>
-              <span style={{ fontSize: "13px", color: "#71717a" }}>
-                Trigger: {triggerLabels[flow.trigger_type || ""] || flow.trigger_type || "—"}
+              <span style={{ fontSize: "13px", color: "#6b7280" }}>
+                Trigger: {triggerLabels[flow.trigger_type || ""] || flow.trigger_type || ""}
               </span>
             </div>
           </div>
@@ -174,18 +174,18 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: "22px", fontWeight: 700, color: "#10b981" }}>
-              {revenue > 0 ? `₹${revenue.toLocaleString()}` : "—"}
+              {revenue > 0 ? `₹${revenue.toLocaleString()}` : ""}
             </div>
-            <div style={{ fontSize: "12px", color: "#71717a" }}>Total Revenue</div>
+            <div style={{ fontSize: "12px", color: "#6b7280" }}>Total Revenue</div>
           </div>
           <button
             onClick={toggleStatus}
             style={{
               padding: "8px 16px",
               borderRadius: "8px",
-              border: "1px solid #27272a",
-              backgroundColor: "#27272a",
-              color: "#f4f4f5",
+              border: "1px solid #e5e7eb",
+              backgroundColor: "#e5e7eb",
+              color: "#111827",
               fontSize: "13px",
               fontWeight: 600,
               cursor: "pointer",
@@ -200,13 +200,13 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
         {[
           { label: "Total Processed", value: entered.toLocaleString(), icon: Users, color: "#00B4D8", bg: "rgba(0,180,216,0.1)" },
           { label: "Conversion Rate", value: convRate, icon: TrendingUp, color: "#10b981", bg: "rgba(16,185,129,0.1)" },
-          { label: "Revenue Generated", value: revenue > 0 ? `₹${revenue.toLocaleString()}` : "—", icon: DollarSign, color: "#F5B731", bg: "rgba(245,183,49,0.1)" },
+          { label: "Revenue Generated", value: revenue > 0 ? `₹${revenue.toLocaleString()}` : "", icon: DollarSign, color: "#F5B731", bg: "rgba(245,183,49,0.1)" },
         ].map((card) => (
           <div
             key={card.label}
             style={{
-              backgroundColor: "#18181b",
-              border: "1px solid #27272a",
+              backgroundColor: "#ffffff",
+              border: "1px solid #e5e7eb",
               borderRadius: "12px",
               padding: "20px",
               display: "flex",
@@ -229,15 +229,15 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
               <card.icon size={22} color={card.color} />
             </div>
             <div>
-              <div style={{ fontSize: "24px", fontWeight: 700, color: "#f4f4f5" }}>{card.value}</div>
-              <div style={{ fontSize: "13px", color: "#71717a" }}>{card.label}</div>
+              <div style={{ fontSize: "24px", fontWeight: 700, color: "#111827" }}>{card.value}</div>
+              <div style={{ fontSize: "13px", color: "#6b7280" }}>{card.label}</div>
             </div>
           </div>
         ))}
       </div>
 
-      <div style={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "12px", padding: "28px" }}>
-        <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#f4f4f5", marginBottom: "24px" }}>Flow Steps</h2>
+      <div style={{ backgroundColor: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "28px" }}>
+        <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827", marginBottom: "24px" }}>Flow Steps</h2>
 
         {steps.length > 0 ? (
           <div style={{ display: "flex", flexDirection: "column", maxWidth: "560px" }}>
@@ -263,15 +263,15 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
                         <Icon size={20} color="#00B4D8" />
                       </div>
                       {!isLast && (
-                        <div style={{ width: "2px", height: "40px", backgroundColor: "#27272a", margin: "4px 0" }} />
+                        <div style={{ width: "2px", height: "40px", backgroundColor: "#e5e7eb", margin: "4px 0" }} />
                       )}
                     </div>
                     <div style={{ flex: 1, paddingTop: "6px", paddingBottom: isLast ? 0 : "20px" }}>
-                      <div style={{ fontSize: "14px", fontWeight: 600, color: "#f4f4f5" }}>
+                      <div style={{ fontSize: "14px", fontWeight: 600, color: "#111827" }}>
                         {step.label || `Step ${index + 1}`}
                       </div>
                       {step.sub && (
-                        <div style={{ fontSize: "12px", color: "#71717a", marginTop: "2px" }}>{step.sub}</div>
+                        <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>{step.sub}</div>
                       )}
                     </div>
                   </div>
@@ -284,9 +284,9 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
             style={{
               textAlign: "center",
               padding: "32px",
-              border: "1px dashed #27272a",
+              border: "1px dashed #e5e7eb",
               borderRadius: "10px",
-              color: "#71717a",
+              color: "#6b7280",
               fontSize: "13px",
             }}
           >

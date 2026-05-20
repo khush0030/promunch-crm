@@ -18,14 +18,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, []);
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "#09090b" }}>
+    <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "#f9fafb" }}>
       {isMobile && <MobileHeader onToggle={() => setSidebarOpen(!sidebarOpen)} />}
       
       {/* Mobile overlay */}
       {isMobile && sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", zIndex: 90 }}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(17,24,39,0.4)", zIndex: 90 }}
         />
       )}
 
@@ -37,7 +37,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           marginLeft: isMobile ? 0 : "260px",
           overflowY: "auto",
           minHeight: "100vh",
-          backgroundColor: "#09090b",
+          backgroundColor: "#f9fafb",
           padding: isMobile ? "72px 16px 32px" : "32px",
         }}
       >

@@ -64,8 +64,8 @@ export default function NewCampaignPage() {
         >
           <CheckCircle2 size={40} color="#10b981" />
         </div>
-        <h2 style={{ fontSize: "24px", fontWeight: 700, color: "#f4f4f5", marginBottom: "8px" }}>Campaign Sent!</h2>
-        <p style={{ fontSize: "15px", color: "#71717a", marginBottom: "28px" }}>
+        <h2 style={{ fontSize: "24px", fontWeight: 700, color: "#111827", marginBottom: "8px" }}>Campaign Sent!</h2>
+        <p style={{ fontSize: "15px", color: "#6b7280", marginBottom: "28px" }}>
           &ldquo;{formData.name}&rdquo; has been sent to {formData.audience}.
         </p>
         <Link href="/dashboard/campaigns">
@@ -91,15 +91,15 @@ export default function NewCampaignPage() {
   return (
     <div style={{ padding: "32px" }}>
       {/* Back */}
-      <Link href="/dashboard/campaigns" style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#71717a", fontSize: "13px", textDecoration: "none", marginBottom: "20px" }}>
+      <Link href="/dashboard/campaigns" style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#6b7280", fontSize: "13px", textDecoration: "none", marginBottom: "20px" }}>
         <ChevronLeft size={16} />
         Back to Campaigns
       </Link>
 
       {/* Header */}
       <div style={{ marginBottom: "32px" }}>
-        <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#f4f4f5", letterSpacing: "-0.5px" }}>Create Campaign</h1>
-        <p style={{ color: "#71717a", marginTop: "4px", fontSize: "14px" }}>
+        <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#111827", letterSpacing: "-0.5px" }}>Create Campaign</h1>
+        <p style={{ color: "#6b7280", marginTop: "4px", fontSize: "14px" }}>
           Set up and send your email campaign to PROMUNCH subscribers
         </p>
       </div>
@@ -114,7 +114,7 @@ export default function NewCampaignPage() {
             left: "20px",
             right: "20px",
             height: "2px",
-            backgroundColor: "#27272a",
+            backgroundColor: "#e5e7eb",
             zIndex: 0,
           }}
         />
@@ -152,8 +152,8 @@ export default function NewCampaignPage() {
                   width: "40px",
                   height: "40px",
                   borderRadius: "50%",
-                  backgroundColor: done ? "#B91C4A" : active ? "#B91C4A" : "#27272a",
-                  border: active ? "3px solid #f4f4f5" : done ? "none" : "2px solid #3f3f46",
+                  backgroundColor: done ? "#B91C4A" : active ? "#B91C4A" : "#e5e7eb",
+                  border: active ? "3px solid #111827" : done ? "none" : "2px solid #d1d5db",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -164,14 +164,14 @@ export default function NewCampaignPage() {
                 {done ? (
                   <CheckCircle2 size={18} color="#fff" />
                 ) : (
-                  <step.icon size={16} color={active ? "#fff" : "#52525b"} />
+                  <step.icon size={16} color={active ? "#fff" : "#9ca3af"} />
                 )}
               </div>
               <div
                 style={{
                   fontSize: "12px",
                   fontWeight: active || done ? 600 : 400,
-                  color: active ? "#f4f4f5" : done ? "#B91C4A" : "#52525b",
+                  color: active ? "#111827" : done ? "#B91C4A" : "#9ca3af",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -185,8 +185,8 @@ export default function NewCampaignPage() {
       {/* Step Content */}
       <div
         style={{
-          backgroundColor: "#18181b",
-          border: "1px solid #27272a",
+          backgroundColor: "#ffffff",
+          border: "1px solid #e5e7eb",
           borderRadius: "12px",
           padding: "32px",
           marginBottom: "20px",
@@ -196,26 +196,26 @@ export default function NewCampaignPage() {
         {/* Step 1 */}
         {currentStep === 1 && (
           <div>
-            <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#f4f4f5", marginBottom: "8px" }}>Campaign Details</h2>
-            <p style={{ fontSize: "13px", color: "#71717a", marginBottom: "24px" }}>Give your campaign a name and set the email subject</p>
+            <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#111827", marginBottom: "8px" }}>Campaign Details</h2>
+            <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "24px" }}>Give your campaign a name and set the email subject</p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               <div>
-                <label style={{ fontSize: "13px", fontWeight: 600, color: "#a1a1aa", display: "block", marginBottom: "8px" }}>
+                <label style={{ fontSize: "13px", fontWeight: 600, color: "#4b5563", display: "block", marginBottom: "8px" }}>
                   Campaign Name <span style={{ color: "#B91C4A" }}>*</span>
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Summer Flash Sale"
+                  placeholder=""
                   value={formData.name}
                   onChange={(e) => updateField("name", e.target.value)}
                   style={{
                     width: "100%",
                     padding: "12px 16px",
-                    backgroundColor: "#27272a",
-                    border: "1px solid #3f3f46",
+                    backgroundColor: "#e5e7eb",
+                    border: "1px solid #d1d5db",
                     borderRadius: "8px",
-                    color: "#f4f4f5",
+                    color: "#111827",
                     fontSize: "14px",
                     outline: "none",
                     boxSizing: "border-box",
@@ -223,21 +223,21 @@ export default function NewCampaignPage() {
                 />
               </div>
               <div>
-                <label style={{ fontSize: "13px", fontWeight: 600, color: "#a1a1aa", display: "block", marginBottom: "8px" }}>
+                <label style={{ fontSize: "13px", fontWeight: 600, color: "#4b5563", display: "block", marginBottom: "8px" }}>
                   Subject Line <span style={{ color: "#B91C4A" }}>*</span>
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. ⚡ Flash Sale — 30% off today only!"
+                  placeholder=""
                   value={formData.subject}
                   onChange={(e) => updateField("subject", e.target.value)}
                   style={{
                     width: "100%",
                     padding: "12px 16px",
-                    backgroundColor: "#27272a",
-                    border: "1px solid #3f3f46",
+                    backgroundColor: "#e5e7eb",
+                    border: "1px solid #d1d5db",
                     borderRadius: "8px",
-                    color: "#f4f4f5",
+                    color: "#111827",
                     fontSize: "14px",
                     outline: "none",
                     boxSizing: "border-box",
@@ -245,27 +245,27 @@ export default function NewCampaignPage() {
                 />
               </div>
               <div>
-                <label style={{ fontSize: "13px", fontWeight: 600, color: "#a1a1aa", display: "block", marginBottom: "8px" }}>
+                <label style={{ fontSize: "13px", fontWeight: 600, color: "#4b5563", display: "block", marginBottom: "8px" }}>
                   Preview Text
                 </label>
                 <input
                   type="text"
-                  placeholder="Short text shown in inbox preview..."
+                  placeholder=""
                   value={formData.preview}
                   onChange={(e) => updateField("preview", e.target.value)}
                   style={{
                     width: "100%",
                     padding: "12px 16px",
-                    backgroundColor: "#27272a",
-                    border: "1px solid #3f3f46",
+                    backgroundColor: "#e5e7eb",
+                    border: "1px solid #d1d5db",
                     borderRadius: "8px",
-                    color: "#f4f4f5",
+                    color: "#111827",
                     fontSize: "14px",
                     outline: "none",
                     boxSizing: "border-box",
                   }}
                 />
-                <p style={{ fontSize: "12px", color: "#52525b", marginTop: "6px" }}>Optional. Displays after the subject line in email clients.</p>
+                <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "6px" }}>Optional. Displays after the subject line in email clients.</p>
               </div>
             </div>
           </div>
@@ -274,8 +274,8 @@ export default function NewCampaignPage() {
         {/* Step 2 */}
         {currentStep === 2 && (
           <div>
-            <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#f4f4f5", marginBottom: "8px" }}>Select Audience</h2>
-            <p style={{ fontSize: "13px", color: "#71717a", marginBottom: "24px" }}>Choose who will receive this campaign</p>
+            <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#111827", marginBottom: "8px" }}>Select Audience</h2>
+            <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "24px" }}>Choose who will receive this campaign</p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {audiences.map((audience) => (
@@ -285,8 +285,8 @@ export default function NewCampaignPage() {
                   style={{
                     padding: "16px 20px",
                     borderRadius: "10px",
-                    border: formData.audience === audience ? "2px solid #B91C4A" : "1px solid #3f3f46",
-                    backgroundColor: formData.audience === audience ? "rgba(185,28,74,0.08)" : "#27272a",
+                    border: formData.audience === audience ? "2px solid #B91C4A" : "1px solid #d1d5db",
+                    backgroundColor: formData.audience === audience ? "rgba(185,28,74,0.08)" : "#e5e7eb",
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
@@ -295,8 +295,8 @@ export default function NewCampaignPage() {
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <Users size={18} color={formData.audience === audience ? "#B91C4A" : "#71717a"} />
-                    <span style={{ fontSize: "14px", fontWeight: 600, color: formData.audience === audience ? "#f4f4f5" : "#a1a1aa" }}>
+                    <Users size={18} color={formData.audience === audience ? "#B91C4A" : "#6b7280"} />
+                    <span style={{ fontSize: "14px", fontWeight: 600, color: formData.audience === audience ? "#111827" : "#4b5563" }}>
                       {audience}
                     </span>
                   </div>
@@ -312,13 +312,13 @@ export default function NewCampaignPage() {
         {/* Step 3 */}
         {currentStep === 3 && (
           <div>
-            <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#f4f4f5", marginBottom: "8px" }}>Email Content</h2>
-            <p style={{ fontSize: "13px", color: "#71717a", marginBottom: "24px" }}>Write your email body — a visual drag-drop builder is coming soon</p>
+            <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#111827", marginBottom: "8px" }}>Email Content</h2>
+            <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "24px" }}>Write your email body — a visual drag-drop builder is coming soon</p>
 
             <div
               style={{
-                backgroundColor: "#27272a",
-                border: "1px solid #3f3f46",
+                backgroundColor: "#e5e7eb",
+                border: "1px solid #d1d5db",
                 borderRadius: "8px",
                 marginBottom: "12px",
                 padding: "8px 12px",
@@ -333,9 +333,9 @@ export default function NewCampaignPage() {
                   style={{
                     padding: "4px 10px",
                     borderRadius: "4px",
-                    border: "1px solid #3f3f46",
+                    border: "1px solid #d1d5db",
                     backgroundColor: "transparent",
-                    color: "#a1a1aa",
+                    color: "#4b5563",
                     fontSize: "12px",
                     fontWeight: tool === "B" ? 700 : 400,
                     cursor: "pointer",
@@ -354,10 +354,10 @@ export default function NewCampaignPage() {
               style={{
                 width: "100%",
                 padding: "16px",
-                backgroundColor: "#27272a",
-                border: "1px solid #3f3f46",
+                backgroundColor: "#e5e7eb",
+                border: "1px solid #d1d5db",
                 borderRadius: "8px",
-                color: "#f4f4f5",
+                color: "#111827",
                 fontSize: "14px",
                 lineHeight: "1.7",
                 outline: "none",
@@ -366,7 +366,7 @@ export default function NewCampaignPage() {
                 boxSizing: "border-box",
               }}
             />
-            <p style={{ fontSize: "12px", color: "#52525b", marginTop: "8px" }}>
+            <p style={{ fontSize: "12px", color: "#9ca3af", marginTop: "8px" }}>
               Use {"{{first_name}}"} for personalisation. HTML is supported.
             </p>
           </div>
@@ -375,35 +375,35 @@ export default function NewCampaignPage() {
         {/* Step 4 */}
         {currentStep === 4 && (
           <div>
-            <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#f4f4f5", marginBottom: "8px" }}>Review & Send</h2>
-            <p style={{ fontSize: "13px", color: "#71717a", marginBottom: "24px" }}>Confirm your campaign details before sending</p>
+            <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#111827", marginBottom: "8px" }}>Review & Send</h2>
+            <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "24px" }}>Confirm your campaign details before sending</p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginBottom: "28px" }}>
               {[
-                { label: "Campaign Name", value: formData.name || "—", icon: FileText },
-                { label: "Subject Line", value: formData.subject || "—", icon: Mail },
+                { label: "Campaign Name", value: formData.name || "", icon: FileText },
+                { label: "Subject Line", value: formData.subject || "", icon: Mail },
                 { label: "Preview Text", value: formData.preview || "Not set", icon: Eye },
-                { label: "Audience", value: formData.audience || "—", icon: Users },
-                { label: "Email Body", value: formData.body ? `${formData.body.slice(0, 80)}...` : "—", icon: Mail },
+                { label: "Audience", value: formData.audience || "", icon: Users },
+                { label: "Email Body", value: formData.body ? `${formData.body.slice(0, 80)}...` : "", icon: Mail },
               ].map((item) => (
                 <div
                   key={item.label}
                   style={{
                     padding: "14px 16px",
-                    backgroundColor: "#27272a",
+                    backgroundColor: "#e5e7eb",
                     borderRadius: "10px",
-                    border: "1px solid #3f3f46",
+                    border: "1px solid #d1d5db",
                     display: "flex",
                     alignItems: "flex-start",
                     gap: "12px",
                   }}
                 >
-                  <item.icon size={16} color="#71717a" style={{ marginTop: "2px", flexShrink: 0 }} />
+                  <item.icon size={16} color="#6b7280" style={{ marginTop: "2px", flexShrink: 0 }} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#52525b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>
                       {item.label}
                     </div>
-                    <div style={{ fontSize: "14px", color: "#f4f4f5" }}>{item.value}</div>
+                    <div style={{ fontSize: "14px", color: "#111827" }}>{item.value}</div>
                   </div>
                 </div>
               ))}
@@ -440,9 +440,9 @@ export default function NewCampaignPage() {
                   gap: "8px",
                   padding: "12px 24px",
                   borderRadius: "9px",
-                  border: "1px solid #3f3f46",
-                  backgroundColor: "#27272a",
-                  color: "#f4f4f5",
+                  border: "1px solid #d1d5db",
+                  backgroundColor: "#e5e7eb",
+                  color: "#111827",
                   fontSize: "14px",
                   fontWeight: 600,
                   cursor: "pointer",
@@ -465,9 +465,9 @@ export default function NewCampaignPage() {
             style={{
               padding: "10px 20px",
               borderRadius: "8px",
-              border: "1px solid #27272a",
+              border: "1px solid #e5e7eb",
               backgroundColor: "transparent",
-              color: currentStep === 1 ? "#3f3f46" : "#a1a1aa",
+              color: currentStep === 1 ? "#d1d5db" : "#4b5563",
               fontSize: "14px",
               fontWeight: 600,
               cursor: currentStep === 1 ? "not-allowed" : "pointer",
@@ -481,9 +481,9 @@ export default function NewCampaignPage() {
             style={{
               padding: "10px 24px",
               borderRadius: "8px",
-              background: canNext() ? "linear-gradient(135deg, #B91C4A, #9b1740)" : "#27272a",
+              background: canNext() ? "linear-gradient(135deg, #B91C4A, #9b1740)" : "#e5e7eb",
               border: "none",
-              color: canNext() ? "#fff" : "#52525b",
+              color: canNext() ? "#fff" : "#9ca3af",
               fontSize: "14px",
               fontWeight: 600,
               cursor: canNext() ? "pointer" : "not-allowed",
