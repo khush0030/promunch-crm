@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isAllowedEmail } from "@/lib/auth-domains";
 
 const PUBLIC_PATHS = ["/login", "/auth"];
 
@@ -36,6 +37,18 @@ export async function middleware(req: NextRequest) {
     path.startsWith("/_next/") ||
     path.startsWith("/favicon") ||
     path.startsWith("/pm-logo");
+
+  // Enforce allowed domains — sign out any session whose email isn't allowed.
+  if (user && !isAllowedEmail(user.email)) {
+    await supabase.auth.signOut();
+    if (!isPublic && !isApi && !isStatic) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("error", "domain");
+      return NextResponse.redirect(url);
+    }
+    return response;
+  }
 
   if (!user && !isPublic && !isApi && !isStatic) {
     const url = req.nextUrl.clone();
