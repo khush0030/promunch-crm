@@ -71,6 +71,11 @@ Deno.serve(async (req) => {
           const contact = contacts.find((c: any) => c.wa_id === msg.from) ?? null;
           await handleInboundMessage(msg, contact);
         }
+
+        // non-message subscribed fields (template status, quality, account…)
+        if (change?.field && change.field !== "messages") {
+          await handleFieldEvent(change.field, value);
+        }
       }
     }
   } catch (err) {
@@ -195,6 +200,11 @@ async function handleInboundMessage(msg: any, profile: any) {
   // mark read on Meta side
   if (wamid) markRead(wamid).catch(() => {});
 
+  // honour opt-out keywords — stop marketing to this contact
+  if (type === "text" && /^\s*(stop|unsubscribe|stop promotions?|opt[\s-]?out)\s*$/i.test(body)) {
+    await sb.from("wa_contacts").update({ opted_in: false }).eq("id", contact.id);
+  }
+
   // trigger AI reply if bot owns the conversation
   if (thread.status === "bot" && type === "text") {
     invokeAiReply(thread.id, body).catch((e) => console.error("[wa-webhook] ai invoke failed", e));
@@ -226,4 +236,75 @@ function mimeExt(mime: string): string {
     "text/plain": "txt",
   };
   return map[base] ?? "bin";
+}
+
+// Non-message webhook fields → connector_events for dashboard visibility,
+// plus the one high-value action: syncing template approval status.
+async function handleFieldEvent(field: string, value: any) {
+  const sb = db();
+  try {
+    if (field === "message_template_status_update") {
+      const name = value?.message_template_name;
+      const lang = value?.message_template_language;
+      const ev = String(value?.event ?? "").toUpperCase();
+      const statusMap: Record<string, string> = {
+        APPROVED: "approved", REJECTED: "rejected", PENDING: "pending",
+        PENDING_DELETION: "disabled", PAUSED: "disabled", DISABLED: "disabled", FLAGGED: "disabled",
+      };
+      const next = statusMap[ev];
+      if (name && next) {
+        let upd = sb.from("wa_templates").update({
+          status: next,
+          meta_template_id: value?.message_template_id ?? null,
+          rejection_reason: ev === "REJECTED" ? (value?.reason ?? "Rejected by Meta") : null,
+        }).eq("name", name);
+        if (lang) upd = upd.eq("language", lang);
+        await upd;
+      }
+      await logConnector({
+        connector: "whatsapp",
+        level: ev === "REJECTED" ? "warn" : "info",
+        event: "template_status",
+        message: `Template '${name ?? "?"}' → ${ev || "update"}.`,
+        detail: value,
+      });
+    } else if (field === "phone_number_quality_update" || field === "phone_number_name_update") {
+      const down = /RED|LOW|FLAGGED|DOWNGRAD|DISABL/i.test(JSON.stringify(value ?? {}));
+      await logConnector({
+        connector: "whatsapp",
+        level: down ? "error" : "warn",
+        event: field,
+        message: `${field}: ${JSON.stringify(value ?? {}).slice(0, 220)}`,
+        detail: value,
+      });
+    } else if (field === "account_update" || field === "account_alerts" || field === "business_capability_update") {
+      const bad = /BAN|RESTRICT|VIOLAT|DISABL|REJECT/i.test(JSON.stringify(value ?? {}));
+      await logConnector({
+        connector: "whatsapp",
+        level: bad ? "error" : "warn",
+        event: field,
+        message: `Meta ${field}: ${JSON.stringify(value ?? {}).slice(0, 220)}`,
+        detail: value,
+      });
+    } else if (field === "user_preferences") {
+      // opt-out via the STOP keyword is handled on inbound messages; log here
+      await logConnector({
+        connector: "whatsapp",
+        level: "info",
+        event: "user_preferences",
+        message: "Customer marketing-preference update received.",
+        detail: value,
+      });
+    } else {
+      await logConnector({
+        connector: "whatsapp",
+        level: "info",
+        event: `field_${field}`,
+        message: `WhatsApp webhook field '${field}' received.`,
+        detail: value,
+      });
+    }
+  } catch (e) {
+    console.error("[wa-webhook] handleFieldEvent", field, e);
+  }
 }

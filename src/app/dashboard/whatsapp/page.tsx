@@ -981,6 +981,7 @@ function CampaignsView() {
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [csvOpen, setCsvOpen] = useState(false);
 
   const load = useCallback(async () => {
     const r = await fetch("/api/whatsapp/campaigns");
@@ -1026,9 +1027,12 @@ function CampaignsView() {
         <div style={{ fontSize: 13, color: "var(--text-2)" }}>
           Broadcast an approved marketing template to opted-in WhatsApp contacts. Meta bills per message.
         </div>
-        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
           <button onClick={importContacts} disabled={importing} style={smallBtn}>
-            <Upload size={14} /> {importing ? "Importing…" : "Import contacts"}
+            <Upload size={14} /> {importing ? "Importing…" : "From Shopify"}
+          </button>
+          <button onClick={() => setCsvOpen(true)} style={smallBtn}>
+            <FileText size={14} /> Upload CSV
           </button>
           <button onClick={() => setCreating(true)} style={primaryBtn}><Plus size={14} /> New campaign</button>
         </div>
@@ -1083,6 +1087,7 @@ function CampaignsView() {
       </div>
 
       {creating && <CampaignModal onClose={() => { setCreating(false); load(); }} />}
+      {csvOpen && <CsvImportModal onClose={() => setCsvOpen(false)} />}
     </div>
   );
 }
@@ -1095,6 +1100,8 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
   const [audienceMode, setAudienceMode] = useState<"all" | "tags">("all");
   const [tags, setTags] = useState("");
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
+  const [personalize, setPersonalize] = useState(false);
+  const [brief, setBrief] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -1128,9 +1135,12 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
         audienceMode === "tags"
           ? { tags: tags.split(",").map((t) => t.trim()).filter(Boolean) }
           : {};
+      const template_vars = personalize && brief.trim()
+        ? { ...vars, _ai_brief: brief.trim() }
+        : vars;
       const r = await fetch("/api/whatsapp/campaigns", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, template_id: templateId, template_vars: vars, audience_filter }),
+        body: JSON.stringify({ name, template_id: templateId, template_vars, audience_filter }),
       });
       const j = await r.json();
       if (j.error) { alert(j.error); return; }
@@ -1178,6 +1188,24 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
           padding: 10, fontSize: 13, whiteSpace: "pre-wrap", marginBottom: 10,
         }}>{preview}</div>
       )}
+      {tpl && (
+        <Field label="AI personalization (optional)">
+          <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}>
+            <input type="checkbox" checked={personalize} onChange={(e) => setPersonalize(e.target.checked)} />
+            <Sparkles size={13} style={{ color: WA_GREEN }} /> Personalize each message with AI
+          </label>
+          {personalize && (
+            <div style={{ marginTop: 8 }}>
+              <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={3}
+                style={{ ...inputStyle, fontFamily: "inherit", resize: "vertical" }}
+                placeholder="Brief for the AI — e.g. 'Recommend a snack based on the customer's tags; mention our Diwali 15% offer; keep it short and warm.'" />
+              <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>
+                Claude fills the template variables per contact from this brief + their profile. The values above are the fallback if AI fails. Sending is slower — one AI call per contact.
+              </div>
+            </div>
+          )}
+        </Field>
+      )}
       <Field label="Audience">
         <div style={{ display: "flex", gap: 14, marginBottom: 6 }}>
           <label style={{ fontSize: 13, display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
@@ -1200,6 +1228,121 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
         <button onClick={() => create(false)} disabled={saving} style={smallBtn}>Save draft</button>
         <button onClick={() => create(true)} disabled={saving} style={primaryBtn}>
           <Send size={13} /> {saving ? "Working…" : "Save & send"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ----------------------------------------------------------------- */
+/* CSV CONTACT IMPORT                                                 */
+/* ----------------------------------------------------------------- */
+
+// Minimal RFC-4180-ish CSV parser: handles quotes, escaped quotes ("")
+// and embedded commas/newlines inside quoted fields.
+function parseCSV(text: string): { headers: string[]; rows: string[][] } {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  let i = 0;
+  const endField = () => { row.push(field); field = ""; };
+  const endRow = () => { rows.push(row); row = []; };
+  while (i < text.length) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += c; i++; continue;
+    }
+    if (c === '"') { inQuotes = true; i++; continue; }
+    if (c === ",") { endField(); i++; continue; }
+    if (c === "\r") { i++; continue; }
+    if (c === "\n") { endField(); endRow(); i++; continue; }
+    field += c; i++;
+  }
+  if (field !== "" || row.length > 0) { endField(); endRow(); }
+  const all = rows.filter((r) => r.some((cell) => cell.trim() !== ""));
+  const headers = all.shift() ?? [];
+  return { headers, rows: all };
+}
+
+function CsvImportModal({ onClose }: { onClose: () => void }) {
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [rows, setRows] = useState<string[][]>([]);
+  const [fileName, setFileName] = useState("");
+  const [phoneCol, setPhoneCol] = useState(-1);
+  const [nameCol, setNameCol] = useState(-1);
+  const [emailCol, setEmailCol] = useState(-1);
+  const [importing, setImporting] = useState(false);
+
+  function onFile(f: File) {
+    setFileName(f.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const { headers: h, rows: r } = parseCSV(String(reader.result ?? ""));
+      setHeaders(h);
+      setRows(r);
+      const find = (kws: string[]) => h.findIndex((x) => kws.some((k) => x.toLowerCase().includes(k)));
+      setPhoneCol(find(["phone", "mobile", "whatsapp", "number", "contact"]));
+      setNameCol(find(["first name", "full name", "name"]));
+      setEmailCol(find(["email", "e-mail", "mail"]));
+    };
+    reader.readAsText(f);
+  }
+
+  async function doImport() {
+    if (phoneCol < 0) { alert("Pick the phone-number column."); return; }
+    setImporting(true);
+    try {
+      const payload = rows.map((r) => ({
+        phone: r[phoneCol] ?? "",
+        name: nameCol >= 0 ? (r[nameCol] ?? "") : "",
+        email: emailCol >= 0 ? (r[emailCol] ?? "") : "",
+      }));
+      const res = await fetch("/api/whatsapp/import-csv", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: payload, tag: "csv_import" }),
+      });
+      const j = await res.json();
+      if (j.error) alert("Import failed: " + j.error);
+      else alert(`Imported ${j.imported} new contact(s).\nScanned ${j.scanned}, skipped ${j.skipped} (no valid phone / duplicate).\nTotal WhatsApp contacts: ${j.total_wa_contacts}.`);
+      onClose();
+    } finally { setImporting(false); }
+  }
+
+  const colSelect = (value: number, set: (n: number) => void, label: string, optional: boolean) => (
+    <select aria-label={label} value={value} onChange={(e) => set(Number(e.target.value))} style={inputStyle}>
+      <option value={-1}>{optional ? "— none —" : "— select —"}</option>
+      {headers.map((h, i) => <option key={i} value={i}>{h || `Column ${i + 1}`}</option>)}
+    </select>
+  );
+
+  return (
+    <Modal onClose={onClose} title="Upload contacts from CSV">
+      <input type="file" accept=".csv,text/csv" aria-label="CSV file"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }}
+        style={{ marginBottom: 12, fontSize: 13 }} />
+      {headers.length > 0 && (
+        <>
+          <div style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 10 }}>
+            {fileName} — {rows.length} row(s), {headers.length} column(s). Map the columns:
+          </div>
+          <Field label="Phone column (required)">{colSelect(phoneCol, setPhoneCol, "Phone column", false)}</Field>
+          <Field label="Name column (optional)">{colSelect(nameCol, setNameCol, "Name column", true)}</Field>
+          <Field label="Email column (optional)">{colSelect(emailCol, setEmailCol, "Email column", true)}</Field>
+          <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 12 }}>
+            Phone numbers are normalised automatically (10-digit Indian numbers get +91). Imported contacts are tagged
+            <strong> csv_import</strong> and marked opted-in — only upload customers who agreed to WhatsApp messages.
+          </div>
+        </>
+      )}
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button onClick={onClose} style={smallBtn}>Cancel</button>
+        <button onClick={doImport} disabled={importing || headers.length === 0} style={primaryBtn}>
+          <Upload size={14} /> {importing ? "Importing…" : "Import"}
         </button>
       </div>
     </Modal>
