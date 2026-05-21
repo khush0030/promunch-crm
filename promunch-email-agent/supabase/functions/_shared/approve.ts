@@ -4,7 +4,7 @@
 
 import { db } from "./supabase.ts";
 import { sendReply } from "./gmail.ts";
-import { replyInThread, updateMessage } from "./slack.ts";
+import { replyInThread, updateMessage, buildSentBlocks, type Classification } from "./slack.ts";
 import { logEvent } from "./log.ts";
 import { recordApprovedReply } from "./brand.ts";
 
@@ -20,7 +20,7 @@ export async function approveAndSend(opts: {
   const { data: thread, error: tErr } = await supabase
     .from("email_threads")
     .select(
-      "id, gmail_thread_id, gmail_message_id, from_email, subject, in_reply_to_header, status, body_plain, snippet",
+      "id, gmail_thread_id, gmail_message_id, from_email, from_name, subject, in_reply_to_header, status, body_plain, snippet, classification_meta",
     )
     .eq("id", opts.emailThreadId)
     .single();
@@ -109,22 +109,26 @@ export async function approveAndSend(opts: {
     `:white_check_mark: Sent${opts.approvedBySlackUser ? ` (approved by <@${opts.approvedBySlackUser}>)` : ""}.`,
   );
 
-  // Strip action buttons from the parent message so it can't be re-clicked
+  // Rebuild the parent message: keep the original email + the sent reply
+  // visible, just drop the action buttons so it can't be re-clicked.
   try {
     await updateMessage({
       channel: opts.slackChannel,
       ts: opts.slackThreadTs,
       text: ":white_check_mark: Email sent",
-      blocks: [
-        {
-          type: "context",
-          elements: [{ type: "mrkdwn", text: `:white_check_mark: *Sent* — reply delivered to ${thread.from_email}` }],
-        },
-      ],
+      blocks: buildSentBlocks({
+        fromName: thread.from_name,
+        fromEmail: thread.from_email,
+        subject: thread.subject,
+        bodyPreview: thread.body_plain || thread.snippet || "",
+        draftBody: draft.body,
+        classification: (thread.classification_meta as Classification | null) ?? null,
+        approvedBySlackUser: opts.approvedBySlackUser,
+      }),
     });
   } catch (e) {
     // Non-fatal — the message exists, we just couldn't clear the buttons
-    console.warn("Could not strip buttons from parent message:", e);
+    console.warn("Could not rebuild parent message after send:", e);
   }
 
   return { ok: true };

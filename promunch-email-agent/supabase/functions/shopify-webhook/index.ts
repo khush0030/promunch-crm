@@ -3,6 +3,7 @@
 
 import { db } from "../_shared/supabase.ts";
 import { buildOrderBlocks, fmtMoney, postSlack, verifyShopifyHmac } from "../_shared/shopify.ts";
+import { logConnector } from "../_shared/connector-log.ts";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
@@ -79,11 +80,47 @@ Deno.serve(async (req) => {
     try {
       const ts = await postSlack(channel, blocks, `New order ${orderNumber}`);
       if (upserted?.id) await db().from("shopify_orders").update({ slack_thread_ts: ts }).eq("id", upserted.id);
-    } catch (e) { console.error("slack post failed", e); }
+      await logConnector({
+        connector: "shopify_slack",
+        level: "info",
+        event: "post_ok",
+        message: `Posted order ${orderNumber} to Slack (${fmtMoney(totalPrice, currency)}).`,
+        ref: orderNumber,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("slack post failed", e);
+      await logConnector({
+        connector: "shopify_slack",
+        level: "error",
+        event: "post_failed",
+        message: `Failed to post order ${orderNumber} to Slack: ${msg.slice(0, 300)}`,
+        detail: { order_number: orderNumber },
+        ref: orderNumber,
+      });
+    }
+  } else {
+    await logConnector({
+      connector: "shopify_slack",
+      level: "error",
+      event: "not_configured",
+      message: "Order received but SHOPIFY_SLACK_CHANNEL_ID is not set — nothing posted to Slack.",
+      ref: orderNumber,
+    });
   }
   if (isBig && bigChannel && bigChannel !== channel) {
     try { await postSlack(bigChannel, blocks, `Big order ${orderNumber} ${fmtMoney(totalPrice, currency)}`); }
-    catch (e) { console.error("slack big-order post failed", e); }
+    catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("slack big-order post failed", e);
+      await logConnector({
+        connector: "shopify_slack",
+        level: "error",
+        event: "post_failed",
+        message: `Failed to post big order ${orderNumber} to the big-order channel: ${msg.slice(0, 300)}`,
+        ref: orderNumber,
+      });
+    }
   }
 
   return new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json" } });

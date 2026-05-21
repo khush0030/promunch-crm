@@ -4,6 +4,7 @@
 
 import { db } from "../_shared/supabase.ts";
 import { fmtMoney, postSlack, verifyShopifyHmac } from "../_shared/shopify.ts";
+import { logConnector } from "../_shared/connector-log.ts";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
@@ -56,7 +57,24 @@ Deno.serve(async (req) => {
   if (channel && row.slack_thread_ts) {
     try {
       await postSlack(channel, [{ type: "section", text: { type: "mrkdwn", text: threadText } }], threadText, row.slack_thread_ts);
-    } catch (e) { console.error("slack thread post failed", e); }
+      await logConnector({
+        connector: "shopify_slack",
+        level: "info",
+        event: "post_ok",
+        message: `Posted "${topic}" update to Slack — ${row.order_number}.`,
+        ref: row.order_number,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("slack thread post failed", e);
+      await logConnector({
+        connector: "shopify_slack",
+        level: "error",
+        event: "post_failed",
+        message: `Failed to post "${topic}" update for ${row.order_number} to Slack: ${msg.slice(0, 300)}`,
+        ref: row.order_number,
+      });
+    }
   }
 
   return new Response(JSON.stringify({ ok: true, topic }), { headers: { "content-type": "application/json" } });

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import ConnectorBanner from "@/components/ConnectorBanner";
 
 type Period = "7d" | "30d" | "90d" | "all";
 
@@ -311,6 +312,8 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      <ConnectorBanner />
 
       <div className="kpi-grid">
         <div className="kpi">

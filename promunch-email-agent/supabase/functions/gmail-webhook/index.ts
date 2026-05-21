@@ -18,6 +18,7 @@
 import { db } from "../_shared/supabase.ts";
 import { listHistory } from "../_shared/gmail.ts";
 import { processIncomingMessage } from "../_shared/process-email.ts";
+import { logConnector } from "../_shared/connector-log.ts";
 
 const MAILBOX = Deno.env.get("MAILBOX_EMAIL") ?? "hello@promunch.in";
 const PUBSUB_TOKEN = Deno.env.get("PUBSUB_VERIFICATION_TOKEN") ?? "";
@@ -93,15 +94,36 @@ Deno.serve(async (req) => {
         if (result.status === "processed") processed++;
         else skipped++;
       } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
         console.error(`Failed to process message ${id}:`, e);
-        // Continue — one bad message shouldn't block the batch
+        // Continue — one bad message shouldn't block the batch.
+        // A 404 just means the message was deleted/moved before we fetched it
+        // — benign, not a connector outage. Log it as info, not an error.
+        const notFound = /\b404\b|not ?found|Requested entity was not found/i.test(msg);
+        await logConnector({
+          connector: "gmail_pipeline",
+          level: notFound ? "info" : "error",
+          event: notFound ? "message_skipped_not_found" : "process_failed",
+          message: notFound
+            ? `Skipped a pushed message that no longer exists in Gmail (${id}).`
+            : `Failed to process pushed message: ${msg.slice(0, 300)}`,
+          detail: { gmail_message_id: id },
+          ref: id,
+        });
       }
     }
   } catch (e) {
     // history.list can 404 if startHistoryId is too old. Fall back to
     // using the notification's historyId so the next push starts fresh.
+    const msg = e instanceof Error ? e.message : String(e);
     console.error("listHistory failed, resetting cursor:", e);
     newestHistoryId = notification.historyId;
+    await logConnector({
+      connector: "gmail_pipeline",
+      level: "warn",
+      event: "history_reset",
+      message: `Gmail history lookup failed (cursor reset, self-heals next push): ${msg.slice(0, 200)}`,
+    });
   }
 
   // Advance the cursor

@@ -127,6 +127,16 @@ const groups: NavGroup[] = [
         ),
       },
       {
+        href: "/dashboard/integrations",
+        label: "Integrations",
+        icon: (
+          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
+            <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" />
+            <path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" />
+          </svg>
+        ),
+      },
+      {
         href: "/dashboard/settings",
         label: "Settings",
         icon: (

@@ -171,6 +171,152 @@ export async function postDraftRevision(opts: {
 }
 
 // ---------------------------------------------------------------------------
+// Post the customer email to Slack WITHOUT an AI draft.
+//
+// Used when Claude is unavailable (down / out of credits). Email delivery to
+// Slack must never depend on drafting succeeding — the team still needs to
+// see the email and can reply manually in Gmail. No action buttons here: once
+// drafting recovers, the poll posts the draft (with buttons) as a thread reply.
+// ---------------------------------------------------------------------------
+export async function postEmailNoDraft(opts: {
+  fromName: string | null;
+  fromEmail: string;
+  subject: string | null;
+  bodyPreview: string;
+  classification?: Classification | null;
+  reason?: string | null;
+}): Promise<{ ts: string; channel: string; permalink: string }> {
+  const fromLine = opts.fromName ? `${opts.fromName} <${opts.fromEmail}>` : opts.fromEmail;
+  const cleanIn = cleanForDisplay(opts.bodyPreview);
+  const cls = opts.classification ?? null;
+  const reason = opts.reason || "the AI drafting service is currently unavailable";
+  const blocks: unknown[] = [
+    {
+      type: "header",
+      text: { type: "plain_text", text: ":envelope_with_arrow: New email — needs manual reply", emoji: true },
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*From*\n${fromLine}` },
+        { type: "mrkdwn", text: `*Subject*\n${opts.subject ?? "(no subject)"}` },
+      ],
+    },
+    ...(cls ? [classificationBlock(cls)] : []),
+    { type: "divider" },
+    { type: "section", text: { type: "mrkdwn", text: `*Customer message*\n${quoteLines(cleanIn)}` } },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text:
+            `:warning: *AI draft unavailable* — ${reason}. Reply directly in Gmail. ` +
+            `A drafted reply will appear in this thread automatically once AI drafting recovers.`,
+        },
+      ],
+    },
+  ];
+  const resp = await slack<{ ts?: string; channel?: string }>("chat.postMessage", {
+    channel: SLACK_CHANNEL_ID,
+    text: `New email (no draft) from ${opts.fromName ?? opts.fromEmail}: ${opts.subject ?? "(no subject)"}`,
+    blocks,
+    unfurl_links: false,
+    unfurl_media: false,
+  });
+  const channel = resp.channel || SLACK_CHANNEL_ID;
+  const ts = resp.ts;
+  if (!ts) throw new Error(`Slack postMessage returned no ts: ${JSON.stringify(resp)}`);
+  let permalink = "";
+  try {
+    const perma = await slack<{ permalink: string }>("chat.getPermalink", { channel, message_ts: ts });
+    permalink = perma.permalink;
+  } catch (_) { /* non-fatal */ }
+  return { ts, channel, permalink };
+}
+
+// ---------------------------------------------------------------------------
+// Thread reply for a follow-up customer message when drafting is unavailable.
+// ---------------------------------------------------------------------------
+export async function postNoDraftReply(opts: {
+  channel: string;
+  threadTs: string;
+  customerMessage: string;
+  reason?: string | null;
+}): Promise<{ ts: string }> {
+  const cleanIn = cleanForDisplay(opts.customerMessage);
+  const reason = opts.reason || "the AI drafting service is currently unavailable";
+  const blocks: unknown[] = [
+    { type: "section", text: { type: "mrkdwn", text: `*New customer reply*\n${quoteLines(cleanIn)}` } },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `:warning: *AI draft unavailable* — ${reason}. A drafted reply will appear here once it recovers.`,
+        },
+      ],
+    },
+  ];
+  const resp = await slack<{ ts: string }>("chat.postMessage", {
+    channel: opts.channel,
+    thread_ts: opts.threadTs,
+    text: "New customer reply (no draft)",
+    blocks,
+  });
+  return { ts: resp.ts };
+}
+
+// ---------------------------------------------------------------------------
+// Rebuild the parent email card AFTER sending. Same content as the original
+// post — From, Subject, classification, customer message, the reply — but with
+// the action buttons removed and a "Sent" banner on top. This keeps the
+// original email visible in the channel instead of nuking it to one line.
+// ---------------------------------------------------------------------------
+export function buildSentBlocks(opts: {
+  fromName: string | null;
+  fromEmail: string;
+  subject: string | null;
+  bodyPreview: string;
+  draftBody: string;
+  classification?: Classification | null;
+  approvedBySlackUser?: string | null;
+}): unknown[] {
+  const fromLine = opts.fromName ? `${opts.fromName} <${opts.fromEmail}>` : opts.fromEmail;
+  const cleanIn = cleanForDisplay(opts.bodyPreview);
+  const cleanDraft = (opts.draftBody ?? "").trim();
+  const cls = opts.classification ?? null;
+  const approver = opts.approvedBySlackUser ? ` by <@${opts.approvedBySlackUser}>` : "";
+  return [
+    { type: "header", text: { type: "plain_text", text: ":white_check_mark: Email sent", emoji: true } },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*From*\n${fromLine}` },
+        { type: "mrkdwn", text: `*Subject*\n${opts.subject ?? "(no subject)"}` },
+      ],
+    },
+    ...(cls ? [classificationBlock(cls)] : []),
+    { type: "divider" },
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: `*Customer message*\n${quoteLines(cleanIn)}` },
+    },
+    { type: "divider" },
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: `*:outbox_tray: Reply sent*\n${quoteLines(cleanDraft, 2500)}` },
+    },
+    {
+      type: "context",
+      elements: [
+        { type: "mrkdwn", text: `:white_check_mark: *Sent*${approver} — reply delivered to ${opts.fromEmail}` },
+      ],
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
 // Update a message (used after Approve to mark "Sent")
 // ---------------------------------------------------------------------------
 export async function updateMessage(opts: {
