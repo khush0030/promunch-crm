@@ -18,6 +18,18 @@ const periodDays: Record<Period, number | null> = {
   all: null,
 };
 
+// Human-readable "time since" for webhook freshness.
+function relTime(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
 interface CampaignRow {
   name: string;
   sent: string;
@@ -45,7 +57,12 @@ interface Kpis {
   totalSent: number;
   flowRevenue: number;
 }
-type ChannelRow = { label: string; status: "ok" | "warn" | "off"; detail?: string };
+type ChannelRow = {
+  label: string;
+  status: "ok" | "warn" | "off";
+  detail?: string;
+  pill?: string; // overrides default pill text (Connected / Configured / Not connected)
+};
 
 export default function DashboardPage() {
   const [period, setPeriod] = useState<Period>("30d");
@@ -196,6 +213,32 @@ export default function DashboardPage() {
             }
           : { label: "WhatsApp", status: "off", detail: "Not connected" }
       );
+      // Nitro (NitroCommerce) webhook — health = events received + how recently
+      const { count: nitroCount } = await supabase
+        .from("nitro_events")
+        .select("id", { count: "exact", head: true });
+      const { data: lastNitro } = await supabase
+        .from("nitro_events")
+        .select("received_at, event_name")
+        .order("received_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (nitroCount && nitroCount > 0 && lastNitro?.received_at) {
+        const ageMs = Date.now() - new Date(lastNitro.received_at).getTime();
+        const fresh = ageMs < 24 * 3600_000;
+        ch.push({
+          label: "Nitro webhook",
+          status: fresh ? "ok" : "warn",
+          detail: `${nitroCount.toLocaleString("en-IN")} events · last ${relTime(ageMs)}`,
+          pill: fresh ? "Live" : "No recent events",
+        });
+      } else {
+        ch.push({
+          label: "Nitro webhook",
+          status: "off",
+          detail: "No events received yet",
+        });
+      }
       setChannels(ch);
 
       setLoaded(true);
@@ -421,7 +464,12 @@ export default function DashboardPage() {
                       c.status === "ok" ? "green" : c.status === "warn" ? "amber" : "grey"
                     }`}
                   >
-                    {c.status === "ok" ? "Connected" : c.status === "warn" ? "Configured" : "Not connected"}
+                    {c.pill ??
+                      (c.status === "ok"
+                        ? "Connected"
+                        : c.status === "warn"
+                        ? "Configured"
+                        : "Not connected")}
                   </span>
                 </div>
               ))}
