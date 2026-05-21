@@ -41,6 +41,7 @@ export interface PostEmailOpts {
   fromEmail: string;
   subject: string | null;
   bodyPreview: string;        // truncated plain body
+  snippet?: string | null;    // Gmail snippet — fallback when body is empty
   draftBody: string;
   emailThreadId: string;      // our DB pk — embedded in button values for routing
   draftRevisionId: string;
@@ -88,6 +89,7 @@ export async function postNoReplyCard(opts: {
   fromEmail: string;
   subject: string | null;
   bodyPreview: string;
+  snippet?: string | null;
   classification: Classification;
 }): Promise<{ ts: string; channel: string; permalink: string }> {
   const fromLine = opts.fromName ? `${opts.fromName} <${opts.fromEmail}>` : opts.fromEmail;
@@ -107,6 +109,14 @@ export async function postNoReplyCard(opts: {
         { type: "mrkdwn", text: `*From*\n${fromLine}` },
         { type: "mrkdwn", text: `*Subject*\n${opts.subject ?? "(no subject)"}` },
       ],
+    },
+    { type: "divider" },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Email*\n${quoteLines(customerMessage(opts.bodyPreview, opts.snippet))}`,
+      },
     },
     {
       type: "context",
@@ -183,11 +193,12 @@ export async function postEmailNoDraft(opts: {
   fromEmail: string;
   subject: string | null;
   bodyPreview: string;
+  snippet?: string | null;
   classification?: Classification | null;
   reason?: string | null;
 }): Promise<{ ts: string; channel: string; permalink: string }> {
   const fromLine = opts.fromName ? `${opts.fromName} <${opts.fromEmail}>` : opts.fromEmail;
-  const cleanIn = cleanForDisplay(opts.bodyPreview);
+  const cleanIn = customerMessage(opts.bodyPreview, opts.snippet);
   const cls = opts.classification ?? null;
   const reason = opts.reason || "the AI drafting service is currently unavailable";
   const blocks: unknown[] = [
@@ -242,9 +253,10 @@ export async function postNoDraftReply(opts: {
   channel: string;
   threadTs: string;
   customerMessage: string;
+  snippet?: string | null;
   reason?: string | null;
 }): Promise<{ ts: string }> {
-  const cleanIn = cleanForDisplay(opts.customerMessage);
+  const cleanIn = customerMessage(opts.customerMessage, opts.snippet);
   const reason = opts.reason || "the AI drafting service is currently unavailable";
   const blocks: unknown[] = [
     { type: "section", text: { type: "mrkdwn", text: `*New customer reply*\n${quoteLines(cleanIn)}` } },
@@ -278,12 +290,13 @@ export function buildSentBlocks(opts: {
   fromEmail: string;
   subject: string | null;
   bodyPreview: string;
+  snippet?: string | null;
   draftBody: string;
   classification?: Classification | null;
   approvedBySlackUser?: string | null;
 }): unknown[] {
   const fromLine = opts.fromName ? `${opts.fromName} <${opts.fromEmail}>` : opts.fromEmail;
-  const cleanIn = cleanForDisplay(opts.bodyPreview);
+  const cleanIn = customerMessage(opts.bodyPreview, opts.snippet);
   const cleanDraft = (opts.draftBody ?? "").trim();
   const cls = opts.classification ?? null;
   const approver = opts.approvedBySlackUser ? ` by <@${opts.approvedBySlackUser}>` : "";
@@ -384,6 +397,52 @@ function cleanForDisplay(text: string): string {
     .trim();
 }
 
+// Lightly clean raw text — decode HTML entities (named + numeric) and collapse
+// whitespace — WITHOUT stripping quoted history. Used as a fallback when
+// cleanForDisplay() removes too much (common with HTML/marketing emails whose
+// plain-text part is mostly layout whitespace).
+function lightClean(text: string): string {
+  return (text ?? "")
+    .replace(/\r\n/g, "\n")
+    .replace(/&nbsp;|&zwnj;/gi, " ")
+    .replace(/&#x([0-9a-f]+);/gi, (_m, h) => {
+      try { return String.fromCodePoint(parseInt(h, 16)); } catch { return ""; }
+    })
+    .replace(/&#(\d+);/g, (_m, d) => {
+      try { return String.fromCodePoint(parseInt(d, 10)); } catch { return ""; }
+    })
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&[a-z]+;/gi, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+// Always produce a readable customer message for the Slack card — never empty.
+// Preference order:
+//   1. the de-quoted body (cleanForDisplay) — best when it has real content
+//   2. the lightly cleaned full body — when 1 stripped too much
+//   3. Gmail's own snippet — guaranteed-populated short summary
+function customerMessage(bodyPlain: string, snippet?: string | null, max = 1500): string {
+  const meaningful = (s: string) => s.replace(/\s+/g, "").length >= 30;
+
+  const deQuoted = cleanForDisplay(bodyPlain);
+  if (meaningful(deQuoted)) return truncate(deQuoted, max);
+
+  const full = lightClean(bodyPlain);
+  if (meaningful(full)) return truncate(full, max);
+
+  const snip = lightClean(snippet ?? "");
+  if (snip) return truncate(snip, max);
+
+  return deQuoted || full || "_(No message preview — open the email in Gmail.)_";
+}
+
 // Render multi-line text as a Slack blockquote (one ">" per line).
 function quoteLines(text: string, max = 1500): string {
   const t = truncate(text.trim(), max);
@@ -440,7 +499,7 @@ function classificationBlock(c: Classification): unknown {
 
 function buildEmailBlocks(opts: PostEmailOpts): unknown[] {
   const fromLine = opts.fromName ? `${opts.fromName} <${opts.fromEmail}>` : opts.fromEmail;
-  const cleanIn = cleanForDisplay(opts.bodyPreview);
+  const cleanIn = customerMessage(opts.bodyPreview, opts.snippet);
   const cleanDraft = (opts.draftBody ?? "").trim();
   const cls = opts.classification ?? null;
   const headerText = cls

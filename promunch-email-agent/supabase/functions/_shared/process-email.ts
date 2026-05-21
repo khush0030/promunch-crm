@@ -183,6 +183,7 @@ export async function processIncomingMessage(messageId: string): Promise<{
           fromEmail: email.from_email,
           subject: email.subject,
           bodyPreview: email.body_plain,
+          snippet: email.snippet,
           classification,
         });
         await supabase
@@ -312,6 +313,7 @@ async function handleNewThread(
         fromEmail: email.from_email,
         subject: email.subject,
         bodyPreview: email.body_plain,
+        snippet: email.snippet,
         draftBody: draft.body,
         emailThreadId: threadRowId,
         draftRevisionId,
@@ -342,6 +344,7 @@ async function handleNewThread(
         fromEmail: email.from_email,
         subject: email.subject,
         bodyPreview: email.body_plain,
+        snippet: email.snippet,
         classification,
         reason: draft.ok ? null : draft.reason,
       });
@@ -497,6 +500,7 @@ async function handleContinuation(
           channel: slackChannel,
           threadTs: slackThreadTs,
           customerMessage: email.body_plain,
+          snippet: email.snippet,
           reason: draft.reason,
         });
       }
@@ -602,6 +606,7 @@ async function retryFailedDraft(
         fromEmail: email.from_email,
         subject: email.subject,
         bodyPreview: email.body_plain,
+        snippet: email.snippet,
         draftBody: draft.body,
         emailThreadId: row.id,
         draftRevisionId: rev.id,
