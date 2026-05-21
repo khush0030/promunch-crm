@@ -66,5 +66,8 @@ verify_jwt = false                    # Shopify uses HMAC header
 [functions.wa-journey-tick]
 verify_jwt = false                    # invoked by scheduled cron
 
+[functions.wa-health]
+verify_jwt = false                    # invoked by scheduled cron
+
 [functions.nitro-webhook]
 verify_jwt = false                    # Nitro uses caller-defined Authorization token (NITRO_AUTH_TOKEN)

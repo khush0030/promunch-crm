@@ -107,7 +107,7 @@ export function markRead(messageId: string): Promise<SendResult> {
   });
 }
 
-// Fetch a media URL by id and then GET the actual bytes.
+// Fetch a media URL by id (the URL is short-lived and auth-gated).
 export async function fetchMedia(mediaId: string): Promise<{ url: string; mime: string } | null> {
   const meta = await fetch(`${GRAPH}/${mediaId}`, {
     headers: { Authorization: `Bearer ${token()}` },
@@ -115,6 +115,23 @@ export async function fetchMedia(mediaId: string): Promise<{ url: string; mime: 
   if (!meta.ok) return null;
   const j = await meta.json();
   return j?.url ? { url: j.url, mime: j.mime_type ?? "application/octet-stream" } : null;
+}
+
+// Download the actual media bytes for a media id (metadata hop → binary hop).
+// Used to persist inbound photos / voice notes / video / docs to our storage.
+export async function downloadMedia(mediaId: string): Promise<{ bytes: Uint8Array; mime: string } | null> {
+  const meta = await fetch(`${GRAPH}/${mediaId}`, {
+    headers: { Authorization: `Bearer ${token()}` },
+  });
+  if (!meta.ok) return null;
+  const j = await meta.json();
+  if (!j?.url) return null;
+  const bin = await fetch(j.url, { headers: { Authorization: `Bearer ${token()}` } });
+  if (!bin.ok) return null;
+  return {
+    bytes: new Uint8Array(await bin.arrayBuffer()),
+    mime: j.mime_type ?? "application/octet-stream",
+  };
 }
 
 // HMAC-SHA256 verification of X-Hub-Signature-256.

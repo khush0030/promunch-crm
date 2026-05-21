@@ -4,10 +4,11 @@
 //   trigger AI reply if conversation is in 'bot' status.
 
 import { db } from "../_shared/supabase.ts";
-import { verifySignature, fetchMedia, markRead } from "../_shared/whatsapp.ts";
+import { verifySignature, downloadMedia, markRead } from "../_shared/whatsapp.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
+const WA_MEDIA_BUCKET = Deno.env.get("WA_MEDIA_BUCKET") ?? "wa-media";
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
@@ -148,8 +149,21 @@ async function handleInboundMessage(msg: any, profile: any) {
   else if (msg.type === "image" || msg.type === "document" || msg.type === "audio" || msg.type === "video") {
     const mid = msg[msg.type]?.id;
     if (mid) {
-      const m = await fetchMedia(mid).catch(() => null);
-      if (m) { mediaUrl = m.url; mediaMime = m.mime; }
+      // download the bytes and persist to storage — Meta media URLs expire,
+      // so we keep our own permanent, dashboard-viewable copy.
+      const dl = await downloadMedia(mid).catch(() => null);
+      if (dl) {
+        mediaMime = dl.mime;
+        const path = `${thread.id}/${crypto.randomUUID()}.${mimeExt(dl.mime)}`;
+        const { error: upErr } = await sb.storage
+          .from(WA_MEDIA_BUCKET)
+          .upload(path, dl.bytes, { contentType: dl.mime, upsert: true });
+        if (upErr) {
+          console.error("[wa-webhook] media upload failed", upErr);
+        } else {
+          mediaUrl = sb.storage.from(WA_MEDIA_BUCKET).getPublicUrl(path).data.publicUrl;
+        }
+      }
     }
     body = msg[msg.type]?.caption ?? `[${msg.type}]`;
   } else if (msg.type === "reaction") {
@@ -197,4 +211,19 @@ async function invokeAiReply(threadId: string, lastMessage: string) {
     },
     body: JSON.stringify({ thread_id: threadId, last_message: lastMessage }),
   });
+}
+
+// Map a WhatsApp media MIME type to a file extension for the storage path.
+function mimeExt(mime: string): string {
+  const base = (mime ?? "").split(";")[0].trim();
+  const map: Record<string, string> = {
+    "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
+    "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/aac": "aac", "audio/amr": "amr",
+    "video/mp4": "mp4", "video/3gpp": "3gp",
+    "application/pdf": "pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "text/plain": "txt",
+  };
+  return map[base] ?? "bin";
 }

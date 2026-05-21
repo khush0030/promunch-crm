@@ -97,6 +97,7 @@ export default function WhatsAppPage() {
   return (
     <div className="page">
       <Header />
+      <StatusMeter />
       <Tabs tab={tab} onChange={setTab} />
       <div>
         {tab === "inbox" && <InboxView ticketsOnly={false} />}
@@ -124,6 +125,78 @@ function Header() {
         <div className="sub">Inbox, AI agent, templates &amp; tickets</div>
       </div>
     </div>
+  );
+}
+
+/* WhatsApp uptime / health meter — polls /api/whatsapp/health every 30s. */
+function StatusMeter() {
+  const [h, setH] = useState<any>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch("/api/whatsapp/health");
+      setH(await r.json());
+    } catch { /* keep last good reading */ }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const status: string = h?.status ?? "unknown";
+  const dot = status === "up" ? WA_GREEN : status === "down" ? "var(--accent)" : "var(--text-3)";
+  const failed: number = h?.failedOutbound24h ?? 0;
+
+  const cells: Array<{ label: string; value: string; color?: string; dot?: boolean }> = [
+    { label: "Cloud API", dot: true, color: dot,
+      value: status === "up" ? "Operational" : status === "down" ? "Down" : "Unknown" },
+    { label: "Uptime 24h", value: h?.uptime24h != null ? `${h.uptime24h}%` : "—" },
+    { label: "Uptime 7d", value: h?.uptime7d != null ? `${h.uptime7d}%` : "—" },
+    { label: "Last message in", value: timeAgo(h?.lastInboundAt ?? null) },
+    { label: "Outbound 24h", value: failed > 0 ? `${failed} failed` : "OK",
+      color: failed > 0 ? "var(--accent)" : WA_GREEN },
+    { label: "AI replies 24h", value: String(h?.aiReplies24h ?? 0) },
+  ];
+
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "2px 0 14px" }}>
+      {cells.map((c) => (
+        <div key={c.label} style={{
+          flex: "1 1 120px", background: "var(--card-bg)", border: "1px solid var(--border)",
+          borderRadius: 10, padding: "9px 12px",
+        }}>
+          <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 3, display: "flex", alignItems: "center", gap: 5 }}>
+            {c.dot && <span style={{ width: 8, height: 8, borderRadius: 999, background: dot, display: "inline-block" }} />}
+            {c.label}
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: c.color ?? "var(--text)" }}>{c.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* Inline renderer for an inbound media message (image / voice note / video / doc). */
+function MediaView({ url, type }: { url: string; type: string }) {
+  if (type === "image") {
+    return (
+      <a href={url} target="_blank" rel="noreferrer">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt="attachment" style={{ maxWidth: 240, maxHeight: 240, borderRadius: 8, display: "block", marginBottom: 4 }} />
+      </a>
+    );
+  }
+  if (type === "audio") {
+    return <audio controls src={url} style={{ maxWidth: 240, marginBottom: 4, display: "block" }} />;
+  }
+  if (type === "video") {
+    return <video controls src={url} style={{ maxWidth: 240, borderRadius: 8, marginBottom: 4, display: "block" }} />;
+  }
+  return (
+    <a href={url} target="_blank" rel="noreferrer" style={{ color: "#1d4ed8", fontSize: 12 }}>
+      📎 Download {type}
+    </a>
   );
 }
 
@@ -448,11 +521,7 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
                     Template · {m.template_name}
                   </div>
                 )}
-                {m.media_url && (
-                  <a href={m.media_url} target="_blank" rel="noreferrer" style={{ color: "#1d4ed8", fontSize: 12 }}>
-                    [media: {m.type}]
-                  </a>
-                )}
+                {m.media_url && <MediaView url={m.media_url} type={m.type} />}
                 <div style={{ whiteSpace: "pre-wrap" }}>{m.body}</div>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 4, fontSize: 10, color: "var(--text-2)" }}>
                   {m.sent_by === "bot" && <span style={{ color: WA_GREEN, fontWeight: 600 }}><Sparkles size={10} style={{ verticalAlign: -1 }} /> AI</span>}
