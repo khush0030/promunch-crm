@@ -33,8 +33,8 @@ Deno.serve(async (req) => {
   try {
     if (topic === "orders/create") await handleOrderCreate(payload);
     else if (topic === "orders/fulfilled") await handleOrderFulfilled(payload);
-    else if (topic === "checkouts/create") await handleCheckoutCreate(payload);
-    // other topics (orders/updated, checkouts/update, …) are acknowledged, no-op
+    else if (topic === "checkouts/create" || topic === "checkouts/update") await handleCheckout(payload);
+    // other topics (orders/updated, …) are acknowledged, no-op
   } catch (e) {
     console.error("[shopify-wa]", topic, e);
     await logConnector({
@@ -129,8 +129,11 @@ async function handleOrderFulfilled(order: any) {
   }).catch(() => {});
 }
 
-// --- checkouts/create: abandoned-checkout enrolment -------------------------
-async function handleCheckoutCreate(checkout: any) {
+// --- checkouts/create + checkouts/update: abandoned-checkout enrolment ------
+// Routed for both topics. The per-token dedup means a cart enrols exactly
+// once — the first time a usable phone number appears on it (often only on
+// a later checkouts/update, not at creation).
+async function handleCheckout(checkout: any) {
   const sb = db();
   const token: string = String(checkout.token ?? checkout.id ?? "");
   if (!token) return;
