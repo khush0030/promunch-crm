@@ -1,19 +1,20 @@
 // AI customer-support agent for WhatsApp.
-// Flow:
-//   1. Load last N messages of the thread for context.
-//   2. Embed the latest inbound text and pull top-K KB chunks via match_kb_chunks.
-//   3. Ask Claude to decide: { action: 'reply' | 'escalate', text?, reason? }.
-//   4. On reply: call wa-send to deliver, persist ai_meta on the message.
-//   5. On escalate: flip thread.status='human' + open ticket, post Slack alert
-//      via existing slack-events helper (best-effort).
+//
+// The knowledge base is prompt-stuffed — every "ready" kb_documents row's text
+// is loaded straight into Claude's context. No embeddings, no vector search,
+// no OpenAI dependency. Right-sized for a small-business FAQ/policy KB.
+//
+// Modes:
+//   normal  — decide reply|escalate, then send via wa-send / open a ticket
+//   draft   — return the suggested reply text only (no send, no escalate);
+//             used by the dashboard "AI draft" button.
 
 import Anthropic from "npm:@anthropic-ai/sdk@0.32.1";
 import { db } from "../_shared/supabase.ts";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 const MODEL = Deno.env.get("WA_AI_MODEL") ?? "claude-sonnet-4-6";
-const EMBED_MODEL = Deno.env.get("WA_EMBED_MODEL") ?? "text-embedding-3-small";
+const KB_CHAR_BUDGET = 60_000;
 
 const SYSTEM_PROMPT = `You are the WhatsApp customer-support agent for PROMUNCH (a snack brand under Vippy Industries Limited — protein munchies, edamame snacks, "Your Munchy Pal").
 
@@ -38,53 +39,52 @@ Escalate when:
 
 Never make promises about delivery dates or refunds you cannot back from the KB.`;
 
-interface InvokeBody { thread_id: string; last_message: string }
+interface InvokeBody { thread_id: string; last_message?: string; draft?: boolean }
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
-  const { thread_id, last_message } = (await req.json()) as InvokeBody;
-  if (!thread_id || !last_message) return j({ error: "thread_id and last_message required" }, 400);
+  const { thread_id, last_message, draft } = (await req.json()) as InvokeBody;
+  if (!thread_id) return j({ error: "thread_id required" }, 400);
 
   const sb = db();
 
-  // recent context
+  // recent conversation context
   const { data: msgs } = await sb
     .from("wa_messages")
     .select("direction,body,created_at")
     .eq("thread_id", thread_id)
     .order("created_at", { ascending: false })
-    .limit(10);
-  const history = (msgs ?? []).reverse()
+    .limit(12);
+  const ordered = (msgs ?? []).reverse();
+  const history = ordered
     .map((m) => `${m.direction === "inbound" ? "Customer" : "Agent"}: ${m.body ?? ""}`)
     .join("\n");
 
-  // RAG
-  let kbContext = "";
-  let kbHits: Array<{ id: string; similarity: number }> = [];
-  if (OPENAI_API_KEY) {
-    try {
-      const embedding = await embed(last_message);
-      const { data: hits } = await sb.rpc("match_kb_chunks", {
-        query_embedding: embedding,
-        match_threshold: 0.4,
-        match_count: 6,
-      });
-      if (hits && hits.length) {
-        kbHits = hits.map((h: any) => ({ id: h.id, similarity: h.similarity }));
-        kbContext = hits.map((h: any, i: number) => `[KB ${i + 1}] ${h.content}`).join("\n\n");
-      }
-    } catch (e) {
-      console.warn("[wa-ai-reply] embed/rag failed", e);
-    }
+  // resolve the message to answer — fall back to the latest inbound
+  let latest = last_message;
+  if (!latest) {
+    const lastInbound = [...ordered].reverse().find((m) => m.direction === "inbound");
+    latest = lastInbound?.body ?? "";
   }
+  if (!latest) return j({ error: "no customer message to answer" }, 400);
 
-  // ask Claude
+  // knowledge base — every ready document, prompt-stuffed
+  const { data: docs } = await sb
+    .from("kb_documents")
+    .select("name, raw_text")
+    .eq("status", "ready");
+  let kb = (docs ?? [])
+    .filter((d) => d.raw_text && String(d.raw_text).trim())
+    .map((d) => `## ${d.name}\n${d.raw_text}`)
+    .join("\n\n");
+  if (kb.length > KB_CHAR_BUDGET) kb = kb.slice(0, KB_CHAR_BUDGET);
+
   const userMsg = [
-    `KNOWLEDGE BASE:\n${kbContext || "(no relevant entries)"}`,
+    `KNOWLEDGE BASE:\n${kb || "(empty — no documents added yet)"}`,
     "",
     `CONVERSATION SO FAR:\n${history}`,
     "",
-    `LATEST CUSTOMER MESSAGE:\n${last_message}`,
+    `LATEST CUSTOMER MESSAGE:\n${latest}`,
     "",
     "Respond with JSON only.",
   ].join("\n");
@@ -97,9 +97,21 @@ Deno.serve(async (req) => {
     messages: [{ role: "user", content: userMsg }],
   });
 
-  const raw = resp.content?.[0]?.type === "text" ? resp.content[0].text : "";
-  const decision = parseDecision(raw);
+  const rawTxt = resp.content?.[0]?.type === "text" ? resp.content[0].text : "";
+  const decision = parseDecision(rawTxt);
 
+  // ---- draft mode: return the suggestion only, no side effects ----
+  if (draft) {
+    if (!decision) return j({ ok: false, error: "AI output unparseable" }, 502);
+    return j({
+      ok: true,
+      action: decision.action,
+      draft: decision.action === "reply" ? (decision.text ?? "") : "",
+      reason: decision.reason ?? null,
+    });
+  }
+
+  // ---- normal mode: send or escalate ----
   if (!decision) {
     await escalate(thread_id, "AI output unparseable", "general", "normal");
     return j({ ok: false, action: "escalate", reason: "unparseable" });
@@ -112,7 +124,7 @@ Deno.serve(async (req) => {
       text: decision.text,
       sent_by: "bot",
       ai_generated: true,
-      ai_meta: { model: MODEL, kb_hits: kbHits, usage: resp.usage },
+      ai_meta: { model: MODEL, usage: resp.usage },
     });
     return j({ ok: true, action: "reply" });
   }
@@ -133,17 +145,6 @@ function parseDecision(s: string): any {
   try { return JSON.parse(m[0]); } catch { return null; }
 }
 
-async function embed(text: string): Promise<number[]> {
-  const r = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: { "Authorization": `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: EMBED_MODEL, input: text }),
-  });
-  if (!r.ok) throw new Error(`embed http ${r.status}`);
-  const j = await r.json();
-  return j.data[0].embedding;
-}
-
 async function escalate(threadId: string, reason: string, category: string, priority: string) {
   const sb = db();
   await sb.from("wa_threads").update({
@@ -155,7 +156,6 @@ async function escalate(threadId: string, reason: string, category: string, prio
     escalation_reason: reason,
   }).eq("id", threadId);
 
-  // best-effort Slack ping
   const webhook = Deno.env.get("SLACK_WEBHOOK_URL");
   if (webhook) {
     await fetch(webhook, {

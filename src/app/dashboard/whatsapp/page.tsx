@@ -301,6 +301,7 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
   const [sending, setSending] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [pickingTemplate, setPickingTemplate] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -359,6 +360,21 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
     });
     const j = await r.json();
     if (j.thread) onChange({ ...thread!, ...j.thread, contact: thread!.contact });
+  }
+
+  async function draftReply() {
+    setDrafting(true);
+    try {
+      const r = await fetch(`/api/whatsapp/threads/${thread!.id}/draft`, { method: "POST" });
+      const j = await r.json();
+      if (j.error) { alert("AI draft failed: " + j.error); return; }
+      if (j.action === "escalate") {
+        alert("AI suggests escalating to a human:\n" + (j.reason || "needs human attention"));
+        return;
+      }
+      if (j.draft) setText(j.draft);
+      else alert("AI returned no draft.");
+    } finally { setDrafting(false); }
   }
 
   return (
@@ -464,6 +480,14 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
               display: "flex", alignItems: "center", gap: 6,
             }}>
             <Megaphone size={14} /> Template
+          </button>
+          <button onClick={draftReply} disabled={drafting} title="AI-draft a reply"
+            style={{
+              padding: "10px 14px", borderRadius: 10, border: "1px solid var(--border)",
+              background: "var(--card-bg)", cursor: drafting ? "wait" : "pointer", color: WA_GREEN, fontWeight: 600, fontSize: 13,
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+            <Sparkles size={14} /> {drafting ? "Drafting…" : "AI draft"}
           </button>
           <input
             value={text} onChange={(e) => setText(e.target.value)}
@@ -887,6 +911,7 @@ function CampaignsView() {
   const [list, setList] = useState<Campaign[]>([]);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const load = useCallback(async () => {
     const r = await fetch("/api/whatsapp/campaigns");
@@ -915,14 +940,29 @@ function CampaignsView() {
     await fetch(`/api/whatsapp/campaigns/${id}`, { method: "DELETE" });
     load();
   }
+  async function importContacts() {
+    if (!confirm("Import all Shopify-synced contacts (with a phone number) into WhatsApp contacts? Existing contacts are left untouched.")) return;
+    setImporting(true);
+    try {
+      const r = await fetch("/api/whatsapp/import-contacts", { method: "POST" });
+      const j = await r.json();
+      if (j.error) alert("Import failed: " + j.error);
+      else alert(`Imported ${j.imported} new contact(s).\nScanned ${j.scanned}, skipped ${j.skipped} (no valid phone / duplicate).\nTotal WhatsApp contacts: ${j.total_wa_contacts}.`);
+    } finally { setImporting(false); }
+  }
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14, gap: 12 }}>
         <div style={{ fontSize: 13, color: "var(--text-2)" }}>
           Broadcast an approved marketing template to opted-in WhatsApp contacts. Meta bills per message.
         </div>
-        <button onClick={() => setCreating(true)} style={primaryBtn}><Plus size={14} /> New campaign</button>
+        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+          <button onClick={importContacts} disabled={importing} style={smallBtn}>
+            <Upload size={14} /> {importing ? "Importing…" : "Import contacts"}
+          </button>
+          <button onClick={() => setCreating(true)} style={primaryBtn}><Plus size={14} /> New campaign</button>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 12 }}>

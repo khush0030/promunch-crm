@@ -13,7 +13,9 @@ export type ConnectorId =
   | "anthropic"        // Claude draft generation
   | "email_slack"      // AI support emails posted to Slack
   | "shopify_slack"    // Shopify order cards posted to Slack
-  | "gmail_watch";     // the 7-day Gmail Pub/Sub watch
+  | "gmail_watch"      // the 7-day Gmail Pub/Sub watch
+  | "whatsapp"         // WhatsApp Cloud API inbound webhook
+  | "shopify_wa";      // Shopify → WhatsApp journeys
 
 export type ConnectorLevel = "info" | "warn" | "error";
 

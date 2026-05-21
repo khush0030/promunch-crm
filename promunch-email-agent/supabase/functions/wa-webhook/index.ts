@@ -5,6 +5,7 @@
 
 import { db } from "../_shared/supabase.ts";
 import { verifySignature, fetchMedia, markRead } from "../_shared/whatsapp.ts";
+import { logConnector } from "../_shared/connector-log.ts";
 
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 
@@ -39,6 +40,19 @@ Deno.serve(async (req) => {
     return new Response("bad json", { status: 400 });
   }
 
+  // Durable capture — log every inbound event BEFORE processing, so a lead is
+  // never lost even if processing throws. Visible on the CRM Integrations page.
+  const v0 = payload?.entry?.[0]?.changes?.[0]?.value;
+  const msgCount = (v0?.messages ?? []).length;
+  const statusCount = (v0?.statuses ?? []).length;
+  logConnector({
+    connector: "whatsapp",
+    level: "info",
+    event: "webhook_received",
+    message: `WhatsApp webhook: ${msgCount} message(s), ${statusCount} status update(s).`,
+    detail: payload,
+  }).catch(() => {});
+
   try {
     for (const entry of payload?.entry ?? []) {
       for (const change of entry?.changes ?? []) {
@@ -60,6 +74,14 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     console.error("[wa-webhook] error", err);
+    // raw payload is already captured above — safe to 200 and not lose the lead
+    logConnector({
+      connector: "whatsapp",
+      level: "error",
+      event: "processing_failed",
+      message: `Inbound processing failed: ${(err instanceof Error ? err.message : String(err)).slice(0, 300)}`,
+      detail: payload,
+    }).catch(() => {});
     // still 200 — Meta retries forever on non-2xx
   }
 

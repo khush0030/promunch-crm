@@ -57,6 +57,9 @@ verify_jwt = true                     # invoked by Next.js API with service role
 [functions.wa-campaign-send]
 verify_jwt = true                     # invoked by Next.js API with service role bearer
 
+[functions.wa-register]
+verify_jwt = true                     # one-shot Cloud API number registration
+
 [functions.shopify-wa]
 verify_jwt = false                    # Shopify uses HMAC header
 
