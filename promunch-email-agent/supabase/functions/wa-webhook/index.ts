@@ -72,10 +72,17 @@ async function handleStatus(status: any) {
   const map: Record<string, string> = { sent: "sent", delivered: "delivered", read: "read", failed: "failed" };
   const next = map[status.status] ?? null;
   if (!next) return;
-  await db().from("wa_messages").update({
+  const sb = db();
+  const { data: updated } = await sb.from("wa_messages").update({
     status: next,
     error: status?.errors?.[0]?.title ?? null,
-  }).eq("wa_message_id", wamid);
+  }).eq("wa_message_id", wamid).select("campaign_id").maybeSingle();
+
+  // roll up delivery stats if this message belongs to a marketing campaign
+  if (updated?.campaign_id) {
+    await sb.rpc("wa_campaign_recount", { p_campaign: updated.campaign_id })
+      .then(() => {}, () => {});
+  }
 }
 
 async function handleInboundMessage(msg: any, profile: any) {

@@ -54,5 +54,14 @@ verify_jwt = true                     # invoked by wa-webhook with service role 
 [functions.kb-ingest]
 verify_jwt = true                     # invoked by Next.js API with service role bearer
 
+[functions.wa-campaign-send]
+verify_jwt = true                     # invoked by Next.js API with service role bearer
+
+[functions.shopify-wa]
+verify_jwt = false                    # Shopify uses HMAC header
+
+[functions.wa-journey-tick]
+verify_jwt = false                    # invoked by scheduled cron
+
 [functions.nitro-webhook]
 verify_jwt = false                    # Nitro uses caller-defined Authorization token (NITRO_AUTH_TOKEN)

@@ -6,7 +6,7 @@ import {
   Tag, AlertTriangle, CheckCircle2, Inbox as InboxIcon, FileText, Sparkles, Megaphone, Ticket as TicketIcon,
 } from "lucide-react";
 
-type Tab = "inbox" | "templates" | "kb" | "tickets";
+type Tab = "inbox" | "templates" | "campaigns" | "kb" | "tickets";
 
 type Contact = { id: string; wa_id: string; phone: string; name: string | null; tags?: string[] | null };
 type Thread = {
@@ -102,6 +102,7 @@ export default function WhatsAppPage() {
         {tab === "inbox" && <InboxView ticketsOnly={false} />}
         {tab === "tickets" && <InboxView ticketsOnly={true} />}
         {tab === "templates" && <TemplatesView />}
+        {tab === "campaigns" && <CampaignsView />}
         {tab === "kb" && <KbView />}
       </div>
     </div>
@@ -131,6 +132,7 @@ function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
     { key: "inbox", label: "Inbox" },
     { key: "tickets", label: "Tickets" },
     { key: "templates", label: "Templates" },
+    { key: "campaigns", label: "Campaigns" },
     { key: "kb", label: "Knowledge Base" },
   ];
   return (
@@ -851,3 +853,246 @@ const smallBtn: React.CSSProperties = {
   background: "var(--card-bg)", color: "var(--text)", fontSize: 12, fontWeight: 600,
   cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4,
 };
+
+/* ----------------------------------------------------------------- */
+/* CAMPAIGNS — bulk marketing broadcast                               */
+/* ----------------------------------------------------------------- */
+
+type Campaign = {
+  id: string;
+  name: string;
+  status: "draft" | "scheduled" | "sending" | "completed" | "failed" | "cancelled";
+  template_id: string | null;
+  template_vars: Record<string, string> | null;
+  audience_filter: { tags?: string[] } | null;
+  sent_count: number;
+  delivered_count: number;
+  read_count: number;
+  failed_count: number;
+  last_error: string | null;
+  created_at: string;
+  template?: { id: string; name: string; language: string; category: string; status: string } | null;
+};
+
+const campaignStatusStyle: Record<string, { bg: string; color: string }> = {
+  draft:     { bg: "rgba(229,231,235,0.7)",  color: "var(--text-2)" },
+  scheduled: { bg: "rgba(59,130,246,0.12)",  color: "#1d4ed8" },
+  sending:   { bg: "rgba(245,183,49,0.16)",  color: "#92400e" },
+  completed: { bg: "rgba(16,185,129,0.14)",  color: "var(--green)" },
+  failed:    { bg: "rgba(239,68,68,0.12)",   color: "var(--accent)" },
+  cancelled: { bg: "rgba(229,231,235,0.7)",  color: "var(--text-2)" },
+};
+
+function CampaignsView() {
+  const [list, setList] = useState<Campaign[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const r = await fetch("/api/whatsapp/campaigns");
+    const j = await r.json();
+    setList(j.campaigns ?? []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const t = setInterval(load, 8000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  async function send(c: Campaign) {
+    if (!confirm(`Send "${c.name}" now? This messages every matching opted-in contact and is billed by Meta.`)) return;
+    setBusy(c.id);
+    try {
+      const r = await fetch(`/api/whatsapp/campaigns/${c.id}/send`, { method: "POST" });
+      const j = await r.json();
+      if (j.error) alert("Send failed: " + j.error);
+      else alert(`Done — ${j.sent} sent, ${j.failed} failed${j.remaining ? `, ${j.remaining} remaining (click Resume to continue)` : ""}.`);
+      load();
+    } finally { setBusy(null); }
+  }
+  async function remove(id: string) {
+    if (!confirm("Delete campaign?")) return;
+    await fetch(`/api/whatsapp/campaigns/${id}`, { method: "DELETE" });
+    load();
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
+        <div style={{ fontSize: 13, color: "var(--text-2)" }}>
+          Broadcast an approved marketing template to opted-in WhatsApp contacts. Meta bills per message.
+        </div>
+        <button onClick={() => setCreating(true)} style={primaryBtn}><Plus size={14} /> New campaign</button>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 12 }}>
+        {list.length === 0 && (
+          <div style={{ gridColumn: "1/-1", padding: 32, textAlign: "center", color: "var(--text-3)", fontSize: 13 }}>
+            No campaigns yet.
+          </div>
+        )}
+        {list.map((c) => {
+          const ss = campaignStatusStyle[c.status] ?? campaignStatusStyle.draft;
+          const tags = c.audience_filter?.tags ?? [];
+          return (
+            <div key={c.id} style={cardStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <div style={{ fontWeight: 700 }}>{c.name}</div>
+                <span style={{
+                  background: ss.bg, color: ss.color, fontSize: 11, fontWeight: 700,
+                  padding: "2px 8px", borderRadius: 999, textTransform: "capitalize",
+                }}>{c.status}</span>
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 8 }}>
+                <Megaphone size={11} style={{ verticalAlign: -1 }} /> {c.template?.name ?? "— no template —"}
+                {tags.length ? ` · tags: ${tags.join(", ")}` : " · all opted-in"}
+              </div>
+              <div style={{ display: "flex", gap: 12, fontSize: 12, marginBottom: 8, flexWrap: "wrap" }}>
+                <span><strong>{c.sent_count}</strong> sent</span>
+                <span><strong>{c.delivered_count}</strong> delivered</span>
+                <span><strong>{c.read_count}</strong> read</span>
+                {c.failed_count > 0 && <span style={{ color: "var(--accent)" }}><strong>{c.failed_count}</strong> failed</span>}
+              </div>
+              {c.last_error && <div style={{ fontSize: 11, color: "var(--accent)", marginBottom: 8 }}>{c.last_error}</div>}
+              <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 10 }}>{timeAgo(c.created_at)} ago</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {(c.status === "draft" || c.status === "scheduled" || c.status === "failed") && (
+                  <button onClick={() => send(c)} disabled={busy === c.id} style={primaryBtn}>
+                    <Send size={13} /> {busy === c.id ? "Sending…" : "Send now"}
+                  </button>
+                )}
+                {c.status === "sending" && (
+                  <button onClick={() => send(c)} disabled={busy === c.id} style={smallBtn}>
+                    <RefreshCw size={12} /> {busy === c.id ? "Working…" : "Resume"}
+                  </button>
+                )}
+                <button type="button" title="Delete campaign" onClick={() => remove(c.id)} style={{ ...smallBtn, color: "var(--accent)" }}><Trash2 size={12} /></button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {creating && <CampaignModal onClose={() => { setCreating(false); load(); }} />}
+    </div>
+  );
+}
+
+function CampaignModal({ onClose }: { onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templateId, setTemplateId] = useState("");
+  const [vars, setVars] = useState<Record<string, string>>({});
+  const [audienceMode, setAudienceMode] = useState<"all" | "tags">("all");
+  const [tags, setTags] = useState("");
+  const [audienceCount, setAudienceCount] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/whatsapp/templates?status=approved")
+      .then((r) => r.json()).then((j) => setTemplates(j.templates ?? []));
+  }, []);
+
+  const tpl = useMemo(() => templates.find((t) => t.id === templateId) ?? null, [templates, templateId]);
+  const varNames = useMemo(() => {
+    if (!tpl) return [];
+    const m = tpl.body.match(/\{\{(\d+)\}\}/g) ?? [];
+    return Array.from(new Set(m.map((s) => s.replace(/[{}]/g, ""))));
+  }, [tpl]);
+
+  useEffect(() => {
+    const qs = audienceMode === "tags" && tags.trim() ? `?tags=${encodeURIComponent(tags)}` : "";
+    fetch(`/api/whatsapp/audience${qs}`).then((r) => r.json()).then((j) => setAudienceCount(j.count ?? 0));
+  }, [audienceMode, tags]);
+
+  const preview = useMemo(() => {
+    if (!tpl) return "";
+    return tpl.body.replace(/\{\{(\d+)\}\}/g, (_, n) => vars[n] || `{{${n}}}`);
+  }, [tpl, vars]);
+
+  async function create(thenSend: boolean) {
+    if (!name.trim()) { alert("Campaign name required"); return; }
+    if (!templateId) { alert("Pick an approved template"); return; }
+    setSaving(true);
+    try {
+      const audience_filter =
+        audienceMode === "tags"
+          ? { tags: tags.split(",").map((t) => t.trim()).filter(Boolean) }
+          : {};
+      const r = await fetch("/api/whatsapp/campaigns", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, template_id: templateId, template_vars: vars, audience_filter }),
+      });
+      const j = await r.json();
+      if (j.error) { alert(j.error); return; }
+      if (thenSend && j.campaign?.id) {
+        if (!confirm(`Send "${name}" to ≈${audienceCount ?? "?"} contact(s) now? Meta bills per message.`)) {
+          onClose(); return;
+        }
+        const sr = await fetch(`/api/whatsapp/campaigns/${j.campaign.id}/send`, { method: "POST" });
+        const sj = await sr.json();
+        if (sj.error) alert("Send failed: " + sj.error);
+        else alert(`Done — ${sj.sent} sent, ${sj.failed} failed${sj.remaining ? `, ${sj.remaining} remaining` : ""}.`);
+      }
+      onClose();
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <Modal onClose={onClose} title="New marketing campaign">
+      <Field label="Campaign name">
+        <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="Diwali offer 2026" />
+      </Field>
+      <Field label="Template — approved marketing templates only">
+        <select aria-label="Campaign template" value={templateId} onChange={(e) => { setTemplateId(e.target.value); setVars({}); }} style={inputStyle}>
+          <option value="">— pick a template —</option>
+          {templates.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.language})</option>)}
+        </select>
+      </Field>
+      {templates.length === 0 && (
+        <div style={{ fontSize: 12, color: "var(--accent)", marginBottom: 10 }}>
+          No approved templates yet. Create one in the Templates tab and get it approved by Meta first.
+        </div>
+      )}
+      {varNames.length > 0 && (
+        <Field label="Template variables — tip: type {name} to insert each contact's name">
+          {varNames.map((n) => (
+            <input key={n} placeholder={`{{${n}}}`} value={vars[n] ?? ""}
+              onChange={(e) => setVars({ ...vars, [n]: e.target.value })}
+              style={{ ...inputStyle, marginBottom: 6 }} />
+          ))}
+        </Field>
+      )}
+      {tpl && (
+        <div style={{
+          background: "var(--canvas)", border: "1px solid var(--border)", borderRadius: 8,
+          padding: 10, fontSize: 13, whiteSpace: "pre-wrap", marginBottom: 10,
+        }}>{preview}</div>
+      )}
+      <Field label="Audience">
+        <div style={{ display: "flex", gap: 14, marginBottom: 6 }}>
+          <label style={{ fontSize: 13, display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
+            <input type="radio" checked={audienceMode === "all"} onChange={() => setAudienceMode("all")} /> All opted-in
+          </label>
+          <label style={{ fontSize: 13, display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
+            <input type="radio" checked={audienceMode === "tags"} onChange={() => setAudienceMode("tags")} /> By tags
+          </label>
+        </div>
+        {audienceMode === "tags" && (
+          <input value={tags} onChange={(e) => setTags(e.target.value)} style={inputStyle}
+            placeholder="vip, repeat_buyer (comma-separated)" />
+        )}
+      </Field>
+      <div style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 12 }}>
+        ≈ <strong>{audienceCount ?? "…"}</strong> opted-in recipient(s) will receive this.
+      </div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button onClick={onClose} style={smallBtn}>Cancel</button>
+        <button onClick={() => create(false)} disabled={saving} style={smallBtn}>Save draft</button>
+        <button onClick={() => create(true)} disabled={saving} style={primaryBtn}>
+          <Send size={13} /> {saving ? "Working…" : "Save & send"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
