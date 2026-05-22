@@ -149,7 +149,22 @@ async function handleCheckout(checkout: any) {
 
   const name = firstName(checkout.customer?.first_name, checkout.shipping_address?.first_name);
   const url: string = checkout.abandoned_checkout_url || `${SITE_URL}/cart`;
-  await enrol("abandoned_checkout", waId, token, { "1": name, "2": url });
+  const cartValue = Number(checkout.total_price ?? checkout.total_line_items_price ?? 0);
+  // coupon routing by cart value (per the knowledge base)
+  const code = cartValue >= 499 ? "PROTEIN15" : "PROMUNCH10";
+
+  const vars = { "1": name, "2": code, "3": url };
+  // a 3-message recovery sequence (1h / 24h / 72h) — each reminder stops
+  // early once the customer orders: orders/create flips active runs to
+  // 'converted', so they never get a nudge after buying.
+  const rows = [1, 24, 72].map((h) => ({
+    journey_key: "abandoned_checkout",
+    wa_id: waId,
+    next_action_at: new Date(Date.now() + h * 3600_000).toISOString(),
+    context: { vars },
+    order_ref: token,
+  }));
+  await sb.from("wa_journey_runs").insert(rows);
 }
 
 // --- helpers ----------------------------------------------------------------

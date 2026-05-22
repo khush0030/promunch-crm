@@ -205,8 +205,10 @@ async function handleInboundMessage(msg: any, profile: any) {
     await sb.from("wa_contacts").update({ opted_in: false }).eq("id", contact.id);
   }
 
-  // trigger AI reply if bot owns the conversation
-  if (thread.status === "bot" && type === "text") {
+  // trigger AI reply if bot owns the conversation — any message carrying real
+  // text: plain text, a button/list reply, or media with a caption
+  const hasRealText = !!body && !/^\[(image|video|document|audio|sticker)\]$/i.test(body);
+  if (thread.status === "bot" && type !== "reaction" && hasRealText) {
     invokeAiReply(thread.id, body).catch((e) => console.error("[wa-webhook] ai invoke failed", e));
   }
 }
