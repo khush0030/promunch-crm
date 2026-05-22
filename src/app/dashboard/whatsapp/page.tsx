@@ -510,7 +510,8 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
                 bg={priorityStyle[thread.ticket_priority].bg} color={priorityStyle[thread.ticket_priority].color} />
             )}
           </div>
-          {thread.escalation_reason && (
+          {thread.escalation_reason &&
+            (thread.ticket_status === "open" || thread.ticket_status === "pending") && (
             <div style={{ fontSize: 12, color: "#92400e", marginTop: 6 }}>
               <AlertTriangle size={12} style={{ verticalAlign: -2 }} /> {thread.escalation_reason}
             </div>
