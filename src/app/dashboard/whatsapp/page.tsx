@@ -516,7 +516,19 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
             </div>
           )}
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {(thread.ticket_status === "open" || thread.ticket_status === "pending") && (
+            <button onClick={() => patch({ ticket_status: "resolved" })}
+              title="Mark this ticket resolved"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                border: "1px solid var(--green)", background: "var(--green)", color: "#fff",
+                cursor: "pointer", whiteSpace: "nowrap",
+              }}>
+              <CheckCircle2 size={13} /> Resolve ticket
+            </button>
+          )}
           <select value={thread.status} onChange={(e) => patch({ status: e.target.value as any })}
             style={selectStyle}>
             <option value="bot">Bot</option>
