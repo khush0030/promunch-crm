@@ -40,6 +40,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (body.ticket_status === "resolved" || body.ticket_status === "closed") {
     patch.ticket_resolved_at = new Date().toISOString();
   }
+  // archive / unarchive — hides the thread from the inbox, keeps all messages
+  if ("archived" in body) {
+    patch.archived_at = body.archived ? new Date().toISOString() : null;
+  }
 
   const { data, error } = await supabaseAdmin
     .from("wa_threads")

@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status") || "";        // bot|human|snoozed|closed
   const ticket = searchParams.get("ticket") || "";        // none|open|pending|resolved|closed
   const search = searchParams.get("search") || "";
+  const archived = searchParams.get("archived") === "1";  // 1 = show archived only
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
@@ -16,6 +17,9 @@ export async function GET(req: NextRequest) {
     .select("*, contact:wa_contacts!inner(id, wa_id, phone, name, tags)", { count: "exact" })
     .order("last_inbound_at", { ascending: false, nullsFirst: false })
     .range(from, to);
+
+  // archived threads are hidden from every normal view; only ?archived=1 shows them
+  q = archived ? q.not("archived_at", "is", null) : q.is("archived_at", null);
 
   if (status) q = q.eq("status", status);
   if (ticket) q = q.eq("ticket_status", ticket);

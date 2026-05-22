@@ -196,10 +196,12 @@ async function handleInboundMessage(msg: any, profile: any) {
     status: "received",
   });
 
-  // update thread snippet
+  // update thread snippet — a new inbound also un-archives the chat so it
+  // resurfaces in the inbox (archiving only hides quiet conversations).
   await sb.from("wa_threads").update({
     last_message_snippet: body.slice(0, 240),
     unread_count: (thread.unread_count ?? 0) + 1,
+    archived_at: null,
   }).eq("id", thread.id);
 
   // mark read on Meta side
