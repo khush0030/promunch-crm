@@ -4,6 +4,7 @@
 import { db } from "../_shared/supabase.ts";
 import { buildOrderBlocks, fmtMoney, postSlack, verifyShopifyHmac } from "../_shared/shopify.ts";
 import { logConnector } from "../_shared/connector-log.ts";
+import { toWaId } from "../_shared/journeys.ts";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
@@ -28,6 +29,11 @@ Deno.serve(async (req) => {
   const customerName = [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" ") || null;
   const lineItems = Array.isArray(order.line_items) ? order.line_items : [];
   const shopifyCreatedAt = order.created_at || new Date().toISOString();
+  // normalised wa_id so the WhatsApp agent can match this order to a chat
+  const customerPhone = toWaId(
+    order.customer?.phone ?? order.phone ??
+    order.shipping_address?.phone ?? order.billing_address?.phone,
+  );
 
   const { data: upserted, error } = await db().from("shopify_orders").upsert({
     shopify_id: order.id,
@@ -38,6 +44,7 @@ Deno.serve(async (req) => {
     financial_status: order.financial_status ?? null,
     customer_email: customerEmail,
     customer_name: customerName,
+    customer_phone: customerPhone,
     line_items: lineItems,
     shopify_created_at: shopifyCreatedAt,
     raw: order,

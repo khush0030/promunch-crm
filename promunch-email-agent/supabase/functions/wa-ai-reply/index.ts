@@ -1,41 +1,70 @@
 // AI customer-support agent for WhatsApp.
 //
 // The knowledge base is prompt-stuffed — every "ready" kb_documents row's text
-// is loaded straight into Claude's context. No embeddings, no vector search,
-// no OpenAI dependency. Right-sized for a small-business FAQ/policy KB.
+// is loaded straight into Claude's context. The agent also has one tool,
+// lookup_order, to read a customer's Shopify orders from shopify_orders.
 //
 // Modes:
-//   normal  — decide reply|escalate, then send via wa-send / open a ticket
-//   draft   — return the suggested reply text only (no send, no escalate);
-//             used by the dashboard "AI draft" button.
+//   normal — reply to the customer; raise a ticket / hand off as side effects
+//   draft  — return the suggested reply only (dashboard "AI draft" button)
 
 import Anthropic from "npm:@anthropic-ai/sdk@0.32.1";
 import { db } from "../_shared/supabase.ts";
+import { lookupOrders, orderForAI, type OrderSummary } from "../_shared/orders.ts";
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 const MODEL = Deno.env.get("WA_AI_MODEL") ?? "claude-sonnet-4-6";
 const KB_CHAR_BUDGET = 60_000;
+const MAX_TOOL_TURNS = 4;
 
-const SYSTEM_PROMPT = `You are the WhatsApp customer-support agent for PROMUNCH (a snack brand under Vippy Industries Limited — protein munchies, edamame snacks, "Your Munchy Pal").
+const SYSTEM_PROMPT =
+  `You are the WhatsApp customer-support agent for PROMUNCH (a snack brand under Vippy Industries Limited — protein munchies, edamame snacks, "Your Munchy Pal").
 
 Channel: WhatsApp. Keep replies SHORT (1-4 sentences), warm, conversational, India-English. No long paragraphs.
 
-You ALWAYS reply to the customer yourself, using the KNOWLEDGE BASE below. You are a capable support agent: handle product questions, order questions, complaints, refund/return requests and wholesale enquiries by replying helpfully and gathering any details the team would need.
+You ALWAYS reply to the customer yourself, using the KNOWLEDGE BASE below. You are a capable support agent: handle product questions, order questions, complaints, refund/return requests and wholesale enquiries by replying helpfully.
+
+ORDER LOOKUP — you have a tool, lookup_order. The customer's phone number is ALREADY KNOWN from WhatsApp — NEVER ask the customer for their phone or contact number. Whenever the customer mentions an order, a delivery, tracking, a missing / wrong / damaged item, a refund or a return: call lookup_order FIRST (no arguments lists their recent orders; pass order_number ONLY if the customer actually stated one). Then reply using the real order details. Only if the lookup returns nothing do you ask the customer for their order number — never their phone number.
+
+CRITICAL — do not invent anything:
+- NEVER guess or make up an order number. If the customer did not state one, call lookup_order with NO arguments.
+- NEVER describe a problem, missing item, delay, damage or complaint the customer did not actually state. Act ONLY on what the customer really said in this conversation. If they simply ask "where is my order", just look it up and tell them its real status — do not invent an issue or raise an order-problem ticket.
 
 HANDOFF — the ONLY reason to hand the chat to a human:
 - The customer EXPLICITLY asks to talk to a human / agent / person / "real" support / staff member.
-Nothing else triggers a handoff. Angry customers, refunds, missing order info — you still handle those and reply yourself.
+Nothing else triggers a handoff. You keep handling angry customers, refunds and order problems yourself.
 
-TICKETS — raise a ticket so the team can follow up, WITHOUT handing off, whenever the conversation involves something to track: an order problem, a refund/return, a complaint, a quality/safety report, or a wholesale/partnership lead. Raising a ticket does NOT stop you replying — you still answer the customer in the same message.
+TICKETS — raise a ticket so the team can follow up, WITHOUT handing off, whenever the conversation needs team action: a missing / wrong / damaged item, an order not delivered, a refund/return, a complaint, a quality/safety report, or a wholesale/partnership lead. When the ticket is about a specific order, ALWAYS put that order's number in the ticket "order_number" field — the team's escalation card is built from it. Raising a ticket does NOT stop you replying — you still answer and reassure the customer in the same message.
 
-If the KB lacks a specific live fact (e.g. the status of one customer's order), still reply: tell the customer you've logged it and the team will follow up, and raise a ticket. Never invent prices, dates, or policies that are not in the KB.
+If the knowledge base or the order data lacks something, still reply: tell the customer you've logged it and the team will follow up. Never invent prices, dates, policies, or order facts.
 
-Output JSON ONLY, no prose:
+After any tool calls, your FINAL message must be JSON ONLY, no prose:
 {
   "reply": "<your WhatsApp reply to the customer — ALWAYS required, never empty>",
   "handoff": <true ONLY if the customer explicitly asked for a human, otherwise false>,
-  "ticket": <null, OR { "category": "order_issue|refund|product_query|partnership|complaint|wholesale|general", "priority": "low|normal|high|urgent", "reason": "<one short line for the team>" }>
+  "ticket": <null, OR { "category": "order_issue|refund|product_query|partnership|complaint|wholesale|general", "priority": "low|normal|high|urgent", "reason": "<one clear line for the team — what went wrong, which item/order>", "order_number": "<the order number this ticket is about, if any>" }>
 }`;
+
+const TOOLS = [
+  {
+    name: "lookup_order",
+    description:
+      "Look up this customer's Shopify order(s). Their phone number is already " +
+      "known from WhatsApp — NEVER ask the customer for it. Call with no arguments " +
+      "to list their recent orders; pass order_number to fetch a specific one. Use " +
+      "this whenever the customer mentions an order, delivery, tracking, a missing / " +
+      "wrong / damaged item, a refund or a return.",
+    input_schema: {
+      type: "object",
+      properties: {
+        order_number: {
+          type: "string",
+          description: "Optional order number if the customer gave one, e.g. '1042' or '#1042'.",
+        },
+      },
+    },
+  },
+];
 
 interface InvokeBody {
   thread_id: string;
@@ -51,6 +80,14 @@ Deno.serve(async (req) => {
   if (!thread_id) return j({ error: "thread_id required" }, 400);
 
   const sb = db();
+
+  // thread — wa_id is the customer's phone, used for order lookup
+  const { data: thread } = await sb
+    .from("wa_threads")
+    .select("wa_id, ticket_status")
+    .eq("id", thread_id)
+    .maybeSingle();
+  const waId: string | null = thread?.wa_id ?? null;
 
   // recent conversation context
   const { data: msgs } = await sb
@@ -98,21 +135,58 @@ Deno.serve(async (req) => {
 
   const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
   // when the customer sent an image, attach it so Claude can see it
-  const content: any = image_url
+  const firstContent: any = image_url
     ? [
         { type: "image", source: { type: "url", url: image_url } },
         { type: "text", text: userMsg },
       ]
     : userMsg;
-  const resp = await client.messages.create({
-    model: MODEL,
-    max_tokens: 700,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content }],
-  });
 
-  const rawTxt = resp.content?.[0]?.type === "text" ? resp.content[0].text : "";
-  const decision = parseDecision(rawTxt);
+  // ---- agent loop: let Claude call lookup_order before its final answer ----
+  const messages: any[] = [{ role: "user", content: firstContent }];
+  let resp: any = null;
+  let lastUsage: unknown = null;
+  for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
+    resp = await client.messages.create({
+      model: MODEL,
+      max_tokens: 900,
+      system: SYSTEM_PROMPT,
+      tools: TOOLS,
+      messages,
+    });
+    lastUsage = resp.usage;
+    if (resp.stop_reason !== "tool_use") break;
+
+    messages.push({ role: "assistant", content: resp.content });
+    const toolResults: any[] = [];
+    for (const block of resp.content) {
+      if (block.type !== "tool_use") continue;
+      let result = "Unknown tool.";
+      if (block.name === "lookup_order") {
+        const askedNo = (block.input?.order_number ?? "").toString().trim();
+        const orders = await lookupOrders(waId, askedNo || null)
+          .catch((e) => {
+            console.error("[wa-ai-reply] lookup_order failed", e);
+            return null;
+          });
+        if (orders === null) {
+          result = "Order lookup failed — tell the customer the team will check and follow up.";
+        } else if (orders.length === 0) {
+          result = askedNo
+            ? `No order matching '${askedNo}' was found. Ask the customer to double-check the ` +
+              `order number. Do NOT ask for a phone number.`
+            : "This customer has no orders on file under their WhatsApp number. Politely ask them " +
+              "for their order number. Do NOT ask for a phone number, and do NOT guess one.";
+        } else {
+          result = orders.map(orderForAI).join("\n\n---\n\n");
+        }
+      }
+      toolResults.push({ type: "tool_result", tool_use_id: block.id, content: result });
+    }
+    messages.push({ role: "user", content: toolResults });
+  }
+
+  const decision = parseDecision(textOf(resp));
 
   // ---- draft mode: return the suggested reply only, no side effects ----
   if (draft) {
@@ -129,8 +203,7 @@ Deno.serve(async (req) => {
 
   // ---- normal mode ----
   // The bot ALWAYS replies. Opening a ticket or handing off to a human are
-  // side effects layered on top — never a substitute for replying. The
-  // durable wa_jobs row is "done" the moment a reply goes out.
+  // side effects layered on top — never a substitute for replying.
   const replyText = decision?.reply?.trim() ||
     "Thanks for messaging PROMUNCH! 🥜 I've noted this — our team will follow up with you shortly.";
 
@@ -140,21 +213,27 @@ Deno.serve(async (req) => {
     text: replyText,
     sent_by: "bot",
     ai_generated: true,
-    ai_meta: { model: MODEL, usage: resp.usage },
+    ai_meta: { model: MODEL, usage: lastUsage },
   });
 
   // Hand off ONLY when the customer explicitly asked for a human.
   // Raise a ticket when the AI flagged one — or, if the AI output was
   // unparseable, as a general ticket so nothing slips by silently.
   const handoff = !!decision?.handoff;
-  const ticket = decision
+  const ticket: TicketInput | null = decision
     ? (decision.ticket ?? null)
     : { category: "general", priority: "normal", reason: "AI output unparseable — review chat" };
-  if (handoff || ticket) await openTicket(thread_id, ticket, handoff);
+  if (handoff || ticket) await openTicket(thread_id, waId, ticket, handoff);
 
   await markJobDone(job_id);
   return j({ ok: true, action: handoff ? "handoff" : "reply", ticket: !!ticket });
 });
+
+// First text block of an Anthropic response (skips tool_use blocks).
+function textOf(resp: any): string {
+  const block = (resp?.content ?? []).find((b: any) => b.type === "text");
+  return block?.text ?? "";
+}
 
 // Mark the durable wa_jobs row done so wa-jobs-tick won't retry it.
 // No-op for draft mode / dashboard calls, which carry no job_id.
@@ -171,14 +250,24 @@ function parseDecision(s: string): any {
   try { return JSON.parse(m[0]); } catch { return null; }
 }
 
-interface Ticket { category?: string; priority?: string; reason?: string }
+interface TicketInput {
+  category?: string;
+  priority?: string;
+  reason?: string;
+  order_number?: string;
+}
 
-// Raise / refresh a support ticket on the thread.
+// Raise / refresh a support ticket on the thread, then post a Slack escalation.
 //   handoff=false → ticket only; the thread stays 'bot' and the AI keeps
 //                   replying. This is the normal case.
 //   handoff=true  → also flip the thread to 'human' so the bot goes quiet and
 //                   a person takes over. ONLY when the customer asked for one.
-async function openTicket(threadId: string, ticket: Ticket | null, handoff: boolean) {
+async function openTicket(
+  threadId: string,
+  waId: string | null,
+  ticket: TicketInput | null,
+  handoff: boolean,
+) {
   const sb = db();
   const { data: thread } = await sb
     .from("wa_threads")
@@ -201,17 +290,85 @@ async function openTicket(threadId: string, ticket: Ticket | null, handoff: bool
 
   await sb.from("wa_threads").update(upd).eq("id", threadId);
 
-  const webhook = Deno.env.get("SLACK_WEBHOOK_URL");
-  if (webhook) {
-    const tag = handoff ? "🙋 Human handoff requested" : "🎫 Ticket raised by AI";
-    await fetch(webhook, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: `${tag} — ${upd.ticket_category} / ${upd.ticket_priority}\nReason: ${reason}\nThread: ${threadId}`,
-      }),
-    }).catch(() => {});
+  // when the ticket names an order, pull it from the DB so the escalation
+  // card carries verified details — never the model's recollection.
+  let order: OrderSummary | null = null;
+  if (ticket?.order_number) {
+    const found = await lookupOrders(waId, ticket.order_number).catch(() => [] as OrderSummary[]);
+    order = found[0] ?? null;
   }
+
+  await postEscalation({
+    threadId,
+    waId,
+    handoff,
+    category: String(upd.ticket_category),
+    priority: String(upd.ticket_priority),
+    reason,
+    order,
+  });
+}
+
+// Post the escalation to Slack — a rich card the production / ops team acts on.
+async function postEscalation(o: {
+  threadId: string;
+  waId: string | null;
+  handoff: boolean;
+  category: string;
+  priority: string;
+  reason: string;
+  order: OrderSummary | null;
+}) {
+  const webhook = Deno.env.get("SLACK_WEBHOOK_URL");
+  if (!webhook) return;
+
+  const heading = o.handoff
+    ? `🙋 Human handoff requested — ${o.priority.toUpperCase()}`
+    : o.order
+      ? `🏭 Order issue — needs the team — ${o.priority.toUpperCase()}`
+      : `🎫 Ticket raised by AI — ${o.priority.toUpperCase()}`;
+
+  const blocks: unknown[] = [
+    { type: "header", text: { type: "plain_text", text: heading } },
+    { type: "section", text: { type: "mrkdwn", text: `*Issue*\n${o.reason}` } },
+  ];
+
+  if (o.order) {
+    const items = o.order.items.map((i) => `• ${i.qty} × ${i.name}`).join("\n") || "_none_";
+    blocks.push({
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Order*\n${o.order.order_number}` },
+        { type: "mrkdwn", text: `*Placed*\n${o.order.placed_at}` },
+        { type: "mrkdwn", text: `*Payment*\n${o.order.financial_status ?? "—"}` },
+        { type: "mrkdwn", text: `*Fulfillment*\n${o.order.fulfillment_status}` },
+        { type: "mrkdwn", text: `*Total*\n${o.order.total}` },
+        { type: "mrkdwn", text: `*Customer*\n${o.order.customer_name ?? "—"}` },
+      ],
+    });
+    blocks.push({ type: "section", text: { type: "mrkdwn", text: `*Items*\n${items}` } });
+    if (o.order.tracking) {
+      blocks.push({ type: "section", text: { type: "mrkdwn", text: `*Tracking*\n${o.order.tracking}` } });
+    }
+  }
+
+  const contact = [
+    o.waId ? `WhatsApp: +${o.waId}` : null,
+    o.order?.customer_email ? `Email: ${o.order.customer_email}` : null,
+  ].filter(Boolean).join("  ·  ");
+  blocks.push({
+    type: "context",
+    elements: [{
+      type: "mrkdwn",
+      text: `${contact || "—"}  ·  category: ${o.category}  ·  thread: ${o.threadId}`,
+    }],
+  });
+
+  await fetch(webhook, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: `${heading} — ${o.reason}`, blocks }),
+  }).catch(() => {});
 }
 
 async function callSend(body: unknown) {
