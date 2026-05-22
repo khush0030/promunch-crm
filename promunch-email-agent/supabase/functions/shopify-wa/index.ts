@@ -148,12 +148,24 @@ async function handleCheckout(checkout: any) {
   if (prior && prior.length) return;
 
   const name = firstName(checkout.customer?.first_name, checkout.shipping_address?.first_name);
-  const url: string = checkout.abandoned_checkout_url || `${SITE_URL}/cart`;
+  const recoverUrl: string = checkout.abandoned_checkout_url || `${SITE_URL}/cart`;
   const cartValue = Number(checkout.total_price ?? checkout.total_line_items_price ?? 0);
-  // coupon routing by cart value (per the knowledge base)
+  // coupon routing by cart value (per the knowledge base) — real Shopify codes
   const code = cartValue >= 499 ? "PROTEIN15" : "PROMUNCH10";
 
-  const vars = { "1": name, "2": code, "3": url };
+  // The template's "Checkout Now" button is a dynamic URL: base
+  // https://promunch.in/{{1}}. We fill {{1}} with a Shopify discount link —
+  // /discount/<code>?redirect=<recovery checkout> — so tapping it applies the
+  // coupon AND drops the customer on their own cart, discount already on.
+  const recoverPath = recoverUrl.replace(/^https?:\/\/[^/]+/, "") || "/cart";
+  const buttonSuffix = `discount/${code}?redirect=${encodeURIComponent(recoverPath)}`;
+
+  // body has one variable (name); the link lives entirely in the URL button.
+  const components = [
+    { type: "body", parameters: [{ type: "text", text: name }] },
+    { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: buttonSuffix }] },
+  ];
+
   // a 3-message recovery sequence (1h / 24h / 72h) — each reminder stops
   // early once the customer orders: orders/create flips active runs to
   // 'converted', so they never get a nudge after buying.
@@ -161,7 +173,7 @@ async function handleCheckout(checkout: any) {
     journey_key: "abandoned_checkout",
     wa_id: waId,
     next_action_at: new Date(Date.now() + h * 3600_000).toISOString(),
-    context: { vars },
+    context: { components },
     order_ref: token,
   }));
   await sb.from("wa_journey_runs").insert(rows);

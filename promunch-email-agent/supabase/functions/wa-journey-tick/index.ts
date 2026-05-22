@@ -50,7 +50,14 @@ Deno.serve(async () => {
     const res = await callWaSend({
       to: run.wa_id,
       kind: "template",
-      template: { name: cfg.template, language: cfg.language, vars: run.context?.vars ?? {} },
+      template: {
+        name: cfg.template,
+        language: cfg.language,
+        // newer runs carry pre-built components (body + URL button); older
+        // runs carry flat vars — wa-send falls back to vars when no components.
+        components: run.context?.components,
+        vars: run.context?.vars ?? {},
+      },
       sent_by: `journey:${run.journey_key}`,
     });
 

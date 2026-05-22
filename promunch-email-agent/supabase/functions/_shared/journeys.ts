@@ -8,7 +8,7 @@ export const REVIEW_URL = Deno.env.get("PROMUNCH_REVIEW_URL") ?? `${SITE_URL}/pa
 // Event-driven messages (order_confirmation, shipping_update) are NOT here —
 // shopify-wa sends those immediately.
 export const TIMED_JOURNEYS: Record<string, { template: string; language: string; delayHours: number }> = {
-  abandoned_checkout:     { template: "abandoned_checkout",     language: "en", delayHours: 4 },
+  abandoned_checkout:     { template: "abandoned_cart_recovery", language: "en", delayHours: 4 },
   review_request:         { template: "review_request",         language: "en", delayHours: 24 * 5 },
   replenishment_reminder: { template: "replenishment_reminder", language: "en", delayHours: 24 * 30 },
 };

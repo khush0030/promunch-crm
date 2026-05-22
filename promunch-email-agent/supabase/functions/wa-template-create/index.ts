@@ -1,16 +1,21 @@
-// Create WhatsApp message templates at Meta.
+// Create & sync WhatsApp message templates at Meta.
 //
 // The wa_templates table is only a LOCAL registry — marking a row
 // status='approved' there does nothing. A template must also exist and be
 // approved inside the WhatsApp Business Account, or wa-send gets Meta error
 // 132001 ("Template name does not exist in the translation").
 //
-// This function pushes the journey template set to Meta via the Graph API
-// and mirrors Meta's real status back into wa_templates.
+// POST modes (JSON body):
+//   { names?: string[] }   — create one/all of the predefined journey set
+//   { template: {...} }    — create one arbitrary template (dashboard builder)
+//   { sync: true }         — pull every template from Meta, mirror real
+//                            status/body/category back into wa_templates
+//   { waba?: "..." }       — optional explicit WABA id (else secret/discovery)
 //
-// POST { names?: string[] }  — omit `names` to create every defined template.
-// Auth: verify_jwt = true; invoke with `supabase functions invoke` (CLI
-// attaches a valid Supabase JWT automatically). One-shot admin tool.
+// GET ?debug=1 — dump token + WABA discovery diagnostics.
+//
+// Auth: verify_jwt = true. Called by the Next.js API routes with the
+// service-role bearer.
 
 import { db } from "../_shared/supabase.ts";
 
@@ -22,20 +27,27 @@ function token(): string {
   return t;
 }
 
+type MetaCategory = "UTILITY" | "MARKETING" | "AUTHENTICATION";
+
 interface TemplateDef {
   name: string;
   language: string;
-  category: "UTILITY" | "MARKETING" | "AUTHENTICATION";
-  body: string;        // positional {{1}} {{2}} … — must match the codebase's vars
-  example: string[];   // one sample value per variable, in order
+  category: MetaCategory;
+  header?: string;          // optional TEXT header
+  body: string;             // positional {{1}} {{2}} …
   footer?: string;
+  bodyExample: string[];    // one sample value per body variable, in order
+  headerExample?: string[]; // one sample value per header variable
+  // optional dynamic URL button — url carries a trailing {{1}}, filled per send
+  button?: { text: string; url: string; example: string };
 }
 
-// Variable contracts mirror what shopify-wa / wa-journey-tick actually send.
-//   order_confirmation : 1=name 2=orderRef 3=total
-//   shipping_update    : 1=name 2=orderRef 3=tracking
-//   abandoned_checkout : 1=name 2=coupon   3=cartUrl
-//   review_request     : 1=name 2=reviewUrl
+// Predefined journey set — variable contracts mirror what shopify-wa /
+// wa-journey-tick actually send.
+//   order_confirmation     : 1=name 2=orderRef 3=total
+//   shipping_update        : 1=name 2=orderRef 3=tracking
+//   abandoned_checkout     : 1=name 2=coupon   3=cartUrl
+//   review_request         : 1=name 2=reviewUrl
 //   replenishment_reminder : 1=name 2=siteUrl
 const TEMPLATES: TemplateDef[] = [
   {
@@ -46,7 +58,7 @@ const TEMPLATES: TemplateDef[] = [
       "Hi {{1}}, your PROMUNCH order {{2}} is confirmed! 🎉\n\n" +
       "Order total: {{3}}\n\n" +
       "We'll message you the moment it ships. Thanks for snacking smart with PROMUNCH!",
-    example: ["Aarav", "#PM1042", "₹598"],
+    bodyExample: ["Aarav", "#PM1042", "₹598"],
     footer: "PROMUNCH — snack smart",
   },
   {
@@ -57,19 +69,26 @@ const TEMPLATES: TemplateDef[] = [
       "Good news {{1}}! Your PROMUNCH order {{2}} has shipped 🚚\n\n" +
       "Track it here:\n{{3}}\n\n" +
       "Thanks for snacking smart with PROMUNCH!",
-    example: ["Aarav", "#PM1042", "https://track.promunch.in/PM1042"],
+    bodyExample: ["Aarav", "#PM1042", "https://track.promunch.in/PM1042"],
     footer: "PROMUNCH — snack smart",
   },
   {
-    name: "abandoned_checkout",
+    // Abandoned-cart recovery — image-free, with a "Checkout Now" URL button.
+    // The button is a dynamic Shopify discount link: it applies the coupon and
+    // redirects to the customer's own recovery checkout (discount pre-applied).
+    name: "abandoned_cart_recovery",
     language: "en",
     category: "MARKETING",
     body:
       "Hi {{1}}, you left some PROMUNCH goodies in your cart 🛒\n\n" +
-      "Here's {{2}} to finish your order before they're gone:\n{{3}}\n\n" +
-      "Tap the link above to complete your order.",
-    example: ["Aarav", "10% off (SNACK10)", "https://promunch.in/cart"],
+      "We've applied a special discount for you — tap below to grab them before they sell out!",
+    bodyExample: ["Aarav"],
     footer: "Reply STOP to opt out",
+    button: {
+      text: "Checkout Now",
+      url: "https://promunch.in/{{1}}",
+      example: "https://promunch.in/discount/PROTEIN15?redirect=%2Fcart",
+    },
   },
   {
     name: "review_request",
@@ -79,7 +98,7 @@ const TEMPLATES: TemplateDef[] = [
       "Hi {{1}}, hope you're loving your PROMUNCH snacks! 💚\n\n" +
       "Mind leaving a quick review? It really helps us:\n{{2}}\n\n" +
       "Thanks a ton — Team PROMUNCH!",
-    example: ["Aarav", "https://promunch.in/reviews"],
+    bodyExample: ["Aarav", "https://promunch.in/reviews"],
     footer: "Reply STOP to opt out",
   },
   {
@@ -90,68 +109,148 @@ const TEMPLATES: TemplateDef[] = [
       "Running low, {{1}}? 🥜\n\n" +
       "Restock your PROMUNCH favourites in a tap:\n{{2}}\n\n" +
       "Happy munching!",
-    example: ["Aarav", "https://promunch.in"],
+    bodyExample: ["Aarav", "https://promunch.in"],
     footer: "Reply STOP to opt out",
   },
 ];
 
 Deno.serve(async (req) => {
-  // GET ?debug=1 — dump what we can see, to diagnose WABA discovery.
+  // GET ?debug=1 — diagnose WABA discovery.
   if (req.method === "GET" && new URL(req.url).searchParams.get("debug")) {
     return j(await diagnose());
   }
   if (req.method !== "POST") return j({ error: "POST only" }, 405);
 
-  let names: string[] | undefined;
-  let bodyWaba: string | undefined;
-  try {
-    const b = await req.json().catch(() => ({}));
-    if (Array.isArray(b?.names) && b.names.length) names = b.names;
-    if (typeof b?.waba === "string" && b.waba.trim()) bodyWaba = b.waba.trim();
-  } catch { /* no body — create all */ }
-
-  const defs = names
-    ? TEMPLATES.filter((t) => names!.includes(t.name))
-    : TEMPLATES;
-  if (defs.length === 0) return j({ error: "no matching template names" }, 400);
+  const b = await req.json().catch(() => ({} as Record<string, unknown>));
 
   // Resolve the WhatsApp Business Account id: explicit body > secret > discovery.
-  let waba = bodyWaba ?? Deno.env.get("WHATSAPP_BUSINESS_ACCOUNT_ID") ?? null;
-  if (!waba) {
-    waba = await discoverWaba().catch(() => null);
-  }
+  let waba: string | null =
+    (typeof b?.waba === "string" && b.waba.trim()) ||
+    Deno.env.get("WHATSAPP_BUSINESS_ACCOUNT_ID") ||
+    null;
+  if (!waba) waba = await discoverWaba().catch(() => null);
   if (!waba) {
     return j({
       error:
-        "Could not resolve WhatsApp Business Account id. Set WHATSAPP_BUSINESS_ACCOUNT_ID " +
-        "secret, or ensure the access token has whatsapp_business_management permission.",
+        "Could not resolve WhatsApp Business Account id. Set the " +
+        "WHATSAPP_BUSINESS_ACCOUNT_ID secret, or ensure the access token has " +
+        "whatsapp_business_management permission.",
     }, 400);
   }
 
   const sb = db();
-  const results: Array<Record<string, unknown>> = [];
 
+  // --- sync mode: pull Meta's templates into wa_templates --------------------
+  if (b?.sync === true) {
+    try {
+      const synced = await syncFromMeta(waba, sb);
+      return j({ ok: true, mode: "sync", waba, synced });
+    } catch (e) {
+      return j({ ok: false, error: String(e) }, 500);
+    }
+  }
+
+  // --- build the list of definitions to create ------------------------------
+  let defs: TemplateDef[];
+  if (b?.template) {
+    try {
+      defs = [normalizeIncoming(b.template as Record<string, unknown>)];
+    } catch (e) {
+      return j({ error: String(e instanceof Error ? e.message : e) }, 400);
+    }
+  } else {
+    const names: string[] | undefined = Array.isArray(b?.names) && b.names.length
+      ? (b.names as string[])
+      : undefined;
+    defs = names ? TEMPLATES.filter((t) => names.includes(t.name)) : TEMPLATES;
+  }
+  if (defs.length === 0) return j({ error: "no matching template names" }, 400);
+
+  const results: Array<Record<string, unknown>> = [];
   for (const def of defs) {
     const created = await createTemplate(waba, def);
     results.push({ name: def.name, ...created });
 
-    // Mirror Meta's real status into the local registry.
+    // Mirror Meta's response into the local registry.
     if (created.ok) {
-      const status = String(created.status ?? "PENDING").toLowerCase();
       await sb.from("wa_templates").upsert({
         name: def.name,
         language: def.language,
-        category: def.category.toLowerCase(),
-        status,                       // 'pending' until Meta reviews it
+        category: localCategory(def.category),
+        status: localStatus(created.status),
+        meta_template_id: created.id ?? null,
+        header_type: def.header ? "TEXT" : null,
+        header_text: def.header ?? null,
         body: def.body,
         footer: def.footer ?? null,
-        variables: def.example.map((_, i) => String(i + 1)),
+        variables: def.bodyExample.map((sample, i) => ({ name: String(i + 1), sample })),
+        rejection_reason: null,
       }, { onConflict: "name,language" });
     }
   }
 
   return j({ ok: results.every((r) => r.ok), waba, results });
 });
+
+// Accept a dashboard-builder template object and shape it into a TemplateDef.
+function normalizeIncoming(t: Record<string, unknown>): TemplateDef {
+  const name = String(t.name ?? "").trim();
+  if (!/^[a-z0-9_]+$/.test(name)) {
+    throw new Error("name must be lowercase letters, digits and underscores only");
+  }
+  const body = String(t.body ?? "").trim();
+  if (!body) throw new Error("body is required");
+
+  const header = t.header_text ? String(t.header_text).trim() : undefined;
+  const footer = t.footer ? String(t.footer).trim() : undefined;
+
+  // body_samples / header_samples: one value per {{n}}, in order.
+  const bodyVars = countVars(body);
+  const bodyExample = (Array.isArray(t.body_samples) ? t.body_samples : []).map(String);
+  if (bodyExample.length < bodyVars) {
+    throw new Error(`body has ${bodyVars} variable(s) — provide a sample value for each`);
+  }
+  const headerVars = header ? countVars(header) : 0;
+  const headerExample = (Array.isArray(t.header_samples) ? t.header_samples : []).map(String);
+  if (headerVars && headerExample.length < headerVars) {
+    throw new Error(`header has ${headerVars} variable(s) — provide a sample value for each`);
+  }
+
+  return {
+    name,
+    language: String(t.language ?? "en").trim() || "en",
+    category: metaCategory(String(t.category ?? "utility")),
+    header,
+    body,
+    footer,
+    bodyExample: bodyExample.slice(0, bodyVars),
+    headerExample: headerExample.slice(0, headerVars),
+  };
+}
+
+function countVars(s: string): number {
+  const m = s.match(/\{\{(\d+)\}\}/g) ?? [];
+  return new Set(m.map((x) => x.replace(/[{}]/g, ""))).size;
+}
+
+// Local category ('offer' is a CRM-only bucket) → Meta category.
+function metaCategory(c: string): MetaCategory {
+  const v = c.toLowerCase();
+  if (v === "authentication") return "AUTHENTICATION";
+  if (v === "utility") return "UTILITY";
+  return "MARKETING"; // marketing + offer
+}
+function localCategory(c: MetaCategory): string {
+  return c.toLowerCase();
+}
+// Meta template status → wa_templates.status check set.
+function localStatus(s?: string): string {
+  const v = String(s ?? "PENDING").toUpperCase();
+  if (v === "APPROVED") return "approved";
+  if (v === "REJECTED") return "rejected";
+  if (v === "PAUSED" || v === "DISABLED") return "disabled";
+  return "pending";
+}
 
 // debug_token on the token itself exposes granular_scopes; the WhatsApp scopes
 // carry the WABA id(s) in target_ids.
@@ -172,31 +271,15 @@ async function discoverWaba(): Promise<string | null> {
   return null;
 }
 
-// Dump everything we can see, so WABA discovery can be diagnosed.
 async function diagnose(): Promise<Record<string, unknown>> {
   const t = token();
   const out: Record<string, unknown> = {};
-
-  // debug_token — granular_scopes carry the WABA id in target_ids.
   try {
     const r = await fetch(
       `${GRAPH}/debug_token?input_token=${encodeURIComponent(t)}&access_token=${encodeURIComponent(t)}`,
     );
     out.debug_token = await r.json().catch(() => ({}));
   } catch (e) { out.debug_token_error = String(e); }
-
-  // The phone number node — its parent WABA may be exposed here.
-  const phoneId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
-  if (phoneId) {
-    try {
-      const r = await fetch(
-        `${GRAPH}/${phoneId}?fields=id,display_phone_number,verified_name,whatsapp_business_account` +
-        `&access_token=${encodeURIComponent(t)}`,
-      );
-      out.phone_number = await r.json().catch(() => ({}));
-    } catch (e) { out.phone_number_error = String(e); }
-  }
-
   out.discovered_waba = await discoverWaba().catch(() => null);
   return out;
 }
@@ -205,14 +288,31 @@ async function createTemplate(
   waba: string,
   def: TemplateDef,
 ): Promise<{ ok: boolean; id?: string; status?: string; error?: string; meta?: unknown }> {
-  const components: Array<Record<string, unknown>> = [
-    {
-      type: "BODY",
-      text: def.body,
-      example: { body_text: [def.example] },
-    },
-  ];
+  const components: Array<Record<string, unknown>> = [];
+
+  if (def.header) {
+    const h: Record<string, unknown> = { type: "HEADER", format: "TEXT", text: def.header };
+    if (countVars(def.header) > 0) h.example = { header_text: def.headerExample ?? [] };
+    components.push(h);
+  }
+
+  const bodyComp: Record<string, unknown> = { type: "BODY", text: def.body };
+  if (countVars(def.body) > 0) bodyComp.example = { body_text: [def.bodyExample] };
+  components.push(bodyComp);
+
   if (def.footer) components.push({ type: "FOOTER", text: def.footer });
+
+  if (def.button) {
+    components.push({
+      type: "BUTTONS",
+      buttons: [{
+        type: "URL",
+        text: def.button.text,
+        url: def.button.url,            // ends with {{1}} — dynamic suffix
+        example: [def.button.example],  // one full sample URL
+      }],
+    });
+  }
 
   const reqBody = {
     name: def.name,
@@ -222,10 +322,7 @@ async function createTemplate(
   };
   const res = await fetch(`${GRAPH}/${waba}/message_templates`, {
     method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token()}`,
-      "Content-Type": "application/json",
-    },
+    headers: { "Authorization": `Bearer ${token()}`, "Content-Type": "application/json" },
     body: JSON.stringify(reqBody),
   });
   const json = await res.json().catch(() => ({}));
@@ -242,6 +339,51 @@ async function createTemplate(
     return { ok: false, error, meta: { status: res.status, error: e, sent: reqBody } };
   }
   return { ok: true, id: json?.id, status: json?.status ?? "PENDING" };
+}
+
+// Pull every template Meta has for this WABA and mirror it into wa_templates.
+async function syncFromMeta(
+  waba: string,
+  sb: ReturnType<typeof db>,
+): Promise<Array<{ name: string; status: string }>> {
+  const url = `${GRAPH}/${waba}/message_templates` +
+    `?fields=name,language,status,category,components,rejected_reason,id` +
+    `&limit=200&access_token=${encodeURIComponent(token())}`;
+  const res = await fetch(url);
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
+
+  const list: any[] = Array.isArray(json?.data) ? json.data : [];
+  const out: Array<{ name: string; status: string }> = [];
+
+  for (const t of list) {
+    const comps: any[] = Array.isArray(t.components) ? t.components : [];
+    const find = (type: string) => comps.find((c) => c?.type === type);
+    const bodyC = find("BODY");
+    const headerC = find("HEADER");
+    const footerC = find("FOOTER");
+    const buttonsC = find("BUTTONS");
+
+    const status = localStatus(t.status);
+    const cat = String(t.category ?? "marketing").toLowerCase();
+
+    await sb.from("wa_templates").upsert({
+      name: t.name,
+      language: t.language ?? "en",
+      category: ["marketing", "utility", "authentication", "offer"].includes(cat) ? cat : "marketing",
+      status,
+      meta_template_id: t.id ?? null,
+      header_type: headerC?.format ?? null,
+      header_text: headerC?.format === "TEXT" ? (headerC?.text ?? null) : null,
+      body: bodyC?.text ?? "",
+      footer: footerC?.text ?? null,
+      buttons: buttonsC?.buttons ?? null,
+      rejection_reason: t.rejected_reason && t.rejected_reason !== "NONE" ? t.rejected_reason : null,
+    }, { onConflict: "name,language" });
+
+    out.push({ name: t.name, status });
+  }
+  return out;
 }
 
 function j(o: unknown, s = 200) {
