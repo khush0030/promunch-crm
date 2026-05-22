@@ -68,6 +68,17 @@ const BRAND = "var(--accent)";
 const BRAND_DARK = "#8B1539";
 const WA_GREEN = "#25D366";
 
+/* Absolute send time for a chat bubble: clock time if today, e.g.
+   "22 May, 5:42 PM" otherwise. */
+function msgTime(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+  return d.toDateString() === new Date().toDateString()
+    ? time
+    : `${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}, ${time}`;
+}
+
 function timeAgo(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -574,7 +585,7 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
                 <div style={{ whiteSpace: "pre-wrap" }}>{m.body}</div>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 4, fontSize: 10, color: "var(--text-2)" }}>
                   {m.sent_by === "bot" && <span style={{ color: WA_GREEN, fontWeight: 600 }}><Sparkles size={10} style={{ verticalAlign: -1 }} /> AI</span>}
-                  <span>{timeAgo(m.created_at)}</span>
+                  <span title={new Date(m.created_at).toLocaleString("en-IN")}>{msgTime(m.created_at)}</span>
                   {out && <span>· {m.status}</span>}
                 </div>
               </div>
