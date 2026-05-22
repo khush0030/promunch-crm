@@ -80,13 +80,15 @@ Deno.serve(async (req) => {
       const lang = body.template.language ?? "en";
       const comps = body.template.components ?? buildSimpleBodyComponents(body.template.vars);
       result = await sendTemplate(waId!, body.template.name, lang, comps);
+      // Store what the customer actually received — not a "[template:name]" stub.
+      const rendered = await renderTemplate(sb, body.template.name, lang, body.template.vars, comps);
       recorded = {
         ...recorded,
         type: "template",
         template_name: body.template.name,
         template_lang: lang,
         template_vars: body.template.vars ?? null,
-        body: `[template:${body.template.name}]`,
+        body: rendered ?? `[template:${body.template.name}]`,
       };
     } else if (body.kind === "image") {
       if (!body.image?.link) return j({ error: "image.link required" }, 400);
@@ -113,6 +115,40 @@ Deno.serve(async (req) => {
 
   return j({ ok: result.ok, message_id: result.message_id, error: result.error ?? null });
 });
+
+// Render a template's text with its variables filled in, so wa_messages.body
+// holds the message the customer actually received. Reads the local
+// wa_templates registry (kept in sync with Meta by wa-template-create).
+async function renderTemplate(
+  sb: ReturnType<typeof db>,
+  name: string,
+  language: string,
+  vars?: Record<string, string>,
+  components?: TemplateComponent[],
+): Promise<string | null> {
+  const { data } = await sb
+    .from("wa_templates")
+    .select("body, header_text, footer")
+    .eq("name", name)
+    .eq("language", language)
+    .maybeSingle();
+  if (!data?.body) return null;
+  // Component-based sends (e.g. the abandoned-cart journey) carry their body
+  // values in the BODY component's parameters rather than as flat vars.
+  const merged: Record<string, string> = { ...(vars ?? {}) };
+  if (!vars || Object.keys(vars).length === 0) {
+    const bodyComp = (components ?? []).find((c) => c.type === "body");
+    (bodyComp?.parameters ?? []).forEach((p: any, i) => {
+      if (p?.type === "text" && typeof p.text === "string") merged[String(i + 1)] = p.text;
+    });
+  }
+  const fill = (s: string) => s.replace(/\{\{(\d+)\}\}/g, (_, n) => merged[n] ?? `{{${n}}}`);
+  return [
+    data.header_text ? fill(data.header_text) : null,
+    fill(data.body),
+    data.footer ? fill(data.footer) : null,
+  ].filter(Boolean).join("\n\n");
+}
 
 function buildSimpleBodyComponents(vars?: Record<string, string>): TemplateComponent[] {
   if (!vars || Object.keys(vars).length === 0) return [];

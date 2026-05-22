@@ -1,10 +1,26 @@
-// Shopify orders/create webhook receiver.
-// Verifies HMAC, persists order, posts a card to Slack.
+// Shopify order webhook receiver.
+//
+// Handles every `orders/*` topic on one endpoint:
+//   - orders/create  → persist the order, post a Slack card.
+//   - orders/updated, orders/fulfilled, orders/paid, orders/cancelled, …
+//                    → refresh the shopify_orders row only (no Slack card).
+//
+// Why the refresh path matters: the WhatsApp AI agent answers "where's my
+// order?" from shopify_orders (via _shared/orders.ts). If the table only ever
+// saw orders/create, fulfillment + tracking + payment status would go stale
+// and the bot would quote wrong info. orders/updated fires on every order
+// change, so mirroring it keeps the bot's answers current.
+//
+// Subscribe these topics in Shopify admin → Settings → Notifications →
+// Webhooks (or via the Admin API) all pointed at this same URL.
 
 import { db } from "../_shared/supabase.ts";
 import { buildOrderBlocks, fmtMoney, postSlack, verifyShopifyHmac } from "../_shared/shopify.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 import { toWaId } from "../_shared/journeys.ts";
+
+const ok = (extra: Record<string, unknown> = {}) =>
+  new Response(JSON.stringify({ ok: true, ...extra }), { headers: { "content-type": "application/json" } });
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
@@ -17,6 +33,12 @@ Deno.serve(async (req) => {
   if (!(await verifyShopifyHmac(raw, hmac, secret))) {
     return new Response("bad-hmac", { status: 401 });
   }
+
+  // Shopify always sends the topic; default to orders/create for back-compat.
+  const topic = (req.headers.get("x-shopify-topic") || "orders/create").toLowerCase();
+  // Only order-shaped payloads belong in shopify_orders. fulfillments/* etc.
+  // carry a different shape — ignore them (orders/updated covers those changes).
+  if (!topic.startsWith("orders/")) return ok({ ignored: topic });
 
   let order: any;
   try { order = JSON.parse(raw); } catch { return new Response("bad-json", { status: 400 }); }
@@ -53,6 +75,21 @@ Deno.serve(async (req) => {
   if (error) {
     console.error("db upsert failed", error);
     return new Response("db-error", { status: 500 });
+  }
+
+  // Status-change events: the row is now refreshed (fulfillment, tracking,
+  // payment status) so the WhatsApp bot quotes current info. No Slack card —
+  // a card is for new orders only, not every edit.
+  if (topic !== "orders/create") {
+    await logConnector({
+      connector: "shopify_slack",
+      level: "info",
+      event: "order_refreshed",
+      message: `Refreshed ${orderNumber} from ${topic} ` +
+        `(payment: ${order.financial_status ?? "—"}, fulfillment: ${order.fulfillment_status ?? "unfulfilled"}).`,
+      ref: orderNumber,
+    });
+    return ok({ refreshed: true, topic });
   }
 
   // Prior order count for this customer (excluding the one we just inserted).

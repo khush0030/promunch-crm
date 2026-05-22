@@ -33,6 +33,7 @@ Deno.serve(async (req) => {
   try {
     if (topic === "orders/create") await handleOrderCreate(payload);
     else if (topic === "orders/fulfilled") await handleOrderFulfilled(payload);
+    else if (topic === "orders/cancelled") await handleOrderCancelled(payload);
     else if (topic === "checkouts/create" || topic === "checkouts/update") await handleCheckout(payload);
     // other topics (orders/updated, …) are acknowledged, no-op
   } catch (e) {
@@ -53,6 +54,19 @@ Deno.serve(async (req) => {
 async function handleOrderCreate(order: any) {
   const sb = db();
   const orderRef: string = order.name || `#${order.order_number}` || String(order.id);
+
+  // Shopify status guard — never send "your order is confirmed!" for an order
+  // that is already cancelled / voided / refunded. This happens when the
+  // orders/create webhook is delayed or retried, or for a test order: by the
+  // time we process it the order is no longer active.
+  if (!orderIsActive(order)) {
+    await logConnector({
+      connector: "shopify_wa", level: "info", event: "order_not_active",
+      message: `Order ${orderRef} is ${orderState(order)} — skipped WhatsApp confirmation + journey enrolment.`,
+      ref: orderRef,
+    }).catch(() => {});
+    return;
+  }
 
   // idempotency — if we've already processed this order, stop
   const { data: prior } = await sb.from("wa_journey_runs").select("id").eq("order_ref", orderRef).limit(1);
@@ -102,6 +116,8 @@ async function handleOrderCreate(order: any) {
 // --- orders/fulfilled: shipping update --------------------------------------
 async function handleOrderFulfilled(order: any) {
   const orderRef: string = order.name || `#${order.order_number}` || String(order.id);
+  // Don't send a shipping update for an order that was cancelled.
+  if (!orderIsActive(order)) return;
   const waId = toWaId(
     order.customer?.phone ?? order.phone ?? order.shipping_address?.phone ?? order.billing_address?.phone,
   );
@@ -125,6 +141,26 @@ async function handleOrderFulfilled(order: any) {
     message: res?.ok
       ? `Order ${orderRef}: WhatsApp shipping update sent.`
       : `Order ${orderRef}: shipping update failed — ${res?.error ?? "unknown"}.`,
+    ref: orderRef,
+  }).catch(() => {});
+}
+
+// --- orders/cancelled: stop pending post-purchase journeys ------------------
+async function handleOrderCancelled(order: any) {
+  const sb = db();
+  const orderRef: string = order.name || `#${order.order_number}` || String(order.id);
+
+  // Cancel any review-request / replenishment runs still queued for this
+  // order so we never message "hope you're loving your snacks" about an
+  // order that no longer exists.
+  const { data: stopped } = await sb.from("wa_journey_runs")
+    .update({ status: "cancelled", last_error: "order cancelled" })
+    .eq("order_ref", orderRef).eq("status", "active")
+    .select("id");
+
+  await logConnector({
+    connector: "shopify_wa", level: "info", event: "order_cancelled",
+    message: `Order ${orderRef} cancelled — stopped ${stopped?.length ?? 0} pending journey message(s).`,
     ref: orderRef,
   }).catch(() => {});
 }
@@ -166,10 +202,11 @@ async function handleCheckout(checkout: any) {
     { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: buttonSuffix }] },
   ];
 
-  // a 3-message recovery sequence (1h / 24h / 72h) — each reminder stops
+  // a 3-message recovery sequence — all within the first 24h (1h / 6h / 24h)
+  // so an unconverted cart is nudged 3 times in a day. Each reminder stops
   // early once the customer orders: orders/create flips active runs to
   // 'converted', so they never get a nudge after buying.
-  const rows = [1, 24, 72].map((h) => ({
+  const rows = [1, 6, 24].map((h) => ({
     journey_key: "abandoned_checkout",
     wa_id: waId,
     next_action_at: new Date(Date.now() + h * 3600_000).toISOString(),
@@ -180,6 +217,19 @@ async function handleCheckout(checkout: any) {
 }
 
 // --- helpers ----------------------------------------------------------------
+
+// An order is "active" (worth messaging the customer about) when it is not
+// cancelled and not voided/refunded.
+function orderIsActive(order: any): boolean {
+  if (order?.cancelled_at) return false;
+  const fin = String(order?.financial_status ?? "").toLowerCase();
+  return fin !== "voided" && fin !== "refunded";
+}
+function orderState(order: any): string {
+  if (order?.cancelled_at) return "cancelled";
+  const fin = String(order?.financial_status ?? "").toLowerCase();
+  return fin === "voided" || fin === "refunded" ? fin : "active";
+}
 
 // Queue a timed journey message in wa_journey_runs.
 async function enrol(journeyKey: string, waId: string, orderRef: string, vars: Record<string, string>) {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MessageSquare, Send, Bot, User as UserIcon, Search, Plus, Upload, RefreshCw, Trash2,
   Tag, AlertTriangle, CheckCircle2, Inbox as InboxIcon, FileText, Sparkles, Megaphone, Ticket as TicketIcon,
+  ExternalLink, ShoppingBag, MapPin, Archive, ArchiveRestore,
 } from "lucide-react";
 
 type Tab = "inbox" | "templates" | "campaigns" | "kb" | "tickets";
@@ -24,6 +25,7 @@ type Thread = {
   last_outbound_at: string | null;
   last_message_snippet: string | null;
   unread_count: number;
+  archived_at: string | null;
   contact: Contact;
 };
 type Message = {
@@ -48,6 +50,8 @@ type Template = {
   footer: string | null;
   header_text: string | null;
   variables: any;
+  rejection_reason: string | null;
+  meta_template_id: string | null;
 };
 type KbDoc = {
   id: string;
@@ -235,11 +239,14 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
   const [ticket, setTicket] = useState<string>(ticketsOnly ? "open" : "");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [hover, setHover] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     const qs = new URLSearchParams();
-    if (status) qs.set("status", status);
+    // "archived" is a view, not a real thread status — it maps to ?archived=1
+    if (status === "archived") qs.set("archived", "1");
+    else if (status) qs.set("status", status);
     if (ticket) qs.set("ticket", ticket);
     if (search) qs.set("search", search);
     qs.set("limit", "60");
@@ -249,6 +256,17 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
     setLoading(false);
   }, [status, ticket, search]);
 
+  // Archive (hide) or unarchive a thread — never deletes messages.
+  const archiveThread = useCallback(async (id: string, archived: boolean) => {
+    await fetch(`/api/whatsapp/threads/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archived }),
+    });
+    setSelected((s) => (s?.id === id ? null : s));
+    load();
+  }, [load]);
+
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     const t = setInterval(load, 15000);
@@ -256,7 +274,7 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
   }, [load]);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 16, height: "calc(100vh - 200px)" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "320px 1fr 304px", gap: 14, height: "calc(100vh - 200px)" }}>
       <div style={{
         background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 12,
         overflow: "hidden", display: "flex", flexDirection: "column",
@@ -286,6 +304,7 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
                   { k: "bot", l: "Bot" },
                   { k: "human", l: "Human" },
                   { k: "closed", l: "Closed" },
+                  { k: "archived", l: "Archived" },
                 ]
             ).map((f) => {
               const active = ticketsOnly ? ticket === f.k : status === f.k;
@@ -310,10 +329,11 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
           {threads.map((t) => {
             const active = selected?.id === t.id;
             return (
-              <button key={t.id} onClick={() => setSelected(t)}
+              <div key={t.id} onClick={() => setSelected(t)}
+                onMouseEnter={() => setHover(t.id)} onMouseLeave={() => setHover(null)}
                 style={{
-                  width: "100%", textAlign: "left", padding: 12,
-                  border: "none", borderBottom: "1px solid var(--border)",
+                  width: "100%", textAlign: "left", padding: 12, position: "relative",
+                  borderBottom: "1px solid var(--border)",
                   background: active ? "rgba(185,28,74,0.06)" : "var(--card-bg)",
                   cursor: "pointer",
                 }}>
@@ -345,13 +365,29 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
                     }}>{t.unread_count}</span>
                   )}
                 </div>
-              </button>
+                {hover === t.id && (
+                  <button
+                    title={status === "archived" ? "Unarchive chat" : "Archive chat"}
+                    onClick={(e) => { e.stopPropagation(); archiveThread(t.id, status !== "archived"); }}
+                    style={{
+                      position: "absolute", right: 8, top: 8,
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      width: 26, height: 26, borderRadius: 6,
+                      border: "1px solid var(--border)", background: "var(--card-bg)",
+                      color: "var(--text-3)", cursor: "pointer",
+                    }}>
+                    {status === "archived" ? <ArchiveRestore size={13} /> : <Archive size={13} />}
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
       </div>
 
       <ConversationPane thread={selected} onChange={(t) => { setSelected(t); load(); }} />
+
+      <CustomerPanel thread={selected} />
     </div>
   );
 }
@@ -587,6 +623,180 @@ const selectStyle: React.CSSProperties = {
   background: "var(--card-bg)", color: "var(--text)", outline: "none",
 };
 
+/* ----------------------------------------------------------------- */
+/* CUSTOMER PANEL — CRM context for the open conversation             */
+/* ----------------------------------------------------------------- */
+
+type CustomerOrder = {
+  order_number: string;
+  placed_at: string;
+  total: string;
+  financial_status: string | null;
+  fulfillment_status: string;
+  items: { name: string; qty: number }[];
+  tracking_url: string | null;
+  order_status_url: string | null;
+  admin_url: string | null;
+};
+type CustomerData = {
+  wa_id: string;
+  contact: {
+    id: string;
+    email: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    phone: string | null;
+    tags: string[] | null;
+    status: string | null;
+    total_orders: number | null;
+    total_spent: number | null;
+    last_purchase_date: string | null;
+    city: string | null;
+    state: string | null;
+  } | null;
+  orders: CustomerOrder[];
+  order_count: number;
+};
+
+/* Right-rail customer 360: the WhatsApp chat stitched to Shopify orders and
+   the CRM contact record, matched by the customer's WhatsApp number. */
+function CustomerPanel({ thread }: { thread: Thread | null }) {
+  const [data, setData] = useState<CustomerData | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!thread) { setData(null); return; }
+    let live = true;
+    setLoading(true);
+    fetch(`/api/whatsapp/threads/${thread.id}/customer`)
+      .then((r) => r.json())
+      .then((j) => { if (live) setData(j?.error ? null : j); })
+      .finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
+  }, [thread]);
+
+  const wrap: React.CSSProperties = {
+    background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 12,
+    overflowY: "auto", padding: 14,
+  };
+
+  if (!thread) {
+    return (
+      <div style={{ ...wrap, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-3)", fontSize: 13 }}>
+        Customer details
+      </div>
+    );
+  }
+  if (loading && !data) {
+    return <div style={{ ...wrap, color: "var(--text-3)", fontSize: 13 }}>Loading customer…</div>;
+  }
+
+  const c = data?.contact ?? null;
+  const orders = data?.orders ?? [];
+  const fullName = c ? [c.first_name, c.last_name].filter(Boolean).join(" ") : "";
+  const display = (thread.contact.name || fullName || thread.contact.phone || "").trim();
+
+  return (
+    <div style={wrap}>
+      {/* identity */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{
+          width: 38, height: 38, borderRadius: 999, background: "var(--green-soft)",
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        }}>
+          <UserIcon size={18} style={{ color: "var(--green)" }} />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {display || "Unknown"}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--text-3)" }}>{thread.contact.phone}</div>
+        </div>
+      </div>
+
+      {/* CRM contact */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>
+        CRM contact
+      </div>
+      {c ? (
+        <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 10, marginBottom: 14 }}>
+          {c.email && <div style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 4, wordBreak: "break-all" }}>{c.email}</div>}
+          {(c.city || c.state) && (
+            <div style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
+              <MapPin size={11} /> {[c.city, c.state].filter(Boolean).join(", ")}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--text-2)", margin: "6px 0" }}>
+            <span><strong style={{ color: "var(--text)" }}>{c.total_orders ?? 0}</strong> orders</span>
+            <span>LTV <strong style={{ color: "var(--text)" }}>₹{Number(c.total_spent ?? 0).toLocaleString("en-IN")}</strong></span>
+          </div>
+          {c.tags && c.tags.length > 0 && (
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
+              {c.tags.slice(0, 6).map((t) => (
+                <span key={t} style={{ fontSize: 10, background: "rgba(185,28,74,0.08)", color: BRAND, padding: "1px 6px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                  <Tag size={9} /> {t}
+                </span>
+              ))}
+            </div>
+          )}
+          <a href={`/dashboard/contacts/${c.id}`} target="_blank" rel="noreferrer"
+            style={{ fontSize: 12, color: BRAND, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+            Open full profile <ExternalLink size={11} />
+          </a>
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 14 }}>
+          No CRM contact matched this number yet.
+        </div>
+      )}
+
+      {/* Shopify orders */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+        <ShoppingBag size={12} /> Orders ({data?.order_count ?? 0})
+      </div>
+      {orders.length === 0 ? (
+        <div style={{ fontSize: 12, color: "var(--text-3)" }}>
+          No Shopify orders matched this WhatsApp number.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {orders.map((o) => {
+            const link = o.admin_url || o.order_status_url || o.tracking_url;
+            return (
+              <div key={o.order_number} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>{o.order_number}</span>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>{o.total}</span>
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 6 }}>{o.placed_at}</div>
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 6 }}>
+                  <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: o.financial_status === "paid" ? "rgba(16,185,129,0.14)" : "rgba(245,183,49,0.14)", color: o.financial_status === "paid" ? "var(--green)" : "#92400e", fontWeight: 600 }}>
+                    {o.financial_status ?? "—"}
+                  </span>
+                  <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: o.fulfillment_status === "fulfilled" ? "rgba(16,185,129,0.14)" : "rgba(229,231,235,0.7)", color: o.fulfillment_status === "fulfilled" ? "var(--green)" : "var(--text-2)", fontWeight: 600 }}>
+                    {o.fulfillment_status}
+                  </span>
+                </div>
+                {o.items.length > 0 && (
+                  <div style={{ fontSize: 11, color: "var(--text-2)", marginBottom: 6 }}>
+                    {o.items.map((it) => `${it.qty}× ${it.name}`).join(", ")}
+                  </div>
+                )}
+                {link && (
+                  <a href={link} target="_blank" rel="noreferrer"
+                    style={{ fontSize: 11, color: BRAND, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                    {o.admin_url ? "View in Shopify" : "Track order"} <ExternalLink size={10} />
+                  </a>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TemplatePicker({ templates, onCancel, onSend }: {
   templates: Template[]; onCancel: () => void; onSend: (t: Template, vars: Record<string, string>) => void;
 }) {
@@ -650,9 +860,24 @@ function TemplatePicker({ templates, onCancel, onSend }: {
 /* TEMPLATES                                                          */
 /* ----------------------------------------------------------------- */
 
+/* Variables {{1}}, {{2}}… present in a string, de-duplicated and ordered. */
+function templateVars(s: string | null | undefined): string[] {
+  const m = (s ?? "").match(/\{\{(\d+)\}\}/g) ?? [];
+  return Array.from(new Set(m.map((x) => x.replace(/[{}]/g, "")))).sort((a, b) => +a - +b);
+}
+
+const templateStatusColor: Record<string, string> = {
+  approved: "var(--green)", rejected: "var(--accent)", disabled: "var(--text-2)",
+  pending: "#92400e", draft: "var(--text-2)",
+};
+
 function TemplatesView() {
   const [list, setList] = useState<Template[]>([]);
   const [editing, setEditing] = useState<Partial<Template> | null>(null);
+  const [bodySamples, setBodySamples] = useState<Record<string, string>>({});
+  const [headerSamples, setHeaderSamples] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   async function load() {
     const r = await fetch("/api/whatsapp/templates");
@@ -661,33 +886,105 @@ function TemplatesView() {
   }
   useEffect(() => { load(); }, []);
 
-  async function save() {
-    if (!editing) return;
-    const r = await fetch("/api/whatsapp/templates", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editing),
-    });
-    const j = await r.json();
-    if (j.error) { alert(j.error); return; }
-    setEditing(null);
-    load();
+  /* Open the builder, pre-filling variable samples from a saved template. */
+  function open(t: Partial<Template> | null) {
+    setEditing(t);
+    const vars = Array.isArray(t?.variables) ? t!.variables : [];
+    const bs: Record<string, string> = {};
+    for (const v of vars) if (v?.name) bs[String(v.name)] = v.sample ?? "";
+    setBodySamples(bs);
+    setHeaderSamples({});
   }
+
+  async function saveDraft() {
+    if (!editing) return;
+    setBusy(true);
+    try {
+      const r = await fetch("/api/whatsapp/templates", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...editing, status: "draft" }),
+      });
+      const j = await r.json();
+      if (j.error) { alert(j.error); return; }
+      setEditing(null);
+      load();
+    } finally { setBusy(false); }
+  }
+
+  async function submitToMeta() {
+    if (!editing) return;
+    const bodyVars = templateVars(editing.body);
+    const headerVars = templateVars(editing.header_text);
+    if (bodyVars.some((n) => !bodySamples[n]?.trim()) ||
+        headerVars.some((n) => !headerSamples[n]?.trim())) {
+      alert("Fill a sample value for every {{n}} variable — Meta needs them to review the template.");
+      return;
+    }
+    if (!confirm("Submit this template to Meta for approval?\n\nMeta reviews it (usually minutes to a few hours). You can't send it to customers until it's approved.")) return;
+    setBusy(true);
+    try {
+      const r = await fetch("/api/whatsapp/templates/submit", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editing.name,
+          category: editing.category,
+          language: editing.language ?? "en",
+          header_text: editing.header_text || undefined,
+          body: editing.body,
+          footer: editing.footer || undefined,
+          body_samples: bodyVars.map((n) => bodySamples[n]),
+          header_samples: headerVars.map((n) => headerSamples[n]),
+        }),
+      });
+      const j = await r.json();
+      if (j.error || j.ok === false) {
+        alert("Meta rejected the submission:\n" + (j.error || j.results?.[0]?.error || "unknown error"));
+        return;
+      }
+      alert("Submitted to Meta ✅\nStatus: pending review. Use “Sync from Meta” later to pick up the approval.");
+      setEditing(null);
+      load();
+    } finally { setBusy(false); }
+  }
+
+  async function syncFromMeta() {
+    setSyncing(true);
+    try {
+      const r = await fetch("/api/whatsapp/templates/sync", { method: "POST" });
+      const j = await r.json();
+      if (j.error || j.ok === false) { alert("Sync failed: " + (j.error ?? "unknown")); return; }
+      const synced = j.synced ?? [];
+      const approved = synced.filter((s: any) => s.status === "approved").length;
+      alert(`Synced ${synced.length} template(s) from Meta — ${approved} approved.`);
+      load();
+    } finally { setSyncing(false); }
+  }
+
   async function remove(id: string) {
-    if (!confirm("Delete template?")) return;
+    if (!confirm("Delete the local template row? (does not delete it at Meta)")) return;
     await fetch(`/api/whatsapp/templates/${id}`, { method: "DELETE" });
     load();
   }
 
+  const bodyVars = templateVars(editing?.body);
+  const headerVars = templateVars(editing?.header_text);
+  const preview = (editing?.body ?? "").replace(/\{\{(\d+)\}\}/g, (_, n) => bodySamples[n] || `{{${n}}}`);
+
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14, gap: 12 }}>
         <div style={{ fontSize: 13, color: "var(--text-2)" }}>
-          Templates sent through Meta WABA. Submit them for approval, then send to opted-in contacts.
+          Build a template, submit it to Meta, then send it once approved. Status is owned by Meta —
+          use “Sync from Meta” to refresh approvals.
         </div>
-        <button onClick={() => setEditing({ category: "marketing", language: "en", status: "draft", body: "" })}
-          style={primaryBtn}>
-          <Plus size={14} /> New template
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={syncFromMeta} disabled={syncing} style={smallBtn}>
+            <RefreshCw size={14} /> {syncing ? "Syncing…" : "Sync from Meta"}
+          </button>
+          <button onClick={() => open({ category: "marketing", language: "en", body: "" })} style={primaryBtn}>
+            <Plus size={14} /> New template
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))", gap: 12 }}>
@@ -699,15 +996,20 @@ function TemplatesView() {
                 bg="rgba(185,28,74,0.08)" color={BRAND} />
             </div>
             <div style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 8 }}>
-              {t.language} · <span style={{
-                color: t.status === "approved" ? "var(--green)" : t.status === "rejected" ? "var(--accent)" : "#92400e", fontWeight: 600,
-              }}>{t.status}</span>
+              {t.language} · <span style={{ color: templateStatusColor[t.status] ?? "#92400e", fontWeight: 600 }}>
+                {t.status}
+              </span>
             </div>
             {t.header_text && <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{t.header_text}</div>}
             <div style={{ fontSize: 13, color: "var(--text)", whiteSpace: "pre-wrap", lineHeight: 1.4 }}>{t.body}</div>
             {t.footer && <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 6 }}>{t.footer}</div>}
+            {t.status === "rejected" && t.rejection_reason && (
+              <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 6 }}>
+                <AlertTriangle size={11} style={{ verticalAlign: -1 }} /> Rejected: {t.rejection_reason}
+              </div>
+            )}
             <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-              <button onClick={() => setEditing(t)} style={smallBtn}>Edit</button>
+              <button onClick={() => open(t)} style={smallBtn}>Edit / Resubmit</button>
               <button onClick={() => remove(t.id)} style={{ ...smallBtn, color: "var(--accent)" }}>
                 <Trash2 size={12} />
               </button>
@@ -718,11 +1020,11 @@ function TemplatesView() {
 
       {editing && (
         <Modal onClose={() => setEditing(null)} title={editing.id ? "Edit template" : "New template"}>
-          <Field label="Name (lowercase, underscores)">
+          <Field label="Name (lowercase, digits, underscores)">
             <input value={editing.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })}
               placeholder="diwali_offer_2026" style={inputStyle} />
           </Field>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <Field label="Category">
               <select value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value as any })} style={inputStyle}>
                 <option value="marketing">Marketing</option>
@@ -731,30 +1033,66 @@ function TemplatesView() {
                 <option value="authentication">Authentication</option>
               </select>
             </Field>
-            <Field label="Language"><input value={editing.language ?? "en"} onChange={(e) => setEditing({ ...editing, language: e.target.value })} style={inputStyle} /></Field>
-            <Field label="Status">
-              <select value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as any })} style={inputStyle}>
-                <option value="draft">Draft</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-                <option value="disabled">Disabled</option>
-              </select>
+            <Field label="Language">
+              <input value={editing.language ?? "en"} onChange={(e) => setEditing({ ...editing, language: e.target.value })} style={inputStyle} />
             </Field>
           </div>
+          {editing.id && (
+            <div style={{ fontSize: 12, marginBottom: 10 }}>
+              Meta status:{" "}
+              <span style={{ color: templateStatusColor[editing.status ?? ""] ?? "#92400e", fontWeight: 700 }}>
+                {editing.status ?? "not submitted"}
+              </span>
+            </div>
+          )}
           <Field label="Header text (optional)">
             <input value={editing.header_text ?? ""} onChange={(e) => setEditing({ ...editing, header_text: e.target.value })} style={inputStyle} />
           </Field>
-          <Field label="Body — use {{1}}, {{2}} for variables">
+          {headerVars.map((n) => (
+            <Field key={`h${n}`} label={`Sample for header {{${n}}}`}>
+              <input value={headerSamples[n] ?? ""} onChange={(e) => setHeaderSamples({ ...headerSamples, [n]: e.target.value })}
+                placeholder="example value" style={inputStyle} />
+            </Field>
+          ))}
+          <Field label="Body — type {{1}}, {{2}} where each customer's values go">
             <textarea value={editing.body ?? ""} onChange={(e) => setEditing({ ...editing, body: e.target.value })}
               rows={6} style={{ ...inputStyle, fontFamily: "inherit", resize: "vertical" }} />
           </Field>
+          {bodyVars.length > 0 && (
+            <div style={{
+              border: "1px solid var(--border)", borderRadius: 8, padding: 10, marginBottom: 10,
+              background: "var(--canvas)",
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+                Sample values — Meta needs one example per variable to review the template
+              </div>
+              {bodyVars.map((n) => (
+                <div key={`b${n}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, width: 38, color: BRAND }}>{`{{${n}}}`}</span>
+                  <input value={bodySamples[n] ?? ""} onChange={(e) => setBodySamples({ ...bodySamples, [n]: e.target.value })}
+                    placeholder="example value" style={{ ...inputStyle, marginBottom: 0 }} />
+                </div>
+              ))}
+            </div>
+          )}
           <Field label="Footer (optional)">
             <input value={editing.footer ?? ""} onChange={(e) => setEditing({ ...editing, footer: e.target.value })} style={inputStyle} />
           </Field>
-          <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+          {editing.body && (
+            <div style={{
+              background: "var(--canvas)", border: "1px solid var(--border)", borderRadius: 8,
+              padding: 10, fontSize: 13, whiteSpace: "pre-wrap", marginBottom: 4,
+            }}>{preview}</div>
+          )}
+          <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 12 }}>
+            “Save draft” keeps it local only. “Submit to Meta” sends it for approval — it can't reach customers until Meta approves it.
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 4, justifyContent: "flex-end" }}>
             <button onClick={() => setEditing(null)} style={smallBtn}>Cancel</button>
-            <button onClick={save} style={primaryBtn}>Save</button>
+            <button onClick={saveDraft} disabled={busy} style={smallBtn}>Save draft</button>
+            <button onClick={submitToMeta} disabled={busy || !editing.name || !editing.body} style={primaryBtn}>
+              <Send size={13} /> {busy ? "Working…" : "Submit to Meta"}
+            </button>
           </div>
         </Modal>
       )}

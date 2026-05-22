@@ -9,6 +9,7 @@
 
 import { db } from "../_shared/supabase.ts";
 import { TIMED_JOURNEYS } from "../_shared/journeys.ts";
+import { isOrderCancelled } from "../_shared/orders.ts";
 
 const BATCH = 200;
 
@@ -33,6 +34,19 @@ Deno.serve(async () => {
       await mark(run.id, "failed", `unknown journey '${run.journey_key}'`);
       failed++;
       continue;
+    }
+
+    // Shopify status guard — post-purchase journeys (review_request,
+    // replenishment_reminder) are tied to an order. If that order was
+    // cancelled/refunded after enrolment, drop the run instead of messaging
+    // the customer about an order that no longer exists. (abandoned_checkout
+    // is keyed by a checkout token, not an order — skip the check.)
+    if (run.journey_key !== "abandoned_checkout" && run.order_ref) {
+      if (await isOrderCancelled(run.order_ref)) {
+        await mark(run.id, "cancelled", "order cancelled");
+        skipped++;
+        continue;
+      }
     }
 
     // template must be approved by Meta before we can send it

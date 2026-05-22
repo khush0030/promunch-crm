@@ -87,6 +87,31 @@ function toSummary(r: Record<string, any>): OrderSummary {
   };
 }
 
+// True when an order is cancelled or fully reversed — i.e. an "order
+// confirmed!" or post-purchase message would be wrong to send. Reads
+// shopify_orders (kept current by the shopify-webhook orders/updated handler),
+// matching by order number.
+export async function isOrderCancelled(
+  orderRef: string | null | undefined,
+): Promise<boolean> {
+  if (!orderRef) return false;
+  const clean = String(orderRef).trim().replace(/^#/, "");
+  if (!clean) return false;
+
+  const { data } = await db()
+    .from("shopify_orders")
+    .select("financial_status, raw")
+    .or(`order_number.eq.#${clean},order_number.eq.${clean}`)
+    .limit(1)
+    .maybeSingle();
+  if (!data) return false;
+
+  const raw = (data.raw ?? {}) as Record<string, any>;
+  if (raw.cancelled_at) return true;
+  const fin = String(data.financial_status ?? "").toLowerCase();
+  return fin === "voided" || fin === "refunded";
+}
+
 // Compact plain-text rendering handed back to Claude as a tool result.
 export function orderForAI(o: OrderSummary): string {
   const items = o.items.map((i) => `${i.qty}x ${i.name}`).join(", ") || "(no items)";
