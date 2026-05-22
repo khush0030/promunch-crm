@@ -39,11 +39,17 @@ Escalate when:
 
 Never make promises about delivery dates or refunds you cannot back from the KB.`;
 
-interface InvokeBody { thread_id: string; last_message?: string; draft?: boolean; job_id?: string | null }
+interface InvokeBody {
+  thread_id: string;
+  last_message?: string;
+  draft?: boolean;
+  job_id?: string | null;
+  image_url?: string | null;
+}
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
-  const { thread_id, last_message, draft, job_id } = (await req.json()) as InvokeBody;
+  const { thread_id, last_message, draft, job_id, image_url } = (await req.json()) as InvokeBody;
   if (!thread_id) return j({ error: "thread_id required" }, 400);
 
   const sb = db();
@@ -65,6 +71,9 @@ Deno.serve(async (req) => {
   if (!latest) {
     const lastInbound = [...ordered].reverse().find((m) => m.direction === "inbound");
     latest = lastInbound?.body ?? "";
+  }
+  if (image_url && (!latest || /^\[image\]$/i.test(latest.trim()))) {
+    latest = "(The customer sent an image with no caption — look at the attached image and respond.)";
   }
   if (!latest) return j({ error: "no customer message to answer" }, 400);
 
@@ -90,11 +99,18 @@ Deno.serve(async (req) => {
   ].join("\n");
 
   const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+  // when the customer sent an image, attach it so Claude can see it
+  const content: any = image_url
+    ? [
+        { type: "image", source: { type: "url", url: image_url } },
+        { type: "text", text: userMsg },
+      ]
+    : userMsg;
   const resp = await client.messages.create({
     model: MODEL,
     max_tokens: 700,
     system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: userMsg }],
+    messages: [{ role: "user", content }],
   });
 
   const rawTxt = resp.content?.[0]?.type === "text" ? resp.content[0].text : "";

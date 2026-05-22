@@ -152,6 +152,7 @@ async function handleInboundMessage(msg: any, profile: any) {
   else if (msg.type === "button") body = msg.button?.text ?? "";
   else if (msg.type === "interactive") body = msg.interactive?.button_reply?.title ?? msg.interactive?.list_reply?.title ?? "";
   else if (msg.type === "image" || msg.type === "document" || msg.type === "audio" || msg.type === "video") {
+    let transcript: string | null = null;
     const mid = msg[msg.type]?.id;
     if (mid) {
       // download the bytes and persist to storage — Meta media URLs expire,
@@ -168,9 +169,13 @@ async function handleInboundMessage(msg: any, profile: any) {
         } else {
           mediaUrl = sb.storage.from(WA_MEDIA_BUCKET).getPublicUrl(path).data.publicUrl;
         }
+        // voice note → transcribe so the agent and the dashboard can read it
+        if (msg.type === "audio") {
+          transcript = await transcribeAudio(dl.bytes, dl.mime).catch(() => null);
+        }
       }
     }
-    body = msg[msg.type]?.caption ?? `[${msg.type}]`;
+    body = transcript ?? msg[msg.type]?.caption ?? `[${msg.type}]`;
   } else if (msg.type === "reaction") {
     body = msg.reaction?.emoji ?? "";
     type = "reaction";
@@ -206,10 +211,13 @@ async function handleInboundMessage(msg: any, profile: any) {
   }
 
   // trigger AI reply if bot owns the conversation — any message carrying real
-  // text: plain text, a button/list reply, or media with a caption
+  // text (plain, button/list reply, caption, or a transcribed voice note),
+  // or an image (Claude reads the image directly)
   const hasRealText = !!body && !/^\[(image|video|document|audio|sticker)\]$/i.test(body);
-  if (thread.status === "bot" && type !== "reaction" && hasRealText) {
-    await enqueueAiReply(thread.id, body).catch((e) => console.error("[wa-webhook] ai enqueue failed", e));
+  const isImage = type === "image" && !!mediaUrl;
+  if (thread.status === "bot" && type !== "reaction" && (hasRealText || isImage)) {
+    await enqueueAiReply(thread.id, body, isImage ? mediaUrl : null)
+      .catch((e) => console.error("[wa-webhook] ai enqueue failed", e));
   }
 }
 
@@ -220,11 +228,11 @@ async function handleInboundMessage(msg: any, profile: any) {
 // 2. Fire a best-effort fast-path call to wa-ai-reply so the customer normally
 //    gets an instant reply. It carries the job_id so a successful run marks
 //    the job done and the cron never has to touch it.
-async function enqueueAiReply(threadId: string, lastMessage: string) {
+async function enqueueAiReply(threadId: string, lastMessage: string, imageUrl: string | null = null) {
   const sb = db();
   const { data: job } = await sb.from("wa_jobs").insert({
     kind: "ai_reply",
-    payload: { thread_id: threadId, last_message: lastMessage },
+    payload: { thread_id: threadId, last_message: lastMessage, image_url: imageUrl },
     // give the fast path a generous window before the cron may pick it up
     run_after: new Date(Date.now() + 120_000).toISOString(),
   }).select("id").single();
@@ -236,7 +244,7 @@ async function enqueueAiReply(threadId: string, lastMessage: string) {
       "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ thread_id: threadId, last_message: lastMessage, job_id: job?.id ?? null }),
+    body: JSON.stringify({ thread_id: threadId, last_message: lastMessage, image_url: imageUrl, job_id: job?.id ?? null }),
   }).catch((e) => console.error("[wa-webhook] fast-path ai invoke failed", e));
 }
 
@@ -253,6 +261,33 @@ function mimeExt(mime: string): string {
     "text/plain": "txt",
   };
   return map[base] ?? "bin";
+}
+
+// Transcribe a voice note via OpenAI Whisper. Returns null if no key or failure
+// — the caller then falls back to "[audio]" and a human picks it up.
+async function transcribeAudio(bytes: Uint8Array, mime: string): Promise<string | null> {
+  const key = Deno.env.get("OPENAI_API_KEY");
+  if (!key) return null;
+  try {
+    const fd = new FormData();
+    fd.append("file", new Blob([bytes], { type: mime }), `voice.${mimeExt(mime)}`);
+    fd.append("model", Deno.env.get("WA_TRANSCRIBE_MODEL") ?? "whisper-1");
+    const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}` },
+      body: fd,
+    });
+    if (!r.ok) {
+      console.error("[wa-webhook] whisper failed", r.status, (await r.text().catch(() => "")).slice(0, 200));
+      return null;
+    }
+    const out = await r.json();
+    const text = String(out?.text ?? "").trim();
+    return text || null;
+  } catch (e) {
+    console.error("[wa-webhook] whisper error", e);
+    return null;
+  }
 }
 
 // Non-message webhook fields → connector_events for dashboard visibility,
