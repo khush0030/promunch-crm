@@ -58,7 +58,41 @@ export async function logConnector(input: ConnectorEventInput): Promise<void> {
       detail: input.detail ?? null,
       ref: input.ref ?? null,
     });
+
+    // page the team on Slack when a pipeline errors — no error sits silent
+    if (input.level === "error") await pingSlackOnError(input);
   } catch (e) {
     console.warn(`connector_events insert failed (${input.connector}/${input.event}):`, e);
+  }
+}
+
+const SLACK_ERROR_THROTTLE_MIN = 10;
+
+// Post an error event to Slack. Self-throttled per connector+event so a
+// repeatedly-failing pipeline pings once, not every retry.
+async function pingSlackOnError(input: ConnectorEventInput): Promise<void> {
+  const webhook = Deno.env.get("SLACK_WEBHOOK_URL");
+  if (!webhook) return;
+  try {
+    const since = new Date(Date.now() - SLACK_ERROR_THROTTLE_MIN * 60_000).toISOString();
+    const { count } = await db()
+      .from("connector_events")
+      .select("id", { count: "exact", head: true })
+      .eq("connector", input.connector)
+      .eq("event", input.event)
+      .eq("level", "error")
+      .gte("created_at", since);
+    // the row inserted just above is included — only the first error pings
+    if ((count ?? 0) > 1) return;
+
+    await fetch(webhook, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: `🚨 *${input.connector}* error — \`${input.event}\`\n${input.message ?? "(no message)"}`,
+      }),
+    });
+  } catch (e) {
+    console.warn("connector error Slack ping failed:", e);
   }
 }

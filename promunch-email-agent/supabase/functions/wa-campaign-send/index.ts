@@ -15,8 +15,12 @@ import { db } from "../_shared/supabase.ts";
 import { sendTemplate, TemplateComponent } from "../_shared/whatsapp.ts";
 
 const THROTTLE_MS = 120;
-const MAX_STATIC = 800;        // per-invocation cap, static send
-const MAX_PERSONALIZED = 40;   // per-invocation cap, AI send (a Claude call each)
+// Per-invocation caps — kept well under the edge-function wall-clock limit so
+// a batch always returns and chains its successor. 300 static sends ≈ 96s of
+// throttle + send; 20 personalised sends ≈ 20 Claude calls. The campaign
+// self-chains, so a lower cap just means more (safer) hops.
+const MAX_STATIC = 300;        // per-invocation cap, static send
+const MAX_PERSONALIZED = 20;   // per-invocation cap, AI send (a Claude call each)
 const STALE_MS = 10 * 60_000;
 const PERSONALIZE_MODEL = Deno.env.get("WA_PERSONALIZE_MODEL") ?? "claude-haiku-4-5-20251001";
 

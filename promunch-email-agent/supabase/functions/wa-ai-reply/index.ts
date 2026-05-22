@@ -39,11 +39,11 @@ Escalate when:
 
 Never make promises about delivery dates or refunds you cannot back from the KB.`;
 
-interface InvokeBody { thread_id: string; last_message?: string; draft?: boolean }
+interface InvokeBody { thread_id: string; last_message?: string; draft?: boolean; job_id?: string | null }
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
-  const { thread_id, last_message, draft } = (await req.json()) as InvokeBody;
+  const { thread_id, last_message, draft, job_id } = (await req.json()) as InvokeBody;
   if (!thread_id) return j({ error: "thread_id required" }, 400);
 
   const sb = db();
@@ -112,8 +112,11 @@ Deno.serve(async (req) => {
   }
 
   // ---- normal mode: send or escalate ----
+  // Each outcome below is a terminal success for the durable wa_jobs row —
+  // a decision was produced — so mark the job done to stop cron retries.
   if (!decision) {
     await escalate(thread_id, "AI output unparseable", "general", "normal");
+    await markJobDone(job_id);
     return j({ ok: false, action: "escalate", reason: "unparseable" });
   }
 
@@ -126,6 +129,7 @@ Deno.serve(async (req) => {
       ai_generated: true,
       ai_meta: { model: MODEL, usage: resp.usage },
     });
+    await markJobDone(job_id);
     return j({ ok: true, action: "reply" });
   }
 
@@ -135,8 +139,17 @@ Deno.serve(async (req) => {
     decision.ticket_category ?? "general",
     decision.ticket_priority ?? "normal",
   );
+  await markJobDone(job_id);
   return j({ ok: true, action: "escalate" });
 });
+
+// Mark the durable wa_jobs row done so wa-jobs-tick won't retry it.
+// No-op for draft mode / dashboard calls, which carry no job_id.
+async function markJobDone(jobId?: string | null) {
+  if (!jobId) return;
+  await db().from("wa_jobs").update({ status: "done", last_error: null })
+    .eq("id", jobId).then(() => {}, () => {});
+}
 
 function parseDecision(s: string): any {
   if (!s) return null;

@@ -209,20 +209,35 @@ async function handleInboundMessage(msg: any, profile: any) {
   // text: plain text, a button/list reply, or media with a caption
   const hasRealText = !!body && !/^\[(image|video|document|audio|sticker)\]$/i.test(body);
   if (thread.status === "bot" && type !== "reaction" && hasRealText) {
-    invokeAiReply(thread.id, body).catch((e) => console.error("[wa-webhook] ai invoke failed", e));
+    await enqueueAiReply(thread.id, body).catch((e) => console.error("[wa-webhook] ai enqueue failed", e));
   }
 }
 
-async function invokeAiReply(threadId: string, lastMessage: string) {
+// Durably hand off an inbound message for an AI reply.
+//
+// 1. Persist a wa_jobs row FIRST — this is the safety net. If anything below
+//    fails, wa-jobs-tick will still drain it with retries.
+// 2. Fire a best-effort fast-path call to wa-ai-reply so the customer normally
+//    gets an instant reply. It carries the job_id so a successful run marks
+//    the job done and the cron never has to touch it.
+async function enqueueAiReply(threadId: string, lastMessage: string) {
+  const sb = db();
+  const { data: job } = await sb.from("wa_jobs").insert({
+    kind: "ai_reply",
+    payload: { thread_id: threadId, last_message: lastMessage },
+    // give the fast path a generous window before the cron may pick it up
+    run_after: new Date(Date.now() + 120_000).toISOString(),
+  }).select("id").single();
+
   const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-ai-reply`;
-  await fetch(url, {
+  fetch(url, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ thread_id: threadId, last_message: lastMessage }),
-  });
+    body: JSON.stringify({ thread_id: threadId, last_message: lastMessage, job_id: job?.id ?? null }),
+  }).catch((e) => console.error("[wa-webhook] fast-path ai invoke failed", e));
 }
 
 // Map a WhatsApp media MIME type to a file extension for the storage path.
