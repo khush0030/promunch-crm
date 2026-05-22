@@ -83,9 +83,9 @@ async function runJob(job: any): Promise<{ ok: boolean; error?: string }> {
       });
       const data = await r.json().catch(() => null);
       if (!r.ok) return { ok: false, error: `wa-ai-reply HTTP ${r.status}` };
-      // a produced decision — reply OR escalate — is a terminal success
-      if (data?.action === "reply" || data?.action === "escalate") return { ok: true };
-      return { ok: false, error: data?.error ?? "wa-ai-reply produced no decision" };
+      // wa-ai-reply always replies on success — ok:true is the terminal signal
+      if (data?.ok === true) return { ok: true };
+      return { ok: false, error: data?.error ?? "wa-ai-reply produced no reply" };
     } catch (e) {
       return { ok: false, error: String(e) };
     }
