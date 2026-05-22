@@ -238,7 +238,7 @@ async function enqueueAiReply(threadId: string, lastMessage: string, imageUrl: s
   }).select("id").single();
 
   const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-ai-reply`;
-  fetch(url, {
+  const fastPath = fetch(url, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
@@ -246,6 +246,14 @@ async function enqueueAiReply(threadId: string, lastMessage: string, imageUrl: s
     },
     body: JSON.stringify({ thread_id: threadId, last_message: lastMessage, image_url: imageUrl, job_id: job?.id ?? null }),
   }).catch((e) => console.error("[wa-webhook] fast-path ai invoke failed", e));
+
+  // Keep the fast-path request alive after the webhook returns its 200 —
+  // without waitUntil the edge runtime can tear the instance down before the
+  // call lands, leaving the customer to wait for the wa-jobs-tick cron.
+  try {
+    (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } })
+      .EdgeRuntime?.waitUntil(fastPath);
+  } catch { /* not on the edge runtime — fall through */ }
 }
 
 // Map a WhatsApp media MIME type to a file extension for the storage path.

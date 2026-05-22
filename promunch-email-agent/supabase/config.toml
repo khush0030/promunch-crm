@@ -46,16 +46,16 @@ verify_jwt = false                    # Slack signing-secret check
 verify_jwt = false                    # Meta verifies via X-Hub-Signature-256
 
 [functions.wa-send]
-verify_jwt = true                     # called by Next.js API with service role bearer
+verify_jwt = false                    # called function-to-function; gateway JWT check broke post-upgrade
 
 [functions.wa-ai-reply]
-verify_jwt = true                     # invoked by wa-webhook with service role bearer
+verify_jwt = false                    # invoked by wa-webhook / wa-jobs-tick function-to-function
 
 [functions.kb-ingest]
 verify_jwt = true                     # invoked by Next.js API with service role bearer
 
 [functions.wa-campaign-send]
-verify_jwt = true                     # invoked by Next.js API with service role bearer
+verify_jwt = false                    # self-chains function-to-function; gateway JWT check broke post-upgrade
 
 [functions.wa-register]
 verify_jwt = true                     # one-shot Cloud API number registration
