@@ -60,6 +60,9 @@ verify_jwt = false                    # self-chains function-to-function; gatewa
 [functions.wa-register]
 verify_jwt = true                     # one-shot Cloud API number registration
 
+[functions.wa-template-create]
+verify_jwt = true                     # one-shot admin: pushes templates to Meta
+
 [functions.shopify-wa]
 verify_jwt = false                    # Shopify uses HMAC header
 
