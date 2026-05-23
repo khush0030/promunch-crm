@@ -38,6 +38,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (typeof supportRes.count === "number" && supportRes.count > 0) {
         next.supportPending = supportRes.count;
       }
+      // Missing order confirmations — a sidebar badge so a miss is impossible
+      // to overlook. Uses the service-role API route, not the anon client.
+      try {
+        const r = await fetch("/api/whatsapp/confirmations?hours=24", { cache: "no-store" });
+        if (r.ok && !cancelled) {
+          const d = await r.json();
+          if (typeof d?.summary?.outstanding === "number" && d.summary.outstanding > 0) {
+            next.confirmationsMissing = d.summary.outstanding;
+          }
+        }
+      } catch {}
+      if (cancelled) return;
       setCounts(next);
     }
     load().catch(() => {});

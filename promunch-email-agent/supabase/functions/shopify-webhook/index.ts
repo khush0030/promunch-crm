@@ -18,6 +18,7 @@ import { db } from "../_shared/supabase.ts";
 import { buildOrderBlocks, fmtMoney, postSlack, verifyShopifyHmac } from "../_shared/shopify.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 import { toWaId } from "../_shared/journeys.ts";
+import { handleOrderCreated } from "../_shared/order-confirmation.ts";
 
 const ok = (extra: Record<string, unknown> = {}) =>
   new Response(JSON.stringify({ ok: true, ...extra }), { headers: { "content-type": "application/json" } });
@@ -90,6 +91,24 @@ Deno.serve(async (req) => {
       ref: orderNumber,
     });
     return ok({ refreshed: true, topic });
+  }
+
+  // ===== WhatsApp order confirmation =====
+  // shopify-webhook is the single proven-reliable Shopify entry point, so we
+  // fire the WhatsApp flow from here too — independent of shopify-wa's own
+  // (less reliable) Shopify subscription. The shared handler is idempotent:
+  // it dedups against wa_messages, so calling it from multiple trigger paths
+  // never produces a duplicate message. If this errors, the wa-confirmation-
+  // sweep cron will pick the order up within ~1 minute.
+  try {
+    await handleOrderCreated(order);
+  } catch (e) {
+    console.error("[shopify-webhook] handleOrderCreated failed", e);
+    await logConnector({
+      connector: "shopify_wa", level: "error", event: "handler_failed",
+      message: `Order ${orderNumber}: confirmation handler errored — ${(e instanceof Error ? e.message : String(e)).slice(0, 300)}`,
+      ref: orderNumber,
+    }).catch(() => {});
   }
 
   // Prior order count for this customer (excluding the one we just inserted).

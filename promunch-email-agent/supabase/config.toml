@@ -69,6 +69,9 @@ verify_jwt = false                    # Shopify uses HMAC header
 [functions.wa-journey-tick]
 verify_jwt = false                    # invoked by scheduled cron
 
+[functions.wa-confirmation-sweep]
+verify_jwt = false                    # invoked by scheduled cron
+
 [functions.wa-jobs-tick]
 verify_jwt = false                    # invoked by scheduled cron
 

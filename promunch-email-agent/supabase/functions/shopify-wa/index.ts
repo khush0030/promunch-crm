@@ -13,7 +13,8 @@
 import { db } from "../_shared/supabase.ts";
 import { verifyShopifyHmac } from "../_shared/shopify.ts";
 import { logConnector } from "../_shared/connector-log.ts";
-import { REVIEW_URL, SITE_URL, TIMED_JOURNEYS, firstName, toWaId } from "../_shared/journeys.ts";
+import { SITE_URL, firstName, toWaId } from "../_shared/journeys.ts";
+import { handleOrderCreated } from "../_shared/order-confirmation.ts";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
@@ -31,7 +32,7 @@ Deno.serve(async (req) => {
   try { payload = JSON.parse(raw); } catch { return new Response("bad-json", { status: 400 }); }
 
   try {
-    if (topic === "orders/create") await handleOrderCreate(payload);
+    if (topic === "orders/create") await handleOrderCreated(payload);
     else if (topic === "orders/fulfilled") await handleOrderFulfilled(payload);
     else if (topic === "orders/cancelled") await handleOrderCancelled(payload);
     else if (topic === "checkouts/create" || topic === "checkouts/update") await handleCheckout(payload);
@@ -50,68 +51,10 @@ Deno.serve(async (req) => {
   return new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json" } });
 });
 
-// --- orders/create: confirmation + post-purchase enrolment -------------------
-async function handleOrderCreate(order: any) {
-  const sb = db();
-  const orderRef: string = order.name || `#${order.order_number}` || String(order.id);
-
-  // Shopify status guard — never send "your order is confirmed!" for an order
-  // that is already cancelled / voided / refunded. This happens when the
-  // orders/create webhook is delayed or retried, or for a test order: by the
-  // time we process it the order is no longer active.
-  if (!orderIsActive(order)) {
-    await logConnector({
-      connector: "shopify_wa", level: "info", event: "order_not_active",
-      message: `Order ${orderRef} is ${orderState(order)} — skipped WhatsApp confirmation + journey enrolment.`,
-      ref: orderRef,
-    }).catch(() => {});
-    return;
-  }
-
-  // idempotency — if we've already processed this order, stop
-  const { data: prior } = await sb.from("wa_journey_runs").select("id").eq("order_ref", orderRef).limit(1);
-  if (prior && prior.length) return;
-
-  const waId = toWaId(
-    order.customer?.phone ?? order.phone ?? order.shipping_address?.phone ?? order.billing_address?.phone,
-  );
-  if (!waId) {
-    await logConnector({
-      connector: "shopify_wa", level: "info", event: "no_phone",
-      message: `Order ${orderRef}: no usable phone — WhatsApp messages skipped.`, ref: orderRef,
-    });
-    return;
-  }
-
-  const name = firstName(order.customer?.first_name, order.shipping_address?.first_name, order.billing_address?.first_name);
-  const total = String(order.total_price ?? order.current_total_price ?? "");
-
-  // 1. immediate order confirmation (utility)
-  const res = await callWaSend({
-    to: waId,
-    kind: "template",
-    template: { name: "order_confirmation", language: "en", vars: { "1": name, "2": orderRef, "3": total } },
-    sent_by: "journey:order_confirmation",
-  });
-  await logConnector({
-    connector: "shopify_wa",
-    level: res?.ok ? "info" : "error",
-    event: res?.ok ? "confirmation_sent" : "confirmation_failed",
-    message: res?.ok
-      ? `Order ${orderRef}: WhatsApp confirmation sent to ${waId}.`
-      : `Order ${orderRef}: confirmation failed — ${res?.error ?? "unknown"}.`,
-    ref: orderRef,
-  }).catch(() => {});
-
-  // 2. cancel any open abandoned-checkout reminder — they converted
-  await sb.from("wa_journey_runs")
-    .update({ status: "converted" })
-    .eq("wa_id", waId).eq("journey_key", "abandoned_checkout").eq("status", "active");
-
-  // 3. enrol the timed post-purchase journeys
-  await enrol("review_request", waId, orderRef, { "1": name, "2": REVIEW_URL });
-  await enrol("replenishment_reminder", waId, orderRef, { "1": name, "2": SITE_URL });
-}
+// orders/create is delegated to the shared handleOrderCreated — see
+// _shared/order-confirmation.ts. shopify-webhook (the proven-reliable
+// Shopify entry point) also calls it, so the confirmation goes out no
+// matter which Shopify subscription delivers first.
 
 // --- orders/fulfilled: shipping update --------------------------------------
 async function handleOrderFulfilled(order: any) {
@@ -231,22 +174,25 @@ function orderState(order: any): string {
   return fin === "voided" || fin === "refunded" ? fin : "active";
 }
 
-// Queue a timed journey message in wa_journey_runs.
-async function enrol(journeyKey: string, waId: string, orderRef: string, vars: Record<string, string>) {
-  const cfg = TIMED_JOURNEYS[journeyKey];
-  if (!cfg) return;
-  const due = new Date(Date.now() + cfg.delayHours * 3600_000).toISOString();
-  await db().from("wa_journey_runs").insert({
-    journey_key: journeyKey,
-    wa_id: waId,
-    next_action_at: due,
-    context: { vars },
-    order_ref: orderRef,
-  });
+// Send via the wa-send edge function, retrying transient failures.
+//
+// This webhook always returns 200 (Shopify retries non-2xx aggressively), so
+// Shopify never re-delivers on our behalf — a failed send here is final.
+// A missed order confirmation is worse than a rare duplicate attempt, so we
+// retry 3x with short backoff. ok:false means Meta did NOT accept the message,
+// so a retry sends nothing twice; the wa-confirmation-sweep cron is the final
+// backstop for anything that still fails all 3 tries.
+async function callWaSend(body: unknown): Promise<{ ok?: boolean; error?: string } | null> {
+  let last: { ok?: boolean; error?: string } | null = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    last = await callWaSendOnce(body);
+    if (last?.ok) return last;
+    if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 750));
+  }
+  return last;
 }
 
-// Send via the wa-send edge function (records the message + thread).
-async function callWaSend(body: unknown): Promise<{ ok?: boolean; error?: string } | null> {
+async function callWaSendOnce(body: unknown): Promise<{ ok?: boolean; error?: string } | null> {
   const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-send`;
   try {
     const r = await fetch(url, {
