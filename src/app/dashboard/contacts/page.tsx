@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Upload, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Upload, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 
 type ContactRow = {
@@ -59,6 +59,15 @@ export default function ContactsPage() {
   const [sort, setSort] = useState("created_at");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
   const [showFilters, setShowFilters] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  // Klaviyo list / segment filter — at most one active at a time.
+  const [audience, setAudience] = useState<{ type: "list" | "segment"; value: string } | null>(
+    null
+  );
+  const [facets, setFacets] = useState<{
+    lists: { name: string; count: number }[];
+    segments: { name: string; count: number }[];
+  }>({ lists: [], segments: [] });
 
   const fetchContacts = useCallback(async () => {
     setIsLoading(true);
@@ -66,6 +75,8 @@ export default function ContactsPage() {
       const params = new URLSearchParams({ page: String(page), limit: "15" });
       if (search) params.set("search", search);
       if (activeFilter !== "All") params.set("status", activeFilter);
+      if (audience?.type === "list") params.set("list", audience.value);
+      if (audience?.type === "segment") params.set("segment", audience.value);
       if (minOrders) params.set("minOrders", minOrders);
       if (minLtv) params.set("minLtv", minLtv);
       if (lastOrderDays) {
@@ -121,12 +132,20 @@ export default function ContactsPage() {
       setIsLoading(false);
       setLoaded(true);
     }
-  }, [search, activeFilter, page, minOrders, minLtv, lastOrderDays, lastOrderOp, sort, dir]);
+  }, [search, activeFilter, audience, page, minOrders, minLtv, lastOrderDays, lastOrderOp, sort, dir]);
 
   useEffect(() => {
     const timer = setTimeout(fetchContacts, 300);
     return () => clearTimeout(timer);
   }, [fetchContacts]);
+
+  // Klaviyo lists & segments available for filter chips.
+  useEffect(() => {
+    fetch("/api/contacts/facets")
+      .then((r) => r.json())
+      .then((d) => setFacets({ lists: d.lists ?? [], segments: d.segments ?? [] }))
+      .catch(() => {});
+  }, []);
 
   async function runImport(source: "klaviyo" | "shopify") {
     setImporting(true);
@@ -173,24 +192,65 @@ export default function ContactsPage() {
               {importMsg}
             </span>
           )}
-          <button
-            type="button"
-            className="btn"
-            disabled={importing}
-            onClick={() => runImport("klaviyo")}
-          >
-            <Upload size={14} />
-            {importing ? "Importing…" : "Import from Klaviyo"}
-          </button>
-          <button
-            type="button"
-            className="btn primary"
-            disabled={importing}
-            onClick={() => runImport("shopify")}
-          >
-            <Upload size={14} />
-            Import from Shopify
-          </button>
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              className="btn primary"
+              disabled={importing}
+              onClick={() => setImportOpen((o) => !o)}
+            >
+              <Upload size={14} />
+              {importing ? "Importing…" : "Import / Sync"}
+              <ChevronDown size={13} />
+            </button>
+            {importOpen && (
+              <>
+                <div
+                  onClick={() => setImportOpen(false)}
+                  style={{ position: "fixed", inset: 0, zIndex: 19 }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: "calc(100% + 4px)",
+                    background: "var(--card-bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    boxShadow: "var(--card-shadow)",
+                    zIndex: 20,
+                    minWidth: 190,
+                    overflow: "hidden",
+                  }}
+                >
+                  {(["klaviyo", "shopify"] as const).map((src) => (
+                    <button
+                      key={src}
+                      type="button"
+                      onClick={() => {
+                        setImportOpen(false);
+                        runImport(src);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        width: "100%",
+                        padding: "9px 12px",
+                        fontSize: 13,
+                        background: "none",
+                        border: "none",
+                        textAlign: "left",
+                        color: "var(--text)",
+                      }}
+                    >
+                      <Upload size={13} /> Import from {src === "klaviyo" ? "Klaviyo" : "Shopify"}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -257,6 +317,64 @@ export default function ContactsPage() {
           </button>
         </div>
       </div>
+
+      {(facets.segments.length > 0 || facets.lists.length > 0) && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          <span style={{ fontSize: 12, color: "var(--text-3)", fontWeight: 500 }}>
+            Segments &amp; lists
+          </span>
+          <div className="chips">
+            {facets.segments.slice(0, 8).map((s) => (
+              <button
+                key={`seg-${s.name}`}
+                type="button"
+                className={`chip${
+                  audience?.type === "segment" && audience.value === s.name ? " active" : ""
+                }`}
+                title={`Segment · ${s.count} contact${s.count === 1 ? "" : "s"}`}
+                onClick={() => {
+                  setAudience((a) =>
+                    a?.type === "segment" && a.value === s.name
+                      ? null
+                      : { type: "segment", value: s.name }
+                  );
+                  setPage(1);
+                }}
+              >
+                {s.name}
+              </button>
+            ))}
+            {facets.lists.slice(0, 6).map((l) => (
+              <button
+                key={`list-${l.name}`}
+                type="button"
+                className={`chip${
+                  audience?.type === "list" && audience.value === l.name ? " active" : ""
+                }`}
+                title={`List · ${l.count} contact${l.count === 1 ? "" : "s"}`}
+                onClick={() => {
+                  setAudience((a) =>
+                    a?.type === "list" && a.value === l.name
+                      ? null
+                      : { type: "list", value: l.name }
+                  );
+                  setPage(1);
+                }}
+              >
+                {l.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showFilters && (
         <div className="card card-pad section" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr) auto", gap: 12, alignItems: "end" }}>
@@ -334,8 +452,8 @@ export default function ContactsPage() {
         </div>
       )}
 
-      <div className="card" style={{ opacity: isLoading ? 0.7 : 1, transition: "opacity 0.2s" }}>
-        {contacts.length > 0 ? (
+      {contacts.length > 0 ? (
+        <div className="card" style={{ opacity: isLoading ? 0.7 : 1, transition: "opacity 0.2s" }}>
           <table className="tbl">
             <thead>
               <tr>
@@ -405,20 +523,6 @@ export default function ContactsPage() {
               })}
             </tbody>
           </table>
-        ) : (
-          <div style={{ padding: "64px 24px", textAlign: "center" }}>
-            <div style={{ fontSize: 15, color: "var(--text-2)", fontWeight: 600, marginBottom: 8 }}>
-              {loaded ? "No contacts yet" : "Loading…"}
-            </div>
-            {loaded && (
-              <div className="muted" style={{ fontSize: 13, maxWidth: 360, margin: "0 auto" }}>
-                Import contacts from Shopify or Klaviyo to get started, or add them manually.
-              </div>
-            )}
-          </div>
-        )}
-
-        {contacts.length > 0 && (
           <div
             style={{
               display: "flex",
@@ -455,8 +559,32 @@ export default function ContactsPage() {
               </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="empty">
+          <div className="ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </div>
+          <h3>{loaded ? "No contacts yet" : "Loading…"}</h3>
+          {loaded && (
+            <p>Import contacts from Shopify or Klaviyo to get started, or add them manually.</p>
+          )}
+          {loaded && (
+            <button
+              type="button"
+              className="btn primary"
+              disabled={importing}
+              onClick={() => runImport("shopify")}
+            >
+              <Upload size={14} /> Import from Shopify
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

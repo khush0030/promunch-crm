@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MessageSquare, Send, Bot, User as UserIcon, Search, Plus, Upload, RefreshCw, Trash2,
   Tag, AlertTriangle, CheckCircle2, Inbox as InboxIcon, FileText, Sparkles, Megaphone, Ticket as TicketIcon,
-  ExternalLink, ShoppingBag, MapPin, Archive, ArchiveRestore,
+  ExternalLink, ShoppingBag, MapPin, Archive, ArchiveRestore, ChevronDown,
 } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 
 type Tab = "inbox" | "templates" | "campaigns" | "kb" | "tickets";
 
@@ -143,9 +144,12 @@ function Header() {
   );
 }
 
-/* WhatsApp uptime / health meter — polls /api/whatsapp/health every 30s. */
+/* WhatsApp uptime / health meter — polls /api/whatsapp/health every 30s.
+   Collapsed to a single status pill above the inbox; click to expand the
+   full uptime detail. */
 function StatusMeter() {
   const [h, setH] = useState<any>(null);
+  const [open, setOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -162,10 +166,11 @@ function StatusMeter() {
   const status: string = h?.status ?? "unknown";
   const dot = status === "up" ? WA_GREEN : status === "down" ? "var(--accent)" : "var(--text-3)";
   const failed: number = h?.failedOutbound24h ?? 0;
+  const statusLabel = status === "up" ? "Operational" : status === "down" ? "Down" : "Unknown";
 
   const cells: Array<{ label: string; value: string; color?: string; dot?: boolean }> = [
     { label: "Cloud API", dot: true, color: dot,
-      value: status === "up" ? "Operational" : status === "down" ? "Down" : "Unknown" },
+      value: statusLabel },
     { label: "Uptime 24h", value: h?.uptime24h != null ? `${h.uptime24h}%` : "—" },
     { label: "Uptime 7d", value: h?.uptime7d != null ? `${h.uptime7d}%` : "—" },
     { label: "Last message in", value: timeAgo(h?.lastInboundAt ?? null) },
@@ -175,19 +180,47 @@ function StatusMeter() {
   ];
 
   return (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "2px 0 14px" }}>
-      {cells.map((c) => (
-        <div key={c.label} style={{
-          flex: "1 1 120px", background: "var(--card-bg)", border: "1px solid var(--border)",
-          borderRadius: 10, padding: "9px 12px",
-        }}>
-          <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 3, display: "flex", alignItems: "center", gap: 5 }}>
-            {c.dot && <span style={{ width: 8, height: 8, borderRadius: 999, background: dot, display: "inline-block" }} />}
-            {c.label}
-          </div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: c.color ?? "var(--text)" }}>{c.value}</div>
+    <div style={{ margin: "2px 0 14px" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        title={open ? "Hide health detail" : "Show health detail"}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 8,
+          background: "var(--card-bg)", border: "1px solid var(--border)",
+          borderRadius: 999, padding: "6px 13px", fontSize: 13, fontWeight: 600,
+          color: "var(--text)", cursor: "pointer",
+        }}
+      >
+        <span style={{ width: 8, height: 8, borderRadius: 999, background: dot, display: "inline-block" }} />
+        WhatsApp · {statusLabel}
+        {failed > 0 && (
+          <span style={{ color: "var(--accent)", fontWeight: 600 }}>· {failed} failed</span>
+        )}
+        <ChevronDown
+          size={13}
+          style={{
+            color: "var(--text-3)", transition: "transform .15s",
+            transform: open ? "rotate(180deg)" : "none",
+          }}
+        />
+      </button>
+      {open && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+          {cells.map((c) => (
+            <div key={c.label} style={{
+              flex: "1 1 120px", background: "var(--card-bg)", border: "1px solid var(--border)",
+              borderRadius: 10, padding: "9px 12px",
+            }}>
+              <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 3, display: "flex", alignItems: "center", gap: 5 }}>
+                {c.dot && <span style={{ width: 8, height: 8, borderRadius: 999, background: dot, display: "inline-block" }} />}
+                {c.label}
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: c.color ?? "var(--text)" }}>{c.value}</div>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -416,6 +449,7 @@ function Pill({ icon: Icon, label, bg, color }: { icon: any; label: string; bg: 
 }
 
 function ConversationPane({ thread, onChange }: { thread: Thread | null; onChange: (t: Thread) => void }) {
+  const toast = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -465,7 +499,8 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
         body: JSON.stringify(body),
       });
       const j = await r.json();
-      if (j.ok === false || j.error) alert("Send failed: " + (j.error ?? "unknown"));
+      if (j.ok === false || j.error)
+        toast.push({ kind: "error", text: "Send failed: " + (j.error ?? "unknown") });
       setText("");
       setPickingTemplate(false);
       load();
@@ -487,13 +522,16 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
     try {
       const r = await fetch(`/api/whatsapp/threads/${thread!.id}/draft`, { method: "POST" });
       const j = await r.json();
-      if (j.error) { alert("AI draft failed: " + j.error); return; }
+      if (j.error) { toast.push({ kind: "error", text: "AI draft failed: " + j.error }); return; }
       if (j.action === "escalate") {
-        alert("AI suggests escalating to a human:\n" + (j.reason || "needs human attention"));
+        toast.push({
+          kind: "info",
+          text: "AI suggests escalating to a human: " + (j.reason || "needs human attention"),
+        });
         return;
       }
       if (j.draft) setText(j.draft);
-      else alert("AI returned no draft.");
+      else toast.push({ kind: "info", text: "AI returned no draft." });
     } finally { setDrafting(false); }
   }
 
@@ -508,19 +546,8 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
             {thread.contact.name || thread.contact.phone}
             <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 500, color: "var(--text-2)" }}>{thread.contact.phone}</span>
           </div>
-          <div style={{ marginTop: 4, display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <Pill icon={thread.status === "bot" ? Bot : UserIcon} label={thread.status}
-              bg={thread.status === "bot" ? "rgba(37,211,102,0.12)" : "rgba(59,130,246,0.12)"}
-              color={thread.status === "bot" ? "var(--green)" : "#1d4ed8"} />
-            {thread.ticket_status !== "none" && (
-              <Pill icon={TicketIcon} label={`#${thread.ticket_number} ${ticketStatusStyle[thread.ticket_status].label}`}
-                bg={ticketStatusStyle[thread.ticket_status].bg} color={ticketStatusStyle[thread.ticket_status].color} />
-            )}
-            {thread.ticket_priority && thread.ticket_status !== "none" && (
-              <Pill icon={AlertTriangle} label={thread.ticket_priority}
-                bg={priorityStyle[thread.ticket_priority].bg} color={priorityStyle[thread.ticket_priority].color} />
-            )}
-          </div>
+          {/* Status / ticket / priority live in the <select> dropdowns on the right —
+              the read-only Pills here were a duplicate and have been removed. */}
           {thread.escalation_reason &&
             (thread.ticket_status === "open" || thread.ticket_status === "pending") && (
             <div style={{ fontSize: 12, color: "#92400e", marginTop: 6 }}>
@@ -896,6 +923,7 @@ const templateStatusColor: Record<string, string> = {
 };
 
 function TemplatesView() {
+  const toast = useToast();
   const [list, setList] = useState<Template[]>([]);
   const [editing, setEditing] = useState<Partial<Template> | null>(null);
   const [bodySamples, setBodySamples] = useState<Record<string, string>>({});
@@ -929,7 +957,7 @@ function TemplatesView() {
         body: JSON.stringify({ ...editing, status: "draft" }),
       });
       const j = await r.json();
-      if (j.error) { alert(j.error); return; }
+      if (j.error) { toast.push({ kind: "error", text: j.error }); return; }
       setEditing(null);
       load();
     } finally { setBusy(false); }
@@ -941,7 +969,10 @@ function TemplatesView() {
     const headerVars = templateVars(editing.header_text);
     if (bodyVars.some((n) => !bodySamples[n]?.trim()) ||
         headerVars.some((n) => !headerSamples[n]?.trim())) {
-      alert("Fill a sample value for every {{n}} variable — Meta needs them to review the template.");
+      toast.push({
+        kind: "error",
+        text: "Fill a sample value for every {{n}} variable — Meta needs them to review the template.",
+      });
       return;
     }
     if (!confirm("Submit this template to Meta for approval?\n\nMeta reviews it (usually minutes to a few hours). You can't send it to customers until it's approved.")) return;
@@ -962,10 +993,16 @@ function TemplatesView() {
       });
       const j = await r.json();
       if (j.error || j.ok === false) {
-        alert("Meta rejected the submission:\n" + (j.error || j.results?.[0]?.error || "unknown error"));
+        toast.push({
+          kind: "error",
+          text: "Meta rejected the submission: " + (j.error || j.results?.[0]?.error || "unknown error"),
+        });
         return;
       }
-      alert("Submitted to Meta ✅\nStatus: pending review. Use “Sync from Meta” later to pick up the approval.");
+      toast.push({
+        kind: "success",
+        text: "Submitted to Meta — pending review. Use “Sync from Meta” later to pick up the approval.",
+      });
       setEditing(null);
       load();
     } finally { setBusy(false); }
@@ -976,10 +1013,16 @@ function TemplatesView() {
     try {
       const r = await fetch("/api/whatsapp/templates/sync", { method: "POST" });
       const j = await r.json();
-      if (j.error || j.ok === false) { alert("Sync failed: " + (j.error ?? "unknown")); return; }
+      if (j.error || j.ok === false) {
+        toast.push({ kind: "error", text: "Sync failed: " + (j.error ?? "unknown") });
+        return;
+      }
       const synced = j.synced ?? [];
       const approved = synced.filter((s: any) => s.status === "approved").length;
-      alert(`Synced ${synced.length} template(s) from Meta — ${approved} approved.`);
+      toast.push({
+        kind: "success",
+        text: `Synced ${synced.length} template(s) from Meta — ${approved} approved.`,
+      });
       load();
     } finally { setSyncing(false); }
   }
@@ -1129,6 +1172,7 @@ function TemplatesView() {
 /* ----------------------------------------------------------------- */
 
 function KbView() {
+  const toast = useToast();
   const [docs, setDocs] = useState<KbDoc[]>([]);
   const [uploading, setUploading] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
@@ -1153,7 +1197,7 @@ function KbView() {
       fd.append("name", f.name);
       const r = await fetch("/api/whatsapp/kb", { method: "POST", body: fd });
       const j = await r.json();
-      if (j.error) alert(j.error);
+      if (j.error) toast.push({ kind: "error", text: j.error });
       load();
     } finally { setUploading(false); }
   }
@@ -1339,6 +1383,7 @@ const campaignStatusStyle: Record<string, { bg: string; color: string }> = {
 };
 
 function CampaignsView() {
+  const toast = useToast();
   const [list, setList] = useState<Campaign[]>([]);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -1362,8 +1407,12 @@ function CampaignsView() {
     try {
       const r = await fetch(`/api/whatsapp/campaigns/${c.id}/send`, { method: "POST" });
       const j = await r.json();
-      if (j.error) alert("Send failed: " + j.error);
-      else alert(`Done — ${j.sent} sent, ${j.failed} failed${j.remaining ? `, ${j.remaining} remaining (click Resume to continue)` : ""}.`);
+      if (j.error) toast.push({ kind: "error", text: "Send failed: " + j.error });
+      else
+        toast.push({
+          kind: "success",
+          text: `Done — ${j.sent} sent, ${j.failed} failed${j.remaining ? `, ${j.remaining} remaining (click Resume to continue)` : ""}.`,
+        });
       load();
     } finally { setBusy(null); }
   }
@@ -1378,8 +1427,12 @@ function CampaignsView() {
     try {
       const r = await fetch("/api/whatsapp/import-contacts", { method: "POST" });
       const j = await r.json();
-      if (j.error) alert("Import failed: " + j.error);
-      else alert(`Imported ${j.imported} new contact(s).\nScanned ${j.scanned}, skipped ${j.skipped} (no valid phone / duplicate).\nTotal WhatsApp contacts: ${j.total_wa_contacts}.`);
+      if (j.error) toast.push({ kind: "error", text: "Import failed: " + j.error });
+      else
+        toast.push({
+          kind: "success",
+          text: `Imported ${j.imported} new contact(s) · scanned ${j.scanned}, skipped ${j.skipped} (no valid phone / duplicate) · ${j.total_wa_contacts} WhatsApp contacts total.`,
+        });
     } finally { setImporting(false); }
   }
 
@@ -1455,6 +1508,7 @@ function CampaignsView() {
 }
 
 function CampaignModal({ onClose }: { onClose: () => void }) {
+  const toast = useToast();
   const [name, setName] = useState("");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateId, setTemplateId] = useState("");
@@ -1489,8 +1543,8 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
   }, [tpl, vars]);
 
   async function create(thenSend: boolean) {
-    if (!name.trim()) { alert("Campaign name required"); return; }
-    if (!templateId) { alert("Pick an approved template"); return; }
+    if (!name.trim()) { toast.push({ kind: "error", text: "Campaign name required" }); return; }
+    if (!templateId) { toast.push({ kind: "error", text: "Pick an approved template" }); return; }
     setSaving(true);
     try {
       const audience_filter =
@@ -1505,15 +1559,19 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
         body: JSON.stringify({ name, template_id: templateId, template_vars, audience_filter }),
       });
       const j = await r.json();
-      if (j.error) { alert(j.error); return; }
+      if (j.error) { toast.push({ kind: "error", text: j.error }); return; }
       if (thenSend && j.campaign?.id) {
         if (!confirm(`Send "${name}" to ≈${audienceCount ?? "?"} contact(s) now? Meta bills per message.`)) {
           onClose(); return;
         }
         const sr = await fetch(`/api/whatsapp/campaigns/${j.campaign.id}/send`, { method: "POST" });
         const sj = await sr.json();
-        if (sj.error) alert("Send failed: " + sj.error);
-        else alert(`Done — ${sj.sent} sent, ${sj.failed} failed${sj.remaining ? `, ${sj.remaining} remaining` : ""}.`);
+        if (sj.error) toast.push({ kind: "error", text: "Send failed: " + sj.error });
+        else
+          toast.push({
+            kind: "success",
+            text: `Done — ${sj.sent} sent, ${sj.failed} failed${sj.remaining ? `, ${sj.remaining} remaining` : ""}.`,
+          });
       }
       onClose();
     } finally { setSaving(false); }
@@ -1632,6 +1690,7 @@ function parseCSV(text: string): { headers: string[]; rows: string[][] } {
 }
 
 function CsvImportModal({ onClose }: { onClose: () => void }) {
+  const toast = useToast();
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<string[][]>([]);
   const [fileName, setFileName] = useState("");
@@ -1656,7 +1715,7 @@ function CsvImportModal({ onClose }: { onClose: () => void }) {
   }
 
   async function doImport() {
-    if (phoneCol < 0) { alert("Pick the phone-number column."); return; }
+    if (phoneCol < 0) { toast.push({ kind: "error", text: "Pick the phone-number column." }); return; }
     setImporting(true);
     try {
       const payload = rows.map((r) => ({
@@ -1669,8 +1728,12 @@ function CsvImportModal({ onClose }: { onClose: () => void }) {
         body: JSON.stringify({ rows: payload, tag: "csv_import" }),
       });
       const j = await res.json();
-      if (j.error) alert("Import failed: " + j.error);
-      else alert(`Imported ${j.imported} new contact(s).\nScanned ${j.scanned}, skipped ${j.skipped} (no valid phone / duplicate).\nTotal WhatsApp contacts: ${j.total_wa_contacts}.`);
+      if (j.error) toast.push({ kind: "error", text: "Import failed: " + j.error });
+      else
+        toast.push({
+          kind: "success",
+          text: `Imported ${j.imported} new contact(s) · scanned ${j.scanned}, skipped ${j.skipped} (no valid phone / duplicate) · ${j.total_wa_contacts} WhatsApp contacts total.`,
+        });
       onClose();
     } finally { setImporting(false); }
   }

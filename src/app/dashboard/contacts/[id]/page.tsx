@@ -11,6 +11,7 @@ import {
   Calendar,
   ShoppingBag,
   Trash2,
+  MessageSquare,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Avatar } from "@/components/ui/Avatar";
@@ -60,6 +61,28 @@ type EmailEvent = {
   created_at: string;
 };
 
+type WaMsg = {
+  id: string;
+  direction: "inbound" | "outbound";
+  type: string;
+  body: string | null;
+  status: string;
+  created_at: string;
+};
+
+type WaActivity = {
+  matched: boolean;
+  wa_id?: string;
+  name?: string | null;
+  thread_id?: string | null;
+  messages: WaMsg[];
+};
+
+type Activity =
+  | { kind: "order"; at: string; order: Order }
+  | { kind: "email"; at: string; event: EmailEvent }
+  | { kind: "wa"; at: string; msg: WaMsg };
+
 const eventPill: Record<string, string> = {
   clicked: "accent",
   opened: "green",
@@ -97,13 +120,14 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [contact, setContact] = useState<Contact | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [events, setEvents] = useState<EmailEvent[]>([]);
+  const [waActivity, setWaActivity] = useState<WaActivity>({ matched: false, messages: [] });
   const [loaded, setLoaded] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     async function load() {
-      const [contactRes, ordersRes, eventsRes] = await Promise.all([
+      const [contactRes, ordersRes, eventsRes, waRes] = await Promise.all([
         supabase.from("contacts").select("*").eq("id", id).maybeSingle(),
         supabase
           .from("orders")
@@ -117,6 +141,11 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           .eq("contact_id", id)
           .order("created_at", { ascending: false })
           .limit(15),
+        // WhatsApp activity via the unified-customer endpoint. Server-side
+        // because wa_* tables are RLS-blocked for the browser client.
+        fetch(`/api/contacts/${id}/whatsapp`)
+          .then((r) => r.json())
+          .catch(() => null),
       ]);
 
       if (contactRes.error || !contactRes.data) {
@@ -125,6 +154,15 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         setContact(contactRes.data as Contact);
         setOrders((ordersRes.data || []) as Order[]);
         setEvents((eventsRes.data || []) as EmailEvent[]);
+        if (waRes && typeof waRes === "object") {
+          setWaActivity({
+            matched: !!waRes.matched,
+            wa_id: waRes.wa_id,
+            name: waRes.name,
+            thread_id: waRes.thread_id,
+            messages: (waRes.messages ?? []) as WaMsg[],
+          });
+        }
       }
       setLoaded(true);
     }
@@ -274,79 +312,130 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         <Stat icon={ShoppingBag} bg="var(--amber-soft)" color="var(--amber)" label="Last purchase" value={fmtDate(contact.last_purchase_date)} />
       </div>
 
-      <div className="grid-2 section">
-        <div className="card card-pad">
-          <div className="card-title">Order history</div>
-          {orders.length > 0 ? (
-            <table className="tbl" style={{ marginTop: 10 }}>
-              <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Items</th>
-                  <th>Value</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.map((o) => {
-                  const items = o.products?.items || [];
-                  const label = items.length ? items.join(", ") : "—";
-                  return (
-                    <tr key={o.id}>
-                      <td style={{ color: "var(--accent)", fontWeight: 500 }}>
-                        {o.order_number ? `#${o.order_number}` : o.id.substring(0, 8)}
-                      </td>
-                      <td
-                        className="muted"
-                        title={label}
+      {/* Activity timeline — orders, email events and (when matched) WhatsApp
+          messages interleaved by date, newest first. The WhatsApp section is
+          resolved server-side via the unified-customer matching layer. */}
+      <div className="card card-pad section">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <div>
+            <div className="card-title">Activity</div>
+            <div className="card-sub">
+              Orders, email events{waActivity.matched ? ", WhatsApp messages" : ""} — newest first
+            </div>
+          </div>
+          {waActivity.matched && (
+            <Link
+              href="/dashboard/whatsapp"
+              style={{
+                fontSize: 12.5,
+                color: "var(--accent)",
+                fontWeight: 500,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <MessageSquare size={12} /> Open WhatsApp chat →
+            </Link>
+          )}
+        </div>
+        {(() => {
+          const timeline: Activity[] = [
+            ...orders
+              .filter((o) => o.placed_at)
+              .map((o) => ({ kind: "order" as const, at: o.placed_at!, order: o })),
+            ...events.map((e) => ({ kind: "email" as const, at: e.created_at, event: e })),
+            ...waActivity.messages.map((m) => ({ kind: "wa" as const, at: m.created_at, msg: m })),
+          ].sort((a, b) => (a.at < b.at ? 1 : -1));
+
+          if (timeline.length === 0) {
+            return (
+              <div
+                className="muted"
+                style={{ padding: "32px 0", textAlign: "center", fontSize: 13 }}
+              >
+                No activity yet
+              </div>
+            );
+          }
+          return (
+            <div style={{ marginTop: 10 }}>
+              {timeline.slice(0, 40).map((it, i) => {
+                let bg = "var(--hover)";
+                let color = "var(--text-3)";
+                let Icon = ShoppingBag as React.ComponentType<{ size?: number; color?: string }>;
+                let text = "";
+                let tooltip = "";
+                if (it.kind === "order") {
+                  bg = "var(--green-soft)";
+                  color = "var(--green)";
+                  Icon = ShoppingBag;
+                  const o = it.order;
+                  const amt = o.total_amount
+                    ? `₹${Number(o.total_amount).toLocaleString("en-IN", {
+                        maximumFractionDigits: 2,
+                      })}`
+                    : "";
+                  const oid = o.order_number ? `#${o.order_number}` : o.id.substring(0, 8);
+                  text = `Ordered ${oid}${amt ? ` · ${amt}` : ""}`;
+                  tooltip = (o.products?.items || []).join(", ");
+                } else if (it.kind === "email") {
+                  bg = "var(--blue-soft)";
+                  color = "var(--blue)";
+                  Icon = Mail;
+                  text = `Email ${it.event.event_type}`;
+                } else {
+                  bg = "var(--accent-soft)";
+                  color = "var(--accent)";
+                  Icon = MessageSquare;
+                  const dir = it.msg.direction === "outbound" ? "sent" : "received";
+                  const body = (it.msg.body || "").trim();
+                  const snip = body.length > 80 ? `${body.slice(0, 80)}…` : body;
+                  text = `WhatsApp ${dir}${snip ? `: ${snip}` : ""}`;
+                  tooltip = body;
+                }
+                return (
+                  <div
+                    key={`${it.kind}-${i}`}
+                    className="legend-row"
+                    title={tooltip || undefined}
+                  >
+                    <div className="legend-l" style={{ minWidth: 0 }}>
+                      <span
                         style={{
-                          maxWidth: 220,
+                          width: 22,
+                          height: 22,
+                          borderRadius: 999,
+                          background: bg,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Icon size={11} color={color} />
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 13,
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {label}
-                      </td>
-                      <td className="num" style={{ color: "var(--green)", fontWeight: 500 }}>
-                        {o.total_amount
-                          ? `₹${Number(o.total_amount).toLocaleString("en-IN", {
-                              maximumFractionDigits: 2,
-                            })}`
-                          : "—"}
-                      </td>
-                      <td className="muted">{fmtDate(o.placed_at)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          ) : (
-            <div className="muted" style={{ padding: "32px 0", textAlign: "center", fontSize: 13 }}>
-              No orders yet
-            </div>
-          )}
-        </div>
-
-        <div className="card card-pad">
-          <div className="card-title">Recent email events</div>
-          {events.length > 0 ? (
-            <div style={{ marginTop: 10 }}>
-              {events.map((e) => (
-                <div key={e.id} className="legend-row">
-                  <div className="legend-l">
-                    <span className={`pill ${eventPill[e.event_type] || "grey"}`}>{e.event_type}</span>
+                        {text}
+                      </span>
+                    </div>
+                    <span className="muted" style={{ fontSize: 12, flexShrink: 0 }}>
+                      {fmtDate(it.at)}
+                    </span>
                   </div>
-                  <div className="legend-r muted">{fmtDate(e.created_at)}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          ) : (
-            <div className="muted" style={{ padding: "32px 0", textAlign: "center", fontSize: 13 }}>
-              No email activity yet
-            </div>
-          )}
-        </div>
+          );
+        })()}
       </div>
 
       {(tags.length > 0 || lists.length > 0 || segments.length > 0) && (
