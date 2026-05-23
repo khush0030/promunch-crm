@@ -12,7 +12,7 @@
 // Every failure is recorded in connector_events so the CRM can show it.
 
 import { getMessage, markRead } from "./gmail.ts";
-import { generateDraft } from "./anthropic.ts";
+import { generateDraft } from "./openai.ts";
 import {
   postEmailWithDraft,
   postEmailNoDraft,
@@ -59,15 +59,17 @@ async function attemptDraft(input: {
     const error = e instanceof Error ? e.message : String(e);
     const lowBalance = /credit balance is too low|insufficient.*credit|\bbilling\b/i.test(error);
     const reason = lowBalance
-      ? "the Anthropic API is out of credits"
+      ? "the OpenAI API quota / billing is exhausted"
       : "the AI drafting service returned an error";
     await logConnector({
+      // Internal connector id kept as "anthropic" so historical events line up
+      // in the dashboard; the active provider is now OpenAI.
       connector: "anthropic",
       level: "error",
       event: lowBalance ? "credits_exhausted" : "draft_failed",
       message: lowBalance
-        ? "Anthropic API credit balance is too low — AI drafting is paused. Emails are still delivered to Slack without a draft."
-        : `Claude draft generation failed: ${error.slice(0, 300)}`,
+        ? "OpenAI API billing/quota exhausted — AI drafting is paused. Emails are still delivered to Slack without a draft."
+        : `OpenAI draft generation failed: ${error.slice(0, 300)}`,
       detail: { error: error.slice(0, 1000) },
       throttleMinutes: 10, // poll retries every 2 min — log at most once per 10
     });

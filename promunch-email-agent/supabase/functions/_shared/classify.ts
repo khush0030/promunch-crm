@@ -2,17 +2,17 @@
 // drafting. Returns lead category, urgency, score (0-10), and a 1-line
 // rationale. Best-effort: failures never block the pipeline (returns null).
 
-import Anthropic from "npm:@anthropic-ai/sdk@0.32.1";
+import OpenAI from "npm:openai@4.78.0";
 
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
-// Use the same model as drafting — single dependency, predictable cost.
-const MODEL = Deno.env.get("ANTHROPIC_CLASSIFY_MODEL")
-  ?? Deno.env.get("ANTHROPIC_MODEL")
-  ?? "claude-sonnet-4-6";
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
+// Triage is cheap by design — keep this on the smaller model.
+const MODEL = Deno.env.get("OPENAI_CLASSIFY_MODEL")
+  ?? Deno.env.get("OPENAI_MODEL")
+  ?? "gpt-4o-mini";
 
-let _client: Anthropic | null = null;
-function client(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+let _client: OpenAI | null = null;
+function client(): OpenAI {
+  if (!_client) _client = new OpenAI({ apiKey: OPENAI_API_KEY });
   return _client;
 }
 
@@ -98,15 +98,18 @@ ${input.body.slice(0, 4000)}`;
       ? `${SYSTEM_BASE}\n\n---\nLEARNED NO-REPLY EXAMPLES from past human skips (treat these patterns as should_reply=false):\n${learned}`
       : SYSTEM_BASE;
 
-    const resp = await client().messages.create({
+    const resp = await client().chat.completions.create({
       model: MODEL,
       max_tokens: 220,
-      system,
-      messages: [{ role: "user", content: user }],
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
     });
-    const block = resp.content.find((b) => b.type === "text");
-    const raw = (block && "text" in block ? block.text : "").trim();
-    // Tolerate models that wrap in code fences.
+    const raw = (resp.choices[0]?.message?.content ?? "").trim();
+    // gpt-4o-mini with json_object response_format returns pure JSON, but keep
+    // the code-fence stripper for safety across future model swaps.
     const jsonStr = raw.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
     const parsed = JSON.parse(jsonStr);
     return {

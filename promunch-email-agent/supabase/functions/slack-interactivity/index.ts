@@ -8,7 +8,7 @@
 
 import { verifySlackSignature, postDraftRevision, replyInThread } from "../_shared/slack.ts";
 import { db } from "../_shared/supabase.ts";
-import { generateDraft } from "../_shared/anthropic.ts";
+import { generateDraft } from "../_shared/openai.ts";
 import { approveAndSend } from "../_shared/approve.ts";
 import { logEvent } from "../_shared/log.ts";
 

@@ -11,7 +11,7 @@
 
 import { verifySlackSignature, postDraftRevision } from "../_shared/slack.ts";
 import { db } from "../_shared/supabase.ts";
-import { generateDraft } from "../_shared/anthropic.ts";
+import { generateDraft } from "../_shared/openai.ts";
 import { logEvent } from "../_shared/log.ts";
 import { recordFeedback } from "../_shared/brand.ts";
 

@@ -1,25 +1,19 @@
-// Claude draft generation — uses the Anthropic SDK in agent-style mode.
+// Email draft generation — OpenAI Chat Completions.
 //
-// We use the standard @anthropic-ai/sdk (works in Deno via npm: imports).
-// The "agent" qualities here are:
-//   - a long, persona-aware system prompt (acts as ProMunch's email assistant)
-//   - structured input (separating the email + prior draft + user feedback)
-//   - a follow-up loop driven by Slack thread replies (the loop lives in
-//     slack-events; this module just produces one revision per call)
-//
-// To upgrade to the full Claude Agent SDK (tool use, MCP), swap the
-// `messages.create` call for `Agent.run` with tool definitions. The function
-// signatures here stay the same.
+// Replaces the prior Anthropic helper. Exported signature is unchanged so
+// callers (process-email, slack-events, slack-interactivity) don't move.
+// Default model is gpt-4o-mini — roughly 1/20th the cost of Sonnet for the
+// drafting workload. Bump OPENAI_MODEL to "gpt-4o" if quality drops.
 
-import Anthropic from "npm:@anthropic-ai/sdk@0.32.1";
+import OpenAI from "npm:openai@4.78.0";
 import { getBrandExamples } from "./brand.ts";
 
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
-const MODEL = Deno.env.get("ANTHROPIC_MODEL") ?? "claude-sonnet-4-6";
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
+const MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o-mini";
 
-let _client: Anthropic | null = null;
-function client(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+let _client: OpenAI | null = null;
+function client(): OpenAI {
+  if (!_client) _client = new OpenAI({ apiKey: OPENAI_API_KEY });
   return _client;
 }
 
@@ -75,20 +69,17 @@ export async function generateDraft(input: DraftInput): Promise<{ body: string; 
     ? `${SYSTEM_PROMPT}\n\n---\nLEARNED BRAND CONTEXT (distilled from past approved replies and human feedback in this very inbox — treat as ground truth for voice, structure, and policy; it overrides generic instincts):\n${learned}`
     : SYSTEM_PROMPT;
 
-  const resp = await client().messages.create({
+  const resp = await client().chat.completions.create({
     model: MODEL,
     max_tokens: 1024,
-    system,
-    messages: [{ role: "user", content: userMessage }],
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: userMessage },
+    ],
   });
 
-  // Take the first text block from Claude's response
-  const textBlock = resp.content.find((b) => b.type === "text");
-  const body = textBlock && "text" in textBlock ? textBlock.text.trim() : "";
-
-  if (!body) {
-    throw new Error("Claude returned no draft text");
-  }
+  const body = (resp.choices[0]?.message?.content ?? "").trim();
+  if (!body) throw new Error("OpenAI returned no draft text");
   return { body, model: MODEL };
 }
 

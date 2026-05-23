@@ -10,7 +10,7 @@
 //   - Resumable + self-chaining: a batch that leaves recipients re-invokes
 //     itself with _continue:true until the whole campaign is sent.
 
-import Anthropic from "npm:@anthropic-ai/sdk@0.32.1";
+import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
 import { sendTemplate, TemplateComponent } from "../_shared/whatsapp.ts";
 
@@ -22,7 +22,7 @@ const THROTTLE_MS = 120;
 const MAX_STATIC = 300;        // per-invocation cap, static send
 const MAX_PERSONALIZED = 20;   // per-invocation cap, AI send (a Claude call each)
 const STALE_MS = 10 * 60_000;
-const PERSONALIZE_MODEL = Deno.env.get("WA_PERSONALIZE_MODEL") ?? "claude-haiku-4-5-20251001";
+const PERSONALIZE_MODEL = Deno.env.get("WA_PERSONALIZE_MODEL") ?? "gpt-4o-mini";
 
 interface Body { campaign_id?: string; _continue?: boolean }
 
@@ -80,13 +80,13 @@ Deno.serve(async (req) => {
   }).eq("id", campaignId);
 
   const varKeys = extractVarKeys(tpl.body ?? "");
-  const anthropic = personalized ? new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! }) : null;
+  const openai = personalized ? new OpenAI({ apiKey: Deno.env.get("OPENAI_API_KEY")! }) : null;
 
   let sent = 0, failed = 0;
   for (const c of queue) {
     let contactVars = baseVars;
-    if (personalized && anthropic && varKeys.length) {
-      const ai = await personalizeVars(anthropic, tpl.body ?? "", aiBrief, c, varKeys).catch(() => null);
+    if (personalized && openai && varKeys.length) {
+      const ai = await personalizeVars(openai, tpl.body ?? "", aiBrief, c, varKeys).catch(() => null);
       if (ai) contactVars = { ...baseVars, ...ai };
     }
 
@@ -161,31 +161,33 @@ function extractVarKeys(body: string): string[] {
 
 // Ask Claude for this contact's template variable values.
 async function personalizeVars(
-  client: Anthropic,
+  client: OpenAI,
   templateBody: string,
   brief: string,
   contact: { name?: string | null; email?: string | null; tags?: string[] | null },
   varKeys: string[],
 ): Promise<Record<string, string> | null> {
-  const resp = await client.messages.create({
+  const system =
+    "You write WhatsApp marketing template variable values for PROMUNCH (snack brand — protein munchies, edamame). " +
+    "Given a template and one customer, output ONLY a JSON object mapping each numbered variable to a short, natural " +
+    "value tailored to that customer. Values are template variables, not paragraphs — keep them short. " +
+    "India-English, warm. Never include {{ }} braces in the values.";
+  const user = [
+    `TEMPLATE BODY:\n${templateBody}`,
+    `\nCAMPAIGN BRIEF:\n${brief}`,
+    `\nCUSTOMER:\nname: ${contact.name ?? "(unknown)"}\ntags: ${(contact.tags ?? []).join(", ") || "(none)"}\nemail: ${contact.email ?? "(none)"}`,
+    `\nReturn JSON only — keys ${varKeys.map((k) => `"${k}"`).join(", ")}. Example: {"1":"...","2":"..."}`,
+  ].join("\n");
+  const resp = await client.chat.completions.create({
     model: PERSONALIZE_MODEL,
     max_tokens: 300,
-    system:
-      "You write WhatsApp marketing template variable values for PROMUNCH (snack brand — protein munchies, edamame). " +
-      "Given a template and one customer, output ONLY a JSON object mapping each numbered variable to a short, natural " +
-      "value tailored to that customer. Values are template variables, not paragraphs — keep them short. " +
-      "India-English, warm. Never include {{ }} braces in the values.",
-    messages: [{
-      role: "user",
-      content: [
-        `TEMPLATE BODY:\n${templateBody}`,
-        `\nCAMPAIGN BRIEF:\n${brief}`,
-        `\nCUSTOMER:\nname: ${contact.name ?? "(unknown)"}\ntags: ${(contact.tags ?? []).join(", ") || "(none)"}\nemail: ${contact.email ?? "(none)"}`,
-        `\nReturn JSON only — keys ${varKeys.map((k) => `"${k}"`).join(", ")}. Example: {"1":"...","2":"..."}`,
-      ].join("\n"),
-    }],
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
   });
-  const txt = resp.content?.[0]?.type === "text" ? resp.content[0].text : "";
+  const txt = resp.choices[0]?.message?.content ?? "";
   const m = txt.match(/\{[\s\S]*\}/);
   if (!m) return null;
   try {

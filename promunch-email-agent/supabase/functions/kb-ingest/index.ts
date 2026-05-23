@@ -2,7 +2,7 @@
 //
 // The AI agent (wa-ai-reply) prompt-stuffs every ready document, so ingestion
 // only needs to extract and store raw_text — no chunking, no embeddings,
-// no OpenAI. Anthropic-only stack.
+// no external embedding API.
 //
 // POST { document_id }  — parse a stored upload (PDF / txt / md)
 // POST { name, text }   — direct text entry (manual paste)

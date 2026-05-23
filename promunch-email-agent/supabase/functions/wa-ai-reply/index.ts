@@ -8,13 +8,16 @@
 //   normal — reply to the customer; raise a ticket / hand off as side effects
 //   draft  — return the suggested reply only (dashboard "AI draft" button)
 
-import Anthropic from "npm:@anthropic-ai/sdk@0.32.1";
+import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
 import { lookupOrders, orderForAI, type OrderSummary } from "../_shared/orders.ts";
 
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
-const MODEL = Deno.env.get("WA_AI_MODEL") ?? "claude-sonnet-4-6";
-const KB_CHAR_BUDGET = 60_000;
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
+const MODEL = Deno.env.get("WA_AI_MODEL") ?? "gpt-4o-mini";
+// 12K chars ≈ 3K tokens. The agent re-sends the KB on every tool-loop turn,
+// so this is the single biggest input-cost lever for this function — was
+// 60K, dropped to 12K (~5× cheaper per conversation).
+const KB_CHAR_BUDGET = 12_000;
 const MAX_TOOL_TURNS = 4;
 
 const SYSTEM_PROMPT =
@@ -47,19 +50,22 @@ After any tool calls, your FINAL message must be JSON ONLY, no prose:
 
 const TOOLS = [
   {
-    name: "lookup_order",
-    description:
-      "Look up this customer's Shopify order(s). Their phone number is already " +
-      "known from WhatsApp — NEVER ask the customer for it. Call with no arguments " +
-      "to list their recent orders; pass order_number to fetch a specific one. Use " +
-      "this whenever the customer mentions an order, delivery, tracking, a missing / " +
-      "wrong / damaged item, a refund or a return.",
-    input_schema: {
-      type: "object",
-      properties: {
-        order_number: {
-          type: "string",
-          description: "Optional order number if the customer gave one, e.g. '1042' or '#1042'.",
+    type: "function" as const,
+    function: {
+      name: "lookup_order",
+      description:
+        "Look up this customer's Shopify order(s). Their phone number is already " +
+        "known from WhatsApp — NEVER ask the customer for it. Call with no arguments " +
+        "to list their recent orders; pass order_number to fetch a specific one. Use " +
+        "this whenever the customer mentions an order, delivery, tracking, a missing / " +
+        "wrong / damaged item, a refund or a return.",
+      parameters: {
+        type: "object",
+        properties: {
+          order_number: {
+            type: "string",
+            description: "Optional order number if the customer gave one, e.g. '1042' or '#1042'.",
+          },
         },
       },
     },
@@ -133,37 +139,43 @@ Deno.serve(async (req) => {
     "Respond with JSON only.",
   ].join("\n");
 
-  const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
-  // when the customer sent an image, attach it so Claude can see it
+  const client = new OpenAI({ apiKey: OPENAI_API_KEY });
+  // When the customer sent an image, attach it so the vision model can see it
+  // (OpenAI mixes text + image_url content parts on a single user message).
   const firstContent: any = image_url
     ? [
-        { type: "image", source: { type: "url", url: image_url } },
         { type: "text", text: userMsg },
+        { type: "image_url", image_url: { url: image_url } },
       ]
     : userMsg;
 
-  // ---- agent loop: let Claude call lookup_order before its final answer ----
-  const messages: any[] = [{ role: "user", content: firstContent }];
+  // ---- agent loop: let the model call lookup_order before its final answer ----
+  const messages: any[] = [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: firstContent },
+  ];
   let resp: any = null;
   let lastUsage: unknown = null;
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
-    resp = await client.messages.create({
+    resp = await client.chat.completions.create({
       model: MODEL,
       max_tokens: 900,
-      system: SYSTEM_PROMPT,
       tools: TOOLS,
       messages,
     });
     lastUsage = resp.usage;
-    if (resp.stop_reason !== "tool_use") break;
+    const choice = resp.choices?.[0];
+    const toolCalls = choice?.message?.tool_calls ?? [];
+    if (!toolCalls.length) break;
 
-    messages.push({ role: "assistant", content: resp.content });
-    const toolResults: any[] = [];
-    for (const block of resp.content) {
-      if (block.type !== "tool_use") continue;
+    // The assistant turn (which contains the tool_calls) goes back in verbatim.
+    messages.push(choice.message);
+    for (const call of toolCalls) {
       let result = "Unknown tool.";
-      if (block.name === "lookup_order") {
-        const askedNo = (block.input?.order_number ?? "").toString().trim();
+      if (call.function?.name === "lookup_order") {
+        let arg: { order_number?: string } = {};
+        try { arg = JSON.parse(call.function.arguments || "{}"); } catch { /* tolerate */ }
+        const askedNo = (arg.order_number ?? "").toString().trim();
         const orders = await lookupOrders(waId, askedNo || null)
           .catch((e) => {
             console.error("[wa-ai-reply] lookup_order failed", e);
@@ -181,9 +193,8 @@ Deno.serve(async (req) => {
           result = orders.map(orderForAI).join("\n\n---\n\n");
         }
       }
-      toolResults.push({ type: "tool_result", tool_use_id: block.id, content: result });
+      messages.push({ role: "tool", tool_call_id: call.id, content: result });
     }
-    messages.push({ role: "user", content: toolResults });
   }
 
   const decision = parseDecision(textOf(resp));
@@ -229,10 +240,9 @@ Deno.serve(async (req) => {
   return j({ ok: true, action: handoff ? "handoff" : "reply", ticket: !!ticket });
 });
 
-// First text block of an Anthropic response (skips tool_use blocks).
+// Final assistant text from an OpenAI chat-completion response.
 function textOf(resp: any): string {
-  const block = (resp?.content ?? []).find((b: any) => b.type === "text");
-  return block?.text ?? "";
+  return resp?.choices?.[0]?.message?.content ?? "";
 }
 
 // Mark the durable wa_jobs row done so wa-jobs-tick won't retry it.
