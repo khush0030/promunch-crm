@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MessageSquare, Send, Bot, User as UserIcon, Search, Plus, Upload, RefreshCw, Trash2,
   Tag, AlertTriangle, CheckCircle2, Inbox as InboxIcon, FileText, Sparkles, Megaphone, Ticket as TicketIcon,
-  ExternalLink, ShoppingBag, MapPin, Archive, ArchiveRestore,
+  ExternalLink, ShoppingBag, MapPin, Archive, ArchiveRestore, ChevronLeft, X,
 } from "lucide-react";
 
 type Tab = "inbox" | "templates" | "campaigns" | "kb" | "tickets";
@@ -105,6 +105,17 @@ const ticketStatusStyle: Record<string, { bg: string; color: string; label: stri
   closed:   { bg: "rgba(107,114,128,0.14)", color: "var(--text-2)", label: "Closed" },
   none:     { bg: "rgba(229,231,235,0.6)",  color: "var(--text-2)", label: "—" },
 };
+
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= breakpoint);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, [breakpoint]);
+  return isMobile;
+}
 
 export default function WhatsAppPage() {
   const [tab, setTab] = useState<Tab>("inbox");
@@ -251,6 +262,9 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [hover, setHover] = useState<string | null>(null);
+  const isMobile = useIsMobile();
+  // On mobile we route between three full-width views; on desktop everything is visible.
+  const [mobileView, setMobileView] = useState<"list" | "conv" | "details">("list");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -285,10 +299,15 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
   }, [load]);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "320px 1fr 304px", gap: 14, height: "calc(100vh - 200px)" }}>
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr" : "320px 1fr 304px",
+      gap: isMobile ? 0 : 14,
+      height: isMobile ? "calc(100dvh - 140px)" : "calc(100vh - 200px)",
+    }}>
       <div style={{
         background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 12,
-        overflow: "hidden", display: "flex", flexDirection: "column",
+        overflow: "hidden", display: isMobile && mobileView !== "list" ? "none" : "flex", flexDirection: "column",
       }}>
         <div style={{ padding: 12, borderBottom: "1px solid var(--border)" }}>
           <div style={{ position: "relative", marginBottom: 8 }}>
@@ -296,9 +315,11 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
             <input
               value={search} onChange={(e) => setSearch(e.target.value)}
               placeholder="Search phone or message…"
+              inputMode="search" enterKeyHint="search"
               style={{
-                width: "100%", padding: "8px 8px 8px 32px", borderRadius: 8,
-                border: "1px solid var(--border)", fontSize: 13, outline: "none",
+                width: "100%", padding: isMobile ? "12px 8px 12px 32px" : "8px 8px 8px 32px",
+                borderRadius: 8, border: "1px solid var(--border)",
+                fontSize: isMobile ? 16 : 13, outline: "none",
               }}
             />
           </div>
@@ -323,7 +344,9 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
                 <button key={f.l}
                   onClick={() => (ticketsOnly ? setTicket(f.k) : setStatus(f.k))}
                   style={{
-                    padding: "4px 10px", borderRadius: 999, fontSize: 12, fontWeight: 600,
+                    padding: isMobile ? "8px 14px" : "4px 10px",
+                    minHeight: isMobile ? 36 : undefined,
+                    borderRadius: 999, fontSize: isMobile ? 13 : 12, fontWeight: 600,
                     border: "1px solid " + (active ? BRAND : "var(--border)"),
                     background: active ? "rgba(185,28,74,0.08)" : "var(--card-bg)",
                     color: active ? BRAND : "var(--text-2)", cursor: "pointer",
@@ -340,13 +363,14 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
           {threads.map((t) => {
             const active = selected?.id === t.id;
             return (
-              <div key={t.id} onClick={() => setSelected(t)}
+              <div key={t.id}
+                onClick={() => { setSelected(t); if (isMobile) setMobileView("conv"); }}
                 onMouseEnter={() => setHover(t.id)} onMouseLeave={() => setHover(null)}
                 style={{
-                  width: "100%", textAlign: "left", padding: 12, position: "relative",
+                  width: "100%", textAlign: "left", padding: isMobile ? 16 : 12, position: "relative",
                   borderBottom: "1px solid var(--border)",
                   background: active ? "rgba(185,28,74,0.06)" : "var(--card-bg)",
-                  cursor: "pointer",
+                  cursor: "pointer", minHeight: isMobile ? 72 : undefined,
                 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                   <div style={{ fontWeight: 600, fontSize: 14, color: "var(--text)" }}>
@@ -376,18 +400,18 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
                     }}>{t.unread_count}</span>
                   )}
                 </div>
-                {hover === t.id && (
+                {(isMobile || hover === t.id) && (
                   <button
                     title={status === "archived" ? "Unarchive chat" : "Archive chat"}
                     onClick={(e) => { e.stopPropagation(); archiveThread(t.id, status !== "archived"); }}
                     style={{
                       position: "absolute", right: 8, top: 8,
                       display: "inline-flex", alignItems: "center", justifyContent: "center",
-                      width: 26, height: 26, borderRadius: 6,
+                      width: isMobile ? 36 : 26, height: isMobile ? 36 : 26, borderRadius: 8,
                       border: "1px solid var(--border)", background: "var(--card-bg)",
                       color: "var(--text-3)", cursor: "pointer",
                     }}>
-                    {status === "archived" ? <ArchiveRestore size={13} /> : <Archive size={13} />}
+                    {status === "archived" ? <ArchiveRestore size={isMobile ? 16 : 13} /> : <Archive size={isMobile ? 16 : 13} />}
                   </button>
                 )}
               </div>
@@ -396,9 +420,22 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
         </div>
       </div>
 
-      <ConversationPane thread={selected} onChange={(t) => { setSelected(t); load(); }} />
+      <div style={{ display: isMobile && mobileView !== "conv" ? "none" : "contents" }}>
+        <ConversationPane
+          thread={selected}
+          onChange={(t) => { setSelected(t); load(); }}
+          isMobile={isMobile}
+          onBack={() => setMobileView("list")}
+          onShowDetails={() => setMobileView("details")}
+        />
+      </div>
 
-      <CustomerPanel thread={selected} />
+      <CustomerPanel
+        thread={selected}
+        isMobile={isMobile}
+        visible={!isMobile || mobileView === "details"}
+        onClose={() => setMobileView("conv")}
+      />
     </div>
   );
 }
@@ -415,7 +452,13 @@ function Pill({ icon: Icon, label, bg, color }: { icon: any; label: string; bg: 
   );
 }
 
-function ConversationPane({ thread, onChange }: { thread: Thread | null; onChange: (t: Thread) => void }) {
+function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDetails }: {
+  thread: Thread | null;
+  onChange: (t: Thread) => void;
+  isMobile?: boolean;
+  onBack?: () => void;
+  onShowDetails?: () => void;
+}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -502,9 +545,29 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
       background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 12,
       display: "flex", flexDirection: "column", overflow: "hidden",
     }}>
-      <div style={{ padding: 14, borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontWeight: 700, color: "var(--text)" }}>
+      <div style={{
+        padding: isMobile ? 10 : 14,
+        borderBottom: "1px solid var(--border)",
+        display: "flex",
+        flexDirection: isMobile ? "column" : "row",
+        alignItems: isMobile ? "stretch" : "center",
+        justifyContent: "space-between",
+        gap: isMobile ? 8 : 0,
+      }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0 }}>
+          {isMobile && (
+            <button onClick={onBack} aria-label="Back to inbox"
+              style={{
+                flexShrink: 0, width: 36, height: 36, borderRadius: 8,
+                border: "1px solid var(--border)", background: "var(--card-bg)",
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", color: "var(--text-2)",
+              }}>
+              <ChevronLeft size={18} />
+            </button>
+          )}
+          <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {thread.contact.name || thread.contact.phone}
             <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 500, color: "var(--text-2)" }}>{thread.contact.phone}</span>
           </div>
@@ -527,8 +590,20 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
               <AlertTriangle size={12} style={{ verticalAlign: -2 }} /> {thread.escalation_reason}
             </div>
           )}
+          </div>
+          {isMobile && (
+            <button onClick={onShowDetails} aria-label="Customer details"
+              style={{
+                flexShrink: 0, width: 36, height: 36, borderRadius: 8,
+                border: "1px solid var(--border)", background: "var(--card-bg)",
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", color: "var(--text-2)",
+              }}>
+              <UserIcon size={18} />
+            </button>
+          )}
         </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
           {(thread.ticket_status === "open" || thread.ticket_status === "pending") && (
             <button onClick={() => patch({ ticket_status: "resolved" })}
               title="Mark this ticket resolved"
@@ -566,13 +641,13 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
         </div>
       </div>
 
-      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: 18, background: "#f0f2f5" }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: isMobile ? 10 : 18, background: "#f0f2f5" }}>
         {messages.map((m) => {
           const out = m.direction === "outbound";
           return (
             <div key={m.id} style={{ display: "flex", justifyContent: out ? "flex-end" : "flex-start", marginBottom: 8 }}>
               <div style={{
-                maxWidth: "70%", background: out ? "#dcf8c6" : "var(--card-bg)",
+                maxWidth: isMobile ? "85%" : "70%", background: out ? "#dcf8c6" : "var(--card-bg)",
                 color: "var(--text)", padding: "8px 12px", borderRadius: 10,
                 boxShadow: "0 1px 1px rgba(0,0,0,0.06)", fontSize: 14, lineHeight: 1.45,
               }}>
@@ -601,40 +676,45 @@ function ConversationPane({ thread, onChange }: { thread: Thread | null; onChang
           onSend={(tpl, vars) => send("template", { name: tpl.name, language: tpl.language, vars })}
         />
       ) : (
-        <div style={{ padding: 12, borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
-          <button onClick={() => setPickingTemplate(true)} title="Send template"
+        <div style={{
+          padding: isMobile ? "10px 10px calc(10px + env(safe-area-inset-bottom, 0px))" : 12,
+          borderTop: "1px solid var(--border)",
+          display: "flex", gap: 8, alignItems: "center",
+        }}>
+          <button onClick={() => setPickingTemplate(true)} title="Send template" aria-label="Send template"
             style={{
-              padding: "10px 14px", borderRadius: 10, border: "1px solid var(--border)",
+              minWidth: 44, minHeight: 44, padding: isMobile ? 0 : "10px 14px", borderRadius: 10, border: "1px solid var(--border)",
               background: "var(--card-bg)", cursor: "pointer", color: BRAND, fontWeight: 600, fontSize: 13,
-              display: "flex", alignItems: "center", gap: 6,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexShrink: 0,
             }}>
-            <Megaphone size={14} /> Template
+            <Megaphone size={isMobile ? 18 : 14} /> {!isMobile && "Template"}
           </button>
-          <button onClick={draftReply} disabled={drafting} title="AI-draft a reply"
+          <button onClick={draftReply} disabled={drafting} title="AI-draft a reply" aria-label="AI draft"
             style={{
-              padding: "10px 14px", borderRadius: 10, border: "1px solid var(--border)",
+              minWidth: 44, minHeight: 44, padding: isMobile ? 0 : "10px 14px", borderRadius: 10, border: "1px solid var(--border)",
               background: "var(--card-bg)", cursor: drafting ? "wait" : "pointer", color: WA_GREEN, fontWeight: 600, fontSize: 13,
-              display: "flex", alignItems: "center", gap: 6,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexShrink: 0,
             }}>
-            <Sparkles size={14} /> {drafting ? "Drafting…" : "AI draft"}
+            <Sparkles size={isMobile ? 18 : 14} /> {!isMobile && (drafting ? "Drafting…" : "AI draft")}
           </button>
           <input
             value={text} onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && text.trim()) send("text"); }}
             placeholder="Type a message…"
+            enterKeyHint="send"
             style={{
-              flex: 1, padding: "10px 14px", borderRadius: 10,
-              border: "1px solid var(--border)", outline: "none", fontSize: 14,
+              flex: 1, minWidth: 0, minHeight: 44, padding: "10px 14px", borderRadius: 10,
+              border: "1px solid var(--border)", outline: "none", fontSize: 16,
             }}
           />
-          <button disabled={!text.trim() || sending} onClick={() => send("text")}
+          <button disabled={!text.trim() || sending} onClick={() => send("text")} aria-label="Send message"
             style={{
-              padding: "10px 16px", borderRadius: 10, border: "none",
+              minWidth: 44, minHeight: 44, padding: isMobile ? 0 : "10px 16px", borderRadius: 10, border: "none",
               background: text.trim() ? BRAND : "var(--border)",
               color: "var(--card-bg)", fontWeight: 600, cursor: text.trim() ? "pointer" : "not-allowed",
-              display: "flex", alignItems: "center", gap: 6,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexShrink: 0,
             }}>
-            <Send size={14} /> Send
+            <Send size={isMobile ? 18 : 14} /> {!isMobile && "Send"}
           </button>
         </div>
       )}
@@ -684,9 +764,15 @@ type CustomerData = {
 
 /* Right-rail customer 360: the WhatsApp chat stitched to Shopify orders and
    the CRM contact record, matched by the customer's WhatsApp number. */
-function CustomerPanel({ thread }: { thread: Thread | null }) {
+function CustomerPanel({ thread, isMobile = false, visible = true, onClose }: {
+  thread: Thread | null;
+  isMobile?: boolean;
+  visible?: boolean;
+  onClose?: () => void;
+}) {
   const [data, setData] = useState<CustomerData | null>(null);
   const [loading, setLoading] = useState(false);
+  if (!visible) return null;
 
   useEffect(() => {
     if (!thread) { setData(null); return; }
@@ -699,10 +785,16 @@ function CustomerPanel({ thread }: { thread: Thread | null }) {
     return () => { live = false; };
   }, [thread]);
 
-  const wrap: React.CSSProperties = {
-    background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 12,
-    overflowY: "auto", padding: 14,
-  };
+  const wrap: React.CSSProperties = isMobile
+    ? {
+        position: "fixed", inset: 0, zIndex: 60,
+        background: "var(--card-bg)", overflowY: "auto",
+        padding: "12px 14px calc(14px + env(safe-area-inset-bottom, 0px))",
+      }
+    : {
+        background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 12,
+        overflowY: "auto", padding: 14,
+      };
 
   if (!thread) {
     return (
@@ -722,6 +814,23 @@ function CustomerPanel({ thread }: { thread: Thread | null }) {
 
   return (
     <div style={wrap}>
+      {isMobile && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: 12, paddingBottom: 10, borderBottom: "1px solid var(--border)",
+        }}>
+          <strong style={{ fontSize: 15 }}>Customer details</strong>
+          <button onClick={onClose} aria-label="Close details"
+            style={{
+              width: 36, height: 36, borderRadius: 8,
+              border: "1px solid var(--border)", background: "var(--card-bg)",
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", color: "var(--text-2)",
+            }}>
+            <X size={18} />
+          </button>
+        </div>
+      )}
       {/* identity */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
         <div style={{
@@ -824,6 +933,7 @@ function CustomerPanel({ thread }: { thread: Thread | null }) {
 function TemplatePicker({ templates, onCancel, onSend }: {
   templates: Template[]; onCancel: () => void; onSend: (t: Template, vars: Record<string, string>) => void;
 }) {
+  const isMobile = useIsMobile();
   const [pick, setPick] = useState<Template | null>(null);
   const [vars, setVars] = useState<Record<string, string>>({});
   const varNames = useMemo(() => {
@@ -843,7 +953,7 @@ function TemplatePicker({ templates, onCancel, onSend }: {
         <button onClick={onCancel} style={{ background: "none", border: "none", color: "var(--text-2)", cursor: "pointer" }}>Cancel</button>
       </div>
       {!pick && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
           {templates.length === 0 && <div style={{ fontSize: 12, color: "var(--text-3)" }}>No approved templates yet.</div>}
           {templates.map((t) => (
             <button key={t.id} onClick={() => setPick(t)} style={{
