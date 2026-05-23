@@ -12,10 +12,15 @@ export async function GET(req: NextRequest) {
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
+  // Order by most-recent activity in either direction. Sorting by
+  // last_inbound_at alone hides every customer we messaged who hasn't
+  // replied yet — order confirmations sent to first-time recipients would
+  // never appear in the inbox. last_activity_at is a generated column =
+  // greatest(last_inbound_at, last_outbound_at).
   let q = supabaseAdmin
     .from("wa_threads")
     .select("*, contact:wa_contacts!inner(id, wa_id, phone, name, tags)", { count: "exact" })
-    .order("last_inbound_at", { ascending: false, nullsFirst: false })
+    .order("last_activity_at", { ascending: false, nullsFirst: false })
     .range(from, to);
 
   // archived threads are hidden from every normal view; only ?archived=1 shows them
