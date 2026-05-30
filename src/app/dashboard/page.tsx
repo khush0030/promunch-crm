@@ -395,7 +395,7 @@ export default function DashboardPage() {
           <button
             type="button"
             className="btn"
-            onClick={load}
+            onClick={() => load()}
             disabled={refreshing}
             aria-label="Refresh"
           >

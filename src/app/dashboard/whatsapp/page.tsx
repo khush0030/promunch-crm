@@ -1730,7 +1730,7 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
                 style={{ ...inputStyle, fontFamily: "inherit", resize: "vertical" }}
                 placeholder="Brief for the AI — e.g. 'Recommend a snack based on the customer's tags; mention our Diwali 15% offer; keep it short and warm.'" />
               <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>
-                Claude fills the template variables per contact from this brief + their profile. The values above are the fallback if AI fails. Sending is slower — one AI call per contact.
+                OpenAI fills the template variables per contact from this brief + their profile. The values above are the fallback if AI fails. Sending is slower — one AI call per contact.
               </div>
             </div>
           )}
