@@ -55,10 +55,6 @@ async function handleOrderCreate(order: any) {
   const sb = db();
   const orderRef: string = order.name || `#${order.order_number}` || String(order.id);
 
-  // Shopify status guard — never send "your order is confirmed!" for an order
-  // that is already cancelled / voided / refunded. This happens when the
-  // orders/create webhook is delayed or retried, or for a test order: by the
-  // time we process it the order is no longer active.
   if (!orderIsActive(order)) {
     await logConnector({
       connector: "shopify_wa", level: "info", event: "order_not_active",
@@ -67,10 +63,6 @@ async function handleOrderCreate(order: any) {
     }).catch(() => {});
     return;
   }
-
-  // idempotency — if we've already processed this order, stop
-  const { data: prior } = await sb.from("wa_journey_runs").select("id").eq("order_ref", orderRef).limit(1);
-  if (prior && prior.length) return;
 
   const waId = toWaId(
     order.customer?.phone ?? order.phone ?? order.shipping_address?.phone ?? order.billing_address?.phone,
@@ -83,23 +75,57 @@ async function handleOrderCreate(order: any) {
     return;
   }
 
+  // Dedup against the authoritative table: wa_messages. The previous version
+  // dedup'd on wa_journey_runs, but those rows are inserted AFTER the send —
+  // a failed confirmation could still leave journey rows and poison the next
+  // retry. The sent_by carries the order_ref so this is an exact match.
+  const confirmationSentBy = `journey:order_confirmation:${orderRef}`;
+  const { data: alreadySent } = await sb
+    .from("wa_messages")
+    .select("id")
+    .eq("sent_by", confirmationSentBy)
+    .in("status", ["sent", "delivered", "read"])
+    .limit(1);
+  if (alreadySent && alreadySent.length) return;
+
   const name = firstName(order.customer?.first_name, order.shipping_address?.first_name, order.billing_address?.first_name);
   const total = String(order.total_price ?? order.current_total_price ?? "");
 
-  // 1. immediate order confirmation (utility)
-  const res = await callWaSend({
-    to: waId,
-    kind: "template",
-    template: { name: "order_confirmation", language: "en", vars: { "1": name, "2": orderRef, "3": total } },
-    sent_by: "journey:order_confirmation",
-  });
+  // 1. immediate order confirmation (utility) — retry transient Meta failures
+  let res: { ok?: boolean; error?: string } | null = null;
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    res = await callWaSend({
+      to: waId,
+      kind: "template",
+      template: { name: "order_confirmation", language: "en", vars: { "1": name, "2": orderRef, "3": total } },
+      sent_by: confirmationSentBy,
+    });
+    if (res?.ok) break;
+    if (attempt < MAX_ATTEMPTS) await new Promise((r) => setTimeout(r, 400 * attempt));
+  }
+
+  if (!res?.ok) {
+    // Hand off to the durable retry queue. We deliberately DO NOT enrol
+    // post-purchase journeys here — leaving wa_journey_runs empty means the
+    // dedup above will not block a subsequent retry from sending.
+    await sb.from("wa_jobs").insert({
+      kind: "order_confirmation",
+      payload: { wa_id: waId, name, order_ref: orderRef, total, sent_by: confirmationSentBy },
+      run_after: new Date(Date.now() + 60_000).toISOString(),
+      max_attempts: 8,
+    }).then(() => {}, () => {});
+    await logConnector({
+      connector: "shopify_wa", level: "error", event: "confirmation_failed",
+      message: `Order ${orderRef}: confirmation failed after ${MAX_ATTEMPTS} attempts — ${res?.error ?? "unknown"}. Enqueued for retry.`,
+      ref: orderRef,
+    }).catch(() => {});
+    return;
+  }
+
   await logConnector({
-    connector: "shopify_wa",
-    level: res?.ok ? "info" : "error",
-    event: res?.ok ? "confirmation_sent" : "confirmation_failed",
-    message: res?.ok
-      ? `Order ${orderRef}: WhatsApp confirmation sent to ${waId}.`
-      : `Order ${orderRef}: confirmation failed — ${res?.error ?? "unknown"}.`,
+    connector: "shopify_wa", level: "info", event: "confirmation_sent",
+    message: `Order ${orderRef}: WhatsApp confirmation sent to ${waId}.`,
     ref: orderRef,
   }).catch(() => {});
 
@@ -108,7 +134,7 @@ async function handleOrderCreate(order: any) {
     .update({ status: "converted" })
     .eq("wa_id", waId).eq("journey_key", "abandoned_checkout").eq("status", "active");
 
-  // 3. enrol the timed post-purchase journeys
+  // 3. enrol the timed post-purchase journeys (only after confirmation success)
   await enrol("review_request", waId, orderRef, { "1": name, "2": REVIEW_URL });
   await enrol("replenishment_reminder", waId, orderRef, { "1": name, "2": SITE_URL });
 }
