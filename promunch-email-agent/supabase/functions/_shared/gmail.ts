@@ -5,11 +5,18 @@
 // table at request time.
 
 import { db } from "./supabase.ts";
+import { logConnector } from "./connector-log.ts";
 import { ParsedEmail } from "./types.ts";
 
 const MAILBOX = Deno.env.get("MAILBOX_EMAIL") ?? "hello@promunch.in";
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID")!;
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SETUP_TOKEN = Deno.env.get("SETUP_TOKEN") ?? "";
+// Surfaced in the Slack alert + dashboard so operators have a one-click re-auth.
+const REAUTH_URL = SUPABASE_URL && SETUP_TOKEN
+  ? `${SUPABASE_URL}/functions/v1/oauth-callback?action=start&token=${SETUP_TOKEN}`
+  : "";
 
 // ---------------------------------------------------------------------------
 // OAuth: exchange refresh token for a short-lived access token.
@@ -25,12 +32,34 @@ export async function getAccessToken(): Promise<string> {
 
   const { data, error } = await db()
     .from("oauth_tokens")
-    .select("refresh_token")
+    .select("refresh_token, updated_at")
     .eq("email", MAILBOX)
     .single();
 
   if (error || !data) {
+    await logConnector({
+      connector: "gmail_pipeline",
+      level: "error",
+      event: "auth_missing",
+      message: `No refresh token stored for ${MAILBOX}. Re-auth required.`,
+      detail: { reauth_url: REAUTH_URL },
+    });
     throw new Error(`No refresh token stored for ${MAILBOX}. Run /oauth-callback first.`);
+  }
+
+  // Proactive warning: Google's OAuth consent screen in "Testing" mode issues
+  // refresh tokens that expire after 7 days. Surface this before it dies so
+  // the operator can re-auth in advance instead of after a silent outage.
+  const tokenAgeDays = (Date.now() - new Date(data.updated_at as string).getTime()) / 86_400_000;
+  if (tokenAgeDays > 5) {
+    await logConnector({
+      connector: "gmail_pipeline",
+      level: "warn",
+      event: "auth_ageing",
+      message: `Gmail refresh token is ${tokenAgeDays.toFixed(1)} days old — re-auth in the next 48h to avoid an outage. ${REAUTH_URL ? "Re-auth: " + REAUTH_URL : ""}`,
+      detail: { token_age_days: tokenAgeDays, reauth_url: REAUTH_URL },
+      throttleMinutes: 12 * 60,
+    });
   }
 
   const params = new URLSearchParams({
@@ -46,7 +75,20 @@ export async function getAccessToken(): Promise<string> {
     body: params.toString(),
   });
   if (!resp.ok) {
-    throw new Error(`OAuth token refresh failed: ${resp.status} ${await resp.text()}`);
+    const text = await resp.text();
+    const expired = /invalid_grant|Token has been expired or revoked/i.test(text);
+    if (expired) {
+      // Distinct event so the alert message tells the operator what to do
+      // instead of dumping a raw OAuth 400 in Slack.
+      await logConnector({
+        connector: "gmail_pipeline",
+        level: "error",
+        event: "auth_expired",
+        message: `Gmail refresh token expired or revoked. Re-auth: ${REAUTH_URL || "/oauth-callback?action=start&token=..."}`,
+        detail: { reauth_url: REAUTH_URL, http_status: resp.status, response: text.slice(0, 500) },
+      });
+    }
+    throw new Error(`OAuth token refresh failed: ${resp.status} ${text}`);
   }
   const json = await resp.json();
   _accessToken = {
