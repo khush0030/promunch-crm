@@ -66,15 +66,16 @@ export async function logConnector(input: ConnectorEventInput): Promise<void> {
   }
 }
 
-const SLACK_ERROR_THROTTLE_MIN = 10;
+// First ping fires immediately; if the same connector+event keeps erroring,
+// re-ping every RE_ALERT_HOURS so a multi-day outage cannot stay silent.
+const RE_ALERT_HOURS = 6;
 
-// Post an error event to Slack. Self-throttled per connector+event so a
-// repeatedly-failing pipeline pings once, not every retry.
 async function pingSlackOnError(input: ConnectorEventInput): Promise<void> {
-  const webhook = Deno.env.get("SLACK_WEBHOOK_URL");
-  if (!webhook) return;
+  const botToken = Deno.env.get("SLACK_BOT_TOKEN");
+  const channel = Deno.env.get("SLACK_CHANNEL_ID");
+  if (!botToken || !channel) return;
   try {
-    const since = new Date(Date.now() - SLACK_ERROR_THROTTLE_MIN * 60_000).toISOString();
+    const since = new Date(Date.now() - RE_ALERT_HOURS * 3600_000).toISOString();
     const { count } = await db()
       .from("connector_events")
       .select("id", { count: "exact", head: true })
@@ -82,16 +83,20 @@ async function pingSlackOnError(input: ConnectorEventInput): Promise<void> {
       .eq("event", input.event)
       .eq("level", "error")
       .gte("created_at", since);
-    // the row inserted just above is included — only the first error pings
+    // the row inserted above is counted — first error in the window pings,
+    // the rest stay quiet until the window rolls over
     if ((count ?? 0) > 1) return;
 
-    await fetch(webhook, {
+    const text = `:rotating_light: *${input.connector}* error — \`${input.event}\`\n${input.message ?? "(no message)"}`;
+    const r = await fetch("https://slack.com/api/chat.postMessage", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: `🚨 *${input.connector}* error — \`${input.event}\`\n${input.message ?? "(no message)"}`,
-      }),
+      headers: {
+        authorization: `Bearer ${botToken}`,
+        "content-type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({ channel, text, unfurl_links: false, unfurl_media: false }),
     });
+    if (!r.ok) console.warn("Slack chat.postMessage HTTP", r.status, await r.text());
   } catch (e) {
     console.warn("connector error Slack ping failed:", e);
   }

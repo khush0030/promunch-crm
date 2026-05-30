@@ -194,6 +194,30 @@ export default function IntegrationsPage() {
                       </div>
                     </div>
                   )}
+
+                  {c.id === "gmail_pipeline" && c.status !== "healthy" && (
+                    <a
+                      href="/api/integrations/gmail/reauth"
+                      target="_blank"
+                      rel="noopener"
+                      style={{
+                        marginTop: 12,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "8px 14px",
+                        borderRadius: 8,
+                        background: "var(--accent)",
+                        color: "#fff",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        textDecoration: "none",
+                        minHeight: 36,
+                      }}
+                    >
+                      Re-auth Gmail
+                    </a>
+                  )}
                 </div>
               );
             })}
