@@ -1,0 +1,465 @@
+{
+  "$schema": "internal://promunch/n8n-migration-manifest/v1",
+  "meta": {
+    "project": "promunch-crm",
+    "source_platform": "Supabase Edge Functions (Deno)",
+    "source_project_ref": "hlykspakpewuilttnydm",
+    "target_platform": "n8n Cloud",
+    "target_instance": "https://promunch.app.n8n.cloud",
+    "generated": "2026-05-30",
+    "branch": "mobile/whatsapp-inbox",
+    "function_count": 25,
+    "scope": "Migrate ALL 25 edge functions to n8n. Supabase Postgres + Storage buckets REMAIN the system of record; n8n replaces compute/orchestration only.",
+    "principles": [
+      "DB stays on Supabase Postgres. n8n reaches it via the Postgres node (connection string from project DB settings) or supabase-js HTTP. Do NOT migrate tables.",
+      "Storage buckets (KB_BUCKET, WA_MEDIA_BUCKET) stay on Supabase Storage, accessed via REST from n8n HTTP Request node.",
+      "Every inbound webhook keeps its EXACT existing path so external providers (Meta, Shopify, Google Pub/Sub, Slack, Nitro) need only a host swap, not a re-registration where avoidable.",
+      "Signature/HMAC verification that lived in Deno moves into an n8n Code node (Web Crypto API) as the first step after the Webhook trigger.",
+      "Function-to-function calls (e.g. wa-webhook -> wa-ai-reply) become n8n Execute Workflow (sub-workflow) calls, not HTTP round-trips.",
+      "Synchronous APIs the Next.js app calls inline (wa-send, wa-register, wa-template-create, wa-campaign-send, kb-ingest, shopify-status, shopify-slash) become Webhook + Respond-to-Webhook workflows; the Next.js client base URL flips from the Supabase functions domain to the n8n webhook domain."
+    ],
+    "open_risks": [
+      "LATENCY: wa-send is on the hot path for live chat replies. n8n Cloud webhook cold paths add ~100-400ms vs Supabase edge. Acceptable for async, watch for sync UX. Migrate LAST and load-test.",
+      "OAUTH REDIRECT: oauth-callback's redirect URI is registered in Google Cloud Console. Moving it requires editing the authorized redirect URI there AND OAUTH_REDIRECT_URI secret. One-time browser re-consent likely needed.",
+      "GMAIL PUB/SUB: gmail-webhook receives Google Pub/Sub push. The Pub/Sub subscription push endpoint must be re-pointed to the n8n webhook URL and re-verified (PUBSUB_VERIFICATION_TOKEN).",
+      "META WEBHOOK: wa-webhook verification handshake (hub.challenge) must be reproduced in n8n; Meta App webhook callback URL must be updated and re-verified.",
+      "CRON TIMING: exact pg_cron schedules live in the Supabase DB, not the repo. Confirm each schedule from `select * from cron.job` before setting n8n Schedule Triggers.",
+      "SECRET SPRAWL: 40+ env secrets become n8n credentials/variables. Group into credential sets to avoid per-workflow duplication.",
+      "TOKEN HYGIENE: the n8n MCP bearer token was shared in plaintext and has no exp claim — rotate after cutover."
+    ]
+  },
+
+  "credential_groups": {
+    "whatsapp_cloud_api": {
+      "type": "n8n generic HTTP header auth + variables",
+      "secrets": ["WHATSAPP_ACCESS_TOKEN", "WHATSAPP_APP_SECRET", "WHATSAPP_BUSINESS_ACCOUNT_ID", "WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_VERIFY_TOKEN", "WHATSAPP_GRAPH_VERSION", "WA_SKIP_SIGNATURE"]
+    },
+    "supabase_db": {
+      "type": "n8n Postgres credential (direct) + Supabase service REST",
+      "secrets": ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"],
+      "note": "Primary data path. Prefer Postgres node for table CRUD; use REST for Storage."
+    },
+    "google_gmail": {
+      "type": "OAuth2 + variables",
+      "secrets": ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "OAUTH_REDIRECT_URI", "GMAIL_PUBSUB_TOPIC", "PUBSUB_VERIFICATION_TOKEN", "MAILBOX_EMAIL"]
+    },
+    "anthropic": {
+      "type": "n8n HTTP header auth",
+      "secrets": ["ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "ANTHROPIC_CLASSIFY_MODEL", "WA_AI_MODEL", "WA_PERSONALIZE_MODEL", "WA_TRANSCRIBE_MODEL"]
+    },
+    "openai": {
+      "type": "n8n OpenAI credential",
+      "secrets": ["OPENAI_API_KEY"]
+    },
+    "shopify": {
+      "secrets": ["SHOPIFY_WEBHOOK_SECRET", "SHOPIFY_BIG_ORDER_THRESHOLD", "SHOPIFY_SLACK_BOT_TOKEN", "SHOPIFY_SLACK_CHANNEL_ID", "SHOPIFY_SLACK_BIG_ORDER_CHANNEL_ID", "SHOPIFY_SLACK_SIGNING_SECRET"]
+    },
+    "slack": {
+      "secrets": ["SLACK_BOT_TOKEN", "SLACK_SIGNING_SECRET", "SLACK_CHANNEL_ID", "SLACK_WEBHOOK_URL", "SLACK_BOT_USER_ID", "SLACK_ESCALATION_USERS"]
+    },
+    "nitro": {
+      "secrets": ["NITRO_AUTH_TOKEN", "NITRO_ORG_TOKEN"]
+    },
+    "misc": {
+      "secrets": ["SETUP_TOKEN", "KB_BUCKET", "WA_MEDIA_BUCKET", "NUDGE_SCORE_THRESHOLD", "PROMUNCH_SITE_URL", "PROMUNCH_REVIEW_URL"]
+    }
+  },
+
+  "shared_modules": {
+    "note": "_shared/*.ts are Deno helpers imported by many functions. In n8n they become either reusable sub-workflows (Execute Workflow) or Code-node snippets. Convert ONCE, call everywhere.",
+    "modules": {
+      "whatsapp.ts": "sub-workflow: WA-Send-Core (Graph API send + wa_messages insert + dedup)",
+      "journeys.ts": "Code-node lib: journey config + phone normalization (used by shopify-wa, wa-journey-tick)",
+      "connector-log.ts": "sub-workflow: Log-Connector-Event (insert into connector_events) — call on every workflow success/error",
+      "supabase.ts": "n8n Postgres credential — no code needed",
+      "gmail.ts": "sub-workflow: Gmail-API-Core (token refresh from oauth_tokens + Graph calls)",
+      "anthropic.ts / classify.ts": "sub-workflow: Anthropic-Classify + Anthropic-Reply",
+      "shopify.ts / orders.ts": "Code-node lib: order parsing helpers",
+      "slack.ts": "sub-workflow: Slack-Post (chat.postMessage)",
+      "brand.ts / approve.ts / process-email.ts / log.ts / types.ts": "inline Code-node helpers"
+    }
+  },
+
+  "functions": [
+    {
+      "name": "shopify-wa",
+      "loc": 290,
+      "trigger": "inbound webhook (Shopify order create, HMAC)",
+      "target_workflow": "wf-shopify-wa-order-confirmation",
+      "n8n_trigger": "Webhook (POST, path=/shopify-wa)",
+      "first_node": "Code: verify X-Shopify-Hmac-Sha256 via Web Crypto (SHOPIFY_WEBHOOK_SECRET)",
+      "core_nodes": ["parse order", "dedup check on wa_messages (Postgres)", "WA-Send-Core sub-workflow", "gate journey enrolment on send success", "Log-Connector-Event"],
+      "secrets": ["SHOPIFY_WEBHOOK_SECRET", "whatsapp_cloud_api", "supabase_db"],
+      "status": "ALREADY BUILT -> n8n/workflows/order-confirmation.json (reuse, validate node types)",
+      "cutover_order": 3,
+      "risk": "high-value path; already done; just import + repoint Shopify webhook"
+    },
+    {
+      "name": "wa-jobs-tick",
+      "loc": 215,
+      "trigger": "cron (every 1 min)",
+      "target_workflow": "wf-wa-jobs-tick",
+      "n8n_trigger": "Schedule Trigger (every 1 minute)",
+      "core_nodes": ["claim due jobs from wa_jobs (Postgres, SKIP LOCKED)", "branch by job.kind: ai_reply | order_confirmation | campaign_recovery", "dispatch to sub-workflows", "mark job done/failed"],
+      "secrets": ["supabase_db", "whatsapp_cloud_api", "anthropic"],
+      "status": "to-build",
+      "cutover_order": 5,
+      "risk": "durable worker heart; ensure single-run (no overlap) via n8n setting"
+    },
+    {
+      "name": "order-confirmation-sweep",
+      "loc": 0,
+      "trigger": "cron (catch missed confirmations)",
+      "target_workflow": "wf-order-confirmation-sweep",
+      "n8n_trigger": "Schedule Trigger",
+      "status": "ALREADY BUILT -> n8n/workflows/order-confirmation-sweep.json (reuse)",
+      "secrets": ["supabase_db", "whatsapp_cloud_api"],
+      "cutover_order": 4,
+      "risk": "safety net for shopify-wa"
+    },
+    {
+      "name": "wa-webhook",
+      "loc": 372,
+      "trigger": "inbound webhook (Meta WA inbound msgs + statuses, X-Hub-Signature-256)",
+      "target_workflow": "wf-wa-webhook",
+      "n8n_trigger": "Webhook (GET handshake hub.challenge + POST events, path=/wa-webhook)",
+      "first_node": "Code: GET -> echo hub.challenge if hub.verify_token==WHATSAPP_VERIFY_TOKEN; POST -> verify X-Hub-Signature-256 (WHATSAPP_APP_SECRET) unless WA_SKIP_SIGNATURE",
+      "core_nodes": ["parse messages[] + statuses[]", "upsert wa_messages status lifecycle (sent/delivered/read)", "upsert wa_threads.last_activity_at", "enqueue ai_reply job OR call wa-ai-reply sub-workflow", "media download -> WA_MEDIA_BUCKET"],
+      "secrets": ["whatsapp_cloud_api", "supabase_db"],
+      "status": "to-build",
+      "cutover_order": 8,
+      "risk": "Meta App callback URL change + re-verify; handshake must work first try"
+    },
+    {
+      "name": "wa-ai-reply",
+      "loc": 388,
+      "trigger": "function-to-function (from wa-webhook / wa-jobs-tick)",
+      "target_workflow": "wf-wa-ai-reply (sub-workflow)",
+      "n8n_trigger": "Execute Workflow Trigger",
+      "core_nodes": ["load thread context (Postgres)", "transcribe audio (WA_TRANSCRIBE_MODEL) if voice", "Anthropic classify + draft reply (WA_AI_MODEL)", "escalation decision -> Slack-Post", "WA-Send-Core", "persist"],
+      "secrets": ["anthropic", "openai", "whatsapp_cloud_api", "supabase_db", "slack"],
+      "status": "to-build",
+      "cutover_order": 7,
+      "risk": "largest logic block; convert _shared/classify + anthropic carefully"
+    },
+    {
+      "name": "wa-send",
+      "loc": 161,
+      "trigger": "sync API (Next.js proxy -> here -> Meta Graph)",
+      "target_workflow": "wf-wa-send (sub-workflow + webhook)",
+      "n8n_trigger": "Execute Workflow Trigger (internal) + Webhook (external for Next.js)",
+      "core_nodes": ["build Graph payload", "POST graph.facebook.com/{WHATSAPP_GRAPH_VERSION}/{PHONE_NUMBER_ID}/messages", "insert wa_messages (dedup)", "Respond to Webhook with wa_id"],
+      "secrets": ["whatsapp_cloud_api", "supabase_db"],
+      "status": "to-build (this is WA-Send-Core shared)",
+      "cutover_order": 9,
+      "risk": "HOT PATH latency; migrate last; load-test; Next.js base URL swap"
+    },
+    {
+      "name": "gmail-webhook",
+      "loc": 138,
+      "trigger": "inbound webhook (Google Pub/Sub push)",
+      "target_workflow": "wf-gmail-webhook",
+      "n8n_trigger": "Webhook (POST, path=/gmail-webhook)",
+      "first_node": "Code: verify PUBSUB_VERIFICATION_TOKEN; decode base64 Pub/Sub message",
+      "core_nodes": ["Gmail history.list since last historyId", "fetch new messages", "process-email sub-workflow (classify + draft + Slack)", "store"],
+      "secrets": ["google_gmail", "anthropic", "slack", "supabase_db"],
+      "status": "to-build",
+      "cutover_order": 11,
+      "risk": "Pub/Sub push endpoint re-point + verify"
+    },
+    {
+      "name": "gmail-poll",
+      "loc": 71,
+      "trigger": "cron (fallback poll when watch silent)",
+      "target_workflow": "wf-gmail-poll",
+      "n8n_trigger": "Schedule Trigger",
+      "core_nodes": ["Gmail messages.list unread", "same process-email sub-workflow as gmail-webhook"],
+      "secrets": ["google_gmail", "anthropic", "supabase_db"],
+      "status": "to-build",
+      "cutover_order": 12,
+      "risk": "shares process-email sub-workflow with gmail-webhook"
+    },
+    {
+      "name": "gmail-watch-renew",
+      "loc": 49,
+      "trigger": "cron (renew Gmail watch ~daily)",
+      "target_workflow": "wf-gmail-watch-renew",
+      "n8n_trigger": "Schedule Trigger (daily)",
+      "core_nodes": ["POST users.watch with GMAIL_PUBSUB_TOPIC", "store new historyId/expiry"],
+      "secrets": ["google_gmail", "supabase_db"],
+      "status": "to-build",
+      "cutover_order": 13,
+      "risk": "watch lapses silently — add failure alert to Slack"
+    },
+    {
+      "name": "oauth-callback",
+      "loc": 117,
+      "trigger": "inbound webhook (Google OAuth redirect, gated by SETUP_TOKEN)",
+      "target_workflow": "wf-oauth-callback",
+      "n8n_trigger": "Webhook (GET, path=/oauth-callback)",
+      "core_nodes": ["exchange code -> tokens", "upsert oauth_tokens by email", "trigger gmail-watch-renew"],
+      "secrets": ["google_gmail", "supabase_db", "SETUP_TOKEN"],
+      "status": "to-build",
+      "cutover_order": 14,
+      "risk": "Google Console authorized redirect URI must add the n8n URL; one-time re-consent"
+    },
+    {
+      "name": "slack-events",
+      "loc": 200,
+      "trigger": "inbound webhook (Slack Events API, signing secret)",
+      "target_workflow": "wf-slack-events",
+      "n8n_trigger": "Webhook (POST, path=/slack-events)",
+      "first_node": "Code: url_verification challenge + verify X-Slack-Signature (SLACK_SIGNING_SECRET, 5-min window)",
+      "core_nodes": ["route event_type", "handle agent replies/threads", "act on CRM"],
+      "secrets": ["slack", "supabase_db"],
+      "status": "to-build",
+      "cutover_order": 15,
+      "risk": "Slack app event subscription URL change + re-verify"
+    },
+    {
+      "name": "slack-interactivity",
+      "loc": 188,
+      "trigger": "inbound webhook (Slack interactive components)",
+      "target_workflow": "wf-slack-interactivity",
+      "n8n_trigger": "Webhook (POST, path=/slack-interactivity)",
+      "first_node": "Code: verify X-Slack-Signature; parse payload form field",
+      "core_nodes": ["button/action routing (approve/escalate/resolve)", "update CRM + WA/Slack"],
+      "secrets": ["slack", "whatsapp_cloud_api", "supabase_db"],
+      "status": "to-build",
+      "cutover_order": 16,
+      "risk": "Slack interactivity request URL change"
+    },
+    {
+      "name": "shopify-webhook",
+      "loc": 171,
+      "trigger": "inbound webhook (Shopify, generic CRM ingest, HMAC)",
+      "target_workflow": "wf-shopify-webhook",
+      "n8n_trigger": "Webhook (POST, path=/shopify-webhook)",
+      "first_node": "Code: verify X-Shopify-Hmac-Sha256",
+      "core_nodes": ["upsert contact/order rows (CRM scaffold; does NOT send WA)"],
+      "secrets": ["SHOPIFY_WEBHOOK_SECRET", "supabase_db"],
+      "status": "to-build",
+      "cutover_order": 17,
+      "risk": "distinct from shopify-wa; CRM-only"
+    },
+    {
+      "name": "shopify-status",
+      "loc": 81,
+      "trigger": "sync API / webhook (order status lookup)",
+      "target_workflow": "wf-shopify-status",
+      "n8n_trigger": "Webhook (POST, Respond to Webhook)",
+      "core_nodes": ["lookup order status", "respond"],
+      "secrets": ["shopify", "supabase_db"],
+      "status": "to-build",
+      "cutover_order": 18,
+      "risk": "low"
+    },
+    {
+      "name": "shopify-slash",
+      "loc": 106,
+      "trigger": "sync API (Slack slash command, signing secret)",
+      "target_workflow": "wf-shopify-slash",
+      "n8n_trigger": "Webhook (POST, Respond to Webhook within 3s)",
+      "first_node": "Code: verify SHOPIFY_SLACK_SIGNING_SECRET",
+      "core_nodes": ["parse command", "lookup", "respond ephemeral within Slack 3s limit"],
+      "secrets": ["shopify", "supabase_db"],
+      "status": "to-build",
+      "cutover_order": 19,
+      "risk": "Slack 3s response deadline — keep synchronous + fast"
+    },
+    {
+      "name": "shopify-daily-summary",
+      "loc": 96,
+      "trigger": "cron (pg_cron @ 18:29 UTC)",
+      "target_workflow": "wf-shopify-daily-summary",
+      "n8n_trigger": "Schedule Trigger (29 18 * * *)",
+      "core_nodes": ["aggregate day orders", "Slack-Post summary"],
+      "secrets": ["shopify", "slack", "supabase_db"],
+      "status": "to-build",
+      "cutover_order": 20,
+      "risk": "low; verify timezone (n8n uses instance TZ)"
+    },
+    {
+      "name": "wa-journey-tick",
+      "loc": 108,
+      "trigger": "cron (advance WA journey templates)",
+      "target_workflow": "wf-wa-journey-tick",
+      "n8n_trigger": "Schedule Trigger",
+      "core_nodes": ["find contacts due for next journey step (Postgres)", "journeys.ts config lib (Code)", "WA-Send-Core template send", "advance step"],
+      "secrets": ["whatsapp_cloud_api", "supabase_db"],
+      "status": "to-build",
+      "cutover_order": 6,
+      "risk": "5 Meta-approved templates; preserve step timing"
+    },
+    {
+      "name": "wa-campaign-send",
+      "loc": 217,
+      "trigger": "sync API (Next.js) + self-chaining batches",
+      "target_workflow": "wf-wa-campaign-send",
+      "n8n_trigger": "Webhook (start) + Execute Workflow (batch loop via SplitInBatches)",
+      "core_nodes": ["load campaign recipients", "SplitInBatches with rate limit", "WA-Send-Core per recipient", "track progress + stuck-campaign recovery"],
+      "secrets": ["whatsapp_cloud_api", "supabase_db"],
+      "status": "to-build",
+      "cutover_order": 10,
+      "risk": "self-chaining becomes n8n loop; respect Meta rate limits"
+    },
+    {
+      "name": "wa-template-create",
+      "loc": 394,
+      "trigger": "sync API (admin: push templates to Meta)",
+      "target_workflow": "wf-wa-template-create",
+      "n8n_trigger": "Webhook (POST, Respond to Webhook)",
+      "core_nodes": ["build template payload", "POST WABA message_templates", "store template meta"],
+      "secrets": ["whatsapp_cloud_api", "supabase_db"],
+      "status": "to-build",
+      "cutover_order": 21,
+      "risk": "admin one-shot; low frequency"
+    },
+    {
+      "name": "wa-register",
+      "loc": 34,
+      "trigger": "sync API (one-shot Cloud API number registration)",
+      "target_workflow": "wf-wa-register",
+      "n8n_trigger": "Webhook (POST, Respond to Webhook)",
+      "core_nodes": ["POST register with PIN"],
+      "secrets": ["whatsapp_cloud_api"],
+      "status": "to-build",
+      "cutover_order": 22,
+      "risk": "rarely run; trivial"
+    },
+    {
+      "name": "wa-health",
+      "loc": 52,
+      "trigger": "cron (WA connector heartbeat)",
+      "target_workflow": "wf-wa-health",
+      "n8n_trigger": "Schedule Trigger",
+      "core_nodes": ["GET phone number quality rating", "insert connector_events heartbeat", "alert Slack on degrade"],
+      "secrets": ["whatsapp_cloud_api", "slack", "supabase_db"],
+      "status": "to-build",
+      "cutover_order": 2,
+      "risk": "low; good first real migration to prove pattern"
+    },
+    {
+      "name": "nudge-pending",
+      "loc": 106,
+      "trigger": "cron (pg_cron)",
+      "target_workflow": "wf-nudge-pending",
+      "n8n_trigger": "Schedule Trigger",
+      "core_nodes": ["find pending items > NUDGE_SCORE_THRESHOLD", "Slack/WA nudge"],
+      "secrets": ["supabase_db", "slack", "NUDGE_SCORE_THRESHOLD"],
+      "status": "to-build",
+      "cutover_order": 23,
+      "risk": "low"
+    },
+    {
+      "name": "nitro-webhook",
+      "loc": 264,
+      "trigger": "inbound webhook (Nitro, NITRO_AUTH_TOKEN header)",
+      "target_workflow": "wf-nitro-webhook",
+      "n8n_trigger": "Webhook (POST, path=/nitro-webhook)",
+      "first_node": "Code: verify Authorization == NITRO_AUTH_TOKEN",
+      "core_nodes": ["parse Nitro payload", "CRM ingest"],
+      "secrets": ["nitro", "supabase_db"],
+      "status": "to-build",
+      "cutover_order": 24,
+      "risk": "Nitro caller URL update"
+    },
+    {
+      "name": "kb-ingest",
+      "loc": 90,
+      "trigger": "sync API (Next.js, verify_jwt=true, service role bearer)",
+      "target_workflow": "wf-kb-ingest",
+      "n8n_trigger": "Webhook (POST, header-auth with service role)",
+      "core_nodes": ["read doc from KB_BUCKET", "chunk + embed (OPENAI_API_KEY)", "upsert vector rows (Postgres pgvector)"],
+      "secrets": ["openai", "supabase_db", "KB_BUCKET"],
+      "status": "to-build",
+      "cutover_order": 25,
+      "risk": "embeddings + pgvector; verify n8n can reach Supabase Storage REST"
+    },
+    {
+      "name": "backfill-brand",
+      "loc": 323,
+      "trigger": "manual/admin batch (gated by SETUP_TOKEN)",
+      "target_workflow": "wf-backfill-brand",
+      "n8n_trigger": "Manual Trigger + Webhook (SETUP_TOKEN gate)",
+      "core_nodes": ["scan rows missing brand", "brand.ts classify", "update"],
+      "secrets": ["supabase_db", "anthropic", "SETUP_TOKEN"],
+      "status": "to-build",
+      "cutover_order": 26,
+      "risk": "one-off backfill; can run manually in n8n editor"
+    },
+    {
+      "name": "dbg-mailbox",
+      "loc": 15,
+      "trigger": "debug endpoint",
+      "target_workflow": "wf-dbg-mailbox (optional)",
+      "n8n_trigger": "Webhook (POST)",
+      "core_nodes": ["echo mailbox debug info"],
+      "secrets": ["supabase_db"],
+      "status": "optional / may drop",
+      "cutover_order": 99,
+      "risk": "debug only; consider not migrating"
+    }
+  ],
+
+  "cutover_plan": {
+    "strategy": "Strangler-fig. Stand up each n8n workflow in parallel with the live edge function, repoint the trigger source, verify, then disable the edge function. Crons first (idempotent, no external re-registration), then webhooks (need provider URL changes), sync APIs last (Next.js client swap + latency).",
+    "phases": [
+      {
+        "phase": 1,
+        "title": "Prove the pattern",
+        "items": ["wa-health (cutover_order 2)"],
+        "why": "Cron + WA read + Slack alert + connector_events write touches the full stack with zero external re-registration. Validates credentials + Postgres + Graph from n8n."
+      },
+      {
+        "phase": 2,
+        "title": "Order confirmation (already built)",
+        "items": ["shopify-wa", "order-confirmation-sweep"],
+        "why": "Workflows exist. Import, validate node types via MCP, repoint Shopify order-create webhook, run sweep as safety net."
+      },
+      {
+        "phase": 3,
+        "title": "WA durable worker + journeys",
+        "items": ["wa-jobs-tick", "wa-journey-tick", "wa-ai-reply", "wa-campaign-send"],
+        "why": "Core WA orchestration. Build WA-Send-Core + Anthropic sub-workflows here; everything downstream reuses them."
+      },
+      {
+        "phase": 4,
+        "title": "Inbound webhooks (provider re-point)",
+        "items": ["wa-webhook", "gmail-webhook", "slack-events", "slack-interactivity", "shopify-webhook", "nitro-webhook"],
+        "why": "Each needs the external provider's callback URL changed + re-verified. Do one at a time with rollback ready."
+      },
+      {
+        "phase": 5,
+        "title": "Gmail pipeline + OAuth",
+        "items": ["gmail-poll", "gmail-watch-renew", "oauth-callback"],
+        "why": "Gmail auth is currently broken (token revoked). Re-bootstrap OAuth through the new n8n oauth-callback in one motion."
+      },
+      {
+        "phase": 6,
+        "title": "Remaining sync APIs + admin",
+        "items": ["shopify-status", "shopify-slash", "shopify-daily-summary", "nudge-pending", "wa-template-create", "wa-register", "kb-ingest", "backfill-brand"],
+        "why": "Lower frequency; swap Next.js base URLs and provider endpoints."
+      },
+      {
+        "phase": 7,
+        "title": "Hot-path last",
+        "items": ["wa-send"],
+        "why": "Live-chat latency-sensitive. Load-test n8n webhook p95 before flipping the Next.js send proxy. Keep edge function warm as instant fallback for 1 week."
+      }
+    ],
+    "rollback": "Each edge function stays deployed (just unscheduled / un-pointed) until its n8n twin runs clean for 48h. Re-point the provider URL back to Supabase to roll back instantly.",
+    "post_cutover": [
+      "Rotate the n8n MCP bearer token (no exp claim).",
+      "Decommission edge functions only after 1 week of green n8n runs.",
+      "Move the 40+ secrets out of Supabase function env once nothing references them.",
+      "Keep Supabase Postgres + Storage — they remain the data store."
+    ]
+  },
+
+  "mcp_push": {
+    "blocker": "n8n-mcp added to Claude config + connects, but tools load only after a Claude Code session reload.",
+    "after_reload": "Discover the n8n MCP toolset (create/update/activate workflow + node validation), then for each workflow: build JSON -> validate node types against live n8n -> create -> activate -> test with a sample event -> repoint provider. No copy-paste.",
+    "fallback_if_mcp_management_limited": "If the n8n Cloud native MCP server only exposes workflow-execution (not management/CRUD), switch to the n8n public REST API (POST /api/v1/workflows) with an API key, or the community n8n-mcp server which has full node docs + create/update tools."
+  }
+}

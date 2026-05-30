@@ -1,0 +1,122 @@
+{
+  "name": "PROMUNCH — Order Confirmation Sweep (5 min)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "minutes", "minutesInterval": 5 }
+          ]
+        }
+      },
+      "id": "cron",
+      "name": "Every 5 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Orders placed in the last 60 min with no successful WhatsApp\n-- confirmation row and no pending/active wa_jobs retry already queued.\nWITH recent AS (\n  SELECT so.shopify_id, so.order_number, so.customer_name, so.customer_phone,\n         so.total_price, so.shopify_created_at\n  FROM shopify_orders so\n  WHERE so.shopify_created_at >= NOW() - INTERVAL '60 minutes'\n    AND so.customer_phone IS NOT NULL\n    AND so.customer_phone <> ''\n)\nSELECT r.order_number, r.customer_name, r.customer_phone, r.total_price\nFROM recent r\nWHERE NOT EXISTS (\n  SELECT 1 FROM wa_messages m\n  WHERE m.sent_by = 'journey:order_confirmation:' || r.order_number\n    AND m.status IN ('sent','delivered','read')\n)\nAND NOT EXISTS (\n  SELECT 1 FROM wa_jobs j\n  WHERE j.kind = 'order_confirmation'\n    AND j.status = 'pending'\n    AND j.payload->>'order_ref' = r.order_number\n);",
+        "options": {}
+      },
+      "id": "find-missing",
+      "name": "Find missing confirmations",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [420, 300],
+      "credentials": {
+        "postgres": { "id": "supabase-postgres", "name": "Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            { "id": "has-rows", "leftValue": "={{ $items().length }}", "rightValue": 0, "operator": { "type": "number", "operation": "gt" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "gate-any",
+      "name": "IF any missing",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize phone -> wa_id and build retry payload per row.\nfunction toWaId(raw) {\n  if (!raw) return null;\n  let d = String(raw).replace(/\\D/g, '');\n  if (!d) return null;\n  if (d.length === 11 && d.startsWith('0')) d = d.slice(1);\n  if (d.length === 10) d = '91' + d;\n  if (d.length < 11 || d.length > 15) return null;\n  return d;\n}\nfunction firstName(name) {\n  const t = (name ?? '').trim();\n  return t ? t.split(/\\s+/)[0] : 'there';\n}\nconst out = [];\nfor (const item of $input.all()) {\n  const r = item.json;\n  const waId = toWaId(r.customer_phone);\n  if (!waId) continue;\n  const orderRef = r.order_number;\n  out.push({\n    json: {\n      payload: {\n        wa_id: waId,\n        name: firstName(r.customer_name),\n        order_ref: orderRef,\n        total: String(r.total_price ?? ''),\n        sent_by: 'journey:order_confirmation:' + orderRef,\n      },\n    },\n  });\n}\nreturn out;\n"
+      },
+      "id": "build-payload",
+      "name": "Build retry payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 240]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO wa_jobs (kind, payload, run_after, max_attempts)\nVALUES ('order_confirmation', $1::jsonb, NOW(), 8);",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify($json.payload) }}"
+        }
+      },
+      "id": "enqueue",
+      "name": "Enqueue wa_jobs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1080, 240],
+      "credentials": {
+        "postgres": { "id": "supabase-postgres", "name": "Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_ALERT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  text: ':wave: Sweep recovered ' + $items('Build retry payload').length + ' missed order confirmation(s):\\n' +\n        $items('Build retry payload').map(i => '• ' + i.json.payload.order_ref + '  → ' + i.json.payload.wa_id).join('\\n')\n}) }}",
+        "options": {}
+      },
+      "id": "slack-summary",
+      "name": "Slack summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1300, 240]
+    }
+  ],
+  "connections": {
+    "Every 5 minutes": {
+      "main": [[{ "node": "Find missing confirmations", "type": "main", "index": 0 }]]
+    },
+    "Find missing confirmations": {
+      "main": [[{ "node": "IF any missing", "type": "main", "index": 0 }]]
+    },
+    "IF any missing": {
+      "main": [
+        [{ "node": "Build retry payload", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Build retry payload": {
+      "main": [[{ "node": "Enqueue wa_jobs", "type": "main", "index": 0 }]]
+    },
+    "Enqueue wa_jobs": {
+      "main": [[{ "node": "Slack summary", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "timezone": "Asia/Kolkata"
+  },
+  "staticData": null,
+  "tags": [{ "name": "promunch" }, { "name": "sweep" }],
+  "triggerCount": 1,
+  "active": false
+}

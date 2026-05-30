@@ -5,20 +5,27 @@ import { supabase } from "@/lib/supabase";
 import ConnectorBanner from "@/components/ConnectorBanner";
 import NeedsAttention from "@/components/NeedsAttention";
 
-type Period = "7d" | "30d" | "90d" | "all";
+type Period = "today" | "7d" | "30d" | "90d" | "all";
 
 const periodLabel: Record<Period, string> = {
+  today: "today",
   "7d": "last 7 days",
   "30d": "last 30 days",
   "90d": "last 90 days",
   all: "all time",
 };
-const periodDays: Record<Period, number | null> = {
-  "7d": 7,
-  "30d": 30,
-  "90d": 90,
-  all: null,
-};
+
+// Lower bound (ISO) for a period, or null for all-time. "today" = since local midnight.
+function sinceForPeriod(period: Period): string | null {
+  if (period === "all") return null;
+  if (period === "today") {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+  }
+  const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
+  return new Date(Date.now() - days * 86400_000).toISOString();
+}
 
 // Human-readable "time since" for webhook freshness.
 function relTime(ms: number): string {
@@ -197,7 +204,7 @@ function ConnectTile({ label }: { label: string }) {
 }
 
 export default function DashboardPage() {
-  const [period, setPeriod] = useState<Period>("30d");
+  const [period, setPeriod] = useState<Period>("today");
   const [kpis, setKpis] = useState<Kpis | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [flows, setFlows] = useState<FlowRow[]>([]);
@@ -209,11 +216,10 @@ export default function DashboardPage() {
   // "Connect Shopify" KPI cards. Defaults true so the real tiles don't flash.
   const [hasOrders, setHasOrders] = useState(true);
 
-  async function load() {
-    setRefreshing(true);
+  async function load(opts?: { silent?: boolean }) {
+    if (!opts?.silent) setRefreshing(true);
     try {
-      const days = periodDays[period];
-      const sinceIso = days != null ? new Date(Date.now() - days * 86400_000).toISOString() : null;
+      const sinceIso = sinceForPeriod(period);
 
       // Orders: filter by placed_at (fallback to created_at)
       let ordersQ = supabase.from("orders").select("total_amount, placed_at, created_at");
@@ -316,14 +322,10 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
 
-  // Keep the Channels card live: poll connection status every 30s and refresh
-  // immediately when the tab regains focus.
+  // Keep the dashboard live: silently re-pull KPIs (revenue for the selected
+  // period — "today" by default), channels and lists every 30s and on focus.
   useEffect(() => {
-    let cancelled = false;
-    const refresh = async () => {
-      const ch = await detectChannels();
-      if (!cancelled) setChannels(ch);
-    };
+    const refresh = () => load({ silent: true });
     const id = setInterval(refresh, 30_000);
     const onVisible = () => {
       if (document.visibilityState === "visible") refresh();
@@ -331,12 +333,12 @@ export default function DashboardPage() {
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", refresh);
     return () => {
-      cancelled = true;
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", refresh);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period]);
 
   if (!loaded || !kpis) {
     return (
@@ -382,7 +384,11 @@ export default function DashboardPage() {
                 className={`chip${period === p ? " active" : ""}`}
                 onClick={() => setPeriod(p)}
               >
-                {p === "all" ? "All time" : `Last ${p.replace("d", " days")}`}
+                {p === "all"
+                  ? "All time"
+                  : p === "today"
+                  ? "Today"
+                  : `Last ${p.replace("d", " days")}`}
               </button>
             ))}
           </div>

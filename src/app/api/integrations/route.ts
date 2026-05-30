@@ -148,7 +148,7 @@ export async function GET() {
     });
   }
 
-  // 2. AI drafting (Claude) ---------------------------------------------------
+  // 2. AI drafting (OpenAI) --------------------------------------------------
   {
     const ev = byConnector("anthropic");
     let status = statusFromEvents(ev);
@@ -162,14 +162,14 @@ export async function GET() {
     } else if (ev[0]?.event === "credits_exhausted") {
       status = "down";
       headline =
-        "Anthropic API is out of credits — emails are still delivered to Slack without a draft. Top up at console.anthropic.com.";
+        "OpenAI API is out of credits — emails are still delivered to Slack without a draft. Top up at platform.openai.com.";
     } else if (ev[0]?.level === "error") {
       status = "down";
       headline = err?.message || "AI drafting is failing.";
     }
     connectors.push({
       id: "anthropic",
-      label: "AI drafting (Claude)",
+      label: "AI drafting (OpenAI)",
       description: "Generates the suggested reply for each support email.",
       status,
       headline,

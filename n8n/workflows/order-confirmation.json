@@ -1,0 +1,289 @@
+{
+  "name": "PROMUNCH — Order Confirmation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "shopify-order-confirmation",
+        "options": {
+          "rawBody": true,
+          "responseData": "noData"
+        },
+        "responseMode": "responseNode"
+      },
+      "id": "webhook",
+      "name": "Shopify Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "shopify-order-confirmation"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond",
+      "name": "Respond 200 to Shopify",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// HMAC-SHA256 verify using Web Crypto (no require, works in n8n vm2 sandbox).\nconst secret = $env.SHOPIFY_WEBHOOK_SECRET;\nif (!secret) throw new Error('SHOPIFY_WEBHOOK_SECRET not set on n8n');\n\nasync function computeHmacBase64(rawBody) {\n  const enc = new TextEncoder();\n  const key = await crypto.subtle.importKey(\n    'raw', enc.encode(secret),\n    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']\n  );\n  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(rawBody));\n  let bin = '';\n  const bytes = new Uint8Array(sig);\n  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);\n  return btoa(bin);\n}\n\nconst items = $input.all();\nconst out = [];\nfor (const item of items) {\n  const headers = item.json.headers || {};\n  const topic = (headers['x-shopify-topic'] || '').toLowerCase();\n  const hmac = headers['x-shopify-hmac-sha256'];\n  const rawBody = typeof item.json.body === 'string'\n    ? item.json.body\n    : JSON.stringify(item.json.body);\n  const computed = await computeHmacBase64(rawBody);\n  if (computed !== hmac) {\n    out.push({ json: { ok: false, error: 'bad-hmac', topic } });\n    continue;\n  }\n  let order; try { order = JSON.parse(rawBody); } catch { order = item.json.body; }\n  out.push({ json: { ok: true, topic, order } });\n}\nreturn out;\n"
+      },
+      "id": "verify-hmac",
+      "name": "Verify HMAC + Parse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            { "id": "hmac-ok", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true", "singleValue": true } },
+            { "id": "topic-match", "leftValue": "={{ $json.topic }}", "rightValue": "orders/create", "operator": { "type": "string", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "gate-topic",
+      "name": "IF HMAC ok + orders/create",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Phone normalize + active-order guard + extract fields.\nfunction toWaId(raw) {\n  if (!raw) return null;\n  let d = String(raw).replace(/\\D/g, '');\n  if (!d) return null;\n  if (d.length === 11 && d.startsWith('0')) d = d.slice(1);\n  if (d.length === 10) d = '91' + d;\n  if (d.length < 11 || d.length > 15) return null;\n  return d;\n}\nfunction firstName(...candidates) {\n  for (const c of candidates) {\n    const t = (c ?? '').trim();\n    if (t) return t.split(/\\s+/)[0];\n  }\n  return 'there';\n}\nconst out = [];\nfor (const item of $input.all()) {\n  const order = item.json.order;\n  const orderRef = order.name || ('#' + order.order_number) || String(order.id);\n  const cancelled = !!order.cancelled_at;\n  const fin = String(order.financial_status ?? '').toLowerCase();\n  const active = !cancelled && fin !== 'voided' && fin !== 'refunded';\n  const waId = toWaId(\n    order.customer?.phone ?? order.phone ?? order.shipping_address?.phone ?? order.billing_address?.phone\n  );\n  const name = firstName(order.customer?.first_name, order.shipping_address?.first_name, order.billing_address?.first_name);\n  const total = String(order.total_price ?? order.current_total_price ?? '');\n  out.push({\n    json: {\n      orderRef, active, waId, name, total,\n      sentBy: 'journey:order_confirmation:' + orderRef,\n      skipReason: !active ? 'order_not_active' : (!waId ? 'no_phone' : null),\n    },\n  });\n}\nreturn out;\n"
+      },
+      "id": "extract",
+      "name": "Extract + Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 240]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            { "id": "skip", "leftValue": "={{ $json.skipReason }}", "rightValue": "", "operator": { "type": "string", "operation": "empty", "singleValue": true } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "gate-skip",
+      "name": "IF deliverable",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1300, 240]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id FROM wa_messages\nWHERE sent_by = $1\n  AND status IN ('sent','delivered','read')\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.sentBy }}"
+        }
+      },
+      "id": "dedup-check",
+      "name": "Dedup: already sent?",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1520, 180],
+      "credentials": {
+        "postgres": { "id": "supabase-postgres", "name": "Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Carry forward the original normalize payload alongside the dedup result.\nconst prev = $('Extract + Normalize').first().json;\nconst hit = $input.all().length > 0;\nreturn [{ json: { ...prev, dedupHit: hit } }];\n"
+      },
+      "id": "merge-dedup",
+      "name": "Merge dedup + ctx",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1740, 180]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            { "id": "no-dup", "leftValue": "={{ $json.dedupHit }}", "rightValue": false, "operator": { "type": "boolean", "operation": "false", "singleValue": true } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "gate-dedup",
+      "name": "IF not yet sent",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1960, 180]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/wa-send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  to: $json.waId,\n  kind: 'template',\n  template: {\n    name: 'order_confirmation',\n    language: 'en',\n    vars: { '1': $json.name, '2': $json.orderRef, '3': $json.total }\n  },\n  sent_by: $json.sentBy\n}) }}",
+        "options": {
+          "response": { "response": { "neverError": true, "responseFormat": "json" } }
+        }
+      },
+      "id": "wa-send",
+      "name": "Send via wa-send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2180, 120],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            { "id": "ok", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true", "singleValue": true } }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "gate-send",
+      "name": "IF send ok",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2400, 120]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO wa_journey_runs (journey_key, wa_id, order_ref, next_action_at, context)\nVALUES\n  ('review_request',         $1, $2, NOW() + INTERVAL '5 days',  $3::jsonb),\n  ('replenishment_reminder', $1, $2, NOW() + INTERVAL '30 days', $4::jsonb);\n\nUPDATE wa_journey_runs SET status = 'converted'\nWHERE wa_id = $1 AND journey_key = 'abandoned_checkout' AND status = 'active';",
+        "options": {
+          "queryReplacement": "={{ [\n  $('Merge dedup + ctx').first().json.waId,\n  $('Merge dedup + ctx').first().json.orderRef,\n  JSON.stringify({ vars: { '1': $('Merge dedup + ctx').first().json.name, '2': ($env.PROMUNCH_REVIEW_URL || 'https://promunch.in/pages/reviews') } }),\n  JSON.stringify({ vars: { '1': $('Merge dedup + ctx').first().json.name, '2': ($env.PROMUNCH_SITE_URL || 'https://promunch.in') } })\n].join(',') }}"
+        }
+      },
+      "id": "enrol-journeys",
+      "name": "Enrol post-purchase journeys",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [2620, 60],
+      "credentials": {
+        "postgres": { "id": "supabase-postgres", "name": "Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO wa_jobs (kind, payload, run_after, max_attempts)\nVALUES ('order_confirmation', $1::jsonb, NOW() + INTERVAL '60 seconds', 8);",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify({\n  wa_id: $('Merge dedup + ctx').first().json.waId,\n  name: $('Merge dedup + ctx').first().json.name,\n  order_ref: $('Merge dedup + ctx').first().json.orderRef,\n  total: $('Merge dedup + ctx').first().json.total,\n  sent_by: $('Merge dedup + ctx').first().json.sentBy\n}) }}"
+        }
+      },
+      "id": "enqueue-retry",
+      "name": "Enqueue wa_jobs retry",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [2620, 240],
+      "credentials": {
+        "postgres": { "id": "supabase-postgres", "name": "Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_ALERT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  text: ':rotating_light: Order confirmation send failed after 3 attempts.\\n*Order:* ' + $('Merge dedup + ctx').first().json.orderRef + '\\n*Phone:* ' + $('Merge dedup + ctx').first().json.waId + '\\n*Error:* ' + ($json.error || 'unknown') + '\\nEnqueued for retry in wa_jobs.'\n}) }}",
+        "options": {}
+      },
+      "id": "slack-alert",
+      "name": "Slack alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2840, 320]
+    }
+  ],
+  "connections": {
+    "Shopify Webhook": {
+      "main": [[{ "node": "Respond 200 to Shopify", "type": "main", "index": 0 }]]
+    },
+    "Respond 200 to Shopify": {
+      "main": [[{ "node": "Verify HMAC + Parse", "type": "main", "index": 0 }]]
+    },
+    "Verify HMAC + Parse": {
+      "main": [[{ "node": "IF HMAC ok + orders/create", "type": "main", "index": 0 }]]
+    },
+    "IF HMAC ok + orders/create": {
+      "main": [
+        [{ "node": "Extract + Normalize", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Extract + Normalize": {
+      "main": [[{ "node": "IF deliverable", "type": "main", "index": 0 }]]
+    },
+    "IF deliverable": {
+      "main": [
+        [{ "node": "Dedup: already sent?", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Dedup: already sent?": {
+      "main": [[{ "node": "Merge dedup + ctx", "type": "main", "index": 0 }]]
+    },
+    "Merge dedup + ctx": {
+      "main": [[{ "node": "IF not yet sent", "type": "main", "index": 0 }]]
+    },
+    "IF not yet sent": {
+      "main": [
+        [{ "node": "Send via wa-send", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Send via wa-send": {
+      "main": [[{ "node": "IF send ok", "type": "main", "index": 0 }]]
+    },
+    "IF send ok": {
+      "main": [
+        [{ "node": "Enrol post-purchase journeys", "type": "main", "index": 0 }],
+        [
+          { "node": "Enqueue wa_jobs retry", "type": "main", "index": 0 },
+          { "node": "Slack alert", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveExecutionProgress": true,
+    "timezone": "Asia/Kolkata"
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "promunch" },
+    { "name": "shopify" },
+    { "name": "whatsapp" }
+  ],
+  "triggerCount": 1,
+  "active": false
+}
