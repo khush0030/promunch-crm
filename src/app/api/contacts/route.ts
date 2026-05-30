@@ -8,6 +8,8 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search') || '';
   const status = searchParams.get('status') || '';
   const tag = searchParams.get('tag') || '';
+  const list = searchParams.get('list') || '';
+  const segment = searchParams.get('segment') || '';
   const minOrders = parseInt(searchParams.get('minOrders') || '0');
   const maxOrders = parseInt(searchParams.get('maxOrders') || '0');
   const minLtv = parseFloat(searchParams.get('minLtv') || '0');
@@ -47,6 +49,10 @@ export async function GET(request: NextRequest) {
   if (tag) {
     query = query.contains('tags', [tag]);
   }
+
+  // Klaviyo list / segment membership filters (array-contains).
+  if (list) query = query.contains('klaviyo_lists', [list]);
+  if (segment) query = query.contains('klaviyo_segments', [segment]);
 
   if (minOrders > 0) query = query.gte('total_orders', minOrders);
   if (maxOrders > 0) query = query.lte('total_orders', maxOrders);

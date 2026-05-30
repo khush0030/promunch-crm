@@ -44,9 +44,10 @@ const categoryLabel: Record<string, string> = {
   general: "General",
 };
 
+// Pending (awaiting a reply) leads — it is the queue that needs a human.
 const filters = [
-  { key: "", label: "All" },
   { key: "pending", label: "Pending" },
+  { key: "", label: "All" },
   { key: "sent", label: "Sent" },
   { key: "skipped", label: "Skipped" },
   { key: "failed", label: "Failed" },
@@ -70,12 +71,18 @@ export default function SupportEmailsPage() {
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [status, setStatus] = useState("");
+  const [category, setCategory] = useState("");
   const [search, setSearch] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [facets, setFacets] = useState<{
+    pending: number;
+    categories: { name: string; count: number }[];
+  }>({ pending: 0, categories: [] });
 
   const fetchData = useCallback(async () => {
     const params = new URLSearchParams({ page: String(page), limit: "25" });
     if (status) params.set("status", status);
+    if (category) params.set("lead_category", category);
     if (search) params.set("search", search);
     const res = await fetch(`/api/support-emails?${params}`);
     const data = await res.json();
@@ -83,12 +90,20 @@ export default function SupportEmailsPage() {
     setTotal(data.total || 0);
     setPages(data.pages || 1);
     setLoaded(true);
-  }, [page, status, search]);
+  }, [page, status, category, search]);
 
   useEffect(() => {
     const t = setTimeout(fetchData, 250);
     return () => clearTimeout(t);
   }, [fetchData]);
+
+  // Pending count + lead_category values for the filter chips.
+  useEffect(() => {
+    fetch("/api/support-emails/facets")
+      .then((r) => r.json())
+      .then((d) => setFacets({ pending: d.pending ?? 0, categories: d.categories ?? [] }))
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="page">
@@ -133,10 +148,41 @@ export default function SupportEmailsPage() {
               }}
             >
               {f.label}
+              {f.key === "pending" && facets.pending > 0 ? ` (${facets.pending})` : ""}
             </button>
           ))}
         </div>
       </div>
+
+      {facets.categories.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          <span style={{ fontSize: 12, color: "var(--text-3)", fontWeight: 500 }}>Category</span>
+          <div className="chips">
+            {facets.categories.map((c) => (
+              <button
+                key={c.name}
+                type="button"
+                className={`chip${category === c.name ? " active" : ""}`}
+                title={`${c.count} email${c.count === 1 ? "" : "s"}`}
+                onClick={() => {
+                  setCategory((v) => (v === c.name ? "" : c.name));
+                  setPage(1);
+                }}
+              >
+                {categoryLabel[c.name] || c.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         {threads.length > 0 ? (

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { findCrmContactForWa } from "@/lib/customer-link";
 
 // Customer 360 for a WhatsApp thread: stitches the chat to the rest of the
 // CRM. Given a thread it returns the customer's Shopify orders (matched by
@@ -21,7 +22,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: thread, error } = await supabaseAdmin
     .from("wa_threads")
-    .select("id, wa_id, contact:wa_contacts!inner(id, wa_id, phone, name, email, tags)")
+    .select("id, wa_id, contact:wa_contacts!inner(id, wa_id, phone, name, email, tags, shopify_customer_id)")
     .eq("id", id)
     .single();
   if (error || !thread) {
@@ -63,30 +64,28 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     };
   });
 
-  // --- CRM contact: prefer an email match, fall back to phone --------------
+  // --- CRM contact: resolved through the unified matching layer ------------
+  // (shopify_customer_id → email → last-10-digit phone). The shopify customer
+  // id is the highest-confidence match and is lifted from the raw order
+  // payload as a fallback when wa_contacts doesn't carry it.
   const email =
     (thread.contact as any)?.email ||
     ((orderRows ?? []) as any[]).find((o) => o.customer_email)?.customer_email ||
     null;
-  const last10 = waId.replace(/\D/g, "").slice(-10);
+  const firstRaw = ((orderRows?.[0] ?? null) as { raw?: Record<string, unknown> } | null)?.raw as
+    | Record<string, unknown>
+    | undefined;
+  const rawCustomer = (firstRaw?.customer ?? null) as { id?: string | number | null } | null;
+  const shopifyCustomerId =
+    (thread.contact as { shopify_customer_id?: string | null })?.shopify_customer_id ??
+    (rawCustomer?.id != null ? String(rawCustomer.id) : null);
 
-  let contact: Record<string, any> | null = null;
-  if (email) {
-    const { data } = await supabaseAdmin
-      .from("contacts")
-      .select("id, email, first_name, last_name, phone, tags, status, total_orders, total_spent, last_purchase_date, city, state")
-      .ilike("email", email)
-      .maybeSingle();
-    contact = data ?? null;
-  }
-  if (!contact && last10) {
-    const { data } = await supabaseAdmin
-      .from("contacts")
-      .select("id, email, first_name, last_name, phone, tags, status, total_orders, total_spent, last_purchase_date, city, state")
-      .ilike("phone", `%${last10}%`)
-      .limit(1);
-    contact = data?.[0] ?? null;
-  }
+  const contact = await findCrmContactForWa({
+    email,
+    wa_id: waId,
+    phone: (thread.contact as { phone?: string | null })?.phone ?? null,
+    shopify_customer_id: shopifyCustomerId,
+  });
 
   return NextResponse.json({
     wa_id: waId,

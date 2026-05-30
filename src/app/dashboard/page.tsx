@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import ConnectorBanner from "@/components/ConnectorBanner";
+import NeedsAttention from "@/components/NeedsAttention";
 
 type Period = "7d" | "30d" | "90d" | "all";
 
@@ -65,6 +66,136 @@ type ChannelRow = {
   pill?: string; // overrides default pill text (Connected / Configured / Not connected)
 };
 
+// Live connection status — re-runs against the DB on a poll so the Channels
+// card reflects reality without a manual sync.
+async function detectChannels(): Promise<ChannelRow[]> {
+  const ch: ChannelRow[] = [];
+  // Shopify
+  const { count: shopifyOrderCount } = await supabase
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .eq("source", "shopify");
+  ch.push(
+    shopifyOrderCount && shopifyOrderCount > 0
+      ? {
+          label: "Shopify",
+          status: "ok",
+          detail: `${shopifyOrderCount.toLocaleString("en-IN")} orders synced`,
+        }
+      : { label: "Shopify", status: "off", detail: "Not connected" }
+  );
+  // Klaviyo
+  const { count: klaviyoCount } = await supabase
+    .from("contacts")
+    .select("id", { count: "exact", head: true })
+    .not("klaviyo_id", "is", null);
+  ch.push(
+    klaviyoCount && klaviyoCount > 0
+      ? {
+          label: "Klaviyo",
+          status: "ok",
+          detail: `${klaviyoCount.toLocaleString("en-IN")} contacts imported`,
+        }
+      : { label: "Klaviyo", status: "off", detail: "Not connected" }
+  );
+  // Email
+  ch.push({
+    label: "Email (Resend)",
+    status: process.env.NEXT_PUBLIC_RESEND_CONFIGURED === "true" ? "ok" : "warn",
+    detail:
+      process.env.NEXT_PUBLIC_RESEND_CONFIGURED === "true"
+        ? "Configured"
+        : "API key set server-side",
+  });
+  // WhatsApp — derive status from the same /api/whatsapp/health endpoint the
+  // WhatsApp page's StatusMeter uses, so the Dashboard and WhatsApp page agree.
+  // The inbox runs off wa_threads + the Cloud API, not the wa_contacts table.
+  try {
+    const r = await fetch("/api/whatsapp/health");
+    const h = await r.json();
+    if (h?.status === "up") {
+      ch.push({
+        label: "WhatsApp",
+        status: "ok",
+        detail:
+          h.uptime24h != null ? `Operational · ${h.uptime24h}% uptime 24h` : "Operational",
+      });
+    } else if (h?.status === "down") {
+      ch.push({
+        label: "WhatsApp",
+        status: "warn",
+        detail: "Cloud API not responding",
+        pill: "Degraded",
+      });
+    } else {
+      throw new Error("health unknown");
+    }
+  } catch {
+    // Fallback: any conversation thread means WhatsApp is live and handling messages.
+    const { count: waThreadCount } = await supabase
+      .from("wa_threads")
+      .select("id", { count: "exact", head: true });
+    ch.push(
+      waThreadCount && waThreadCount > 0
+        ? {
+            label: "WhatsApp",
+            status: "ok",
+            detail: `${waThreadCount.toLocaleString("en-IN")} conversations`,
+          }
+        : { label: "WhatsApp", status: "off", detail: "Not connected" }
+    );
+  }
+  // Nitro (NitroCommerce) webhook — health = events received + how recently
+  const { count: nitroCount } = await supabase
+    .from("nitro_events")
+    .select("id", { count: "exact", head: true });
+  const { data: lastNitro } = await supabase
+    .from("nitro_events")
+    .select("received_at, event_name")
+    .order("received_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (nitroCount && nitroCount > 0 && lastNitro?.received_at) {
+    const ageMs = Date.now() - new Date(lastNitro.received_at).getTime();
+    const fresh = ageMs < 24 * 3600_000;
+    ch.push({
+      label: "Nitro webhook",
+      status: fresh ? "ok" : "warn",
+      detail: `${nitroCount.toLocaleString("en-IN")} events · last ${relTime(ageMs)}`,
+      pill: fresh ? "Live" : "No recent events",
+    });
+  } else {
+    ch.push({
+      label: "Nitro webhook",
+      status: "off",
+      detail: "No events received yet",
+    });
+  }
+  return ch;
+}
+
+// Shown in place of a money KPI when no Shopify order has ever synced — a
+// dead "₹0" invites a connection instead of looking like a real metric.
+function ConnectTile({ label }: { label: string }) {
+  return (
+    <a href="/dashboard/integrations" className="kpi" style={{ display: "block" }}>
+      <div className="ico" style={{ background: "var(--accent-soft)" }}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2">
+          <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+        </svg>
+      </div>
+      <div className="label">{label}</div>
+      <div
+        className="value"
+        style={{ fontSize: 16, fontWeight: 600, color: "var(--accent)", letterSpacing: "-0.01em" }}
+      >
+        Connect Shopify →
+      </div>
+      <div className="delta flat">Appears once orders sync</div>
+    </a>
+  );
+}
+
 export default function DashboardPage() {
   const [period, setPeriod] = useState<Period>("30d");
   const [kpis, setKpis] = useState<Kpis | null>(null);
@@ -74,6 +205,9 @@ export default function DashboardPage() {
   const [channels, setChannels] = useState<ChannelRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // hasOrders = at least one order ever (not just in range). Drives the
+  // "Connect Shopify" KPI cards. Defaults true so the real tiles don't flash.
+  const [hasOrders, setHasOrders] = useState(true);
 
   async function load() {
     setRefreshing(true);
@@ -84,22 +218,26 @@ export default function DashboardPage() {
       // Orders: filter by placed_at (fallback to created_at)
       let ordersQ = supabase.from("orders").select("total_amount, placed_at, created_at");
       if (sinceIso) ordersQ = ordersQ.gte("placed_at", sinceIso);
-      const [contactsRes, campaignsRes, flowsRes, ordersRes] = await Promise.all([
-        supabase.from("contacts").select("id, status, created_at"),
-        sinceIso
-          ? supabase
-              .from("campaigns")
-              .select("*")
-              .gte("created_at", sinceIso)
-              .order("created_at", { ascending: false })
-          : supabase
-              .from("campaigns")
-              .select("*")
-              .order("created_at", { ascending: false })
-              .limit(5),
-        supabase.from("flows").select("*").eq("status", "active"),
-        ordersQ,
-      ]);
+      const [contactsRes, campaignsRes, flowsRes, ordersRes, ordersEverRes] =
+        await Promise.all([
+          supabase.from("contacts").select("id, status, created_at"),
+          sinceIso
+            ? supabase
+                .from("campaigns")
+                .select("*")
+                .gte("created_at", sinceIso)
+                .order("created_at", { ascending: false })
+            : supabase
+                .from("campaigns")
+                .select("*")
+                .order("created_at", { ascending: false })
+                .limit(5),
+          supabase.from("flows").select("*").eq("status", "active"),
+          ordersQ,
+          // All-time order count — drives the "Connect Shopify" KPI cards.
+          supabase.from("orders").select("id", { count: "exact", head: true }),
+        ]);
+      setHasOrders((ordersEverRes.count ?? 0) > 0);
 
       const contactRows = contactsRes.data || [];
       const activeCount = contactRows.filter((c) => c.status === "active").length;
@@ -165,82 +303,7 @@ export default function DashboardPage() {
         unsubscribed: unsubCount,
       });
 
-      // Real channel detection
-      const ch: ChannelRow[] = [];
-      // Shopify
-      const { count: shopifyOrderCount } = await supabase
-        .from("orders")
-        .select("id", { count: "exact", head: true })
-        .eq("source", "shopify");
-      ch.push(
-        shopifyOrderCount && shopifyOrderCount > 0
-          ? {
-              label: "Shopify",
-              status: "ok",
-              detail: `${shopifyOrderCount.toLocaleString("en-IN")} orders synced`,
-            }
-          : { label: "Shopify", status: "off", detail: "Not connected" }
-      );
-      // Klaviyo
-      const { count: klaviyoCount } = await supabase
-        .from("contacts")
-        .select("id", { count: "exact", head: true })
-        .not("klaviyo_id", "is", null);
-      ch.push(
-        klaviyoCount && klaviyoCount > 0
-          ? {
-              label: "Klaviyo",
-              status: "ok",
-              detail: `${klaviyoCount.toLocaleString("en-IN")} contacts imported`,
-            }
-          : { label: "Klaviyo", status: "off", detail: "Not connected" }
-      );
-      // Email
-      ch.push({
-        label: "Email (Resend)",
-        status: process.env.NEXT_PUBLIC_RESEND_CONFIGURED === "true" ? "ok" : "warn",
-        detail: process.env.NEXT_PUBLIC_RESEND_CONFIGURED === "true" ? "Configured" : "API key set server-side",
-      });
-      // WhatsApp
-      const { count: waCount } = await supabase
-        .from("wa_contacts")
-        .select("id", { count: "exact", head: true });
-      ch.push(
-        waCount && waCount > 0
-          ? {
-              label: "WhatsApp",
-              status: "ok",
-              detail: `${waCount.toLocaleString("en-IN")} contacts`,
-            }
-          : { label: "WhatsApp", status: "off", detail: "Not connected" }
-      );
-      // Nitro (NitroCommerce) webhook — health = events received + how recently
-      const { count: nitroCount } = await supabase
-        .from("nitro_events")
-        .select("id", { count: "exact", head: true });
-      const { data: lastNitro } = await supabase
-        .from("nitro_events")
-        .select("received_at, event_name")
-        .order("received_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (nitroCount && nitroCount > 0 && lastNitro?.received_at) {
-        const ageMs = Date.now() - new Date(lastNitro.received_at).getTime();
-        const fresh = ageMs < 24 * 3600_000;
-        ch.push({
-          label: "Nitro webhook",
-          status: fresh ? "ok" : "warn",
-          detail: `${nitroCount.toLocaleString("en-IN")} events · last ${relTime(ageMs)}`,
-          pill: fresh ? "Live" : "No recent events",
-        });
-      } else {
-        ch.push({
-          label: "Nitro webhook",
-          status: "off",
-          detail: "No events received yet",
-        });
-      }
-      setChannels(ch);
+      setChannels(await detectChannels());
 
       setLoaded(true);
     } finally {
@@ -252,6 +315,28 @@ export default function DashboardPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
+
+  // Keep the Channels card live: poll connection status every 30s and refresh
+  // immediately when the tab regains focus.
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = async () => {
+      const ch = await detectChannels();
+      if (!cancelled) setChannels(ch);
+    };
+    const id = setInterval(refresh, 30_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", refresh);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", refresh);
+    };
+  }, []);
 
   if (!loaded || !kpis) {
     return (
@@ -315,23 +400,29 @@ export default function DashboardPage() {
 
       <ConnectorBanner />
 
+      <NeedsAttention />
+
       <div className="kpi-grid">
-        <div className="kpi">
-          <div className="ico" style={{ background: "var(--green-soft)" }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2">
-              <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-            </svg>
+        {hasOrders ? (
+          <div className="kpi">
+            <div className="ico" style={{ background: "var(--green-soft)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2">
+                <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+            </div>
+            <div className="label">
+              Revenue · <span className="muted">{period_label}</span>
+            </div>
+            <div className="value">{inr(kpis.revenue)}</div>
+            <div className={`delta ${kpis.ordersCount > 0 ? "up" : "flat"}`}>
+              {kpis.ordersCount > 0
+                ? `${kpis.ordersCount.toLocaleString("en-IN")} order${kpis.ordersCount === 1 ? "" : "s"} in range`
+                : "No orders in range"}
+            </div>
           </div>
-          <div className="label">
-            Revenue · <span className="muted">{period_label}</span>
-          </div>
-          <div className="value">{inr(kpis.revenue)}</div>
-          <div className={`delta ${kpis.ordersCount > 0 ? "up" : "flat"}`}>
-            {kpis.ordersCount > 0
-              ? `${kpis.ordersCount.toLocaleString("en-IN")} order${kpis.ordersCount === 1 ? "" : "s"} in range`
-              : "No orders in range"}
-          </div>
-        </div>
+        ) : (
+          <ConnectTile label="Revenue" />
+        )}
 
         <div className="kpi">
           <div className="ico" style={{ background: "var(--blue-soft)" }}>
@@ -371,21 +462,25 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="kpi">
-          <div className="ico" style={{ background: "var(--amber-soft)" }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" strokeWidth="2">
-              <path d="M3 17 9 11l4 4 8-8" />
-              <path d="M17 7h4v4" />
-            </svg>
+        {hasOrders ? (
+          <div className="kpi">
+            <div className="ico" style={{ background: "var(--amber-soft)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" strokeWidth="2">
+                <path d="M3 17 9 11l4 4 8-8" />
+                <path d="M17 7h4v4" />
+              </svg>
+            </div>
+            <div className="label">
+              Flow revenue · <span className="muted">all time</span>
+            </div>
+            <div className="value">{inr(kpis.flowRevenue)}</div>
+            <div className={`delta ${kpis.flowRevenue > 0 ? "up" : "flat"}`}>
+              {kpis.flowRevenue > 0 ? "From active flows" : "No flow revenue yet"}
+            </div>
           </div>
-          <div className="label">
-            Flow revenue · <span className="muted">all time</span>
-          </div>
-          <div className="value">{inr(kpis.flowRevenue)}</div>
-          <div className={`delta ${kpis.flowRevenue > 0 ? "up" : "flat"}`}>
-            {kpis.flowRevenue > 0 ? "From active flows" : "No flow revenue yet"}
-          </div>
-        </div>
+        ) : (
+          <ConnectTile label="Flow revenue" />
+        )}
       </div>
 
       {listHealth && listHealth.total > 0 && (

@@ -49,39 +49,47 @@ export default function ConnectorBanner() {
         borderRadius: 12,
         padding: "12px 16px",
         marginBottom: 18,
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 12,
       }}
     >
-      <AlertTriangle size={18} style={{ color, flexShrink: 0, marginTop: 2 }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}>
+        <AlertTriangle size={16} style={{ color, flexShrink: 0 }} />
         <div style={{ fontWeight: 600, color, fontSize: 13.5 }}>
           {isDown
             ? `${broken.length} integration${broken.length === 1 ? "" : "s"} need attention`
             : `${broken.length} integration${broken.length === 1 ? "" : "s"} degraded`}
         </div>
-        <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 12.5, color: "var(--text-2)" }}>
-          {broken.map((c) => (
-            <li key={c.id} style={{ marginTop: 2 }}>
-              <b>{c.label}:</b> {c.headline}
-            </li>
-          ))}
-        </ul>
       </div>
-      <Link
-        href="/dashboard/integrations"
-        style={{
-          flexShrink: 0,
-          fontSize: 12.5,
-          fontWeight: 600,
-          color,
-          alignSelf: "center",
-          whiteSpace: "nowrap",
-        }}
-      >
-        View details →
-      </Link>
+      {/* One row per broken connector, each with its own Fix action. */}
+      {broken.map((c, i) => (
+        <div
+          key={c.id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "7px 0",
+            borderTop: i === 0 ? "none" : `1px solid ${color}33`,
+          }}
+        >
+          <span
+            className="dot"
+            style={{
+              background: c.status === "down" ? "var(--accent)" : "var(--amber)",
+              flexShrink: 0,
+            }}
+          />
+          <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--text-2)" }}>
+            <b style={{ color: "var(--text)" }}>{c.label}:</b> {c.headline}
+          </div>
+          <Link
+            href="/dashboard/integrations"
+            className="btn sm"
+            style={{ flexShrink: 0 }}
+          >
+            Fix →
+          </Link>
+        </div>
+      ))}
     </div>
   );
 }
