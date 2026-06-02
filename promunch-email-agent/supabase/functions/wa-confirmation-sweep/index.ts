@@ -150,12 +150,11 @@ Deno.serve(async (req) => {
 
     // build the same message the instant path would have sent
     const name = firstName(raw.customer?.first_name, raw.shipping_address?.first_name, raw.billing_address?.first_name, o.customer_name);
-    const total = String(raw.total_price ?? raw.current_total_price ?? o.total_price ?? "");
 
     const res = await callWaSend({
       to: waId,
       kind: "template",
-      template: await buildConfirmationTemplate(name, orderRef, total),
+      template: buildConfirmationTemplate(name, orderRef),
       sent_by: force ? "sweep:force" : "sweep:order_confirmation",
     });
 

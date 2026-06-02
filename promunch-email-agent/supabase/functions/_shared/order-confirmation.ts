@@ -40,7 +40,6 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
   }
 
   const name = firstName(order.customer?.first_name, order.shipping_address?.first_name, order.billing_address?.first_name);
-  const total = String(order.total_price ?? order.current_total_price ?? "");
 
   // === DEDUP ===
   // wa_messages is the transactional message ledger — if any sent / delivered
@@ -59,7 +58,7 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
     const res = await callWaSend({
       to: waId,
       kind: "template",
-      template: await buildConfirmationTemplate(name, orderRef, total),
+      template: buildConfirmationTemplate(name, orderRef),
       sent_by: "journey:order_confirmation",
     });
     sendStatus = res?.ok ? "sent" : "failed";

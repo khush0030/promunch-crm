@@ -21,10 +21,14 @@ export async function confirmedOrderRefs(sinceIso: string): Promise<Set<string>>
   // wa_messages.status lifecycle: "sent" → "delivered" → "read" (Meta status
   // webhooks update it). Any of these means the customer actually got the
   // message; only "failed" / "pending" mean they didn't.
+  // Match BOTH confirmation templates. Order confirmations now send via
+  // order_confirmation_v2 (no total); the original order_confirmation is kept
+  // for historical sends. Deduping on only one name would let a customer who
+  // got a v2 confirmation be messaged again under the other name.
   const { data } = await db()
     .from("wa_messages")
     .select("template_vars")
-    .eq("template_name", "order_confirmation")
+    .in("template_name", ["order_confirmation", "order_confirmation_v2"])
     .in("status", ["sent", "delivered", "read"])
     .gte("created_at", sinceIso);
   for (const m of data ?? []) {
@@ -44,24 +48,14 @@ export async function confirmationAlreadySent(orderRef: string): Promise<boolean
   return (await confirmedOrderRefs(since)).has(ref);
 }
 
-// Pick the best approved order-confirmation template, preferring v2 (the
-// welcoming "join the PROMUNCH family" copy, no total) when Meta has approved
-// it. Falls back to the original three-var template until then — lets the
-// new template roll out the moment Meta approves, without a code deploy.
-export async function buildConfirmationTemplate(
+// Order confirmation always uses order_confirmation_v2 — the welcoming
+// "join the PROMUNCH family" copy with NO order total (name + order ref only).
+// v2 is approved at Meta. We deliberately no longer fall back to the original
+// three-var `order_confirmation` template: that one prints "Order total: {{3}}",
+// which we never want to send. Two vars only.
+export function buildConfirmationTemplate(
   customerName: string,
   orderRef: string,
-  total: string,
-): Promise<{ name: string; language: string; vars: Record<string, string> }> {
-  const { data } = await db()
-    .from("wa_templates")
-    .select("name")
-    .in("name", ["order_confirmation_v2", "order_confirmation"])
-    .eq("status", "approved");
-  const approved = new Set((data ?? []).map((r) => r.name as string));
-  if (approved.has("order_confirmation_v2")) {
-    // v2 drops the total — welcoming copy, two vars only
-    return { name: "order_confirmation_v2", language: "en", vars: { "1": customerName, "2": orderRef } };
-  }
-  return { name: "order_confirmation", language: "en", vars: { "1": customerName, "2": orderRef, "3": total } };
+): { name: string; language: string; vars: Record<string, string> } {
+  return { name: "order_confirmation_v2", language: "en", vars: { "1": customerName, "2": orderRef } };
 }
