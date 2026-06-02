@@ -49,7 +49,15 @@ Deno.serve(async (req) => {
   const subtotal = Number(order.subtotal_price ?? 0);
   const currency = order.currency || "INR";
   const customerEmail = order.email || order.customer?.email || null;
-  const customerName = [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" ") || null;
+  const nameFrom = (src: any) =>
+    ([src?.first_name, src?.last_name].filter(Boolean).join(" ").trim() ||
+      src?.name?.trim() ||
+      null);
+  const customerName =
+    nameFrom(order.customer) ||
+    nameFrom(order.shipping_address) ||
+    nameFrom(order.billing_address) ||
+    null;
   const lineItems = Array.isArray(order.line_items) ? order.line_items : [];
   const shopifyCreatedAt = order.created_at || new Date().toISOString();
   // normalised wa_id so the WhatsApp agent can match this order to a chat

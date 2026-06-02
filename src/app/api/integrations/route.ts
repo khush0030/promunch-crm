@@ -30,14 +30,23 @@ function ageHours(iso: string | null | undefined): number | null {
 }
 
 // Generic status from a connector's recent events (newest first).
+//
+// Recovery-aware: a connector is judged by its CURRENT state, not its history.
+// If the newest event is an error/warn, that's an active problem. But if a
+// success has been logged SINCE the last error, the connector has recovered —
+// we don't keep it amber for 24h over an issue that's already resolved. A
+// brand-new error still flips it immediately, so live problems stay visible.
 function statusFromEvents(events: ConnectorEvent[]): Status {
   if (events.length === 0) return "unknown";
   const newest = events[0];
   if (newest.level === "error") return "down";
   if (newest.level === "warn") return "degraded";
-  const errIn24h = events.some(
-    (e) => e.level === "error" && (ageHours(e.created_at) ?? 99) < 24,
-  );
+  // Newest event is a success. Did anything fail more recently than our last
+  // good run? If the last error predates the newest success, it's recovered.
+  const lastError = events.find((e) => e.level === "error");
+  if (!lastError) return "healthy";
+  if (newest.created_at > lastError.created_at) return "healthy"; // recovered
+  const errIn24h = (ageHours(lastError.created_at) ?? 99) < 24;
   return errIn24h ? "degraded" : "healthy";
 }
 
@@ -188,6 +197,14 @@ export async function GET() {
     if (status === "unknown")
       headline = "No support emails have been posted to Slack in the last 7 days.";
     if (status === "down") headline = err?.message || "Failed to post emails to Slack.";
+    // The "posted without a draft" signal is a WARN, not an error — it means
+    // drafting was down when the email arrived. Those emails auto-retry, so the
+    // backlog (failedDrafts) is the live truth. If nothing is awaiting a draft,
+    // the warn is stale and the connector has recovered — show healthy.
+    if (failedDrafts === 0 && status === "degraded" && ev[0]?.level === "warn") {
+      status = "healthy";
+      headline = "Support emails are posting to Slack with drafts.";
+    }
     if (failedDrafts > 0 && status !== "down") {
       status = worst(status, "degraded");
       headline = `${failedDrafts} email${failedDrafts === 1 ? "" : "s"} posted to Slack without an AI draft (drafting unavailable). They auto-retry every 2 min.`;

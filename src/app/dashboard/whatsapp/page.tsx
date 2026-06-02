@@ -5,6 +5,7 @@ import {
   MessageSquare, Send, Bot, User as UserIcon, Search, Plus, Upload, RefreshCw, Trash2,
   Tag, AlertTriangle, CheckCircle2, Inbox as InboxIcon, FileText, Sparkles, Megaphone, Ticket as TicketIcon,
   ExternalLink, ShoppingBag, MapPin, Archive, ArchiveRestore, ChevronLeft, X, ChevronDown,
+  Check, CheckCheck,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
@@ -25,6 +26,8 @@ type Thread = {
   last_inbound_at: string | null;
   last_outbound_at: string | null;
   last_message_snippet: string | null;
+  last_message_direction: "inbound" | "outbound" | null;
+  last_outbound_status: "received" | "queued" | "sent" | "delivered" | "read" | "failed" | null;
   unread_count: number;
   archived_at: string | null;
   contact: Contact;
@@ -80,6 +83,15 @@ function msgTime(iso: string | null): string {
     : `${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}, ${time}`;
 }
 
+// Latest of two timestamps — so the inbox row shows when we last *touched* the
+// chat in either direction. Inbound-only timing hides proactive/bot sends to
+// first-time recipients (no reply yet → no inbound → blank time).
+function mostRecent(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
+}
+
 function timeAgo(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -90,6 +102,22 @@ function timeAgo(iso: string | null): string {
   const days = Math.floor(sec / 86400);
   if (days < 30) return `${days}d`;
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
+// WhatsApp-style delivery ticks for an outbound message.
+//   sent      → single grey check
+//   delivered → double grey check
+//   read      → double blue check
+//   queued    → faint single check (in flight)
+//   failed    → nothing (the row surfaces errors elsewhere)
+function Ticks({ status }: { status: Thread["last_outbound_status"] }) {
+  if (!status || status === "failed") return null;
+  const WA_BLUE = "#53bdeb";
+  if (status === "read") return <CheckCheck size={14} color={WA_BLUE} strokeWidth={2.5} />;
+  if (status === "delivered") return <CheckCheck size={14} color="var(--text-3)" strokeWidth={2.5} />;
+  if (status === "sent") return <Check size={14} color="var(--text-3)" strokeWidth={2.5} />;
+  // received/queued — still on its way to the device
+  return <Check size={14} color="var(--text-3)" strokeWidth={2} style={{ opacity: 0.5 }} />;
 }
 
 const priorityStyle: Record<string, { bg: string; color: string }> = {
@@ -409,7 +437,10 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
                   <div style={{ fontWeight: 600, fontSize: 14, color: "var(--text)" }}>
                     {t.contact.name || t.contact.phone}
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--text-3)" }}>{timeAgo(t.last_inbound_at)}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--text-3)" }}>
+                    {t.last_message_direction === "outbound" && <Ticks status={t.last_outbound_status} />}
+                    <span>{timeAgo(mostRecent(t.last_inbound_at, t.last_outbound_at))}</span>
+                  </div>
                 </div>
                 <div style={{ fontSize: 12, color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {t.last_message_snippet || "—"}

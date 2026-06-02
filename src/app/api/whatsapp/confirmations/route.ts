@@ -76,6 +76,14 @@ export async function GET(req: NextRequest) {
   const orders = (ordersRes.data ?? []).map((o) => {
     const ref = norm(o.order_number);
     const rawOrder = (o.raw ?? {}) as Record<string, unknown>;
+    const nameFrom = (src: any): string | null =>
+      (src && ([src.first_name, src.last_name].filter(Boolean).join(" ").trim() || (typeof src.name === "string" ? src.name.trim() : ""))) || null;
+    const customerName =
+      o.customer_name ||
+      nameFrom(rawOrder.customer) ||
+      nameFrom(rawOrder.shipping_address) ||
+      nameFrom(rawOrder.billing_address) ||
+      null;
     const fin = String(o.financial_status ?? rawOrder.financial_status ?? "").toLowerCase();
     const cancelled = !!rawOrder.cancelled_at || fin === "voided" || fin === "refunded";
     const evs = evByRef.get(ref) ?? [];
@@ -102,7 +110,7 @@ export async function GET(req: NextRequest) {
 
     return {
       order_number: o.order_number,
-      customer_name: o.customer_name,
+      customer_name: customerName,
       phone: o.customer_phone,
       total: o.total_price,
       currency: o.currency,

@@ -48,8 +48,36 @@ export async function GET(req: NextRequest) {
   }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Attach the last message's direction + delivery status to each thread so the
+  // inbox list can render WhatsApp-style ticks (sent → delivered → read) next to
+  // proactive/bot sends. Ticks only make sense for OUTBOUND messages, so we also
+  // expose the direction and let the UI hide them when the customer spoke last.
+  const rows = data ?? [];
+  if (rows.length) {
+    const threadIds = rows.map((t: any) => t.id);
+    const { data: msgs } = await supabaseAdmin
+      .from("wa_messages")
+      .select("thread_id, direction, status, created_at")
+      .in("thread_id", threadIds)
+      .order("created_at", { ascending: false });
+
+    // First row per thread (already sorted newest-first) = the last message.
+    const lastByThread = new Map<string, { direction: string; status: string }>();
+    for (const m of msgs ?? []) {
+      if (!lastByThread.has(m.thread_id)) {
+        lastByThread.set(m.thread_id, { direction: m.direction, status: m.status });
+      }
+    }
+    for (const t of rows) {
+      const last = lastByThread.get(t.id);
+      t.last_message_direction = last?.direction ?? null;
+      t.last_outbound_status = last?.direction === "outbound" ? last.status : null;
+    }
+  }
+
   return NextResponse.json({
-    threads: data ?? [],
+    threads: rows,
     total: count ?? 0,
     page,
     pages: Math.max(1, Math.ceil((count ?? 0) / limit)),

@@ -11,6 +11,10 @@ import { db } from "./supabase.ts";
 
 const MAX_EXCERPT = 1200;
 const MAX_REPLY = 1500;
+// Hard cap on how much of the shared knowledge base we prompt-stuff into the
+// email system prompt. Mirrors wa-ai-reply's KB_CHAR_BUDGET so both channels
+// draw on the same brand KB without blowing up the context.
+const KB_CHAR_BUDGET = 12000;
 
 export async function recordApprovedReply(opts: {
   threadId: string;
@@ -77,11 +81,35 @@ export async function getNoReplyExamples(limit = 25): Promise<string> {
   }
 }
 
+// Returns the shared brand knowledge base — the same kb_documents the WhatsApp
+// agent reads — as a single prompt-ready string, capped to KB_CHAR_BUDGET.
+// This is the canonical "knowledge base about the brand" (FSSAI, products,
+// pricing, addresses) so email drafts answer factual questions, not just
+// mirror voice. Returns "" if none/unavailable.
+export async function getKnowledgeBase(): Promise<string> {
+  try {
+    const { data: docs } = await db()
+      .from("kb_documents")
+      .select("name, raw_text")
+      .eq("status", "ready");
+    let kb = (docs ?? [])
+      .filter((d) => d.raw_text && String(d.raw_text).trim())
+      .map((d) => `## ${d.name}\n${d.raw_text}`)
+      .join("\n\n");
+    if (kb.length > KB_CHAR_BUDGET) kb = kb.slice(0, KB_CHAR_BUDGET);
+    return kb;
+  } catch (e) {
+    console.warn("getKnowledgeBase failed:", e);
+    return "";
+  }
+}
+
 // Returns a prompt-ready string of learned context, or "" if none/unavailable.
 export async function getBrandExamples(limit = 6): Promise<string> {
   try {
     const supabase = db();
-    const [{ data: approved }, { data: feedback }, { data: facts }] = await Promise.all([
+    const [kb, { data: approved }, { data: feedback }, { data: facts }] = await Promise.all([
+      getKnowledgeBase(),
       supabase
         .from("brand_knowledge")
         .select("inbound_subject, inbound_excerpt, final_reply")
@@ -103,6 +131,15 @@ export async function getBrandExamples(limit = 6): Promise<string> {
     ]);
 
     const blocks: string[] = [];
+
+    if (kb) {
+      blocks.push(
+        "KNOWLEDGE BASE (authoritative brand facts — products, pricing, " +
+          "policies, addresses, FSSAI/legal. Answer factual questions from " +
+          "this; never invent details not found here):\n" +
+          kb,
+      );
+    }
 
     if (facts?.length) {
       blocks.push("Brand facts (always honour these):");
