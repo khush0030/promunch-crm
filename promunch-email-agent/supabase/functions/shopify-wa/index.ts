@@ -132,28 +132,47 @@ async function handleCheckout(checkout: any) {
   // coupon routing by cart value (per the knowledge base) — real Shopify codes
   const code = cartValue >= 499 ? "PROTEIN15" : "PROMUNCH10";
 
-  // The template's "Checkout Now" button is a dynamic URL: base
-  // https://promunch.in/{{1}}. We fill {{1}} with a Shopify discount link —
-  // /discount/<code>?redirect=<recovery checkout> — so tapping it applies the
-  // coupon AND drops the customer on their own cart, discount already on.
+  // Both templates carry a dynamic URL button: base https://promunch.in/{{1}}.
+  // We fill {{1}} with a path suffix that gets appended to that base.
   const recoverPath = recoverUrl.replace(/^https?:\/\/[^/]+/, "") || "/cart";
-  const buttonSuffix = `discount/${code}?redirect=${encodeURIComponent(recoverPath)}`;
 
-  // body has one variable (name); the link lives entirely in the URL button.
-  const components = [
+  // Step 1 (reminder, NO coupon): {{1}} is the bare recovery-checkout path, so
+  // tapping "Complete Order" drops the customer straight back on their cart —
+  // full price, no discount given away yet. Strip the leading slash to avoid a
+  // double slash against the template's base URL.
+  const reminderSuffix = recoverPath.replace(/^\//, "");
+  const reminderComponents = [
     { type: "body", parameters: [{ type: "text", text: name }] },
-    { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: buttonSuffix }] },
+    { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: reminderSuffix }] },
   ];
 
-  // a 3-message recovery sequence — all within the first 24h (1h / 6h / 24h)
-  // so an unconverted cart is nudged 3 times in a day. Each reminder stops
-  // early once the customer orders: orders/create flips active runs to
+  // Steps 2 & 3 (recovery, WITH coupon): {{1}} is a Shopify discount link —
+  // /discount/<code>?redirect=<recovery checkout> — so tapping it applies the
+  // coupon AND drops the customer on their own cart, discount already on.
+  const discountSuffix = `discount/${code}?redirect=${encodeURIComponent(recoverPath)}`;
+  const discountComponents = [
+    { type: "body", parameters: [{ type: "text", text: name }] },
+    { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: discountSuffix }] },
+  ];
+
+  // 3-message sequence within the first 24h:
+  //   +1h  reminder, no coupon (just the checkout link)
+  //   +6h  10%/15% coupon — only if they haven't ordered by then
+  //   +24h coupon again — final nudge
+  // Each step carries its own template name in context (wa-journey-tick reads
+  // context.template, falling back to the journey default). The whole sequence
+  // stops early once the customer orders: orders/create flips active runs to
   // 'converted', so they never get a nudge after buying.
-  const rows = [1, 6, 24].map((h) => ({
+  const steps = [
+    { h: 1,  template: "abandoned_cart_reminder", components: reminderComponents },
+    { h: 6,  template: "abandoned_cart_recovery", components: discountComponents },
+    { h: 24, template: "abandoned_cart_recovery", components: discountComponents },
+  ];
+  const rows = steps.map((s) => ({
     journey_key: "abandoned_checkout",
     wa_id: waId,
-    next_action_at: new Date(Date.now() + h * 3600_000).toISOString(),
-    context: { components },
+    next_action_at: new Date(Date.now() + s.h * 3600_000).toISOString(),
+    context: { template: s.template, language: "en", components: s.components },
     order_ref: token,
   }));
   await sb.from("wa_journey_runs").insert(rows);

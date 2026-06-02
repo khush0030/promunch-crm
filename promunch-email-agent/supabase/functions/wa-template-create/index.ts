@@ -73,9 +73,29 @@ const TEMPLATES: TemplateDef[] = [
     footer: "PROMUNCH — snack smart",
   },
   {
-    // Abandoned-cart recovery — image-free, with a "Checkout Now" URL button.
-    // The button is a dynamic Shopify discount link: it applies the coupon and
-    // redirects to the customer's own recovery checkout (discount pre-applied).
+    // Abandoned-cart reminder (step 1) — NO discount. Just a nudge back to the
+    // customer's own recovery checkout. The "Complete Order" URL button is a
+    // dynamic link: base https://promunch.in/{{1}}, filled with the recovery
+    // checkout path so tapping it drops them straight back on their cart.
+    name: "abandoned_cart_reminder",
+    language: "en",
+    category: "MARKETING",
+    body:
+      "Hi {{1}}, you left some PROMUNCH goodies in your cart 🛒\n\n" +
+      "Complete your order before they sell out — tap below to pick up right where you left off!",
+    bodyExample: ["Aarav"],
+    footer: "Reply STOP to opt out",
+    button: {
+      text: "Complete Order",
+      url: "https://promunch.in/{{1}}",
+      example: "https://promunch.in/12345/checkouts/abc123/recover",
+    },
+  },
+  {
+    // Abandoned-cart recovery (step 2/3) — image-free, with a "Checkout Now"
+    // URL button. The button is a dynamic Shopify discount link: it applies the
+    // coupon and redirects to the customer's own recovery checkout (discount
+    // pre-applied). Sent only after the reminder fails to convert.
     name: "abandoned_cart_recovery",
     language: "en",
     category: "MARKETING",

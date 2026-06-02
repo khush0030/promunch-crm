@@ -49,12 +49,18 @@ Deno.serve(async () => {
       }
     }
 
+    // A run may override the journey's default template per step (e.g.
+    // abandoned_checkout sends a no-coupon reminder first, then the coupon
+    // template). Fall back to the journey default for older runs.
+    const tplName = run.context?.template ?? cfg.template;
+    const tplLang = run.context?.language ?? cfg.language;
+
     // template must be approved by Meta before we can send it
     const { data: tpl } = await sb
       .from("wa_templates")
       .select("status")
-      .eq("name", cfg.template)
-      .eq("language", cfg.language)
+      .eq("name", tplName)
+      .eq("language", tplLang)
       .maybeSingle();
     if (!tpl || tpl.status !== "approved") {
       skipped++; // leave active — retried next tick
@@ -65,8 +71,8 @@ Deno.serve(async () => {
       to: run.wa_id,
       kind: "template",
       template: {
-        name: cfg.template,
-        language: cfg.language,
+        name: tplName,
+        language: tplLang,
         // newer runs carry pre-built components (body + URL button); older
         // runs carry flat vars — wa-send falls back to vars when no components.
         components: run.context?.components,
