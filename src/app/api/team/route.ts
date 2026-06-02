@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
 
   const origin = new URL(req.url).origin;
   const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${origin}/auth/callback?next=/dashboard`,
+    redirectTo: `${origin}/auth/callback?next=/auth/set-password`,
     data: name ? { full_name: name } : undefined,
   });
 

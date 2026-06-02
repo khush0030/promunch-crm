@@ -48,12 +48,14 @@ export default function SettingsPage() {
     }
     setInviteBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      const r = await fetch("/api/team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
       });
-      if (error) throw error;
-      toast.push({ kind: "success", text: `Invite sent to ${email.trim()}.` });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d?.error || "Invite failed.");
+      toast.push({ kind: "success", text: `Invite sent to ${email.trim()}. Manage members under Team.` });
     } catch (e) {
       toast.push({
         kind: "error",
