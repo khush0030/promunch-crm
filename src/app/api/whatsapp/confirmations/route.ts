@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     supabaseAdmin
       .from("wa_messages")
       .select("template_vars, status, created_at")
-      .eq("template_name", "order_confirmation")
+      .in("template_name", ["order_confirmation", "order_confirmation_v2"])
       .gte("created_at", evSince),
   ]);
 
