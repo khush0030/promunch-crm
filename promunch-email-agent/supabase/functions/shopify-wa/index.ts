@@ -107,6 +107,23 @@ async function handleOrderCancelled(order: any) {
   }).catch(() => {});
 }
 
+// Pull the checkout partner's recovery URL out of the order note. The partner
+// writes it into `note` (free text); we also scan `note_attributes` values as a
+// safety net in case it ever moves there. Returns the first http(s) URL found,
+// or null if the note has none.
+function noteCheckoutUrl(checkout: any): string | null {
+  const URL_RE = /https?:\/\/\S+/;
+  const note = String(checkout?.note ?? "");
+  const m = note.match(URL_RE);
+  if (m) return m[0];
+  const attrs = Array.isArray(checkout?.note_attributes) ? checkout.note_attributes : [];
+  for (const a of attrs) {
+    const mm = String(a?.value ?? "").match(URL_RE);
+    if (mm) return mm[0];
+  }
+  return null;
+}
+
 // --- checkouts/create + checkouts/update: abandoned-checkout enrolment ------
 // Routed for both topics. The per-token dedup means a cart enrols exactly
 // once — the first time a usable phone number appears on it (often only on
@@ -126,7 +143,19 @@ async function handleCheckout(checkout: any) {
   if (prior && prior.length) return;
 
   const name = firstName(checkout.customer?.first_name, checkout.shipping_address?.first_name);
-  const recoverUrl: string = checkout.abandoned_checkout_url || `${SITE_URL}/cart`;
+  // The third-party checkout partner (sales channel SMB-1CCO) skips the native
+  // Shopify checkout, so `abandoned_checkout_url` points at a cart the customer
+  // can't actually complete. The partner instead drops its OWN recovery URL into
+  // the order note — a /cart/?atomsSt=<token>&bzCartRec=true link. Always prefer
+  // that note URL; the token rehydrates the partner cart on tap. Only fall back
+  // to Shopify's native URL (then /cart) when the note carries no link.
+  const noteUrl = noteCheckoutUrl(checkout);
+  const recoverUrl: string = noteUrl || checkout.abandoned_checkout_url || `${SITE_URL}/cart`;
+  await logConnector({
+    connector: "shopify_wa", level: "info", event: "abandoned_recover_url",
+    message: `Cart ${token}: recovery link from ${noteUrl ? "note" : (checkout.abandoned_checkout_url ? "shopify_url" : "fallback")}.`,
+    ref: token,
+  }).catch(() => {});
   const cartValue = Number(checkout.total_price ?? checkout.total_line_items_price ?? 0);
   // coupon routing by cart value (per the knowledge base) — real Shopify codes
   const code = cartValue >= 499 ? "PROTEIN15" : "PROMUNCH10";
