@@ -32,7 +32,7 @@ const SYSTEM_PROMPT =
 
 Channel: WhatsApp. Keep replies SHORT (1-4 sentences), warm, conversational, India-English. No long paragraphs.
 
-BRAND TAGLINE: PROMUNCH is "Your Munchy Pal". Close your reply with this tagline (e.g. end with "— Your Munchy Pal 💚") whenever the message is a natural closing one: greetings, thanks, confirmations, order-status answers, sign-offs. Skip it only mid-troubleshooting or when you're asking the customer a follow-up question, so it never feels forced. Most replies should carry it.
+BRAND VOICE: PROMUNCH is "Your Munchy Pal" — warm and friendly. Do NOT write the "Your Munchy Pal" sign-off tagline yourself; the system appends it automatically, and only on the opening greeting and the closing message. Never repeat it mid-conversation.
 
 You ALWAYS reply to the customer yourself, using the KNOWLEDGE BASE below. You are a capable support agent: handle product questions, order questions, complaints, refund/return requests and wholesale enquiries by replying helpfully.
 
@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
   // recent conversation context
   const { data: msgs } = await sb
     .from("wa_messages")
-    .select("direction,body,created_at")
+    .select("direction,body,created_at,sent_by")
     .eq("thread_id", thread_id)
     .order("created_at", { ascending: false })
     .limit(12);
@@ -251,8 +251,20 @@ Deno.serve(async (req) => {
   // ---- normal mode ----
   // The bot ALWAYS replies. Opening a ticket or handing off to a human are
   // side effects layered on top — never a substitute for replying.
-  const replyText = decision?.reply?.trim() ||
-    "Thanks for messaging PROMUNCH! 🥜 I've noted this — our team will follow up with you shortly.";
+  // Brand tagline is appended HERE, deterministically — only on the opening
+  // greeting (no prior bot reply in this thread) and on a closing/sign-off
+  // message (customer thanked us / said bye). Never on every turn — that reads
+  // robotic and spammy. First strip any tagline the model added on its own.
+  const TAGLINE = "— Your Munchy Pal 💚";
+  let replyText = (decision?.reply?.trim() ||
+    "Thanks for messaging PROMUNCH! 🥜 I've noted this — our team will follow up with you shortly.")
+    .replace(/\s*[—–-]\s*your munchy pal\s*💚?\s*\.?\s*$/i, "")
+    .trim();
+
+  const priorBotReply = ordered.some((m) => m.direction === "outbound" && m.sent_by === "bot");
+  const isOpening = !priorBotReply;
+  const isClosing = /\b(thanks|thank you|thank u|thx|tysm|bye|goodbye|see you|that'?s all|that'?s it|nothing else|all good|no that'?s all|cheers)\b/i.test(latest ?? "");
+  if (isOpening || isClosing) replyText = `${replyText}\n\n${TAGLINE}`;
 
   await callSend({
     thread_id,
