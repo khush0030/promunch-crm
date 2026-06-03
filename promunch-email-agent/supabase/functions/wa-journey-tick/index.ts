@@ -10,8 +10,12 @@
 import { db } from "../_shared/supabase.ts";
 import { TIMED_JOURNEYS } from "../_shared/journeys.ts";
 import { isOrderCancelled } from "../_shared/orders.ts";
+import { WINDOW_ASK_JOURNEYS, claimAsk, releaseAsk, sessionOpen } from "../_shared/window-asks.ts";
 
 const BATCH = 200;
+// Max times to retry the (per-recipient-capped) template fallback for a
+// window-eligible ask before standing down and waiting for an open 24h window.
+const TPL_FALLBACK_MAX = 3;
 
 Deno.serve(async () => {
   const sb = db();
@@ -49,6 +53,28 @@ Deno.serve(async () => {
       }
     }
 
+    const windowEligible = (WINDOW_ASK_JOURNEYS as readonly string[]).includes(run.journey_key);
+
+    // In-window delivery: review_request / replenishment_reminder are MARKETING
+    // templates that Meta throttles per-recipient (131049). If the customer's 24h
+    // service window is open, deliver a personalized FREE-TEXT ask instead — no
+    // cap, no fee. wa-ai-reply claims the run atomically and composes the message
+    // from the customer's real order. Falls through to the (capped) template only
+    // if the window is closed or the in-window send fails.
+    if (windowEligible) {
+      const { data: th } = await sb
+        .from("wa_threads")
+        .select("id, last_inbound_at")
+        .eq("wa_id", run.wa_id)
+        .maybeSingle();
+      if (th?.id && sessionOpen(th.last_inbound_at, Date.now())) {
+        const res = await callProactiveAsk(th.id, run);
+        if (res?.skipped) { skipped++; continue; }   // already delivered by another path
+        if (res?.sent) { sent++; continue; }          // delivered in-window, free
+        // else: window closed at Meta / generation failed → fall through to template
+      }
+    }
+
     // A run may override the journey's default template per step (e.g.
     // abandoned_checkout sends a no-coupon reminder first, then the coupon
     // template). Fall back to the journey default for older runs.
@@ -67,6 +93,18 @@ Deno.serve(async () => {
       continue;
     }
 
+    // For the in-window-eligible asks, the template is only a FALLBACK (the
+    // window path is preferred). Meta throttles these per-recipient (131049), so
+    // cap how many times we hammer the template — after TPL_FALLBACK_MAX failed
+    // attempts, leave the run 'active' (so an inbound piggyback can still deliver
+    // it in an open window) but stop re-sending the capped template every tick.
+    const tplAttempts = Number(run.context?.tpl_attempts ?? 0);
+    if (windowEligible) {
+      if (tplAttempts >= TPL_FALLBACK_MAX) { skipped++; continue; }
+      // claim atomically before the send so an inbound piggyback can't also send.
+      if (!(await claimAsk(sb, run.id))) { skipped++; continue; }
+    }
+
     const res = await callWaSend({
       to: run.wa_id,
       kind: "template",
@@ -81,8 +119,23 @@ Deno.serve(async () => {
       sent_by: `journey:${run.journey_key}`,
     });
 
-    if (res?.ok) { await mark(run.id, "completed", null); sent++; }
-    else { await mark(run.id, "failed", res?.error ?? "send failed"); failed++; }
+    if (res?.ok) {
+      // window-eligible runs are already 'completed' via claimAsk above.
+      if (!windowEligible) await mark(run.id, "completed", null);
+      sent++;
+    } else if (windowEligible) {
+      // Hand the claim back (status -> active) AND record the attempt, so the
+      // template fallback is bounded but the run stays alive for the window path.
+      await releaseAsk(sb, run.id);
+      await sb.from("wa_journey_runs").update({
+        last_error: `template fallback attempt ${tplAttempts + 1} failed: ${res?.error ?? "send failed"}`,
+        context: { ...(run.context ?? {}), tpl_attempts: tplAttempts + 1 },
+      }).eq("id", run.id).then(() => {}, () => {});
+      failed++;
+    } else {
+      await mark(run.id, "failed", res?.error ?? "send failed");
+      failed++;
+    }
   }
 
   return j({ ok: true, processed: due?.length ?? 0, sent, failed, skipped });
@@ -90,6 +143,39 @@ Deno.serve(async () => {
 
 async function mark(id: string, status: string, lastError: string | null) {
   await db().from("wa_journey_runs").update({ status, last_error: lastError }).eq("id", id);
+}
+
+// Delegate an in-window ask to wa-ai-reply, which claims the run atomically and
+// sends ONE personalized free-text message built from the customer's real order.
+// Returns { ok, sent } on delivery, { skipped } if another path already claimed
+// it, or { ok:false } if the in-window send failed (claim released inside).
+async function callProactiveAsk(
+  threadId: string,
+  run: { id: string; journey_key: string; context?: { vars?: Record<string, string> } },
+): Promise<{ ok?: boolean; sent?: boolean; skipped?: string; error?: string }> {
+  const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-ai-reply`;
+  const vars = run.context?.vars ?? {};
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        thread_id: threadId,
+        proactive_ask: {
+          run_id: run.id,
+          journey_key: run.journey_key,
+          url: vars["2"],
+          name: vars["1"],
+        },
+      }),
+    });
+    return await r.json().catch(() => ({ ok: false }));
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
 }
 
 async function callWaSend(body: unknown): Promise<{ ok?: boolean; error?: string } | null> {

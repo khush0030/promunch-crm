@@ -11,6 +11,13 @@
 import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
 import { lookupOrders, orderForAI, type OrderSummary } from "../_shared/orders.ts";
+import {
+  type DueAsk,
+  claimAsk,
+  findDueAsk,
+  firstNameOf,
+  releaseAsk,
+} from "../_shared/window-asks.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const MODEL = Deno.env.get("WA_AI_MODEL") ?? "gpt-4o-mini";
@@ -80,11 +87,15 @@ interface InvokeBody {
   draft?: boolean;
   job_id?: string | null;
   image_url?: string | null;
+  // Proactive in-window ask (driven by wa-journey-tick when the 24h service
+  // window is open): generate ONE personalized free-text review/restock message.
+  proactive_ask?: { run_id: string; journey_key: string; url?: string; name?: string };
 }
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
-  const { thread_id, last_message, draft, job_id, image_url } = (await req.json()) as InvokeBody;
+  const { thread_id, last_message, draft, job_id, image_url, proactive_ask } =
+    (await req.json()) as InvokeBody;
   if (!thread_id) return j({ error: "thread_id required" }, 400);
 
   const sb = db();
@@ -96,6 +107,11 @@ Deno.serve(async (req) => {
     .eq("id", thread_id)
     .maybeSingle();
   const waId: string | null = thread?.wa_id ?? null;
+
+  // ---- proactive in-window ask: standalone personalized message, no inbound ----
+  if (proactive_ask) {
+    return await handleProactiveAsk(sb, thread_id, waId, proactive_ask);
+  }
 
   // recent conversation context
   const { data: msgs } = await sb
@@ -131,12 +147,23 @@ Deno.serve(async (req) => {
     .join("\n\n");
   if (kb.length > KB_CHAR_BUDGET) kb = kb.slice(0, KB_CHAR_BUDGET);
 
+  // ---- in-window piggyback: if a post-purchase ask is DUE and we're in an open
+  // session, let the bot weave a PERSONALIZED review/restock ask into its reply.
+  // Claim it FIRST (atomic) so the template timer can never also send it; if the
+  // bot judges the mood wrong and omits the ask, we release the claim.
+  let claimedAsk: DueAsk | null = null;
+  if (!draft && waId) {
+    const due = await findDueAsk(sb, waId, new Date().toISOString());
+    if (due && (await claimAsk(sb, due.runId))) claimedAsk = due;
+  }
+
   const userMsg = [
     `KNOWLEDGE BASE:\n${kb || "(empty — no documents added yet)"}`,
     "",
     `CONVERSATION SO FAR:\n${history}`,
     "",
     `LATEST CUSTOMER MESSAGE:\n${latest}`,
+    claimedAsk ? "\n" + askInstruction(claimedAsk) : "",
     "",
     "Respond with JSON only.",
   ].join("\n");
@@ -200,6 +227,13 @@ Deno.serve(async (req) => {
   }
 
   const decision = parseDecision(textOf(resp));
+
+  // If we claimed an in-window ask but the bot judged the mood wrong (or output
+  // was unparseable) and left it out, hand the claim back so it's retried later.
+  if (claimedAsk && decision?.included_ask !== true) {
+    await releaseAsk(sb, claimedAsk.runId);
+    claimedAsk = null;
+  }
 
   // ---- draft mode: return the suggested reply only, no side effects ----
   if (draft) {
@@ -383,9 +417,9 @@ async function postEscalation(o: {
   }).catch(() => {});
 }
 
-async function callSend(body: unknown) {
+async function callSend(body: unknown): Promise<{ ok?: boolean; error?: string }> {
   const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-send`;
-  await fetch(url, {
+  const r = await fetch(url, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
@@ -393,6 +427,90 @@ async function callSend(body: unknown) {
     },
     body: JSON.stringify(body),
   });
+  return await r.json().catch(() => ({ ok: false, error: "send response unparseable" }));
+}
+
+// Prompt fragment appended to the support reply when an in-window ask is due.
+function askInstruction(due: DueAsk): string {
+  const kind = due.journeyKey === "replenishment_reminder"
+    ? "restock / reorder reminder"
+    : "quick product-review request";
+  return [
+    `ELIGIBLE FOLLOW-UP (optional — you decide):`,
+    `This customer is due for a ${kind}. IF — and ONLY IF — this conversation is a happy or neutral close ` +
+      `(NOT a complaint, NOT an unresolved problem, NOT mid-troubleshooting, NOT an open ticket), weave a SHORT, ` +
+      `PERSONALIZED ${kind} into your reply: greet them by first name and name the ACTUAL products they bought ` +
+      `(call lookup_order if you haven't), and include this link exactly once: ${due.url}. One or two sentences, ` +
+      `warm, never vague or generic — say e.g. "hope you're loving the soya crunchies", never "hope you enjoyed your order".`,
+    `Set "included_ask": true in your JSON if you included it, or "included_ask": false if the mood was wrong and you left it out.`,
+  ].join("\n");
+}
+
+// Standalone in-window ask (driven by wa-journey-tick). Claims the ask atomically,
+// composes ONE personalized free-text message from the customer's real order, and
+// sends it as a session message (no template, no marketing cap). A failed send or
+// empty generation releases the claim so a later tick retries it.
+async function handleProactiveAsk(
+  sb: ReturnType<typeof db>,
+  threadId: string,
+  waId: string | null,
+  ask: { run_id: string; journey_key: string; url?: string; name?: string },
+): Promise<Response> {
+  if (!(await claimAsk(sb, ask.run_id))) return j({ ok: true, skipped: "already claimed" });
+  try {
+    const orders = waId ? await lookupOrders(waId, null).catch(() => [] as OrderSummary[]) : [];
+    const order = orders[0] ?? null;
+    const first = firstNameOf(order?.customer_name, ask.name);
+    const products = (order?.items ?? []).map((i) => i.name).filter(Boolean);
+    const text = await composeProactiveMessage(ask.journey_key, first, products, ask.url ?? "");
+    if (!text) throw new Error("empty generation");
+    const res = await callSend({
+      thread_id: threadId,
+      kind: "text",
+      text,
+      sent_by: `journey:${ask.journey_key}`,
+      ai_generated: true,
+    });
+    if (!res?.ok) throw new Error(res?.error ?? "send failed");
+    return j({ ok: true, sent: true, journey: ask.journey_key });
+  } catch (e) {
+    await releaseAsk(sb, ask.run_id);
+    return j({ ok: false, error: String(e) }, 502);
+  }
+}
+
+async function composeProactiveMessage(
+  journeyKey: string,
+  firstName: string,
+  products: string[],
+  url: string,
+): Promise<string> {
+  const kind = journeyKey === "replenishment_reminder"
+    ? "a gentle restock / reorder reminder"
+    : "a quick request to leave a product review";
+  const sys =
+    `You write short, warm WhatsApp messages for PROMUNCH ("Your Munchy Pal"), an Indian healthy-snack brand. ` +
+    `India-English, friendly, never corporate. Output ONLY the message text — no preamble, no quotes, no JSON.`;
+  const user = [
+    `Write ${kind} as ONE WhatsApp message.`,
+    `Customer first name: ${firstName}.`,
+    products.length
+      ? `They actually ordered: ${products.join(", ")}. Mention these specific products by name — do NOT be vague or generic.`
+      : `You don't have their exact products — keep it warm and personal using their first name; do not invent product names.`,
+    url ? `Include this link exactly once: ${url}` : `Do not include any link.`,
+    `End with the tagline "Your Munchy Pal 💚".`,
+    `Keep it to 1–3 short sentences.`,
+  ].join("\n");
+  const client = new OpenAI({ apiKey: OPENAI_API_KEY });
+  const resp = await client.chat.completions.create({
+    model: MODEL,
+    max_tokens: 300,
+    messages: [
+      { role: "system", content: sys },
+      { role: "user", content: user },
+    ],
+  });
+  return (resp.choices?.[0]?.message?.content ?? "").trim();
 }
 
 function j(o: unknown, s = 200) {
