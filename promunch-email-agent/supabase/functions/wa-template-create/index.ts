@@ -8,6 +8,8 @@
 // POST modes (JSON body):
 //   { names?: string[] }   — create one/all of the predefined journey set
 //   { template: {...} }    — create one arbitrary template (dashboard builder)
+//   { edit: true, names? } — resubmit existing templates' content (e.g. copy
+//                            changes) to Meta by their stored meta_template_id
 //   { sync: true }         — pull every template from Meta, mirror real
 //                            status/body/category back into wa_templates
 //   { waba?: "..." }       — optional explicit WABA id (else secret/discovery)
@@ -82,7 +84,8 @@ const TEMPLATES: TemplateDef[] = [
     category: "MARKETING",
     body:
       "Hi {{1}}, you left some PROMUNCH goodies in your cart 🛒\n\n" +
-      "Complete your order before they sell out — tap below to pick up right where you left off!",
+      "Complete your order before they sell out — tap below to pick up right where you left off!\n\n" +
+      "— Your Munchy Pal 💚",
     bodyExample: ["Aarav"],
     footer: "Reply STOP to opt out",
     button: {
@@ -101,7 +104,8 @@ const TEMPLATES: TemplateDef[] = [
     category: "MARKETING",
     body:
       "Hi {{1}}, you left some PROMUNCH goodies in your cart 🛒\n\n" +
-      "We've applied a special discount for you — tap below to grab them before they sell out!",
+      "We've applied a special discount for you — tap below to grab them before they sell out!\n\n" +
+      "— Your Munchy Pal 💚",
     bodyExample: ["Aarav"],
     footer: "Reply STOP to opt out",
     button: {
@@ -117,7 +121,7 @@ const TEMPLATES: TemplateDef[] = [
     body:
       "Hi {{1}}, hope you're loving your PROMUNCH snacks! 💚\n\n" +
       "Mind leaving a quick review? It really helps us:\n{{2}}\n\n" +
-      "Thanks a ton — Team PROMUNCH!",
+      "Thanks a ton — your Munchy Pal, Team PROMUNCH 💚",
     bodyExample: ["Aarav", "https://promunch.in/reviews"],
     footer: "Reply STOP to opt out",
   },
@@ -128,7 +132,7 @@ const TEMPLATES: TemplateDef[] = [
     body:
       "Running low, {{1}}? 🥜\n\n" +
       "Restock your PROMUNCH favourites in a tap:\n{{2}}\n\n" +
-      "Happy munching!",
+      "Happy munching — your Munchy Pal! 💚",
     bodyExample: ["Aarav", "https://promunch.in"],
     footer: "Reply STOP to opt out",
   },
@@ -168,6 +172,44 @@ Deno.serve(async (req) => {
     } catch (e) {
       return j({ ok: false, error: String(e) }, 500);
     }
+  }
+
+  // --- edit mode: resubmit existing templates' content to Meta --------------
+  // { edit: true, names?: [...] } — rebuild components from the local TEMPLATES
+  // defs and PATCH them at Meta by their stored meta_template_id. Used to push
+  // copy changes (e.g. the brand tagline) onto already-approved templates.
+  if (b?.edit === true) {
+    const names: string[] | undefined = Array.isArray(b?.names) && b.names.length
+      ? (b.names as string[])
+      : undefined;
+    const editDefs = names ? TEMPLATES.filter((t) => names.includes(t.name)) : TEMPLATES;
+    if (editDefs.length === 0) return j({ error: "no matching template names" }, 400);
+
+    const results: Array<Record<string, unknown>> = [];
+    for (const def of editDefs) {
+      const { data: row } = await sb
+        .from("wa_templates")
+        .select("meta_template_id")
+        .eq("name", def.name).eq("language", def.language)
+        .maybeSingle();
+      const id = row?.meta_template_id;
+      if (!id) {
+        results.push({ name: def.name, ok: false, error: "no meta_template_id on file — create it first" });
+        continue;
+      }
+      const edited = await editTemplate(String(id), def);
+      results.push({ name: def.name, ...edited });
+      if (edited.ok) {
+        await sb.from("wa_templates").update({
+          status: "pending",
+          body: def.body,
+          footer: def.footer ?? null,
+          variables: def.bodyExample.map((sample, i) => ({ name: String(i + 1), sample })),
+          rejection_reason: null,
+        }).eq("name", def.name).eq("language", def.language);
+      }
+    }
+    return j({ ok: results.every((r) => r.ok), mode: "edit", waba, results });
   }
 
   // --- build the list of definitions to create ------------------------------
@@ -304,10 +346,10 @@ async function diagnose(): Promise<Record<string, unknown>> {
   return out;
 }
 
-async function createTemplate(
-  waba: string,
-  def: TemplateDef,
-): Promise<{ ok: boolean; id?: string; status?: string; error?: string; meta?: unknown }> {
+// Build the Meta component array for a template def. Shared by create + edit so
+// an edit always resends the FULL component set (body + footer + buttons) — Meta
+// drops any component you omit on an edit.
+function buildComponents(def: TemplateDef): Array<Record<string, unknown>> {
   const components: Array<Record<string, unknown>> = [];
 
   if (def.header) {
@@ -333,6 +375,14 @@ async function createTemplate(
       }],
     });
   }
+  return components;
+}
+
+async function createTemplate(
+  waba: string,
+  def: TemplateDef,
+): Promise<{ ok: boolean; id?: string; status?: string; error?: string; meta?: unknown }> {
+  const components = buildComponents(def);
 
   const reqBody = {
     name: def.name,
@@ -359,6 +409,35 @@ async function createTemplate(
     return { ok: false, error, meta: { status: res.status, error: e, sent: reqBody } };
   }
   return { ok: true, id: json?.id, status: json?.status ?? "PENDING" };
+}
+
+// Edit an EXISTING approved template at Meta (POST /{template_id}). Category and
+// name can't change on an edit — only components. Meta puts the template back
+// into PENDING review; it keeps delivering with the OLD content until approved,
+// so an edit never causes a send gap (unlike a delete+recreate).
+async function editTemplate(
+  templateId: string,
+  def: TemplateDef,
+): Promise<{ ok: boolean; status?: string; error?: string; meta?: unknown }> {
+  const reqBody = { components: buildComponents(def) };
+  const res = await fetch(`${GRAPH}/${templateId}`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${token()}`, "Content-Type": "application/json" },
+    body: JSON.stringify(reqBody),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const e = json?.error ?? {};
+    const error = [
+      e.message,
+      e.error_user_title,
+      e.error_user_msg,
+      e.error_data?.details,
+      e.error_subcode ? `subcode ${e.error_subcode}` : null,
+    ].filter(Boolean).join(" | ") || `HTTP ${res.status}`;
+    return { ok: false, error, meta: { status: res.status, error: e, sent: reqBody } };
+  }
+  return { ok: true, status: "PENDING" };
 }
 
 // Pull every template Meta has for this WABA and mirror it into wa_templates.
