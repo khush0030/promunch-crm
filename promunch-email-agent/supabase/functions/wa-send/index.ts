@@ -11,6 +11,7 @@
 
 import { db } from "../_shared/supabase.ts";
 import { sendText, sendTemplate, sendImage, TemplateComponent } from "../_shared/whatsapp.ts";
+import { alertWaSendFailure } from "../_shared/connector-log.ts";
 
 interface SendBody {
   thread_id?: string;
@@ -111,6 +112,17 @@ Deno.serve(async (req) => {
       last_outbound_at: new Date().toISOString(),
       last_message_snippet: String(recorded.body ?? "").slice(0, 240),
     }).eq("id", threadId);
+  } else {
+    // Every failed send alerts Slack with the Meta reason — no silent failures.
+    await alertWaSendFailure({
+      to: waId!,
+      kind: body.kind,
+      templateName: body.template?.name ?? null,
+      error: result.error,
+      errorCode: result.error_code,
+      errorDetail: result.error_detail,
+      sentBy: typeof recorded.sent_by === "string" ? recorded.sent_by : undefined,
+    }).catch(() => {});
   }
 
   return j({ ok: result.ok, message_id: result.message_id, error: result.error ?? null });

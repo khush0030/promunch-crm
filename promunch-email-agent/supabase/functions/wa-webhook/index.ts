@@ -5,7 +5,7 @@
 
 import { db } from "../_shared/supabase.ts";
 import { verifySignature, downloadMedia, markRead } from "../_shared/whatsapp.ts";
-import { logConnector } from "../_shared/connector-log.ts";
+import { logConnector, alertWaSendFailure } from "../_shared/connector-log.ts";
 
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const WA_MEDIA_BUCKET = Deno.env.get("WA_MEDIA_BUCKET") ?? "wa-media";
@@ -101,15 +101,32 @@ async function handleStatus(status: any) {
   const next = map[status.status] ?? null;
   if (!next) return;
   const sb = db();
+  const errTitle = status?.errors?.[0]?.title ?? null;
   const { data: updated } = await sb.from("wa_messages").update({
     status: next,
-    error: status?.errors?.[0]?.title ?? null,
-  }).eq("wa_message_id", wamid).select("campaign_id").maybeSingle();
+    error: errTitle,
+  }).eq("wa_message_id", wamid).select("campaign_id, template_name, type, sent_by").maybeSingle();
 
   // roll up delivery stats if this message belongs to a marketing campaign
   if (updated?.campaign_id) {
     await sb.rpc("wa_campaign_recount", { p_campaign: updated.campaign_id })
       .then(() => {}, () => {});
+  }
+
+  // ASYNC delivery failure — Meta reports "undeliverable" / frequency-cap /
+  // re-engagement here, AFTER the send call already returned ok. This is where
+  // most real failures surface, so it must alert too (with the Meta reason).
+  if (next === "failed" && updated) {
+    const err = status?.errors?.[0] ?? {};
+    await alertWaSendFailure({
+      to: status?.recipient_id ?? "?",
+      kind: updated.type ?? "message",
+      templateName: updated.template_name ?? null,
+      error: err.title ?? errTitle ?? "delivery failed",
+      errorCode: typeof err.code === "number" ? err.code : undefined,
+      errorDetail: err.error_data?.details ?? err.message ?? undefined,
+      sentBy: updated.sent_by ?? undefined,
+    }).catch(() => {});
   }
 }
 

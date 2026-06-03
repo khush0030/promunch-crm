@@ -27,6 +27,8 @@ export interface SendResult {
   raw: unknown;
   ok: boolean;
   error?: string;
+  error_code?: number;   // Meta error.code — drives the failure-alert explainer
+  error_detail?: string; // Meta error_data.details / error_user_msg, if present
 }
 
 async function postMessage(body: Record<string, unknown>): Promise<SendResult> {
@@ -40,7 +42,15 @@ async function postMessage(body: Record<string, unknown>): Promise<SendResult> {
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    return { ok: false, message_id: null, raw: json, error: json?.error?.message ?? `HTTP ${res.status}` };
+    const e = json?.error ?? {};
+    return {
+      ok: false,
+      message_id: null,
+      raw: json,
+      error: e?.message ?? `HTTP ${res.status}`,
+      error_code: typeof e?.code === "number" ? e.code : undefined,
+      error_detail: e?.error_data?.details ?? e?.error_user_msg ?? undefined,
+    };
   }
   const id = json?.messages?.[0]?.id ?? null;
   return { ok: true, message_id: id, raw: json };
