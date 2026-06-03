@@ -2,7 +2,9 @@
 // Used by shopify-wa (enrolment) and wa-journey-tick (delivery).
 
 export const SITE_URL = Deno.env.get("PROMUNCH_SITE_URL") ?? "https://promunch.in";
-export const REVIEW_URL = Deno.env.get("PROMUNCH_REVIEW_URL") ?? `${SITE_URL}/pages/reviews`;
+// NOTE: /pages/reviews 404s. The real write-a-review page is /pages/review-submission
+// (verified live). Override per-store with PROMUNCH_REVIEW_URL.
+export const REVIEW_URL = Deno.env.get("PROMUNCH_REVIEW_URL") ?? `${SITE_URL}/pages/review-submission`;
 
 // Timed journeys: journey_key -> approved template + delay from enrolment.
 // Event-driven messages (order_confirmation, shipping_update) are NOT here —
