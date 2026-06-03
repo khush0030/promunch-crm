@@ -13,7 +13,7 @@
 // pg_cron as a same-fate backstop. Either trigger reaches the same check.
 
 import { db } from "../_shared/supabase.ts";
-import { postSlack, slackChannelFor } from "../_shared/connector-log.ts";
+import { postSlack, slackChannelFor, buildStructuredAlert } from "../_shared/connector-log.ts";
 
 const STALE_MINUTES = 20;   // alert if no health_ok within this window
 const DEDUPE_MINUTES = 20;  // don't re-ping more than once per window
@@ -60,12 +60,17 @@ Deno.serve(async () => {
   if (!recent) {
     await postSlack(
       slackChannelFor("whatsapp"),
-      [
-        ":skull: *WhatsApp monitoring is DARK*",
-        `No \`health_ok\` heartbeat in *${ageLabel}* (expected one every ~10 min).`,
-        "Likely cause: the wa-health cron stopped, the WhatsApp API check is failing, or pg_cron died.",
-        "→ Check Supabase scheduled functions / pg_cron and `supabase functions logs wa-health`.",
-      ].join("\n"),
+      buildStructuredAlert({
+        connector: "whatsapp",
+        event: "watchdog_stale",
+        issue: `WhatsApp monitoring is DARK — no \`health_ok\` heartbeat in *${ageLabel}* (expected one every ~10 min).`,
+        cls: {
+          severity: "critical",
+          expected: false,
+          cause: "The wa-health cron stopped, the WhatsApp API check is failing silently, or Supabase pg_cron died.",
+          action: "Check Supabase scheduled functions / pg_cron and `supabase functions logs wa-health`. If pg_cron is down, restart it; if the token expired, refresh WHATSAPP_ACCESS_TOKEN.",
+        },
+      }),
     );
   }
 

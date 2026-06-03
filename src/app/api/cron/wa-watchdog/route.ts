@@ -63,13 +63,15 @@ export async function GET(req: NextRequest) {
   });
 
   if (!recent) {
+    // Same structured shape as the Supabase alerts (Issue / cause / expected / action).
     await postSlack(
       [
-        ":skull: *WhatsApp monitoring is DARK*",
-        `No \`health_ok\` heartbeat in *${ageLabel}* (expected one every ~10 min).`,
-        "Likely cause: the wa-health cron stopped, the WhatsApp API check is failing, or Supabase pg_cron died.",
-        "→ Check Supabase scheduled functions / pg_cron and the wa-health logs.",
-        "_(detected by the independent Vercel watchdog)_",
+        ":red_circle: *CRITICAL · WhatsApp*",
+        `*Issue:* WhatsApp monitoring is DARK — no \`health_ok\` heartbeat in *${ageLabel}* (expected one every ~10 min).`,
+        "*Likely cause:* The wa-health cron stopped, the WhatsApp API check is failing silently, or Supabase pg_cron died.",
+        "*Expected?:* :rotating_light: Critical — act now",
+        "*What to do:* Check Supabase scheduled functions / pg_cron and the wa-health logs. If pg_cron is down, restart it; if the token expired, refresh WHATSAPP_ACCESS_TOKEN.",
+        "*Details:* `watchdog_stale` · _detected by the independent Vercel watchdog_",
       ].join("\n"),
     );
   }

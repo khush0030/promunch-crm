@@ -93,6 +93,120 @@ export async function postSlack(channel: string | undefined, text: string): Prom
   } catch (e) { console.warn("postSlack failed:", e); return false; }
 }
 
+// ============================================================================
+// STRUCTURED ALERTS — every error posted to Slack uses the same shape so it
+// reads like a triaged issue, not a raw log line:
+//   {sev} · {service}
+//   Issue:        what happened, in one line
+//   Likely cause: the most probable reason
+//   Expected?:    routine / unusual / critical — so you know whether to worry
+//   What to do:   the next concrete action
+//   Details:      the event code + ref for grepping
+// ============================================================================
+
+export type Severity = "critical" | "warning" | "info";
+
+export interface AlertClass {
+  severity: Severity;
+  expected: boolean; // true = happens routinely, usually no action
+  cause: string;
+  action: string;
+}
+
+const CONNECTOR_LABEL: Record<string, string> = {
+  gmail_pipeline: "Gmail intake",
+  anthropic: "AI drafting",
+  email_slack: "AI email → Slack",
+  shopify_slack: "Shopify → Slack",
+  gmail_watch: "Gmail watch",
+  whatsapp: "WhatsApp",
+  shopify_wa: "WhatsApp journeys",
+};
+
+function severityBits(sev: Severity): { emoji: string; expectedLine: (expected: boolean) => string } {
+  const emoji = sev === "critical" ? ":red_circle:" : sev === "warning" ? ":large_yellow_circle:" : ":large_blue_circle:";
+  return {
+    emoji,
+    expectedLine: (expected: boolean) =>
+      sev === "critical"
+        ? ":rotating_light: Critical — act now"
+        : expected
+        ? ":white_check_mark: Routine — usually no action needed"
+        : ":exclamation: Unusual — worth a look",
+  };
+}
+
+// Build the structured Slack text. `extra` lines are inserted under Issue
+// (e.g. recipient / what Meta said) before the diagnosis fields.
+export function buildStructuredAlert(a: {
+  connector: string;
+  event: string;
+  ref?: string | null;
+  issue: string;
+  cls: AlertClass;
+  extra?: string[];
+}): string {
+  const label = CONNECTOR_LABEL[a.connector] ?? a.connector;
+  const { emoji, expectedLine } = severityBits(a.cls.severity);
+  return [
+    `${emoji} *${a.cls.severity.toUpperCase()} · ${label}*`,
+    `*Issue:* ${a.issue}`,
+    ...(a.extra ?? []),
+    `*Likely cause:* ${a.cls.cause}`,
+    `*Expected?:* ${expectedLine(a.cls.expected)}`,
+    `*What to do:* ${a.cls.action}`,
+    `*Details:* \`${a.event}\`${a.ref ? ` · ref \`${a.ref}\`` : ""}`,
+  ].join("\n");
+}
+
+// Generic classifier for connector_events errors (every connector). Keys off
+// the event code + message keywords; WhatsApp send failures use the richer
+// explainWaError path instead.
+export function classifyConnectorEvent(connector: string, event: string, message: string | undefined): AlertClass {
+  const e = (event ?? "").toLowerCase();
+  const m = (message ?? "").toLowerCase();
+  const label = CONNECTOR_LABEL[connector] ?? connector;
+
+  // Monitoring went dark / a service is unreachable.
+  if (e.includes("watchdog") || e === "health_down")
+    return {
+      severity: "critical", expected: false,
+      cause: `The ${label} service stopped responding — usually an expired token/API key, the upstream API being down, or a stopped cron.`,
+      action: "Check that function's logs and that its cron is running. WhatsApp: verify WHATSAPP_ACCESS_TOKEN; Gmail: re-run OAuth.",
+    };
+
+  // Auth / credential failure — that integration is fully down.
+  if (m.includes("token") || m.includes("auth") || m.includes("credential") || m.includes("unauthor") || m.includes("resolve authentication") || m.includes("permission"))
+    return {
+      severity: "critical", expected: false,
+      cause: "An access token or credential expired or is invalid — this integration is fully down until it's refreshed.",
+      action: "Refresh the token/secret and redeploy. Gmail: re-run the OAuth flow; WhatsApp: update WHATSAPP_ACCESS_TOKEN; AI: check the API key.",
+    };
+
+  // Rate limit / quota / credits.
+  if (m.includes("rate limit") || m.includes("quota") || m.includes("credit") || m.includes("billing") || m.includes("429") || m.includes("insufficient"))
+    return {
+      severity: "warning", expected: false,
+      cause: "Hit a provider rate limit or ran out of credits/quota.",
+      action: "Check the provider's billing/usage. WhatsApp: slow the send rate; AI: top up credits.",
+    };
+
+  // A handler threw / a job didn't complete.
+  if (e.includes("fail") || e.includes("error") || e.includes("stuck") || e.includes("gave_up"))
+    return {
+      severity: "warning", expected: false,
+      cause: "A step threw or didn't complete — the Issue line above carries the specific error.",
+      action: "Open the function logs for the stack trace. If it looks transient, replay/retry; if it repeats, investigate.",
+    };
+
+  return {
+    severity: "warning", expected: false,
+    cause: "Unclassified error event.",
+    action: "Review the function logs for context.",
+  };
+}
+
+
 // First ping fires immediately; if the same connector+event keeps erroring,
 // re-ping every RE_ALERT_HOURS so a multi-day outage cannot stay silent.
 const RE_ALERT_HOURS = 6;
@@ -113,7 +227,14 @@ async function pingSlackOnError(input: ConnectorEventInput): Promise<void> {
     // the rest stay quiet until the window rolls over
     if ((count ?? 0) > 1) return;
 
-    const text = `:rotating_light: *${input.connector}* error — \`${input.event}\`\n${input.message ?? "(no message)"}`;
+    const cls = classifyConnectorEvent(input.connector, input.event, input.message ?? undefined);
+    const text = buildStructuredAlert({
+      connector: input.connector,
+      event: input.event,
+      ref: input.ref ?? null,
+      issue: input.message ?? "(no message)",
+      cls,
+    });
     await postSlack(channel, text);
   } catch (e) {
     console.warn("connector error Slack ping failed:", e);
@@ -227,15 +348,26 @@ export async function alertWaSendFailure(args: {
     const channel = slackChannelFor("whatsapp");
     if (!channel) return;
 
-    const head = ex.action ? ":rotating_light: *WhatsApp send failed — ACTION NEEDED*" : ":warning: *WhatsApp send not delivered*";
-    const lines = [
-      head,
-      `*To:* ${maskPhone(args.to)}`,
-      `*Message:* ${args.kind}${args.templateName ? ` · \`${args.templateName}\`` : ""}${args.sentBy ? `  _(${args.sentBy})_` : ""}`,
-      `*Meta said:* ${args.error ?? "unknown"}${args.errorCode ? ` (#${args.errorCode})` : ""}`,
-      `*Why:* ${ex.cause}`,
-    ];
-    await postSlack(channel, lines.join("\n"));
+    const SEV: Record<WaErrorCategory, Severity> = {
+      auth: "critical", template: "critical", rate: "warning", system: "warning", deliverability: "info", unknown: "warning",
+    };
+    const ACTION: Record<WaErrorCategory, string> = {
+      auth: "Refresh WHATSAPP_ACCESS_TOKEN in Supabase secrets and redeploy — every send is failing until then.",
+      template: "Open the Templates tab / Meta Manager: confirm the template is approved, not paused, and its parameter count/format matches what we send.",
+      rate: "Slow the send rate; check this number's messaging limits and quality rating in Meta Manager.",
+      system: "Usually transient on Meta's side — it auto-retries. Only worry if these keep coming.",
+      deliverability: "No action — Meta declined delivery to this one recipient. Normal for marketing templates and unreachable numbers.",
+      unknown: "Check the raw Meta response in the wa-send / wa-webhook logs.",
+    };
+    const text = buildStructuredAlert({
+      connector: "whatsapp",
+      event,
+      ref: maskPhone(args.to),
+      issue: `Couldn't deliver a ${args.kind}${args.templateName ? ` \`${args.templateName}\`` : ""} to ${maskPhone(args.to)}${args.sentBy ? ` (via ${args.sentBy})` : ""}.`,
+      extra: [`*Meta said:* ${args.error ?? "unknown"}${args.errorCode ? ` (#${args.errorCode})` : ""}`],
+      cls: { severity: SEV[ex.category], expected: ex.category === "deliverability", cause: ex.cause, action: ACTION[ex.category] },
+    });
+    await postSlack(channel, text);
   } catch (e) {
     console.warn("alertWaSendFailure failed:", e);
   }
