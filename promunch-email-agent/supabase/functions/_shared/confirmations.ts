@@ -91,6 +91,28 @@ export async function releaseConfirmation(orderRef: string): Promise<void> {
   await db().rpc("release_order_confirmation", { p_ref: ref }).then(() => {}, () => {});
 }
 
+// === GENERIC one-per-event claim ==========================================
+// Built on the same wa_confirmation_claims primitive (claim_order_confirmation)
+// so any "send this WhatsApp exactly once per event X" flow gets the identical
+// atomic no-duplicate guarantee — no new table/migration. Pass a NAMESPACED key
+// (e.g. `shipping_update:<orderRef>:<fulfillmentId>`) so keys never collide with
+// bare confirmation refs. Same contract as the confirmation helpers: win the
+// claim → send → markSendSent on ok / releaseSend on failure.
+export async function claimSend(key: string): Promise<boolean> {
+  if (!key) return false;
+  const { data, error } = await db().rpc("claim_order_confirmation", { p_ref: key });
+  if (error) { console.warn(`[confirmations] claimSend failed for ${key}:`, error.message); return false; }
+  return data === true;
+}
+export async function markSendSent(key: string): Promise<void> {
+  if (!key) return;
+  await db().rpc("mark_order_confirmation_sent", { p_ref: key }).then(() => {}, () => {});
+}
+export async function releaseSend(key: string): Promise<void> {
+  if (!key) return;
+  await db().rpc("release_order_confirmation", { p_ref: key }).then(() => {}, () => {});
+}
+
 // Order confirmation always uses order_confirmation_v2 — the welcoming
 // "join the PROMUNCH family" copy with NO order total (name + order ref only).
 // v2 is approved at Meta. We deliberately no longer fall back to the original

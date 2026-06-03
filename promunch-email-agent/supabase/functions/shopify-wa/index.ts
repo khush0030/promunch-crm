@@ -15,6 +15,7 @@ import { verifyShopifyHmac } from "../_shared/shopify.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 import { SITE_URL, firstName, toWaId } from "../_shared/journeys.ts";
 import { handleOrderCreated } from "../_shared/order-confirmation.ts";
+import { claimSend, markSendSent, releaseSend } from "../_shared/confirmations.ts";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
@@ -70,12 +71,30 @@ async function handleOrderFulfilled(order: any) {
   const f = Array.isArray(order.fulfillments) ? order.fulfillments[0] : null;
   const tracking: string = resolveTrackingUrl(f, order);
 
+  // NO-SPAM: exactly one shipping update per fulfillment. Shopify re-delivers
+  // orders/fulfilled on retries / order edits, and we always return 200, so
+  // without this guard the customer gets "your order shipped!" several times.
+  // Key on the fulfillment id (falls back to tracking number) so a genuine
+  // SECOND shipment — a different fulfillment — still gets its own update.
+  const fid = String(f?.id ?? f?.tracking_number ?? f?.tracking_numbers?.[0] ?? "x");
+  const claimKey = `shipping_update:${orderRef}:${fid}`;
+  if (!(await claimSend(claimKey))) {
+    await logConnector({
+      connector: "shopify_wa", level: "info", event: "shipping_skipped_dup",
+      message: `Order ${orderRef}: shipping update for fulfillment ${fid} already sent — not re-sending.`,
+      ref: orderRef,
+    }).catch(() => {});
+    return;
+  }
+
   const res = await callWaSend({
     to: waId,
     kind: "template",
     template: { name: "shipping_update", language: "en", vars: { "1": name, "2": orderRef, "3": tracking } },
     sent_by: "journey:shipping_update",
   });
+  // Lock the claim on success; release on failure so a webhook re-delivery can retry.
+  if (res?.ok) await markSendSent(claimKey); else await releaseSend(claimKey);
   await logConnector({
     connector: "shopify_wa",
     level: res?.ok ? "info" : "error",
