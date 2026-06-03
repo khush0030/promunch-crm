@@ -66,14 +66,40 @@ export async function logConnector(input: ConnectorEventInput): Promise<void> {
   }
 }
 
+// WhatsApp-domain alerts (whatsapp + shopify_wa connectors, send-failure alerts,
+// the watchdog) go to the dedicated whatsapp-health channel; everything else to
+// the default channel. Set WA_HEALTH_CHANNEL_ID to the whatsapp-health channel id.
+export function slackChannelFor(connector: string): string | undefined {
+  const wa = Deno.env.get("WA_HEALTH_CHANNEL_ID");
+  const def = Deno.env.get("SLACK_CHANNEL_ID");
+  if (connector === "whatsapp" || connector === "shopify_wa") return wa ?? def;
+  return def;
+}
+
+// Post a message to Slack. Returns false if creds missing or the call failed.
+export async function postSlack(channel: string | undefined, text: string): Promise<boolean> {
+  const botToken = Deno.env.get("SLACK_BOT_TOKEN");
+  if (!botToken || !channel) return false;
+  try {
+    const r = await fetch("https://slack.com/api/chat.postMessage", {
+      method: "POST",
+      headers: { authorization: `Bearer ${botToken}`, "content-type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ channel, text, unfurl_links: false, unfurl_media: false }),
+    });
+    if (!r.ok) { console.warn("postSlack HTTP", r.status, await r.text()); return false; }
+    const j = await r.json().catch(() => ({}));
+    if (!j?.ok) { console.warn("postSlack error", j?.error); return false; }
+    return true;
+  } catch (e) { console.warn("postSlack failed:", e); return false; }
+}
+
 // First ping fires immediately; if the same connector+event keeps erroring,
 // re-ping every RE_ALERT_HOURS so a multi-day outage cannot stay silent.
 const RE_ALERT_HOURS = 6;
 
 async function pingSlackOnError(input: ConnectorEventInput): Promise<void> {
-  const botToken = Deno.env.get("SLACK_BOT_TOKEN");
-  const channel = Deno.env.get("SLACK_CHANNEL_ID");
-  if (!botToken || !channel) return;
+  const channel = slackChannelFor(input.connector);
+  if (!channel) return;
   try {
     const since = new Date(Date.now() - RE_ALERT_HOURS * 3600_000).toISOString();
     const { count } = await db()
@@ -88,15 +114,7 @@ async function pingSlackOnError(input: ConnectorEventInput): Promise<void> {
     if ((count ?? 0) > 1) return;
 
     const text = `:rotating_light: *${input.connector}* error — \`${input.event}\`\n${input.message ?? "(no message)"}`;
-    const r = await fetch("https://slack.com/api/chat.postMessage", {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${botToken}`,
-        "content-type": "application/json; charset=utf-8",
-      },
-      body: JSON.stringify({ channel, text, unfurl_links: false, unfurl_media: false }),
-    });
-    if (!r.ok) console.warn("Slack chat.postMessage HTTP", r.status, await r.text());
+    await postSlack(channel, text);
   } catch (e) {
     console.warn("connector error Slack ping failed:", e);
   }
@@ -206,9 +224,8 @@ export async function alertWaSendFailure(args: {
 
     if (recent) return; // throttled — recorded above, but don't re-ping Slack
 
-    const botToken = Deno.env.get("SLACK_BOT_TOKEN");
-    const channel = Deno.env.get("SLACK_CHANNEL_ID");
-    if (!botToken || !channel) return;
+    const channel = slackChannelFor("whatsapp");
+    if (!channel) return;
 
     const head = ex.action ? ":rotating_light: *WhatsApp send failed — ACTION NEEDED*" : ":warning: *WhatsApp send not delivered*";
     const lines = [
@@ -218,12 +235,7 @@ export async function alertWaSendFailure(args: {
       `*Meta said:* ${args.error ?? "unknown"}${args.errorCode ? ` (#${args.errorCode})` : ""}`,
       `*Why:* ${ex.cause}`,
     ];
-    const r = await fetch("https://slack.com/api/chat.postMessage", {
-      method: "POST",
-      headers: { authorization: `Bearer ${botToken}`, "content-type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ channel, text: lines.join("\n"), unfurl_links: false, unfurl_media: false }),
-    });
-    if (!r.ok) console.warn("alertWaSendFailure Slack HTTP", r.status, await r.text());
+    await postSlack(channel, lines.join("\n"));
   } catch (e) {
     console.warn("alertWaSendFailure failed:", e);
   }
