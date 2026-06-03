@@ -272,7 +272,7 @@ export function explainWaError(code: number | undefined, message: string | undef
     return { category: "auth", action: true, cause: "Access token expired or invalid — EVERY WhatsApp send fails until the token is refreshed in Supabase secrets. Fix immediately." };
 
   // TEMPLATE problems — paused, disabled, not approved, param mismatch.
-  if ((c >= 132000 && c <= 132099) || m.includes("template"))
+  if ((c >= 132000 && c <= 132099) || c === 131008 || m.includes("template") || m.includes("required parameter"))
     return { category: "template", action: true, cause: "Template problem — paused, disabled, not approved at Meta, or parameter count/format mismatch. Check the Templates tab and Meta Manager." };
 
   // RATE limits — sending too fast / number throttled.
@@ -359,12 +359,18 @@ export async function alertWaSendFailure(args: {
       deliverability: "No action — Meta declined delivery to this one recipient. Normal for marketing templates and unreachable numbers.",
       unknown: "Check the raw Meta response in the wa-send / wa-webhook logs.",
     };
+    const templateLabel = args.templateName
+      ? `\`${args.templateName}\``
+      : args.kind === "text" ? "free-text message" : args.kind === "image" ? "image message" : args.kind;
     const text = buildStructuredAlert({
       connector: "whatsapp",
       event,
       ref: maskPhone(args.to),
-      issue: `Couldn't deliver a ${args.kind}${args.templateName ? ` \`${args.templateName}\`` : ""} to ${maskPhone(args.to)}${args.sentBy ? ` (via ${args.sentBy})` : ""}.`,
-      extra: [`*Meta said:* ${args.error ?? "unknown"}${args.errorCode ? ` (#${args.errorCode})` : ""}`],
+      issue: `Couldn't deliver to ${maskPhone(args.to)}.`,
+      extra: [
+        `*Template / action:* ${templateLabel}${args.sentBy ? `  ·  triggered by \`${args.sentBy}\`` : ""}`,
+        `*Meta said:* ${args.error ?? "unknown"}${args.errorCode ? ` (#${args.errorCode})` : ""}`,
+      ],
       cls: { severity: SEV[ex.category], expected: ex.category === "deliverability", cause: ex.cause, action: ACTION[ex.category] },
     });
     await postSlack(channel, text);
