@@ -48,6 +48,49 @@ export async function confirmationAlreadySent(orderRef: string): Promise<boolean
   return (await confirmedOrderRefs(since)).has(ref);
 }
 
+// === ATOMIC CLAIM — the hard no-spam guard ================================
+// confirmationAlreadySent() above is a read-then-send check: two trigger paths
+// can both read "not sent yet" in the same instant and both send. That is the
+// race that messaged order #2050 twice. These helpers close it at the database
+// via wa_confirmation_claims (order_ref is the PRIMARY KEY) so exactly ONE
+// caller can ever hold a given order — see migration 20260602160000.
+//
+// Contract for every send path:
+//   1. if (await confirmationAlreadySent(ref)) skip;        // durable guard
+//   2. if (!(await claimConfirmation(ref))) skip;           // win the lock
+//   3. send;
+//   4. ok  -> await markConfirmationSent(ref)               // lock it sent
+//      fail -> await releaseConfirmation(ref)               // let sweep retry
+// A miss is recoverable (the sweep re-runs); a duplicate is not. So on ANY
+// uncertainty (e.g. the claim RPC errors) we DO NOT send.
+
+// True only for the single caller now allowed to send this order.
+export async function claimConfirmation(orderRef: string): Promise<boolean> {
+  const ref = norm(orderRef);
+  if (!ref) return false;
+  const { data, error } = await db().rpc("claim_order_confirmation", { p_ref: ref });
+  if (error) {
+    // Unknown DB state — bias to NO-SPAM: stand down. The sweep retries later.
+    console.warn(`[confirmations] claim_order_confirmation failed for ${ref}:`, error.message);
+    return false;
+  }
+  return data === true;
+}
+
+// Lock the claim as 'sent' once Meta accepted — it can never be re-sent.
+export async function markConfirmationSent(orderRef: string): Promise<void> {
+  const ref = norm(orderRef);
+  if (!ref) return;
+  await db().rpc("mark_order_confirmation_sent", { p_ref: ref }).then(() => {}, () => {});
+}
+
+// Release the claim after a failed send so the sweep can retry immediately.
+export async function releaseConfirmation(orderRef: string): Promise<void> {
+  const ref = norm(orderRef);
+  if (!ref) return;
+  await db().rpc("release_order_confirmation", { p_ref: ref }).then(() => {}, () => {});
+}
+
 // Order confirmation always uses order_confirmation_v2 — the welcoming
 // "join the PROMUNCH family" copy with NO order total (name + order ref only).
 // v2 is approved at Meta. We deliberately no longer fall back to the original

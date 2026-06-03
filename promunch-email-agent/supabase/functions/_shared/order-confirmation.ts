@@ -8,7 +8,13 @@
 
 import { db } from "./supabase.ts";
 import { logConnector } from "./connector-log.ts";
-import { buildConfirmationTemplate, confirmationAlreadySent } from "./confirmations.ts";
+import {
+  buildConfirmationTemplate,
+  claimConfirmation,
+  confirmationAlreadySent,
+  markConfirmationSent,
+  releaseConfirmation,
+} from "./confirmations.ts";
 import { REVIEW_URL, SITE_URL, TIMED_JOURNEYS, firstName, toWaId } from "./journeys.ts";
 
 export interface OrderConfirmationResult {
@@ -41,10 +47,12 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
 
   const name = firstName(order.customer?.first_name, order.shipping_address?.first_name, order.billing_address?.first_name);
 
-  // === DEDUP ===
-  // wa_messages is the transactional message ledger — if any sent / delivered
-  // / read row exists for this order_ref, the customer already got their
-  // confirmation. Never message twice, no matter which path called us.
+  // === DEDUP (two layers, see confirmations.ts) ===
+  // 1. Durable guard: wa_messages already has a sent/delivered/read row for
+  //    this order_ref → the customer already got it. Never message twice.
+  // 2. Atomic claim: win the per-order DB lock or stand down. This closes the
+  //    race where two trigger paths both pass guard (1) in the same instant
+  //    and both send — the bug that messaged order #2050 twice.
   let sendStatus: OrderConfirmationResult["status"];
   let sendDetail: string | undefined;
   if (await confirmationAlreadySent(orderRef)) {
@@ -52,6 +60,14 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
     await logConnector({
       connector: "shopify_wa", level: "info", event: "confirmation_skipped_dup",
       message: `Order ${orderRef}: confirmation already sent — not re-sending.`,
+      ref: orderRef,
+    }).catch(() => {});
+  } else if (!(await claimConfirmation(orderRef))) {
+    // Another path holds the claim (is sending right now) — stand down.
+    sendStatus = "duplicate";
+    await logConnector({
+      connector: "shopify_wa", level: "info", event: "confirmation_skipped_dup",
+      message: `Order ${orderRef}: confirmation already claimed by another path — not re-sending.`,
       ref: orderRef,
     }).catch(() => {});
   } else {
@@ -63,6 +79,9 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
     });
     sendStatus = res?.ok ? "sent" : "failed";
     sendDetail = res?.ok ? undefined : res?.error ?? "send failed";
+    // Lock the claim on success; release it on failure so the sweep can retry.
+    if (res?.ok) await markConfirmationSent(orderRef);
+    else await releaseConfirmation(orderRef);
     await logConnector({
       connector: "shopify_wa",
       level: res?.ok ? "info" : "error",

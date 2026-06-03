@@ -68,8 +68,7 @@ async function handleOrderFulfilled(order: any) {
 
   const name = firstName(order.customer?.first_name, order.shipping_address?.first_name);
   const f = Array.isArray(order.fulfillments) ? order.fulfillments[0] : null;
-  const tracking: string =
-    f?.tracking_url || f?.tracking_urls?.[0] || order.order_status_url || SITE_URL;
+  const tracking: string = resolveTrackingUrl(f, order);
 
   const res = await callWaSend({
     to: waId,
@@ -176,6 +175,53 @@ async function handleCheckout(checkout: any) {
     order_ref: token,
   }));
   await sb.from("wa_journey_runs").insert(rows);
+}
+
+// --- tracking link resolution ----------------------------------------------
+//
+// Shopify's fulfillment.tracking_url is unreliable: for some carriers
+// (Xpressbees, Shadowfax, Shree Maruti) it's just the carrier HOMEPAGE with no
+// AWB — e.g. "https://www.xpressbees.com/track" — so the customer can't
+// actually track anything. We saw exactly that go out for orders #2053/#2054.
+//
+// Strategy, best → safe fallback:
+//   1. Trust Shopify's URL only if it actually contains the AWB (a real deep link).
+//   2. Else build a deep link ourselves from AWB + carrier, for carriers whose
+//      URL format is stable and known.
+//   3. Else use Shopify's order-status page — always valid, always shows the
+//      live carrier + tracking number. NEVER send a bare carrier homepage.
+//   4. Last resort: the site. (order_status_url is almost always present.)
+function resolveTrackingUrl(f: any, order: any): string {
+  const awb = String(f?.tracking_number ?? f?.tracking_numbers?.[0] ?? "").trim();
+  const company = String(f?.tracking_company ?? "");
+  const rawUrl = String(f?.tracking_url ?? f?.tracking_urls?.[0] ?? "").trim();
+
+  // 1. Shopify's URL already carries the AWB → it's a genuine deep link.
+  if (awb && rawUrl && rawUrl.includes(awb)) return rawUrl;
+  // 2. Build a known-carrier deep link from the AWB.
+  if (awb) {
+    const built = carrierTrackingUrl(company, awb);
+    if (built) return built;
+  }
+  // 3. Bare homepage / no AWB → Shopify's order status page (always valid).
+  const statusUrl = String(order?.order_status_url ?? "").trim();
+  if (statusUrl) return statusUrl;
+  // 4. Last resort.
+  return rawUrl || SITE_URL;
+}
+
+// Deep-link templates for carriers whose format is stable. Conservative on
+// purpose: an unknown carrier returns "" so the caller falls back to the
+// Shopify order-status page rather than to a guessed (possibly broken) URL.
+function carrierTrackingUrl(company: string, awb: string): string {
+  const c = company.toLowerCase();
+  const id = encodeURIComponent(awb);
+  if (c.includes("delhivery")) return `https://www.delhivery.com/track/package/${id}`;
+  if (c.includes("xpressbee")) return `https://www.xpressbees.com/shipment/tracking?awbNo=${id}`;
+  if (c.includes("bluedart") || c.includes("blue dart")) return `https://www.bluedart.com/web/guest/trackdartresult?trackFor=0&trackNo=${id}`;
+  if (c.includes("amazon")) return `https://track.amazon.com/tracking/${id}`;
+  if (c.includes("ekart")) return `https://ekartlogistics.com/shipmenttrack/${id}`;
+  return "";
 }
 
 // --- helpers ----------------------------------------------------------------

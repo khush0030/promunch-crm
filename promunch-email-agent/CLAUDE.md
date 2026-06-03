@@ -6,6 +6,22 @@
 
 ---
 
+## 0. NON-NEGOTIABLE: never message a customer twice (no spam)
+
+**A customer must NEVER receive the same WhatsApp/email twice. Treat this as a hard product invariant, above reliability, above convenience. A missed message is recoverable; a duplicate is not — it reads as spam and damages the brand.**
+
+Rules for anyone (human or AI) touching the messaging code:
+
+1. **One owner per message type.** Order confirmations are owned by the **Supabase** edge functions only (`_shared/order-confirmation.ts` + `wa-confirmation-sweep`). The self-hosted **n8n** order-confirmation workflow is **retired** — do not re-enable it, and do not point a Shopify `orders/create` webhook at n8n. Two systems sending the same message = guaranteed duplicates, because their dedup checks key on different columns and can't see each other.
+2. **A read-then-send check is NOT enough.** "Is it already sent? no → send" races: two trigger paths both read "no" in the same instant and both send. That is exactly how order #2050 got two confirmations (and #2023/#2024 four). Every send path MUST take the **atomic claim** first — `claimConfirmation(orderRef)` (Postgres `claim_order_confirmation`, see migration `20260602160000_wa_confirmation_claims.sql`). Only the single caller that wins the claim may send.
+3. **On success, lock the claim** (`markConfirmationSent`). **On failure, release it** (`releaseConfirmation`) so the sweep can retry — never leave a customer un-messaged because of a transient failure, and never let a retry become a second delivery.
+4. **Any new "WhatsApp/email on event X" flow** must follow the same shape: durable ledger guard (`wa_messages`) + atomic per-entity claim + one owner. Encode the entity id so duplicates are detectable. If you can't express the dedup atomically, don't ship the flow.
+5. **When in doubt, do NOT send.** Bias every uncertain branch (DB error, unknown state) toward silence. The reconciliation sweep is the safety net for genuine misses.
+
+If a change could conceivably send a second message, stop and prove it can't before deploying.
+
+---
+
 ## 1. What this project is
 
 An AI email assistant for **PROMUNCH** (snack brand under Vippy Industries Limited).

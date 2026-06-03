@@ -23,7 +23,13 @@
 import { db } from "../_shared/supabase.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 import { firstName, toWaId } from "../_shared/journeys.ts";
-import { buildConfirmationTemplate, confirmedOrderRefs } from "../_shared/confirmations.ts";
+import {
+  buildConfirmationTemplate,
+  claimConfirmation,
+  confirmedOrderRefs,
+  markConfirmationSent,
+  releaseConfirmation,
+} from "../_shared/confirmations.ts";
 
 // Orders younger than this are left to the instant path. With the
 // wa_messages dedup in place a real race is harmless, so this window only
@@ -148,6 +154,14 @@ Deno.serve(async (req) => {
       continue;
     }
 
+    // Atomic claim — the same per-order DB lock the instant path uses. If
+    // another path is sending this order right now, we stand down. This is
+    // what makes "instant path + sweep both fire" safe instead of a duplicate.
+    if (!(await claimConfirmation(orderRef))) {
+      skipped++; report[orderRef] = "claimed by another path — skipped";
+      continue;
+    }
+
     // build the same message the instant path would have sent
     const name = firstName(raw.customer?.first_name, raw.shipping_address?.first_name, raw.billing_address?.first_name, o.customer_name);
 
@@ -159,6 +173,7 @@ Deno.serve(async (req) => {
     });
 
     if (res?.ok) {
+      await markConfirmationSent(orderRef); // lock the claim — never re-send
       confirmed.add(ref); // in-batch guard against the same ref twice
       resent++; report[orderRef] = `sent to ${waId}`;
       await logConnector({
@@ -169,6 +184,7 @@ Deno.serve(async (req) => {
         ref: orderRef,
       }).catch(() => {});
     } else {
+      await releaseConfirmation(orderRef); // failed — let a later run retry
       failed++; report[orderRef] = `failed — ${res?.error ?? "unknown"}`;
       await logConnector({
         connector: "shopify_wa", level: "error", event: EVT_FAILED,
