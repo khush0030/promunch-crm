@@ -14,6 +14,8 @@ import {
   confirmationAlreadySent,
   markConfirmationSent,
   releaseConfirmation,
+  claimSend,
+  markSendSent,
 } from "./confirmations.ts";
 import { REVIEW_URL, SITE_URL, TIMED_JOURNEYS, firstName, toWaId } from "./journeys.ts";
 
@@ -109,12 +111,19 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
 
 async function enrolPostPurchaseJourneys(orderRef: string, waId: string, name: string) {
   const sb = db();
-  // dedup — skip if any post-purchase journey for this order already exists
+  // ATOMIC gate — the select-based dedup below is check-then-act: two
+  // confirmation paths firing together both saw "no prior runs" and both
+  // enrolled, so order #2024 got 2 review_request + 2 replenishment runs (and
+  // was review-pinged twice). claimSend makes enrollment happen exactly once.
+  const enrolKey = `postpurchase_enrol:${orderRef}`;
+  if (!(await claimSend(enrolKey))) return;
+
+  // secondary guard — if rows already exist from before, lock and stop.
   const { data: prior } = await sb.from("wa_journey_runs")
     .select("id").eq("order_ref", orderRef)
     .in("journey_key", ["review_request", "replenishment_reminder"])
     .limit(1);
-  if (prior && prior.length) return;
+  if (prior && prior.length) { await markSendSent(enrolKey); return; }
 
   const enrolments: Array<readonly [string, Record<string, string>]> = [
     ["review_request", { "1": name, "2": REVIEW_URL }],
@@ -129,6 +138,7 @@ async function enrolPostPurchaseJourneys(orderRef: string, waId: string, name: s
       context: { vars }, order_ref: orderRef,
     });
   }
+  await markSendSent(enrolKey); // lock — never enrol this order's journeys again
 }
 
 // Inline 3× retry — multiple trigger paths reduce the need for this, but a
