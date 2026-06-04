@@ -103,6 +103,18 @@ Deno.serve(async () => {
       if (tplAttempts >= TPL_FALLBACK_MAX) { skipped++; continue; }
       // claim atomically before the send so an inbound piggyback can't also send.
       if (!(await claimAsk(sb, run.id))) { skipped++; continue; }
+    } else {
+      // Atomically claim non-window runs (e.g. abandoned_checkout) before sending
+      // so two overlapping ticks can't both grab the same active run and
+      // double-send. Mirrors claimAsk: active -> completed in one UPDATE; if no
+      // row changed, another tick already has it. Biases to "lost on crash, never
+      // duplicate" (a crash after claim leaves it completed-but-unsent), per the
+      // no-spam rule. A send failure below flips it to 'failed'.
+      const { data: claimed } = await sb.from("wa_journey_runs")
+        .update({ status: "completed", last_error: null })
+        .eq("id", run.id).eq("status", "active")
+        .select("id");
+      if (!(claimed && claimed.length)) { skipped++; continue; }
     }
 
     const res = await callWaSend({

@@ -157,9 +157,14 @@ async function handleCheckout(checkout: any) {
   );
   if (!waId) return;
 
-  // dedupe on the checkout token
+  // ATOMIC gate — two checkouts/create+update webhooks for the same token could
+  // both pass the select-based dedup below and enrol the 3-step sequence twice
+  // (6 abandoned-cart messages). claimSend makes enrolment happen exactly once.
+  const enrolKey = `abandoned_enrol:${token}`;
+  if (!(await claimSend(enrolKey))) return;
+  // secondary guard — already enrolled before this gate existed? lock and stop.
   const { data: prior } = await sb.from("wa_journey_runs").select("id").eq("order_ref", token).limit(1);
-  if (prior && prior.length) return;
+  if (prior && prior.length) { await markSendSent(enrolKey); return; }
 
   const name = firstName(checkout.customer?.first_name, checkout.shipping_address?.first_name);
   // The third-party checkout partner (sales channel SMB-1CCO) skips the native
@@ -223,6 +228,7 @@ async function handleCheckout(checkout: any) {
     order_ref: token,
   }));
   await sb.from("wa_journey_runs").insert(rows);
+  await markSendSent(enrolKey); // lock — never re-enrol this cart
 }
 
 // --- tracking link resolution ----------------------------------------------
