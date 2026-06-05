@@ -19,6 +19,7 @@ import { buildOrderBlocks, fmtMoney, postSlack, verifyShopifyHmac } from "../_sh
 import { logConnector } from "../_shared/connector-log.ts";
 import { toWaId } from "../_shared/journeys.ts";
 import { handleOrderCreated } from "../_shared/order-confirmation.ts";
+import { isHypdOrder, linkOrderToCustomer, upsertShopifyCustomerFromOrder } from "../_shared/shopify-customer.ts";
 
 const ok = (extra: Record<string, unknown> = {}) =>
   new Response(JSON.stringify({ ok: true, ...extra }), { headers: { "content-type": "application/json" } });
@@ -84,6 +85,38 @@ Deno.serve(async (req) => {
   if (error) {
     console.error("db upsert failed", error);
     return new Response("db-error", { status: 500 });
+  }
+
+  // ===== HYPD customer sync (runs on create AND update) =====
+  // HYPD pushes guest orders with no customer record. The "Order From HYPD
+  // Store" tag sometimes lands a moment AFTER orders/create, so we run this on
+  // every orders/* topic — not just create — or those orders would be missed.
+  // Self-stopping + idempotent: once the order has a linked customer we skip it;
+  // customerSet/orderCustomerSet dedupe so re-runs never double anything.
+  // Gated to HYPD so organic web customers are never re-upserted/tagged.
+  // upsertShopifyCustomerFromOrder cleans the mangled name (normalizeName) and
+  // tags the customer "hyped"; linkOrderToCustomer attaches them to the order.
+  // Non-blocking: a failure here must never break order persistence or Slack.
+  if (isHypdOrder(order) && !order.customer?.id) try {
+    const r = await upsertShopifyCustomerFromOrder(order);
+    if (r.ok && r.id) {
+      const l = await linkOrderToCustomer(order.id, r.id);
+      if (!l.ok && l.reason !== "admin-not-configured") {
+        await logConnector({
+          connector: "shopify", level: "error", event: "order_link_failed",
+          message: `Order ${orderNumber}: customer link failed — ${l.reason}`,
+          ref: orderNumber,
+        }).catch(() => {});
+      }
+    } else if (!r.ok && !["admin-not-configured", "no-identifier"].includes(r.reason)) {
+      await logConnector({
+        connector: "shopify", level: "error", event: "customer_upsert_failed",
+        message: `Order ${orderNumber}: customer upsert failed — ${r.reason}`,
+        ref: orderNumber,
+      }).catch(() => {});
+    }
+  } catch (e) {
+    console.error("[shopify-webhook] HYPD customer sync threw", e);
   }
 
   // Status-change events: the row is now refreshed (fulfillment, tracking,
