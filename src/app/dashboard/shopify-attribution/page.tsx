@@ -111,19 +111,22 @@ export default function ShopifyAttributionPage() {
     async function load() {
       setLoaded(false);
       const days = rangeDays[activeRange];
-      let q = supabase
-        .from("shopify_orders")
-        .select(
-          "total_price, first_utm_source, first_utm_medium, first_utm_campaign, first_source, first_source_type, first_referrer_url, source_name, customer_order_index, attribution_synced_at, shopify_created_at",
-        );
-      if (days === 0) {
-        q = q.gte("shopify_created_at", istTodayStartIso()); // Today (IST)
-      } else if (days != null) {
-        const sinceIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-        q = q.gte("shopify_created_at", sinceIso);
+      const cols =
+        "total_price, first_utm_source, first_utm_medium, first_utm_campaign, first_source, first_source_type, first_referrer_url, source_name, customer_order_index, attribution_synced_at, shopify_created_at";
+      const since =
+        days === 0 ? istTodayStartIso()
+        : days != null ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
+        : null;
+      // Page past PostgREST's 1000-row cap so totals stay exact as orders grow.
+      const orders: OrderRow[] = [];
+      for (let from = 0; ; from += 1000) {
+        let q = supabase.from("shopify_orders").select(cols).range(from, from + 999);
+        if (since) q = q.gte("shopify_created_at", since);
+        const { data } = await q;
+        const batch = (data || []) as OrderRow[];
+        orders.push(...batch);
+        if (batch.length < 1000) break;
       }
-      const { data } = await q;
-      const orders = (data || []) as OrderRow[];
 
       const totalRevenue = orders.reduce((s, o) => s + num(o.total_price), 0);
       const totalOrders = orders.length;

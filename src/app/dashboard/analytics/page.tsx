@@ -101,26 +101,38 @@ export default function AnalyticsPage() {
       const days = rangeDays[activeRange];
       const sinceIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
-      const [campaignsRes, flowsRes, contactsRes, eventsRes] = await Promise.all([
-        supabase.from("campaigns").select("*").gte("created_at", sinceIso).order("revenue_attributed", { ascending: false }),
-        supabase.from("flows").select("*").order("revenue_attributed", { ascending: false }),
-        supabase.from("contacts").select("status, created_at"),
-        supabase.from("email_events").select("event_type, created_at").gte("created_at", sinceIso),
-      ]);
+      // Exact counts via head+count — contacts and email_events both exceed
+      // PostgREST's 1000-row cap, so counting fetched rows silently undercounts.
+      const contactCount = (opts: { status?: string; since?: string }) => {
+        let q = supabase.from("contacts").select("status", { count: "exact", head: true });
+        if (opts.status) q = q.eq("status", opts.status);
+        if (opts.since) q = q.gte("created_at", opts.since);
+        return q.then((r) => r.count ?? 0);
+      };
+      const eventCount = (type?: string) => {
+        let q = supabase.from("email_events").select("event_type", { count: "exact", head: true }).gte("created_at", sinceIso);
+        if (type) q = q.eq("event_type", type);
+        return q.then((r) => r.count ?? 0);
+      };
+
+      const [campaignsRes, flowsRes, totalActive, newSubs, totalEventsRaw, delivered, bounced, unsubscribed] =
+        await Promise.all([
+          supabase.from("campaigns").select("*").gte("created_at", sinceIso).order("revenue_attributed", { ascending: false }),
+          supabase.from("flows").select("*").order("revenue_attributed", { ascending: false }),
+          contactCount({ status: "active" }),
+          contactCount({ since: sinceIso }),
+          eventCount(),
+          eventCount("delivered"),
+          eventCount("bounced"),
+          eventCount("unsubscribed"),
+        ]);
 
       const campaigns = campaignsRes.data || [];
       const totalSent = campaigns.reduce((s, c) => s + (c.total_sent || 0), 0);
       const totalRevenue = campaigns.reduce((s, c) => s + (Number(c.revenue_attributed) || 0), 0);
       const rpe = totalSent > 0 ? totalRevenue / totalSent : 0;
 
-      const allContacts = contactsRes.data || [];
-      const totalActive = allContacts.filter((c) => c.status === "active").length;
-      const newSubs = allContacts.filter((c) => c.created_at && c.created_at >= sinceIso).length;
-      const events = eventsRes.data || [];
-      const unsubscribed = events.filter((e) => e.event_type === "unsubscribed").length;
-      const delivered = events.filter((e) => e.event_type === "delivered").length;
-      const bounced = events.filter((e) => e.event_type === "bounced").length;
-      const totalEvts = events.length || 1;
+      const totalEvts = totalEventsRaw || 1;
       const listGrowthPct = totalActive > 0 ? ((newSubs - unsubscribed) / totalActive) * 100 : 0;
 
       setTopMetrics([
@@ -182,20 +194,20 @@ export default function AnalyticsPage() {
         })
       );
 
-      const deliveryPct = events.length > 0 ? (delivered / totalEvts) * 100 : 0;
-      const bouncePct = events.length > 0 ? (bounced / totalEvts) * 100 : 0;
-      const unsubPct = events.length > 0 ? (unsubscribed / totalEvts) * 100 : 0;
+      const deliveryPct = totalEventsRaw > 0 ? (delivered / totalEvts) * 100 : 0;
+      const bouncePct = totalEventsRaw > 0 ? (bounced / totalEvts) * 100 : 0;
+      const unsubPct = totalEventsRaw > 0 ? (unsubscribed / totalEvts) * 100 : 0;
       setEmailHealth([
         {
           label: "Delivery rate",
-          value: events.length > 0 ? `${deliveryPct.toFixed(1)}%` : "—",
+          value: totalEventsRaw > 0 ? `${deliveryPct.toFixed(1)}%` : "—",
           pct: deliveryPct,
           color: "var(--green)",
           iconPath: ICON_CHECK,
         },
         {
           label: "Bounce rate",
-          value: events.length > 0 ? `${bouncePct.toFixed(2)}%` : "—",
+          value: totalEventsRaw > 0 ? `${bouncePct.toFixed(2)}%` : "—",
           pct: Math.min(100, bouncePct * 10),
           color: "var(--amber)",
           iconPath: ICON_WARN,
@@ -209,7 +221,7 @@ export default function AnalyticsPage() {
         },
         {
           label: "Unsubscribe rate",
-          value: events.length > 0 ? `${unsubPct.toFixed(2)}%` : "—",
+          value: totalEventsRaw > 0 ? `${unsubPct.toFixed(2)}%` : "—",
           pct: Math.min(100, unsubPct * 10),
           color: "var(--text-3)",
           iconPath: ICON_UNSUB,
