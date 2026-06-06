@@ -179,6 +179,19 @@ export default function DashboardPage() {
   // "Connect Shopify" KPI cards. Defaults true so the real tiles don't flash.
   const [hasOrders, setHasOrders] = useState(true);
 
+  // Authoritative Shopify snapshot (live revenue windows + exact customer count).
+  // The contacts/orders tables are mirrors that can drift; this is the source of
+  // truth, so the headline revenue + customer KPIs read from it when available.
+  const [liveStats, setLiveStats] = useState<
+    { revenue: Record<string, number>; orders: Record<string, number>; customers: number | null } | null
+  >(null);
+  useEffect(() => {
+    fetch("/api/shopify/stats")
+      .then((r) => r.json())
+      .then((d) => { if (d?.ok) setLiveStats({ revenue: d.revenue, orders: d.orders, customers: d.customers }); })
+      .catch(() => {});
+  }, []);
+
   async function load(opts?: { silent?: boolean }) {
     if (!opts?.silent) setRefreshing(true);
     try {
@@ -316,6 +329,13 @@ export default function DashboardPage() {
     );
   }
 
+  // Live Shopify values for the selected period (90d isn't in the snapshot, so
+  // it falls back to the mirror-table figures).
+  const statKey: Record<Period, string | null> = { today: "today", "7d": "d7", "30d": "d30", "90d": null, all: "all" };
+  const liveRevenue = liveStats && statKey[period] ? liveStats.revenue[statKey[period]!] : null;
+  const liveOrders = liveStats && statKey[period] ? liveStats.orders[statKey[period]!] : null;
+  const liveCustomers = liveStats?.customers ?? null;
+
   const activePct =
     listHealth && listHealth.total > 0 ? (listHealth.active / listHealth.total) * 100 : 0;
 
@@ -382,10 +402,10 @@ export default function DashboardPage() {
             <div className="label">
               Revenue · <span className="muted">{period_label}</span>
             </div>
-            <div className="value">{inr(kpis.revenue)}</div>
-            <div className={`delta ${kpis.ordersCount > 0 ? "up" : "flat"}`}>
-              {kpis.ordersCount > 0
-                ? `${kpis.ordersCount.toLocaleString("en-IN")} order${kpis.ordersCount === 1 ? "" : "s"} in range`
+            <div className="value">{inr(liveRevenue ?? kpis.revenue)}</div>
+            <div className={`delta ${(liveOrders ?? kpis.ordersCount) > 0 ? "up" : "flat"}`}>
+              {(liveOrders ?? kpis.ordersCount) > 0
+                ? `${(liveOrders ?? kpis.ordersCount).toLocaleString("en-IN")} order${(liveOrders ?? kpis.ordersCount) === 1 ? "" : "s"} in range`
                 : "No orders in range"}
             </div>
           </div>
@@ -401,11 +421,14 @@ export default function DashboardPage() {
             </svg>
           </div>
           <div className="label">
-            Active subscribers · <span className="muted">now</span>
+            {liveCustomers != null ? "Customers" : "Active subscribers"} ·{" "}
+            <span className="muted">{liveCustomers != null ? "live · Shopify" : "now"}</span>
           </div>
-          <div className="value">{kpis.activeSubscribers.toLocaleString("en-IN")}</div>
-          <div className={`delta ${kpis.newSubscribers > 0 ? "up" : "flat"}`}>
-            {kpis.newSubscribers > 0
+          <div className="value">{(liveCustomers ?? kpis.activeSubscribers).toLocaleString("en-IN")}</div>
+          <div className={`delta ${liveCustomers != null || kpis.newSubscribers > 0 ? "up" : "flat"}`}>
+            {liveCustomers != null
+              ? "Exact, live from Shopify"
+              : kpis.newSubscribers > 0
               ? `▲ ${kpis.newSubscribers.toLocaleString("en-IN")} new in ${period_label}`
               : `No new in ${period_label}`}
           </div>
