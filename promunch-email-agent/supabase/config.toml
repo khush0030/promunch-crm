@@ -42,6 +42,12 @@ verify_jwt = false                    # Shopify uses HMAC header
 [functions.shopify-slash]
 verify_jwt = false                    # Slack signing-secret check
 
+[functions.shopify-orders-backfill]
+verify_jwt = false                    # gated by SHOPIFY_BACKFILL_TOKEN query param
+
+[functions.shopify-stats]
+verify_jwt = true                     # called server-side with the anon key by /api/shopify/stats
+
 [functions.wa-webhook]
 verify_jwt = false                    # Meta verifies via X-Hub-Signature-256
 

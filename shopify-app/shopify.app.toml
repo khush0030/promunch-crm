@@ -1,0 +1,18 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "bda488a857c69190dabd586f0d53738c"
+name = "HYPD Customer Sync"
+application_url = "https://example.com"
+embedded = true
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_customers,write_customers,read_orders,write_orders,read_products,read_inventory,read_marketing_events,read_customer_events,read_reports,read_fulfillments,read_discounts,read_price_rules,read_returns,read_locations,read_checkouts,read_draft_orders"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [ ]
+
+[webhooks]
+api_version = "2026-04"

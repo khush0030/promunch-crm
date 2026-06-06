@@ -20,6 +20,7 @@ import { logConnector } from "../_shared/connector-log.ts";
 import { toWaId } from "../_shared/journeys.ts";
 import { handleOrderCreated } from "../_shared/order-confirmation.ts";
 import { isHypdOrder, linkOrderToCustomer, upsertShopifyCustomerFromOrder } from "../_shared/shopify-customer.ts";
+import { fetchOrderAttribution } from "../_shared/shopify-attribution.ts";
 
 const ok = (extra: Record<string, unknown> = {}) =>
   new Response(JSON.stringify({ ok: true, ...extra }), { headers: { "content-type": "application/json" } });
@@ -80,7 +81,7 @@ Deno.serve(async (req) => {
     line_items: lineItems,
     shopify_created_at: shopifyCreatedAt,
     raw: order,
-  }, { onConflict: "shopify_id" }).select("id").maybeSingle();
+  }, { onConflict: "shopify_id" }).select("id, attribution_synced_at").maybeSingle();
 
   if (error) {
     console.error("db upsert failed", error);
@@ -117,6 +118,28 @@ Deno.serve(async (req) => {
     }
   } catch (e) {
     console.error("[shopify-webhook] HYPD customer sync threw", e);
+  }
+
+  // ===== Traffic attribution (UTM / referrer / landing page) =====
+  // Not in the webhook payload — fetched from the Order's customerJourneySummary
+  // via GraphQL. Run only while unsynced (attribution_synced_at IS NULL) so we
+  // hit the API once per order, not on every orders/updated. The journey is
+  // immutable once set, so first successful fetch is final. Non-blocking: a
+  // failure (or journey-not-ready-yet) must never break order persistence — the
+  // backfill function backstops any order left unsynced.
+  if (upserted?.id && !upserted.attribution_synced_at) try {
+    const a = await fetchOrderAttribution(order.id);
+    if (a.ok && a.synced) {
+      await db().from("shopify_orders").update(a.columns).eq("id", upserted.id);
+    } else if (!a.ok && a.reason !== "admin-not-configured") {
+      await logConnector({
+        connector: "shopify", level: "warn", event: "attribution_failed",
+        message: `Order ${orderNumber}: attribution fetch failed — ${a.reason}`,
+        ref: orderNumber,
+      }).catch(() => {});
+    }
+  } catch (e) {
+    console.error("[shopify-webhook] attribution fetch threw", e);
   }
 
   // Status-change events: the row is now refreshed (fulfillment, tracking,

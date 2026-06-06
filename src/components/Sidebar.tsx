@@ -122,6 +122,16 @@ const groups: NavGroup[] = [
           </svg>
         ),
       },
+      {
+        href: "/dashboard/shopify-attribution",
+        label: "Shopify Attribution",
+        icon: (
+          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
+            <circle cx="12" cy="12" r="10" />
+            <path d="m16.2 7.8-2.9 6.3-6.3 2.9 2.9-6.3 6.3-2.9z" />
+          </svg>
+        ),
+      },
     ],
   },
   {
