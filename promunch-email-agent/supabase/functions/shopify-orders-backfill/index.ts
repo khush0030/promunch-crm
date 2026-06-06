@@ -41,6 +41,9 @@ query OrdersPage($cursor: String) {
       currentTotalPriceSet { shopMoney { amount currencyCode } }
       subtotalPriceSet { shopMoney { amount } }
       customer { firstName lastName phone email }
+      lineItems(first: 100) {
+        nodes { title quantity sku originalUnitPriceSet { shopMoney { amount } } }
+      }
       ${JOURNEY_FIELDS}
     }
   }
@@ -97,8 +100,16 @@ Deno.serve(async (req) => {
         customer_name: name,
         customer_phone: phone ? toWaId(phone) : null,
         shopify_created_at: n.createdAt,
-        // NOTE: line_items/raw deliberately omitted — defaults apply on insert,
-        // and on conflict the webhook's richer values are left untouched.
+        // line_items normalized to the webhook's REST shape {name,quantity,price,sku}
+        // so best-sellers aggregation is uniform across webhook + backfilled rows.
+        line_items: (n.lineItems?.nodes ?? []).map((li: any) => ({
+          name: li.title,
+          quantity: Number(li.quantity) || 0,
+          sku: li.sku ?? null,
+          price: Number(li.originalUnitPriceSet?.shopMoney?.amount) || 0,
+        })),
+        // NOTE: raw deliberately omitted — default applies on insert, and on
+        // conflict the webhook's richer raw payload is left untouched.
         ...attr,
       };
     });

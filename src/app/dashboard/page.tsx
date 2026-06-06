@@ -183,12 +183,23 @@ export default function DashboardPage() {
   // The contacts/orders tables are mirrors that can drift; this is the source of
   // truth, so the headline revenue + customer KPIs read from it when available.
   const [liveStats, setLiveStats] = useState<
-    { revenue: Record<string, number>; orders: Record<string, number>; customers: number | null } | null
+    {
+      revenue: Record<string, number>;
+      orders: Record<string, number>;
+      customers: number | null;
+      aov_all: number;
+      bestSellers: { name: string; sku: string | null; units: number; revenue: number }[];
+    } | null
   >(null);
   useEffect(() => {
     fetch("/api/shopify/stats")
       .then((r) => r.json())
-      .then((d) => { if (d?.ok) setLiveStats({ revenue: d.revenue, orders: d.orders, customers: d.customers }); })
+      .then((d) => {
+        if (d?.ok) setLiveStats({
+          revenue: d.revenue, orders: d.orders, customers: d.customers,
+          aov_all: d.aov_all ?? 0, bestSellers: d.bestSellers ?? [],
+        });
+      })
       .catch(() => {});
   }, []);
 
@@ -484,6 +495,65 @@ export default function DashboardPage() {
         ) : (
           <ConnectTile label="Flow revenue" />
         )}
+      </div>
+
+      {/* Store totals + best sellers — live from Shopify */}
+      <div className="grid-2 section">
+        <div className="card card-pad">
+          <div className="card-title">Best sellers</div>
+          <div className="card-sub">Top products all-time, by revenue</div>
+          {liveStats?.bestSellers && liveStats.bestSellers.length > 0 ? (
+            <table className="tbl" style={{ marginTop: 10 }}>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Units</th>
+                  <th>Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {liveStats.bestSellers.slice(0, 8).map((p, i) => (
+                  <tr key={i}>
+                    <td>
+                      <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200, fontWeight: 500 }}>
+                        {p.name}
+                      </div>
+                    </td>
+                    <td className="num">{p.units.toLocaleString("en-IN")}</td>
+                    <td className="num" style={{ color: "var(--green)", fontWeight: 500 }}>{inr(p.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div style={{ textAlign: "center", color: "var(--text-3)", fontSize: 12.5, padding: "42px 0" }}>
+              {liveStats ? "No product data yet" : "Loading…"}
+            </div>
+          )}
+        </div>
+
+        <div className="card card-pad">
+          <div className="card-title">Store totals</div>
+          <div className="card-sub">Live from Shopify, all-time</div>
+          <div style={{ marginTop: 10 }}>
+            <div className="stat-line">
+              <span>Total orders</span>
+              <span className="v">{liveStats ? (liveStats.orders.all ?? 0).toLocaleString("en-IN") : "…"}</span>
+            </div>
+            <div className="stat-line">
+              <span>Total revenue</span>
+              <span className="v" style={{ color: "var(--green)" }}>{liveStats ? inr(liveStats.revenue.all ?? 0) : "…"}</span>
+            </div>
+            <div className="stat-line">
+              <span>Customers</span>
+              <span className="v">{liveStats?.customers != null ? liveStats.customers.toLocaleString("en-IN") : "…"}</span>
+            </div>
+            <div className="stat-line">
+              <span>Avg order value</span>
+              <span className="v">{liveStats ? inr(liveStats.aov_all ?? 0) : "…"}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {listHealth && listHealth.total > 0 && (

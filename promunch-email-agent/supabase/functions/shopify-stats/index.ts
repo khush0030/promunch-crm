@@ -40,11 +40,16 @@ Deno.serve(async () => {
 
   // Page past PostgREST's 1000-row cap so all-time totals are exact even as the
   // order count grows (today it's <1000, but don't bake in a silent ceiling).
-  const rows: { total_price: number | string | null; shopify_created_at: string; financial_status: string | null }[] = [];
+  const rows: {
+    total_price: number | string | null;
+    shopify_created_at: string;
+    financial_status: string | null;
+    line_items: { name?: string; quantity?: number; price?: number; sku?: string | null }[] | null;
+  }[] = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await db()
       .from("shopify_orders")
-      .select("total_price, shopify_created_at, financial_status")
+      .select("total_price, shopify_created_at, financial_status, line_items")
       .range(from, from + 999);
     if (error) return json({ ok: false, error: error.message }, 500);
     if (!data || data.length === 0) break;
@@ -65,6 +70,23 @@ Deno.serve(async () => {
     if (t >= todayStart) { revenue.today += amt; orders.today += 1; }
   }
 
+  // Best sellers (all-time) from order line items. Keyed by sku||name so the
+  // same product merges across orders. Units + revenue, top 10 by revenue.
+  const prod = new Map<string, { name: string; sku: string | null; units: number; revenue: number }>();
+  for (const o of rows) {
+    if (DEAD.has(String(o.financial_status ?? "").toLowerCase())) continue;
+    for (const li of o.line_items ?? []) {
+      const name = li.name ?? "Unknown";
+      const key = (li.sku && String(li.sku)) || name;
+      const qty = Number(li.quantity) || 0;
+      const cur = prod.get(key) ?? { name, sku: li.sku ?? null, units: 0, revenue: 0 };
+      cur.units += qty;
+      cur.revenue += (Number(li.price) || 0) * qty;
+      prod.set(key, cur);
+    }
+  }
+  const bestSellers = [...prod.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 10);
+
   // Live counts from Shopify (authoritative). customersCount needs read_customers
   // (write_customers covers it); ordersCount lets us confirm the mirror is complete.
   let customers: number | null = null;
@@ -83,6 +105,7 @@ Deno.serve(async () => {
     revenue,
     orders,
     customers,
+    bestSellers,
     mirror_orders: orders.all,        // orders we have stored
     shopify_orders_count: shopifyOrdersCount, // orders Shopify reports (sanity check)
     aov_all: orders.all ? Math.round(revenue.all / orders.all) : 0,
