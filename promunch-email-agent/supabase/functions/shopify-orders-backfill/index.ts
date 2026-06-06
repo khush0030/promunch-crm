@@ -42,7 +42,11 @@ query OrdersPage($cursor: String) {
       subtotalPriceSet { shopMoney { amount } }
       customer { firstName lastName phone email }
       lineItems(first: 100) {
-        nodes { title quantity sku originalUnitPriceSet { shopMoney { amount } } }
+        nodes {
+          title quantity sku
+          originalUnitPriceSet { shopMoney { amount } }
+          product { handle onlineStoreUrl }
+        }
       }
       ${JOURNEY_FIELDS}
     }
@@ -107,6 +111,9 @@ Deno.serve(async (req) => {
           quantity: Number(li.quantity) || 0,
           sku: li.sku ?? null,
           price: Number(li.originalUnitPriceSet?.shopMoney?.amount) || 0,
+          // public product page; fall back to handle on the store domain
+          url: li.product?.onlineStoreUrl ??
+            (li.product?.handle ? `https://${Deno.env.get("SHOPIFY_STORE_DOMAIN")}/products/${li.product.handle}` : null),
         })),
         // NOTE: raw deliberately omitted — default applies on insert, and on
         // conflict the webhook's richer raw payload is left untouched.

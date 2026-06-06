@@ -44,7 +44,7 @@ Deno.serve(async () => {
     total_price: number | string | null;
     shopify_created_at: string;
     financial_status: string | null;
-    line_items: { name?: string; quantity?: number; price?: number; sku?: string | null }[] | null;
+    line_items: { name?: string; quantity?: number; price?: number; sku?: string | null; url?: string | null }[] | null;
   }[] = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await db()
@@ -72,16 +72,17 @@ Deno.serve(async () => {
 
   // Best sellers (all-time) from order line items. Keyed by sku||name so the
   // same product merges across orders. Units + revenue, top 10 by revenue.
-  const prod = new Map<string, { name: string; sku: string | null; units: number; revenue: number }>();
+  const prod = new Map<string, { name: string; sku: string | null; url: string | null; units: number; revenue: number }>();
   for (const o of rows) {
     if (DEAD.has(String(o.financial_status ?? "").toLowerCase())) continue;
     for (const li of o.line_items ?? []) {
       const name = li.name ?? "Unknown";
       const key = (li.sku && String(li.sku)) || name;
       const qty = Number(li.quantity) || 0;
-      const cur = prod.get(key) ?? { name, sku: li.sku ?? null, units: 0, revenue: 0 };
+      const cur = prod.get(key) ?? { name, sku: li.sku ?? null, url: null, units: 0, revenue: 0 };
       cur.units += qty;
       cur.revenue += (Number(li.price) || 0) * qty;
+      if (!cur.url && li.url) cur.url = li.url; // keep first known product URL
       prod.set(key, cur);
     }
   }

@@ -188,7 +188,7 @@ export default function DashboardPage() {
       orders: Record<string, number>;
       customers: number | null;
       aov_all: number;
-      bestSellers: { name: string; sku: string | null; units: number; revenue: number }[];
+      bestSellers: { name: string; sku: string | null; url: string | null; units: number; revenue: number }[];
     } | null
   >(null);
   useEffect(() => {
@@ -515,9 +515,21 @@ export default function DashboardPage() {
                 {liveStats.bestSellers.slice(0, 8).map((p, i) => (
                   <tr key={i}>
                     <td>
-                      <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200, fontWeight: 500 }}>
-                        {p.name}
-                      </div>
+                      {p.url ? (
+                        <a
+                          href={p.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200, fontWeight: 500, color: "var(--accent)", textDecoration: "none" }}
+                          title={p.name}
+                        >
+                          {p.name}
+                        </a>
+                      ) : (
+                        <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200, fontWeight: 500 }} title={p.name}>
+                          {p.name}
+                        </div>
+                      )}
                     </td>
                     <td className="num">{p.units.toLocaleString("en-IN")}</td>
                     <td className="num" style={{ color: "var(--green)", fontWeight: 500 }}>{inr(p.revenue)}</td>
