@@ -36,31 +36,45 @@ Deno.serve(async () => {
   const todayStart = istTodayStartUtcMs(now);
   const d7 = now - 7 * DAY;
   const d30 = now - 30 * DAY;
+  const d90 = now - 90 * DAY;
 
-  const { data, error } = await db()
-    .from("shopify_orders")
-    .select("total_price, shopify_created_at, financial_status");
-  if (error) return json({ ok: false, error: error.message }, 500);
+  // Page past PostgREST's 1000-row cap so all-time totals are exact even as the
+  // order count grows (today it's <1000, but don't bake in a silent ceiling).
+  const rows: { total_price: number | string | null; shopify_created_at: string; financial_status: string | null }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db()
+      .from("shopify_orders")
+      .select("total_price, shopify_created_at, financial_status")
+      .range(from, from + 999);
+    if (error) return json({ ok: false, error: error.message }, 500);
+    if (!data || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < 1000) break;
+  }
 
-  const revenue = { today: 0, d7: 0, d30: 0, all: 0 };
-  const orders = { today: 0, d7: 0, d30: 0, all: 0 };
-  for (const o of data ?? []) {
+  const revenue = { today: 0, d7: 0, d30: 0, d90: 0, all: 0 };
+  const orders = { today: 0, d7: 0, d30: 0, d90: 0, all: 0 };
+  for (const o of rows) {
     if (DEAD.has(String(o.financial_status ?? "").toLowerCase())) continue;
     const amt = Number(o.total_price) || 0;
     const t = Date.parse(o.shopify_created_at);
     revenue.all += amt; orders.all += 1;
+    if (t >= d90) { revenue.d90 += amt; orders.d90 += 1; }
     if (t >= d30) { revenue.d30 += amt; orders.d30 += 1; }
     if (t >= d7) { revenue.d7 += amt; orders.d7 += 1; }
     if (t >= todayStart) { revenue.today += amt; orders.today += 1; }
   }
 
-  // Live customer count from Shopify (needs read_customers; write_customers covers it).
+  // Live counts from Shopify (authoritative). customersCount needs read_customers
+  // (write_customers covers it); ordersCount lets us confirm the mirror is complete.
   let customers: number | null = null;
+  let shopifyOrdersCount: number | null = null;
   try {
-    const cj = await adminGraphQL(`{ customersCount { count } }`);
+    const cj = await adminGraphQL(`{ customersCount { count } ordersCount { count } }`);
     customers = cj?.data?.customersCount?.count ?? null;
+    shopifyOrdersCount = cj?.data?.ordersCount?.count ?? null;
   } catch (_e) {
-    customers = null; // fall back silently; revenue still returns
+    // fall back silently; revenue still returns
   }
 
   return json({
@@ -69,6 +83,8 @@ Deno.serve(async () => {
     revenue,
     orders,
     customers,
+    mirror_orders: orders.all,        // orders we have stored
+    shopify_orders_count: shopifyOrdersCount, // orders Shopify reports (sanity check)
     aov_all: orders.all ? Math.round(revenue.all / orders.all) : 0,
     generated_at: new Date(now).toISOString(),
   });

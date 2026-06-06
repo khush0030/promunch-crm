@@ -200,9 +200,27 @@ export default function DashboardPage() {
       // Orders: filter by placed_at (fallback to created_at)
       let ordersQ = supabase.from("orders").select("total_amount, placed_at, created_at");
       if (sinceIso) ordersQ = ordersQ.gte("placed_at", sinceIso);
-      const [contactsRes, campaignsRes, flowsRes, ordersRes, ordersEverRes] =
-        await Promise.all([
-          supabase.from("contacts").select("id, status, created_at"),
+      // Exact contact counts — the contacts table exceeds PostgREST's 1000-row
+      // cap, so fetching rows and counting them in JS silently maxes at 1000
+      // (that's the "1,000 total contacts" bug). Use head+count queries instead.
+      const contactCount = async (status?: string, since?: string | null) => {
+        let q = supabase.from("contacts").select("id", { count: "exact", head: true });
+        if (status) q = q.eq("status", status);
+        if (since) q = q.gte("created_at", since);
+        const { count } = await q;
+        return count ?? 0;
+      };
+
+      const [
+        totalContacts, activeCount, inactiveCount, bouncedCount, unsubCount, newSubsCount,
+        campaignsRes, flowsRes, ordersRes, ordersEverRes,
+      ] = await Promise.all([
+        contactCount(),
+        contactCount("active"),
+        contactCount("inactive"),
+        contactCount("bounced"),
+        contactCount("unsubscribed"),
+        sinceIso ? contactCount(undefined, sinceIso) : contactCount(),
           sinceIso
             ? supabase
                 .from("campaigns")
@@ -221,15 +239,8 @@ export default function DashboardPage() {
         ]);
       setHasOrders((ordersEverRes.count ?? 0) > 0);
 
-      const contactRows = contactsRes.data || [];
-      const activeCount = contactRows.filter((c) => c.status === "active").length;
-      const inactiveCount = contactRows.filter((c) => c.status === "inactive").length;
-      const bouncedCount = contactRows.filter((c) => c.status === "bounced").length;
-      const unsubCount = contactRows.filter((c) => c.status === "unsubscribed").length;
-      const total = contactRows.length;
-      const newSubs = sinceIso
-        ? contactRows.filter((c) => c.created_at && c.created_at >= sinceIso).length
-        : total;
+      const total = totalContacts;
+      const newSubs = newSubsCount;
 
       const orderRows = ordersRes.data || [];
       const totalRevenue = orderRows.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
@@ -331,7 +342,7 @@ export default function DashboardPage() {
 
   // Live Shopify values for the selected period (90d isn't in the snapshot, so
   // it falls back to the mirror-table figures).
-  const statKey: Record<Period, string | null> = { today: "today", "7d": "d7", "30d": "d30", "90d": null, all: "all" };
+  const statKey: Record<Period, string | null> = { today: "today", "7d": "d7", "30d": "d30", "90d": "d90", all: "all" };
   const liveRevenue = liveStats && statKey[period] ? liveStats.revenue[statKey[period]!] : null;
   const liveOrders = liveStats && statKey[period] ? liveStats.orders[statKey[period]!] : null;
   const liveCustomers = liveStats?.customers ?? null;
