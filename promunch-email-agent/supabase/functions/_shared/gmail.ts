@@ -11,6 +11,13 @@ import { ParsedEmail } from "./types.ts";
 const MAILBOX = Deno.env.get("MAILBOX_EMAIL") ?? "hello@promunch.in";
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID")!;
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
+// PERMANENT AUTH (preferred): a Google service-account JSON with domain-wide
+// delegation. When set, we mint access tokens by impersonating MAILBOX via a
+// signed JWT — no user refresh token, nothing that expires or needs re-auth.
+// Falls back to the OAuth refresh-token flow when unset, so this is a safe,
+// reversible upgrade. See gmail.ts SERVICE_ACCOUNT auth block below.
+const GOOGLE_SA_JSON = Deno.env.get("GOOGLE_SA_JSON") ?? "";
+const GMAIL_SCOPES = "https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SETUP_TOKEN = Deno.env.get("SETUP_TOKEN") ?? "";
 // Surfaced in the Slack alert + dashboard so operators have a one-click re-auth.
@@ -28,6 +35,12 @@ let _accessToken: { token: string; expiresAt: number } | null = null;
 export async function getAccessToken(): Promise<string> {
   if (_accessToken && _accessToken.expiresAt > Date.now() + 30_000) {
     return _accessToken.token;
+  }
+
+  // Preferred path: service account + domain-wide delegation. Permanent — no
+  // refresh token, no 7-day Testing-mode expiry, no human re-auth ever.
+  if (GOOGLE_SA_JSON) {
+    return await getAccessTokenViaServiceAccount();
   }
 
   const { data, error } = await db()
@@ -96,6 +109,91 @@ export async function getAccessToken(): Promise<string> {
     expiresAt: Date.now() + (json.expires_in as number) * 1000,
   };
   return _accessToken.token;
+}
+
+// ---------------------------------------------------------------------------
+// Service account + domain-wide delegation (permanent, no-expiry auth).
+// Signs a JWT as the service account, impersonating MAILBOX (`sub`), and
+// exchanges it for a Gmail access token. Requires the SA's client ID to be
+// authorized for GMAIL_SCOPES in the promunch.in Workspace Admin console
+// (Security → API controls → Domain-wide delegation).
+// ---------------------------------------------------------------------------
+async function getAccessTokenViaServiceAccount(): Promise<string> {
+  let sa: { client_email: string; private_key: string };
+  try {
+    sa = JSON.parse(GOOGLE_SA_JSON);
+  } catch {
+    throw new Error("GOOGLE_SA_JSON is not valid JSON");
+  }
+
+  const enc = new TextEncoder();
+  const b64url = (bytes: Uint8Array) =>
+    btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const segment = (obj: unknown) => b64url(enc.encode(JSON.stringify(obj)));
+
+  const now = Math.floor(Date.now() / 1000);
+  const signingInput =
+    `${segment({ alg: "RS256", typ: "JWT" })}.` +
+    segment({
+      iss: sa.client_email,
+      sub: MAILBOX, // impersonate the mailbox via domain-wide delegation
+      scope: GMAIL_SCOPES,
+      aud: "https://oauth2.googleapis.com/token",
+      iat: now,
+      exp: now + 3600,
+    });
+
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    pemToDer(sa.private_key),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = new Uint8Array(
+    await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, enc.encode(signingInput)),
+  );
+  const jwt = `${signingInput}.${b64url(sig)}`;
+
+  const resp = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt,
+    }).toString(),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    // Most common cause: DWD not authorized for this client ID + scopes in the
+    // Workspace Admin console, or the SA can't impersonate MAILBOX.
+    await logConnector({
+      connector: "gmail_pipeline",
+      level: "error",
+      event: "sa_auth_failed",
+      message: `Gmail service-account auth failed (${resp.status}). Verify domain-wide delegation for ${MAILBOX} with scopes ${GMAIL_SCOPES}. ${text.slice(0, 160)}`,
+      detail: { http_status: resp.status, response: text.slice(0, 500) },
+    });
+    throw new Error(`Service-account token mint failed: ${resp.status} ${text}`);
+  }
+  const json = await resp.json();
+  _accessToken = {
+    token: json.access_token as string,
+    expiresAt: Date.now() + (json.expires_in as number) * 1000,
+  };
+  return _accessToken.token;
+}
+
+// PEM (PKCS#8) private key -> DER bytes for Web Crypto importKey.
+function pemToDer(pem: string): Uint8Array {
+  const body = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, "")
+    .replace(/-----END PRIVATE KEY-----/, "")
+    .replace(/\s+/g, "");
+  const bin = atob(body);
+  const der = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) der[i] = bin.charCodeAt(i);
+  return der;
 }
 
 // ---------------------------------------------------------------------------
