@@ -41,7 +41,13 @@ type OrderRow = {
   customer_order_index: number | null;
   attribution_synced_at: string | null;
   shopify_created_at: string | null;
+  is_creator: boolean | null;
 };
+
+// Creator-order segment filter. ₹0.01 HYPD-creator seeds distort revenue/AOV, so
+// let the user exclude them, isolate them, or see everything.
+const creatorSegments = ["All orders", "Exclude creators", "Creators only"] as const;
+type CreatorSegment = (typeof creatorSegments)[number];
 
 type SourceRow = { source: string; medium: string; orders: number; newOrders: number; revenue: number; share: number };
 type CampaignRow = { campaign: string; source: string; orders: number; revenue: number };
@@ -76,6 +82,7 @@ const inr = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigi
 // source; else the sales-channel name (with HYPD's channel id mapped to a label);
 // else "direct".
 function channelOf(o: OrderRow): string {
+  if (o.is_creator) return "HYPD Creator";
   if (o.first_utm_source) return o.first_utm_source;
   if (o.first_source) return o.first_source;
   const sn = o.source_name ?? "";
@@ -90,6 +97,8 @@ const hostOf = (url: string) => {
 
 export default function ShopifyAttributionPage() {
   const [activeRange, setActiveRange] = useState("Last 30 Days");
+  const [creatorSeg, setCreatorSeg] = useState<CreatorSegment>("All orders");
+  const [creatorCount, setCreatorCount] = useState(0);
   const [topMetrics, setTopMetrics] = useState<TopMetric[]>([]);
   const [sources, setSources] = useState<SourceRow[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
@@ -112,21 +121,29 @@ export default function ShopifyAttributionPage() {
       setLoaded(false);
       const days = rangeDays[activeRange];
       const cols =
-        "total_price, first_utm_source, first_utm_medium, first_utm_campaign, first_source, first_source_type, first_referrer_url, source_name, customer_order_index, attribution_synced_at, shopify_created_at";
+        "total_price, first_utm_source, first_utm_medium, first_utm_campaign, first_source, first_source_type, first_referrer_url, source_name, customer_order_index, attribution_synced_at, shopify_created_at, is_creator";
       const since =
         days === 0 ? istTodayStartIso()
         : days != null ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
         : null;
       // Page past PostgREST's 1000-row cap so totals stay exact as orders grow.
-      const orders: OrderRow[] = [];
+      const allOrders: OrderRow[] = [];
       for (let from = 0; ; from += 1000) {
         let q = supabase.from("shopify_orders").select(cols).range(from, from + 999);
         if (since) q = q.gte("shopify_created_at", since);
         const { data } = await q;
         const batch = (data || []) as OrderRow[];
-        orders.push(...batch);
+        allOrders.push(...batch);
         if (batch.length < 1000) break;
       }
+
+      // Creator-segment filter. Count is always over the full range so the toggle
+      // can show how many exist even while excluding them from the numbers.
+      setCreatorCount(allOrders.filter((o) => o.is_creator).length);
+      const orders =
+        creatorSeg === "Exclude creators" ? allOrders.filter((o) => !o.is_creator)
+        : creatorSeg === "Creators only" ? allOrders.filter((o) => o.is_creator)
+        : allOrders;
 
       const totalRevenue = orders.reduce((s, o) => s + num(o.total_price), 0);
       const totalOrders = orders.length;
@@ -229,7 +246,7 @@ export default function ShopifyAttributionPage() {
       setLoaded(true);
     }
     load();
-  }, [activeRange]);
+  }, [activeRange, creatorSeg]);
 
   return (
     <div className="page">
@@ -291,6 +308,26 @@ export default function ShopifyAttributionPage() {
       <div className="section" style={{ marginTop: 4 }}>
         <div className="card-title" style={{ marginBottom: 2 }}>Attribution breakdown</div>
         <div className="card-sub">Filter the channel / campaign / referrer analysis below by date range.</div>
+        <div className="chips" style={{ marginTop: 10 }}>
+          {creatorSegments.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className={`chip${creatorSeg === s ? " active" : ""}`}
+              onClick={() => setCreatorSeg(s)}
+            >
+              {s === "All orders" ? s : `🎨 ${s}`}
+              {s === "Creators only" && creatorCount > 0 ? ` · ${creatorCount}` : ""}
+            </button>
+          ))}
+        </div>
+        {creatorSeg !== "All orders" ? (
+          <div className="card-sub" style={{ marginTop: 6 }}>
+            {creatorSeg === "Exclude creators"
+              ? `Hiding ${creatorCount} ₹0.01 HYPD-creator seed order${creatorCount === 1 ? "" : "s"} from the numbers below.`
+              : `Showing only the ${creatorCount} HYPD-creator seed order${creatorCount === 1 ? "" : "s"} (₹0.01 influencer gifts).`}
+          </div>
+        ) : null}
       </div>
 
       <div className="kpi-grid">

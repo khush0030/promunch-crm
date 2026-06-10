@@ -57,6 +57,15 @@ export function isHypdOrder(order: any): boolean {
   return /hypd/i.test(tags) || HYPD_SOURCE_IDS.has(String(order?.source_name ?? ""));
 }
 
+// Creator/influencer seeding orders: HYPD gifts free product to its creators as
+// a referral channel, and those orders come through at a token ₹0.01 total
+// (exactly 1 paisa). Flag on that exact signal so we can tag them "HYPD Creator"
+// in Shopify + the CRM. round(*100) dodges float noise on the numeric total.
+export function isCreatorOrder(order: any): boolean {
+  const total = Number(order?.total_price ?? order?.current_total_price ?? 0);
+  return Math.round(total * 100) === 1;
+}
+
 // Clean up the mangled names HYPD sends. Algorithm:
 //   1. join first+last, split camelCase glue ("ManishaBhati" -> "Manisha Bhati"),
 //   2. drop repeated words (case-insensitive, keep first occurrence),
@@ -124,6 +133,27 @@ function toE164(raw?: string | null): string | null {
   return "+" + d;
 }
 
+// Build the set of phone search strings to try. customerSet's identifier match
+// is stricter than its uniqueness check: a buyer stored as "9812345678" still
+// trips "already been taken" against our "+919812345678", yet an exact
+// phone:"+91…" search won't find them. So we search every plausible format,
+// ending with a last-10-digit wildcard that matches regardless of prefix.
+function phoneQueryVariants(phone: string | null): string[] {
+  if (!phone) return [];
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return [];
+  const last10 = digits.slice(-10);
+  const variants = new Set<string>([
+    phone,            // +919812345678
+    digits,           // 919812345678
+    "+" + digits,
+    last10,           // 9812345678
+  ]);
+  const qs = [...variants].map((v) => `phone:${JSON.stringify(v)}`);
+  if (last10) qs.push(`phone:*${last10}`); // wildcard suffix match, last resort
+  return qs;
+}
+
 // Find an existing customer id by phone, then email. Used when customerSet says
 // the identifier is "already taken" — the buyer exists (often with a slightly
 // different phone format), so we just need their id to link the order.
@@ -131,8 +161,7 @@ async function findCustomerId(
   phone: string | null,
   email: string | null,
 ): Promise<string | null> {
-  const queries: string[] = [];
-  if (phone) queries.push(`phone:${JSON.stringify(phone)}`);
+  const queries: string[] = [...phoneQueryVariants(phone)];
   if (email) queries.push(`email:${JSON.stringify(email)}`);
   for (const q of queries) {
     try {
@@ -267,6 +296,48 @@ export async function linkOrderToCustomer(
   );
   const json = await res.json().catch(() => null) as any;
   const errs = json?.data?.orderCustomerSet?.userErrors ?? json?.errors;
+  if (!res.ok || (Array.isArray(errs) && errs.length)) {
+    return { ok: false, reason: JSON.stringify(errs ?? json).slice(0, 300) };
+  }
+  return { ok: true };
+}
+
+// Add tags to an EXISTING order (native Shopify order tags). tagsAdd is an
+// idempotent set-union: re-adding a tag the order already carries is a no-op,
+// so this is safe to fire on every orders/* delivery. Requires write_orders
+// (same scope linkOrderToCustomer already relies on). orderId: numeric id or gid.
+const TAGS_ADD_MUT = `
+mutation AddTags($id: ID!, $tags: [String!]!) {
+  tagsAdd(id: $id, tags: $tags) {
+    node { id }
+    userErrors { field message }
+  }
+}`;
+
+export async function addOrderTags(
+  orderId: number | string,
+  tags: string[],
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const domain = Deno.env.get("SHOPIFY_STORE_DOMAIN");
+  if (!domain) return { ok: false, reason: "admin-not-configured" };
+  const token = await getAdminToken(domain);
+  if (!token) return { ok: false, reason: "admin-not-configured" };
+  const gid = String(orderId).startsWith("gid://")
+    ? String(orderId)
+    : `gid://shopify/Order/${orderId}`;
+  const res = await fetch(
+    `https://${domain}/admin/api/${API_VERSION}/graphql.json`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": token,
+      },
+      body: JSON.stringify({ query: TAGS_ADD_MUT, variables: { id: gid, tags } }),
+    },
+  );
+  const json = await res.json().catch(() => null) as any;
+  const errs = json?.data?.tagsAdd?.userErrors ?? json?.errors;
   if (!res.ok || (Array.isArray(errs) && errs.length)) {
     return { ok: false, reason: JSON.stringify(errs ?? json).slice(0, 300) };
   }

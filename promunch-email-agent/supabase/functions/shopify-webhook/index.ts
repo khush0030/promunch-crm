@@ -19,7 +19,7 @@ import { buildOrderBlocks, fmtMoney, postSlack, verifyShopifyHmac } from "../_sh
 import { logConnector } from "../_shared/connector-log.ts";
 import { toWaId } from "../_shared/journeys.ts";
 import { handleOrderCreated } from "../_shared/order-confirmation.ts";
-import { isHypdOrder, linkOrderToCustomer, upsertShopifyCustomerFromOrder } from "../_shared/shopify-customer.ts";
+import { addOrderTags, isCreatorOrder, isHypdOrder, linkOrderToCustomer, normalizeName, upsertShopifyCustomerFromOrder } from "../_shared/shopify-customer.ts";
 import { fetchOrderAttribution } from "../_shared/shopify-attribution.ts";
 
 const ok = (extra: Record<string, unknown> = {}) =>
@@ -51,10 +51,17 @@ Deno.serve(async (req) => {
   const subtotal = Number(order.subtotal_price ?? 0);
   const currency = order.currency || "INR";
   const customerEmail = order.email || order.customer?.email || null;
-  const nameFrom = (src: any) =>
-    ([src?.first_name, src?.last_name].filter(Boolean).join(" ").trim() ||
-      src?.name?.trim() ||
-      null);
+  // HYPD marketplace sends mangled names (camelCase glue + duplicated words,
+  // e.g. "DarshikaPandey DarshikaPandey"). normalizeName de-dupes and splits;
+  // reuse the same cleaner that the customer-create path uses so the DB/Slack
+  // name matches the Shopify Customer record.
+  const nameFrom = (src: any) => {
+    const { firstName, lastName } = normalizeName(
+      src?.first_name ?? src?.name,
+      src?.last_name,
+    );
+    return [firstName, lastName].filter(Boolean).join(" ").trim() || null;
+  };
   const customerName =
     nameFrom(order.customer) ||
     nameFrom(order.shipping_address) ||
@@ -80,6 +87,7 @@ Deno.serve(async (req) => {
     customer_phone: customerPhone,
     line_items: lineItems,
     shopify_created_at: shopifyCreatedAt,
+    is_creator: isCreatorOrder(order),
     raw: order,
   }, { onConflict: "shopify_id" }).select("id, attribution_synced_at").maybeSingle();
 
@@ -118,6 +126,32 @@ Deno.serve(async (req) => {
     }
   } catch (e) {
     console.error("[shopify-webhook] HYPD customer sync threw", e);
+  }
+
+  // ===== Creator order tagging (HYPD influencer referral channel) =====
+  // HYPD gifts free product to its creators; those orders arrive at a token
+  // ₹0.01 total. Tag them "HYPD Creator" natively in Shopify so they're
+  // filterable there (the is_creator column + Slack badge mark them in the CRM).
+  // Runs on create AND update — the tag/price can settle a beat after create.
+  // Idempotent + cheap: tagsAdd is a no-op if the tag's already on the order, and
+  // we skip the API call entirely once the tag is present in the payload. Gated
+  // to ₹0.01 so real orders are never tagged. Non-blocking.
+  if (isCreatorOrder(order)) {
+    const existingTags = Array.isArray(order.tags)
+      ? order.tags.join(",")
+      : String(order.tags ?? "");
+    if (!/hypd creator/i.test(existingTags)) try {
+      const r = await addOrderTags(order.id, ["HYPD Creator"]);
+      if (!r.ok && r.reason !== "admin-not-configured") {
+        await logConnector({
+          connector: "shopify", level: "error", event: "creator_tag_failed",
+          message: `Order ${orderNumber}: creator tag failed — ${r.reason}`,
+          ref: orderNumber,
+        }).catch(() => {});
+      }
+    } catch (e) {
+      console.error("[shopify-webhook] creator tag threw", e);
+    }
   }
 
   // ===== Traffic attribution (UTM / referrer / landing page) =====
@@ -218,9 +252,12 @@ Deno.serve(async (req) => {
   const channel = Deno.env.get("SHOPIFY_SLACK_CHANNEL_ID");
   const bigChannel = Deno.env.get("SHOPIFY_SLACK_BIG_ORDER_CHANNEL_ID");
 
-  // Source tag for the Slack card: HYPD marketplace vs the brand's own store.
-  // 🟣 = HYPD (marketplace), 🟢 = direct (web/POS) so it's scannable at a glance.
-  const sourceTag = isHypdOrder(order)
+  // Source tag for the Slack card: creator seed vs HYPD marketplace vs own store.
+  // 🎨 = HYPD Creator (₹0.01 influencer seed — checked first, it's the headline),
+  // 🟣 = HYPD marketplace, 🟢 = direct (web/POS) so it's scannable at a glance.
+  const sourceTag = isCreatorOrder(order)
+    ? "🎨 HYPD Creator"
+    : isHypdOrder(order)
     ? "🟣 HYPD Marketplace"
     : (() => {
         const sn = String(order.source_name ?? "").toLowerCase();

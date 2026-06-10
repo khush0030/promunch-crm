@@ -45,6 +45,12 @@ verify_jwt = false                    # Slack signing-secret check
 [functions.shopify-orders-backfill]
 verify_jwt = false                    # gated by SHOPIFY_BACKFILL_TOKEN query param
 
+[functions.shopify-relink]
+verify_jwt = false                    # gated by SHOPIFY_BACKFILL_TOKEN query param
+
+[functions.shopify-creator-backfill]
+verify_jwt = false                    # gated by SHOPIFY_BACKFILL_TOKEN query param
+
 [functions.shopify-stats]
 verify_jwt = true                     # called server-side with the anon key by /api/shopify/stats
 
