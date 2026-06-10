@@ -124,6 +124,29 @@ function toE164(raw?: string | null): string | null {
   return "+" + d;
 }
 
+// Find an existing customer id by phone, then email. Used when customerSet says
+// the identifier is "already taken" — the buyer exists (often with a slightly
+// different phone format), so we just need their id to link the order.
+async function findCustomerId(
+  phone: string | null,
+  email: string | null,
+): Promise<string | null> {
+  const queries: string[] = [];
+  if (phone) queries.push(`phone:${JSON.stringify(phone)}`);
+  if (email) queries.push(`email:${JSON.stringify(email)}`);
+  for (const q of queries) {
+    try {
+      const j = await adminGraphQL(
+        `query($q:String!){ customers(first:1, query:$q){ nodes { id } } }`,
+        { q },
+      );
+      const id = j?.data?.customers?.nodes?.[0]?.id;
+      if (id) return id;
+    } catch (_e) { /* try next identifier */ }
+  }
+  return null;
+}
+
 const MUT = `
 mutation Upsert($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
   customerSet(identifier: $identifier, input: $input) {
@@ -193,7 +216,15 @@ export async function upsertShopifyCustomerFromOrder(
   const json = await res.json().catch(() => null) as any;
   const errs = json?.data?.customerSet?.userErrors ?? json?.errors;
   if (!res.ok || (Array.isArray(errs) && errs.length)) {
-    return { ok: false, reason: JSON.stringify(errs ?? json).slice(0, 300) };
+    const msg = JSON.stringify(errs ?? json);
+    // "Phone/Email has already been taken" => the customer already exists (often
+    // a phone-format mismatch). That's success for our purpose: look them up so
+    // the order still gets linked, and don't surface a false-alarm failure.
+    if (/already been taken/i.test(msg)) {
+      const existing = await findCustomerId(phone, email);
+      if (existing) return { ok: true, id: existing };
+    }
+    return { ok: false, reason: msg.slice(0, 300) };
   }
   return { ok: true, id: json?.data?.customerSet?.customer?.id ?? null };
 }
