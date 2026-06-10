@@ -39,8 +39,15 @@ export async function getAccessToken(): Promise<string> {
 
   // Preferred path: service account + domain-wide delegation. Permanent — no
   // refresh token, no 7-day Testing-mode expiry, no human re-auth ever.
+  // If it's configured but not yet usable (e.g. domain-wide delegation still
+  // pending in the mailbox's Workspace), fall through to the refresh-token flow
+  // so service stays up. SA takes over automatically once DWD is authorized.
   if (GOOGLE_SA_JSON) {
-    return await getAccessTokenViaServiceAccount();
+    try {
+      return await getAccessTokenViaServiceAccount();
+    } catch (_e) {
+      // fall through to OAuth refresh-token flow below
+    }
   }
 
   const { data, error } = await db()
@@ -169,10 +176,11 @@ async function getAccessTokenViaServiceAccount(): Promise<string> {
     // Workspace Admin console, or the SA can't impersonate MAILBOX.
     await logConnector({
       connector: "gmail_pipeline",
-      level: "error",
+      level: "warn",
       event: "sa_auth_failed",
-      message: `Gmail service-account auth failed (${resp.status}). Verify domain-wide delegation for ${MAILBOX} with scopes ${GMAIL_SCOPES}. ${text.slice(0, 160)}`,
+      message: `Gmail service-account auth not active yet (${resp.status}) — using OAuth fallback. Authorize domain-wide delegation for ${MAILBOX} with scopes ${GMAIL_SCOPES}. ${text.slice(0, 140)}`,
       detail: { http_status: resp.status, response: text.slice(0, 500) },
+      throttleMinutes: 6 * 60,
     });
     throw new Error(`Service-account token mint failed: ${resp.status} ${text}`);
   }
