@@ -35,6 +35,7 @@ export function buildOrderBlocks(order: {
   financial_status?: string | null;
   prior_orders?: number;
   big_order?: boolean;
+  source?: string | null;
 }): unknown[] {
   const itemLines = order.line_items.map((li) => {
     const name = li.title || li.name || "Item";
@@ -47,6 +48,8 @@ export function buildOrderBlocks(order: {
   const status = order.financial_status ? ` · ${order.financial_status}` : "";
 
   const badges: string[] = [];
+  // Source tag first so it's the most prominent thing under the header.
+  if (order.source) badges.push(order.source);
   if (order.prior_orders === 0) badges.push("🎉 First order");
   else if (order.prior_orders && order.prior_orders > 0) badges.push(`🔁 Order #${order.prior_orders + 1} from customer`);
   if (order.big_order) badges.push("💰 Big order");

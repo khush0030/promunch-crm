@@ -175,6 +175,33 @@ Deno.serve(async (req) => {
     }).catch(() => {});
   }
 
+  // ===== Slack order card — atomic claim, exactly once per order =====
+  // Shopify delivers orders/create more than once: a duplicate webhook
+  // subscription, or a retry when this handler runs slow (it does GraphQL
+  // attribution + WhatsApp work before returning 200, which can cross Shopify's
+  // ~5s timeout). The WhatsApp path has its own atomic claim; the Slack card had
+  // none, so every re-delivery posted a SECOND card. Same invariant as the
+  // messaging flows: take a durable, row-locked claim before sending. Flip
+  // slack_thread_ts from NULL → "pending" in one conditional UPDATE; only the
+  // delivery that wins the lock posts. On a genuine post failure we release the
+  // claim back to NULL so a Shopify retry can repost.
+  if (upserted?.id) {
+    const { data: claim } = await db().from("shopify_orders")
+      .update({ slack_thread_ts: "pending" })
+      .eq("id", upserted.id)
+      .is("slack_thread_ts", null)
+      .select("id")
+      .maybeSingle();
+    if (!claim) {
+      await logConnector({
+        connector: "shopify_slack", level: "info", event: "post_skipped_dup",
+        message: `Order ${orderNumber}: Slack card already claimed/posted — skipping duplicate delivery.`,
+        ref: orderNumber,
+      }).catch(() => {});
+      return ok({ duplicate: true, topic });
+    }
+  }
+
   // Prior order count for this customer (excluding the one we just inserted).
   let priorOrders = 0;
   if (customerEmail) {
@@ -191,6 +218,18 @@ Deno.serve(async (req) => {
   const channel = Deno.env.get("SHOPIFY_SLACK_CHANNEL_ID");
   const bigChannel = Deno.env.get("SHOPIFY_SLACK_BIG_ORDER_CHANNEL_ID");
 
+  // Source tag for the Slack card: HYPD marketplace vs the brand's own store.
+  // 🟣 = HYPD (marketplace), 🟢 = direct (web/POS) so it's scannable at a glance.
+  const sourceTag = isHypdOrder(order)
+    ? "🟣 HYPD Marketplace"
+    : (() => {
+        const sn = String(order.source_name ?? "").toLowerCase();
+        if (sn === "web" || sn === "online_store") return "🟢 Online Store";
+        if (sn === "pos") return "🟢 POS";
+        if (sn.includes("draft")) return "🟢 Draft order";
+        return order.source_name ? `🟢 ${order.source_name}` : "🟢 Online Store";
+      })();
+
   const blocks = buildOrderBlocks({
     order_number: orderNumber,
     total_price: totalPrice,
@@ -201,6 +240,7 @@ Deno.serve(async (req) => {
     financial_status: order.financial_status,
     prior_orders: priorOrders,
     big_order: isBig,
+    source: sourceTag,
   });
 
   if (channel) {
@@ -217,6 +257,12 @@ Deno.serve(async (req) => {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("slack post failed", e);
+      // Release the claim so a Shopify retry (or manual replay) can repost —
+      // never leave an order silently un-carded because of a transient failure.
+      if (upserted?.id) {
+        await db().from("shopify_orders").update({ slack_thread_ts: null })
+          .eq("id", upserted.id).eq("slack_thread_ts", "pending");
+      }
       await logConnector({
         connector: "shopify_slack",
         level: "error",
