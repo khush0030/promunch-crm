@@ -468,9 +468,8 @@ function SettingsModal({
             onChange={(e) => setForm({ ...form, from_name: e.target.value })} />
         </label>
         <label className="field">
-          <span>From email (must be a verified Resend domain)</span>
-          <input className="input" value={form.from_email}
-            onChange={(e) => setForm({ ...form, from_email: e.target.value })} />
+          <span>From mailbox (fixed — Gmail sends as the Workspace mailbox)</span>
+          <input className="input" value={form.from_email} disabled />
         </label>
         <label className="field">
           <span>Reply-to (optional)</span>

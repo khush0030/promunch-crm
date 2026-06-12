@@ -40,6 +40,10 @@ const NOISE_DOMAINS = [
   'example.com', 'example.org', 'sentry.io', 'sentry-cdn.com', 'wixpress.com',
   'sentry.wixpress.com', 'domain.com', 'email.com', 'yourdomain.com', 'godaddy.com',
   'mysite.com', 'company.com', 'website.com', 'placeholder.com', 'schema.org',
+  // B2B marketplace/aggregator addresses embedded in seller sites — emailing
+  // these reaches the marketplace, not the company.
+  'tradeindia.com', 'indiamart.com', 'justdial.com', 'sulekha.com',
+  'exportersindia.com', 'alibaba.com',
 ];
 
 const ROLE_LOCALS: Record<string, string> = {

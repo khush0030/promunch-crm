@@ -50,3 +50,15 @@ export function websiteToDomain(website: string | undefined | null): string | nu
     return null;
   }
 }
+
+// Places sometimes returns a social profile as websiteUri — crawling those
+// yields nothing (login walls), so such leads go straight to no_website.
+const SOCIAL_DOMAINS = [
+  'instagram.com', 'facebook.com', 'fb.com', 'linkedin.com', 'twitter.com',
+  'x.com', 'youtube.com', 'wa.me', 'whatsapp.com', 'wix.com', 'linktr.ee',
+];
+
+export function isSocialDomain(domain: string | null): boolean {
+  if (!domain) return false;
+  return SOCIAL_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`));
+}

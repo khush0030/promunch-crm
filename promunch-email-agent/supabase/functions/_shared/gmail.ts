@@ -410,6 +410,39 @@ export async function sendReply(opts: {
   );
 }
 
+// New outbound email (fresh thread, e.g. B2B outreach). Plain text only —
+// cold email deliverability is better without HTML, and Gmail threads replies
+// back into the same mailbox automatically.
+export async function sendNewEmail(opts: {
+  to: string;
+  subject: string;
+  bodyPlain: string;
+  fromName?: string; // display name; the address is always MAILBOX
+}): Promise<{ id: string; threadId: string }> {
+  const from = opts.fromName ? `${opts.fromName} <${MAILBOX}>` : MAILBOX;
+
+  const message =
+    `To: ${opts.to}\r\n` +
+    `From: ${from}\r\n` +
+    `Subject: ${opts.subject}\r\n` +
+    `MIME-Version: 1.0\r\n` +
+    `Content-Type: text/plain; charset="UTF-8"\r\n` +
+    `Content-Transfer-Encoding: 8bit\r\n` +
+    `\r\n` +
+    opts.bodyPlain;
+
+  const raw = encodeBase64Url(message);
+
+  return await gmail<{ id: string; threadId: string }>(
+    "/users/me/messages/send",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ raw }),
+    },
+  );
+}
+
 function encodeBase64Url(s: string): string {
   const bytes = new TextEncoder().encode(s);
   let bin = "";

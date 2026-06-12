@@ -5,7 +5,7 @@
 // cron both call this.
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { searchTextPage, websiteToDomain } from './places';
+import { searchTextPage, websiteToDomain, isSocialDomain } from './places';
 import { crawlSite, primaryScore } from './scraper';
 import { verifyEmail, scoreConfidence } from './mx';
 import { generateDraft, DRAFT_MODEL } from './draft';
@@ -80,17 +80,21 @@ async function discover(summary: TickSummary) {
 
     const rows = page.places
       .filter((p) => p.id && p.displayName?.text)
-      .map((p) => ({
-        place_id: p.id,
-        name: p.displayName!.text!,
-        website: p.websiteUri ?? null,
-        domain: websiteToDomain(p.websiteUri),
-        address: p.formattedAddress ?? null,
-        city: search.city as string,
-        category: search.category as string,
-        types: p.types ?? [],
-        status: p.websiteUri ? 'new' : 'no_website',
-      }));
+      .map((p) => {
+        const domain = websiteToDomain(p.websiteUri);
+        const crawlable = !!p.websiteUri && !isSocialDomain(domain);
+        return {
+          place_id: p.id,
+          name: p.displayName!.text!,
+          website: p.websiteUri ?? null,
+          domain,
+          address: p.formattedAddress ?? null,
+          city: search.city as string,
+          category: search.category as string,
+          types: p.types ?? [],
+          status: crawlable ? 'new' : 'no_website',
+        };
+      });
 
     if (rows.length) {
       const { error } = await supabaseAdmin
