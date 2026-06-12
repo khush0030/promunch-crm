@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 type ResendWebhookEvent = {
   type: string;
@@ -31,8 +33,44 @@ const EVENT_TO_TYPE: Record<string, string> = {
   'email.complained': 'bounced',
 };
 
+// Svix signature check (Resend signs webhooks via Svix). Enforced only when
+// RESEND_WEBHOOK_SECRET is set, so the pre-existing unsigned setup keeps working
+// until the secret is added to Vercel env.
+function verifySignature(req: NextRequest, rawBody: string): boolean {
+  const secret = process.env.RESEND_WEBHOOK_SECRET;
+  if (!secret) return true;
+
+  const svixId = req.headers.get('svix-id');
+  const svixTimestamp = req.headers.get('svix-timestamp');
+  const svixSignature = req.headers.get('svix-signature');
+  if (!svixId || !svixTimestamp || !svixSignature) return false;
+
+  const key = Buffer.from(secret.replace(/^whsec_/, ''), 'base64');
+  const expected = createHmac('sha256', key)
+    .update(`${svixId}.${svixTimestamp}.${rawBody}`)
+    .digest('base64');
+
+  return svixSignature.split(' ').some((part) => {
+    const sig = part.split(',')[1];
+    if (!sig) return false;
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    return a.length === b.length && timingSafeEqual(a, b);
+  });
+}
+
 export async function POST(request: NextRequest) {
-  const body = await request.json() as ResendWebhookEvent;
+  const rawBody = await request.text();
+  if (!verifySignature(request, rawBody)) {
+    return NextResponse.json({ error: 'invalid signature' }, { status: 401 });
+  }
+
+  let body: ResendWebhookEvent;
+  try {
+    body = JSON.parse(rawBody) as ResendWebhookEvent;
+  } catch {
+    return NextResponse.json({ error: 'Invalid webhook payload' }, { status: 400 });
+  }
 
   const { type, data } = body;
 
@@ -64,9 +102,7 @@ export async function POST(request: NextRequest) {
   if (campaignEmail) {
     const updateFields: Record<string, unknown> = { status };
 
-    if (type === 'email.opened' && !campaignEmail) {
-      updateFields.opened_at = new Date().toISOString();
-    } else if (type === 'email.opened') {
+    if (type === 'email.opened') {
       updateFields.opened_at = new Date().toISOString();
     } else if (type === 'email.clicked') {
       updateFields.clicked_at = new Date().toISOString();
@@ -128,7 +164,107 @@ export async function POST(request: NextRequest) {
         .update({ status: 'bounced' })
         .eq('id', campaignEmail.contact_id);
     }
+
+    return NextResponse.json({ received: true });
   }
 
+  // Not a campaign email — check the B2B outreach pipeline.
+  await handleOutreachEvent(type, resendEmailId, data);
+
   return NextResponse.json({ received: true });
+}
+
+// B2B lead-gen outreach: record the event; bounces/complaints auto-suppress the
+// recipient so the pipeline never writes to them again.
+async function handleOutreachEvent(
+  type: string,
+  resendEmailId: string,
+  data: ResendWebhookEvent['data'],
+) {
+  const { data: draft } = await supabaseAdmin
+    .from('outreach_drafts')
+    .select('id, lead_id, contact_id, subject, status')
+    .eq('resend_email_id', resendEmailId)
+    .maybeSingle();
+  if (!draft) return;
+
+  const eventTypeMap: Record<string, string> = {
+    'email.sent': 'sent',
+    'email.delivered': 'delivered',
+    'email.opened': 'opened',
+    'email.clicked': 'clicked',
+    'email.bounced': 'bounced',
+    'email.complained': 'complained',
+  };
+  const eventType = eventTypeMap[type];
+  if (!eventType) return;
+
+  await supabaseAdmin.from('outreach_events').insert({
+    draft_id: draft.id,
+    lead_id: draft.lead_id,
+    resend_email_id: resendEmailId,
+    type: eventType,
+    payload: data,
+  });
+
+  if (type !== 'email.bounced' && type !== 'email.complained') return;
+
+  const reason = type === 'email.bounced' ? 'bounce' : 'complaint';
+
+  const { data: contact } = await supabaseAdmin
+    .from('lead_contacts')
+    .select('email')
+    .eq('id', draft.contact_id)
+    .maybeSingle();
+
+  if (contact) {
+    await supabaseAdmin
+      .from('suppressions')
+      .upsert(
+        { email: contact.email, reason, draft_id: draft.id },
+        { onConflict: 'email', ignoreDuplicates: true },
+      );
+    await supabaseAdmin
+      .from('lead_contacts')
+      .update({ verify_status: 'mx_fail', confidence: 'low', is_primary: false })
+      .eq('id', draft.contact_id);
+  }
+
+  await supabaseAdmin
+    .from('outreach_drafts')
+    .update({ status: 'bounced', updated_at: new Date().toISOString() })
+    .eq('id', draft.id);
+  await supabaseAdmin
+    .from('leads')
+    .update({ status: 'bounced', updated_at: new Date().toISOString() })
+    .eq('id', draft.lead_id);
+
+  await postSlack(
+    [
+      `:warning: *B2B Outreach ${reason === 'bounce' ? 'bounce' : 'COMPLAINT'}*`,
+      `*Issue:* "${draft.subject}" to ${contact?.email ?? 'unknown'} ${reason === 'bounce' ? 'bounced' : 'was marked as spam'}.`,
+      `*What happened:* Recipient auto-suppressed; the pipeline will never email them again.`,
+      reason === 'complaint'
+        ? '*What to do:* Complaints hurt the outreach domain. If these recur, pause sends and review the copy/targeting.'
+        : '*Expected?:* Occasional bounces are normal for scraped role inboxes; watch the rate.',
+    ].join('\n'),
+  );
+}
+
+async function postSlack(text: string): Promise<void> {
+  const token = process.env.SLACK_BOT_TOKEN;
+  const channel = process.env.SLACK_CHANNEL_ID;
+  if (!token || !channel) return;
+  try {
+    await fetch('https://slack.com/api/chat.postMessage', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json; charset=utf-8',
+      },
+      body: JSON.stringify({ channel, text, unfurl_links: false, unfurl_media: false }),
+    });
+  } catch {
+    /* swallow — alerting must not fail the webhook */
+  }
 }
