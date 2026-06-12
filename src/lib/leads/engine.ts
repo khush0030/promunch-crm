@@ -9,6 +9,7 @@ import { searchTextPage, websiteToDomain, isSocialDomain } from './places';
 import { crawlSite, primaryScore } from './scraper';
 import { verifyEmail, scoreConfidence } from './mx';
 import { generateDraft, DRAFT_MODEL } from './draft';
+import { scoreFit } from './fit';
 
 const STALE_CLAIM_MINUTES = 15;
 const MAX_SEARCH_PAGES = 3; // Places caps text search at 60 results
@@ -31,9 +32,13 @@ type LeadRow = {
   domain: string | null;
   city: string | null;
   category: string | null;
+  types: string[] | null;
   site_snippet: string | null;
   crawl_attempts: number;
 };
+
+const LEAD_COLUMNS =
+  'id, name, website, domain, city, category, types, site_snippet, crawl_attempts';
 
 export async function tick(): Promise<TickSummary> {
   const summary: TickSummary = { discovered: 0, crawled: 0, contactsFound: 0, drafted: 0, errors: [] };
@@ -144,7 +149,7 @@ async function claimLead(id: string, fromStatus: string, toStatus: string): Prom
 async function crawlBatch(summary: TickSummary) {
   const { data: candidates } = await supabaseAdmin
     .from('leads')
-    .select('id, name, website, domain, city, category, site_snippet, crawl_attempts')
+    .select(LEAD_COLUMNS)
     .eq('status', 'new')
     .not('website', 'is', null)
     .order('created_at', { ascending: true })
@@ -199,6 +204,20 @@ async function crawlBatch(summary: TickSummary) {
         await markPrimaryContact(lead.id);
       }
 
+      // Fit scoring is best-effort — never fail the crawl over it.
+      let fit: { score: number; reason: string } | null = null;
+      try {
+        fit = await scoreFit({
+          companyName: lead.name,
+          category: lead.category,
+          city: lead.city,
+          types: lead.types,
+          siteSnippet: lead.site_snippet ?? result.snippet,
+        });
+      } catch (e) {
+        summary.errors.push(`fit ${lead.name}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+
       await supabaseAdmin
         .from('leads')
         .update({
@@ -206,6 +225,7 @@ async function crawlBatch(summary: TickSummary) {
           claimed_at: null,
           crawl_attempts: lead.crawl_attempts + 1,
           site_snippet: lead.site_snippet ?? result.snippet,
+          ...(fit ? { fit_score: fit.score, fit_reason: fit.reason } : {}),
           error: null,
           updated_at: new Date().toISOString(),
         })
@@ -249,7 +269,7 @@ export async function markPrimaryContact(leadId: string): Promise<void> {
 async function draftBatch(summary: TickSummary) {
   const { data: candidates } = await supabaseAdmin
     .from('leads')
-    .select('id, name, website, domain, city, category, site_snippet, crawl_attempts')
+    .select(LEAD_COLUMNS)
     .eq('status', 'ready')
     .order('created_at', { ascending: true })
     .limit(DRAFT_BATCH);

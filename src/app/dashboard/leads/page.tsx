@@ -5,6 +5,7 @@ import {
   Search, Play, RefreshCw, Settings2, Send, Trash2, Sparkles, Ban, MailCheck, Plus, X,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import styles from "./leads.module.css";
 
 type Contact = {
   id: string;
@@ -38,6 +39,8 @@ type Lead = {
   city: string | null;
   category: string | null;
   status: string;
+  fit_score: number | null;
+  fit_reason: string | null;
   error: string | null;
   updated_at: string;
   lead_contacts: Contact[];
@@ -73,14 +76,14 @@ type ApiResponse = {
 };
 
 const STATUS_PILL: Record<string, { cls: string; label: string }> = {
-  new: { cls: "grey", label: "New" },
+  new: { cls: "grey", label: "Queued" },
   crawling: { cls: "amber", label: "Crawling" },
-  ready: { cls: "green", label: "Ready" },
+  ready: { cls: "amber", label: "Needs draft" },
   no_contacts: { cls: "grey", label: "No contacts" },
   no_website: { cls: "grey", label: "No website" },
   drafting: { cls: "amber", label: "Drafting" },
-  drafted: { cls: "amber", label: "Draft ready" },
-  contacted: { cls: "green", label: "Contacted" },
+  drafted: { cls: "green", label: "Review draft" },
+  contacted: { cls: "green", label: "Sent" },
   replied: { cls: "green", label: "Replied" },
   bounced: { cls: "accent", label: "Bounced" },
   suppressed: { cls: "accent", label: "Suppressed" },
@@ -88,16 +91,15 @@ const STATUS_PILL: Record<string, { cls: string; label: string }> = {
 
 const CONFIDENCE_PILL: Record<string, string> = { high: "green", medium: "amber", low: "grey" };
 
-const TABS: { key: string; label: string }[] = [
-  { key: "", label: "All" },
-  { key: "new", label: "New" },
-  { key: "ready", label: "Ready" },
-  { key: "drafted", label: "Draft ready" },
-  { key: "contacted", label: "Contacted" },
-  { key: "replied", label: "Replied" },
-  { key: "bounced", label: "Bounced" },
-  { key: "no_contacts", label: "No contacts" },
+// Simple workflow tabs instead of one tab per raw status.
+const TABS: { key: string; label: string; statuses: string[] }[] = [
+  { key: "review", label: "To review", statuses: ["drafted"] },
+  { key: "sent", label: "Sent", statuses: ["contacted", "replied", "bounced"] },
+  { key: "all", label: "All leads", statuses: [] },
+  { key: "skipped", label: "Skipped", statuses: ["no_contacts", "no_website", "suppressed"] },
 ];
+
+const PROCESSING_STATUSES = ["new", "crawling", "ready", "drafting"];
 
 const DEFAULT_CATEGORIES = [
   "corporate gifting company",
@@ -110,16 +112,18 @@ const DEFAULT_CATEGORIES = [
 
 const DEFAULT_CITIES = ["Mumbai", "Delhi", "Bangalore", "Gurgaon", "Pune", "Hyderabad"];
 
-const overlayStyle: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 60,
-  display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
-};
+function fitPill(score: number | null): { cls: string; label: string } {
+  if (score == null) return { cls: "grey", label: "—" };
+  if (score >= 70) return { cls: "green", label: String(score) };
+  if (score >= 50) return { cls: "amber", label: String(score) };
+  return { cls: "accent", label: String(score) };
+}
 
 export default function LeadsPage() {
   const toast = useToast();
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("");
+  const [tab, setTab] = useState("review");
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<Lead | null>(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -130,7 +134,8 @@ export default function LeadsPage() {
   const load = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      if (tab) params.set("status", tab);
+      const statuses = TABS.find((t) => t.key === tab)?.statuses ?? [];
+      if (statuses.length) params.set("statuses", statuses.join(","));
       if (q) params.set("q", q);
       const res = await fetch(`/api/leads?${params}`, { cache: "no-store" });
       if (!res.ok) throw new Error((await res.json()).error || "load failed");
@@ -152,15 +157,11 @@ export default function LeadsPage() {
     setRunning(true);
     try {
       for (let i = 1; i <= rounds; i++) {
-        setRunProgress(`tick ${i}/${rounds}…`);
+        setRunProgress(`${i}/${rounds}…`);
         const res = await fetch("/api/leads/tick", { method: "POST" });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "tick failed");
-        setRunProgress(
-          `tick ${i}/${rounds}: +${json.discovered} found, ${json.crawled} crawled, ${json.drafted} drafted`,
-        );
         await load();
-        // Stop early when a tick does nothing — queue is drained.
         if (!json.discovered && !json.crawled && !json.drafted) break;
       }
       toast.push({ kind: "success", text: "Pipeline run complete." });
@@ -174,7 +175,9 @@ export default function LeadsPage() {
 
   const counts = data?.statusCounts ?? {};
   const totalLeads = Object.values(counts).reduce((a, b) => a + b, 0);
-  const pendingSearches = (data?.searches ?? []).filter((s) => s.status === "pending" || s.status === "running").length;
+  const processing = PROCESSING_STATUSES.reduce((a, s) => a + (counts[s] ?? 0), 0);
+  const tabCount = (t: { statuses: string[] }) =>
+    t.statuses.length ? t.statuses.reduce((a, s) => a + (counts[s] ?? 0), 0) : totalLeads;
 
   return (
     <div className="page">
@@ -182,16 +185,16 @@ export default function LeadsPage() {
         <div>
           <h1>B2B Leads</h1>
           <div className="sub">
-            Places discovery → site crawl → verified contacts → AI drafts → approved sends
-            {pendingSearches > 0 ? ` · ${pendingSearches} searches queued` : ""}
+            Find companies, review the AI-drafted email, hit send.
+            {processing > 0 ? ` ${processing} leads still processing — run the pipeline.` : ""}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div className={styles.toolbar}>
           <button type="button" className="btn" onClick={() => setShowSearch(true)}>
-            <Search size={14} /> New search
+            <Search size={14} /> Find companies
           </button>
           <button type="button" className="btn" onClick={() => runPipeline(10)} disabled={running}>
-            <Play size={14} /> {running ? runProgress || "Running…" : "Run pipeline"}
+            <Play size={14} /> {running ? `Running ${runProgress}` : "Run pipeline"}
           </button>
           <button type="button" className="btn" onClick={() => setShowSettings(true)} aria-label="Settings">
             <Settings2 size={14} />
@@ -203,34 +206,33 @@ export default function LeadsPage() {
       </div>
 
       <div className="kpi-grid" style={{ marginBottom: 18 }}>
-        <Kpi label="Total leads" value={totalLeads} />
-        <Kpi label="Ready to draft" value={counts.ready ?? 0} />
-        <Kpi label="Drafts awaiting review" value={counts.drafted ?? 0} />
-        <Kpi label="Contacted" value={(counts.contacted ?? 0) + (counts.replied ?? 0)} />
+        <Kpi label="Drafts to review" value={counts.drafted ?? 0} />
         <Kpi
           label="Sent today"
           value={`${data?.sentToday ?? 0}/${data?.settings?.daily_cap ?? "—"}`}
           accent={data?.settings?.paused ? "Paused" : undefined}
         />
+        <Kpi label="Replied" value={counts.replied ?? 0} />
+        <Kpi label="Total leads" value={totalLeads} />
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 12, flexWrap: "wrap" }}>
-        <div className="tabs" style={{ marginBottom: 0, border: "none" }}>
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              className={`tab${tab === t.key ? " active" : ""}`}
-              onClick={() => setTab(t.key)}
-            >
-              {t.label}
-              {t.key && counts[t.key] ? ` (${counts[t.key]})` : ""}
-            </button>
-          ))}
+      <div className={styles.tabsRow}>
+        <div className={styles.tabsScroll}>
+          <div className="tabs" style={{ marginBottom: 0, border: "none" }}>
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                className={`tab${tab === t.key ? " active" : ""}`}
+                onClick={() => setTab(t.key)}
+              >
+                {t.label} ({tabCount(t)})
+              </button>
+            ))}
+          </div>
         </div>
         <input
-          className="input"
-          style={{ maxWidth: 220 }}
+          className={`input ${styles.searchInput}`}
           placeholder="Search name or domain…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -238,31 +240,39 @@ export default function LeadsPage() {
       </div>
 
       {data && data.leads.length > 0 ? (
-        <div className="card" style={{ opacity: loading ? 0.7 : 1, transition: "opacity 0.2s" }}>
+        <>
+        <div className={`card ${styles.tableWrap}`} style={{ opacity: loading ? 0.7 : 1, transition: "opacity 0.2s" }}>
           <table className="tbl">
             <thead>
               <tr>
+                <th style={{ width: 60 }}>Fit</th>
                 <th>Company</th>
-                <th>City</th>
-                <th>Category</th>
-                <th>Contacts</th>
+                <th>Why this fit</th>
+                <th>Contact</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {data.leads.map((lead) => {
                 const sp = STATUS_PILL[lead.status] || { cls: "grey", label: lead.status };
+                const fp = fitPill(lead.fit_score);
                 const best = bestContact(lead);
                 return (
                   <tr key={lead.id} className="clickable" onClick={() => setSelected(lead)}>
                     <td>
+                      <span className={`pill ${fp.cls}`} title="ProMunch fit score (AI, 0–100)">{fp.label}</span>
+                    </td>
+                    <td>
                       <div className="cell-main">
                         <span className="nm">{lead.name}</span>
                       </div>
-                      {lead.domain ? <div className="cell-sub mono">{lead.domain}</div> : null}
+                      <div className="cell-sub">
+                        {[lead.domain, lead.city].filter(Boolean).join(" · ") || "—"}
+                      </div>
                     </td>
-                    <td className="muted">{lead.city ?? "—"}</td>
-                    <td className="muted">{lead.category ?? "—"}</td>
+                    <td className="muted" style={{ fontSize: 12.5, maxWidth: 260 }}>
+                      {lead.fit_reason ?? "—"}
+                    </td>
                     <td>
                       {best ? (
                         <span>
@@ -270,9 +280,6 @@ export default function LeadsPage() {
                           <span className={`pill ${CONFIDENCE_PILL[best.confidence] ?? "grey"}`}>
                             {best.confidence}
                           </span>
-                          {lead.lead_contacts.length > 1 ? (
-                            <span className="muted" style={{ fontSize: 12 }}> +{lead.lead_contacts.length - 1}</span>
-                          ) : null}
                         </span>
                       ) : (
                         <span className="muted">—</span>
@@ -287,11 +294,48 @@ export default function LeadsPage() {
             </tbody>
           </table>
         </div>
+        <div className={styles.cards}>
+          {data.leads.map((lead) => {
+            const sp = STATUS_PILL[lead.status] || { cls: "grey", label: lead.status };
+            const fp = fitPill(lead.fit_score);
+            const best = bestContact(lead);
+            return (
+              <div key={lead.id} className={styles.cardRow} onClick={() => setSelected(lead)}>
+                <div className={styles.cardTop}>
+                  <div>
+                    <div className={styles.cardName}>{lead.name}</div>
+                    <div className={styles.cardMeta}>
+                      {[lead.domain, lead.city].filter(Boolean).join(" · ") || "—"}
+                    </div>
+                  </div>
+                  <span className={`pill ${fp.cls}`}>fit {fp.label}</span>
+                </div>
+                {lead.fit_reason ? <div className={styles.cardReason}>{lead.fit_reason}</div> : null}
+                <div className={styles.cardFoot}>
+                  {best ? (
+                    <span className={styles.cardEmail}>
+                      {best.email}{" "}
+                      <span className={`pill ${CONFIDENCE_PILL[best.confidence] ?? "grey"}`}>
+                        {best.confidence}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="muted" style={{ fontSize: 12 }}>no contact</span>
+                  )}
+                  <span className={`pill ${sp.cls}`}>{sp.label}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        </>
       ) : (
         <div className="card card-pad empty">
           {loading
             ? "Loading…"
-            : "No leads yet. Start with a search — pick categories and cities, then run the pipeline."}
+            : tab === "review"
+              ? "No drafts waiting. Find companies and run the pipeline — drafts appear here for approval."
+              : "Nothing here yet."}
         </div>
       )}
 
@@ -379,10 +423,10 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (n:
   }
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
-      <div className="card card-pad" style={{ width: 560, maxWidth: "100%" }} onClick={(e) => e.stopPropagation()}>
+    <div className={styles.overlay} onClick={onClose}>
+      <div className={`card card-pad ${styles.modal} ${styles.modalMd}`} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div className="card-title">New lead search</div>
+          <div className="card-title">Find companies</div>
           <button type="button" className="btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
         </div>
         <div className="muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
@@ -451,8 +495,8 @@ function SettingsModal({
   }
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
-      <div className="card card-pad" style={{ width: 480, maxWidth: "100%" }} onClick={(e) => e.stopPropagation()}>
+    <div className={styles.overlay} onClick={onClose}>
+      <div className={`card card-pad ${styles.modal} ${styles.modalSm}`} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div className="card-title">Outreach settings</div>
           <button type="button" className="btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
@@ -470,11 +514,6 @@ function SettingsModal({
         <label className="field">
           <span>From mailbox (fixed — Gmail sends as the Workspace mailbox)</span>
           <input className="input" value={form.from_email} disabled />
-        </label>
-        <label className="field">
-          <span>Reply-to (optional)</span>
-          <input className="input" value={form.reply_to}
-            onChange={(e) => setForm({ ...form, reply_to: e.target.value })} />
         </label>
         <label className="field">
           <span>Footer address (legal/physical address line)</span>
@@ -507,6 +546,7 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
   const [bodyText, setBodyText] = useState(activeDraft?.body_text ?? "");
   const [newEmail, setNewEmail] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const fp = fitPill(lead.fit_score);
 
   useEffect(() => {
     setSubject(activeDraft?.subject ?? "");
@@ -552,15 +592,17 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
   }
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
+    <div className={styles.overlay} onClick={onClose}>
       <div
-        className="card card-pad"
-        style={{ width: 720, maxWidth: "100%", maxHeight: "90vh", overflowY: "auto" }}
+        className={`card card-pad ${styles.modal} ${styles.modalLg}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
           <div>
-            <div className="card-title">{lead.name}</div>
+            <div className="card-title">
+              {lead.name}{" "}
+              <span className={`pill ${fp.cls}`} title="ProMunch fit score (AI, 0–100)">fit {fp.label}</span>
+            </div>
             <div className="muted" style={{ fontSize: 12.5 }}>
               {[lead.category, lead.city].filter(Boolean).join(" · ")}
               {lead.website ? (
@@ -570,6 +612,9 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
                 </>
               ) : null}
             </div>
+            {lead.fit_reason ? (
+              <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>{lead.fit_reason}</div>
+            ) : null}
           </div>
           <button type="button" className="btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
         </div>
@@ -658,7 +703,7 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
               value={bodyText}
               onChange={(e) => setBodyText(e.target.value)}
             />
-            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+            <div className={styles.actionRow}>
               <button type="button" className="btn" onClick={approveAndSend} disabled={busy !== null}>
                 <Send size={14} /> {busy === "send" ? "Sending…" : "Approve & send"}
               </button>

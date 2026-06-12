@@ -15,6 +15,9 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status') || '';
+  const statuses = (searchParams.get('statuses') || '')
+    .split(',')
+    .filter((s) => LEAD_STATUSES.includes(s));
   const city = searchParams.get('city') || '';
   const category = searchParams.get('category') || '';
   const q = searchParams.get('q') || '';
@@ -25,10 +28,12 @@ export async function GET(req: NextRequest) {
   let query = supabaseAdmin
     .from('leads')
     .select('*, lead_contacts(*), outreach_drafts(*)', { count: 'exact' })
+    .order('fit_score', { ascending: false, nullsFirst: false })
     .order('updated_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
-  if (status && LEAD_STATUSES.includes(status)) query = query.eq('status', status);
+  if (statuses.length) query = query.in('status', statuses);
+  else if (status && LEAD_STATUSES.includes(status)) query = query.eq('status', status);
   if (city) query = query.eq('city', city);
   if (category) query = query.eq('category', category);
   if (q) query = query.or(`name.ilike.%${q}%,domain.ilike.%${q}%`);
