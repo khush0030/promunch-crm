@@ -19,14 +19,16 @@ export interface SendEmailOptions {
   subject: string;
   html: string;
   from?: string;
+  replyTo?: string;
 }
 
-export async function sendEmail({ to, subject, html, from }: SendEmailOptions) {
+export async function sendEmail({ to, subject, html, from, replyTo }: SendEmailOptions) {
   const result = await getClient().emails.send({
     from: from || DEFAULT_FROM,
     to: Array.isArray(to) ? to : [to],
     subject,
     html,
+    ...(replyTo ? { replyTo } : {}),
   });
   return result;
 }

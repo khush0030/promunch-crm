@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSession } from '@/lib/leads/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { sendEmail } from '@/lib/resend';
+import { bodyToHtml } from '@/lib/leads/draft';
 
 export const maxDuration = 60;
 
-// Approve & send a draft via the b2b-send edge function (Gmail service-account
-// send from the Workspace mailbox — better cold-email inbox placement than ESP
-// infra at this volume, and replies land natively in the mailbox).
+// Approve & send a draft via Resend, from the verified outreach domain
+// (trypromunch.in) — kept off the main brand domain so cold outreach can never
+// dent the reputation that order/support email depends on. Resend's webhook
+// (api/webhooks/resend) tracks delivery/bounce/complaint by resend_email_id and
+// auto-suppresses bad addresses, so we store the real Resend id below.
 // The atomic claim to 'sending' guarantees a double-click produces exactly one send.
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const denied = await requireSession();
@@ -79,30 +83,22 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       );
     }
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/b2b-send`,
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: contact.email,
-          subject: draft.subject,
-          body: `${draft.body_text}\n\n--\n${settings.footer_address}`,
-          fromName: settings.from_name,
-        }),
-      },
-    );
-    const sendResult = (await res.json()) as { ok?: boolean; id?: string; error?: string };
-    if (!res.ok || !sendResult.ok) throw new Error(`Gmail send: ${sendResult.error ?? res.status}`);
+    const fromAddress = `${settings.from_name} <${settings.from_email}>`;
+    const sendResult = await sendEmail({
+      to: contact.email,
+      from: fromAddress,
+      subject: draft.subject,
+      html: bodyToHtml(draft.body_text, settings.footer_address),
+      ...(settings.reply_to ? { replyTo: settings.reply_to } : {}),
+    });
+    if (sendResult.error) throw new Error(`Resend: ${sendResult.error.message}`);
+    const resendId = sendResult.data?.id ?? null;
 
     await supabaseAdmin
       .from('outreach_drafts')
       .update({
         status: 'sent',
-        resend_email_id: sendResult.id ? `gmail:${sendResult.id}` : null,
+        resend_email_id: resendId,
         sent_at: new Date().toISOString(),
         error: null,
         updated_at: new Date().toISOString(),
@@ -117,7 +113,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     await supabaseAdmin.from('outreach_events').insert({
       draft_id: id,
       lead_id: draft.lead_id,
-      resend_email_id: sendResult.id ? `gmail:${sendResult.id}` : null,
+      resend_email_id: resendId,
       type: 'sent',
       payload: { to: contact.email, subject: draft.subject },
     });
