@@ -9,6 +9,7 @@ import { searchTextPage, websiteToDomain, isSocialDomain } from './places';
 import { crawlSite, primaryScore } from './scraper';
 import { verifyEmail, scoreConfidence } from './mx';
 import { generateDraft, DRAFT_MODEL } from './draft';
+import { getKnowledgeBase } from './kb';
 import { scoreFit } from './fit';
 
 const STALE_CLAIM_MINUTES = 15;
@@ -274,6 +275,9 @@ async function draftBatch(summary: TickSummary) {
     .order('created_at', { ascending: true })
     .limit(DRAFT_BATCH);
 
+  // Fetch the Master KB once for the whole batch (not per draft).
+  const knowledgeBase = await getKnowledgeBase();
+
   for (const lead of (candidates ?? []) as LeadRow[]) {
     if (!(await claimLead(lead.id, 'ready', 'drafting'))) continue;
     try {
@@ -311,6 +315,7 @@ async function draftBatch(summary: TickSummary) {
         city: lead.city,
         roleHint: contact.role_hint,
         siteSnippet: lead.site_snippet,
+        knowledgeBase,
       });
 
       const { error } = await supabaseAdmin.from('outreach_drafts').insert({
