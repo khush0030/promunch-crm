@@ -37,7 +37,7 @@ create table if not exists outreach_settings (
   from_name text not null default 'Khush from ProMunch',
   from_email text not null default 'khush@trypromunch.in',
   reply_to text,
-  footer_address text not null default 'ProMunch (Oltaflock) · Mumbai, India'
+  footer_address text not null default 'PROMUNCH · Mumbai, India'
 );
 insert into outreach_settings (id) values (1) on conflict (id) do nothing;
 

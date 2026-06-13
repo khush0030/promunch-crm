@@ -198,7 +198,7 @@ npx vercel --prod
 
 ## 📝 License
 
-Proprietary — PROMUNCH / Oltaflock AI
+Proprietary — PROMUNCH
 
 ---
 
