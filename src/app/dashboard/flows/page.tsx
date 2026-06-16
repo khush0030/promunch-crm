@@ -2,14 +2,16 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Route as RouteIcon, ShoppingCart, PartyPopper, Gift } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/Toast";
+import { PageHead, SectionLabel, StatusBadge, EmptyState } from "@/components/pm";
+import type { BadgeTone } from "@/components/pm";
 
-const statusPill: Record<string, { cls: string; label: string }> = {
-  active: { cls: "green", label: "Active" },
-  draft: { cls: "grey", label: "Draft" },
-  paused: { cls: "amber", label: "Paused" },
+const statusMeta: Record<string, { tone: BadgeTone; label: string }> = {
+  active: { tone: "green", label: "Active" },
+  draft: { tone: "gray", label: "Draft" },
+  paused: { tone: "gold", label: "Paused" },
 };
 
 const triggerLabels: Record<string, string> = {
@@ -32,6 +34,12 @@ type FlowRow = {
   totalConverted: number;
   conversion: string;
 };
+
+const templates = [
+  { icon: <ShoppingCart size={16} />, title: "Abandoned cart", copy: "Recover checkouts left behind, on WhatsApp + email. Recommended first flow." },
+  { icon: <PartyPopper size={16} />, title: "Welcome series", copy: "Greet new subscribers and introduce PROMUNCH." },
+  { icon: <Gift size={16} />, title: "Post-purchase", copy: "Thank buyers and drive the second order." },
+];
 
 export default function FlowsPage() {
   const router = useRouter();
@@ -63,10 +71,7 @@ export default function FlowsPage() {
 
   useEffect(() => {
     async function load() {
-      const res = await supabase
-        .from("flows")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const res = await supabase.from("flows").select("*").order("created_at", { ascending: false });
       const rows = res.data || [];
       const mapped: FlowRow[] = rows.map((f) => {
         const stepCount = Array.isArray(f.steps) ? f.steps.length : 0;
@@ -90,136 +95,50 @@ export default function FlowsPage() {
     load();
   }, []);
 
-  const statusCounts = [
-    { cls: "green", label: "Active", count: flows.filter((f) => f.status === "active").length },
-    { cls: "grey", label: "Draft", count: flows.filter((f) => f.status === "draft").length },
-    { cls: "amber", label: "Paused", count: flows.filter((f) => f.status === "paused").length },
+  const statusCounts: { tone: BadgeTone; label: string; count: number }[] = [
+    { tone: "green", label: "Active", count: flows.filter((f) => f.status === "active").length },
+    { tone: "gray", label: "Draft", count: flows.filter((f) => f.status === "draft").length },
+    { tone: "gold", label: "Paused", count: flows.filter((f) => f.status === "paused").length },
   ];
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Flows</h1>
-          <div className="sub">Automated email sequences triggered by customer behaviour</div>
-        </div>
-        <button type="button" className="btn primary" onClick={handleCreate} disabled={creating}>
-          <Plus size={14} /> {creating ? "Creating…" : "Create flow"}
-        </button>
-      </div>
+    <div className="pm-page">
+      <PageHead
+        title="Flows"
+        subtitle="Automated email & WhatsApp sequences triggered by customer behaviour"
+        actions={<button className="pm-btn primary" onClick={handleCreate} disabled={creating}><Plus size={15} /> {creating ? "Creating…" : "Create flow"}</button>}
+      />
 
       {flows.length > 0 && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-          {statusCounts.map((s) => (
-            <span key={s.label} className={`pill ${s.cls}`}>
-              {s.count} {s.label}
-            </span>
-          ))}
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {statusCounts.map((s) => <StatusBadge key={s.label} tone={s.tone}>{s.count} {s.label}</StatusBadge>)}
         </div>
       )}
 
       {flows.length > 0 ? (
-        <div className="grid-2">
+        <div className="pm-grid g-11">
           {flows.map((flow) => {
-            const sp = statusPill[flow.status] || statusPill.draft;
+            const sp = statusMeta[flow.status] || statusMeta.draft;
             return (
-              <Link
-                key={flow.id}
-                href={`/dashboard/flows/${flow.id}`}
-                className="card card-pad"
-                style={{ textDecoration: "none", cursor: "pointer" }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    justifyContent: "space-between",
-                    marginBottom: 12,
-                  }}
-                >
+              <Link key={flow.id} href={`/dashboard/flows/${flow.id}`} className="pm-panel" style={{ textDecoration: "none" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 10 }}>
                   <div>
-                    <div className="card-title" style={{ fontSize: 15 }}>
-                      {flow.name}
-                    </div>
-                    <div style={{ marginTop: 6 }}>
-                      <span className={`pill ${sp.cls}`}>{sp.label}</span>
-                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 600 }}>{flow.name}</div>
+                    <div style={{ marginTop: 6 }}><StatusBadge tone={sp.tone}>{sp.label}</StatusBadge></div>
                   </div>
                 </div>
-
-                <div className="card-sub" style={{ marginBottom: 14 }}>
-                  Trigger: {flow.trigger}
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 24,
-                    paddingTop: 12,
-                    borderTop: "1px solid var(--border)",
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "var(--text-3)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.04em",
-                        marginBottom: 4,
-                        fontWeight: 500,
-                      }}
-                    >
-                      Emails
+                <div className="pm-csub" style={{ marginBottom: 12 }}>Trigger: {flow.trigger || "—"}</div>
+                <div style={{ display: "flex", gap: 24, paddingTop: 12, borderTop: "1px solid var(--pm-line)" }}>
+                  {[
+                    { l: "Emails", v: String(flow.emails), c: "var(--pm-ink)" },
+                    { l: "Revenue", v: flow.revenue > 0 ? `₹${flow.revenue.toLocaleString()}` : "₹0", c: flow.revenue > 0 ? "var(--pm-green)" : "var(--pm-hint)" },
+                    { l: "Conversion", v: flow.conversion || "—", c: flow.conversion ? "var(--pm-gold)" : "var(--pm-hint)" },
+                  ].map((s) => (
+                    <div key={s.l}>
+                      <div className="pm-dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4, fontWeight: 600 }}>{s.l}</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: s.c }}>{s.v}</div>
                     </div>
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>{flow.emails}</div>
-                  </div>
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "var(--text-3)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.04em",
-                        marginBottom: 4,
-                        fontWeight: 500,
-                      }}
-                    >
-                      Revenue
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 16,
-                        fontWeight: 600,
-                        color: flow.revenue > 0 ? "var(--green)" : "var(--text-3)",
-                      }}
-                    >
-                      {flow.revenue > 0 ? `₹${flow.revenue.toLocaleString()}` : "₹0"}
-                    </div>
-                  </div>
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "var(--text-3)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.04em",
-                        marginBottom: 4,
-                        fontWeight: 500,
-                      }}
-                    >
-                      Conversion
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 16,
-                        fontWeight: 600,
-                        color: flow.conversion !== "" ? "var(--amber)" : "var(--text-3)",
-                      }}
-                    >
-                      {flow.conversion || "—"}
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </Link>
             );
@@ -227,44 +146,29 @@ export default function FlowsPage() {
         </div>
       ) : (
         <>
-          <div className="empty">
-            <div className="ico">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <circle cx="6" cy="6" r="2.5" />
-                <circle cx="6" cy="18" r="2.5" />
-                <circle cx="18" cy="12" r="2.5" />
-                <path d="M8.5 6H14a3 3 0 0 1 3 3v.5M8.5 18H14a3 3 0 0 0 3-3v-.5" />
-              </svg>
-            </div>
-            <h3>{loaded ? "No flows yet" : "Loading…"}</h3>
-            {loaded && <p>Create automated flows like abandoned-cart recovery, welcome series, or post-purchase upsells.</p>}
-            {loaded && (
-              <button type="button" className="btn primary">
-                <Plus size={14} /> Create flow
-              </button>
-            )}
-          </div>
+          <EmptyState
+            icon={<RouteIcon />}
+            title={loaded ? "No flows yet" : "Loading…"}
+            cta={loaded ? <button className="pm-btn primary" onClick={handleCreate} disabled={creating}><Plus size={15} /> Create flow</button> : undefined}
+            style={{ marginBottom: 16 }}
+          >
+            {loaded ? "Create automated flows like abandoned-cart recovery, welcome series, or post-purchase upsells." : undefined}
+          </EmptyState>
           {loaded && (
-            <div className="grid-3" style={{ marginTop: 18 }}>
-              <div className="card card-pad">
-                <div className="card-title">Abandoned cart</div>
-                <div className="card-sub" style={{ marginTop: 6 }}>
-                  Recover checkouts left behind. Recommended first flow.
-                </div>
+            <>
+              <SectionLabel>Start from a template</SectionLabel>
+              <div className="pm-cards3">
+                {templates.map((t) => (
+                  <div className="pm-minicard" key={t.title}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span className="ic2 a" style={{ width: 30, height: 30, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--pm-gold-soft)", color: "var(--pm-gold)" }}>{t.icon}</span>
+                      <b>{t.title}</b>
+                    </div>
+                    <p>{t.copy}</p>
+                  </div>
+                ))}
               </div>
-              <div className="card card-pad">
-                <div className="card-title">Welcome series</div>
-                <div className="card-sub" style={{ marginTop: 6 }}>
-                  Greet new subscribers and introduce PROMUNCH.
-                </div>
-              </div>
-              <div className="card card-pad">
-                <div className="card-title">Post-purchase</div>
-                <div className="card-sub" style={{ marginTop: 6 }}>
-                  Thank buyers and drive the second order.
-                </div>
-              </div>
-            </div>
+            </>
           )}
         </>
       )}

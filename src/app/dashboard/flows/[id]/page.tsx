@@ -3,9 +3,11 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Play, Pause, Trash2 } from "lucide-react";
+import { ArrowLeft, Play, Pause, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/Toast";
+import { PageHead, KpiCard, Panel, StatusBadge } from "@/components/pm";
+import type { BadgeTone } from "@/components/pm";
 
 type Step = {
   type?: "wait" | "email" | "condition" | "exit" | string;
@@ -37,11 +39,14 @@ const triggerLabels: Record<string, string> = {
   date_based: "Date-based",
 };
 
-const statusPill: Record<string, { cls: string; label: string }> = {
-  active: { cls: "green", label: "Active" },
-  draft: { cls: "grey", label: "Draft" },
-  paused: { cls: "amber", label: "Paused" },
+const statusMeta: Record<string, { tone: BadgeTone; label: string }> = {
+  active: { tone: "green", label: "Active" },
+  draft: { tone: "gray", label: "Draft" },
+  paused: { tone: "gold", label: "Paused" },
 };
+
+const stepColor = (t?: string) =>
+  t === "email" ? "var(--pm-terra)" : t === "wait" ? "var(--pm-gold)" : t === "condition" ? "var(--pm-blue)" : "var(--pm-hint)";
 
 export default function FlowDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -75,12 +80,7 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
     const next = flow.status === "active" ? "paused" : "active";
     setBusy(true);
     try {
-      const res = await supabase
-        .from("flows")
-        .update({ status: next })
-        .eq("id", flow.id)
-        .select()
-        .maybeSingle();
+      const res = await supabase.from("flows").update({ status: next }).eq("id", flow.id).select().maybeSingle();
       if (res.error) throw res.error;
       if (res.data) setFlow(res.data as Flow);
       toast.push({ kind: "success", text: `Flow ${next === "active" ? "activated" : "paused"}.` });
@@ -95,12 +95,7 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
     if (!flow) return;
     setBusy(true);
     try {
-      const res = await supabase
-        .from("flows")
-        .update({ name, trigger_type: triggerType })
-        .eq("id", flow.id)
-        .select()
-        .maybeSingle();
+      const res = await supabase.from("flows").update({ name, trigger_type: triggerType }).eq("id", flow.id).select().maybeSingle();
       if (res.error) throw res.error;
       if (res.data) setFlow(res.data as Flow);
       toast.push({ kind: "success", text: "Flow updated." });
@@ -127,30 +122,16 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
     }
   }
 
-  if (!loaded) {
-    return (
-      <div className="page">
-        <div className="muted">Loading…</div>
-      </div>
-    );
-  }
-  if (notFound || !flow) {
-    return (
-      <div className="page">
-        <Link
-          href="/dashboard/flows"
-          style={{ display: "inline-flex", gap: 6, alignItems: "center", color: "var(--text-2)", fontSize: 13 }}
-        >
-          <ChevronLeft size={14} /> Back to Flows
-        </Link>
-        <div className="muted" style={{ marginTop: 18 }}>
-          Flow not found.
-        </div>
-      </div>
-    );
-  }
+  const backLink = (
+    <Link href="/dashboard/flows" className="more" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--pm-muted)", fontSize: 12 }}>
+      <ArrowLeft size={14} /> Back to flows
+    </Link>
+  );
 
-  const sp = statusPill[flow.status || "draft"] || statusPill.draft;
+  if (!loaded) return <div className="pm-page"><PageHead title="Flow" subtitle="Loading…" /></div>;
+  if (notFound || !flow) return <div className="pm-page"><PageHead back={backLink} title="Not found" subtitle="This flow doesn’t exist." /></div>;
+
+  const sp = statusMeta[flow.status || "draft"] || statusMeta.draft;
   const steps = flow.steps || [];
   const totalEntered = flow.total_entered || 0;
   const totalConverted = flow.total_converted || 0;
@@ -158,150 +139,58 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
   const revenue = Number(flow.revenue_attributed) || 0;
 
   return (
-    <div className="page">
-      <Link
-        href="/dashboard/flows"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          color: "var(--text-2)",
-          fontSize: 13,
-          marginBottom: 16,
-        }}
-      >
-        <ChevronLeft size={14} /> Back to Flows
-      </Link>
+    <div className="pm-page">
+      <PageHead
+        back={backLink}
+        title={<span style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>{flow.name} <StatusBadge tone={sp.tone}>{sp.label}</StatusBadge></span>}
+        subtitle={`Trigger: ${triggerLabels[flow.trigger_type || ""] || flow.trigger_type || "—"}`}
+        actions={
+          <>
+            <button className="pm-btn ghost" onClick={toggleStatus} disabled={busy}>
+              {flow.status === "active" ? <><Pause size={15} /> Pause</> : <><Play size={15} /> Activate</>}
+            </button>
+            <button className="pm-btn ghost" onClick={handleDelete} disabled={busy} style={{ color: "var(--pm-terra)" }}><Trash2 size={15} /> Delete</button>
+          </>
+        }
+      />
 
-      <div className="page-head">
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <h1>{flow.name}</h1>
-            <span className={`pill ${sp.cls}`}>{sp.label}</span>
-          </div>
-          <div className="sub">
-            Trigger: {triggerLabels[flow.trigger_type || ""] || flow.trigger_type || "—"}
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" className="btn" onClick={toggleStatus} disabled={busy}>
-            {flow.status === "active" ? (
-              <>
-                <Pause size={14} /> Pause
-              </>
-            ) : (
-              <>
-                <Play size={14} /> Activate
-              </>
-            )}
-          </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={handleDelete}
-            disabled={busy}
-            style={{ color: "var(--accent)", borderColor: "var(--accent-soft)" }}
-          >
-            <Trash2 size={14} /> Delete
-          </button>
-        </div>
+      <div className="pm-kpis">
+        <KpiCard label="Entered" value={totalEntered.toLocaleString("en-IN")} tone="b" />
+        <KpiCard label="Converted" value={totalConverted.toLocaleString("en-IN")} tone="g" />
+        <KpiCard label="Conversion" value={conversion} tone="o" />
+        <KpiCard label="Revenue" value={revenue > 0 ? `₹${revenue.toLocaleString("en-IN")}` : "—"} tone="t" valueColor={revenue > 0 ? "var(--pm-green)" : undefined} />
       </div>
 
-      <div className="kpi-grid">
-        <div className="kpi">
-          <div className="label">Entered</div>
-          <div className="value">{totalEntered.toLocaleString("en-IN")}</div>
-        </div>
-        <div className="kpi">
-          <div className="label">Converted</div>
-          <div className="value">{totalConverted.toLocaleString("en-IN")}</div>
-        </div>
-        <div className="kpi">
-          <div className="label">Conversion</div>
-          <div className="value">{conversion}</div>
-        </div>
-        <div className="kpi">
-          <div className="label">Revenue</div>
-          <div className="value" style={{ color: revenue > 0 ? "var(--green)" : undefined }}>
-            {revenue > 0 ? `₹${revenue.toLocaleString("en-IN")}` : "—"}
+      <div className="pm-grid g-11" style={{ marginTop: 16 }}>
+        <Panel title="Settings" caption="Update the flow name and trigger.">
+          <div className="pm-field">
+            <label>Name</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} title="Flow name" />
           </div>
-        </div>
-      </div>
+          <div className="pm-field">
+            <label>Trigger</label>
+            <select value={triggerType} onChange={(e) => setTriggerType(e.target.value)} title="Trigger">
+              {Object.entries(triggerLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+          <button className="pm-btn primary" onClick={saveDetails} disabled={busy}>Save changes</button>
+        </Panel>
 
-      <div className="grid-2 section">
-        <div className="card card-pad">
-          <div className="card-title">Settings</div>
-          <div className="card-sub">Update the flow name and trigger.</div>
-          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-            <div className="field">
-              <label>Name</label>
-              <input
-                className="input"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                title="Flow name"
-              />
-            </div>
-            <div className="field">
-              <label>Trigger</label>
-              <select
-                className="input"
-                value={triggerType}
-                onChange={(e) => setTriggerType(e.target.value)}
-                title="Trigger"
-              >
-                {Object.entries(triggerLabels).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <button type="button" className="btn primary" onClick={saveDetails} disabled={busy}>
-                Save changes
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="card card-pad">
-          <div className="card-title">Steps</div>
-          <div className="card-sub">
-            {steps.length > 0
-              ? `${steps.length} step${steps.length === 1 ? "" : "s"} in this flow`
-              : "No steps yet — add one to start"}
-          </div>
+        <Panel title="Steps" caption={steps.length > 0 ? `${steps.length} step${steps.length === 1 ? "" : "s"} in this flow` : "No steps yet — add one to start"}>
           {steps.length > 0 ? (
-            <div style={{ marginTop: 14 }}>
+            <div>
               {steps.map((s, i) => (
-                <div key={i} className="legend-row">
-                  <div className="legend-l">
-                    <span
-                      className="dot"
-                      style={{
-                        background:
-                          s.type === "email"
-                            ? "var(--accent)"
-                            : s.type === "wait"
-                            ? "var(--amber)"
-                            : s.type === "condition"
-                            ? "var(--blue)"
-                            : "var(--text-3)",
-                      }}
-                    />
-                    {s.label || s.type || `Step ${i + 1}`}
-                  </div>
-                  <div className="legend-r muted">{s.sub || s.subject || ""}</div>
+                <div key={i} className="pm-pill">
+                  <span className="d" style={{ background: stepColor(s.type) }} />
+                  <span className="nm">{s.label || s.type || `Step ${i + 1}`}</span>
+                  <span className="pm-dim" style={{ fontSize: 12 }}>{s.sub || s.subject || ""}</span>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="muted" style={{ marginTop: 14, fontSize: 13 }}>
-              Step editor is coming soon. The flow can still be paused or activated.
-            </div>
+            <div className="pm-dim" style={{ fontSize: 13 }}>Step editor is coming soon. The flow can still be paused or activated.</div>
           )}
-        </div>
+        </Panel>
       </div>
     </div>
   );
