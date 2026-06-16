@@ -39,7 +39,52 @@ type RangeKey = (typeof RANGES)[number]["key"];
 
 const inr = (n: number) =>
   "₹" + (n ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const inrShort = (n: number) => {
+  const a = Math.abs(n);
+  if (a >= 1e5) return `₹${(n / 1e5).toFixed(1)}L`;
+  if (a >= 1e3) return `₹${(n / 1e3).toFixed(1)}k`;
+  return `₹${Math.round(n)}`;
+};
 const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—");
+
+// Dependency-free SVG chart: gross sales vs net deposit per settlement period,
+// with fee% labelled. Net bar can dip below the zero line (negative payout).
+function SettlementChart({ data }: { data: Settlement[] }) {
+  const rows = [...data].reverse(); // oldest → newest
+  if (rows.length === 0) return null;
+  const W = Math.max(rows.length * 88, 320);
+  const H = 200, padT = 22, padB = 30;
+  const vals = rows.flatMap((s) => [Number(s.gross_sales) || 0, Number(s.total_deposit) || 0]);
+  const maxV = Math.max(0, ...vals);
+  const minV = Math.min(0, ...vals);
+  const range = maxV - minV || 1;
+  const y = (v: number) => padT + (1 - (v - minV) / range) * (H - padT - padB);
+  const zeroY = y(0);
+  const slotW = W / rows.length;
+  const barW = Math.min(20, slotW / 3.2);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="xMidYMid meet" role="img" aria-label="Gross sales vs net deposit by settlement">
+      <line x1={0} x2={W} y1={zeroY} y2={zeroY} stroke="var(--border)" strokeWidth={1} />
+      {rows.map((s, i) => {
+        const cx = i * slotW + slotW / 2;
+        const g = Number(s.gross_sales) || 0;
+        const n = Number(s.total_deposit) || 0;
+        const gy = y(g), ny = y(n);
+        const feePct = g ? Math.round((Math.abs(Number(s.fees_total) || 0) / g) * 100) : 0;
+        return (
+          <g key={s.settlement_id}>
+            <rect x={cx - barW - 1} y={Math.min(gy, zeroY)} width={barW} height={Math.max(1, Math.abs(zeroY - gy))} rx={2} fill="var(--blue, #6366f1)" opacity={0.45} />
+            <rect x={cx + 1} y={Math.min(ny, zeroY)} width={barW} height={Math.max(1, Math.abs(zeroY - ny))} rx={2} fill={n >= 0 ? "var(--green)" : "var(--accent)"} />
+            <text x={cx} y={Math.min(gy, ny) - 6} textAnchor="middle" fontSize={9} fill="var(--muted)">{feePct}% fee</text>
+            <text x={cx} y={H - 16} textAnchor="middle" fontSize={9} fill="var(--muted)">{fmtDate(s.period_end)}</text>
+            <text x={cx} y={H - 4} textAnchor="middle" fontSize={9} fill={n >= 0 ? "var(--green)" : "var(--accent)"}>{inrShort(n)}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
 
 export default function AmazonPage() {
   const [data, setData] = useState<Data | null>(null);
@@ -114,6 +159,24 @@ export default function AmazonPage() {
               <div className="delta flat">discounts applied</div>
             </div>
           </div>
+
+          {/* ---- settlement trend chart ---- */}
+          {data.settlements.length > 0 && (
+            <div className="card card-pad section">
+              <div className="card-title">Sales vs net payout by settlement</div>
+              <div className="card-sub" style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 2, background: "var(--blue, #6366f1)", opacity: 0.45 }} /> Gross sales
+                </span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 2, background: "var(--green)" }} /> Net deposit (red if negative) · fee% above
+                </span>
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <SettlementChart data={data.settlements} />
+              </div>
+            </div>
+          )}
 
           {/* ---- settlement reconciliation ---- */}
           <div className="card card-pad section">
