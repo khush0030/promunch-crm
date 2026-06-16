@@ -76,20 +76,20 @@ type ApiResponse = {
 };
 
 const STATUS_PILL: Record<string, { cls: string; label: string }> = {
-  new: { cls: "grey", label: "Queued" },
-  crawling: { cls: "amber", label: "Crawling" },
-  ready: { cls: "amber", label: "Needs draft" },
-  no_contacts: { cls: "grey", label: "No contacts" },
-  no_website: { cls: "grey", label: "No website" },
-  drafting: { cls: "amber", label: "Drafting" },
-  drafted: { cls: "green", label: "Review draft" },
-  contacted: { cls: "green", label: "Sent" },
-  replied: { cls: "green", label: "Replied" },
-  bounced: { cls: "accent", label: "Bounced" },
-  suppressed: { cls: "accent", label: "Suppressed" },
+  new: { cls: "bg-gray", label: "Queued" },
+  crawling: { cls: "bg-gold", label: "Crawling" },
+  ready: { cls: "bg-gold", label: "Needs draft" },
+  no_contacts: { cls: "bg-gray", label: "No contacts" },
+  no_website: { cls: "bg-gray", label: "No website" },
+  drafting: { cls: "bg-gold", label: "Drafting" },
+  drafted: { cls: "bg-green", label: "Review draft" },
+  contacted: { cls: "bg-green", label: "Sent" },
+  replied: { cls: "bg-green", label: "Replied" },
+  bounced: { cls: "bg-terra", label: "Bounced" },
+  suppressed: { cls: "bg-terra", label: "Suppressed" },
 };
 
-const CONFIDENCE_PILL: Record<string, string> = { high: "green", medium: "amber", low: "grey" };
+const CONFIDENCE_PILL: Record<string, string> = { high: "bg-green", medium: "bg-gold", low: "bg-gray" };
 
 // Simple workflow tabs instead of one tab per raw status.
 const TABS: { key: string; label: string; statuses: string[] }[] = [
@@ -113,10 +113,10 @@ const DEFAULT_CATEGORIES = [
 const DEFAULT_CITIES = ["Mumbai", "Delhi", "Bangalore", "Gurgaon", "Pune", "Hyderabad"];
 
 function fitPill(score: number | null): { cls: string; label: string } {
-  if (score == null) return { cls: "grey", label: "—" };
-  if (score >= 70) return { cls: "green", label: String(score) };
-  if (score >= 50) return { cls: "amber", label: String(score) };
-  return { cls: "accent", label: String(score) };
+  if (score == null) return { cls: "bg-gray", label: "—" };
+  if (score >= 70) return { cls: "bg-green", label: String(score) };
+  if (score >= 50) return { cls: "bg-gold", label: String(score) };
+  return { cls: "bg-terra", label: String(score) };
 }
 
 export default function LeadsPage() {
@@ -180,32 +180,32 @@ export default function LeadsPage() {
     t.statuses.length ? t.statuses.reduce((a, s) => a + (counts[s] ?? 0), 0) : totalLeads;
 
   return (
-    <div className="page">
-      <div className="page-head">
+    <div className="pm-page">
+      <div className="pm-head">
         <div>
           <h1>B2B Leads</h1>
-          <div className="sub">
+          <p>
             Find companies, review the AI-drafted email, hit send.
-            {processing > 0 ? ` ${processing} leads still processing — run the pipeline.` : ""}
-          </div>
+            {processing > 0 ? `  leads still processing — run the pipeline.` : ""}
+          </p>
         </div>
         <div className={styles.toolbar}>
-          <button type="button" className="btn" onClick={() => setShowSearch(true)}>
+          <button type="button" className="pm-btn" onClick={() => setShowSearch(true)}>
             <Search size={14} /> Find companies
           </button>
-          <button type="button" className="btn" onClick={() => runPipeline(10)} disabled={running}>
+          <button type="button" className="pm-btn" onClick={() => runPipeline(10)} disabled={running}>
             <Play size={14} /> {running ? `Running ${runProgress}` : "Run pipeline"}
           </button>
-          <button type="button" className="btn" onClick={() => setShowSettings(true)} aria-label="Settings">
+          <button type="button" className="pm-btn" onClick={() => setShowSettings(true)} aria-label="Settings">
             <Settings2 size={14} />
           </button>
-          <button type="button" className="btn" onClick={load} aria-label="Refresh">
+          <button type="button" className="pm-btn" onClick={load} aria-label="Refresh">
             <RefreshCw size={14} />
           </button>
         </div>
       </div>
 
-      <div className="kpi-grid" style={{ marginBottom: 18 }}>
+      <div className="pm-kpis" style={{ marginBottom: 18 }}>
         <Kpi label="Drafts to review" value={counts.drafted ?? 0} />
         <Kpi
           label="Sent today"
@@ -218,12 +218,12 @@ export default function LeadsPage() {
 
       <div className={styles.tabsRow}>
         <div className={styles.tabsScroll}>
-          <div className="tabs" style={{ marginBottom: 0, border: "none" }}>
+          <div className="pm-tabs" style={{ marginBottom: 0, border: "none" }}>
             {TABS.map((t) => (
               <button
                 key={t.key}
                 type="button"
-                className={`tab${tab === t.key ? " active" : ""}`}
+                className={`pm-tab${tab === t.key ? " on" : ""}`}
                 onClick={() => setTab(t.key)}
               >
                 {t.label} ({tabCount(t)})
@@ -254,13 +254,13 @@ export default function LeadsPage() {
             </thead>
             <tbody>
               {data.leads.map((lead) => {
-                const sp = STATUS_PILL[lead.status] || { cls: "grey", label: lead.status };
+                const sp = STATUS_PILL[lead.status] || { cls: "bg-gray", label: lead.status };
                 const fp = fitPill(lead.fit_score);
                 const best = bestContact(lead);
                 return (
                   <tr key={lead.id} className="clickable" onClick={() => setSelected(lead)}>
                     <td>
-                      <span className={`pill ${fp.cls}`} title="ProMunch fit score (AI, 0–100)">{fp.label}</span>
+                      <span className={`pm-badge2 ${fp.cls}`} title="ProMunch fit score (AI, 0–100)">{fp.label}</span>
                     </td>
                     <td>
                       <div className="cell-main">
@@ -277,7 +277,7 @@ export default function LeadsPage() {
                       {best ? (
                         <span>
                           <span className="mono" style={{ fontSize: 12.5 }}>{best.email}</span>{" "}
-                          <span className={`pill ${CONFIDENCE_PILL[best.confidence] ?? "grey"}`}>
+                          <span className={`pm-badge2 ${CONFIDENCE_PILL[best.confidence] ?? "bg-gray"}`}>
                             {best.confidence}
                           </span>
                         </span>
@@ -286,7 +286,7 @@ export default function LeadsPage() {
                       )}
                     </td>
                     <td>
-                      <span className={`pill ${sp.cls}`}>{sp.label}</span>
+                      <span className={`pm-badge2 ${sp.cls}`}>{sp.label}</span>
                     </td>
                   </tr>
                 );
@@ -296,7 +296,7 @@ export default function LeadsPage() {
         </div>
         <div className={styles.cards}>
           {data.leads.map((lead) => {
-            const sp = STATUS_PILL[lead.status] || { cls: "grey", label: lead.status };
+            const sp = STATUS_PILL[lead.status] || { cls: "bg-gray", label: lead.status };
             const fp = fitPill(lead.fit_score);
             const best = bestContact(lead);
             return (
@@ -308,21 +308,21 @@ export default function LeadsPage() {
                       {[lead.domain, lead.city].filter(Boolean).join(" · ") || "—"}
                     </div>
                   </div>
-                  <span className={`pill ${fp.cls}`}>fit {fp.label}</span>
+                  <span className={`pm-badge2 ${fp.cls}`}>fit {fp.label}</span>
                 </div>
                 {lead.fit_reason ? <div className={styles.cardReason}>{lead.fit_reason}</div> : null}
                 <div className={styles.cardFoot}>
                   {best ? (
                     <span className={styles.cardEmail}>
                       {best.email}{" "}
-                      <span className={`pill ${CONFIDENCE_PILL[best.confidence] ?? "grey"}`}>
+                      <span className={`pm-badge2 ${CONFIDENCE_PILL[best.confidence] ?? "bg-gray"}`}>
                         {best.confidence}
                       </span>
                     </span>
                   ) : (
                     <span className="muted" style={{ fontSize: 12 }}>no contact</span>
                   )}
-                  <span className={`pill ${sp.cls}`}>{sp.label}</span>
+                  <span className={`pm-badge2 ${sp.cls}`}>{sp.label}</span>
                 </div>
               </div>
             );
@@ -330,7 +330,7 @@ export default function LeadsPage() {
         </div>
         </>
       ) : (
-        <div className="card card-pad empty">
+        <div className="pm-empty">
           {loading
             ? "Loading…"
             : tab === "review"
@@ -370,11 +370,11 @@ export default function LeadsPage() {
 
 function Kpi({ label, value, accent }: { label: string; value: number | string; accent?: string }) {
   return (
-    <div className="kpi">
+    <div className="pm-kpi">
       <div className="muted" style={{ fontSize: 12 }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 600 }}>
         {value}
-        {accent ? <span className="pill accent" style={{ marginLeft: 8 }}>{accent}</span> : null}
+        {accent ? <span className="pm-badge2 bg-terra" style={{ marginLeft: 8 }}>{accent}</span> : null}
       </div>
     </div>
   );
@@ -427,15 +427,15 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (n:
       <div className={`card card-pad ${styles.modal} ${styles.modalMd}`} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div className="card-title">Find companies</div>
-          <button type="button" className="btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
+          <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
         </div>
         <div className="muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
           Each category × city pair is one Google Places search (up to 60 companies).
         </div>
         <div style={{ fontSize: 12.5, fontWeight: 600, margin: "10px 0 6px" }}>Categories</div>
-        <div className="chips" style={{ flexWrap: "wrap" }}>
+        <div className="pm-chips" style={{ flexWrap: "wrap" }}>
           {DEFAULT_CATEGORIES.map((c) => (
-            <button key={c} type="button" className={`chip${categories.includes(c) ? " active" : ""}`} onClick={() => toggle(categories, setCategories, c)}>
+            <button key={c} type="button" className={`pm-chip${categories.includes(c) ? " on" : ""}`} onClick={() => toggle(categories, setCategories, c)}>
               {c}
             </button>
           ))}
@@ -448,16 +448,16 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (n:
           onChange={(e) => setCustomCategory(e.target.value)}
         />
         <div style={{ fontSize: 12.5, fontWeight: 600, margin: "14px 0 6px" }}>Cities</div>
-        <div className="chips" style={{ flexWrap: "wrap" }}>
+        <div className="pm-chips" style={{ flexWrap: "wrap" }}>
           {DEFAULT_CITIES.map((c) => (
-            <button key={c} type="button" className={`chip${cities.includes(c) ? " active" : ""}`} onClick={() => toggle(cities, setCities, c)}>
+            <button key={c} type="button" className={`pm-chip${cities.includes(c) ? " on" : ""}`} onClick={() => toggle(cities, setCities, c)}>
               {c}
             </button>
           ))}
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
-          <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn" onClick={submit} disabled={busy}>
+          <button type="button" className="pm-btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="pm-btn" onClick={submit} disabled={busy}>
             <Search size={14} /> {busy ? "Queuing…" : "Queue searches"}
           </button>
         </div>
@@ -499,7 +499,7 @@ function SettingsModal({
       <div className={`card card-pad ${styles.modal} ${styles.modalSm}`} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div className="card-title">Outreach settings</div>
-          <button type="button" className="btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
+          <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
         </div>
         <label className="field">
           <span>Daily send cap (warm-up: raise weekly 15 → 30 → 50)</span>
@@ -526,8 +526,8 @@ function SettingsModal({
           <span>Pause all sends</span>
         </label>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-          <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+          <button type="button" className="pm-btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="pm-btn" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
         </div>
       </div>
     </div>
@@ -601,7 +601,7 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
           <div>
             <div className="card-title">
               {lead.name}{" "}
-              <span className={`pill ${fp.cls}`} title="ProMunch fit score (AI, 0–100)">fit {fp.label}</span>
+              <span className={`pm-badge2 ${fp.cls}`} title="ProMunch fit score (AI, 0–100)">fit {fp.label}</span>
             </div>
             <div className="muted" style={{ fontSize: 12.5 }}>
               {[lead.category, lead.city].filter(Boolean).join(" · ")}
@@ -616,7 +616,7 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
               <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>{lead.fit_reason}</div>
             ) : null}
           </div>
-          <button type="button" className="btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
+          <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
         </div>
         {lead.error ? (
           <div className="muted" style={{ fontSize: 12, color: "var(--amber)" }}>Last error: {lead.error}</div>
@@ -635,11 +635,11 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
                 <tr key={c.id}>
                   <td className="mono" style={{ fontSize: 12.5 }}>
                     {c.email}
-                    {c.is_primary ? <span className="pill green" style={{ marginLeft: 6 }}>primary</span> : null}
+                    {c.is_primary ? <span className="pm-badge2 bg-green" style={{ marginLeft: 6 }}>primary</span> : null}
                   </td>
                   <td className="muted">{c.role_hint ?? c.kind}</td>
                   <td className="muted">{c.verify_status}</td>
-                  <td><span className={`pill ${CONFIDENCE_PILL[c.confidence] ?? "grey"}`}>{c.confidence}</span></td>
+                  <td><span className={`pm-badge2 ${CONFIDENCE_PILL[c.confidence] ?? "bg-gray"}`}>{c.confidence}</span></td>
                   <td className="muted">
                     {c.source_url ? (
                       <a href={c.source_url} target="_blank" rel="noreferrer">{c.source}</a>
@@ -666,7 +666,7 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
           />
           <button
             type="button"
-            className="btn"
+            className="pm-btn"
             disabled={!newEmail.trim() || busy === "contact"}
             onClick={async () => {
               if (
@@ -704,18 +704,18 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
               onChange={(e) => setBodyText(e.target.value)}
             />
             <div className={styles.actionRow}>
-              <button type="button" className="btn" onClick={approveAndSend} disabled={busy !== null}>
+              <button type="button" className="pm-btn" onClick={approveAndSend} disabled={busy !== null}>
                 <Send size={14} /> {busy === "send" ? "Sending…" : "Approve & send"}
               </button>
               <button
-                type="button" className="btn"
+                type="button" className="pm-btn"
                 disabled={busy !== null}
                 onClick={() => call("regen", `/api/leads/${lead.id}/draft`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({}) })}
               >
                 <Sparkles size={14} /> Regenerate
               </button>
               <button
-                type="button" className="btn"
+                type="button" className="pm-btn"
                 disabled={busy !== null}
                 onClick={() => call("discard", `/api/leads/drafts/${activeDraft.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "discarded" }) })}
               >
@@ -736,7 +736,7 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
             </div>
             {sentDraft.status === "sent" ? (
               <button
-                type="button" className="btn" style={{ marginTop: 10 }}
+                type="button" className="pm-btn" style={{ marginTop: 10 }}
                 disabled={busy !== null}
                 onClick={() => call("replied", `/api/leads/drafts/${sentDraft.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "replied" }) })}
               >
@@ -748,7 +748,7 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <span className="muted" style={{ fontSize: 12.5 }}>No draft yet.</span>
             <button
-              type="button" className="btn"
+              type="button" className="pm-btn"
               disabled={busy !== null || !(lead.lead_contacts ?? []).some((c) => c.verify_status === "mx_ok")}
               onClick={() => call("draft", `/api/leads/${lead.id}/draft`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({}) })}
             >
@@ -759,7 +759,7 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
 
         <div style={{ borderTop: "1px solid var(--border, #eee)", marginTop: 18, paddingTop: 12, display: "flex", justifyContent: "flex-end" }}>
           <button
-            type="button" className="btn"
+            type="button" className="pm-btn"
             disabled={busy !== null || lead.status === "suppressed"}
             onClick={async () => {
               if (await call("suppress", `/api/leads/${lead.id}/suppress`, { method: "POST" })) {
