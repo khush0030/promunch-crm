@@ -87,7 +87,9 @@
       "Bash(grep -oE 'className=\\\\{`[^`]*`' src/app/dashboard/leads/page.tsx)",
       "Bash(perl -0pi -e ' *)",
       "Bash(grep -nE 'className=\"\\(pill|btn|tab|tabs|chip|chips\\) |className=\"\\(pill|btn|tabs|chips\\)\"|`\\(pill|tab|chip\\) ' src/app/dashboard/leads/page.tsx)",
-      "Bash(perl -0pi -e 's/className=\"kpi-grid\"/className=\"pm-kpis\"/g; s/className=\"kpi\"/className=\"pm-kpi\"/g;' src/app/dashboard/leads/page.tsx)"
+      "Bash(perl -0pi -e 's/className=\"kpi-grid\"/className=\"pm-kpis\"/g; s/className=\"kpi\"/className=\"pm-kpi\"/g;' src/app/dashboard/leads/page.tsx)",
+      "Bash(grep -nE 'className=\"\\(tbl|card|card-pad|cell-main|cell-sub|nm|muted\\)\"|`card ' src/app/dashboard/leads/page.tsx)",
+      "Bash(curl -s -o /dev/null -w \"login:%{http_code} root:\" http://localhost:3000/login)"
     ]
   }
 }
