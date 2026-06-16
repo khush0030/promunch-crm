@@ -68,8 +68,8 @@ type KbDoc = {
   created_at: string;
 };
 
-const BRAND = "var(--accent)";
-const BRAND_DARK = "#8B1539";
+const BRAND = "var(--pm-green)";
+const BRAND_DARK = "#2d5238";
 const WA_GREEN = "#25D366";
 
 /* Absolute send time for a chat bubble: clock time if today, e.g.
@@ -150,7 +150,7 @@ export default function WhatsAppPage() {
   const [tab, setTab] = useState<Tab>("inbox");
 
   return (
-    <div className="page">
+    <div className="pm-page">
       <Header />
       <StatusMeter />
       <Tabs tab={tab} onChange={setTab} />
@@ -167,10 +167,10 @@ export default function WhatsAppPage() {
 
 function Header() {
   return (
-    <div className="page-head">
+    <div className="pm-head">
       <div>
         <h1>WhatsApp</h1>
-        <div className="sub">Inbox, AI agent, templates &amp; tickets</div>
+        <p>Inbox, AI agent, templates &amp; tickets</p>
       </div>
     </div>
   );
@@ -289,12 +289,12 @@ function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
     { key: "kb", label: "Knowledge Base" },
   ];
   return (
-    <div className="tabs">
+    <div className="pm-tabs">
       {items.map((it) => (
         <button
           key={it.key}
           type="button"
-          className={`tab${tab === it.key ? " active" : ""}`}
+          className={`pm-tab${tab === it.key ? " on" : ""}`}
           onClick={() => onChange(it.key)}
         >
           {it.label}
@@ -397,7 +397,7 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
               return (
                 <button key={f.l}
                   type="button"
-                  className={`chip${active ? " active" : ""}`}
+                  className={`pm-chip${active ? " on" : ""}`}
                   onClick={() => (ticketsOnly ? setTicket(f.k) : setStatus(f.k))}
                   style={{
                     padding: isMobile ? "8px 14px" : "4px 10px",
