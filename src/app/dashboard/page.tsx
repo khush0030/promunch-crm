@@ -203,6 +203,27 @@ export default function DashboardPage() {
       .catch(() => {});
   }, []);
 
+  // Amazon gross sales (SP-API mirror) — feeds the "Amazon" and "all channels"
+  // revenue KPIs. The API caps finance events at 90 days, so "all" maps to d90.
+  const [amazonStats, setAmazonStats] = useState<{
+    gross: Record<string, number>;
+  } | null>(null);
+  useEffect(() => {
+    fetch("/api/amazon")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.ok && d.financials) setAmazonStats({
+          gross: {
+            today: d.financials.today?.gross ?? 0,
+            d7: d.financials.d7?.gross ?? 0,
+            d30: d.financials.d30?.gross ?? 0,
+            d90: d.financials.d90?.gross ?? 0,
+          },
+        });
+      })
+      .catch(() => {});
+  }, []);
+
   async function load(opts?: { silent?: boolean }) {
     if (!opts?.silent) setRefreshing(true);
     try {
@@ -356,7 +377,15 @@ export default function DashboardPage() {
   const statKey: Record<Period, string | null> = { today: "today", "7d": "d7", "30d": "d30", "90d": "d90", all: "all" };
   const liveRevenue = liveStats && statKey[period] ? liveStats.revenue[statKey[period]!] : null;
   const liveOrders = liveStats && statKey[period] ? liveStats.orders[statKey[period]!] : null;
-  const liveCustomers = liveStats?.customers ?? null;
+
+  // Amazon gross for the selected period. The API only carries 90 days, so 90d
+  // and "all" both read the d90 bucket (best available).
+  const amazonKey: Record<Period, string> = { today: "today", "7d": "d7", "30d": "d30", "90d": "d90", all: "d90" };
+  const amazonRevenue = amazonStats ? (amazonStats.gross[amazonKey[period]] ?? 0) : null;
+  // Shopify figure for the period (live mirror, else the orders-table KPI).
+  const shopifyRevenue = liveRevenue ?? kpis.revenue;
+  // Total across every connected channel.
+  const totalRevenue = shopifyRevenue + (amazonRevenue ?? 0);
 
   const activePct =
     listHealth && listHealth.total > 0 ? (listHealth.active / listHealth.total) * 100 : 0;
@@ -436,65 +465,42 @@ export default function DashboardPage() {
         )}
 
         <div className="kpi">
-          <div className="ico" style={{ background: "var(--blue-soft)" }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" strokeWidth="2">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
+          <div className="ico" style={{ background: "var(--amber-soft)" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" strokeWidth="2">
+              <path d="M3 6h18M3 12h18M3 18h18" />
             </svg>
           </div>
           <div className="label">
-            {liveCustomers != null ? "Customers" : "Active subscribers"} ·{" "}
-            <span className="muted">{liveCustomers != null ? "live · Shopify" : "now"}</span>
+            Amazon revenue ·{" "}
+            <span className="muted">{period === "all" || period === "90d" ? "last 90d" : period_label}</span>
           </div>
-          <div className="value">{(liveCustomers ?? kpis.activeSubscribers).toLocaleString("en-IN")}</div>
-          <div className={`delta ${liveCustomers != null || kpis.newSubscribers > 0 ? "up" : "flat"}`}>
-            {liveCustomers != null
-              ? "Exact, live from Shopify"
-              : kpis.newSubscribers > 0
-              ? `▲ ${kpis.newSubscribers.toLocaleString("en-IN")} new in ${period_label}`
-              : `No new in ${period_label}`}
+          <div className="value">{amazonRevenue != null ? inr(amazonRevenue) : "—"}</div>
+          <div className={`delta ${amazonRevenue && amazonRevenue > 0 ? "up" : "flat"}`}>
+            {amazonRevenue == null
+              ? "Loading…"
+              : amazonRevenue > 0
+              ? "Gross sales · SP-API"
+              : "No Amazon sales in range"}
           </div>
         </div>
 
         <div className="kpi">
-          <div className="ico" style={{ background: "var(--accent-soft)" }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2">
-              <rect x="3" y="5" width="18" height="14" rx="2" />
-              <path d="m3 7 9 6 9-6" />
+          <div className="ico" style={{ background: "var(--green-soft)" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2">
+              <path d="M3 3v18h18" />
+              <path d="m7 14 4-4 4 4 4-6" />
             </svg>
           </div>
           <div className="label">
-            Email open rate · <span className="muted">{period_label}</span>
+            Total revenue · <span className="muted">all channels · {period_label}</span>
           </div>
-          <div className="value">
-            {kpis.totalSent > 0 ? `${kpis.openRate.toFixed(1)}%` : "—"}
-          </div>
-          <div className={`delta ${kpis.totalSent > 0 ? "up" : "flat"}`}>
-            {kpis.totalSent > 0
-              ? `${kpis.totalSent.toLocaleString("en-IN")} email${kpis.totalSent === 1 ? "" : "s"} sent`
-              : "No campaigns sent in range"}
+          <div className="value">{inr(totalRevenue)}</div>
+          <div className={`delta ${totalRevenue > 0 ? "up" : "flat"}`}>
+            {totalRevenue > 0
+              ? `Shopify ${inr(shopifyRevenue)} + Amazon ${inr(amazonRevenue ?? 0)}`
+              : "No revenue in range"}
           </div>
         </div>
-
-        {hasOrders ? (
-          <div className="kpi">
-            <div className="ico" style={{ background: "var(--amber-soft)" }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" strokeWidth="2">
-                <path d="M3 17 9 11l4 4 8-8" />
-                <path d="M17 7h4v4" />
-              </svg>
-            </div>
-            <div className="label">
-              Flow revenue · <span className="muted">all time</span>
-            </div>
-            <div className="value">{inr(kpis.flowRevenue)}</div>
-            <div className={`delta ${kpis.flowRevenue > 0 ? "up" : "flat"}`}>
-              {kpis.flowRevenue > 0 ? "From active flows" : "No flow revenue yet"}
-            </div>
-          </div>
-        ) : (
-          <ConnectTile label="Flow revenue" />
-        )}
       </div>
 
       {/* Store totals + best sellers — live from Shopify */}
