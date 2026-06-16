@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, Send } from "lucide-react";
+import { RefreshCw, Send, Percent, AlertCircle, CircleCheck, Ban } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { PageHead, SectionLabel, KpiCard, DataTable, StatusBadge } from "@/components/pm";
+import type { Column, BadgeTone } from "@/components/pm";
 
 // Order-confirmation coverage. Shows every Shopify order in the window and
 // whether its WhatsApp "order confirmed!" message went out — so a miss is
@@ -36,13 +38,13 @@ type Data = {
   orders: Order[];
 };
 
-const STATUS_META: Record<OrderStatus, { pill: string; label: string }> = {
-  sent: { pill: "green", label: "Confirmed" },
-  missing: { pill: "amber", label: "Not sent" },
-  failed: { pill: "accent", label: "Failed" },
-  gave_up: { pill: "accent", label: "Gave up" },
-  no_phone: { pill: "grey", label: "No phone" },
-  cancelled: { pill: "grey", label: "Cancelled" },
+const STATUS_META: Record<OrderStatus, { tone: BadgeTone; label: string }> = {
+  sent: { tone: "green", label: "Confirmed" },
+  missing: { tone: "terra", label: "Missing" },
+  failed: { tone: "terra", label: "Failed" },
+  gave_up: { tone: "terra", label: "Gave up" },
+  no_phone: { tone: "gray", label: "Not eligible" },
+  cancelled: { tone: "gray", label: "Not eligible" },
 };
 
 const PERIODS: { h: number; label: string }[] = [
@@ -72,7 +74,7 @@ function money(n: number | null, cur: string | null): string {
 export default function OrderConfirmationsPage() {
   const toast = useToast();
   const [data, setData] = useState<Data | null>(null);
-  const [hours, setHours] = useState(24);
+  const [hours, setHours] = useState(720);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState<string | null>(null); // "all" | order_number
 
@@ -121,171 +123,117 @@ export default function OrderConfirmationsPage() {
 
   const s = data?.summary;
   const outstanding = (data?.orders ?? []).filter((o) => isOutstanding(o.status));
-  const coverageColor =
-    !s ? "var(--text)" : s.coveragePct >= 99 ? "var(--green)" : s.coveragePct >= 90 ? "var(--amber)" : "var(--accent)";
+  const eligible = s ? Math.max(s.total - s.cancelled - s.noPhone, 0) : 0;
+  const coverageLow = !!s && s.coveragePct < 50;
+
+  const columns: Column<Order>[] = [
+    { header: "Order", cell: (o) => <span className="pm-b7" style={{ whiteSpace: "nowrap" }}>{o.order_number}</span> },
+    {
+      header: "Customer",
+      cell: (o) => (
+        <div>
+          <div className="pm-b7">{o.customer_name || "—"}</div>
+          {o.phone && <div className="pm-dim" style={{ fontSize: 11 }}>{o.phone}</div>}
+        </div>
+      ),
+    },
+    { header: "Placed", cell: (o) => <span className="pm-dim" style={{ whiteSpace: "nowrap" }}>{timeAgo(o.created_at)}</span> },
+    { header: "Total", cell: (o) => <span className="pm-b7" style={{ whiteSpace: "nowrap" }}>{money(o.total, o.currency)}</span> },
+    {
+      header: "Confirmation",
+      cell: (o) => {
+        const meta = STATUS_META[o.status];
+        const can = isOutstanding(o.status);
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <StatusBadge tone={meta.tone} icon={o.status === "sent" ? <CircleCheck /> : undefined}>{meta.label}</StatusBadge>
+            {o.status === "sent" && o.confirmed_at && <span className="pm-dim" style={{ fontSize: 11 }}>{timeAgo(o.confirmed_at)}</span>}
+            {can && (
+              <button className="pm-btn ghost sm" onClick={() => send([o.order_number], o.order_number)} disabled={sending !== null}>
+                {sending === o.order_number ? "Sending…" : "Resend"}
+              </button>
+            )}
+            {o.detail && <div className="pm-dim" style={{ fontSize: 11, flexBasis: "100%" }}>{o.detail}</div>}
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Order Confirmations</h1>
-          <div className="sub">
+    <div className="pm-page">
+      <PageHead
+        title="Order Confirmations"
+        subtitle={
+          <>
             Every Shopify order &amp; whether its WhatsApp confirmation was sent
             {data ? ` · checked ${timeAgo(data.generatedAt)}` : ""}
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div className="chips">
-            {PERIODS.map((p) => (
-              <button
-                key={p.h}
-                type="button"
-                className={`chip${hours === p.h ? " active" : ""}`}
-                onClick={() => setHours(p.h)}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => send(outstanding.map((o) => o.order_number), "all")}
-            disabled={sending !== null || outstanding.length === 0}
-          >
-            <Send size={14} />
-            {sending === "all"
-              ? "Sending…"
-              : outstanding.length > 0
-              ? `Send all missing (${outstanding.length})`
-              : "All confirmed"}
-          </button>
-          <button type="button" className="btn" onClick={load} aria-label="Refresh">
-            <RefreshCw size={14} /> Refresh
-          </button>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            <div className="pm-ranges">
+              {PERIODS.map((p) => (
+                <button key={p.h} className={hours === p.h ? "on" : ""} onClick={() => setHours(p.h)}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <button
+              className="pm-btn primary"
+              onClick={() => send(outstanding.map((o) => o.order_number), "all")}
+              disabled={sending !== null || outstanding.length === 0}
+            >
+              <Send size={15} />
+              {sending === "all" ? "Sending…" : outstanding.length > 0 ? `Send all missing (${outstanding.length})` : "All confirmed"}
+            </button>
+            <button className="pm-btn ghost" onClick={load} aria-label="Refresh">
+              <RefreshCw size={15} /> Refresh
+            </button>
+          </>
+        }
+      />
 
       {loading && !data ? (
-        <div className="card card-pad muted">Loading confirmation coverage…</div>
+        <div className="pm-panel pm-dim">Loading confirmation coverage…</div>
       ) : !data || !s ? (
-        <div className="card card-pad muted">No coverage data.</div>
+        <div className="pm-panel pm-dim">No coverage data.</div>
       ) : (
         <>
-          <div className="kpi-grid section">
-            <div className="kpi">
-              <div className="ico" style={{ background: "var(--green-soft)" }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                  <path d="m9 11 3 3L22 4" />
-                </svg>
-              </div>
-              <div className="label">Coverage</div>
-              <div className="value" style={{ color: coverageColor }}>{s.coveragePct}%</div>
-              <div className="delta flat">{s.sent} of {Math.max(s.total - s.cancelled - s.noPhone, 0)} eligible orders</div>
-            </div>
-            <div className="kpi">
-              <div className="ico" style={{ background: s.outstanding > 0 ? "var(--accent-soft)" : "var(--green-soft)" }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke={s.outstanding > 0 ? "var(--accent)" : "var(--green)"} strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 8v4M12 16h.01" />
-                </svg>
-              </div>
-              <div className="label">Missing confirmation</div>
-              <div className="value" style={{ color: s.outstanding > 0 ? "var(--accent)" : "var(--green)" }}>
-                {s.outstanding}
-              </div>
-              <div className="delta flat">not sent / failed — needs a resend</div>
-            </div>
-            <div className="kpi">
-              <div className="ico" style={{ background: "var(--blue-soft)" }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" strokeWidth="2">
-                  <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 21l2-5.5a8.5 8.5 0 0 1 7.5-12 8.38 8.38 0 0 1 8.5 8z" />
-                </svg>
-              </div>
-              <div className="label">Confirmed</div>
-              <div className="value">{s.sent}</div>
-              <div className="delta flat">WhatsApp message delivered</div>
-            </div>
-            <div className="kpi">
-              <div className="ico" style={{ background: "var(--amber-soft)" }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M8 12h8" />
-                </svg>
-              </div>
-              <div className="label">Not eligible</div>
-              <div className="value">{s.noPhone + s.cancelled}</div>
-              <div className="delta flat">{s.noPhone} no phone · {s.cancelled} cancelled</div>
-            </div>
+          <div className="pm-kpis" style={{ marginBottom: 16 }}>
+            <KpiCard
+              label="Coverage"
+              value={`${s.coveragePct}%`}
+              icon={<Percent />}
+              tone={coverageLow ? "t" : "g"}
+              valueColor={coverageLow ? "var(--pm-terra)" : undefined}
+              sub={`${s.sent} of ${eligible} eligible orders`}
+            />
+            <KpiCard
+              label="Missing confirmation"
+              value={s.outstanding}
+              icon={<AlertCircle />}
+              tone="t"
+              valueColor={s.outstanding > 0 ? "var(--pm-terra)" : undefined}
+              sub="not sent / failed — needs resend"
+            />
+            <KpiCard label="Confirmed" value={s.sent} icon={<CircleCheck />} tone="g" sub="WhatsApp message delivered" />
+            <KpiCard
+              label="Not eligible"
+              value={s.noPhone + s.cancelled}
+              icon={<Ban />}
+              tone="b"
+              sub={`${s.noPhone} no phone · ${s.cancelled} cancelled`}
+            />
           </div>
 
-          <div className="card card-pad section">
-            <div className="card-title">Orders · last {data.hours >= 24 ? `${data.hours / 24}d` : `${data.hours}h`}</div>
-            <div className="card-sub">
-              {s.total} order{s.total === 1 ? "" : "s"} · auto-refreshes every 30s. Resend any row that slipped through.
-            </div>
-            {data.orders.length === 0 ? (
-              <div className="empty" style={{ marginTop: 14 }}>
-                No orders in this window.
-              </div>
-            ) : (
-              <table className="tbl" style={{ marginTop: 14 }}>
-                <thead>
-                  <tr>
-                    <th>Order</th>
-                    <th>Customer</th>
-                    <th>Placed</th>
-                    <th>Total</th>
-                    <th>Confirmation</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.orders.map((o) => {
-                    const meta = STATUS_META[o.status];
-                    const can = isOutstanding(o.status);
-                    return (
-                      <tr key={o.order_number}>
-                        <td style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{o.order_number}</td>
-                        <td>
-                          {o.customer_name || "—"}
-                          {o.phone && (
-                            <div className="muted" style={{ fontSize: 11 }}>{o.phone}</div>
-                          )}
-                        </td>
-                        <td className="muted" style={{ whiteSpace: "nowrap" }}>{timeAgo(o.created_at)}</td>
-                        <td style={{ whiteSpace: "nowrap" }}>{money(o.total, o.currency)}</td>
-                        <td>
-                          <span className={`pill ${meta.pill}`}>{meta.label}</span>
-                          {o.status === "sent" && o.confirmed_at && (
-                            <span className="muted" style={{ fontSize: 11, marginLeft: 6 }}>
-                              {timeAgo(o.confirmed_at)}
-                            </span>
-                          )}
-                          {o.detail && (
-                            <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{o.detail}</div>
-                          )}
-                        </td>
-                        <td style={{ textAlign: "right" }}>
-                          {can && (
-                            <button
-                              type="button"
-                              className="btn sm"
-                              onClick={() => send([o.order_number], o.order_number)}
-                              disabled={sending !== null}
-                            >
-                              {sending === o.order_number ? "Sending…" : "Resend"}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
+          <SectionLabel>Orders · last {data.hours >= 24 ? `${data.hours / 24}d` : `${data.hours}h`}</SectionLabel>
+          <DataTable
+            columns={columns}
+            rows={data.orders}
+            rowKey={(o) => o.order_number}
+            empty="No orders in this window."
+          />
         </>
       )}
     </div>
