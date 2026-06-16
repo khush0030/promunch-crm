@@ -2,7 +2,9 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Megaphone } from "lucide-react";
+import { PageHead, Tabs, FilterChips, DataTable, StatusBadge, EmptyState } from "@/components/pm";
+import type { Column, BadgeTone } from "@/components/pm";
 
 type CampaignRow = {
   id: string;
@@ -15,18 +17,16 @@ type CampaignRow = {
   date: string;
 };
 
-const statusPill: Record<string, { cls: string; label: string }> = {
-  sent: { cls: "green", label: "Sent" },
-  Sent: { cls: "green", label: "Sent" },
-  scheduled: { cls: "blue", label: "Scheduled" },
-  Scheduled: { cls: "blue", label: "Scheduled" },
-  draft: { cls: "grey", label: "Draft" },
-  Draft: { cls: "grey", label: "Draft" },
-  sending: { cls: "amber", label: "Sending" },
-  Sending: { cls: "amber", label: "Sending" },
-  paused: { cls: "amber", label: "Paused" },
-  Paused: { cls: "amber", label: "Paused" },
+const statusMeta: Record<string, { tone: BadgeTone; label: string }> = {
+  sent: { tone: "green", label: "Sent" },
+  scheduled: { tone: "blue", label: "Scheduled" },
+  draft: { tone: "gray", label: "Draft" },
+  sending: { tone: "gold", label: "Sending" },
+  paused: { tone: "gold", label: "Paused" },
 };
+function statusFor(s: string): { tone: BadgeTone; label: string } {
+  return statusMeta[s.toLowerCase()] || { tone: "gray", label: s };
+}
 
 const tabs = ["All", "Sent", "Scheduled", "Draft"];
 type SortKey = "date" | "revenue" | "openRate";
@@ -61,26 +61,14 @@ export default function CampaignsPage() {
         scheduled_at?: string;
         created_at?: string;
       }) => {
-        const openRate =
-          c.total_sent && c.total_sent > 0
-            ? parseFloat((((c.total_opened || 0) / c.total_sent) * 100).toFixed(1))
-            : 0;
-        const clickRate =
-          c.total_sent && c.total_sent > 0
-            ? parseFloat((((c.total_clicked || 0) / c.total_sent) * 100).toFixed(1))
-            : 0;
+        const openRate = c.total_sent && c.total_sent > 0 ? parseFloat((((c.total_opened || 0) / c.total_sent) * 100).toFixed(1)) : 0;
+        const clickRate = c.total_sent && c.total_sent > 0 ? parseFloat((((c.total_clicked || 0) / c.total_sent) * 100).toFixed(1)) : 0;
         const dateStr = c.sent_at || c.scheduled_at || c.created_at;
-        const date = dateStr
-          ? new Date(dateStr).toLocaleDateString("en-IN", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })
-          : "";
+        const date = dateStr ? new Date(dateStr).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
         return {
           id: c.id,
           name: c.name,
-          status: c.status.charAt(0).toUpperCase() + c.status.slice(1),
+          status: c.status,
           sent: c.total_sent || 0,
           openRate,
           clickRate,
@@ -107,123 +95,48 @@ export default function CampaignsPage() {
     return 0;
   });
 
-  return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Campaigns</h1>
-          <div className="sub">Manage and track your email campaigns</div>
-        </div>
-        <Link href="/dashboard/campaigns/new" className="btn primary">
-          <Plus size={14} /> Create campaign
-        </Link>
-      </div>
+  const columns: Column<CampaignRow>[] = [
+    { header: "Campaign", cell: (c) => <span className="pm-b7">{c.name}</span> },
+    { header: "Status", cell: (c) => { const sp = statusFor(c.status); return <StatusBadge tone={sp.tone}>{sp.label}</StatusBadge>; } },
+    { header: "Sent", cell: (c) => (c.sent > 0 ? c.sent.toLocaleString() : "—") },
+    { header: "Open", cell: (c) => (c.openRate > 0 ? `${c.openRate}%` : "—") },
+    { header: "Click", cell: (c) => (c.clickRate > 0 ? `${c.clickRate}%` : "—") },
+    { header: "Revenue", cell: (c) => (c.revenue > 0 ? <span className="pm-b7" style={{ color: "var(--pm-green)" }}>₹{c.revenue.toLocaleString()}</span> : <span className="pm-dim">—</span>) },
+    { header: "Date", cell: (c) => <span className="pm-dim">{c.date}</span> },
+  ];
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 18,
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <div className="tabs" style={{ marginBottom: 0, border: "none" }}>
-          {tabs.map((t) => (
-            <button
-              key={t}
-              type="button"
-              className={`tab${activeTab === t ? " active" : ""}`}
-              onClick={() => setActiveTab(t)}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--text-3)" }}>
+  return (
+    <div className="pm-page">
+      <PageHead
+        title="Campaigns"
+        subtitle="Manage and track your email campaigns"
+        actions={<Link href="/dashboard/campaigns/new" className="pm-btn primary"><Plus size={15} /> Create campaign</Link>}
+      />
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <Tabs tabs={tabs.map((t) => ({ key: t, label: t }))} active={activeTab} onSelect={setActiveTab} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--pm-hint)", marginBottom: 16 }}>
           Sort by
-          <div className="chips">
-            {(["date", "revenue", "openRate"] as SortKey[]).map((s) => (
-              <button
-                key={s}
-                type="button"
-                className={`chip${sortBy === s ? " active" : ""}`}
-                onClick={() => setSortBy(s)}
-              >
-                {s === "date" ? "Date" : s === "revenue" ? "Revenue" : "Open rate"}
-              </button>
-            ))}
-          </div>
+          <FilterChips
+            chips={[{ key: "date", label: "Date" }, { key: "revenue", label: "Revenue" }, { key: "openRate", label: "Open rate" }]}
+            active={sortBy}
+            onSelect={(k) => setSortBy(k as SortKey)}
+          />
         </div>
       </div>
 
       {filtered.length > 0 ? (
-        <div className="card" style={{ opacity: isLoading ? 0.7 : 1, transition: "opacity 0.2s" }}>
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Campaign</th>
-                <th>Status</th>
-                <th>Sent</th>
-                <th>Open</th>
-                <th>Click</th>
-                <th>Revenue</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((c) => {
-                const sp = statusPill[c.status] || { cls: "grey", label: c.status };
-                return (
-                  <tr
-                    key={c.id}
-                    className="clickable"
-                    onClick={() => router.push(`/dashboard/campaigns/${c.id}`)}
-                  >
-                    <td>
-                      <div className="cell-main">
-                        <span className="nm">{c.name}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`pill ${sp.cls}`}>{sp.label}</span>
-                    </td>
-                    <td className="num">{c.sent > 0 ? c.sent.toLocaleString() : "—"}</td>
-                    <td className="num">{c.openRate > 0 ? `${c.openRate}%` : "—"}</td>
-                    <td className="num">{c.clickRate > 0 ? `${c.clickRate}%` : "—"}</td>
-                    <td
-                      className="num"
-                      style={{
-                        color: c.revenue > 0 ? "var(--green)" : "var(--text-3)",
-                        fontWeight: c.revenue > 0 ? 500 : 400,
-                      }}
-                    >
-                      {c.revenue > 0 ? `₹${c.revenue.toLocaleString()}` : "—"}
-                    </td>
-                    <td className="muted">{c.date}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div style={{ opacity: isLoading ? 0.7 : 1, transition: "opacity 0.2s" }}>
+          <DataTable columns={columns} rows={filtered} rowKey={(c) => c.id} onRowClick={(c) => router.push(`/dashboard/campaigns/${c.id}`)} />
         </div>
       ) : (
-        <div className="empty">
-          <div className="ico">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="m3 11 18-5v12L3 14v-3z" />
-              <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
-            </svg>
-          </div>
-          <h3>{loaded ? "No campaigns yet" : "Loading…"}</h3>
-          {loaded && <p>Create your first campaign to start sending emails to your contacts and tracking revenue.</p>}
-          {loaded && (
-            <Link href="/dashboard/campaigns/new" className="btn primary">
-              <Plus size={14} /> Create campaign
-            </Link>
-          )}
-        </div>
+        <EmptyState
+          icon={<Megaphone />}
+          title={loaded ? "No campaigns yet" : "Loading…"}
+          cta={loaded ? <Link href="/dashboard/campaigns/new" className="pm-btn primary"><Plus size={15} /> Create campaign</Link> : undefined}
+        >
+          {loaded ? "Create your first campaign to start sending emails to your contacts and tracking revenue." : undefined}
+        </EmptyState>
       )}
     </div>
   );

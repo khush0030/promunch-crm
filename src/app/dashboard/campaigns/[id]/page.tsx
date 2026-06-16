@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, Send, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { PageHead, KpiCard, Panel, MiniBar, StatusBadge } from "@/components/pm";
+import type { BadgeTone } from "@/components/pm";
 
 type Campaign = {
   id: string;
@@ -26,26 +28,19 @@ type Campaign = {
   email_count?: number;
 };
 
-const statusPill: Record<string, { cls: string; label: string }> = {
-  draft: { cls: "grey", label: "Draft" },
-  scheduled: { cls: "blue", label: "Scheduled" },
-  sending: { cls: "amber", label: "Sending" },
-  sent: { cls: "green", label: "Sent" },
-  paused: { cls: "amber", label: "Paused" },
-  failed: { cls: "accent", label: "Failed" },
+const statusMeta: Record<string, { tone: BadgeTone; label: string }> = {
+  draft: { tone: "gray", label: "Draft" },
+  scheduled: { tone: "blue", label: "Scheduled" },
+  sending: { tone: "gold", label: "Sending" },
+  sent: { tone: "green", label: "Sent" },
+  paused: { tone: "gold", label: "Paused" },
+  failed: { tone: "terra", label: "Failed" },
 };
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
-
 function pct(num: number | null, den: number | null): string {
   if (!den || !num) return "0%";
   return ((num / den) * 100).toFixed(1) + "%";
@@ -103,27 +98,16 @@ export default function CampaignDetailPage() {
     }
   }
 
-  if (!loaded) {
-    return (
-      <div className="page">
-        <div className="muted">Loading…</div>
-      </div>
-    );
-  }
-  if (!campaign) {
-    return (
-      <div className="page">
-        <div className="muted">
-          Campaign not found.{" "}
-          <Link href="/dashboard/campaigns" style={{ color: "var(--accent)" }}>
-            Back
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  const backLink = (
+    <Link href="/dashboard/campaigns" className="more" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--pm-muted)", fontSize: 12 }}>
+      <ArrowLeft size={14} /> Back to campaigns
+    </Link>
+  );
 
-  const sp = statusPill[campaign.status] || statusPill.draft;
+  if (!loaded) return <div className="pm-page"><PageHead title="Campaign" subtitle="Loading…" /></div>;
+  if (!campaign) return <div className="pm-page"><PageHead back={backLink} title="Not found" subtitle="This campaign doesn’t exist." /></div>;
+
+  const sp = statusMeta[campaign.status] || statusMeta.draft;
   const sent = campaign.total_sent || 0;
   const opened = campaign.total_opened || 0;
   const clicked = campaign.total_clicked || 0;
@@ -134,149 +118,74 @@ export default function CampaignDetailPage() {
   const recipients = campaign.email_count || sent || 0;
 
   return (
-    <div className="page">
-      <Link
-        href="/dashboard/campaigns"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          color: "var(--text-2)",
-          fontSize: 13,
-          marginBottom: 16,
-        }}
-      >
-        <ChevronLeft size={14} /> Back to Campaigns
-      </Link>
+    <div className="pm-page">
+      <PageHead
+        back={backLink}
+        title={<span style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>{campaign.name} <StatusBadge tone={sp.tone}>{sp.label}</StatusBadge></span>}
+        subtitle={campaign.sent_at ? `Sent ${fmtDate(campaign.sent_at)}` : `Created ${fmtDate(campaign.created_at)}`}
+        actions={
+          <>
+            {campaign.status !== "sent" && (
+              <button className="pm-btn primary" onClick={handleSend} disabled={busy}><Send size={15} /> {busy ? "Sending…" : "Send now"}</button>
+            )}
+            <button className="pm-btn ghost" onClick={handleDelete} disabled={busy} style={{ color: "var(--pm-terra)" }}><Trash2 size={15} /> Delete</button>
+          </>
+        }
+      />
 
-      <div className="page-head">
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <h1>{campaign.name}</h1>
-            <span className={`pill ${sp.cls}`}>{sp.label}</span>
-          </div>
-          <div className="sub">
-            {campaign.sent_at ? `Sent ${fmtDate(campaign.sent_at)}` : `Created ${fmtDate(campaign.created_at)}`}
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {campaign.status !== "sent" && (
-            <button type="button" className="btn primary" onClick={handleSend} disabled={busy}>
-              <Send size={14} /> {busy ? "Sending…" : "Send now"}
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn"
-            onClick={handleDelete}
-            disabled={busy}
-            style={{ color: "var(--accent)", borderColor: "var(--accent-soft)" }}
-          >
-            <Trash2 size={14} /> Delete
-          </button>
-        </div>
+      <div className="pm-kpis">
+        <KpiCard label="Recipients" value={recipients.toLocaleString()} tone="b" />
+        <KpiCard label="Delivered" value={delivered.toLocaleString()} tone="g" sub={pct(delivered, sent)} />
+        <KpiCard label="Opened" value={opened.toLocaleString()} tone="o" sub={pct(opened, sent)} />
+        <KpiCard label="Clicked" value={clicked.toLocaleString()} tone="t" sub={pct(clicked, sent)} />
       </div>
 
-      <div className="kpi-grid">
-        <Stat label="Recipients" value={recipients.toLocaleString()} />
-        <Stat label="Delivered" value={delivered.toLocaleString()} sub={pct(delivered, sent)} />
-        <Stat label="Opened" value={opened.toLocaleString()} sub={pct(opened, sent)} />
-        <Stat label="Clicked" value={clicked.toLocaleString()} sub={pct(clicked, sent)} />
-      </div>
-
-      <div className="grid-2 section">
-        <div className="card card-pad">
-          <div className="card-title">Performance funnel</div>
+      <div className="pm-grid g-11" style={{ marginTop: 16 }}>
+        <Panel title="Performance funnel">
           {sent > 0 ? (
-            <div style={{ marginTop: 14 }}>
-              <Bar label="Sent" value={sent} max={sent} color="var(--blue)" />
-              <Bar label="Delivered" value={delivered} max={sent} color="var(--accent)" />
-              <Bar label="Opened" value={opened} max={sent} color="var(--amber)" />
-              <Bar label="Clicked" value={clicked} max={sent} color="var(--green)" />
+            <div style={{ marginTop: 4 }}>
+              <MiniBar label="Sent" value={sent.toLocaleString()} pct={100} color="var(--pm-blue)" />
+              <MiniBar label="Delivered" value={delivered.toLocaleString()} pct={sent ? (delivered / sent) * 100 : 0} color="var(--pm-green)" />
+              <MiniBar label="Opened" value={opened.toLocaleString()} pct={sent ? (opened / sent) * 100 : 0} color="var(--pm-gold)" />
+              <MiniBar label="Clicked" value={clicked.toLocaleString()} pct={sent ? (clicked / sent) * 100 : 0} color="var(--pm-terra)" />
             </div>
           ) : (
-            <div className="muted" style={{ padding: "32px 0", textAlign: "center", fontSize: 13 }}>
-              No sends yet
-            </div>
+            <div className="pm-dim" style={{ padding: "32px 0", textAlign: "center", fontSize: 13 }}>No sends yet</div>
           )}
-        </div>
+        </Panel>
 
-        <div className="card card-pad">
-          <div className="card-title">Health</div>
-          <div style={{ marginTop: 14 }}>
-            <Bar label="Bounced" value={bounced} max={sent || 1} color="var(--amber)" />
-            <Bar label="Unsubscribed" value={unsubscribed} max={sent || 1} color="var(--text-3)" />
-            <div className="stat-line" style={{ borderTop: "1px solid var(--border)", marginTop: 12 }}>
-              <span>Revenue attributed</span>
-              <span className="v" style={{ color: revenue > 0 ? "var(--green)" : "var(--text-3)" }}>
-                {revenue > 0 ? `₹${revenue.toLocaleString("en-IN")}` : "—"}
-              </span>
+        <Panel title="Health">
+          <div style={{ marginTop: 4 }}>
+            <MiniBar label="Bounced" value={bounced.toLocaleString()} pct={sent ? (bounced / sent) * 100 : 0} color="var(--pm-gold)" />
+            <MiniBar label="Unsubscribed" value={unsubscribed.toLocaleString()} pct={sent ? (unsubscribed / sent) * 100 : 0} color="var(--pm-hint)" />
+            <div className="pm-pill" style={{ borderTop: "1px solid var(--pm-line)", marginTop: 8 }}>
+              <span className="nm">Revenue attributed</span>
+              <span className="pm-b7" style={{ color: revenue > 0 ? "var(--pm-green)" : "var(--pm-hint)" }}>{revenue > 0 ? `₹${revenue.toLocaleString("en-IN")}` : "—"}</span>
             </div>
           </div>
-        </div>
+        </Panel>
       </div>
 
-      <div className="card card-pad">
-        <div className="card-title">Content</div>
-        <div className="meta-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+      <Panel title="Content" style={{ marginTop: 14 }}>
+        <div className="pm-frow" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div>
-            <div className="k">Subject</div>
-            <div className="v">{campaign.subject || "—"}</div>
+            <div className="pm-dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600, marginBottom: 4 }}>Subject</div>
+            <div style={{ fontSize: 13.5 }}>{campaign.subject || "—"}</div>
           </div>
           <div>
-            <div className="k">Preview</div>
-            <div className="v muted">{campaign.preview_text || "—"}</div>
+            <div className="pm-dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600, marginBottom: 4 }}>Preview</div>
+            <div className="pm-muted" style={{ fontSize: 13.5 }}>{campaign.preview_text || "—"}</div>
           </div>
         </div>
         {campaign.body_html ? (
           <div
-            style={{
-              marginTop: 18,
-              padding: 16,
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--hover)",
-              maxHeight: 400,
-              overflow: "auto",
-            }}
+            style={{ marginTop: 18, padding: 16, border: "1px solid var(--pm-line)", borderRadius: 10, background: "var(--pm-card2)", maxHeight: 400, overflow: "auto" }}
             dangerouslySetInnerHTML={{ __html: campaign.body_html }}
           />
         ) : (
-          <div className="muted" style={{ marginTop: 18, fontSize: 13 }}>
-            No HTML body yet.
-          </div>
+          <div className="pm-dim" style={{ marginTop: 18, fontSize: 13 }}>No HTML body yet.</div>
         )}
-      </div>
-    </div>
-  );
-}
-
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="kpi">
-      <div className="label">{label}</div>
-      <div className="value">{value}</div>
-      {sub && <div className="delta flat">{sub}</div>}
-    </div>
-  );
-}
-
-function Bar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
-  const w = max > 0 ? (value / max) * 100 : 0;
-  return (
-    <div style={{ padding: "8px 0" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
-        <span>{label}</span>
-        <span className="num" style={{ fontWeight: 500 }}>
-          {value.toLocaleString()}{" "}
-          <span className="muted" style={{ fontWeight: 400 }}>
-            ({w.toFixed(1)}%)
-          </span>
-        </span>
-      </div>
-      <div className="bar">
-        <i style={{ width: `${w}%`, background: color }} />
-      </div>
+      </Panel>
     </div>
   );
 }
