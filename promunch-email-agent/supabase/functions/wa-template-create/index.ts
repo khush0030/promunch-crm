@@ -57,9 +57,9 @@ const TEMPLATES: TemplateDef[] = [
     language: "en",
     category: "UTILITY",
     body:
-      "Hi {{1}}, your PROMUNCH order {{2}} is confirmed! 🎉\n\n" +
-      "Order total: {{3}}\n\n" +
-      "We'll message you the moment it ships. Thanks for snacking smart with PROMUNCH!",
+      "You're in, {{1}}! 🎉\n\n" +
+      "Order {{2}} is confirmed — total {{3}}. Our team is already packing your protein, and we'll ping you the second it ships.\n\n" +
+      "Welcome to the PROMUNCH family — happy munching!",
     bodyExample: ["Aarav", "#PM1042", "₹598"],
     footer: "PROMUNCH — snack smart",
   },
@@ -68,9 +68,9 @@ const TEMPLATES: TemplateDef[] = [
     language: "en",
     category: "UTILITY",
     body:
-      "Good news {{1}}! Your PROMUNCH order {{2}} has shipped 🚚\n\n" +
-      "Track it here:\n{{3}}\n\n" +
-      "Thanks for snacking smart with PROMUNCH!",
+      "It's on the way, {{1}}! 🚚\n\n" +
+      "Order {{2}} is packed, sealed and moving. Track it live:\n{{3}}\n\n" +
+      "Get the bowls ready — munch time soon!",
     bodyExample: ["Aarav", "#PM1042", "https://track.promunch.in/PM1042"],
     footer: "PROMUNCH — snack smart",
   },
@@ -83,8 +83,8 @@ const TEMPLATES: TemplateDef[] = [
     language: "en",
     category: "MARKETING",
     body:
-      "Hi {{1}}, you left some PROMUNCH goodies in your cart 🛒\n\n" +
-      "Complete your order before they sell out — tap below to pick up right where you left off!\n\n" +
+      "Hey {{1}}, you forgot something tasty 👀\n\n" +
+      "Your PROMUNCH picks are still sitting in the cart, waiting for you. Tap below to finish in seconds — right where you left off.\n\n" +
       "— Your Munchy Pal 💚",
     bodyExample: ["Aarav"],
     footer: "Reply STOP to opt out",
@@ -103,15 +103,15 @@ const TEMPLATES: TemplateDef[] = [
     language: "en",
     category: "MARKETING",
     body:
-      "Hi {{1}}, you left some PROMUNCH goodies in your cart 🛒\n\n" +
-      "We've applied a special discount for you — tap below to grab them before they sell out!\n\n" +
+      "Still thinking it over, {{1}}? Let's make it easy 😉\n\n" +
+      "We've unlocked a special discount on your cart — already applied, no code needed. Just tap below and it's done.\n\n" +
       "— Your Munchy Pal 💚",
     bodyExample: ["Aarav"],
     footer: "Reply STOP to opt out",
     button: {
       text: "Checkout Now",
       url: "https://promunch.in/{{1}}",
-      example: "https://promunch.in/discount/PROTEIN15?redirect=%2Fcart",
+      example: "https://promunch.in/discount/PROMUNCH10?redirect=%2Fcart",
     },
   },
   {
@@ -119,9 +119,9 @@ const TEMPLATES: TemplateDef[] = [
     language: "en",
     category: "MARKETING",
     body:
-      "Hi {{1}}, hope you're loving your PROMUNCH snacks! 💚\n\n" +
-      "Mind leaving a quick review? It really helps us:\n{{2}}\n\n" +
-      "Thanks a ton — your Munchy Pal, Team PROMUNCH 💚",
+      "Hey {{1}}! Have the snacks hit the spot yet? 😋\n\n" +
+      "If PROMUNCH made your munch-time better, a quick review would make our day — 30 seconds, promise:\n{{2}}\n\n" +
+      "— Your Munchy Pal 💚",
     bodyExample: ["Aarav", "https://promunch.in/reviews"],
     footer: "Reply STOP to opt out",
   },
@@ -130,9 +130,9 @@ const TEMPLATES: TemplateDef[] = [
     language: "en",
     category: "MARKETING",
     body:
-      "Running low, {{1}}? 🥜\n\n" +
-      "Restock your PROMUNCH favourites in a tap:\n{{2}}\n\n" +
-      "Happy munching — your Munchy Pal! 💚",
+      "Snack check, {{1}} — running low? 👀\n\n" +
+      "It's been about a month since your last PROMUNCH haul. Restock before the jar hits empty:\n{{2}}\n\n" +
+      "— Your Munchy Pal 💚",
     bodyExample: ["Aarav", "https://promunch.in"],
     footer: "Reply STOP to opt out",
   },

@@ -30,7 +30,13 @@ const MAX_TOOL_TURNS = 4;
 const SYSTEM_PROMPT =
   `You are the WhatsApp customer-support agent for PROMUNCH (a snack brand under Vippy Industries Limited — protein munchies, edamame snacks, "Your Munchy Pal").
 
-Channel: WhatsApp. Keep replies SHORT (1-4 sentences), warm, conversational, India-English. No long paragraphs.
+Channel: WhatsApp. Keep replies SHORT (1-4 sentences), warm, conversational. No long paragraphs.
+
+LANGUAGE: Reply in ENGLISH by default — clear, simple India-English. Only switch to Hindi/Hinglish if the customer clearly cannot follow English or explicitly asks; even then keep it simple. Do NOT mirror the customer into Hinglish just because they wrote one Hindi line.
+
+ONE MESSAGE PER TURN: Answer the whole conversation in a SINGLE message. Never split your answer across multiple sends. If the customer sent several messages in a row, read all of them and reply ONCE, covering everything.
+
+TONE — always patient, always kind: Customers may be confused, repetitive, or frustrated (e.g. about a charge they don't understand). NEVER be curt, dismissive or rude. Acknowledge their concern, explain calmly, and help them resolve it — even if they ask the same thing twice. If they point at something specific (a charge, a screenshot), address THAT exact thing using the knowledge base; don't deflect with a generic "team will follow up" when you can actually answer.
 
 BRAND VOICE: PROMUNCH is "Your Munchy Pal" — warm and friendly. Do NOT write the "Your Munchy Pal" sign-off tagline yourself; the system appends it automatically, and only on the opening greeting and the closing message. Never repeat it mid-conversation.
 
@@ -116,7 +122,7 @@ Deno.serve(async (req) => {
   // recent conversation context
   const { data: msgs } = await sb
     .from("wa_messages")
-    .select("direction,body,created_at,sent_by")
+    .select("id,direction,body,created_at,sent_by")
     .eq("thread_id", thread_id)
     .order("created_at", { ascending: false })
     .limit(12);
@@ -124,6 +130,15 @@ Deno.serve(async (req) => {
   const history = ordered
     .map((m) => `${m.direction === "inbound" ? "Customer" : "Agent"}: ${m.body ?? ""}`)
     .join("\n");
+
+  // NO-SPAM: the inbound turn this run is answering. Used right before we send
+  // to (a) bow out if a newer customer message arrived — a later run will reply
+  // to the fuller context (collapses a rapid-fire burst into ONE reply), and
+  // (b) take an atomic per-turn claim so a concurrent run or a wa-jobs-tick
+  // retry of an already-answered turn can never send a second time.
+  const answerInbound = [...ordered].reverse().find((m) => m.direction === "inbound") as
+    | { id: string; created_at: string }
+    | undefined;
 
   // resolve the message to answer — fall back to the latest inbound
   let latest = last_message;
@@ -266,7 +281,19 @@ Deno.serve(async (req) => {
   const isClosing = /\b(thanks|thank you|thank u|thx|tysm|bye|goodbye|see you|that'?s all|that'?s it|nothing else|all good|no that'?s all|cheers)\b/i.test(latest ?? "");
   if (isOpening || isClosing) replyText = `${replyText}\n\n${TAGLINE}`;
 
-  await callSend({
+  // ---- NO-SPAM: claim this turn before sending ----------------------------
+  // A missed reply is recoverable (a later run or the cron picks it up); a
+  // duplicate is not — it reads as spam. So bias toward NOT double-sending:
+  // bow out if a newer message arrived (a later run answers the full context)
+  // or if another run / retry already owns this turn.
+  const turn = await claimReplyTurn(sb, thread_id, answerInbound);
+  if (!turn.send) {
+    if (claimedAsk) { await releaseAsk(sb, claimedAsk.runId); claimedAsk = null; }
+    await markJobDone(job_id);
+    return j({ ok: true, action: "skipped", reason: turn.reason });
+  }
+
+  const sent = await callSend({
     thread_id,
     kind: "text",
     text: replyText,
@@ -274,6 +301,13 @@ Deno.serve(async (req) => {
     ai_generated: true,
     ai_meta: { model: MODEL, usage: lastUsage },
   });
+  if (sent?.ok === false) {
+    // release the claim so a retry can re-send, and surface the failure so
+    // wa-jobs-tick retries this turn rather than dropping the customer.
+    await releaseReplyTurn(sb, thread_id, answerInbound);
+    return j({ ok: false, error: sent.error ?? "send failed" }, 502);
+  }
+  await markReplyTurnSent(sb, thread_id, answerInbound);
 
   // Hand off ONLY when the customer explicitly asked for a human.
   // Raise a ticket when the AI flagged one — or, if the AI output was
@@ -301,11 +335,108 @@ async function markJobDone(jobId?: string | null) {
     .eq("id", jobId).then(() => {}, () => {});
 }
 
+// ---- NO-SPAM per-turn reply claim -----------------------------------------
+// Decide whether THIS run may send the reply for the current inbound turn.
+//   - a newer customer message arrived  -> bow out; a later run answers the
+//     fuller context (collapses a rapid-fire burst into ONE reply)
+//   - another run / a wa-jobs-tick retry already owns this exact turn -> bow out
+// Atomic via the claim_ai_reply RPC (mirrors claim_order_confirmation). If that
+// RPC isn't deployed yet it degrades to a read-based check so the bot keeps
+// working until the migration is applied.
+async function claimReplyTurn(
+  sb: any,
+  threadId: string,
+  inbound: { id: string; created_at: string } | undefined,
+): Promise<{ send: boolean; reason?: string }> {
+  if (!inbound) return { send: true }; // nothing to dedup against
+
+  const { data: newer } = await sb
+    .from("wa_messages").select("id")
+    .eq("thread_id", threadId).eq("direction", "inbound")
+    .gt("created_at", inbound.created_at).limit(1);
+  if (newer && newer.length) return { send: false, reason: "superseded" };
+
+  const { data: won, error } = await sb.rpc("claim_ai_reply", {
+    p_thread: threadId,
+    p_inbound: inbound.id,
+  });
+  if (!error) {
+    return won === true ? { send: true } : { send: false, reason: "claimed_elsewhere" };
+  }
+
+  // RPC not deployed yet — best-effort read fallback (not fully atomic).
+  const { data: replied } = await sb
+    .from("wa_messages").select("id")
+    .eq("thread_id", threadId).eq("direction", "outbound").eq("sent_by", "bot")
+    .gt("created_at", inbound.created_at).limit(1);
+  return replied && replied.length
+    ? { send: false, reason: "already_replied" }
+    : { send: true };
+}
+
+async function markReplyTurnSent(sb: any, threadId: string, inbound?: { id: string }) {
+  if (!inbound) return;
+  await sb.rpc("mark_ai_reply_sent", { p_thread: threadId, p_inbound: inbound.id })
+    .then(() => {}, () => {});
+}
+
+async function releaseReplyTurn(sb: any, threadId: string, inbound?: { id: string }) {
+  if (!inbound) return;
+  await sb.rpc("release_ai_reply", { p_thread: threadId, p_inbound: inbound.id })
+    .then(() => {}, () => {});
+}
+
+// Parse the model's final JSON decision — robustly. The model is told to emit
+// JSON only, but in practice it wraps it in ```json fences or (most often) puts
+// a literal newline inside the "reply" string, which is invalid JSON and used
+// to make JSON.parse throw → a false "AI output unparseable" ticket on a reply
+// that was actually fine. We try hard before giving up: strip fences, isolate
+// the object, repair the common breakage, and as a last resort pull the reply
+// text out directly so the customer is always answered.
 function parseDecision(s: string): any {
   if (!s) return null;
-  const m = s.match(/\{[\s\S]*\}/);
+  // strip ```json ... ``` / ``` ... ``` fences the model sometimes adds
+  let t = s.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  const open = t.indexOf("{");
+  const close = t.lastIndexOf("}");
+  if (open === -1 || close <= open) return looseReply(s);
+  const body = t.slice(open, close + 1);
+
+  return tryJson(body) ?? tryJson(repairJson(body)) ?? looseReply(body);
+}
+
+function tryJson(s: string): any {
+  try {
+    const o = JSON.parse(s);
+    return o && typeof o === "object" ? o : null;
+  } catch {
+    return null;
+  }
+}
+
+// Repair almost-JSON: escape raw newlines/tabs that sit INSIDE a string literal
+// (the model's #1 mistake — multi-line replies), then drop trailing commas.
+function repairJson(s: string): string {
+  let res = "";
+  let inStr = false, esc = false;
+  for (const ch of s) {
+    if (esc) { res += ch; esc = false; continue; }
+    if (ch === "\\") { res += ch; esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; res += ch; continue; }
+    if (inStr && (ch === "\n" || ch === "\r")) { res += "\\n"; continue; }
+    if (inStr && ch === "\t") { res += "\\t"; continue; }
+    res += ch;
+  }
+  return res.replace(/,\s*([}\]])/g, "$1");
+}
+
+// Last resort: pull just the "reply" out of broken output so we never go silent
+// and never raise a spurious "unparseable" ticket when a real reply was present.
+function looseReply(s: string): any {
+  const m = s.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
   if (!m) return null;
-  try { return JSON.parse(m[0]); } catch { return null; }
+  const reply = m[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  return { reply, handoff: /"handoff"\s*:\s*true/.test(s), ticket: null };
 }
 
 interface TicketInput {

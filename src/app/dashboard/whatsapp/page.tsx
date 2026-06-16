@@ -169,14 +169,7 @@ function Header() {
   return (
     <div className="page-head">
       <div>
-        <h1>
-          <span className="head-icon" style={{ background: "var(--green-soft)" }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="1.9">
-              <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 21l2-5.5a8.5 8.5 0 0 1 7.5-12 8.38 8.38 0 0 1 8.5 8z" />
-            </svg>
-          </span>
-          WhatsApp
-        </h1>
+        <h1>WhatsApp</h1>
         <div className="sub">Inbox, AI agent, templates &amp; tickets</div>
       </div>
     </div>
@@ -403,14 +396,13 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
               const active = ticketsOnly ? ticket === f.k : status === f.k;
               return (
                 <button key={f.l}
+                  type="button"
+                  className={`chip${active ? " active" : ""}`}
                   onClick={() => (ticketsOnly ? setTicket(f.k) : setStatus(f.k))}
                   style={{
                     padding: isMobile ? "8px 14px" : "4px 10px",
                     minHeight: isMobile ? 36 : undefined,
-                    borderRadius: 999, fontSize: isMobile ? 13 : 12, fontWeight: 600,
-                    border: "1px solid " + (active ? BRAND : "var(--border)"),
-                    background: active ? "rgba(185,28,74,0.08)" : "var(--card-bg)",
-                    color: active ? BRAND : "var(--text-2)", cursor: "pointer",
+                    fontSize: isMobile ? 13 : 12,
                   }}>{f.l}</button>
               );
             })}
@@ -453,7 +445,10 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
                     <Pill icon={TicketIcon} label={`#${t.ticket_number} ${ticketStatusStyle[t.ticket_status].label}`}
                       bg={ticketStatusStyle[t.ticket_status].bg} color={ticketStatusStyle[t.ticket_status].color} />
                   )}
-                  {t.ticket_priority && t.ticket_status !== "none" && (
+                  {/* Priority only when it actually demands attention — a
+                      "normal" pill on every row is noise. */}
+                  {t.ticket_priority && t.ticket_status !== "none" &&
+                    (t.ticket_priority === "high" || t.ticket_priority === "urgent") && (
                     <Pill icon={AlertTriangle} label={t.ticket_priority}
                       bg={priorityStyle[t.ticket_priority].bg} color={priorityStyle[t.ticket_priority].color} />
                   )}
@@ -554,9 +549,19 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
     return (
       <div style={{
         background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: 12,
-        display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-3)", fontSize: 14,
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        gap: 10, color: "var(--text-3)", fontSize: 13.5,
       }}>
-        Pick a conversation
+        <span style={{
+          width: 44, height: 44, borderRadius: 13, background: "var(--hover)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <Megaphone size={20} style={{ color: "var(--text-3)" }} />
+        </span>
+        <div style={{ fontWeight: 500, color: "var(--text-2)" }}>Pick a conversation</div>
+        <div style={{ fontSize: 12.5, maxWidth: 220, textAlign: "center" }}>
+          Select a chat on the left to read it, reply, or manage its ticket.
+        </div>
       </div>
     );
   }
@@ -661,7 +666,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
             </button>
           )}
         </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
           {(thread.ticket_status === "open" || thread.ticket_status === "pending") && (
             <button onClick={() => patch({ ticket_status: "resolved" })}
               title="Mark this ticket resolved"
@@ -674,28 +679,39 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
               <CheckCircle2 size={13} /> Resolve ticket
             </button>
           )}
-          <select value={thread.status} onChange={(e) => patch({ status: e.target.value as any })}
-            style={selectStyle}>
-            <option value="bot">Bot</option>
-            <option value="human">Human</option>
-            <option value="snoozed">Snoozed</option>
-            <option value="closed">Closed</option>
-          </select>
-          <select value={thread.ticket_status} onChange={(e) => patch({ ticket_status: e.target.value as any })}
-            style={selectStyle}>
-            <option value="none">No ticket</option>
-            <option value="open">Open</option>
-            <option value="pending">Pending</option>
-            <option value="resolved">Resolved</option>
-            <option value="closed">Closed</option>
-          </select>
-          <select value={thread.ticket_priority ?? "normal"} onChange={(e) => patch({ ticket_priority: e.target.value as any })}
-            style={selectStyle}>
-            <option value="low">Low</option>
-            <option value="normal">Normal</option>
-            <option value="high">High</option>
-            <option value="urgent">Urgent</option>
-          </select>
+          {/* Labeled controls — without the tiny caption the three dropdowns
+              read as mystery values ("Bot / Closed / Normal"). */}
+          <div className="ctl">
+            {!isMobile && <span>Handled by</span>}
+            <select aria-label="Handled by" value={thread.status} onChange={(e) => patch({ status: e.target.value as any })}
+              className="select">
+              <option value="bot">Bot</option>
+              <option value="human">Human</option>
+              <option value="snoozed">Snoozed</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div className="ctl">
+            {!isMobile && <span>Ticket</span>}
+            <select aria-label="Ticket status" value={thread.ticket_status} onChange={(e) => patch({ ticket_status: e.target.value as any })}
+              className="select">
+              <option value="none">No ticket</option>
+              <option value="open">Open</option>
+              <option value="pending">Pending</option>
+              <option value="resolved">Resolved</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div className="ctl">
+            {!isMobile && <span>Priority</span>}
+            <select aria-label="Ticket priority" value={thread.ticket_priority ?? "normal"} onChange={(e) => patch({ ticket_priority: e.target.value as any })}
+              className="select">
+              <option value="low">Low</option>
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -762,8 +778,12 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
             enterKeyHint="send"
             style={{
               flex: 1, minWidth: 0, minHeight: 44, padding: "10px 14px", borderRadius: 10,
-              border: "1px solid var(--border)", outline: "none", fontSize: 16,
+              border: "1px solid var(--border)", outline: "none",
+              fontSize: isMobile ? 16 : 13.5, /* 16 on mobile prevents iOS zoom */
+              background: "var(--hover)", transition: "background .14s, border-color .14s",
             }}
+            onFocus={(e) => { e.currentTarget.style.background = "var(--card-bg)"; e.currentTarget.style.borderColor = "var(--accent)"; }}
+            onBlur={(e) => { e.currentTarget.style.background = "var(--hover)"; e.currentTarget.style.borderColor = "var(--border)"; }}
           />
           <button disabled={!text.trim() || sending} onClick={() => send("text")} aria-label="Send message"
             style={{
@@ -779,11 +799,6 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
     </div>
   );
 }
-
-const selectStyle: React.CSSProperties = {
-  padding: "6px 8px", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12,
-  background: "var(--card-bg)", color: "var(--text)", outline: "none",
-};
 
 /* ----------------------------------------------------------------- */
 /* CUSTOMER PANEL — CRM context for the open conversation             */

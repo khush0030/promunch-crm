@@ -18,7 +18,7 @@
 import { db } from "../_shared/supabase.ts";
 import { listHistory } from "../_shared/gmail.ts";
 import { processIncomingMessage } from "../_shared/process-email.ts";
-import { logConnector } from "../_shared/connector-log.ts";
+import { logConnector, errStr } from "../_shared/connector-log.ts";
 
 const MAILBOX = Deno.env.get("MAILBOX_EMAIL") ?? "hello@promunch.in";
 const PUBSUB_TOKEN = Deno.env.get("PUBSUB_VERIFICATION_TOKEN") ?? "";
@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
         if (result.status === "processed") processed++;
         else skipped++;
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = errStr(e);
         console.error(`Failed to process message ${id}:`, e);
         // Continue — one bad message shouldn't block the batch.
         // A 404 just means the message was deleted/moved before we fetched it
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
   } catch (e) {
     // history.list can 404 if startHistoryId is too old. Fall back to
     // using the notification's historyId so the next push starts fresh.
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errStr(e);
     console.error("listHistory failed, resetting cursor:", e);
     newestHistoryId = notification.historyId;
     await logConnector({

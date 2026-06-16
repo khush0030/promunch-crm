@@ -29,6 +29,18 @@ function ageHours(iso: string | null | undefined): number | null {
   return (Date.now() - new Date(iso).getTime()) / 3_600_000;
 }
 
+// Edge functions sometimes log a stringified object ("[object Object]") or raw
+// stack traces as the event message. Never surface those to the team — show a
+// human sentence instead. The raw message stays in the event log for debugging.
+function humanize(msg: string | null | undefined, fallback: string): string {
+  if (!msg) return fallback;
+  const m = msg.trim();
+  if (m.includes("[object Object]") || m.length < 4) return fallback;
+  // Long stack-trace-looking payloads aren't headlines either.
+  if (m.length > 160 || /\bat\s+\w+\s*\(/.test(m)) return fallback;
+  return m;
+}
+
 // Generic status from a connector's recent events (newest first).
 //
 // Recovery-aware: a connector is judged by its CURRENT state, not its history.
@@ -131,7 +143,10 @@ export async function GET() {
     }
     // If unhealthy for a reason other than watch expiry, show the real error.
     if (err && !watchExpired && (status === "down" || status === "degraded")) {
-      headline = err.message || headline;
+      headline = humanize(
+        err.message,
+        "Email intake hit an error while processing a message — it will retry automatically. Re-auth Gmail if this persists."
+      );
     }
     connectors.push({
       id: "gmail_pipeline",
@@ -174,7 +189,7 @@ export async function GET() {
         "OpenAI API is out of credits — emails are still delivered to Slack without a draft. Top up at platform.openai.com.";
     } else if (ev[0]?.level === "error") {
       status = "down";
-      headline = err?.message || "AI drafting is failing.";
+      headline = humanize(err?.message, "AI drafting is failing — replies still reach Slack without a draft.");
     }
     connectors.push({
       id: "anthropic",
@@ -196,7 +211,7 @@ export async function GET() {
     let headline = "Support emails are posting to Slack.";
     if (status === "unknown")
       headline = "No support emails have been posted to Slack in the last 7 days.";
-    if (status === "down") headline = err?.message || "Failed to post emails to Slack.";
+    if (status === "down") headline = humanize(err?.message, "Failed to post emails to Slack.");
     // The "posted without a draft" signal is a WARN, not an error — it means
     // drafting was down when the email arrived. Those emails auto-retry, so the
     // backlog (failedDrafts) is the live truth. If nothing is awaiting a draft,
@@ -230,7 +245,7 @@ export async function GET() {
     const status = statusFromEvents(ev);
     const err = lastError("shopify_slack");
     let headline = "Shopify order alerts are posting to Slack.";
-    if (status === "down") headline = err?.message || "Failed to post Shopify orders to Slack.";
+    if (status === "down") headline = humanize(err?.message, "Failed to post Shopify orders to Slack.");
     else if (status === "unknown")
       headline = "No order webhooks received yet — waiting for the first Shopify order.";
     connectors.push({

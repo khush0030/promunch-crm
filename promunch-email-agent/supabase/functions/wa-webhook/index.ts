@@ -5,7 +5,7 @@
 
 import { db } from "../_shared/supabase.ts";
 import { verifySignature, downloadMedia, markRead } from "../_shared/whatsapp.ts";
-import { logConnector, alertWaSendFailure } from "../_shared/connector-log.ts";
+import { logConnector, alertWaSendFailure, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
 
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const WA_MEDIA_BUCKET = Deno.env.get("WA_MEDIA_BUCKET") ?? "wa-media";
@@ -365,6 +365,51 @@ async function handleFieldEvent(field: string, value: any) {
         message: `Meta ${field}: ${JSON.stringify(value ?? {}).slice(0, 220)}`,
         detail: value,
       });
+    } else if (field === "calls") {
+      // WhatsApp Business Calling. This number is on the Cloud API, so there is
+      // no WhatsApp app ringing anywhere — an unanswered call just terminates.
+      // We don't answer calls (no WebRTC/SIP backend); we surface them so a
+      // human can call/message the customer back. One Slack ping per call event.
+      const calls: any[] = Array.isArray(value?.calls) ? value.calls : [];
+      const channel = slackChannelFor("whatsapp");
+      for (const c of calls) {
+        const from = c?.from ?? "?";
+        const ev = String(c?.event ?? "").toLowerCase();        // connect | terminate
+        const dir = String(c?.direction ?? "").toUpperCase();   // USER_INITIATED | BUSINESS_INITIATED
+        const inbound = dir !== "BUSINESS_INITIATED";
+        const dur = typeof c?.duration === "number" ? c.duration : null;
+        const stat = c?.status ?? null;
+
+        await logConnector({
+          connector: "whatsapp",
+          level: inbound && ev === "connect" ? "warn" : "info",
+          event: `call_${ev || "event"}`,
+          message: `WhatsApp call ${ev || "event"} ${inbound ? "from" : "to"} ${from}` +
+            (dur != null ? ` (${dur}s)` : "") + (stat ? ` · ${stat}` : ""),
+          detail: c,
+        });
+
+        // Only ping Slack for an inbound ring — outbound + terminate are noise.
+        if (inbound && ev === "connect" && channel) {
+          await postSlack(
+            channel,
+            `:telephone_receiver: *Incoming WhatsApp call* from \`${from}\`\n` +
+            `No app is connected to answer it (number is on the Cloud API), so the call won't ring anywhere — ` +
+            `*call or message them back* from the dashboard. ` +
+            `<https://wa.me/${String(from).replace(/[^0-9]/g, "")}|Open chat>`,
+          ).catch(() => {});
+        }
+      }
+      if (calls.length === 0) {
+        // permission grants / unknown call sub-shapes — log raw so nothing is lost
+        await logConnector({
+          connector: "whatsapp",
+          level: "info",
+          event: "call_field",
+          message: `WhatsApp 'calls' webhook (no calls[] array): ${JSON.stringify(value ?? {}).slice(0, 220)}`,
+          detail: value,
+        });
+      }
     } else if (field === "user_preferences") {
       // opt-out via the STOP keyword is handled on inbound messages; log here
       await logConnector({

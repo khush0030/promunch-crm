@@ -135,12 +135,12 @@ export default function OrderConfirmationsPage() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ display: "flex", gap: 4 }}>
+          <div className="chips">
             {PERIODS.map((p) => (
               <button
                 key={p.h}
                 type="button"
-                className={`tab${hours === p.h ? " active" : ""}`}
+                className={`chip${hours === p.h ? " active" : ""}`}
                 onClick={() => setHours(p.h)}
               >
                 {p.label}
@@ -174,11 +174,23 @@ export default function OrderConfirmationsPage() {
         <>
           <div className="kpi-grid section">
             <div className="kpi">
+              <div className="ico" style={{ background: "var(--green-soft)" }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <path d="m9 11 3 3L22 4" />
+                </svg>
+              </div>
               <div className="label">Coverage</div>
               <div className="value" style={{ color: coverageColor }}>{s.coveragePct}%</div>
               <div className="delta flat">{s.sent} of {Math.max(s.total - s.cancelled - s.noPhone, 0)} eligible orders</div>
             </div>
             <div className="kpi">
+              <div className="ico" style={{ background: s.outstanding > 0 ? "var(--accent-soft)" : "var(--green-soft)" }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke={s.outstanding > 0 ? "var(--accent)" : "var(--green)"} strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 8v4M12 16h.01" />
+                </svg>
+              </div>
               <div className="label">Missing confirmation</div>
               <div className="value" style={{ color: s.outstanding > 0 ? "var(--accent)" : "var(--green)" }}>
                 {s.outstanding}
@@ -186,11 +198,22 @@ export default function OrderConfirmationsPage() {
               <div className="delta flat">not sent / failed — needs a resend</div>
             </div>
             <div className="kpi">
+              <div className="ico" style={{ background: "var(--blue-soft)" }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" strokeWidth="2">
+                  <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 21l2-5.5a8.5 8.5 0 0 1 7.5-12 8.38 8.38 0 0 1 8.5 8z" />
+                </svg>
+              </div>
               <div className="label">Confirmed</div>
               <div className="value">{s.sent}</div>
               <div className="delta flat">WhatsApp message delivered</div>
             </div>
             <div className="kpi">
+              <div className="ico" style={{ background: "var(--amber-soft)" }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M8 12h8" />
+                </svg>
+              </div>
               <div className="label">Not eligible</div>
               <div className="value">{s.noPhone + s.cancelled}</div>
               <div className="delta flat">{s.noPhone} no phone · {s.cancelled} cancelled</div>
@@ -248,7 +271,7 @@ export default function OrderConfirmationsPage() {
                           {can && (
                             <button
                               type="button"
-                              className="btn btn-sm"
+                              className="btn sm"
                               onClick={() => send([o.order_number], o.order_number)}
                               disabled={sending !== null}
                             >

@@ -190,7 +190,9 @@ export default function IntegrationsPage() {
                     >
                       <b>Last error · {timeAgo(c.lastError.at)}</b>
                       <div style={{ marginTop: 2, color: "var(--text-2)" }}>
-                        {c.lastError.message}
+                        {c.lastError.message && !c.lastError.message.includes("[object Object]")
+                          ? c.lastError.message
+                          : "The connector logged an unreadable error payload — check the event log below for details."}
                       </div>
                     </div>
                   )}

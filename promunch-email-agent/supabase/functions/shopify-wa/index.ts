@@ -180,9 +180,9 @@ async function handleCheckout(checkout: any) {
     message: `Cart ${token}: recovery link from ${noteUrl ? "note" : (checkout.abandoned_checkout_url ? "shopify_url" : "fallback")}.`,
     ref: token,
   }).catch(() => {});
-  const cartValue = Number(checkout.total_price ?? checkout.total_line_items_price ?? 0);
-  // coupon routing by cart value (per the knowledge base) — real Shopify codes
-  const code = cartValue >= 499 ? "PROTEIN15" : "PROMUNCH10";
+  // PROMUNCH10 (10% off on orders ₹399+) is the ONLY live code — PROTEIN15 was
+  // discontinued 2026-06. Always link this coupon in the recovery message.
+  const code = "PROMUNCH10";
 
   // Both templates carry a dynamic URL button: base https://promunch.in/{{1}}.
   // We fill {{1}} with a path suffix that gets appended to that base.
@@ -198,7 +198,7 @@ async function handleCheckout(checkout: any) {
     { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: reminderSuffix }] },
   ];
 
-  // Steps 2 & 3 (recovery, WITH coupon): {{1}} is a Shopify discount link —
+  // Step 2 (recovery, WITH coupon): {{1}} is a Shopify discount link —
   // /discount/<code>?redirect=<recovery checkout> — so tapping it applies the
   // coupon AND drops the customer on their own cart, discount already on.
   const discountSuffix = `discount/${code}?redirect=${encodeURIComponent(recoverPath)}`;
@@ -207,18 +207,19 @@ async function handleCheckout(checkout: any) {
     { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: discountSuffix }] },
   ];
 
-  // 3-message sequence within the first 24h:
+  // 2-message sequence within the first 6h — NO duplicate sends:
   //   +1h  reminder, no coupon (just the checkout link)
-  //   +6h  10%/15% coupon — only if they haven't ordered by then
-  //   +24h coupon again — final nudge
+  //   +6h  PROMUNCH10 coupon — only if they haven't ordered by then
+  // We used to fire a THIRD touch at +24h that re-sent the SAME recovery
+  // template verbatim. Two identical "special discount" messages read as spam
+  // and break the no-double-message invariant, so that step was removed.
   // Each step carries its own template name in context (wa-journey-tick reads
   // context.template, falling back to the journey default). The whole sequence
   // stops early once the customer orders: orders/create flips active runs to
   // 'converted', so they never get a nudge after buying.
   const steps = [
-    { h: 1,  template: "abandoned_cart_reminder", components: reminderComponents },
-    { h: 6,  template: "abandoned_cart_recovery", components: discountComponents },
-    { h: 24, template: "abandoned_cart_recovery", components: discountComponents },
+    { h: 1, template: "abandoned_cart_reminder", components: reminderComponents },
+    { h: 6, template: "abandoned_cart_recovery", components: discountComponents },
   ];
   const rows = steps.map((s) => ({
     journey_key: "abandoned_checkout",
@@ -233,49 +234,20 @@ async function handleCheckout(checkout: any) {
 
 // --- tracking link resolution ----------------------------------------------
 //
-// Shopify's fulfillment.tracking_url is unreliable: for some carriers
-// (Xpressbees, Shadowfax, Shree Maruti) it's just the carrier HOMEPAGE with no
-// AWB — e.g. "https://www.xpressbees.com/track" — so the customer can't
-// actually track anything. We saw exactly that go out for orders #2053/#2054.
+// We have NO trusted carrier tracking feed yet (Shree Maruti API integration is
+// still pending). Shopify's fulfillment.tracking_url and guessed carrier deep
+// links both proved unreliable: for some carriers the URL is just the carrier
+// HOMEPAGE with no AWB, and a constructed Amazon link
+// (track.amazon.com/tracking/<awb>) went out for order #2056 and did not
+// resolve to a real shipment.
 //
-// Strategy, best → safe fallback:
-//   1. Trust Shopify's URL only if it actually contains the AWB (a real deep link).
-//   2. Else build a deep link ourselves from AWB + carrier, for carriers whose
-//      URL format is stable and known.
-//   3. Else use Shopify's order-status page — always valid, always shows the
-//      live carrier + tracking number. NEVER send a bare carrier homepage.
-//   4. Last resort: the site. (order_status_url is almost always present.)
-function resolveTrackingUrl(f: any, order: any): string {
-  const awb = String(f?.tracking_number ?? f?.tracking_numbers?.[0] ?? "").trim();
-  const company = String(f?.tracking_company ?? "");
-  const rawUrl = String(f?.tracking_url ?? f?.tracking_urls?.[0] ?? "").trim();
-
-  // 1. Shopify's URL already carries the AWB → it's a genuine deep link.
-  if (awb && rawUrl && rawUrl.includes(awb)) return rawUrl;
-  // 2. Build a known-carrier deep link from the AWB.
-  if (awb) {
-    const built = carrierTrackingUrl(company, awb);
-    if (built) return built;
-  }
-  // 3. Bare homepage / no AWB → Shopify's order status page (always valid).
+// Policy until a carrier API is wired up: ALWAYS send the Shopify order-status
+// page. It is always valid and automatically surfaces the live carrier + AWB
+// once the courier scans the parcel — so the customer can always track, and we
+// never ship a broken or guessed link again.
+function resolveTrackingUrl(_f: any, order: any): string {
   const statusUrl = String(order?.order_status_url ?? "").trim();
-  if (statusUrl) return statusUrl;
-  // 4. Last resort.
-  return rawUrl || SITE_URL;
-}
-
-// Deep-link templates for carriers whose format is stable. Conservative on
-// purpose: an unknown carrier returns "" so the caller falls back to the
-// Shopify order-status page rather than to a guessed (possibly broken) URL.
-function carrierTrackingUrl(company: string, awb: string): string {
-  const c = company.toLowerCase();
-  const id = encodeURIComponent(awb);
-  if (c.includes("delhivery")) return `https://www.delhivery.com/track/package/${id}`;
-  if (c.includes("xpressbee")) return `https://www.xpressbees.com/shipment/tracking?awbNo=${id}`;
-  if (c.includes("bluedart") || c.includes("blue dart")) return `https://www.bluedart.com/web/guest/trackdartresult?trackFor=0&trackNo=${id}`;
-  if (c.includes("amazon")) return `https://track.amazon.com/tracking/${id}`;
-  if (c.includes("ekart")) return `https://ekartlogistics.com/shipmenttrack/${id}`;
-  return "";
+  return statusUrl || SITE_URL;
 }
 
 // --- helpers ----------------------------------------------------------------

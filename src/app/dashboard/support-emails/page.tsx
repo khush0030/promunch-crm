@@ -109,15 +109,7 @@ export default function SupportEmailsPage() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>
-            <span className="head-icon" style={{ background: "var(--accent-soft)" }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.9">
-                <rect x="3" y="5" width="18" height="14" rx="2" />
-                <path d="m3 7 9 6 9-6" />
-              </svg>
-            </span>
-            Customer Support Emails
-          </h1>
+          <h1>Support Emails</h1>
           <div className="sub">
             Inbox replies handled by the Slack approval bot · {total.toLocaleString("en-IN")} threads
           </div>
@@ -166,7 +158,10 @@ export default function SupportEmailsPage() {
         >
           <span style={{ fontSize: 12, color: "var(--text-3)", fontWeight: 500 }}>Category</span>
           <div className="chips">
-            {facets.categories.map((c) => (
+            {[...facets.categories]
+              .sort((a, b) => b.count - a.count)
+              .slice(0, 7)
+              .map((c) => (
               <button
                 key={c.name}
                 type="button"
@@ -178,8 +173,37 @@ export default function SupportEmailsPage() {
                 }}
               >
                 {categoryLabel[c.name] || c.name}
+                <span style={{ opacity: 0.6, marginLeft: 4 }}>{c.count}</span>
               </button>
             ))}
+            {facets.categories.length > 7 && (
+              <select
+                aria-label="More categories"
+                className="select"
+                value={
+                  [...facets.categories]
+                    .sort((a, b) => b.count - a.count)
+                    .slice(7)
+                    .some((c) => c.name === category)
+                    ? category
+                    : ""
+                }
+                onChange={(e) => {
+                  setCategory(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">More…</option>
+                {[...facets.categories]
+                  .sort((a, b) => b.count - a.count)
+                  .slice(7)
+                  .map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {categoryLabel[c.name] || c.name} ({c.count})
+                    </option>
+                  ))}
+              </select>
+            )}
           </div>
         </div>
       )}
@@ -193,7 +217,6 @@ export default function SupportEmailsPage() {
                 <th>Subject</th>
                 <th>Category</th>
                 <th>Urgency</th>
-                <th>Score</th>
                 <th>Status</th>
                 <th>Received</th>
               </tr>
@@ -258,9 +281,10 @@ export default function SupportEmailsPage() {
                         <span className="muted">—</span>
                       )}
                     </td>
-                    <td className="num">{t.score != null ? t.score : <span className="muted">—</span>}</td>
                     <td>
-                      <span className={`pill ${st.cls}`}>{st.label}</span>
+                      <span className={`pill ${st.cls}`} title={t.score != null ? `AI lead score: ${t.score}` : undefined}>
+                        {st.label}
+                      </span>
                     </td>
                     <td className="muted">{timeAgo(t.created_at)}</td>
                   </tr>

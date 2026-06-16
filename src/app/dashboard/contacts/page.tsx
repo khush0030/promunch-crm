@@ -107,7 +107,9 @@ export default function ContactsPage() {
         name: [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email.split("@")[0],
         email: c.email,
         orders: c.total_orders || 0,
-        ltv: c.total_spent ? `₹${parseFloat(String(c.total_spent)).toFixed(2)}` : "₹0",
+        ltv: c.total_spent
+          ? `₹${parseFloat(String(c.total_spent)).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
+          : "₹0",
         lastOrder: c.last_purchase_date
           ? new Date(c.last_purchase_date).toLocaleDateString("en-IN", {
               day: "numeric",
@@ -377,7 +379,7 @@ export default function ContactsPage() {
       )}
 
       {showFilters && (
-        <div className="card card-pad section" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr) auto", gap: 12, alignItems: "end" }}>
+        <div className="card card-pad section filter-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr) auto", gap: 12, alignItems: "end" }}>
           <div className="field">
             <label>Min orders</label>
             <input
@@ -454,14 +456,20 @@ export default function ContactsPage() {
 
       {contacts.length > 0 ? (
         <div className="card" style={{ opacity: isLoading ? 0.7 : 1, transition: "opacity 0.2s" }}>
+          {/* Order columns are noise while every cell reads 0 — they appear
+              automatically once any contact in view has a real order. */}
           <table className="tbl">
             <thead>
               <tr>
                 <th>Name</th>
                 <th>Email</th>
-                <th>Orders</th>
-                <th>Lifetime value</th>
-                <th>Last order</th>
+                {contacts.some((c) => c.orders > 0) && (
+                  <>
+                    <th>Orders</th>
+                    <th>Lifetime value</th>
+                    <th>Last order</th>
+                  </>
+                )}
                 <th>Status</th>
                 <th>Lists &amp; Segments</th>
               </tr>
@@ -469,6 +477,7 @@ export default function ContactsPage() {
             <tbody>
               {contacts.map((c) => {
                 const sp = statusPill[c.status] || { cls: "grey", label: c.status };
+                const showOrderCols = contacts.some((x) => x.orders > 0);
                 return (
                   <tr
                     key={c.id}
@@ -482,17 +491,21 @@ export default function ContactsPage() {
                       </div>
                     </td>
                     <td className="muted">{c.email}</td>
-                    <td className="num">{c.orders}</td>
-                    <td
-                      className="num"
-                      style={{
-                        color: c.orders > 0 ? "var(--green)" : "var(--text-3)",
-                        fontWeight: c.orders > 0 ? 500 : 400,
-                      }}
-                    >
-                      {c.ltv}
-                    </td>
-                    <td className="muted">{c.lastOrder || "—"}</td>
+                    {showOrderCols && (
+                      <>
+                        <td className="num">{c.orders}</td>
+                        <td
+                          className="num"
+                          style={{
+                            color: c.orders > 0 ? "var(--green)" : "var(--text-3)",
+                            fontWeight: c.orders > 0 ? 500 : 400,
+                          }}
+                        >
+                          {c.ltv}
+                        </td>
+                        <td className="muted">{c.lastOrder || "—"}</td>
+                      </>
+                    )}
                     <td>
                       <span className={`pill ${sp.cls}`}>
                         <span className="dot" style={{ background: `var(--${sp.cls === "grey" ? "text-3" : sp.cls})` }} />

@@ -19,6 +19,22 @@ export type ConnectorId =
 
 export type ConnectorLevel = "info" | "warn" | "error";
 
+// Turn any thrown value into a readable string. Critically handles Supabase/
+// Postgrest error objects ({message, code, details, hint}) which are PLAIN
+// objects, not Error instances — String() renders them as "[object Object]",
+// swallowing the real cause. Use this instead of `String(e)` everywhere.
+export function errStr(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  if (e && typeof e === "object") {
+    const o = e as Record<string, unknown>;
+    const parts = [o.message, o.code, o.details, o.hint].filter(Boolean);
+    if (parts.length) return parts.join(" | ");
+    try { return JSON.stringify(e); } catch { /* fall through */ }
+  }
+  return String(e);
+}
+
 export interface ConnectorEventInput {
   connector: ConnectorId;
   level: ConnectorLevel;

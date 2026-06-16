@@ -345,6 +345,46 @@ textarea.input { resize: vertical; min-height: 80px; }
 .meta-grid .v { font-size: 13.5px; font-weight: 450; }
 .muted { color: var(--text-3); }
 
+/* ============ MOTION & FOCUS (global smoothness) ============ */
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.page { animation: pageIn 0.22s ease both; }
+
+.btn { transition: background 0.14s, border-color 0.14s, transform 0.1s, box-shadow 0.14s; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.chip { transition: background 0.14s, color 0.14s, border-color 0.14s; }
+.tab { transition: color 0.14s, border-color 0.14s; }
+.nav-item { transition: background 0.14s, color 0.14s; }
+.input, .search { transition: border-color 0.14s, background 0.14s, box-shadow 0.14s; }
+.input:focus { box-shadow: 0 0 0 3px var(--accent-soft); }
+.search:focus-within { border-color: var(--accent); background: var(--card-bg); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+.btn:focus-visible, .chip:focus-visible, .tab:focus-visible, .nav-item:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page { animation: none; }
+  * { transition-duration: 0.01ms !important; }
+}
+
+/* ============ SELECT (labeled control) ============ */
+.select {
+  font-family: inherit; font-size: 12.5px; color: var(--text);
+  padding: 6px 9px; border: 1px solid var(--border-2); border-radius: var(--radius-sm);
+  background: var(--card-bg); outline: none; cursor: pointer;
+  transition: border-color 0.14s, box-shadow 0.14s;
+}
+.select:hover { border-color: var(--border-2); background: var(--hover); }
+.select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.ctl { display: flex; flex-direction: column; gap: 3px; }
+.ctl > span {
+  font-size: 10px; color: var(--text-3); font-weight: 500;
+  letter-spacing: 0.05em; text-transform: uppercase; line-height: 1;
+}
+
 /* ============ MOBILE ============ */
 .mobile-header { display: none; }
 @media (max-width: 768px) {
@@ -362,6 +402,14 @@ textarea.input { resize: vertical; min-height: 80px; }
   .mobile-header button { background: none; border: none; color: var(--text-2); padding: 6px; }
   .main { padding-top: 56px; }
   .page { padding: 16px; }
+  .page-head { flex-direction: column; gap: 12px; }
   .kpi-grid { grid-template-columns: 1fr 1fr; }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .meta-grid { grid-template-columns: 1fr 1fr; gap: 14px; }
+  .health-grid { grid-template-columns: 1fr; }
+  /* Wide tables: swipe horizontally instead of clipping/squashing columns.
+     Scoped to the table so card popovers/dropdowns are never clipped. */
+  .tbl { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+  /* Inline filter grids (can't be reached by class otherwise) stack to 2-up */
+  .filter-grid { grid-template-columns: 1fr 1fr !important; }
 }

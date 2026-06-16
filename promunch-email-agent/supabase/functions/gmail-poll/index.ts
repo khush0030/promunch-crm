@@ -12,7 +12,7 @@
 
 import { listUnreadInbox } from "../_shared/gmail.ts";
 import { processIncomingMessage } from "../_shared/process-email.ts";
-import { logConnector } from "../_shared/connector-log.ts";
+import { logConnector, errStr } from "../_shared/connector-log.ts";
 
 Deno.serve(async (_req) => {
   let processed = 0;
@@ -27,7 +27,7 @@ Deno.serve(async (_req) => {
         if (r.status === "processed") processed++;
         else skipped++;
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = errStr(e);
         errors.push(`${m.id}: ${msg}`);
         console.error(`Poll failed for ${m.id}:`, e);
         // A 404 just means the message was deleted/moved before we fetched it
@@ -55,7 +55,7 @@ Deno.serve(async (_req) => {
       throttleMinutes: 55, // ~hourly heartbeat, not every 2-minute run
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errStr(e);
     console.error("Poll run failed:", e);
     await logConnector({
       connector: "gmail_pipeline",

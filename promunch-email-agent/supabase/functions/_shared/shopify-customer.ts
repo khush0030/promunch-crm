@@ -157,10 +157,43 @@ function phoneQueryVariants(phone: string | null): string[] {
 // Find an existing customer id by phone, then email. Used when customerSet says
 // the identifier is "already taken" — the buyer exists (often with a slightly
 // different phone format), so we just need their id to link the order.
-async function findCustomerId(
+//
+// RETRY REQUIRED (root cause of the recurring #2092/#2100 false alarms):
+// Shopify's uniqueness check is strongly consistent but its lookup/search index
+// is NOT. orders/create and orders/updated land seconds apart; delivery #1
+// creates the customer, delivery #2 trips "already been taken" while the brand
+// new record is still invisible to search. One immediate lookup therefore
+// misses and we Slack-alerted a failure that heals itself moments later. We
+// retry with backoff (≈7s worst case, conflict path only) so the index can
+// catch up; only a miss after all attempts is a real failure worth alerting.
+const LOOKUP_DELAYS_MS = [0, 2000, 5000];
+
+async function findCustomerIdOnce(
   phone: string | null,
   email: string | null,
 ): Promise<string | null> {
+  // customerByIdentifier hits the identity record directly — exact match on
+  // the same identifier customerSet keys on. Try it before the search API.
+  if (phone) {
+    try {
+      const j = await adminGraphQL(
+        `query($id: CustomerIdentifierInput!){ customerByIdentifier(identifier:$id){ id } }`,
+        { id: { phoneNumber: phone } },
+      );
+      const id = j?.data?.customerByIdentifier?.id;
+      if (id) return id;
+    } catch (_e) { /* fall through to search */ }
+  }
+  if (email) {
+    try {
+      const j = await adminGraphQL(
+        `query($id: CustomerIdentifierInput!){ customerByIdentifier(identifier:$id){ id } }`,
+        { id: { emailAddress: email } },
+      );
+      const id = j?.data?.customerByIdentifier?.id;
+      if (id) return id;
+    } catch (_e) { /* fall through to search */ }
+  }
   const queries: string[] = [...phoneQueryVariants(phone)];
   if (email) queries.push(`email:${JSON.stringify(email)}`);
   for (const q of queries) {
@@ -172,6 +205,18 @@ async function findCustomerId(
       const id = j?.data?.customers?.nodes?.[0]?.id;
       if (id) return id;
     } catch (_e) { /* try next identifier */ }
+  }
+  return null;
+}
+
+async function findCustomerId(
+  phone: string | null,
+  email: string | null,
+): Promise<string | null> {
+  for (const delay of LOOKUP_DELAYS_MS) {
+    if (delay) await new Promise((r) => setTimeout(r, delay));
+    const id = await findCustomerIdOnce(phone, email);
+    if (id) return id;
   }
   return null;
 }
@@ -231,31 +276,61 @@ export async function upsertShopifyCustomerFromOrder(
     }];
   }
 
-  const res = await fetch(
-    `https://${domain}/admin/api/${API_VERSION}/graphql.json`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Access-Token": token,
+  // One customerSet round-trip. Returns the customer id on success, or the
+  // userErrors string on failure so the caller can decide whether to degrade.
+  const send = async (
+    body: Record<string, unknown>,
+  ): Promise<{ ok: true; id: string | null } | { ok: false; msg: string }> => {
+    const res = await fetch(
+      `https://${domain}/admin/api/${API_VERSION}/graphql.json`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": token,
+        },
+        body: JSON.stringify({ query: MUT, variables: { identifier, input: body } }),
       },
-      body: JSON.stringify({ query: MUT, variables: { identifier, input } }),
-    },
-  );
-  const json = await res.json().catch(() => null) as any;
-  const errs = json?.data?.customerSet?.userErrors ?? json?.errors;
-  if (!res.ok || (Array.isArray(errs) && errs.length)) {
-    const msg = JSON.stringify(errs ?? json);
-    // "Phone/Email has already been taken" => the customer already exists (often
-    // a phone-format mismatch). That's success for our purpose: look them up so
-    // the order still gets linked, and don't surface a false-alarm failure.
-    if (/already been taken/i.test(msg)) {
-      const existing = await findCustomerId(phone, email);
-      if (existing) return { ok: true, id: existing };
+    );
+    const json = await res.json().catch(() => null) as any;
+    const errs = json?.data?.customerSet?.userErrors ?? json?.errors;
+    if (!res.ok || (Array.isArray(errs) && errs.length)) {
+      return { ok: false, msg: JSON.stringify(errs ?? json) };
     }
-    return { ok: false, reason: msg.slice(0, 300) };
+    return { ok: true, id: json?.data?.customerSet?.customer?.id ?? null };
+  };
+
+  let attempt = await send(input);
+
+  // The address is a nice-to-have (it just fills the order's Customer panel);
+  // it must never block the upsert. Shopify rejects the whole customer when a
+  // province/zip/address value isn't one it recognizes for the country — common
+  // with HYPD/marketplace orders that send free-text provinces. Degrade the
+  // address rather than fail: first drop the province, then drop the address.
+  if (!attempt.ok && /province|zip|address|country/i.test(attempt.msg) && input.addresses) {
+    const addrs = input.addresses as Array<Record<string, unknown>>;
+    // 1) retry with province stripped (the usual culprit)
+    attempt = await send({
+      ...input,
+      addresses: addrs.map(({ province, ...rest }) => rest),
+    });
+    // 2) still failing on the address -> drop it entirely, keep the customer
+    if (!attempt.ok && /province|zip|address|country/i.test(attempt.msg)) {
+      const { addresses: _omit, ...noAddr } = input;
+      attempt = await send(noAddr);
+    }
   }
-  return { ok: true, id: json?.data?.customerSet?.customer?.id ?? null };
+
+  if (attempt.ok) return { ok: true, id: attempt.id };
+
+  // "Phone/Email has already been taken" => the customer already exists (often
+  // a phone-format mismatch). That's success for our purpose: look them up so
+  // the order still gets linked, and don't surface a false-alarm failure.
+  if (/already been taken/i.test(attempt.msg)) {
+    const existing = await findCustomerId(phone, email);
+    if (existing) return { ok: true, id: existing };
+  }
+  return { ok: false, reason: attempt.msg.slice(0, 300) };
 }
 
 // Link an EXISTING order to a customer record. This is what makes the buyer
