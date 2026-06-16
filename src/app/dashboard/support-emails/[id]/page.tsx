@@ -2,7 +2,22 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Mail, MessageSquare, CheckCircle2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ExternalLink,
+  Mail,
+  Sparkles,
+  Send,
+  RefreshCw,
+  Pencil,
+  User,
+  Bot,
+  Briefcase,
+  CheckCircle2,
+  MessageSquare,
+} from "lucide-react";
+import { PageHead, Panel, StatusBadge } from "@/components/pm";
+import type { BadgeTone } from "@/components/pm";
 
 type Thread = {
   id: string;
@@ -41,20 +56,18 @@ type Sent = {
   sent_at: string;
 };
 
-const statusPill: Record<string, { cls: string; label: string }> = {
-  pending: { cls: "amber", label: "Pending Approval" },
-  sent: { cls: "green", label: "Sent" },
-  skipped: { cls: "grey", label: "Skipped" },
-  failed: { cls: "accent", label: "Failed" },
+const statusMeta: Record<string, { tone: BadgeTone; label: string }> = {
+  pending: { tone: "gold", label: "Pending" },
+  sent: { tone: "green", label: "Sent" },
+  skipped: { tone: "gray", label: "Skipped" },
+  failed: { tone: "terra", label: "Failed" },
 };
-
-const urgencyPill: Record<string, { cls: string; label: string }> = {
-  critical: { cls: "accent", label: "Critical" },
-  high: { cls: "amber", label: "High" },
-  medium: { cls: "blue", label: "Medium" },
-  low: { cls: "grey", label: "Low" },
+const urgencyLabel: Record<string, string> = {
+  critical: "Critical",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
 };
-
 const categoryLabel: Record<string, string> = {
   customer_support: "Customer Support",
   order_tracking: "Order Tracking",
@@ -74,6 +87,21 @@ function fmtDate(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+function timeAgo(iso: string): string {
+  const sec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (sec < 3600) return `${Math.max(1, Math.floor(sec / 60))}m ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+  return `${Math.floor(sec / 86400)}d ago`;
+}
+function domainOf(email: string): string {
+  const at = email.lastIndexOf("@");
+  return at >= 0 ? email.slice(at + 1) : email;
+}
+function isToday(iso: string): boolean {
+  const d = new Date(iso);
+  const n = new Date();
+  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
 }
 
 export default function SupportEmailDetail() {
@@ -103,292 +131,182 @@ export default function SupportEmailDetail() {
 
   if (!loaded)
     return (
-      <div className="page">
-        <div className="muted">Loading…</div>
+      <div className="pm-page">
+        <PageHead title="Support email" subtitle="Loading…" />
       </div>
     );
-  if (notFound) {
+  if (notFound)
     return (
-      <div className="page">
-        <div className="muted">
-          Thread not found.{" "}
-          <Link href="/dashboard/support-emails" style={{ color: "var(--accent)" }}>
-            Back to inbox
-          </Link>
-        </div>
+      <div className="pm-page">
+        <PageHead
+          title="Not found"
+          subtitle={<>This thread doesn’t exist. <Link href="/dashboard/support-emails" style={{ color: "var(--pm-green)" }}>Back to inbox</Link></>}
+        />
       </div>
     );
-  }
   if (!thread) return null;
 
-  const st = statusPill[thread.status] || statusPill.pending;
-  const urg = thread.urgency ? urgencyPill[thread.urgency] : null;
+  const st = statusMeta[thread.status] || statusMeta.pending;
+  const currentDraft = drafts.find((d) => d.is_current) || drafts[0] || null;
+  const olderDrafts = drafts.filter((d) => d !== currentDraft);
+  const slack = thread.slack_permalink;
 
   return (
-    <div className="page" style={{ maxWidth: 960 }}>
-      <Link
-        href="/dashboard/support-emails"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          fontSize: 13,
-          color: "var(--text-2)",
-          marginBottom: 16,
-        }}
-      >
-        <ArrowLeft size={14} /> Back to inbox
-      </Link>
-
-      <div className="card card-pad section">
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 16,
-            marginBottom: 16,
-          }}
-        >
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.015em", marginBottom: 6 }}>
-              {thread.subject || "(no subject)"}
-            </h1>
-            <div style={{ fontSize: 13, color: "var(--text-2)" }}>
-              From <strong style={{ color: "var(--text)" }}>{thread.from_name || thread.from_email}</strong>
-              {thread.from_name && <span className="muted"> · {thread.from_email}</span>}
-            </div>
-            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-              Received {fmtDate(thread.created_at)}
-            </div>
-          </div>
-          <span className={`pill ${st.cls}`}>{st.label}</span>
-        </div>
-
-        {(thread.lead_category || urg || thread.score != null) && (
-          <div
-            style={{
-              display: "flex",
-              gap: 18,
-              flexWrap: "wrap",
-              paddingTop: 14,
-              borderTop: "1px solid var(--border)",
-            }}
+    <div className="pm-page">
+      <PageHead
+        back={
+          <Link
+            href="/dashboard/support-emails"
+            className="more"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--pm-muted)", fontSize: 12 }}
           >
-            {thread.lead_category && (
-              <ChipMeta label="Category" value={categoryLabel[thread.lead_category] || thread.lead_category} />
-            )}
-            {urg && (
-              <ChipMeta label="Urgency">
-                <span className={`pill ${urg.cls}`}>{urg.label}</span>
-              </ChipMeta>
-            )}
-            {thread.score != null && <ChipMeta label="Lead Score" value={`${thread.score} / 10`} />}
-          </div>
-        )}
-        {thread.classification_meta?.rationale && (
-          <div className="note" style={{ marginTop: 14 }}>
-            {thread.classification_meta.rationale}
-          </div>
-        )}
-      </div>
+            <ArrowLeft size={14} /> Back to inbox
+          </Link>
+        }
+        title={thread.subject || "(no subject)"}
+        subtitle={`From ${thread.from_name || thread.from_email} · ${thread.from_email} · received ${timeAgo(thread.created_at)}`}
+        actions={<StatusBadge tone={st.tone}>{st.label}</StatusBadge>}
+      />
 
-      <Section icon={<Mail size={16} color="var(--accent)" />} title="Incoming Email">
-        {thread.body_plain ? (
-          <pre
-            style={{
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              fontFamily: "inherit",
-              fontSize: 13,
-              color: "var(--text)",
-              lineHeight: 1.6,
-              margin: 0,
-            }}
-          >
-            {thread.body_plain}
-          </pre>
-        ) : (
-          thread.snippet && <div style={{ fontSize: 13, color: "var(--text-2)" }}>{thread.snippet}</div>
-        )}
-      </Section>
-
-      <Section
-        icon={<MessageSquare size={16} color="var(--blue)" />}
-        title={`Draft Revisions (${drafts.length})`}
-      >
-        {drafts.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {drafts.map((d) => (
-              <div
-                key={d.id}
-                style={{
-                  border: d.is_current ? "1px solid var(--accent)" : "1px solid var(--border)",
-                  background: d.is_current ? "var(--accent-soft)" : "var(--hover)",
-                  borderRadius: "var(--radius-sm)",
-                  padding: 14,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 8,
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>v{d.revision}</span>
-                    {d.is_current && <span className="pill accent">Current</span>}
-                    {d.model && <span className="muted" style={{ fontSize: 11 }}>{d.model}</span>}
-                  </div>
-                  <span className="muted" style={{ fontSize: 11 }}>
-                    {fmtDate(d.created_at)}
-                  </span>
+      <div className="pm-grid g-2-1">
+        {/* LEFT */}
+        <div>
+          <Panel style={{ marginBottom: 14 }}>
+            <div className="pm-emailmeta">
+              {thread.lead_category && (
+                <div className="m">
+                  <div className="k">Category</div>
+                  <div className="v">{categoryLabel[thread.lead_category] || thread.lead_category}</div>
                 </div>
-                {d.feedback && (
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "var(--text-2)",
-                      marginBottom: 8,
-                      paddingLeft: 10,
-                      borderLeft: "2px solid var(--border-2)",
-                    }}
-                  >
-                    Feedback: {d.feedback}
-                  </div>
+              )}
+              {thread.urgency && (
+                <div className="m">
+                  <div className="k">Urgency</div>
+                  <div className="v">{urgencyLabel[thread.urgency] || thread.urgency}</div>
+                </div>
+              )}
+              {thread.score != null && (
+                <div className="m">
+                  <div className="k">Lead score</div>
+                  <div className="v">{thread.score} / 10</div>
+                </div>
+              )}
+            </div>
+            {thread.classification_meta?.rationale && (
+              <div style={{ background: "var(--pm-card2)", border: "1px solid var(--pm-line)", borderRadius: 10, padding: "12px 14px", fontSize: 13, color: "var(--pm-muted)" }}>
+                {thread.classification_meta.rationale}
+              </div>
+            )}
+          </Panel>
+
+          <Panel title="Incoming email" icon={<Mail className="tic" />} style={{ marginBottom: 14 }}>
+            {thread.body_plain ? (
+              <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit", fontSize: 13.5, color: "var(--pm-ink)", lineHeight: 1.6, margin: 0 }}>
+                {thread.body_plain}
+              </pre>
+            ) : thread.snippet ? (
+              <div style={{ fontSize: 13.5, color: "var(--pm-muted)" }}>{thread.snippet}</div>
+            ) : (
+              <div className="pm-dim" style={{ fontSize: 13 }}>No body captured.</div>
+            )}
+          </Panel>
+
+          {currentDraft && (
+            <Panel
+              title="AI-drafted reply"
+              icon={<Sparkles className="tic" />}
+              more={currentDraft.revision > 1 ? `v${currentDraft.revision} · regenerated` : `v${currentDraft.revision}`}
+              style={{ marginBottom: 14 }}
+            >
+              <div className="pm-draftbox">{currentDraft.body}</div>
+              <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+                {slack ? (
+                  <>
+                    <a className="pm-btn primary" href={slack} target="_blank" rel="noreferrer"><Send size={15} /> Send reply</a>
+                    <a className="pm-btn" href={slack} target="_blank" rel="noreferrer"><RefreshCw size={15} /> Rewrite</a>
+                    <a className="pm-btn ghost" href={slack} target="_blank" rel="noreferrer"><Pencil size={15} /> Edit</a>
+                  </>
+                ) : (
+                  <>
+                    <button className="pm-btn primary" disabled><Send size={15} /> Send reply</button>
+                    <button className="pm-btn" disabled><RefreshCw size={15} /> Rewrite</button>
+                    <button className="pm-btn ghost" disabled><Pencil size={15} /> Edit</button>
+                  </>
                 )}
-                <pre
-                  style={{
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                    fontFamily: "inherit",
-                    fontSize: 13,
-                    color: "var(--text)",
-                    lineHeight: 1.6,
-                    margin: 0,
-                  }}
-                >
-                  {d.body}
-                </pre>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="muted" style={{ fontSize: 13 }}>
-            No drafts yet.
-          </div>
-        )}
-      </Section>
-
-      <Section
-        icon={<CheckCircle2 size={16} color="var(--green)" />}
-        title={`Sent Reply${sent.length > 1 ? `s (${sent.length})` : ""}`}
-      >
-        {sent.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {sent.map((s) => (
-              <div
-                key={s.id}
-                style={{
-                  border: "1px solid var(--green)",
-                  background: "var(--green-soft)",
-                  borderRadius: "var(--radius-sm)",
-                  padding: 14,
-                }}
-              >
-                <div style={{ fontSize: 12, color: "var(--green)", fontWeight: 600, marginBottom: 8 }}>
-                  Sent {fmtDate(s.sent_at)}
-                  {s.approved_by_slack_user && (
-                    <span className="muted" style={{ fontWeight: 400 }}>
-                      {" "}· approved by {s.approved_by_slack_user}
-                    </span>
-                  )}
-                </div>
-                <pre
-                  style={{
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                    fontFamily: "inherit",
-                    fontSize: 13,
-                    color: "var(--text)",
-                    lineHeight: 1.6,
-                    margin: 0,
-                  }}
-                >
-                  {s.body}
-                </pre>
+              <div className="pm-dim" style={{ fontSize: 11.5, marginTop: 10 }}>
+                Sending, rewriting &amp; editing happen in the Slack approval bot.
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="muted" style={{ fontSize: 13 }}>
-            Not sent yet.
-          </div>
-        )}
-      </Section>
+            </Panel>
+          )}
 
-      {thread.slack_permalink && (
-        <a
-          href={thread.slack_permalink}
-          target="_blank"
-          rel="noreferrer"
-          className="btn"
-        >
-          Open in Slack <ExternalLink size={14} />
-        </a>
-      )}
-    </div>
-  );
-}
+          {sent.length > 0 && (
+            <Panel title={`Sent repl${sent.length > 1 ? "ies" : "y"}`} icon={<CheckCircle2 className="tic" />} style={{ marginBottom: 14 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {sent.map((s) => (
+                  <div key={s.id}>
+                    <div style={{ fontSize: 12, color: "var(--pm-green)", fontWeight: 600, marginBottom: 6 }}>
+                      Sent {fmtDate(s.sent_at)}
+                      {s.approved_by_slack_user && <span className="pm-dim" style={{ fontWeight: 400 }}> · approved by {s.approved_by_slack_user}</span>}
+                    </div>
+                    <div className="pm-draftbox">{s.body}</div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          )}
 
-function Section({
-  icon,
-  title,
-  children,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="card card-pad section">
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-        {icon}
-        <div className="card-title" style={{ fontSize: 14 }}>
-          {title}
+          {olderDrafts.length > 0 && (
+            <Panel title={`Earlier revisions (${olderDrafts.length})`} icon={<MessageSquare className="tic" />}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {olderDrafts.map((d) => (
+                  <div key={d.id} style={{ background: "var(--pm-card2)", border: "1px solid var(--pm-line)", borderRadius: 10, padding: 14 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span className="pm-b7" style={{ fontSize: 13 }}>v{d.revision}</span>
+                        {d.model && <span className="pm-dim" style={{ fontSize: 11 }}>{d.model}</span>}
+                      </div>
+                      <span className="pm-dim" style={{ fontSize: 11 }}>{fmtDate(d.created_at)}</span>
+                    </div>
+                    {d.feedback && (
+                      <div style={{ fontSize: 12, color: "var(--pm-muted)", marginBottom: 8, paddingLeft: 10, borderLeft: "2px solid var(--pm-border)" }}>
+                        Feedback: {d.feedback}
+                      </div>
+                    )}
+                    <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit", fontSize: 13, color: "var(--pm-ink)", lineHeight: 1.6, margin: 0 }}>
+                      {d.body}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          )}
+        </div>
+
+        {/* RIGHT */}
+        <div>
+          <Panel title="Sender" icon={<User className="tic" />} style={{ marginBottom: 14 }}>
+            <div className="pm-pill"><span className="nm">Email</span><span className="pm-muted">{thread.from_email}</span></div>
+            <div className="pm-pill"><span className="nm">Domain</span><span className="pm-muted">{domainOf(thread.from_email)}</span></div>
+            <div className="pm-pill"><span className="nm">First seen</span><span className="pm-muted">{isToday(thread.created_at) ? "Today" : fmtDate(thread.created_at)}</span></div>
+          </Panel>
+
+          <Panel title="How to handle" icon={<Bot className="tic" />}>
+            <div style={{ fontSize: 13, color: "var(--pm-muted)", lineHeight: 1.6 }}>
+              {thread.classification_meta?.rationale ||
+                "Review the AI draft, approve in Slack, and route high-value wholesale/partnership leads to the B2B pipeline."}
+            </div>
+            <Link href="/dashboard/leads" className="pm-btn ghost" style={{ marginTop: 12, width: "100%", justifyContent: "center" }}>
+              <Briefcase size={15} /> Add to B2B Leads
+            </Link>
+            {slack && (
+              <a href={slack} target="_blank" rel="noreferrer" className="pm-btn ghost" style={{ marginTop: 10, width: "100%", justifyContent: "center" }}>
+                Open in Slack <ExternalLink size={14} />
+              </a>
+            )}
+          </Panel>
         </div>
       </div>
-      {children}
-    </div>
-  );
-}
-
-function ChipMeta({
-  label,
-  value,
-  children,
-}: {
-  label: string;
-  value?: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div
-        style={{
-          fontSize: 10.5,
-          color: "var(--text-3)",
-          textTransform: "uppercase",
-          letterSpacing: 0.5,
-          fontWeight: 600,
-          marginBottom: 4,
-        }}
-      >
-        {label}
-      </div>
-      {children ?? <div style={{ fontSize: 13.5, fontWeight: 500 }}>{value}</div>}
     </div>
   );
 }

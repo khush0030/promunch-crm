@@ -1,8 +1,17 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
+import {
+  PageHead,
+  Toolbar,
+  SearchBar,
+  FilterChips,
+  DataTable,
+  StatusBadge,
+} from "@/components/pm";
+import type { Column, BadgeTone } from "@/components/pm";
 
 type Thread = {
   id: string;
@@ -19,20 +28,42 @@ type Thread = {
   classification_meta?: { rationale?: string } | null;
 };
 
-const statusPill: Record<string, { cls: string; label: string }> = {
-  pending: { cls: "amber", label: "Pending" },
-  sent: { cls: "green", label: "Sent" },
-  skipped: { cls: "grey", label: "Skipped" },
-  failed: { cls: "accent", label: "Failed" },
+const statusTone: Record<string, BadgeTone> = {
+  pending: "gold",
+  sent: "green",
+  skipped: "gray",
+  failed: "terra",
+};
+const statusLabel: Record<string, string> = {
+  pending: "Pending",
+  sent: "Sent",
+  skipped: "Skipped",
+  failed: "Failed",
 };
 
-const urgencyPill: Record<string, { cls: string; label: string }> = {
-  critical: { cls: "accent", label: "Critical" },
-  high: { cls: "amber", label: "High" },
-  medium: { cls: "blue", label: "Medium" },
-  low: { cls: "grey", label: "Low" },
+const urgencyTone: Record<string, BadgeTone> = {
+  critical: "terra",
+  high: "terra",
+  medium: "gold",
+  low: "gray",
+};
+const urgencyLabel: Record<string, string> = {
+  critical: "Critical",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
 };
 
+const categoryTone: Record<string, BadgeTone> = {
+  complaint: "terra",
+  wholesale: "blue",
+  partnership_inquiry: "blue",
+  order_tracking: "gold",
+  job_application: "gray",
+  spam: "gray",
+  general: "gray",
+  customer_support: "gray",
+};
 const categoryLabel: Record<string, string> = {
   customer_support: "Support",
   order_tracking: "Order Tracking",
@@ -44,7 +75,6 @@ const categoryLabel: Record<string, string> = {
   general: "General",
 };
 
-// Pending (awaiting a reply) leads — it is the queue that needs a human.
 const filters = [
   { key: "pending", label: "Pending" },
   { key: "", label: "All" },
@@ -74,6 +104,7 @@ export default function SupportEmailsPage() {
   const [category, setCategory] = useState("");
   const [search, setSearch] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [facets, setFacets] = useState<{
     pending: number;
     categories: { name: string; count: number }[];
@@ -97,7 +128,6 @@ export default function SupportEmailsPage() {
     return () => clearTimeout(t);
   }, [fetchData]);
 
-  // Pending count + lead_category values for the filter chips.
   useEffect(() => {
     fetch("/api/support-emails/facets")
       .then((r) => r.json())
@@ -105,67 +135,133 @@ export default function SupportEmailsPage() {
       .catch(() => {});
   }, []);
 
-  return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Support Emails</h1>
-          <div className="sub">
-            Inbox replies handled by the Slack approval bot · {total.toLocaleString("en-IN")} threads
-          </div>
-        </div>
-      </div>
+  async function refresh() {
+    setRefreshing(true);
+    try {
+      await fetchData();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-        <div className="search">
-          <Search size={15} />
-          <input
-            placeholder="Search threads…"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-          />
+  const statusChips = filters.map((f) => ({
+    key: f.key || "all",
+    label: f.key === "pending" && facets.pending > 0 ? `${f.label} ${facets.pending}` : f.label,
+  }));
+
+  const columns: Column<Thread>[] = [
+    {
+      header: "From",
+      cell: (t) => {
+        const name = t.from_name || t.from_email.split("@")[0];
+        return (
+          <div className="pm-cellname">
+            <Avatar name={name} size={30} />
+            <div>
+              <div className="pm-b7">{name}</div>
+              <div className="pm-dim" style={{ fontSize: 11 }}>{t.from_email}</div>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      header: "Subject",
+      width: "34%",
+      cell: (t) => (
+        <div style={{ maxWidth: 360 }}>
+          <div style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {t.subject || "(no subject)"}
+          </div>
+          {t.snippet && (
+            <div className="pm-dim" style={{ fontSize: 11.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {t.snippet}
+            </div>
+          )}
         </div>
-        <div className="chips">
-          {filters.map((f) => (
-            <button
-              key={f.key || "all"}
-              type="button"
-              className={`chip${status === f.key ? " active" : ""}`}
-              onClick={() => {
-                setStatus(f.key);
-                setPage(1);
-              }}
-            >
-              {f.label}
-              {f.key === "pending" && facets.pending > 0 ? ` (${facets.pending})` : ""}
-            </button>
-          ))}
-        </div>
-      </div>
+      ),
+    },
+    {
+      header: "Category",
+      cell: (t) =>
+        t.lead_category ? (
+          <StatusBadge tone={categoryTone[t.lead_category] ?? "gray"}>
+            {categoryLabel[t.lead_category] || t.lead_category}
+          </StatusBadge>
+        ) : (
+          <span className="pm-dim">—</span>
+        ),
+    },
+    {
+      header: "Urgency",
+      cell: (t) =>
+        t.urgency ? (
+          <StatusBadge tone={urgencyTone[t.urgency] ?? "gray"}>{urgencyLabel[t.urgency] || t.urgency}</StatusBadge>
+        ) : (
+          <span className="pm-dim">—</span>
+        ),
+    },
+    {
+      header: "Score",
+      cell: (t) => (t.score != null ? <span className="pm-b7">{t.score}</span> : <span className="pm-dim">—</span>),
+    },
+    {
+      header: "Status",
+      cell: (t) => (
+        <StatusBadge tone={statusTone[t.status] ?? "gold"}>{statusLabel[t.status] || t.status}</StatusBadge>
+      ),
+    },
+    {
+      header: "Received",
+      cell: (t) => <span className="pm-dim">{timeAgo(t.created_at)}</span>,
+    },
+  ];
+
+  return (
+    <div className="pm-page">
+      <PageHead
+        title="Support Emails"
+        subtitle={`Inbox replies handled by the Slack approval bot · ${total.toLocaleString("en-IN")} threads`}
+        actions={
+          <button className="pm-btn ghost" onClick={refresh} disabled={refreshing}>
+            <RefreshCw size={15} /> {refreshing ? "Syncing…" : "Sync"}
+          </button>
+        }
+      />
+
+      <Toolbar>
+        <SearchBar
+          value={search}
+          placeholder="Search threads, senders, subjects…"
+          onChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+        />
+        <FilterChips
+          chips={statusChips}
+          active={status || "all"}
+          onSelect={(k) => {
+            setStatus(k === "all" ? "" : k);
+            setPage(1);
+          }}
+        />
+      </Toolbar>
 
       {facets.categories.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 16,
-            flexWrap: "wrap",
-          }}
-        >
-          <span style={{ fontSize: 12, color: "var(--text-3)", fontWeight: 500 }}>Category</span>
-          <div className="chips">
-            {[...facets.categories]
-              .sort((a, b) => b.count - a.count)
-              .slice(0, 7)
-              .map((c) => (
-              <button
+        <div className="pm-chips" style={{ marginBottom: 14 }}>
+          {[...facets.categories]
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 8)
+            .map((c) => (
+              <span
                 key={c.name}
-                type="button"
-                className={`chip${category === c.name ? " active" : ""}`}
+                className={`pm-tag${category === c.name ? " on" : ""}`}
+                style={
+                  category === c.name
+                    ? { background: "var(--pm-green-soft)", borderColor: "var(--pm-green)", color: "var(--pm-green)", cursor: "pointer" }
+                    : { cursor: "pointer" }
+                }
                 title={`${c.count} email${c.count === 1 ? "" : "s"}`}
                 onClick={() => {
                   setCategory((v) => (v === c.name ? "" : c.name));
@@ -174,164 +270,34 @@ export default function SupportEmailsPage() {
               >
                 {categoryLabel[c.name] || c.name}
                 <span style={{ opacity: 0.6, marginLeft: 4 }}>{c.count}</span>
-              </button>
+              </span>
             ))}
-            {facets.categories.length > 7 && (
-              <select
-                aria-label="More categories"
-                className="select"
-                value={
-                  [...facets.categories]
-                    .sort((a, b) => b.count - a.count)
-                    .slice(7)
-                    .some((c) => c.name === category)
-                    ? category
-                    : ""
-                }
-                onChange={(e) => {
-                  setCategory(e.target.value);
-                  setPage(1);
-                }}
-              >
-                <option value="">More…</option>
-                {[...facets.categories]
-                  .sort((a, b) => b.count - a.count)
-                  .slice(7)
-                  .map((c) => (
-                    <option key={c.name} value={c.name}>
-                      {categoryLabel[c.name] || c.name} ({c.count})
-                    </option>
-                  ))}
-              </select>
-            )}
-          </div>
         </div>
       )}
 
-      <div className="card">
-        {threads.length > 0 ? (
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>From</th>
-                <th>Subject</th>
-                <th>Category</th>
-                <th>Urgency</th>
-                <th>Status</th>
-                <th>Received</th>
-              </tr>
-            </thead>
-            <tbody>
-              {threads.map((t) => {
-                const st = statusPill[t.status] || statusPill.pending;
-                const urg = t.urgency ? urgencyPill[t.urgency] : null;
-                const displayName = t.from_name || t.from_email.split("@")[0];
-                return (
-                  <tr
-                    key={t.id}
-                    className="clickable"
-                    onClick={() => router.push(`/dashboard/support-emails/${t.id}`)}
-                  >
-                    <td>
-                      <div className="cell-main">
-                        <Avatar name={displayName} size={26} />
-                        <div>
-                          <div className="nm">{displayName}</div>
-                          <div className="cell-sub">{t.from_email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ maxWidth: 320 }}>
-                      <div
-                        style={{
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          fontWeight: 500,
-                        }}
-                      >
-                        {t.subject || "(no subject)"}
-                      </div>
-                      {t.snippet && (
-                        <div
-                          className="cell-sub"
-                          style={{
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {t.snippet}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      {t.lead_category ? (
-                        <span className="tag">
-                          {categoryLabel[t.lead_category] || t.lead_category}
-                        </span>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </td>
-                    <td>
-                      {urg ? (
-                        <span className={`pill ${urg.cls}`}>{urg.label}</span>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </td>
-                    <td>
-                      <span className={`pill ${st.cls}`} title={t.score != null ? `AI lead score: ${t.score}` : undefined}>
-                        {st.label}
-                      </span>
-                    </td>
-                    <td className="muted">{timeAgo(t.created_at)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        ) : (
-          <div style={{ padding: "48px 24px", textAlign: "center", color: "var(--text-3)", fontSize: 13 }}>
-            {loaded ? "No support emails yet" : "Loading…"}
-          </div>
-        )}
+      <DataTable
+        columns={columns}
+        rows={threads}
+        rowKey={(t) => t.id}
+        onRowClick={(t) => router.push(`/dashboard/support-emails/${t.id}`)}
+        empty={loaded ? "No support emails yet" : "Loading…"}
+      />
 
-        {pages > 1 && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "12px 16px",
-              borderTop: "1px solid var(--border)",
-            }}
-          >
-            <span className="muted" style={{ fontSize: 12.5 }}>
-              Page {page} of {pages}
-            </span>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button
-                type="button"
-                className="btn ghost sm"
-                disabled={page === 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                className="btn sm"
-                disabled={page === pages}
-                onClick={() => setPage((p) => Math.min(pages, p + 1))}
-              >
-                Next
-              </button>
-            </div>
+      {pages > 1 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14 }}>
+          <span className="pm-dim" style={{ fontSize: 12.5 }}>
+            Page {page} of {pages}
+          </span>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button className="pm-btn ghost sm" disabled={page === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              Previous
+            </button>
+            <button className="pm-btn sm" disabled={page === pages} onClick={() => setPage((p) => Math.min(pages, p + 1))}>
+              Next
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
