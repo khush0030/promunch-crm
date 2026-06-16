@@ -27,6 +27,13 @@ export default function SettingsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [tab, setTab] = useState("connections");
+
+  // Deep-link support: /dashboard/settings#team opens the Team tab (used by the
+  // legacy /integrations and /team route redirects).
+  useEffect(() => {
+    const h = window.location.hash.replace("#", "");
+    if (h && TABS.some((t) => t.key === h)) setTab(h);
+  }, []);
   const [disconnectBusy, setDisconnectBusy] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [logoBusy, setLogoBusy] = useState(false);
