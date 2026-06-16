@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { isAllowedEmail } from "@/lib/auth-domains";
 
 // Amazon financials endpoint for /dashboard/amazon.
 // Reads the SP-API mirror tables (written by the amazon-poll edge function) with
@@ -39,7 +42,23 @@ function rollup(rows: FeeRow[], since: string | null) {
   };
 }
 
+// Self-guard: middleware does NOT gate /api/*, and this route returns revenue
+// figures — so verify an allowed, logged-in user before returning anything.
+async function authed(): Promise<boolean> {
+  const store = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => store.getAll(), setAll: () => {} } },
+  );
+  const { data: { user } } = await supabase.auth.getUser();
+  return !!user && isAllowedEmail(user.email);
+}
+
 export async function GET() {
+  if (!(await authed())) {
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
   const db = supabaseAdmin;
 
   // Finance events (cap to last 90 days for the page; older lives in DB).
