@@ -63,7 +63,31 @@
       "Bash(awk 'NR>=1 && NR<=25' supabase/functions/_shared/slack.ts)",
       "Bash(awk 'NR<=55' supabase/functions/shopify-status/index.ts)",
       "Bash(awk 'NR>=1 && NR<=60' supabase/functions/shopify-daily-summary/index.ts)",
-      "Bash(grep -rln -iE \"SHOPIFY_SLACK_BOT_TOKEN|SHOPIFY_SLACK_SIGNING|shopify.{0,3}slack bot|second slack|two slack|two bots|separate bot|shopify bot|/sales|/order \" promunch-email-agent src)"
+      "Bash(grep -rln -iE \"SHOPIFY_SLACK_BOT_TOKEN|SHOPIFY_SLACK_SIGNING|shopify.{0,3}slack bot|second slack|two slack|two bots|separate bot|shopify bot|/sales|/order \" promunch-email-agent src)",
+      "Bash(ls src/app/dashboard/shopify-attribution/)",
+      "Bash(sed -n '1,40p' src/app/api/integrations/route.ts)",
+      "Bash(curl -s -m 90 \"https://hlykspakpewuilttnydm.supabase.co/functions/v1/amazon-poll?only=inventory\")",
+      "Bash(curl -s -m 180 \"https://hlykspakpewuilttnydm.supabase.co/functions/v1/amazon-poll?only=orders\")",
+      "Bash(curl -s -m 200 \"https://hlykspakpewuilttnydm.supabase.co/functions/v1/amazon-poll?only=orders&days=7\")",
+      "Bash(curl -s -m 200 \"https://hlykspakpewuilttnydm.supabase.co/functions/v1/amazon-poll?only=finances\")",
+      "Bash(curl -s -m 240 \"https://hlykspakpewuilttnydm.supabase.co/functions/v1/amazon-poll?only=settlements\")",
+      "Bash(curl -s -X POST https://hlykspakpewuilttnydm.supabase.co/functions/v1/shopify-daily-summary -H 'Content-Type: application/json' -d '{}' -w '\\\\nHTTP %{http_code}\\\\n')",
+      "Bash(curl -s -m 120 \"https://hlykspakpewuilttnydm.supabase.co/functions/v1/amazon-poll?only=settlements&debug=1\")",
+      "Bash(perl -0pi -e 's/  const ch = channel\\\\\\(\\\\\\);/  const ch = ordersChannel\\(\\);/g' amazon-poll/index.ts)",
+      "Bash(curl -s -m 180 \"https://hlykspakpewuilttnydm.supabase.co/functions/v1/amazon-poll?only=settlements&reprocess=1\")",
+      "Bash(curl -s -m 200 \"https://hlykspakpewuilttnydm.supabase.co/functions/v1/amazon-poll\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} -> %{redirect_url}\\\\n\" \"https://promunch-crm.vercel.app/dashboard/amazon\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"https://promunch-crm.vercel.app/api/amazon\")",
+      "Bash(curl -s \"https://promunch-crm.vercel.app/api/amazon\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"https://promunch-crm.vercel.app/dashboard/amazon\")",
+      "Bash(grep -rn \"tailwindcss\" src/app/*.css)",
+      "Bash(grep -rln \"@import\" src/app/*.css)",
+      "Bash(perl -0pi -e 's{<a className=\"go\" href=\"\\(/dashboard/[^\"]*\\)\">\\([^<]*\\)</a>}{<Link className=\"go\" href=\"$1\">$2</Link>}g' src/app/dashboard/page.tsx)",
+      "Bash(grep -nE 'className=\\\\{`\\(chip|btn|tab|pill\\)' src/app/dashboard/whatsapp/page.tsx)",
+      "Bash(grep -oE 'className=\\\\{`[^`]*`' src/app/dashboard/leads/page.tsx)",
+      "Bash(perl -0pi -e ' *)",
+      "Bash(grep -nE 'className=\"\\(pill|btn|tab|tabs|chip|chips\\) |className=\"\\(pill|btn|tabs|chips\\)\"|`\\(pill|tab|chip\\) ' src/app/dashboard/leads/page.tsx)",
+      "Bash(perl -0pi -e 's/className=\"kpi-grid\"/className=\"pm-kpis\"/g; s/className=\"kpi\"/className=\"pm-kpi\"/g;' src/app/dashboard/leads/page.tsx)"
     ]
   }
 }

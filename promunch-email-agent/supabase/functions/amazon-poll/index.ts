@@ -152,14 +152,20 @@ async function syncOrders(firstRunDays: number): Promise<{ upserts: number; aler
       .is("alerted_at", null)
       .gte("purchase_date", freshSince)
       .neq("order_status", "Pending")   // wait until the order is real, not a pending auth
+      .not("amazon_order_id", "ilike", "S02-%") // skip Multi-Channel Fulfillment (FBA stock shipping non-Amazon sales): ₹0 total, blank titles, not a marketplace sale
       .order("purchase_date", { ascending: true })
       .limit(25);
     for (const o of pending ?? []) {
       let its = (await db().from("amazon_order_items")
         .select("title, quantity_ordered").eq("amazon_order_id", o.amazon_order_id)).data ?? [];
-      // Just-in-time: if items aren't synced yet, fetch them now so the alert card
-      // is never "syncing…". Volume is low (freshness-gated), so this is cheap.
-      if (!its.length) {
+      // Just-in-time: fetch/refresh items so the alert card is never "syncing…" or
+      // showing stale "0 ×". Items first synced while the order was incomplete come
+      // back qty 0; if the order has a real total but every cached line is 0, the
+      // earlier sync was premature — refetch. Volume is low (freshness-gated), cheap.
+      const cachedQtyAllZero = its.length > 0 &&
+        num(o.order_total) > 0 &&
+        its.every((i: any) => num(i.quantity_ordered) === 0);
+      if (!its.length || cachedQtyAllZero) {
         try {
           const fresh = await getOrderItems(o.amazon_order_id);
           if (fresh.length) {
