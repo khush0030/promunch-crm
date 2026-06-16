@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, IndianRupee, Minus, Wallet, Tag, CircleCheck, Package } from "lucide-react";
+import { PageHead, SectionLabel, KpiCard, Panel, DataTable, StatusBadge } from "@/components/pm";
+import type { Column } from "@/components/pm";
 
 // Amazon financials dashboard. Reads /api/amazon (server-side SP-API mirror).
 // Shows sales/net with the Amazon-fee breakdown, settlement reconciliation
@@ -31,14 +33,13 @@ type Data = {
 
 const RANGES = [
   { key: "today", label: "Today" },
-  { key: "d7", label: "7 days" },
-  { key: "d30", label: "30 days" },
-  { key: "d90", label: "90 days" },
+  { key: "d7", label: "7d" },
+  { key: "d30", label: "30d" },
+  { key: "d90", label: "90d" },
 ] as const;
 type RangeKey = (typeof RANGES)[number]["key"];
 
-const inr = (n: number) =>
-  "₹" + (n ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const inr0 = (n: number) => "₹" + Math.round(n ?? 0).toLocaleString("en-IN");
 const inrShort = (n: number) => {
   const a = Math.abs(n);
   if (a >= 1e5) return `₹${(n / 1e5).toFixed(1)}L`;
@@ -65,7 +66,7 @@ function SettlementChart({ data }: { data: Settlement[] }) {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="xMidYMid meet" role="img" aria-label="Gross sales vs net deposit by settlement">
-      <line x1={0} x2={W} y1={zeroY} y2={zeroY} stroke="var(--border)" strokeWidth={1} />
+      <line x1={0} x2={W} y1={zeroY} y2={zeroY} stroke="var(--pm-line)" strokeWidth={1} />
       {rows.map((s, i) => {
         const cx = i * slotW + slotW / 2;
         const g = Number(s.gross_sales) || 0;
@@ -74,11 +75,11 @@ function SettlementChart({ data }: { data: Settlement[] }) {
         const feePct = g ? Math.round((Math.abs(Number(s.fees_total) || 0) / g) * 100) : 0;
         return (
           <g key={s.settlement_id}>
-            <rect x={cx - barW - 1} y={Math.min(gy, zeroY)} width={barW} height={Math.max(1, Math.abs(zeroY - gy))} rx={2} fill="var(--blue, #6366f1)" opacity={0.45} />
-            <rect x={cx + 1} y={Math.min(ny, zeroY)} width={barW} height={Math.max(1, Math.abs(zeroY - ny))} rx={2} fill={n >= 0 ? "var(--green)" : "var(--accent)"} />
-            <text x={cx} y={Math.min(gy, ny) - 6} textAnchor="middle" fontSize={9} fill="var(--muted)">{feePct}% fee</text>
-            <text x={cx} y={H - 16} textAnchor="middle" fontSize={9} fill="var(--muted)">{fmtDate(s.period_end)}</text>
-            <text x={cx} y={H - 4} textAnchor="middle" fontSize={9} fill={n >= 0 ? "var(--green)" : "var(--accent)"}>{inrShort(n)}</text>
+            <rect x={cx - barW - 1} y={Math.min(gy, zeroY)} width={barW} height={Math.max(1, Math.abs(zeroY - gy))} rx={2} fill="var(--pm-green)" opacity={0.30} />
+            <rect x={cx + 1} y={Math.min(ny, zeroY)} width={barW} height={Math.max(1, Math.abs(zeroY - ny))} rx={2} fill={n >= 0 ? "var(--pm-green)" : "var(--pm-terra)"} />
+            <text x={cx} y={Math.min(gy, ny) - 6} textAnchor="middle" fontSize={9} fill="var(--pm-muted)">{feePct}% fee</text>
+            <text x={cx} y={H - 16} textAnchor="middle" fontSize={9} fill="var(--pm-muted)">{fmtDate(s.period_end)}</text>
+            <text x={cx} y={H - 4} textAnchor="middle" fontSize={9} fill={n >= 0 ? "var(--pm-green)" : "var(--pm-terra)"}>{inrShort(n)}</text>
           </g>
         );
       })}
@@ -106,161 +107,94 @@ export default function AmazonPage() {
 
   const r = data?.financials[range];
 
+  const settlementCols: Column<Settlement>[] = [
+    { header: "Period", cell: (s) => <span className="pm-b7" style={{ whiteSpace: "nowrap" }}>{fmtDate(s.period_start)} – {fmtDate(s.period_end)}</span> },
+    { header: "Gross", cell: (s) => inr0(s.gross_sales) },
+    { header: "Fees", cell: (s) => <span style={{ color: "var(--pm-terra)" }}>{inr0(s.fees_total)}</span> },
+    { header: "Refunds", cell: (s) => <span style={{ color: "var(--pm-terra)" }}>{inr0(s.refunds_total)}</span> },
+    { header: "Deposit", cell: (s) => <span className="pm-b7">{inr0(s.total_deposit)}</span> },
+    { header: "Variance", cell: (s) => <span style={{ color: Math.abs(s.variance) < 1 ? "var(--pm-muted)" : "var(--pm-terra)" }}>{inr0(s.variance)}</span> },
+    {
+      header: "Status",
+      cell: (s) =>
+        s.reconciled ? (
+          <StatusBadge tone="green" icon={<CircleCheck />}>Reconciled</StatusBadge>
+        ) : (
+          <StatusBadge tone="terra">Variance</StatusBadge>
+        ),
+    },
+  ];
+
+  const orderCols: Column<Order>[] = [
+    { header: "Order", cell: (o) => <span style={{ fontFamily: "var(--font-geist-mono), monospace", fontSize: 12 }}>{o.id}</span> },
+    { header: "Date", cell: (o) => <span className="pm-dim">{fmtDate(o.date)}</span> },
+    { header: "Channel", cell: (o) => o.channel },
+    { header: "Status", cell: (o) => <span className="pm-dim">{o.status}</span> },
+    { header: "Total", cell: (o) => <span className="pm-b7">{inr0(o.total)}</span> },
+  ];
+
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Amazon</h1>
-          <div className="sub">
-            Sales, fees, net &amp; settlement reconciliation from Seller Central (SP-API)
-            {data ? ` · ${data.orders.total} orders · ${data.inventory.skuCount} SKUs synced` : ""}
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div className="chips">
-            {RANGES.map((p) => (
-              <button key={p.key} type="button" className={`chip${range === p.key ? " active" : ""}`} onClick={() => setRange(p.key)}>
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <button type="button" className="btn" onClick={load} aria-label="Refresh">
-            <RefreshCw size={14} /> Refresh
-          </button>
-        </div>
-      </div>
+    <div className="pm-page">
+      <PageHead
+        title="Amazon"
+        subtitle={
+          <>
+            Sales, fees, net &amp; settlement reconciliation from Seller Central
+            {data ? ` · ${data.orders.total} orders · ${data.inventory.skuCount} SKUs` : ""}
+          </>
+        }
+        actions={
+          <>
+            <div className="pm-ranges">
+              {RANGES.map((p) => (
+                <button key={p.key} className={range === p.key ? "on" : ""} onClick={() => setRange(p.key)}>{p.label}</button>
+              ))}
+            </div>
+            <button className="pm-btn ghost" onClick={load} aria-label="Refresh"><RefreshCw size={15} /> Refresh</button>
+          </>
+        }
+      />
 
       {loading && !data ? (
-        <div className="card card-pad muted">Loading Amazon financials…</div>
+        <div className="pm-panel pm-dim">Loading Amazon financials…</div>
       ) : !data || !r ? (
-        <div className="card card-pad muted">No Amazon data yet. Run the sync.</div>
+        <div className="pm-panel pm-dim">No Amazon data yet. Run the sync.</div>
       ) : (
         <>
-          {/* ---- financial KPIs ---- */}
-          <div className="kpi-grid section">
-            <div className="kpi">
-              <div className="label">Gross sales</div>
-              <div className="value">{inr(r.gross)}</div>
-              <div className="delta flat">{r.events} finance events</div>
-            </div>
-            <div className="kpi">
-              <div className="label">Amazon fees</div>
-              <div className="value" style={{ color: "var(--accent)" }}>{inr(r.fees)}</div>
-              <div className="delta flat">{r.feePct}% of gross · ref {inr(r.referralFee)} · FBA {inr(r.fbaFee)}</div>
-            </div>
-            <div className="kpi">
-              <div className="label">Net (after margin)</div>
-              <div className="value" style={{ color: r.net >= 0 ? "var(--green)" : "var(--accent)" }}>{inr(r.net)}</div>
-              <div className="delta flat">what you actually keep</div>
-            </div>
-            <div className="kpi">
-              <div className="label">Promotions</div>
-              <div className="value">{inr(r.promo)}</div>
-              <div className="delta flat">discounts applied</div>
-            </div>
+          <div className="pm-kpis">
+            <KpiCard label="Gross sales" value={inr0(r.gross)} icon={<IndianRupee />} tone="g" sub={`${r.events} finance events`} />
+            <KpiCard label="Amazon fees" value={inr0(r.fees)} icon={<Minus />} tone="t" valueColor="var(--pm-terra)" sub={`${r.feePct}% of gross · FBA ${inr0(r.fbaFee)}`} />
+            <KpiCard label="Net kept" value={inr0(r.net)} icon={<Wallet />} tone="g" valueColor={r.net >= 0 ? "var(--pm-green)" : "var(--pm-terra)"} sub="what you actually keep" />
+            <KpiCard label="Promotions" value={inr0(r.promo)} icon={<Tag />} tone="o" sub="discounts applied" />
           </div>
 
-          {/* ---- settlement trend chart ---- */}
-          {data.settlements.length > 0 && (
-            <div className="card card-pad section">
-              <div className="card-title">Sales vs net payout by settlement</div>
-              <div className="card-sub" style={{ display: "flex", gap: 16, alignItems: "center" }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 2, background: "var(--blue, #6366f1)", opacity: 0.45 }} /> Gross sales
-                </span>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 2, background: "var(--green)" }} /> Net deposit (red if negative) · fee% above
-                </span>
-              </div>
-              <div style={{ marginTop: 12 }}>
-                <SettlementChart data={data.settlements} />
-              </div>
-            </div>
-          )}
-
-          {/* ---- settlement reconciliation ---- */}
-          <div className="card card-pad section">
-            <div className="card-title">Settlement reconciliation</div>
-            <div className="card-sub">Sum of settlement line items vs the actual bank deposit. A variance is unaccounted money.</div>
-            {data.settlements.length === 0 ? (
-              <div className="empty">No settlements ingested yet. They arrive ~fortnightly.</div>
-            ) : (
-              <table className="tbl" style={{ marginTop: 12 }}>
-                <thead>
-                  <tr>
-                    <th>Period</th><th>Gross</th><th>Fees</th><th>Refunds</th>
-                    <th>Deposit</th><th>Variance</th><th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.settlements.map((s) => (
-                    <tr key={s.settlement_id}>
-                      <td>{fmtDate(s.period_start)} – {fmtDate(s.period_end)}</td>
-                      <td>{inr(s.gross_sales)}</td>
-                      <td style={{ color: "var(--accent)" }}>{inr(s.fees_total)}</td>
-                      <td>{inr(s.refunds_total)}</td>
-                      <td><strong>{inr(s.total_deposit)}</strong></td>
-                      <td style={{ color: Math.abs(s.variance) < 1 ? "var(--muted)" : "var(--accent)" }}>{inr(s.variance)}</td>
-                      <td>
-                        <span className={`pill ${s.reconciled ? "green" : "red"}`}>
-                          {s.reconciled ? "Reconciled" : "Variance"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          <div className="section" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}>
-            {/* ---- recent orders ---- */}
-            <div className="card card-pad">
-              <div className="card-title">Recent orders</div>
-              {data.orders.recent.length === 0 ? (
-                <div className="empty">No orders synced.</div>
+          <div className="pm-grid g-2-1" style={{ marginTop: 16 }}>
+            <Panel title="Gross vs net by settlement" icon={<IndianRupee className="tic" />} caption="Net deposit after fees · ₹">
+              {data.settlements.length > 0 ? (
+                <div className="pm-chartbox sm" style={{ height: "auto" }}><SettlementChart data={data.settlements} /></div>
               ) : (
-                <table className="tbl" style={{ marginTop: 12 }}>
-                  <thead><tr><th>Order</th><th>Date</th><th>Channel</th><th>Status</th><th>Total</th></tr></thead>
-                  <tbody>
-                    {data.orders.recent.slice(0, 15).map((o) => (
-                      <tr key={o.id}>
-                        <td style={{ fontFamily: "monospace", fontSize: 12 }}>{o.id}</td>
-                        <td>{fmtDate(o.date)}</td>
-                        <td>{o.channel}</td>
-                        <td>{o.status}</td>
-                        <td>{inr(o.total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="pm-dim" style={{ fontSize: 12.5, padding: "30px 0", textAlign: "center" }}>No settlements ingested yet.</div>
               )}
-            </div>
-
-            {/* ---- low stock ---- */}
-            <div className="card card-pad">
-              <div className="card-title">Low FBA stock</div>
-              <div className="card-sub">≤ 10 fulfillable units</div>
+            </Panel>
+            <Panel title="Low FBA stock" icon={<Package className="tic" />} caption="≤ 10 fulfillable units">
               {data.inventory.lowStock.length === 0 ? (
-                <div className="empty">All SKUs healthy.</div>
+                <div className="pm-dim" style={{ fontSize: 13, padding: "20px 0" }}>All SKUs healthy.</div>
               ) : (
-                <table className="tbl" style={{ marginTop: 12 }}>
-                  <thead><tr><th>SKU / product</th><th>Left</th><th>Inbound</th></tr></thead>
-                  <tbody>
-                    {data.inventory.lowStock.map((l) => (
-                      <tr key={l.seller_sku}>
-                        <td>{l.product_name || l.seller_sku}</td>
-                        <td style={{ color: l.fulfillable_quantity === 0 ? "var(--accent)" : "var(--amber)" }}>
-                          {l.fulfillable_quantity}
-                        </td>
-                        <td>{l.inbound_shipped}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                data.inventory.lowStock.map((l) => (
+                  <div className="pm-pill" key={l.seller_sku}>
+                    <span className="nm" style={{ fontSize: 12.5 }}>{l.product_name || l.seller_sku}</span>
+                    <StatusBadge tone={l.fulfillable_quantity === 0 ? "terra" : "gold"}>{l.fulfillable_quantity} left</StatusBadge>
+                  </div>
+                ))
               )}
-            </div>
+            </Panel>
           </div>
+
+          <SectionLabel>Settlement reconciliation</SectionLabel>
+          <DataTable columns={settlementCols} rows={data.settlements} rowKey={(s) => s.settlement_id} empty="No settlements ingested yet. They arrive ~fortnightly." />
+
+          <SectionLabel>Recent orders</SectionLabel>
+          <DataTable columns={orderCols} rows={data.orders.recent.slice(0, 15)} rowKey={(o) => o.id} empty="No orders synced." />
         </>
       )}
     </div>
