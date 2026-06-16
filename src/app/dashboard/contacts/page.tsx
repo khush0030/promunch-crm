@@ -1,8 +1,10 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Upload, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { Upload, ChevronLeft, ChevronRight, ChevronDown, Users } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
+import { PageHead, Toolbar, SearchBar, FilterChips, DataTable, StatusBadge, EmptyState } from "@/components/pm";
+import type { Column, BadgeTone } from "@/components/pm";
 
 type ContactRow = {
   id: string;
@@ -17,19 +19,18 @@ type ContactRow = {
   segments: string[];
 };
 
-const statusPill: Record<string, { cls: string; label: string }> = {
-  active: { cls: "green", label: "Active" },
-  Active: { cls: "green", label: "Active" },
-  inactive: { cls: "amber", label: "Inactive" },
-  Inactive: { cls: "amber", label: "Inactive" },
-  unsubscribed: { cls: "grey", label: "Unsubscribed" },
-  Unsubscribed: { cls: "grey", label: "Unsubscribed" },
-  bounced: { cls: "accent", label: "Bounced" },
-  Bounced: { cls: "accent", label: "Bounced" },
-  VIP: { cls: "accent", label: "VIP" },
-  "At Risk": { cls: "accent", label: "At Risk" },
-  New: { cls: "blue", label: "New" },
+const statusMeta: Record<string, { tone: BadgeTone; label: string }> = {
+  active: { tone: "green", label: "Active" },
+  inactive: { tone: "gold", label: "Inactive" },
+  unsubscribed: { tone: "gray", label: "Unsubscribed" },
+  bounced: { tone: "terra", label: "Bounced" },
+  VIP: { tone: "terra", label: "VIP" },
+  "At Risk": { tone: "terra", label: "At Risk" },
+  New: { tone: "blue", label: "New" },
 };
+function statusFor(s: string): { tone: BadgeTone; label: string } {
+  return statusMeta[s] || statusMeta[s?.toLowerCase?.()] || { tone: "gray", label: s };
+}
 
 const filters = ["All", "active", "inactive", "unsubscribed", "bounced"];
 const filterLabels: Record<string, string> = {
@@ -60,10 +61,7 @@ export default function ContactsPage() {
   const [dir, setDir] = useState<"asc" | "desc">("desc");
   const [showFilters, setShowFilters] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  // Klaviyo list / segment filter — at most one active at a time.
-  const [audience, setAudience] = useState<{ type: "list" | "segment"; value: string } | null>(
-    null
-  );
+  const [audience, setAudience] = useState<{ type: "list" | "segment"; value: string } | null>(null);
   const [facets, setFacets] = useState<{
     lists: { name: string; count: number }[];
     segments: { name: string; count: number }[];
@@ -111,11 +109,7 @@ export default function ContactsPage() {
           ? `₹${parseFloat(String(c.total_spent)).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
           : "₹0",
         lastOrder: c.last_purchase_date
-          ? new Date(c.last_purchase_date).toLocaleDateString("en-IN", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })
+          ? new Date(c.last_purchase_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
           : "",
         status: c.status || "active",
         tags: c.tags || [],
@@ -141,7 +135,6 @@ export default function ContactsPage() {
     return () => clearTimeout(timer);
   }, [fetchContacts]);
 
-  // Klaviyo lists & segments available for filter chips.
   useEffect(() => {
     fetch("/api/contacts/facets")
       .then((r) => r.json())
@@ -156,9 +149,7 @@ export default function ContactsPage() {
       const res = await fetch(`/api/import/${source}`, { method: "POST" });
       const data = await res.json();
       if (data.ok) {
-        setImportMsg(
-          `Imported ${data.imported} contacts (${data.scanned} scanned, ${data.skippedNoEmail || 0} skipped without email).`
-        );
+        setImportMsg(`Imported ${data.imported} contacts (${data.scanned} scanned, ${data.skippedNoEmail || 0} skipped without email).`);
         fetchContacts();
       } else {
         setImportMsg(`Import failed: ${data.error || "unknown error"}`);
@@ -170,138 +161,101 @@ export default function ContactsPage() {
     }
   }
 
-  return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Contacts</h1>
-          <div className="sub">
-            {total.toLocaleString("en-IN")} total contacts · manage your subscriber base
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {importMsg && (
-            <span
-              style={{
-                fontSize: 12,
-                color: importMsg.startsWith("Imported")
-                  ? "var(--green)"
-                  : importMsg.startsWith("Importing")
-                  ? "var(--text-2)"
-                  : "var(--accent)",
-              }}
-            >
-              {importMsg}
-            </span>
-          )}
-          <div style={{ position: "relative" }}>
-            <button
-              type="button"
-              className="btn primary"
-              disabled={importing}
-              onClick={() => setImportOpen((o) => !o)}
-            >
-              <Upload size={14} />
-              {importing ? "Importing…" : "Import / Sync"}
-              <ChevronDown size={13} />
-            </button>
-            {importOpen && (
-              <>
-                <div
-                  onClick={() => setImportOpen(false)}
-                  style={{ position: "fixed", inset: 0, zIndex: 19 }}
-                />
-                <div
-                  style={{
-                    position: "absolute",
-                    right: 0,
-                    top: "calc(100% + 4px)",
-                    background: "var(--card-bg)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 8,
-                    boxShadow: "var(--card-shadow)",
-                    zIndex: 20,
-                    minWidth: 190,
-                    overflow: "hidden",
-                  }}
-                >
-                  {(["klaviyo", "shopify"] as const).map((src) => (
-                    <button
-                      key={src}
-                      type="button"
-                      onClick={() => {
-                        setImportOpen(false);
-                        runImport(src);
-                      }}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        width: "100%",
-                        padding: "9px 12px",
-                        fontSize: 13,
-                        background: "none",
-                        border: "none",
-                        textAlign: "left",
-                        color: "var(--text)",
-                      }}
-                    >
-                      <Upload size={13} /> Import from {src === "klaviyo" ? "Klaviyo" : "Shopify"}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+  const showOrderCols = contacts.some((c) => c.orders > 0);
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-        <div className="search">
-          <Search size={15} />
-          <input
-            placeholder="Search contacts…"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-          />
+  const columns: Column<ContactRow>[] = [
+    {
+      header: "Name",
+      cell: (c) => (
+        <div className="pm-cellname">
+          <Avatar name={c.name} size={30} />
+          <span className="pm-b7">{c.name}</span>
         </div>
-        <div className="chips">
-          {filters.map((f) => (
-            <button
-              key={f}
-              type="button"
-              className={`chip${activeFilter === f ? " active" : ""}`}
-              onClick={() => {
-                setActiveFilter(f);
-                setPage(1);
-              }}
-            >
-              {filterLabels[f]}
-            </button>
-          ))}
+      ),
+    },
+    { header: "Email", cell: (c) => <span className="pm-dim">{c.email}</span> },
+    ...(showOrderCols
+      ? ([
+          { header: "Orders", cell: (c: ContactRow) => c.orders },
+          {
+            header: "LTV",
+            cell: (c: ContactRow) => (
+              <span style={{ color: c.orders > 0 ? "var(--pm-green)" : "var(--pm-hint)", fontWeight: c.orders > 0 ? 600 : 400 }}>{c.ltv}</span>
+            ),
+          },
+          { header: "Last order", cell: (c: ContactRow) => <span className="pm-dim">{c.lastOrder || "—"}</span> },
+        ] as Column<ContactRow>[])
+      : []),
+    {
+      header: "Status",
+      cell: (c) => {
+        const sp = statusFor(c.status);
+        return <StatusBadge tone={sp.tone}>{sp.label}</StatusBadge>;
+      },
+    },
+    {
+      header: "Lists & segments",
+      cell: (c) => (
+        <div style={{ display: "flex", flexWrap: "wrap", maxWidth: 240 }}>
+          {c.lists.slice(0, 2).map((l) => <span key={`l-${l}`} className="pm-tag" title={l}>{l}</span>)}
+          {c.segments.slice(0, 2).map((s) => <span key={`s-${s}`} className="pm-tag" title={s}>{s}</span>)}
+          {c.lists.length + c.segments.length > 4 && (
+            <span className="pm-dim" style={{ fontSize: 11 }}>+{c.lists.length + c.segments.length - 4}</span>
+          )}
         </div>
-        <button
-          type="button"
-          className={`chip${showFilters ? " active" : ""}`}
-          onClick={() => setShowFilters((v) => !v)}
-        >
-          More filters
-        </button>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--text-3)" }}>
+      ),
+    },
+  ];
+
+  return (
+    <div className="pm-page">
+      <PageHead
+        title="Contacts"
+        subtitle={`${total.toLocaleString("en-IN")} total contacts · manage your subscriber base`}
+        actions={
+          <>
+            {importMsg && (
+              <span style={{ fontSize: 12, color: importMsg.startsWith("Imported") ? "var(--pm-green)" : importMsg.startsWith("Importing") ? "var(--pm-muted)" : "var(--pm-terra)" }}>
+                {importMsg}
+              </span>
+            )}
+            <div style={{ position: "relative" }}>
+              <button className="pm-btn primary" disabled={importing} onClick={() => setImportOpen((o) => !o)}>
+                <Upload size={15} /> {importing ? "Importing…" : "Import / Sync"} <ChevronDown size={13} />
+              </button>
+              {importOpen && (
+                <>
+                  <div onClick={() => setImportOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 19 }} />
+                  <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: "var(--pm-card)", border: "1px solid var(--pm-border)", borderRadius: 10, boxShadow: "0 8px 22px rgba(67,55,32,.12)", zIndex: 20, minWidth: 190, overflow: "hidden" }}>
+                    {(["klaviyo", "shopify"] as const).map((src) => (
+                      <button
+                        key={src}
+                        onClick={() => { setImportOpen(false); runImport(src); }}
+                        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 12px", fontSize: 13, background: "none", border: "none", textAlign: "left", color: "var(--pm-ink)" }}
+                      >
+                        <Upload size={13} /> Import from {src === "klaviyo" ? "Klaviyo" : "Shopify"}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        }
+      />
+
+      <Toolbar>
+        <SearchBar value={search} placeholder="Search contacts…" onChange={(v) => { setSearch(v); setPage(1); }} />
+        <FilterChips
+          chips={filters.map((f) => ({ key: f, label: filterLabels[f] }))}
+          active={activeFilter}
+          onSelect={(k) => { setActiveFilter(k); setPage(1); }}
+        />
+        <span className={`pm-chip${showFilters ? " on" : ""}`} onClick={() => setShowFilters((v) => !v)}>More filters</span>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--pm-hint)" }}>
           Sort by
-          <select
-            aria-label="Sort"
-            className="input"
-            style={{ padding: "5px 8px", fontSize: 12.5, width: "auto" }}
-            value={sort}
-            onChange={(e) => {
-              setSort(e.target.value);
-              setPage(1);
-            }}
-          >
+          <select aria-label="Sort" value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }}
+            style={{ fontFamily: "inherit", fontSize: 12.5, color: "var(--pm-ink)", background: "var(--pm-card)", border: "1px solid var(--pm-border)", borderRadius: 9, padding: "6px 9px", outline: "none" }}>
             <option value="created_at">Recently added</option>
             <option value="last_purchase_date">Last order</option>
             <option value="total_spent">LTV</option>
@@ -309,294 +263,85 @@ export default function ContactsPage() {
             <option value="average_order_value">Avg order value</option>
             <option value="email">Email</option>
           </select>
-          <button
-            type="button"
-            className="btn ghost sm"
-            onClick={() => setDir((d) => (d === "asc" ? "desc" : "asc"))}
-            aria-label="Toggle direction"
-          >
+          <button className="pm-btn ghost sm" onClick={() => setDir((d) => (d === "asc" ? "desc" : "asc"))} aria-label="Toggle direction">
             {dir === "desc" ? "↓" : "↑"}
           </button>
         </div>
-      </div>
+      </Toolbar>
 
       {(facets.segments.length > 0 || facets.lists.length > 0) && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 16,
-            flexWrap: "wrap",
-          }}
-        >
-          <span style={{ fontSize: 12, color: "var(--text-3)", fontWeight: 500 }}>
-            Segments &amp; lists
-          </span>
-          <div className="chips">
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "var(--pm-hint)", fontWeight: 500 }}>Segments &amp; lists</span>
+          <div className="pm-chips">
             {facets.segments.slice(0, 8).map((s) => (
-              <button
-                key={`seg-${s.name}`}
-                type="button"
-                className={`chip${
-                  audience?.type === "segment" && audience.value === s.name ? " active" : ""
-                }`}
+              <span key={`seg-${s.name}`}
+                className={`pm-chip${audience?.type === "segment" && audience.value === s.name ? " on" : ""}`}
                 title={`Segment · ${s.count} contact${s.count === 1 ? "" : "s"}`}
-                onClick={() => {
-                  setAudience((a) =>
-                    a?.type === "segment" && a.value === s.name
-                      ? null
-                      : { type: "segment", value: s.name }
-                  );
-                  setPage(1);
-                }}
-              >
+                onClick={() => { setAudience((a) => (a?.type === "segment" && a.value === s.name ? null : { type: "segment", value: s.name })); setPage(1); }}>
                 {s.name}
-              </button>
+              </span>
             ))}
             {facets.lists.slice(0, 6).map((l) => (
-              <button
-                key={`list-${l.name}`}
-                type="button"
-                className={`chip${
-                  audience?.type === "list" && audience.value === l.name ? " active" : ""
-                }`}
+              <span key={`list-${l.name}`}
+                className={`pm-chip${audience?.type === "list" && audience.value === l.name ? " on" : ""}`}
                 title={`List · ${l.count} contact${l.count === 1 ? "" : "s"}`}
-                onClick={() => {
-                  setAudience((a) =>
-                    a?.type === "list" && a.value === l.name
-                      ? null
-                      : { type: "list", value: l.name }
-                  );
-                  setPage(1);
-                }}
-              >
+                onClick={() => { setAudience((a) => (a?.type === "list" && a.value === l.name ? null : { type: "list", value: l.name })); setPage(1); }}>
                 {l.name}
-              </button>
+              </span>
             ))}
           </div>
         </div>
       )}
 
       {showFilters && (
-        <div className="card card-pad section filter-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr) auto", gap: 12, alignItems: "end" }}>
-          <div className="field">
+        <div className="pm-panel filter-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr) auto", gap: 12, alignItems: "end", marginBottom: 14 }}>
+          <div className="pm-field" style={{ marginBottom: 0 }}>
             <label>Min orders</label>
-            <input
-              type="number"
-              min={0}
-              className="input"
-              title="Minimum orders"
-              placeholder="0"
-              value={minOrders}
-              onChange={(e) => {
-                setMinOrders(e.target.value);
-                setPage(1);
-              }}
-            />
+            <input type="number" min={0} title="Minimum orders" placeholder="0" value={minOrders} onChange={(e) => { setMinOrders(e.target.value); setPage(1); }} />
           </div>
-          <div className="field">
+          <div className="pm-field" style={{ marginBottom: 0 }}>
             <label>Min LTV (₹)</label>
-            <input
-              type="number"
-              min={0}
-              className="input"
-              title="Minimum lifetime value"
-              placeholder="0"
-              value={minLtv}
-              onChange={(e) => {
-                setMinLtv(e.target.value);
-                setPage(1);
-              }}
-            />
+            <input type="number" min={0} title="Minimum lifetime value" placeholder="0" value={minLtv} onChange={(e) => { setMinLtv(e.target.value); setPage(1); }} />
           </div>
-          <div className="field">
+          <div className="pm-field" style={{ marginBottom: 0 }}>
             <label>Last order</label>
             <div style={{ display: "flex", gap: 6 }}>
-              <select
-                aria-label="Last order comparison"
-                className="input"
-                style={{ width: "auto" }}
-                value={lastOrderOp}
-                onChange={(e) => setLastOrderOp(e.target.value as "within" | "before")}
-              >
+              <select aria-label="Last order comparison" value={lastOrderOp} onChange={(e) => setLastOrderOp(e.target.value as "within" | "before")}
+                style={{ fontFamily: "inherit", fontSize: 13.5, color: "var(--pm-ink)", background: "var(--pm-card2)", border: "1px solid var(--pm-border)", borderRadius: 10, padding: "11px 10px", outline: "none" }}>
                 <option value="within">Within last</option>
                 <option value="before">Before last</option>
               </select>
-              <input
-                type="number"
-                min={0}
-                className="input"
-                style={{ flex: 1 }}
-                title="Days"
-                placeholder="Days"
-                value={lastOrderDays}
-                onChange={(e) => {
-                  setLastOrderDays(e.target.value);
-                  setPage(1);
-                }}
-              />
+              <input type="number" min={0} style={{ flex: 1 }} title="Days" placeholder="Days" value={lastOrderDays} onChange={(e) => { setLastOrderDays(e.target.value); setPage(1); }} />
             </div>
           </div>
-          <button
-            type="button"
-            className="btn ghost"
-            onClick={() => {
-              setMinOrders("");
-              setMinLtv("");
-              setLastOrderDays("");
-              setLastOrderOp("within");
-              setPage(1);
-            }}
-          >
-            Clear
-          </button>
+          <button className="pm-btn ghost" onClick={() => { setMinOrders(""); setMinLtv(""); setLastOrderDays(""); setLastOrderOp("within"); setPage(1); }}>Clear</button>
         </div>
       )}
 
       {contacts.length > 0 ? (
-        <div className="card" style={{ opacity: isLoading ? 0.7 : 1, transition: "opacity 0.2s" }}>
-          {/* Order columns are noise while every cell reads 0 — they appear
-              automatically once any contact in view has a real order. */}
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                {contacts.some((c) => c.orders > 0) && (
-                  <>
-                    <th>Orders</th>
-                    <th>Lifetime value</th>
-                    <th>Last order</th>
-                  </>
-                )}
-                <th>Status</th>
-                <th>Lists &amp; Segments</th>
-              </tr>
-            </thead>
-            <tbody>
-              {contacts.map((c) => {
-                const sp = statusPill[c.status] || { cls: "grey", label: c.status };
-                const showOrderCols = contacts.some((x) => x.orders > 0);
-                return (
-                  <tr
-                    key={c.id}
-                    className="clickable"
-                    onClick={() => router.push(`/dashboard/contacts/${c.id}`)}
-                  >
-                    <td>
-                      <div className="cell-main">
-                        <Avatar name={c.name} size={26} />
-                        <span className="nm">{c.name}</span>
-                      </div>
-                    </td>
-                    <td className="muted">{c.email}</td>
-                    {showOrderCols && (
-                      <>
-                        <td className="num">{c.orders}</td>
-                        <td
-                          className="num"
-                          style={{
-                            color: c.orders > 0 ? "var(--green)" : "var(--text-3)",
-                            fontWeight: c.orders > 0 ? 500 : 400,
-                          }}
-                        >
-                          {c.ltv}
-                        </td>
-                        <td className="muted">{c.lastOrder || "—"}</td>
-                      </>
-                    )}
-                    <td>
-                      <span className={`pill ${sp.cls}`}>
-                        <span className="dot" style={{ background: `var(--${sp.cls === "grey" ? "text-3" : sp.cls})` }} />
-                        {sp.label}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", flexWrap: "wrap", maxWidth: 240 }}>
-                        {c.lists.slice(0, 2).map((l) => (
-                          <span key={`l-${l}`} className="tag" title={l}>
-                            {l}
-                          </span>
-                        ))}
-                        {c.segments.slice(0, 2).map((s) => (
-                          <span key={`s-${s}`} className="tag" title={s}>
-                            {s}
-                          </span>
-                        ))}
-                        {c.lists.length + c.segments.length > 4 && (
-                          <span className="muted" style={{ fontSize: 11 }}>
-                            +{c.lists.length + c.segments.length - 4}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "12px 16px",
-              borderTop: "1px solid var(--border)",
-            }}
-          >
-            <span className="muted" style={{ fontSize: 12.5 }}>
-              Showing {contacts.length} of {total.toLocaleString("en-IN")}
-            </span>
+        <div style={{ opacity: isLoading ? 0.7 : 1, transition: "opacity 0.2s" }}>
+          <DataTable columns={columns} rows={contacts} rowKey={(c) => c.id} onRowClick={(c) => router.push(`/dashboard/contacts/${c.id}`)} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14 }}>
+            <span className="pm-dim" style={{ fontSize: 12.5 }}>Showing {contacts.length} of {total.toLocaleString("en-IN")}</span>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <button
-                type="button"
-                aria-label="Previous"
-                className="btn ghost sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
+              <button aria-label="Previous" className="pm-btn ghost sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
                 <ChevronLeft size={14} /> Previous
               </button>
-              <span className="muted" style={{ fontSize: 12.5, padding: "0 8px" }}>
-                Page {page} / {totalPages}
-              </span>
-              <button
-                type="button"
-                aria-label="Next"
-                className="btn sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-              >
+              <span className="pm-dim" style={{ fontSize: 12.5, padding: "0 8px" }}>Page {page} / {totalPages}</span>
+              <button aria-label="Next" className="pm-btn sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
                 Next <ChevronRight size={14} />
               </button>
             </div>
           </div>
         </div>
       ) : (
-        <div className="empty">
-          <div className="ico">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-          </div>
-          <h3>{loaded ? "No contacts yet" : "Loading…"}</h3>
-          {loaded && (
-            <p>Import contacts from Shopify or Klaviyo to get started, or add them manually.</p>
-          )}
-          {loaded && (
-            <button
-              type="button"
-              className="btn primary"
-              disabled={importing}
-              onClick={() => runImport("shopify")}
-            >
-              <Upload size={14} /> Import from Shopify
-            </button>
-          )}
-        </div>
+        <EmptyState
+          icon={<Users />}
+          title={loaded ? "No contacts yet" : "Loading…"}
+          cta={loaded ? <button className="pm-btn primary" disabled={importing} onClick={() => runImport("shopify")}><Upload size={15} /> Import from Shopify</button> : undefined}
+        >
+          {loaded ? "Import contacts from Shopify or Klaviyo to get started, or add them manually." : undefined}
+        </EmptyState>
       )}
     </div>
   );
