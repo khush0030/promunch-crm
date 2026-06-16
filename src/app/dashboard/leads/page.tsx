@@ -241,8 +241,8 @@ export default function LeadsPage() {
 
       {data && data.leads.length > 0 ? (
         <>
-        <div className={`card ${styles.tableWrap}`} style={{ opacity: loading ? 0.7 : 1, transition: "opacity 0.2s" }}>
-          <table className="tbl">
+        <div className={`pm-tablewrap ${styles.tableWrap}`} style={{ opacity: loading ? 0.7 : 1, transition: "opacity 0.2s" }}>
+          <table className="pm-tbl">
             <thead>
               <tr>
                 <th style={{ width: 60 }}>Fit</th>
@@ -263,14 +263,14 @@ export default function LeadsPage() {
                       <span className={`pm-badge2 ${fp.cls}`} title="ProMunch fit score (AI, 0–100)">{fp.label}</span>
                     </td>
                     <td>
-                      <div className="cell-main">
-                        <span className="nm">{lead.name}</span>
+                      <div className="pm-cellname">
+                        <span className="pm-b7">{lead.name}</span>
                       </div>
-                      <div className="cell-sub">
+                      <div className="pm-dim">
                         {[lead.domain, lead.city].filter(Boolean).join(" · ") || "—"}
                       </div>
                     </td>
-                    <td className="muted" style={{ fontSize: 12.5, maxWidth: 260 }}>
+                    <td className="pm-muted" style={{ fontSize: 12.5, maxWidth: 260 }}>
                       {lead.fit_reason ?? "—"}
                     </td>
                     <td>
@@ -282,7 +282,7 @@ export default function LeadsPage() {
                           </span>
                         </span>
                       ) : (
-                        <span className="muted">—</span>
+                        <span className="pm-muted">—</span>
                       )}
                     </td>
                     <td>
@@ -320,7 +320,7 @@ export default function LeadsPage() {
                       </span>
                     </span>
                   ) : (
-                    <span className="muted" style={{ fontSize: 12 }}>no contact</span>
+                    <span className="pm-muted" style={{ fontSize: 12 }}>no contact</span>
                   )}
                   <span className={`pm-badge2 ${sp.cls}`}>{sp.label}</span>
                 </div>
@@ -371,7 +371,7 @@ export default function LeadsPage() {
 function Kpi({ label, value, accent }: { label: string; value: number | string; accent?: string }) {
   return (
     <div className="pm-kpi">
-      <div className="muted" style={{ fontSize: 12 }}>{label}</div>
+      <div className="pm-muted" style={{ fontSize: 12 }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 600 }}>
         {value}
         {accent ? <span className="pm-badge2 bg-terra" style={{ marginLeft: 8 }}>{accent}</span> : null}
@@ -424,12 +424,12 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (n:
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={`card card-pad ${styles.modal} ${styles.modalMd}`} onClick={(e) => e.stopPropagation()}>
+      <div className={`pm-panel ${styles.modal} ${styles.modalMd}`} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div className="card-title">Find companies</div>
           <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
         </div>
-        <div className="muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
+        <div className="pm-muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
           Each category × city pair is one Google Places search (up to 60 companies).
         </div>
         <div style={{ fontSize: 12.5, fontWeight: 600, margin: "10px 0 6px" }}>Categories</div>
@@ -496,7 +496,7 @@ function SettingsModal({
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={`card card-pad ${styles.modal} ${styles.modalSm}`} onClick={(e) => e.stopPropagation()}>
+      <div className={`pm-panel ${styles.modal} ${styles.modalSm}`} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div className="card-title">Outreach settings</div>
           <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
@@ -594,7 +594,7 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div
-        className={`card card-pad ${styles.modal} ${styles.modalLg}`}
+        className={`pm-panel ${styles.modal} ${styles.modalLg}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
@@ -603,7 +603,7 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
               {lead.name}{" "}
               <span className={`pm-badge2 ${fp.cls}`} title="ProMunch fit score (AI, 0–100)">fit {fp.label}</span>
             </div>
-            <div className="muted" style={{ fontSize: 12.5 }}>
+            <div className="pm-muted" style={{ fontSize: 12.5 }}>
               {[lead.category, lead.city].filter(Boolean).join(" · ")}
               {lead.website ? (
                 <>
@@ -613,20 +613,20 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
               ) : null}
             </div>
             {lead.fit_reason ? (
-              <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>{lead.fit_reason}</div>
+              <div className="pm-muted" style={{ fontSize: 12.5, marginTop: 4 }}>{lead.fit_reason}</div>
             ) : null}
           </div>
           <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
         </div>
         {lead.error ? (
-          <div className="muted" style={{ fontSize: 12, color: "var(--amber)" }}>Last error: {lead.error}</div>
+          <div className="pm-muted" style={{ fontSize: 12, color: "var(--amber)" }}>Last error: {lead.error}</div>
         ) : null}
 
         <div style={{ fontSize: 12.5, fontWeight: 600, margin: "16px 0 6px" }}>
           Contacts ({(lead.lead_contacts ?? []).length})
         </div>
         {(lead.lead_contacts ?? []).length ? (
-          <table className="tbl">
+          <table className="pm-tbl">
             <thead>
               <tr><th>Email</th><th>Type</th><th>Verified</th><th>Confidence</th><th>Source</th></tr>
             </thead>
@@ -637,10 +637,10 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
                     {c.email}
                     {c.is_primary ? <span className="pm-badge2 bg-green" style={{ marginLeft: 6 }}>primary</span> : null}
                   </td>
-                  <td className="muted">{c.role_hint ?? c.kind}</td>
-                  <td className="muted">{c.verify_status}</td>
+                  <td className="pm-muted">{c.role_hint ?? c.kind}</td>
+                  <td className="pm-muted">{c.verify_status}</td>
                   <td><span className={`pm-badge2 ${CONFIDENCE_PILL[c.confidence] ?? "bg-gray"}`}>{c.confidence}</span></td>
-                  <td className="muted">
+                  <td className="pm-muted">
                     {c.source_url ? (
                       <a href={c.source_url} target="_blank" rel="noreferrer">{c.source}</a>
                     ) : (
@@ -652,7 +652,7 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
             </tbody>
           </table>
         ) : (
-          <div className="muted" style={{ fontSize: 12.5 }}>
+          <div className="pm-muted" style={{ fontSize: 12.5 }}>
             No contacts found by the crawler — add one manually (check their site or LinkedIn).
           </div>
         )}
@@ -688,11 +688,11 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
         {activeDraft ? (
           <>
             {activeDraft.error ? (
-              <div className="muted" style={{ fontSize: 12, color: "var(--amber)", marginBottom: 6 }}>
+              <div className="pm-muted" style={{ fontSize: 12, color: "var(--amber)", marginBottom: 6 }}>
                 Last send error: {activeDraft.error}
               </div>
             ) : null}
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+            <div className="pm-muted" style={{ fontSize: 12, marginBottom: 6 }}>
               To: <span className="mono">{contactEmail(activeDraft.contact_id)}</span>
               {activeDraft.edited ? " · edited" : ""}
             </div>
@@ -725,11 +725,11 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
           </>
         ) : sentDraft ? (
           <div>
-            <div className="muted" style={{ fontSize: 12.5, marginBottom: 6 }}>
+            <div className="pm-muted" style={{ fontSize: 12.5, marginBottom: 6 }}>
               Sent to <span className="mono">{contactEmail(sentDraft.contact_id)}</span>
               {sentDraft.sent_at ? ` on ${new Date(sentDraft.sent_at).toLocaleString()}` : ""} — status: {sentDraft.status}
             </div>
-            <div className="card card-pad" style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>
+            <div className="pm-panel" style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>
               <strong>{sentDraft.subject}</strong>
               {"\n\n"}
               {sentDraft.body_text}
@@ -746,7 +746,7 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
           </div>
         ) : (
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span className="muted" style={{ fontSize: 12.5 }}>No draft yet.</span>
+            <span className="pm-muted" style={{ fontSize: 12.5 }}>No draft yet.</span>
             <button
               type="button" className="pm-btn"
               disabled={busy !== null || !(lead.lead_contacts ?? []).some((c) => c.verify_status === "mx_ok")}
