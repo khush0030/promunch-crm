@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/leads-tick",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/amazon-poll",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/amazon-settlements",
+      "schedule": "0 5 * * *"
     }
   ]
 }

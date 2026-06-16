@@ -133,6 +133,16 @@ const groups: NavGroup[] = [
         ),
       },
       {
+        href: "/dashboard/amazon",
+        label: "Amazon",
+        icon: (
+          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
+            <path d="M3 6h18M3 12h18M3 18h18" />
+            <path d="M5 21c4 2 10 2 14 0" />
+          </svg>
+        ),
+      },
+      {
         href: "/dashboard/leads",
         label: "B2B Leads",
         icon: (

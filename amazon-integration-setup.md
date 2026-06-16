@@ -1,110 +1,128 @@
 # Amazon Seller Central → PROMUNCH CRM (SP-API)
 
-Goal: orders & sales, inventory/FBA, buyer messaging, finances → CRM, mirroring the Shopify pattern
-(Supabase edge function polls API → upserts tables → dashboard page + Maya Slack alerts).
+Replaces OMS Guru for order alerts, and adds true financials + settlement reconciliation,
+mirroring the Shopify pattern (Supabase edge function polls SP-API → upserts tables →
+dashboard page + Maya Slack alerts).
 
-Region: **India** (marketplace `A21TJRUUN4KGV`, Seller Central `sellercentral.amazon.in`).
-India lives in Amazon's **Europe** API region: endpoint `https://sellingpartnerapi-eu.amazon.com`.
+Region: **India** — marketplace `A21TJRUUN4KGV`, endpoint `https://sellingpartnerapi-eu.amazon.com`
+(India is served by Amazon's EU region — not a typo).
 
----
-
-## The one hard truth first
-
-"Admin access to Seller Central" is NOT data access. Data comes through the **Selling Partner API (SP-API)**,
-which you switch on separately. Two more things to know up front:
-
-1. **Buyer PII is restricted.** Amazon hides real buyer email/phone. You get anonymized orders +
-   a no-reply *relay* for messaging. So Amazon buyers can't be added to WhatsApp/email outreach like Shopify buyers.
-2. **You need a Professional selling plan** (not Individual) to use SP-API. You almost certainly have this.
-
-Good news: Amazon **removed the old AWS / SigV4 signing requirement**. You now only need a Login-with-Amazon
-(LWA) token. Much simpler than older guides say — ignore anything mentioning "IAM role ARN" or "AWS access keys".
+Account: **Vippy Industries Ltd** seller account. App: `PROMUNCH CRM`
+(`amzn1.sp.solution.104d3bf2-...`), private/self-authorized.
 
 ---
 
-## PART A — Amazon console setup (you do this by hand, ~30 min)
+## Status: LIVE ✅
 
-### Step 1 — Register as a developer
-1. Log in to `sellercentral.amazon.in` as the admin.
-2. Top menu: **Settings (gear) → User Permissions**, scroll to **Third-party developer and apps** →
-   click **Visit Manage Your Apps**. (Or: **Apps & Services → Develop Apps**.)
-3. Click **Developer Profile** / register. Fill the form:
-   - Who uses the data: "Internal use only" (you're building for your own store).
-   - Security questions: answer honestly (encrypted at rest/in transit, access limited to you, etc.).
-4. Submit. Private/self-use profiles are usually approved fast.
-
-### Step 2 — Create your app and get LWA credentials
-1. On **Develop Apps**, click **Add new app client**.
-2. Name: `PROMUNCH CRM`. App type: **SP-API**.
-3. **Roles** — tick the data sets you need (Amazon shows a checkbox + description for each; pick by description):
-   - Orders / "Amazon Fulfillment" + "Direct-to-Consumer Shipping" → order & sales data
-   - "Inventory and Order Tracking" → FBA / stock
-   - "Finance and Accounting" → settlements, fees, payouts
-   - "Buyer Communication" (a **restricted** role) → messaging relay
-   - "Amazon ... (PII)" restricted role → only if you ever need buyer name/address. Requires accepting
-     Amazon's Data Protection Policy. Skip if you don't need it — keeps approval simpler.
-4. Save. Open the app → you now have:
-   - **LWA Client ID** (`amzn1.application-oa2-client....`)
-   - **LWA Client Secret**
-   Copy both somewhere safe. The secret is shown once.
-
-> Restricted roles (Buyer Communication, PII) may show "pending" until Amazon approves. Orders/inventory/finance work immediately.
-
-### Step 3 — Self-authorize → get the Refresh Token (the key that unlocks everything)
-Because the app is for your *own* seller account, you don't build an OAuth flow — you self-authorize.
-1. In **Develop Apps**, find your app → **Authorize** (or the "..." menu → **Authorize**).
-2. Click **Authorize app** for your own account.
-3. Amazon shows a **Refresh Token** (`Atzr|....`). Copy it. This is long-lived — treat it like a password.
-
-You now hold the three secrets that matter:
-- `LWA Client ID`
-- `LWA Client Secret`
-- `Refresh Token`
-
-That's the entire Amazon side. Everything else is code.
+| Piece | State |
+|---|---|
+| SP-API auth (LWA + refresh token) | ✅ working |
+| Orders sync (336 backfilled, ongoing) | ✅ |
+| Line-items | ✅ (decoupled + just-in-time on alert) |
+| FBA inventory (134 SKUs) | ✅ |
+| Finances — per-order fee breakdown | ✅ (970 events) |
+| Settlement ingestion + reconciliation | ✅ (Jun 8–15 reconciled, variance ₹0.00) |
+| Slack: order alerts → #amazon-orders | ✅ |
+| Slack: settlement/variance → #amazon-finance | ✅ |
+| Dashboard `/dashboard/amazon` | ✅ (ships on next Vercel deploy) |
+| Cron (15-min sync + daily settlements) | ⏳ activates on next Vercel deploy |
 
 ---
 
-## PART B — How the auth actually works (so the code makes sense)
+## What you can get from Amazon (and what you can't)
 
-1. Exchange refresh token → short-lived **access token** (valid ~1h):
-   `POST https://api.amazon.com/auth/o2/token`
-   body: `grant_type=refresh_token&refresh_token=...&client_id=...&client_secret=...`
-   → returns `access_token`.
-2. Call SP-API with header `x-amz-access-token: <access_token>` against `https://sellingpartnerapi-eu.amazon.com`.
-3. For **restricted** data (buyer info, messaging), first call the **Tokens API** to mint a
-   **Restricted Data Token (RDT)**, then use that instead of the normal access token for that one call.
+| Data | Status |
+|---|---|
+| Orders, sales, status, FBA vs merchant | ✅ |
+| Line items (SKU/ASIN/qty/price) | ✅ |
+| FBA inventory, inbound, reserved | ✅ |
+| Per-order fees (referral, FBA, other) + true net | ✅ |
+| Settlements — actual bank deposits, line by line | ✅ |
+| Buyer name/email/phone/address | ⚠️ restricted (PII role + RDT); email is a no-reply relay |
+| Ads spend | ❌ separate Amazon Ads API |
 
-APIs we'll use:
-| Need              | API                                   | Key operation                          |
-|-------------------|---------------------------------------|----------------------------------------|
-| Orders & sales    | Orders API v0                         | `getOrders`, `getOrderItems`           |
-| Bulk backfill     | Reports API                           | `GET_FLAT_FILE_ALL_ORDERS_DATA...`     |
-| Inventory / FBA   | FBA Inventory API                     | `getInventorySummaries`                |
-| Finances          | Finances API                          | `listFinancialEvents`                  |
-| Buyer messaging   | Messaging + Solicitations API (RDT)   | `getMessagingActionsForOrder`          |
+**Reconciliation chosen: Amazon settlement vs computed** — does the sum of every settlement
+line item equal the money Amazon actually deposited? Variance = unaccounted money → Slack alert.
 
 ---
 
-## PART C — Code build (mirrors Shopify; I implement this)
+## Architecture (files added)
 
-Secrets to set in Supabase (same place as your Shopify/Slack secrets):
+Edge function (Supabase project `hlykspakpewuilttnydm` = promunch-email-agent):
+- `supabase/functions/_shared/amazon.ts` — SP-API client: LWA token cache, RDT, getOrders,
+  getOrderItems, getInventorySummaries, listFinancialEvents (paginated), fee breakdown
+  (`shipmentEconomics`), Reports API + settlement TSV parsing.
+- `supabase/functions/amazon-poll/index.ts` — the poller. Sections: orders, inventory,
+  finances, settlements. Each advances its own watermark on success only.
+- `supabase/config.toml` — `[functions.amazon-poll] verify_jwt = false`.
+
+Migrations (run via dashboard SQL editor — CLI migrations are blocked on this project):
+- `20260616120000_amazon_tables.sql` — orders, order_items, inventory, finance_events, sync_state (+ RLS lock).
+- `20260616130000_amazon_financials.sql` — fee columns + settlements + settlement_lines + report_state.
+- `20260616140000_amazon_settlement_breakdown.sql` — settlement gross/fees/refunds/breakdown columns.
+
+Next.js (promunch-crm):
+- `src/app/api/amazon/route.ts` — server-side (service role) financials API.
+- `src/app/dashboard/amazon/page.tsx` — sales/fees/net + settlement reconciliation + orders + low stock.
+- `src/app/api/cron/amazon-poll/route.ts` + `amazon-settlements/route.ts` — Vercel cron triggers.
+- `vercel.json` — crons: poll `*/15 * * * *`, settlements `0 5 * * *`.
+- `src/components/Sidebar.tsx` — "Amazon" nav item.
+
+---
+
+## Secrets (Supabase Edge Functions → Secrets) — ALL SET ✅
+
 ```
-AMAZON_LWA_CLIENT_ID
-AMAZON_LWA_CLIENT_SECRET
-AMAZON_SP_REFRESH_TOKEN
-AMAZON_MARKETPLACE_ID = A21TJRUUN4KGV
-AMAZON_SP_ENDPOINT    = https://sellingpartnerapi-eu.amazon.com
+AMAZON_LWA_CLIENT_ID            (set)
+AMAZON_LWA_CLIENT_SECRET        (set)
+AMAZON_SP_REFRESH_TOKEN         (set)
+AMAZON_MARKETPLACE_ID           = A21TJRUUN4KGV
+AMAZON_SP_ENDPOINT             = https://sellingpartnerapi-eu.amazon.com
+AMAZON_ORDERS_SLACK_CHANNEL_ID  = C0BBP5G5VRN   (#amazon-orders)
+AMAZON_FINANCE_SLACK_CHANNEL_ID = C0BANG2HZRR   (#amazon-finance)
 ```
 
-Files to add (parallel to the Shopify ones):
-- `supabase/functions/_shared/amazon.ts` — LWA token cache, RDT helper, `getOrders/getInventory/getFinances`.
-- `supabase/functions/amazon-poll/index.ts` — cron-polled: pull new orders since last run → upsert
-  `amazon_orders` (+ `amazon_order_items`); low-stock check → Slack via Maya. Dedup like `wa_messages`.
-- `supabase/migrations/<ts>_amazon_tables.sql` — `amazon_orders`, `amazon_order_items`, `amazon_inventory`
-  (run in dashboard SQL editor — migrations can't deploy via CLI here).
-- `src/app/dashboard/amazon/page.tsx` — orders + sales + inventory view, mirroring Shopify pages.
-- Slack: reuse existing `_shared/slack.ts` (Maya) for new-order pings + low-stock alerts.
-- Cron: add `amazon-poll` to the scheduler (like the order-confirmation sweep).
+Optional tuning (defaults shown):
+```
+AMAZON_LOW_STOCK_THRESHOLD   = 10     # FBA fulfillable units that trigger a low-stock alert
+AMAZON_ALERT_MAX_AGE_HOURS   = 12     # only alert orders placed within this window (stops backfill spam)
+AMAZON_ITEM_BATCH            = 8      # line-item fetches per run
+```
 
-Deploy: edge functions via Supabase CLI (works); migration via dashboard SQL editor (CLI blocked).
+---
+
+## Manual triggers (for testing / backfill)
+
+```
+# combined steady-state sync (orders + inventory + finances)
+curl "https://hlykspakpewuilttnydm.supabase.co/functions/v1/amazon-poll"
+
+# single section
+curl ".../amazon-poll?only=orders&days=7"      # widen window for a deliberate order backfill
+curl ".../amazon-poll?only=inventory"
+curl ".../amazon-poll?only=finances"
+curl ".../amazon-poll?only=settlements"         # ingest next unseen settlement report
+curl ".../amazon-poll?only=settlements&reprocess=1"  # re-ingest newest report
+curl ".../amazon-poll?only=settlements&debug=1"      # inspect report headers/rows, no writes
+```
+
+---
+
+## To go fully live
+
+1. **Deploy promunch-crm to Vercel** (push to main) → dashboard page + the two crons activate.
+   Vercel needs `NEXT_PUBLIC_SUPABASE_URL` (already set) and optional `CRON_SECRET`.
+2. Confirm Maya is in **#amazon-orders** and **#amazon-finance** (`/invite @Maya`).
+
+That's it — orders then flow to Slack automatically and you can retire OMS Guru.
+
+---
+
+## Notes / future
+
+- Buyer messaging (Buyer Communication / Solicitation roles) is approved-pending at Amazon; once
+  active, wire the Messaging API (needs RDT) for review requests like the Shopify flow.
+- Finances currently capture Shipment + Refund events; settlement reconciliation is the source of
+  truth for money (it includes storage/service/reserve lines the events don't).
+- The first settlement (Jun 8–15) netted **negative** — fees (₹3,650, ~33%) + refunds (₹913) +
+  reserves exceeded ₹10,905 gross. The dashboard makes this visible per period.

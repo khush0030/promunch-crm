@@ -95,3 +95,6 @@ verify_jwt = false                    # invoked by pg_cron + Vercel cron (dead-m
 
 [functions.nitro-webhook]
 verify_jwt = false                    # Nitro uses caller-defined Authorization token (NITRO_AUTH_TOKEN)
+
+[functions.amazon-poll]
+verify_jwt = false                    # invoked by scheduled cron (SP-API sync)
