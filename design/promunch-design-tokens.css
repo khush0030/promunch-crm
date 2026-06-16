@@ -1,0 +1,87 @@
+/* ============================================================
+   PROMUNCH CRM — Design Tokens (Warm Editorial)
+   Drop into src/app/globals.css. These are the single source of
+   truth for the redesign. Every page/component must read from
+   these variables — never hardcode hex values in components.
+   ============================================================ */
+
+:root {
+  /* Surfaces */
+  --pm-app:        #F1EBE0;  /* page background (warm cream) */
+  --pm-card:       #FFFFFF;  /* raised cards / panels */
+  --pm-card2:      #FBF8F2;  /* subtle inset fills, table header, inputs */
+  --pm-border:     #E8DFD0;  /* card + control borders */
+  --pm-line:       #EFE8DB;  /* hairline dividers inside cards */
+
+  /* Sidebar (deep green) */
+  --pm-side:        #1B2A20;
+  --pm-side-text:   #C3D2BE;
+  --pm-side-dim:    #7E8F79;  /* group labels, secondary */
+  --pm-side-active-bg:   #273B2C;
+  --pm-side-active-text: #FFFFFF;
+  --pm-side-accent:      #E0A24E;  /* active icon + avatar */
+
+  /* Text */
+  --pm-ink:    #1A1714;  /* primary text + big numbers */
+  --pm-muted:  #6E665A;  /* secondary text, labels */
+  --pm-hint:   #9A9081;  /* tertiary, captions, placeholders */
+
+  /* Accents — use ONLY where colour carries meaning */
+  --pm-green:      #3F6B4F;  --pm-green-soft: #E9F1E6;  /* good / primary action / positive */
+  --pm-gold:       #C98A1E;  --pm-gold-soft:  #FAF1DD;  /* warning / pending */
+  --pm-terra:      #C2492E;  --pm-terra-soft: #F8ECE7;  /* danger / negative / failed */
+  --pm-blue:       #3C6E72;  --pm-blue-soft:  #E5EFEF;  /* neutral info / secondary metric */
+
+  /* Radii */
+  --pm-r:   16px;  /* cards / panels */
+  --pm-r2:  11px;  /* buttons, range groups, search */
+  --pm-r3:  9px;   /* nav items, small chips */
+
+  /* Type scale (Geist) */
+  --pm-font: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --pm-h1: 25px;   /* page title, weight 700 */
+  --pm-kpi: 28px;  /* hero metric number, weight 800 */
+  --pm-h3: 15px;   /* panel title, weight 600 */
+  --pm-body: 13.5px;
+  --pm-label: 12.5px;  /* card labels, weight 500 */
+  --pm-caption: 11.5px; /* hints */
+}
+
+/* ------------------------------------------------------------
+   Tailwind v4 mapping (optional but recommended).
+   Lets you write bg-card, text-ink, rounded-pm, etc.
+   ------------------------------------------------------------ */
+@theme inline {
+  --color-app:        var(--pm-app);
+  --color-card:       var(--pm-card);
+  --color-card2:      var(--pm-card2);
+  --color-ink:        var(--pm-ink);
+  --color-muted:      var(--pm-muted);
+  --color-hint:       var(--pm-hint);
+  --color-line:       var(--pm-line);
+  --color-pm-border:  var(--pm-border);
+  --color-green:      var(--pm-green);
+  --color-green-soft: var(--pm-green-soft);
+  --color-gold:       var(--pm-gold);
+  --color-gold-soft:  var(--pm-gold-soft);
+  --color-terra:      var(--pm-terra);
+  --color-terra-soft: var(--pm-terra-soft);
+  --color-blue:       var(--pm-blue);
+  --color-blue-soft:  var(--pm-blue-soft);
+  --radius-pm:        var(--pm-r);
+  --font-sans:        var(--pm-font);
+}
+
+/* ------------------------------------------------------------
+   Rules of the system (so every page stays consistent)
+   1. Page bg = --pm-app. Content sits in --pm-card panels.
+   2. Big numbers = --pm-ink, weight 800, letter-spacing -0.9px.
+   3. Two font weights only on labels: 500 (label) / 700 (value).
+   4. Colour = meaning: green good, gold pending/warn, terra danger.
+      Never colour a number unless it signals state (e.g. fees -terra,
+      net +green, coverage <50% -terra).
+   5. Every card: bg --pm-card, 1px --pm-border, radius --pm-r,
+      padding 16–20px. Hairline dividers inside = --pm-line.
+   6. Status pills: soft bg + same-family dark text
+      (e.g. bg --pm-green-soft, text --pm-green).
+   ------------------------------------------------------------ */

@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROMUNCH CRM — Full Prototype</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.31.0/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --font:'Geist',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --app:#F1EBE0; --side:#1B2A20; --side-text:#C3D2BE; --side-dim:#7E8F79;
+  --side-active-bg:#273B2C; --side-active-text:#FFFFFF; --side-accent:#E0A24E;
+  --card:#FFFFFF; --card2:#FBF8F2; --ink:#1A1714; --muted:#6E665A; --hint:#9A9081;
+  --border:#E8DFD0; --line:#EFE8DB;
+  --green:#3F6B4F; --green-soft:#E9F1E6; --gold:#C98A1E; --gold-soft:#FAF1DD;
+  --terra:#C2492E; --terra-soft:#F8ECE7; --blue:#3C6E72; --blue-soft:#E5EFEF;
+  --r:16px; --r2:11px; --r3:9px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:var(--font);background:var(--app);color:var(--ink);-webkit-font-smoothing:antialiased}
+body{display:flex;flex-direction:column;min-height:100vh}
+.tagbar{display:flex;align-items:center;gap:10px;padding:8px 22px;background:#15120E;color:#EDE6DA;font-size:12.5px;flex-shrink:0}
+.tagbar b{font-weight:600}.tagbar span{opacity:.55;margin-left:auto}
+
+.app{display:flex;flex:1;min-height:0}
+/* SIDEBAR */
+.side{width:238px;flex-shrink:0;background:var(--side);color:var(--side-text);padding:18px 14px;display:flex;flex-direction:column;gap:3px;overflow:auto}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 14px}
+.brand .pm{width:30px;height:30px;border-radius:8px;display:grid;grid-template-columns:1fr 1fr;overflow:hidden}
+.brand .pm i{display:block}
+.brand .pm i:nth-child(1){background:#E0533A}.brand .pm i:nth-child(2){background:#E7B22E}
+.brand .pm i:nth-child(3){background:#3F7DC9}.brand .pm i:nth-child(4){background:#4E9D54}
+.brand b{font-weight:700;font-size:16px;letter-spacing:.3px;color:var(--side-active-text)}
+.brand span{font-size:10px;letter-spacing:2px;color:var(--side-dim);display:block;margin-top:1px}
+.navgroup{font-size:10.5px;letter-spacing:1.6px;text-transform:uppercase;color:var(--side-dim);padding:13px 10px 6px;font-weight:600}
+.nav{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;font-size:14px;font-weight:500;color:var(--side-text);cursor:pointer;line-height:1}
+.nav i{font-size:18px;width:18px;text-align:center;opacity:.8}
+.nav .badge{margin-left:auto;font-size:11px;font-weight:600;padding:2px 7px;border-radius:20px;background:#C2492E;color:#fff}
+.nav:hover{background:#223530}
+.nav.on{background:var(--side-active-bg);color:var(--side-active-text);font-weight:600}
+.nav.on i{opacity:1;color:var(--side-accent)}
+.foot{margin-top:auto;display:flex;align-items:center;gap:10px;padding-top:13px;border-top:1px solid #2c4034}
+.foot .av{width:30px;height:30px;border-radius:50%;background:var(--side-accent);display:flex;align-items:center;justify-content:center;color:#1b2a20;font-weight:700;font-size:12px}
+.foot .nm{font-size:13px;font-weight:500;color:var(--side-active-text)}
+.foot .em{font-size:11px;color:var(--side-dim)}
+
+/* MAIN */
+.main{flex:1;padding:24px 30px 50px;min-width:0;overflow:auto}
+.view{display:none}.view.on{display:block}
+.pagehead{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:6px;flex-wrap:wrap}
+.pagehead h1{font-size:25px;font-weight:700;letter-spacing:-.4px}
+.pagehead p{font-size:13.5px;color:var(--muted);margin-top:3px}
+.acts{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ranges{display:flex;gap:5px;background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:4px}
+.ranges button{font-family:var(--font);font-size:12.5px;font-weight:500;color:var(--muted);background:transparent;border:0;padding:7px 12px;border-radius:8px;cursor:pointer}
+.ranges button.on{background:var(--green-soft);color:var(--green);font-weight:600}
+.btn{font-family:var(--font);display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;border-radius:var(--r2);padding:10px 15px;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--ink)}
+.btn.primary{background:var(--green);color:#fff;border-color:var(--green)}
+.btn.ghost{background:transparent}
+.sectlab{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--hint);font-weight:600;margin:22px 2px 11px}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.kpis.k3{grid-template-columns:repeat(3,1fr)}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px 17px}
+.kpi .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.kpi .lab{font-size:12.5px;color:var(--muted);font-weight:500}
+.kpi .ic{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+.ic.g{background:var(--green-soft);color:var(--green)}.ic.o{background:var(--gold-soft);color:var(--gold)}
+.ic.t{background:var(--terra-soft);color:var(--terra)}.ic.b{background:var(--blue-soft);color:var(--blue)}
+.kpi .num{font-size:28px;font-weight:800;letter-spacing:-.9px;line-height:1.05}
+.kpi .row2{display:flex;align-items:flex-end;justify-content:space-between;margin-top:8px;gap:10px}
+.kpi .delta{font-size:12px;font-weight:600}
+.delta.up{color:var(--green)}.delta.down{color:var(--terra)}
+.kpi .spark{width:80px;height:28px;flex-shrink:0}
+.kpi .sub{font-size:11.5px;color:var(--hint);margin-top:2px}
+
+/* panels + grids */
+.grid{display:grid;gap:14px}
+.g-2-1{grid-template-columns:2fr 1fr}.g-1-2{grid-template-columns:1fr 2fr}
+.g-3{grid-template-columns:1fr 1fr 1fr}.g-2{grid-template-columns:1.45fr 1fr}.g-11{grid-template-columns:1fr 1fr}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;min-width:0}
+.phead{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;gap:10px}
+.phead h3{font-size:15px;font-weight:600;display:flex;align-items:center;gap:9px}
+.phead h3 .tic{font-size:18px;color:var(--green)}
+.phead .more{font-size:12px;color:var(--muted);font-weight:500;cursor:pointer;display:flex;align-items:center;gap:4px}
+.csub{font-size:12px;color:var(--hint);margin-bottom:14px}
+.chartbox{position:relative;height:228px}.chartbox.sm{height:180px}
+.legend{display:flex;gap:16px;margin-top:12px;flex-wrap:wrap}
+.legend .li{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)}
+.legend .sw{width:10px;height:10px;border-radius:3px}
+
+/* donut */
+.donutwrap{display:flex;flex-direction:column;align-items:center;gap:6px}
+.donutbox{position:relative;width:170px;height:170px}
+.donutctr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.donutctr b{font-size:20px;font-weight:800;letter-spacing:-.5px}.donutctr span{font-size:10.5px;color:var(--hint)}
+.chanlist{width:100%;margin-top:4px}
+.chanrow{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:12.5px}
+.chanrow .sw{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+.chanrow .nm{color:var(--ink);font-weight:500;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chanrow .v{color:var(--muted);font-weight:600}
+
+/* ring */
+.ring-wrap{display:flex;align-items:center;gap:18px}
+.ring{width:108px;height:108px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.ring .in{width:80px;height:80px;border-radius:50%;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .in b{font-size:22px;font-weight:800;letter-spacing:-.5px}.ring .in span{font-size:10px;color:var(--hint)}
+.klist{display:flex;flex-direction:column;gap:9px}
+.kline{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--muted)}
+.kline .sw{width:9px;height:9px;border-radius:3px}.kline b{color:var(--ink);font-weight:700;font-size:14px;min-width:34px}
+
+/* bars/stat */
+.mbar{margin:12px 0}
+.mbar .t{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px}
+.mbar .t .k{color:var(--muted)}.mbar .t .v{color:var(--ink);font-weight:600}
+.mbar .track{height:8px;border-radius:6px;background:var(--line);overflow:hidden}
+.mbar .fill{height:100%;border-radius:6px}
+.statline{display:flex;gap:18px}.stat{flex:1}.stat .n{font-size:24px;font-weight:800;letter-spacing:-.6px}.stat .l{font-size:11.5px;color:var(--hint)}
+
+/* attention/health */
+.att{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.att:first-of-type{border-top:0}
+.att .ic2{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.ic2.r{background:var(--terra-soft);color:var(--terra)}.ic2.a{background:var(--gold-soft);color:var(--gold)}
+.att .tx{font-size:13.5px;color:var(--ink);font-weight:500;flex:1;line-height:1.35}
+.att .tx small{display:block;color:var(--hint);font-weight:400;font-size:11.5px;margin-top:1px}
+.att .go{font-family:var(--font);font-size:12.5px;font-weight:600;color:var(--green);background:var(--green-soft);border:0;padding:8px 14px;border-radius:9px;cursor:pointer;white-space:nowrap}
+.pill{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.pill:first-of-type{border-top:0}
+.pill .d{width:8px;height:8px;border-radius:50%}
+.pill .d.ok{background:var(--green)}.pill .d.warn{background:var(--gold)}
+.pill .nm{font-size:13.5px;color:var(--ink);font-weight:500;flex:1}
+.pill .st{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:20px}
+.pill .st.ok{background:var(--green-soft);color:var(--green)}.pill .st.warn{background:var(--gold-soft);color:var(--gold)}
+
+/* tables */
+.tablewrap{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+table.tbl{width:100%;border-collapse:collapse;font-size:13px}
+table.tbl th{text-align:left;padding:12px 16px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--hint);font-weight:600;border-bottom:1px solid var(--border);background:var(--card2)}
+table.tbl td{padding:13px 16px;border-bottom:1px solid var(--line);color:var(--ink);vertical-align:middle}
+table.tbl tr:last-child td{border-bottom:0}
+table.tbl tr:hover td{background:var(--card2)}
+.cellname{display:flex;align-items:center;gap:10px}
+.av-sm{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:11px;color:#fff;flex-shrink:0}
+.muted{color:var(--muted)}.dim{color:var(--hint)}.b7{font-weight:700}
+.badge2{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:20px}
+.bg-green{background:var(--green-soft);color:var(--green)}.bg-gold{background:var(--gold-soft);color:var(--gold)}
+.bg-terra{background:var(--terra-soft);color:var(--terra)}.bg-gray{background:var(--line);color:var(--muted)}.bg-blue{background:var(--blue-soft);color:var(--blue)}
+.tag{display:inline-block;font-size:11px;font-weight:500;padding:3px 8px;border-radius:7px;background:var(--card2);border:1px solid var(--border);color:var(--muted);margin:2px}
+
+/* filter chips + search */
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.search{flex:1;min-width:220px;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:9px 13px;color:var(--hint);font-size:13px}
+.search input{border:0;background:transparent;font-family:var(--font);font-size:13px;color:var(--ink);width:100%;outline:none}
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.chip{font-family:var(--font);font-size:12.5px;font-weight:500;color:var(--muted);background:var(--card);border:1px solid var(--border);padding:7px 13px;border-radius:20px;cursor:pointer}
+.chip.on{background:var(--green);color:#fff;border-color:var(--green)}
+
+/* tabs */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.tab{font-family:var(--font);font-size:13.5px;font-weight:500;color:var(--muted);background:transparent;border:0;padding:11px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:var(--green);border-bottom-color:var(--green);font-weight:600}
+
+/* inbox 3-pane */
+.inbox{display:grid;grid-template-columns:300px 1fr 280px;gap:14px;height:calc(100vh - 230px);min-height:460px}
+.ibcol{background:var(--card);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;overflow:hidden}
+.iblist{overflow:auto}
+.ibrow{padding:13px 15px;border-bottom:1px solid var(--line);cursor:pointer}
+.ibrow:hover{background:var(--card2)}.ibrow.on{background:var(--green-soft)}
+.ibrow .r1{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ibrow .nm{font-size:13.5px;font-weight:600;color:var(--ink)}
+.ibrow .tm{font-size:11px;color:var(--hint)}
+.ibrow .pv{font-size:12px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ibrow .meta{display:flex;gap:6px;margin-top:7px}
+.thread{padding:16px 18px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+.bub{max-width:78%;padding:11px 14px;border-radius:14px;font-size:13px;line-height:1.45}
+.bub.them{background:var(--card2);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px}
+.bub.us{background:var(--green-soft);align-self:flex-end;border-bottom-right-radius:4px;color:#1f3a29}
+.bub .mt{font-size:10.5px;color:var(--hint);margin-top:5px}
+.composer{border-top:1px solid var(--border);padding:12px;display:flex;gap:8px;align-items:center}
+.composer .ipt{flex:1;background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--ink)}
+.ctx{padding:16px;overflow:auto}
+.ctx h4{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--hint);font-weight:600;margin:14px 0 8px}
+.ctx h4:first-child{margin-top:0}
+
+/* forms */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;color:var(--muted);font-weight:500;margin-bottom:6px}
+.field input,.field select,.field textarea{width:100%;font-family:var(--font);font-size:13.5px;color:var(--ink);background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;outline:none}
+.frow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+
+/* email detail */
+.emailmeta{display:flex;gap:30px;margin:14px 0}
+.emailmeta .m .k{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--hint);font-weight:600}
+.emailmeta .m .v{font-size:14px;font-weight:600;margin-top:3px}
+.draftbox{background:var(--green-soft);border:1px solid #cfe0c9;border-radius:12px;padding:16px;font-size:13.5px;line-height:1.55;color:#23402d}
+
+/* empty */
+.empty{background:var(--card);border:1px dashed var(--border);border-radius:var(--r);padding:48px;text-align:center}
+.empty .eic{width:54px;height:54px;border-radius:14px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:26px;color:var(--hint);margin:0 auto 16px}
+.empty h3{font-size:17px;font-weight:700}.empty p{font-size:13.5px;color:var(--muted);margin:6px 0 18px;max-width:380px;margin-left:auto;margin-right:auto}
+.cards3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}
+.minicard{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px}
+.minicard b{font-size:14px}.minicard p{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.4}
+
+@media(max-width:1180px){.kpis{grid-template-columns:repeat(2,1fr)}.g-2-1,.g-1-2,.g-3,.g-2,.g-11,.frow,.cards3{grid-template-columns:1fr}.inbox{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="tagbar"><b>PROMUNCH CRM — full prototype</b><span>Warm editorial · click the sidebar to move between pages · sample data</span></div>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><div class="pm"><i></i><i></i><i></i><i></i></div><div><b>PROMUNCH</b><span>CRM</span></div></div>
+    <div class="nav on" data-view="dashboard"><i class="ti ti-layout-dashboard"></i>Dashboard</div>
+    <div class="navgroup">Inbox</div>
+    <div class="nav" data-view="support"><i class="ti ti-mail"></i>Support Emails<span class="badge">26</span></div>
+    <div class="nav" data-view="whatsapp"><i class="ti ti-brand-whatsapp"></i>WhatsApp<span class="badge">5</span></div>
+    <div class="navgroup">Sales</div>
+    <div class="nav" data-view="orders"><i class="ti ti-circle-check"></i>Order Confirmations</div>
+    <div class="nav" data-view="shopify"><i class="ti ti-brand-shopify"></i>Shopify</div>
+    <div class="nav" data-view="amazon"><i class="ti ti-brand-amazon"></i>Amazon</div>
+    <div class="nav" data-view="leads"><i class="ti ti-briefcase"></i>B2B Leads</div>
+    <div class="navgroup">Audience</div>
+    <div class="nav" data-view="contacts"><i class="ti ti-users"></i>Contacts</div>
+    <div class="nav" data-view="campaigns"><i class="ti ti-speakerphone"></i>Campaigns</div>
+    <div class="nav" data-view="flows"><i class="ti ti-route"></i>Flows</div>
+    <div class="nav" data-view="analytics"><i class="ti ti-chart-bar"></i>Analytics</div>
+    <div class="navgroup">System</div>
+    <div class="nav" data-view="settings"><i class="ti ti-settings"></i>Settings</div>
+    <div class="foot"><div class="av">K</div><div><div class="nm">Khush</div><div class="em">khush@oltaflock.ai</div></div></div>
+  </aside>
+  <main class="main">
+
+  <!-- ===================== DASHBOARD ===================== -->
+  <section class="view on" id="v-dashboard">
+    <div class="pagehead">
+      <div><h1>Good morning, Khush</h1><p>Here's how PROMUNCH is doing · Tuesday, 16 June 2026</p></div>
+      <div class="acts"><div class="ranges"><button>Today</button><button>7d</button><button class="on">30d</button><button>90d</button><button>All</button></div><button class="btn primary"><i class="ti ti-refresh"></i>Sync now</button></div>
+    </div>
+    <div class="sectlab">Performance · last 30 days</div>
+    <div class="kpis">
+      <div class="kpi"><div class="top"><span class="lab">Total revenue</span><span class="ic g"><i class="ti ti-currency-rupee"></i></span></div><div class="num">₹4,14,391</div><div class="row2"><div><div class="delta up"><i class="ti ti-trend-up"></i> +24%</div><div class="sub">Shopify + Amazon</div></div><svg class="spark" viewBox="0 0 80 28" preserveAspectRatio="none"><polyline points="0,22 11,20 23,23 34,16 46,18 57,11 68,9 80,5" fill="none" stroke="#3F6B4F" stroke-width="2"/></svg></div></div>
+      <div class="kpi"><div class="top"><span class="lab">Orders</span><span class="ic o"><i class="ti ti-shopping-bag"></i></span></div><div class="num">1,438</div><div class="row2"><div><div class="delta up"><i class="ti ti-trend-up"></i> +12%</div><div class="sub">309 D2C · 1,129 Amazon</div></div><svg class="spark" viewBox="0 0 80 28" preserveAspectRatio="none"><polyline points="0,19 11,20 23,15 34,17 46,13 57,14 68,10 80,8" fill="none" stroke="#C98A1E" stroke-width="2"/></svg></div></div>
+      <div class="kpi"><div class="top"><span class="lab">Avg order value</span><span class="ic t"><i class="ti ti-receipt"></i></span></div><div class="num">₹411</div><div class="row2"><div><div class="delta down"><i class="ti ti-trend-down"></i> −3%</div><div class="sub">across all channels</div></div><svg class="spark" viewBox="0 0 80 28" preserveAspectRatio="none"><polyline points="0,9 11,11 23,10 34,13 46,12 57,15 68,14 80,16" fill="none" stroke="#C2492E" stroke-width="2"/></svg></div></div>
+      <div class="kpi"><div class="top"><span class="lab">Customers</span><span class="ic b"><i class="ti ti-users"></i></span></div><div class="num">1,613</div><div class="row2"><div><div class="delta up"><i class="ti ti-trend-up"></i> +13</div><div class="sub">live from Shopify</div></div><svg class="spark" viewBox="0 0 80 28" preserveAspectRatio="none"><polyline points="0,21 11,19 23,18 34,16 46,15 57,13 68,11 80,10" fill="none" stroke="#3C6E72" stroke-width="2"/></svg></div></div>
+    </div>
+    <div class="sectlab">Revenue</div>
+    <div class="grid g-2-1">
+      <div class="panel"><div class="phead"><h3><i class="ti ti-chart-area-line tic"></i>Revenue trend</h3><span class="more">Daily · 30d <i class="ti ti-chevron-down"></i></span></div><div class="csub">Shopify D2C vs Amazon · ₹ per day</div><div class="chartbox"><canvas id="c-trend"></canvas></div><div class="legend"><div class="li"><span class="sw" style="background:#3F6B4F"></span>Shopify — ₹1,27,144</div><div class="li"><span class="sw" style="background:#C98A1E"></span>Amazon — ₹2,87,248</div></div></div>
+      <div class="panel"><div class="phead"><h3><i class="ti ti-compass tic"></i>D2C by channel</h3></div><div class="csub">First-touch · 30 days</div>
+        <div class="donutwrap"><div class="donutbox"><canvas id="c-donut"></canvas><div class="donutctr"><b>₹1,27,144</b><span>309 orders</span></div></div>
+          <div class="chanlist">
+            <div class="chanrow"><span class="sw" style="background:#3F6B4F"></span><span class="nm">HYPD Marketplace</span><span class="v">88%</span></div>
+            <div class="chanrow"><span class="sw" style="background:#C98A1E"></span><span class="nm">Direct</span><span class="v">6%</span></div>
+            <div class="chanrow"><span class="sw" style="background:#C2492E"></span><span class="nm">Google · SEO</span><span class="v">2%</span></div>
+            <div class="chanrow"><span class="sw" style="background:#3C6E72"></span><span class="nm">Linktree · IG</span><span class="v">2%</span></div>
+            <div class="chanrow"><span class="sw" style="background:#B9AE99"></span><span class="nm">Other</span><span class="v">2%</span></div>
+          </div></div>
+      </div>
+    </div>
+    <div class="sectlab">Operations</div>
+    <div class="grid g-3">
+      <div class="panel"><div class="phead"><h3><i class="ti ti-circle-check tic"></i>Order confirmations</h3></div><div class="csub">WhatsApp sent vs eligible · 30d</div>
+        <div class="ring-wrap"><div class="ring" data-ring="48"><div class="in"><b>48%</b><span>coverage</span></div></div>
+          <div class="klist"><div class="kline"><span class="sw" style="background:#3F6B4F"></span><b>138</b> confirmed</div><div class="kline"><span class="sw" style="background:#C2492E"></span><b>148</b> missing</div><div class="kline"><span class="sw" style="background:#B9AE99"></span><b>23</b> not eligible</div></div></div>
+      </div>
+      <div class="panel"><div class="phead"><h3><i class="ti ti-brand-whatsapp tic"></i>WhatsApp · 24h</h3></div><div class="csub">Delivery health</div>
+        <div class="mbar"><div class="t"><span class="k">Delivered</span><span class="v">214</span></div><div class="track"><span class="fill" style="width:95%;background:#3F6B4F"></span></div></div>
+        <div class="mbar"><div class="t"><span class="k">Read</span><span class="v">176</span></div><div class="track"><span class="fill" style="width:78%;background:#3C6E72"></span></div></div>
+        <div class="mbar"><div class="t"><span class="k">Failed</span><span class="v" style="color:#C2492E">5</span></div><div class="track"><span class="fill" style="width:6%;background:#C2492E"></span></div></div>
+        <div style="font-size:12px;color:var(--hint);margin-top:8px"><i class="ti ti-point-filled" style="color:#3F6B4F"></i> Operational · 100% uptime</div>
+      </div>
+      <div class="panel"><div class="phead"><h3><i class="ti ti-mail tic"></i>Support inbox</h3></div><div class="csub">47 threads · 7 days</div>
+        <div class="statline"><div class="stat"><div class="n" style="color:#C98A1E">26</div><div class="l">Pending</div></div><div class="stat"><div class="n" style="color:#3F6B4F">14</div><div class="l">Sent</div></div><div class="stat"><div class="n" style="color:#9A9081">7</div><div class="l">Skipped</div></div></div>
+        <div class="mbar" style="margin-top:14px"><div class="t"><span class="k">AI drafts ready</span><span class="v">100%</span></div><div class="track"><span class="fill" style="width:100%;background:#3F6B4F"></span></div></div>
+      </div>
+    </div>
+    <div class="sectlab">Action</div>
+    <div class="grid g-2">
+      <div class="panel"><div class="phead"><h3><i class="ti ti-alert-triangle tic"></i>Needs attention</h3><span class="more">4 items</span></div><div class="csub">Things a human should look at</div>
+        <div class="att"><span class="ic2 r"><i class="ti ti-message-off"></i></span><span class="tx">5 WhatsApp messages failed in the last 24h<small>Auto-retried; these need a manual resend</small></span><button class="go">Review</button></div>
+        <div class="att"><span class="ic2 r"><i class="ti ti-circle-dashed"></i></span><span class="tx">148 orders missing a WhatsApp confirmation<small>48% coverage · last 30 days</small></span><button class="go">Send all</button></div>
+        <div class="att"><span class="ic2 a"><i class="ti ti-ticket"></i></span><span class="tx">2 high-priority WhatsApp tickets still open<small>Oldest opened 9 days ago</small></span><button class="go">Open</button></div>
+        <div class="att"><span class="ic2 a"><i class="ti ti-mail-exclamation"></i></span><span class="tx">3 urgent support emails awaiting a reply<small>Drafts already generated</small></span><button class="go">Open</button></div>
+      </div>
+      <div class="panel"><div class="phead"><h3><i class="ti ti-plug-connected tic"></i>Channel health</h3></div><div class="csub">Connected data sources</div>
+        <div class="pill"><span class="d ok"></span><span class="nm">WhatsApp Cloud API</span><span class="st ok">100% uptime</span></div>
+        <div class="pill"><span class="d ok"></span><span class="nm">Shopify</span><span class="st ok">Connected</span></div>
+        <div class="pill"><span class="d ok"></span><span class="nm">Amazon SP-API</span><span class="st ok">1,129 orders</span></div>
+        <div class="pill"><span class="d ok"></span><span class="nm">Email · Resend</span><span class="st ok">SPF·DKIM·DMARC</span></div>
+        <div class="pill"><span class="d warn"></span><span class="nm">Gmail intake</span><span class="st warn">Watch expires 13 Jun</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SUPPORT EMAILS (LIST) ===================== -->
+  <section class="view" id="v-support">
+    <div class="pagehead">
+      <div><h1>Support Emails</h1><p>Inbox replies handled by the Slack approval bot · 47 threads</p></div>
+      <div class="acts"><button class="btn ghost"><i class="ti ti-refresh"></i>Sync</button></div>
+    </div>
+    <div class="toolbar">
+      <div class="search"><i class="ti ti-search"></i><input placeholder="Search threads, senders, subjects…"></div>
+      <div class="chips"><span class="chip on">All</span><span class="chip">Pending 26</span><span class="chip">Sent</span><span class="chip">Skipped</span><span class="chip">Failed</span></div>
+    </div>
+    <div class="chips" style="margin-bottom:14px"><span class="tag">Partnership</span><span class="tag">Wholesale</span><span class="tag">Job</span><span class="tag">Complaint</span><span class="tag">Order Tracking</span><span class="tag">Marketing</span><span class="tag">Newsletter</span></div>
+    <div class="tablewrap">
+      <table class="tbl">
+        <thead><tr><th>From</th><th>Subject</th><th>Category</th><th>Urgency</th><th>Score</th><th>Status</th><th>Received</th></tr></thead>
+        <tbody>
+          <tr style="cursor:pointer" onclick="__go('support-detail')"><td><div class="cellname"><span class="av-sm" style="background:#C2492E">PM</span><div><div class="b7">Pattanayak, Manas</div><div class="dim" style="font-size:11px">manas@stregis.com</div></div></div></td><td>RE: St Regis · PROMUNCH bar snacks catalogue<div class="dim" style="font-size:11.5px">Dear Team, pls share your catalogue…</div></td><td><span class="badge2 bg-blue">Wholesale</span></td><td><span class="badge2 bg-gold">Medium</span></td><td class="b7">6</td><td><span class="badge2 bg-gold">Pending</span></td><td class="dim">6h ago</td></tr>
+          <tr style="cursor:pointer" onclick="__go('support-detail')"><td><div class="cellname"><span class="av-sm" style="background:#3F6B4F">SK</span><div><div class="b7">Sai Drishya K</div><div class="dim" style="font-size:11px">sai@gmail.com</div></div></div></td><td>Ordered once, delivered twice<div class="dim" style="font-size:11.5px">Got two parcels for one order…</div></td><td><span class="badge2 bg-terra">Complaint</span></td><td><span class="badge2 bg-terra">High</span></td><td class="b7">7</td><td><span class="badge2 bg-gold">Pending</span></td><td class="dim">2d ago</td></tr>
+          <tr><td><div class="cellname"><span class="av-sm" style="background:#C98A1E">IA</span><div><div class="b7">Ishu Arts</div><div class="dim" style="font-size:11px">ishuarts3@gmail.com</div></div></div></td><td>Gifts World Expo 2026, Pragati Maidan<div class="dim" style="font-size:11.5px">With reference to your participation…</div></td><td><span class="badge2 bg-blue">Partnership</span></td><td><span class="badge2 bg-gold">Medium</span></td><td class="b7">5</td><td><span class="badge2 bg-gold">Pending</span></td><td class="dim">2h ago</td></tr>
+          <tr><td><div class="cellname"><span class="av-sm" style="background:#3C6E72">AK</span><div><div class="b7">Akshay Khanvilkar</div><div class="dim" style="font-size:11px">khanvilkar@gmail.com</div></div></div></td><td>Job request<div class="dim" style="font-size:11.5px">Hello sir, I want a job in your company…</div></td><td><span class="badge2 bg-gray">Job</span></td><td><span class="badge2 bg-gold">Medium</span></td><td class="b7">5</td><td><span class="badge2 bg-gold">Pending</span></td><td class="dim">3h ago</td></tr>
+          <tr><td><div class="cellname"><span class="av-sm" style="background:#9A9081">DB</span><div><div class="b7">Dipansh Bhojawala</div><div class="dim" style="font-size:11px">dipansh@thinkethgoods.in</div></div></div></td><td>Re: New customer message · t-shirt designs<div class="dim" style="font-size:11.5px">Hi Parth, sure! Please let me know…</div></td><td><span class="badge2 bg-gray">Marketing</span></td><td><span class="badge2 bg-gray">Low</span></td><td class="b7">2</td><td><span class="badge2 bg-gray">Skipped</span></td><td class="dim">43m ago</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== SUPPORT EMAIL (DETAIL) ===================== -->
+  <section class="view" id="v-support-detail">
+    <div class="pagehead">
+      <div><div class="more" style="cursor:pointer;margin-bottom:8px" onclick="__go('support')"><i class="ti ti-arrow-left"></i> Back to inbox</div><h1>RE: St Regis · PROMUNCH bar snacks catalogue</h1><p>From Manas Pattanayak · manas@stregis.com · received 6h ago</p></div>
+      <div class="acts"><span class="badge2 bg-gold">Pending</span></div>
+    </div>
+    <div class="grid g-2-1">
+      <div>
+        <div class="panel" style="margin-bottom:14px">
+          <div class="emailmeta"><div class="m"><div class="k">Category</div><div class="v">Wholesale</div></div><div class="m"><div class="k">Urgency</div><div class="v">Medium</div></div><div class="m"><div class="k">Lead score</div><div class="v">6 / 10</div></div></div>
+          <div style="background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--muted)">Wholesale enquiry from a hotel group requesting the product catalogue and bulk pricing.</div>
+        </div>
+        <div class="panel" style="margin-bottom:14px"><div class="phead"><h3><i class="ti ti-mail tic"></i>Incoming email</h3></div><div style="font-size:13.5px;line-height:1.6;color:var(--ink)">Dear Team,<br><br>Please share your catalogue and wholesale rates for the PROMUNCH bar snacks range. We're evaluating options for our in-room minibar selection across St Regis properties.<br><br>Best regards,<br>Manas Pattanayak</div></div>
+        <div class="panel"><div class="phead"><h3><i class="ti ti-sparkles tic"></i>AI-drafted reply</h3><span class="more">v2 · regenerated</span></div>
+          <div class="draftbox">Hi Manas,<br><br>Thank you for reaching out — we'd be glad to support St Regis. I've attached our wholesale catalogue with bulk pricing for the PROMUNCH bar snacks range (Edamame, Soya Chips, Sticks &amp; Crunchies).<br><br>For minibar selections we typically recommend our 30g single-serve packs. Could you share the number of properties and indicative monthly volume so I can prepare tailored pricing?<br><br>Warm regards,<br>Team PROMUNCH</div>
+          <div style="display:flex;gap:10px;margin-top:14px"><button class="btn primary"><i class="ti ti-send"></i>Send reply</button><button class="btn"><i class="ti ti-refresh"></i>Rewrite</button><button class="btn ghost"><i class="ti ti-edit"></i>Edit</button></div>
+        </div>
+      </div>
+      <div>
+        <div class="panel" style="margin-bottom:14px"><div class="phead"><h3><i class="ti ti-user tic"></i>Sender</h3></div>
+          <div class="pill"><span class="nm">Company</span><span class="muted">St Regis</span></div>
+          <div class="pill"><span class="nm">First seen</span><span class="muted">Today</span></div>
+          <div class="pill"><span class="nm">Prior threads</span><span class="muted">0</span></div>
+        </div>
+        <div class="panel"><div class="phead"><h3><i class="ti ti-robot tic"></i>How to handle</h3></div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.6">High-value wholesale lead. Reply with catalogue, ask for volume, then route to B2B Leads pipeline.</div>
+          <button class="btn ghost" style="margin-top:12px;width:100%"><i class="ti ti-briefcase"></i> Add to B2B Leads</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== WHATSAPP ===================== -->
+  <section class="view" id="v-whatsapp">
+    <div class="pagehead">
+      <div><h1>WhatsApp</h1><p>Inbox, AI agent, templates &amp; tickets · <span style="color:var(--green);font-weight:600">Operational</span> · <span style="color:var(--terra);font-weight:600">5 failed</span></p></div>
+    </div>
+    <div data-tabbox>
+      <div class="tabs"><button class="tab on" data-tab="ib">Inbox</button><button class="tab" data-tab="tk">Tickets</button><button class="tab" data-tab="tm">Templates</button><button class="tab" data-tab="cm">Campaigns</button><button class="tab" data-tab="kb">Knowledge Base</button></div>
+      <div data-pane="ib">
+        <div class="inbox">
+          <div class="ibcol"><div class="iblist">
+            <div class="ibrow on"><div class="r1"><span class="nm">Gayatri · +9179…</span><span class="tm">59m</span></div><div class="pv">Welcome to the PROMUNCH family, Gayatri!…</div><div class="meta"><span class="badge2 bg-green">Bot</span></div></div>
+            <div class="ibrow"><div class="r1"><span class="nm">Preethy · +9185…</span><span class="tm">2h</span></div><div class="pv">Welcome to the PROMUNCH family, Preethy!…</div><div class="meta"><span class="badge2 bg-green">Bot</span></div></div>
+            <div class="ibrow"><div class="r1"><span class="nm">Sucheta · +9183…</span><span class="tm">3h</span></div><div class="pv">Good news Sucheta! Your order #2067 has…</div><div class="meta"><span class="badge2 bg-green">Bot</span></div></div>
+            <div class="ibrow"><div class="r1"><span class="nm">Pooja · +9198…</span><span class="tm">4d</span></div><div class="pv">Cancel kar do order</div><div class="meta"><span class="badge2 bg-terra">High</span><span class="badge2 bg-gold">Open</span></div></div>
+          </div></div>
+          <div class="ibcol"><div class="thread">
+            <div class="bub them">Cancel kar do order<div class="mt">1 Jun, 5:36 pm</div></div>
+            <div class="bub us">Thanks for messaging PROMUNCH! I've noted this — our team will follow up shortly.<div class="mt">AI · 1 Jun, 5:36 pm · read</div></div>
+            <div class="bub us"><b style="font-size:11px;color:var(--green)">Template · shipping_update</b><br>Good news! Your PROMUNCH order #2035 has shipped 🚚 Track it here: xpressbees.com/track<div class="mt">2 Jun, 12:46 pm · read</div></div>
+          </div>
+          <div class="composer"><button class="btn ghost"><i class="ti ti-template"></i></button><button class="btn ghost"><i class="ti ti-sparkles"></i> AI draft</button><div class="ipt">Type a message…</div><button class="btn primary"><i class="ti ti-send"></i></button></div>
+          </div>
+          <div class="ibcol"><div class="ctx">
+            <h4>Contact</h4><div class="b7">Pooja Kapoor</div><div class="dim" style="font-size:12px">+91 9899 095 149</div>
+            <h4>Order #2035 · ₹395</h4><div style="font-size:12.5px;color:var(--muted);line-height:1.5">1× Combo — Soya Sticks (Chatpata) + Soya Chips (Peri Peri) · Pack of 12</div>
+            <span class="badge2 bg-gold" style="margin-top:8px">Partially paid</span> <span class="badge2 bg-green">Fulfilled</span>
+            <h4>Ticket</h4><div class="pill"><span class="nm">Status</span><span class="badge2 bg-gold">Open</span></div><div class="pill"><span class="nm">Priority</span><span class="badge2 bg-terra">High</span></div>
+            <button class="btn primary" style="width:100%;margin-top:12px"><i class="ti ti-check"></i> Resolve ticket</button>
+          </div></div>
+        </div>
+      </div>
+      <div data-pane="tm" style="display:none">
+        <div class="cards3">
+          <div class="minicard"><div style="display:flex;justify-content:space-between"><b>order_confirmation</b><span class="badge2 bg-green">Utility</span></div><p>Hi {{1}}, your PROMUNCH order {{2}} is confirmed 🎉 Order total: {{3}}</p><div class="dim" style="font-size:11px;margin-top:8px">en · approved</div></div>
+          <div class="minicard"><div style="display:flex;justify-content:space-between"><b>shipping_update</b><span class="badge2 bg-green">Utility</span></div><p>Good news {{1}}! Your PROMUNCH order {{2}} has shipped 🚚 Track: {{3}}</p><div class="dim" style="font-size:11px;margin-top:8px">en · approved</div></div>
+          <div class="minicard"><div style="display:flex;justify-content:space-between"><b>abandoned_checkout</b><span class="badge2 bg-gold">Marketing</span></div><p>Hi {{1}}, you left some PROMUNCH goodies in your cart 🛒 Finish: {{2}}</p><div class="dim" style="font-size:11px;margin-top:8px">en · approved</div></div>
+          <div class="minicard"><div style="display:flex;justify-content:space-between"><b>review_request</b><span class="badge2 bg-gold">Marketing</span></div><p>Hi {{1}}, hope you're loving your PROMUNCH snacks! Mind a quick review? {{2}}</p><div class="dim" style="font-size:11px;margin-top:8px">en · approved</div></div>
+          <div class="minicard"><div style="display:flex;justify-content:space-between"><b>replenishment_reminder</b><span class="badge2 bg-gold">Marketing</span></div><p>Running low, {{1}}? 🤤 Restock your favourites: {{2}}</p><div class="dim" style="font-size:11px;margin-top:8px">en · approved</div></div>
+          <div class="minicard" style="border-style:dashed;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted)"><i class="ti ti-plus" style="font-size:22px"></i><b style="margin-top:6px">New template</b></div>
+        </div>
+      </div>
+      <div data-pane="tk" style="display:none"><div class="empty"><div class="eic"><i class="ti ti-ticket"></i></div><h3>2 open tickets</h3><p>Conversations escalated to a human. Same 3-pane layout as Inbox, filtered to tickets.</p></div></div>
+      <div data-pane="cm" style="display:none"><div class="empty"><div class="eic"><i class="ti ti-speakerphone"></i></div><h3>WhatsApp campaigns</h3><p>Send an approved marketing template to a segment, rate-limited and consent-gated.</p><button class="btn primary"><i class="ti ti-plus"></i> New WhatsApp campaign</button></div></div>
+      <div data-pane="kb" style="display:none"><div class="cards3"><div class="minicard"><div style="display:flex;justify-content:space-between"><b>PROMUNCH Master KB</b><span class="badge2 bg-green">Ready</span></div><p>manual · text/plain · 1 chunk · 15d ago</p><button class="btn ghost" style="margin-top:10px"><i class="ti ti-refresh"></i> Re-ingest</button></div></div></div>
+    </div>
+  </section>
+
+  <!-- ===================== ORDER CONFIRMATIONS ===================== -->
+  <section class="view" id="v-orders">
+    <div class="pagehead">
+      <div><h1>Order Confirmations</h1><p>Every Shopify order &amp; whether its WhatsApp confirmation was sent</p></div>
+      <div class="acts"><div class="ranges"><button>6h</button><button>24h</button><button>7d</button><button class="on">30d</button></div><button class="btn primary"><i class="ti ti-send"></i>Send all missing (148)</button></div>
+    </div>
+    <div class="kpis" style="margin-bottom:16px">
+      <div class="kpi"><div class="top"><span class="lab">Coverage</span><span class="ic t"><i class="ti ti-percentage"></i></span></div><div class="num" style="color:var(--terra)">48.3%</div><div class="sub">138 of 286 eligible orders</div></div>
+      <div class="kpi"><div class="top"><span class="lab">Missing confirmation</span><span class="ic t"><i class="ti ti-alert-circle"></i></span></div><div class="num">148</div><div class="sub">not sent / failed — needs resend</div></div>
+      <div class="kpi"><div class="top"><span class="lab">Confirmed</span><span class="ic g"><i class="ti ti-circle-check"></i></span></div><div class="num">138</div><div class="sub">WhatsApp message delivered</div></div>
+      <div class="kpi"><div class="top"><span class="lab">Not eligible</span><span class="ic b"><i class="ti ti-ban"></i></span></div><div class="num">23</div><div class="sub">3 no phone · 20 cancelled</div></div>
+    </div>
+    <div class="tablewrap">
+      <table class="tbl">
+        <thead><tr><th>Order</th><th>Customer</th><th>Placed</th><th>Total</th><th>Confirmation</th></tr></thead>
+        <tbody>
+          <tr><td class="b7">#2070</td><td><div class="b7">Gayatri Sharma</div><div class="dim" style="font-size:11px">917986990075</div></td><td class="dim">1h ago</td><td class="b7">₹445.00</td><td><span class="badge2 bg-green"><i class="ti ti-check"></i> Confirmed</span> <span class="dim" style="font-size:11px">1h ago</span></td></tr>
+          <tr><td class="b7">#2069</td><td><div class="b7">Preethy Unnikrishnan</div><div class="dim" style="font-size:11px">—</div></td><td class="dim">2h ago</td><td class="b7">₹521.55</td><td><span class="badge2 bg-green"><i class="ti ti-check"></i> Confirmed</span></td></tr>
+          <tr><td class="b7">#2061</td><td><div class="b7">Neetu Kalra</div><div class="dim" style="font-size:11px">919654420222</div></td><td class="dim">1d ago</td><td class="b7">₹832.00</td><td><span class="badge2 bg-terra">Missing</span> <button class="btn ghost" style="padding:5px 11px;font-size:12px">Resend</button></td></tr>
+          <tr><td class="b7">#2058</td><td><div class="b7">Anaya Gupta</div><div class="dim" style="font-size:11px">no phone</div></td><td class="dim">1d ago</td><td class="b7">₹390.00</td><td><span class="badge2 bg-gray">Not eligible</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== SHOPIFY ATTRIBUTION ===================== -->
+  <section class="view" id="v-shopify">
+    <div class="pagehead"><div><h1>Shopify Attribution</h1><p>Where your orders come from — UTM source, campaign &amp; referrer</p></div><div class="acts"><div class="ranges"><button>Today</button><button>7d</button><button class="on">30d</button><button>90d</button><button>All</button></div></div></div>
+    <div class="kpis">
+      <div class="kpi"><div class="top"><span class="lab">Order revenue · 30d</span><span class="ic g"><i class="ti ti-currency-rupee"></i></span></div><div class="num">₹1,27,144</div><div class="sub">309 orders</div></div>
+      <div class="kpi"><div class="top"><span class="lab">Avg order value</span><span class="ic o"><i class="ti ti-receipt"></i></span></div><div class="num">₹411</div><div class="sub">across all channels</div></div>
+      <div class="kpi"><div class="top"><span class="lab">Customers</span><span class="ic b"><i class="ti ti-users"></i></span></div><div class="num">1,613</div><div class="sub">live in Shopify</div></div>
+      <div class="kpi"><div class="top"><span class="lab">Top channel</span><span class="ic g"><i class="ti ti-trophy"></i></span></div><div class="num" style="font-size:20px">HYPD Marketplace</div><div class="sub">₹1,12,520 · 88% of revenue</div></div>
+    </div>
+    <div class="sectlab">Traffic by channel</div>
+    <div class="tablewrap">
+      <table class="tbl"><thead><tr><th>Channel</th><th>Medium</th><th>Orders</th><th>New</th><th>Revenue</th><th style="width:30%">Share</th></tr></thead>
+      <tbody>
+        <tr><td class="b7">HYPD Marketplace</td><td class="dim">None</td><td>289</td><td>238</td><td class="b7">₹1,12,520</td><td><div class="track" style="height:9px;border-radius:6px;background:var(--line)"><div style="width:88%;height:100%;background:#3F6B4F;border-radius:6px"></div></div></td></tr>
+        <tr><td class="b7">Direct</td><td class="dim">None</td><td>8</td><td>6</td><td class="b7">₹7,273</td><td><div class="track" style="height:9px;border-radius:6px;background:var(--line)"><div style="width:14%;height:100%;background:#C98A1E;border-radius:6px"></div></div></td></tr>
+        <tr><td class="b7">Google</td><td class="dim">SEO</td><td>4</td><td>1</td><td class="b7">₹2,712</td><td><div class="track" style="height:9px;border-radius:6px;background:var(--line)"><div style="width:8%;height:100%;background:#C2492E;border-radius:6px"></div></div></td></tr>
+        <tr><td class="b7">Linktree</td><td class="dim">Instagram</td><td>3</td><td>3</td><td class="b7">₹2,558</td><td><div class="track" style="height:9px;border-radius:6px;background:var(--line)"><div style="width:7%;height:100%;background:#3C6E72;border-radius:6px"></div></div></td></tr>
+      </tbody></table>
+    </div>
+    <div class="grid g-11" style="margin-top:14px">
+      <div class="panel"><div class="phead"><h3><i class="ti ti-tag tic"></i>Top campaigns</h3></div><div class="csub">Orders carrying a utm_campaign</div><div class="pill"><span class="nm">Ongoing · Linktree</span><span class="b7">₹2,558 · 3</span></div></div>
+      <div class="panel"><div class="phead"><h3><i class="ti ti-external-link tic"></i>Top referrers</h3></div><div class="csub">External sites sending buyers</div><div class="pill"><span class="nm">promunch.in</span><span class="b7">₹4,574 · 5</span></div><div class="pill"><span class="nm">linktr.ee</span><span class="b7">₹3,107 · 4</span></div><div class="pill"><span class="nm">google.com</span><span class="b7">₹2,712 · 4</span></div></div>
+    </div>
+  </section>
+
+  <!-- ===================== AMAZON ===================== -->
+  <section class="view" id="v-amazon">
+    <div class="pagehead"><div><h1>Amazon</h1><p>Sales, fees, net &amp; settlement reconciliation from Seller Central · 1,129 orders · 134 SKUs</p></div><div class="acts"><div class="ranges"><button>Today</button><button>7d</button><button class="on">30d</button><button>90d</button></div></div></div>
+    <div class="kpis">
+      <div class="kpi"><div class="top"><span class="lab">Gross sales</span><span class="ic g"><i class="ti ti-currency-rupee"></i></span></div><div class="num">₹2,87,248</div><div class="sub">975 finance events</div></div>
+      <div class="kpi"><div class="top"><span class="lab">Amazon fees</span><span class="ic t"><i class="ti ti-minus"></i></span></div><div class="num" style="color:var(--terra)">−₹88,991</div><div class="sub">31% of gross · FBA ₹71,958</div></div>
+      <div class="kpi"><div class="top"><span class="lab">Net kept</span><span class="ic g"><i class="ti ti-wallet"></i></span></div><div class="num" style="color:var(--green)">₹1,73,067</div><div class="sub">what you actually keep</div></div>
+      <div class="kpi"><div class="top"><span class="lab">Promotions</span><span class="ic o"><i class="ti ti-discount"></i></span></div><div class="num">−₹25,190</div><div class="sub">discounts applied</div></div>
+    </div>
+    <div class="grid g-2-1" style="margin-top:16px">
+      <div class="panel"><div class="phead"><h3><i class="ti ti-chart-bar tic"></i>Gross vs net by settlement</h3></div><div class="csub">Net deposit after fees · ₹</div><div class="chartbox sm"><canvas id="c-amazon"></canvas></div></div>
+      <div class="panel"><div class="phead"><h3><i class="ti ti-package tic"></i>Low FBA stock</h3></div><div class="csub">≤ 10 fulfillable units</div>
+        <div class="pill"><span class="nm" style="font-size:12.5px">Soya Chips · Peri Peri 80g</span><span class="badge2 bg-terra">0 left</span></div>
+        <div class="pill"><span class="nm" style="font-size:12.5px">Roasted Crunchies · Pack of 2</span><span class="badge2 bg-terra">0 left</span></div>
+        <div class="pill"><span class="nm" style="font-size:12.5px">Soya Chips · Peri Peri 30g ×4</span><span class="badge2 bg-terra">0 left</span></div>
+        <div class="pill"><span class="nm" style="font-size:12.5px">Soya Sticks · Cream &amp; Onion 80g</span><span class="badge2 bg-gold">4 left</span></div>
+      </div>
+    </div>
+    <div class="sectlab">Settlement reconciliation</div>
+    <div class="tablewrap"><table class="tbl"><thead><tr><th>Period</th><th>Gross</th><th>Fees</th><th>Refunds</th><th>Deposit</th><th>Variance</th><th>Status</th></tr></thead>
+      <tbody><tr><td class="b7">08 Jun – 15 Jun</td><td>₹10,905</td><td style="color:var(--terra)">−₹3,650</td><td style="color:var(--terra)">−₹913</td><td class="b7">₹5,415</td><td>₹0.00</td><td><span class="badge2 bg-green"><i class="ti ti-check"></i> Reconciled</span></td></tr></tbody></table></div>
+  </section>
+
+  <!-- ===================== B2B LEADS ===================== -->
+  <section class="view" id="v-leads">
+    <div class="pagehead"><div><h1>B2B Leads</h1><p>Wholesale &amp; partnership enquiries pulled from support email</p></div><div class="acts"><button class="btn primary"><i class="ti ti-plus"></i>Add lead</button></div></div>
+    <div class="kpis k3">
+      <div class="kpi"><div class="top"><span class="lab">Open leads</span><span class="ic o"><i class="ti ti-briefcase"></i></span></div><div class="num">14</div><div class="sub">across all stages</div></div>
+      <div class="kpi"><div class="top"><span class="lab">In conversation</span><span class="ic b"><i class="ti ti-messages"></i></span></div><div class="num">5</div><div class="sub">awaiting catalogue / pricing</div></div>
+      <div class="kpi"><div class="top"><span class="lab">Est. pipeline</span><span class="ic g"><i class="ti ti-currency-rupee"></i></span></div><div class="num">₹4.2L</div><div class="sub">weighted value</div></div>
+    </div>
+    <div class="tablewrap" style="margin-top:16px"><table class="tbl"><thead><tr><th>Company</th><th>Contact</th><th>Source</th><th>Stage</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td class="b7">St Regis</td><td>Manas Pattanayak</td><td><span class="badge2 bg-blue">Wholesale email</span></td><td><span class="badge2 bg-gold">Catalogue sent</span></td><td class="b7">₹1.8L</td></tr>
+        <tr><td class="b7">Passion Films</td><td>Kavita Narula</td><td><span class="badge2 bg-blue">Partnership</span></td><td><span class="badge2 bg-gray">New</span></td><td class="b7">—</td></tr>
+        <tr><td class="b7">Gifts World Expo</td><td>Ishu Arts</td><td><span class="badge2 bg-blue">Event</span></td><td><span class="badge2 bg-gray">New</span></td><td class="b7">—</td></tr>
+      </tbody></table></div>
+  </section>
+
+  <!-- ===================== CONTACTS (LIST) ===================== -->
+  <section class="view" id="v-contacts">
+    <div class="pagehead"><div><h1>Contacts</h1><p>1,046 total contacts · manage your subscriber base</p></div><div class="acts"><button class="btn primary"><i class="ti ti-upload"></i>Import / Sync</button></div></div>
+    <div class="toolbar"><div class="search"><i class="ti ti-search"></i><input placeholder="Search contacts…"></div><div class="chips"><span class="chip on">All</span><span class="chip">Active</span><span class="chip">Inactive</span><span class="chip">Unsubscribed</span><span class="chip">Bounced</span></div></div>
+    <div class="tablewrap"><table class="tbl"><thead><tr><th>Name</th><th>Email</th><th>Orders</th><th>LTV</th><th>Status</th><th>Lists &amp; segments</th></tr></thead>
+      <tbody>
+        <tr style="cursor:pointer" onclick="__go('contacts-detail')"><td><div class="cellname"><span class="av-sm" style="background:#7B5EA7">DE</span><div class="b7">deepikasingla90</div></div></td><td class="dim">deepikasingla90@gmail.com</td><td>0</td><td>₹0</td><td><span class="badge2 bg-green">Active</span></td><td><span class="tag">Email List</span><span class="tag">Winback 60d</span></td></tr>
+        <tr><td><div class="cellname"><span class="av-sm" style="background:#3F6B4F">RU</span><div class="b7">ruchikabajaj6290</div></div></td><td class="dim">ruchikabajaj6290@gmail.com</td><td>0</td><td>₹0</td><td><span class="badge2 bg-green">Active</span></td><td><span class="tag">Inactive Subs</span></td></tr>
+        <tr><td><div class="cellname"><span class="av-sm" style="background:#C98A1E">RA</span><div class="b7">rastogipreeti795</div></div></td><td class="dim">rastogipreeti795@gmail.com</td><td>0</td><td>₹0</td><td><span class="badge2 bg-green">Active</span></td><td><span class="tag">Email List</span></td></tr>
+        <tr><td><div class="cellname"><span class="av-sm" style="background:#3C6E72">KI</span><div class="b7">kiranvarma098</div></div></td><td class="dim">kiranvarma098@gmail.com</td><td>2</td><td>₹890</td><td><span class="badge2 bg-green">Active</span></td><td><span class="tag">Repeat buyer</span></td></tr>
+      </tbody></table></div>
+  </section>
+
+  <!-- ===================== CONTACT (DETAIL) ===================== -->
+  <section class="view" id="v-contacts-detail">
+    <div class="pagehead"><div><div class="more" style="cursor:pointer;margin-bottom:8px" onclick="__go('contacts')"><i class="ti ti-arrow-left"></i> Back to contacts</div><h1>deepikasingla90</h1><p>deepikasingla90@gmail.com · Mohali, Punjab · customer since May 2026</p></div><div class="acts"><button class="btn ghost">Unsubscribe</button><button class="btn ghost" style="color:var(--terra)"><i class="ti ti-trash"></i></button></div></div>
+    <div class="kpis">
+      <div class="kpi"><div class="lab">Total orders</div><div class="num">0</div></div>
+      <div class="kpi"><div class="lab">Lifetime value</div><div class="num">₹0</div></div>
+      <div class="kpi"><div class="lab">Avg order value</div><div class="num">—</div></div>
+      <div class="kpi"><div class="lab">Last purchase</div><div class="num" style="font-size:18px">—</div></div>
+    </div>
+    <div class="grid g-2-1" style="margin-top:16px">
+      <div class="panel"><div class="phead"><h3><i class="ti ti-timeline tic"></i>Activity</h3></div><div class="csub">Orders, email &amp; WhatsApp events — newest first</div><div class="empty" style="border:0;padding:30px"><div class="eic"><i class="ti ti-history"></i></div><p>No activity yet — added via Klaviyo import</p></div></div>
+      <div class="panel"><div class="phead"><h3><i class="ti ti-users-group tic"></i>Audience</h3></div><div class="csub">Lists &amp; segments</div><span class="tag">Email List</span><span class="tag">Inactive Subs</span><span class="tag">Winback — no purchase in 60 days</span></div>
+    </div>
+  </section>
+
+  <!-- ===================== CAMPAIGNS ===================== -->
+  <section class="view" id="v-campaigns">
+    <div class="pagehead"><div><h1>Campaigns</h1><p>Manage and track your email campaigns</p></div><div class="acts"><button class="btn primary"><i class="ti ti-plus"></i>Create campaign</button></div></div>
+    <div class="tabs"><button class="tab on">All</button><button class="tab">Sent</button><button class="tab">Scheduled</button><button class="tab">Draft</button></div>
+    <div class="empty"><div class="eic"><i class="ti ti-speakerphone"></i></div><h3>No campaigns yet</h3><p>Create your first campaign to start sending emails to your contacts and tracking revenue.</p><button class="btn primary"><i class="ti ti-plus"></i> Create campaign</button></div>
+  </section>
+
+  <!-- ===================== FLOWS ===================== -->
+  <section class="view" id="v-flows">
+    <div class="pagehead"><div><h1>Flows</h1><p>Automated email &amp; WhatsApp sequences triggered by customer behaviour</p></div><div class="acts"><button class="btn primary"><i class="ti ti-plus"></i>Create flow</button></div></div>
+    <div class="empty" style="margin-bottom:16px"><div class="eic"><i class="ti ti-route"></i></div><h3>No flows yet</h3><p>Create automated flows like abandoned-cart recovery, welcome series, or post-purchase upsells.</p></div>
+    <div class="sectlab">Start from a template</div>
+    <div class="cards3">
+      <div class="minicard"><div style="display:flex;align-items:center;gap:8px"><span class="ic2 a"><i class="ti ti-shopping-cart-off"></i></span><b>Abandoned cart</b></div><p>Recover checkouts left behind, on WhatsApp + email. Recommended first flow.</p></div>
+      <div class="minicard"><div style="display:flex;align-items:center;gap:8px"><span class="ic2 a"><i class="ti ti-confetti"></i></span><b>Welcome series</b></div><p>Greet new subscribers and introduce PROMUNCH.</p></div>
+      <div class="minicard"><div style="display:flex;align-items:center;gap:8px"><span class="ic2 a"><i class="ti ti-gift"></i></span><b>Post-purchase</b></div><p>Thank buyers and drive the second order.</p></div>
+    </div>
+  </section>
+
+  <!-- ===================== ANALYTICS ===================== -->
+  <section class="view" id="v-analytics">
+    <div class="pagehead"><div><h1>Analytics</h1><p>Performance overview for PROMUNCH email marketing</p></div><div class="acts"><div class="ranges"><button>7d</button><button class="on">30d</button><button>90d</button></div></div></div>
+    <div class="kpis">
+      <div class="kpi"><div class="top"><span class="lab">Email revenue</span><span class="ic g"><i class="ti ti-currency-rupee"></i></span></div><div class="num">₹0</div><div class="sub">no sends in range</div></div>
+      <div class="kpi"><div class="top"><span class="lab">Emails sent</span><span class="ic b"><i class="ti ti-mail"></i></span></div><div class="num">0</div><div class="sub">no campaigns yet</div></div>
+      <div class="kpi"><div class="top"><span class="lab">Revenue / email</span><span class="ic o"><i class="ti ti-coin"></i></span></div><div class="num">₹0</div><div class="sub">—</div></div>
+      <div class="kpi"><div class="top"><span class="lab">List growth</span><span class="ic g"><i class="ti ti-trend-up"></i></span></div><div class="num" style="color:var(--green)">+1.3%</div><div class="sub">+13 net new</div></div>
+    </div>
+    <div class="grid g-2-1" style="margin-top:16px">
+      <div class="panel"><div class="phead"><h3><i class="ti ti-chart-line tic"></i>Subscriber growth</h3></div><div class="csub">Net new contacts · 30 days</div><div class="chartbox sm"><canvas id="c-analytics"></canvas></div></div>
+      <div class="panel"><div class="phead"><h3><i class="ti ti-heart-rate-monitor tic"></i>Email health</h3></div><div class="csub">Populates after your first campaign</div>
+        <div class="mbar"><div class="t"><span class="k">Delivery rate</span><span class="v">—</span></div><div class="track"><span class="fill" style="width:0;background:#3F6B4F"></span></div></div>
+        <div class="mbar"><div class="t"><span class="k">Bounce rate</span><span class="v">—</span></div><div class="track"><span class="fill" style="width:0;background:#C2492E"></span></div></div>
+        <div class="mbar"><div class="t"><span class="k">Spam rate</span><span class="v">—</span></div><div class="track"><span class="fill" style="width:0;background:#C98A1E"></span></div></div>
+        <div style="text-align:center;margin-top:14px"><div class="num b7" style="font-size:26px;color:var(--green)">1,000</div><div class="dim">total active subscribers</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SETTINGS ===================== -->
+  <section class="view" id="v-settings">
+    <div class="pagehead"><div><h1>Settings</h1><p>Manage your PROMUNCH CRM configuration</p></div></div>
+    <div class="tabs"><button class="tab on">Connections</button><button class="tab">Email</button><button class="tab">Brand</button><button class="tab">Team</button></div>
+    <div class="grid g-11">
+      <div class="panel"><div class="phead"><h3><i class="ti ti-plug-connected tic"></i>Connections</h3></div><div class="csub">Live status of every integration</div>
+        <div class="pill"><span class="d ok"></span><span class="nm">Shopify</span><span class="st ok">Connected</span></div>
+        <div class="pill"><span class="d ok"></span><span class="nm">Amazon SP-API</span><span class="st ok">Connected</span></div>
+        <div class="pill"><span class="d ok"></span><span class="nm">WhatsApp Cloud API</span><span class="st ok">100% uptime</span></div>
+        <div class="pill"><span class="d ok"></span><span class="nm">Email · Resend</span><span class="st ok">SPF·DKIM·DMARC</span></div>
+        <div class="pill"><span class="d ok"></span><span class="nm">Slack</span><span class="st ok">Connected</span></div>
+        <div class="pill"><span class="d warn"></span><span class="nm">Gmail intake</span><span class="st warn">Re-auth in 2 days</span></div>
+      </div>
+      <div>
+        <div class="panel" style="margin-bottom:14px"><div class="phead"><h3><i class="ti ti-mail tic"></i>Email sending</h3></div>
+          <div class="frow" style="grid-template-columns:1fr 1fr"><div class="field"><label>Provider</label><input value="Resend" readonly></div><div class="field"><label>From email</label><input value="hello@promunch.in" readonly></div></div>
+          <div><span class="badge2 bg-green">SPF</span> <span class="badge2 bg-green">DKIM</span> <span class="badge2 bg-green">DMARC</span></div>
+        </div>
+        <div class="panel"><div class="phead"><h3><i class="ti ti-palette tic"></i>Brand</h3></div>
+          <div class="frow" style="grid-template-columns:1fr 1fr"><div class="field"><label>Brand name</label><input value="PROMUNCH" readonly></div><div class="field"><label>Primary colour</label><input value="#B9303F" readonly></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="sectlab">Team members</div>
+    <div class="tablewrap"><table class="tbl"><thead><tr><th>Member</th><th>Email</th><th>Role</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><div class="cellname"><span class="av-sm" style="background:#C2492E">K</span><div class="b7">Khush</div></div></td><td class="dim">khush@vippysoya.com</td><td><span class="badge2 bg-terra">Admin</span></td><td><span class="badge2 bg-green">Active</span></td></tr>
+        <tr><td><div class="cellname"><span class="av-sm" style="background:#3F6B4F">K</span><div class="b7">khush</div></div></td><td class="dim">khush@oltaflock.ai</td><td><span class="badge2 bg-gray">Member</span></td><td><span class="badge2 bg-green">Active</span></td></tr>
+      </tbody></table></div>
+  </section>
+
+  <!--VIEWS-->
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function(){
+  var navs=document.querySelectorAll('.nav[data-view]'), views=document.querySelectorAll('.view'), inited={};
+  function show(v){
+    var parent=v.split('-')[0];
+    views.forEach(function(s){s.classList.toggle('on', s.id==='v-'+v)});
+    navs.forEach(function(n){n.classList.toggle('on', n.dataset.view===parent)});
+    document.querySelector('.main').scrollTo({top:0});
+    if(charts[v] && !inited[v]){ inited[v]=true; whenChart(charts[v]); }
+  }
+  window.__go=show;
+  navs.forEach(function(n){n.addEventListener('click',function(){show(n.dataset.view)})});
+
+  document.querySelectorAll('[data-ring]').forEach(function(r){
+    var p=+r.dataset.ring; var miss=p+51;
+    r.style.background='conic-gradient(#3F6B4F 0 '+p+'%, #C2492E '+p+'% '+miss+'%, #E8DFD0 '+miss+'% 100%)';
+  });
+  document.querySelectorAll('.ranges button, .chip, .tab').forEach(function(b){
+    b.addEventListener('click',function(){
+      var sib=b.parentElement.querySelectorAll('.on');
+      if(b.classList.contains('chip')&&b.dataset.multi) {b.classList.toggle('on');return;}
+      b.parentElement.querySelectorAll('button,.chip,.tab').forEach(function(x){if(x!==b)x.classList.remove('on')});
+      b.classList.add('on');
+      if(b.dataset.tab){var box=b.closest('[data-tabbox]');box.querySelectorAll('[data-pane]').forEach(function(p){p.style.display=p.dataset.pane===b.dataset.tab?'':'none'})}
+    });
+  });
+
+  function whenChart(fn){ if(window.Chart){fn()} else {setTimeout(function(){whenChart(fn)},60)} }
+  function baseAxes(){return {x:{grid:{display:false},ticks:{maxTicksLimit:6,font:{size:11}}},y:{grid:{color:'#EFE8DB'},border:{display:false},ticks:{font:{size:11}}}};}
+  var TT={backgroundColor:'#1B2A20',padding:10,cornerRadius:8};
+  var charts={
+    dashboard:function(){
+      var d=Array.from({length:30},function(_,i){return i+1});
+      function wave(b,a,s){return d.map(function(x){return Math.round(b+a*(Math.sin(x/2.3+s)+Math.sin(x/5+s)*.6)+(a*.4)*(x/30))})}
+      new Chart(document.getElementById('c-trend'),{type:'line',data:{labels:d,datasets:[
+        {label:'Shopify',data:wave(3600,1500,1.2),borderColor:'#3F6B4F',backgroundColor:'rgba(63,107,79,.10)',fill:true,tension:.4,borderWidth:2,pointRadius:0},
+        {label:'Amazon',data:wave(8800,3200,3.7),borderColor:'#C98A1E',backgroundColor:'rgba(201,138,30,.08)',fill:true,tension:.4,borderWidth:2,pointRadius:0}]},
+        options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:Object.assign({},TT,{callbacks:{label:function(c){return c.dataset.label+': ₹'+c.raw.toLocaleString('en-IN')}}})},scales:{x:{grid:{display:false},ticks:{maxTicksLimit:6,font:{size:11}}},y:{grid:{color:'#EFE8DB'},border:{display:false},ticks:{font:{size:11},callback:function(v){return '₹'+(v/1000)+'k'}}}}}});
+      new Chart(document.getElementById('c-donut'),{type:'doughnut',data:{labels:['HYPD','Direct','Google','Linktree','Other'],datasets:[{data:[112520,7273,2712,2558,2081],backgroundColor:['#3F6B4F','#C98A1E','#C2492E','#3C6E72','#B9AE99'],borderColor:'#fff',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,cutout:'68%',plugins:{legend:{display:false},tooltip:Object.assign({},TT,{callbacks:{label:function(c){return c.label+': ₹'+c.raw.toLocaleString('en-IN')}}})}}});
+    },
+    amazon:function(){
+      new Chart(document.getElementById('c-amazon'),{type:'bar',data:{labels:['1 Jun','8 Jun','15 Jun'],datasets:[
+        {label:'Gross',data:[9800,10905,11600],backgroundColor:'#C7D6C2'},
+        {label:'Net deposit',data:[5100,5415,5980],backgroundColor:'#3F6B4F'}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:Object.assign({},TT,{callbacks:{label:function(c){return c.dataset.label+': ₹'+c.raw.toLocaleString('en-IN')}}})},scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{grid:{color:'#EFE8DB'},border:{display:false},ticks:{font:{size:11},callback:function(v){return '₹'+(v/1000)+'k'}}}}}});
+    },
+    analytics:function(){
+      var d=Array.from({length:30},function(_,i){return i+1});
+      var cum=0,series=d.map(function(x){cum+=Math.max(0,Math.round(Math.sin(x/4)*1.5+0.8));return 987+cum});
+      new Chart(document.getElementById('c-analytics'),{type:'line',data:{labels:d,datasets:[{label:'Subscribers',data:series,borderColor:'#3F6B4F',backgroundColor:'rgba(63,107,79,.10)',fill:true,tension:.4,borderWidth:2,pointRadius:0}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:Object.assign({},TT,{callbacks:{label:function(c){return c.raw.toLocaleString('en-IN')+' contacts'}}})},scales:{x:{grid:{display:false},ticks:{maxTicksLimit:6,font:{size:11}}},y:{grid:{color:'#EFE8DB'},border:{display:false},ticks:{font:{size:11}}}}}});
+    }
+  };
+  window.__charts=charts; window.__whenChart=whenChart; window.__TT=TT;
+  whenChart(charts.dashboard); inited.dashboard=true;
+})();
+</script>
+</body>
+</html>

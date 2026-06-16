@@ -4,196 +4,70 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronDown, LogOut, Menu, X } from "lucide-react";
+import {
+  LayoutDashboard,
+  Mail,
+  MessageCircle,
+  CircleCheck,
+  Store,
+  Package,
+  Briefcase,
+  Users,
+  Megaphone,
+  Route as RouteIcon,
+  BarChart3,
+  Settings as SettingsIcon,
+  LogOut,
+  Menu,
+  X,
+} from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 type NavLink = { href: string; label: string; icon: React.ReactNode; countKey?: string };
-type NavGroup = { id: string; label: string; items: NavLink[] };
+type NavGroup = { id: string; label?: string; items: NavLink[] };
 
-const ICON_PROPS = { fill: "none", stroke: "currentColor", strokeWidth: 1.8 } as const;
-
+// Simplified warm-editorial nav. Integrations + Team fold into Settings tabs,
+// so they're no longer top-level items — the routes stay reachable from there
+// (and by URL). Every other route keeps its place.
 const groups: NavGroup[] = [
   {
     id: "overview",
-    label: "Overview",
-    items: [
-      {
-        href: "/dashboard",
-        label: "Dashboard",
-        icon: (
-          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
-            <rect x="3" y="3" width="7" height="7" rx="1.5" />
-            <rect x="14" y="3" width="7" height="7" rx="1.5" />
-            <rect x="3" y="14" width="7" height="7" rx="1.5" />
-            <rect x="14" y="14" width="7" height="7" rx="1.5" />
-          </svg>
-        ),
-      },
-    ],
+    items: [{ href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard /> }],
   },
   {
     id: "inbox",
     label: "Inbox",
     items: [
-      {
-        href: "/dashboard/support-emails",
-        label: "Support Emails",
-        countKey: "supportPending",
-        icon: (
-          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
-            <rect x="3" y="5" width="18" height="14" rx="2" />
-            <path d="m3 7 9 6 9-6" />
-          </svg>
-        ),
-      },
-      {
-        href: "/dashboard/whatsapp",
-        label: "WhatsApp",
-        icon: (
-          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
-            <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-4-1L3 21l2-5.5a8.5 8.5 0 0 1 7.5-12 8.38 8.38 0 0 1 8.5 8z" />
-          </svg>
-        ),
-      },
-      {
-        href: "/dashboard/order-confirmations",
-        label: "Order Confirmations",
-        countKey: "confirmationsMissing",
-        icon: (
-          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
-            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-            <path d="m9 11 3 3L22 4" />
-          </svg>
-        ),
-      },
+      { href: "/dashboard/support-emails", label: "Support Emails", countKey: "supportPending", icon: <Mail /> },
+      { href: "/dashboard/whatsapp", label: "WhatsApp", countKey: "whatsappFailed", icon: <MessageCircle /> },
+    ],
+  },
+  {
+    id: "sales",
+    label: "Sales",
+    items: [
+      { href: "/dashboard/order-confirmations", label: "Order Confirmations", countKey: "confirmationsMissing", icon: <CircleCheck /> },
+      { href: "/dashboard/shopify-attribution", label: "Shopify", icon: <Store /> },
+      { href: "/dashboard/amazon", label: "Amazon", icon: <Package /> },
+      { href: "/dashboard/leads", label: "B2B Leads", icon: <Briefcase /> },
     ],
   },
   {
     id: "audience",
     label: "Audience",
     items: [
-      {
-        href: "/dashboard/contacts",
-        label: "Contacts",
-        countKey: "contactsTotal",
-        icon: (
-          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-          </svg>
-        ),
-      },
-    ],
-  },
-  {
-    id: "marketing",
-    label: "Marketing",
-    items: [
-      {
-        href: "/dashboard/campaigns",
-        label: "Campaigns",
-        icon: (
-          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
-            <path d="m3 11 18-5v12L3 14v-3z" />
-            <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
-          </svg>
-        ),
-      },
-      {
-        href: "/dashboard/flows",
-        label: "Flows",
-        icon: (
-          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
-            <circle cx="6" cy="6" r="2.5" />
-            <circle cx="6" cy="18" r="2.5" />
-            <circle cx="18" cy="12" r="2.5" />
-            <path d="M8.5 6H14a3 3 0 0 1 3 3v.5M8.5 18H14a3 3 0 0 0 3-3v-.5" />
-          </svg>
-        ),
-      },
-      {
-        href: "/dashboard/analytics",
-        label: "Analytics",
-        icon: (
-          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
-            <path d="M3 3v18h18" />
-            <path d="M7 15v-4M12 15V7M17 15v-7" />
-          </svg>
-        ),
-      },
-      {
-        href: "/dashboard/shopify-attribution",
-        label: "Shopify Attribution",
-        icon: (
-          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
-            <circle cx="12" cy="12" r="10" />
-            <path d="m16.2 7.8-2.9 6.3-6.3 2.9 2.9-6.3 6.3-2.9z" />
-          </svg>
-        ),
-      },
-      {
-        href: "/dashboard/amazon",
-        label: "Amazon",
-        icon: (
-          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
-            <path d="M3 6h18M3 12h18M3 18h18" />
-            <path d="M5 21c4 2 10 2 14 0" />
-          </svg>
-        ),
-      },
-      {
-        href: "/dashboard/leads",
-        label: "B2B Leads",
-        icon: (
-          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
-            <rect x="2" y="7" width="20" height="14" rx="2" />
-            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-          </svg>
-        ),
-      },
+      { href: "/dashboard/contacts", label: "Contacts", icon: <Users /> },
+      { href: "/dashboard/campaigns", label: "Campaigns", icon: <Megaphone /> },
+      { href: "/dashboard/flows", label: "Flows", icon: <RouteIcon /> },
+      { href: "/dashboard/analytics", label: "Analytics", icon: <BarChart3 /> },
     ],
   },
   {
     id: "system",
     label: "System",
-    items: [
-      {
-        href: "/dashboard/integrations",
-        label: "Integrations",
-        icon: (
-          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
-            <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" />
-            <path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" />
-          </svg>
-        ),
-      },
-      {
-        href: "/dashboard/team",
-        label: "Team",
-        icon: (
-          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-          </svg>
-        ),
-      },
-      {
-        href: "/dashboard/settings",
-        label: "Settings",
-        icon: (
-          <svg viewBox="0 0 24 24" {...ICON_PROPS}>
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.62.78 1.05 1.42 1.05H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-        ),
-      },
-    ],
+    items: [{ href: "/dashboard/settings", label: "Settings", icon: <SettingsIcon /> }],
   },
 ];
-
-const STORAGE_PREFIX = "promunch.sidebar.";
 
 export function MobileHeader({ onToggle }: { onToggle: () => void }) {
   return (
@@ -210,9 +84,7 @@ export function MobileHeader({ onToggle }: { onToggle: () => void }) {
           style={{ borderRadius: 6, display: "block" }}
           priority
         />
-        <div className="brand-text">
-          <b>PROMUNCH</b>
-        </div>
+        <b style={{ fontSize: 14, fontWeight: 700 }}>PROMUNCH</b>
       </div>
       <div style={{ width: 28 }} />
     </header>
@@ -232,43 +104,22 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [hydrated, setHydrated] = useState(false);
   const [user, setUser] = useState<{ email: string; name: string } | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
-    setHydrated(true);
-    const next: Record<string, boolean> = {};
-    for (const g of groups) {
-      const raw = localStorage.getItem(STORAGE_PREFIX + g.id);
-      if (raw === "1") next[g.id] = true;
-    }
-    setCollapsed(next);
-
     const supabase = createSupabaseBrowserClient();
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
-        const meta = data.user.user_metadata || {};
-        const name =
-          (typeof meta.full_name === "string" && meta.full_name) ||
-          (typeof meta.name === "string" && meta.name) ||
-          (data.user.email ? data.user.email.split("@")[0] : "User");
-        setUser({ email: data.user.email || "", name });
-      }
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session?.user) {
-        const meta = session.user.user_metadata || {};
-        const name =
-          (typeof meta.full_name === "string" && meta.full_name) ||
-          (typeof meta.name === "string" && meta.name) ||
-          (session.user.email ? session.user.email.split("@")[0] : "User");
-        setUser({ email: session.user.email || "", name });
-      } else {
-        setUser(null);
-      }
-    });
+    const resolve = (u: { email?: string | null; user_metadata?: Record<string, unknown> } | null) => {
+      if (!u) return setUser(null);
+      const meta = u.user_metadata || {};
+      const name =
+        (typeof meta.full_name === "string" && meta.full_name) ||
+        (typeof meta.name === "string" && meta.name) ||
+        (u.email ? u.email.split("@")[0] : "User");
+      setUser({ email: u.email || "", name });
+    };
+    supabase.auth.getUser().then(({ data }) => resolve(data.user));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => resolve(session?.user ?? null));
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -283,16 +134,6 @@ export default function Sidebar({
       setSigningOut(false);
     }
   }
-
-  const toggleGroup = (id: string) => {
-    setCollapsed((prev) => {
-      const next = { ...prev, [id]: !prev[id] };
-      try {
-        localStorage.setItem(STORAGE_PREFIX + id, next[id] ? "1" : "0");
-      } catch {}
-      return next;
-    });
-  };
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -312,23 +153,19 @@ export default function Sidebar({
   return (
     <>
       {isMobile && (
-        <div
-          className={`sidebar-overlay${isOpen ? " show" : ""}`}
-          onClick={onToggle}
-          aria-hidden
-        />
+        <div className={`sidebar-overlay${isOpen ? " show" : ""}`} onClick={onToggle} aria-hidden />
       )}
-      <aside className={`sidebar${isMobile && isOpen ? " open" : ""}`}>
-        <div className="brand">
+      <aside className={`pm-side${isMobile && isOpen ? " open" : ""}`}>
+        <div className="pm-brand">
           <Image
             src="/pm-logo-square.png"
             alt="PROMUNCH"
-            width={36}
-            height={36}
+            width={30}
+            height={30}
             style={{ borderRadius: 8, display: "block" }}
             priority
           />
-          <div className="brand-text">
+          <div>
             <b>PROMUNCH</b>
             <span>CRM</span>
           </div>
@@ -337,65 +174,41 @@ export default function Sidebar({
               type="button"
               onClick={onToggle}
               aria-label="Close menu"
-              style={{
-                marginLeft: "auto",
-                background: "none",
-                border: "none",
-                color: "var(--side-text)",
-                cursor: "pointer",
-              }}
+              style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--pm-side-text)", cursor: "pointer" }}
             >
               <X size={18} />
             </button>
           )}
         </div>
 
-        <nav className="nav">
-          {groups.map((g) => {
-            const isCollapsed = hydrated && !!collapsed[g.id];
-            return (
-              <div key={g.id} className={`nav-group${isCollapsed ? " collapsed" : ""}`}>
-                <button
-                  type="button"
-                  className="nav-group-head"
-                  onClick={() => toggleGroup(g.id)}
-                  aria-expanded={isCollapsed ? "false" : "true"}
+        {groups.map((g) => (
+          <div key={g.id}>
+            {g.label && <div className="pm-navgroup">{g.label}</div>}
+            {g.items.map((it) => {
+              const active = isActive(it.href);
+              const count = it.countKey ? counts?.[it.countKey] : undefined;
+              const showCount = count !== undefined && count !== null && count !== "" && count !== 0;
+              return (
+                <Link
+                  key={it.href}
+                  href={it.href}
+                  className={`pm-nav${active ? " on" : ""}`}
+                  onClick={isMobile ? onToggle : undefined}
                 >
-                  <ChevronDown className="chev" size={11} />
-                  {g.label}
-                </button>
-                <div className="nav-group-items">
-                  {g.items.map((it) => {
-                    const active = isActive(it.href);
-                    const count = it.countKey ? counts?.[it.countKey] : undefined;
-                    return (
-                      <Link
-                        key={it.href}
-                        href={it.href}
-                        className={`nav-item${active ? " active" : ""}`}
-                        onClick={isMobile ? onToggle : undefined}
-                      >
-                        {it.icon}
-                        <span style={{ flex: 1 }}>{it.label}</span>
-                        {count !== undefined && count !== null && count !== "" && (
-                          <span className="count">{count}</span>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </nav>
-
-        <div className="user">
-          <div className="avatar" style={{ background: "var(--accent)" }}>
-            {userInitials}
+                  {it.icon}
+                  <span style={{ flex: 1 }}>{it.label}</span>
+                  {showCount && <span className="pm-badge">{count}</span>}
+                </Link>
+              );
+            })}
           </div>
-          <div className="meta">
-            <b>{userName}</b>
-            <span>{userEmail}</span>
+        ))}
+
+        <div className="pm-foot">
+          <div className="pm-av">{userInitials}</div>
+          <div style={{ minWidth: 0 }}>
+            <div className="pm-nm">{userName}</div>
+            <div className="pm-em">{userEmail}</div>
           </div>
           {user && (
             <button
@@ -408,7 +221,7 @@ export default function Sidebar({
                 marginLeft: "auto",
                 background: "none",
                 border: "none",
-                color: "var(--side-text)",
+                color: "var(--pm-side-dim)",
                 cursor: signingOut ? "not-allowed" : "pointer",
                 padding: 4,
                 borderRadius: 6,

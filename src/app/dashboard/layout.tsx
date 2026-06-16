@@ -49,6 +49,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }
         }
       } catch {}
+      // Failed WhatsApp sends (24h) — red badge on the WhatsApp nav item.
+      try {
+        const r = await fetch("/api/needs-attention", { cache: "no-store" });
+        if (r.ok && !cancelled) {
+          const d = await r.json();
+          if (typeof d?.failedWhatsApp === "number" && d.failedWhatsApp > 0) {
+            next.whatsappFailed = d.failedWhatsApp;
+          }
+        }
+      } catch {}
       if (cancelled) return;
       setCounts(next);
     }
