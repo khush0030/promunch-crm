@@ -75,8 +75,9 @@ export function buildOrderBlocks(order: {
 }
 
 export async function postSlack(channel: string, blocks: unknown[], text: string, threadTs?: string): Promise<string> {
-  const token = Deno.env.get("SHOPIFY_SLACK_BOT_TOKEN");
-  if (!token) throw new Error("SHOPIFY_SLACK_BOT_TOKEN missing");
+  // Single-bot ("Maya"): all Slack posts use the one app token. Channels route, not bots.
+  const token = Deno.env.get("SLACK_BOT_TOKEN");
+  if (!token) throw new Error("SLACK_BOT_TOKEN missing");
   const body: Record<string, unknown> = { channel, blocks, text };
   if (threadTs) body.thread_ts = threadTs;
   const r = await fetch("https://slack.com/api/chat.postMessage", {

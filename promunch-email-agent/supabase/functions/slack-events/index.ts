@@ -11,7 +11,7 @@
 
 import { verifySlackSignature, postDraftRevision } from "../_shared/slack.ts";
 import { db } from "../_shared/supabase.ts";
-import { generateDraft } from "../_shared/openai.ts";
+import { generateDraft, mayaChat } from "../_shared/openai.ts";
 import { logEvent } from "../_shared/log.ts";
 import { recordFeedback } from "../_shared/brand.ts";
 
@@ -32,6 +32,7 @@ interface SlackMessageEvent {
   thread_ts?: string;
   bot_id?: string;
   subtype?: string;
+  channel_type?: string;   // "im" for direct messages to the bot
 }
 
 Deno.serve(async (req) => {
@@ -55,9 +56,10 @@ Deno.serve(async (req) => {
 
   // ACK quickly. We process synchronously here for simplicity; if drafting
   // gets slow, move the heavy work into queueing.
+  const isRetry = (req.headers.get("x-slack-retry-num") ?? "") !== "";
   if (envelope.type === "event_callback" && envelope.event?.type === "message") {
     try {
-      await handleMessage(envelope.event);
+      await handleMessage(envelope.event, isRetry);
     } catch (e) {
       console.error("slack-events handler failed:", e);
     }
@@ -66,11 +68,23 @@ Deno.serve(async (req) => {
   return new Response("ok");
 });
 
-async function handleMessage(ev: SlackMessageEvent): Promise<void> {
+async function handleMessage(ev: SlackMessageEvent, isRetry = false): Promise<void> {
   // Filter out: edits, deletes, bot messages, our own messages, parent messages
   if (ev.subtype) return;                          // edits, joins, etc.
   if (ev.bot_id) return;                           // ignore bot replies (incl. ours)
   if (BOT_USER_ID && ev.user === BOT_USER_ID) return;
+
+  // Direct message to Maya → conversational ops assistant (sales / orders / KB).
+  if (ev.channel_type === "im") {
+    if (isRetry) return;                           // Slack retried a slow ACK; the first run already replies
+    const prompt = (ev.text ?? "").trim();
+    if (!prompt) return;
+    const reply = await mayaChat(prompt);
+    const { replyInThread } = await import("../_shared/slack.ts");
+    await replyInThread(ev.channel, ev.ts, reply);  // thread under the user's DM so it stays tidy
+    return;
+  }
+
   if (!ev.thread_ts || ev.thread_ts === ev.ts) return; // must be a thread reply
 
   const feedback = (ev.text ?? "").trim();
