@@ -844,7 +844,6 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose }: {
 }) {
   const [data, setData] = useState<CustomerData | null>(null);
   const [loading, setLoading] = useState(false);
-  if (!visible) return null;
 
   useEffect(() => {
     if (!thread) { setData(null); return; }
@@ -856,6 +855,8 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose }: {
       .finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
   }, [thread]);
+
+  if (!visible) return null;
 
   const wrap: React.CSSProperties = isMobile
     ? {
@@ -1541,6 +1542,8 @@ function CampaignsView() {
   const toast = useToast();
   const [list, setList] = useState<Campaign[]>([]);
   const [creating, setCreating] = useState(false);
+  const [createSeg, setCreateSeg] = useState<string[] | null>(null);
+  const [segs, setSegs] = useState<{ rfm_tier: string; customers: number; spend: number; avg_recency: number }[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
@@ -1551,6 +1554,9 @@ function CampaignsView() {
     setList(j.campaigns ?? []);
   }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch("/api/whatsapp/segments").then((r) => r.json()).then((j) => setSegs(j.segments ?? [])).catch(() => {});
+  }, []);
   useEffect(() => {
     const t = setInterval(load, 8000);
     return () => clearInterval(t);
@@ -1608,6 +1614,39 @@ function CampaignsView() {
         </div>
       </div>
 
+      {segs.length > 0 && (() => {
+        const byTier = Object.fromEntries(segs.map((s) => [s.rfm_tier, s]));
+        return (
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 }}>
+              Customer segments
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))", gap: 10 }}>
+              {SEGMENTS.map((seg) => {
+                const rows = seg.tags.map((t) => byTier[t]).filter(Boolean);
+                const customers = rows.reduce((a, r) => a + Number(r.customers), 0);
+                const spend = rows.reduce((a, r) => a + Number(r.spend), 0);
+                return (
+                  <div key={seg.key} style={cardStyle}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{seg.label}</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "var(--pm-green)" }}>{customers.toLocaleString("en-IN")}</div>
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--pm-hint)", margin: "2px 0 8px" }}>{seg.hint}</div>
+                    <div style={{ fontSize: 11, color: "var(--pm-muted)", marginBottom: 10 }}>
+                      ₹{Math.round(spend).toLocaleString("en-IN")} lifetime spend
+                    </div>
+                    <button type="button" onClick={() => setCreateSeg(seg.tags)} disabled={customers === 0} style={{ ...smallBtn, width: "100%", justifyContent: "center" }}>
+                      <Megaphone size={12} /> Campaign
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 12 }}>
         {list.length === 0 && (
           <div style={{ gridColumn: "1/-1", padding: 32, textAlign: "center", color: "var(--pm-hint)", fontSize: 13 }}>
@@ -1657,18 +1696,30 @@ function CampaignsView() {
       </div>
 
       {creating && <CampaignModal onClose={() => { setCreating(false); load(); }} />}
+      {createSeg && <CampaignModal initialSegment={createSeg} onClose={() => { setCreateSeg(null); load(); }} />}
       {csvOpen && <CsvImportModal onClose={() => setCsvOpen(false)} />}
     </div>
   );
 }
 
-function CampaignModal({ onClose }: { onClose: () => void }) {
+// RFM segment presets → rfm:* tags written on wa_contacts by recompute_wa_rfm_tags()
+// (nightly via wa-rfm-tick). Multi-select unions the tags, e.g. Loyal + VIP = repeat buyers.
+const SEGMENTS: { key: string; label: string; hint: string; tags: string[] }[] = [
+  { key: "vip", label: "VIP", hint: "₹3k+ spent or 5+ orders", tags: ["rfm:vip"] },
+  { key: "loyal", label: "Loyal", hint: "2–4 orders, last ≤90d", tags: ["rfm:loyal"] },
+  { key: "first", label: "First-time", hint: "single order so far", tags: ["rfm:new", "rfm:one_time"] },
+  { key: "at_risk", label: "At-risk", hint: "lapsing, last 3–6 months", tags: ["rfm:at_risk"] },
+  { key: "dormant", label: "Dormant", hint: "silent 6+ months", tags: ["rfm:dormant"] },
+];
+
+function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initialSegment?: string[] }) {
   const toast = useToast();
   const [name, setName] = useState("");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateId, setTemplateId] = useState("");
   const [vars, setVars] = useState<Record<string, string>>({});
-  const [audienceMode, setAudienceMode] = useState<"all" | "tags">("all");
+  const [audienceMode, setAudienceMode] = useState<"all" | "segment" | "tags">(initialSegment?.length ? "segment" : "all");
+  const [segSel, setSegSel] = useState<string[]>(initialSegment ?? []);
   const [tags, setTags] = useState("");
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
   const [personalize, setPersonalize] = useState(false);
@@ -1687,10 +1738,25 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
     return Array.from(new Set(m.map((s) => s.replace(/[{}]/g, ""))));
   }, [tpl]);
 
+  // Resolve the active audience to a flat tag list. Segments are stored as
+  // rfm:* tags on wa_contacts; "all" = no filter (every opted-in contact).
+  const effectiveTags = useMemo(() => {
+    if (audienceMode === "segment") {
+      const out = new Set<string>();
+      for (const key of segSel) {
+        const seg = SEGMENTS.find((s) => s.key === key);
+        for (const t of seg?.tags ?? []) out.add(t);
+      }
+      return Array.from(out);
+    }
+    if (audienceMode === "tags") return tags.split(",").map((t) => t.trim()).filter(Boolean);
+    return [];
+  }, [audienceMode, segSel, tags]);
+
   useEffect(() => {
-    const qs = audienceMode === "tags" && tags.trim() ? `?tags=${encodeURIComponent(tags)}` : "";
+    const qs = effectiveTags.length ? `?tags=${encodeURIComponent(effectiveTags.join(","))}` : "";
     fetch(`/api/whatsapp/audience${qs}`).then((r) => r.json()).then((j) => setAudienceCount(j.count ?? 0));
-  }, [audienceMode, tags]);
+  }, [effectiveTags]);
 
   const preview = useMemo(() => {
     if (!tpl) return "";
@@ -1702,10 +1768,7 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
     if (!templateId) { toast.push({ kind: "error", text: "Pick an approved template" }); return; }
     setSaving(true);
     try {
-      const audience_filter =
-        audienceMode === "tags"
-          ? { tags: tags.split(",").map((t) => t.trim()).filter(Boolean) }
-          : {};
+      const audience_filter = effectiveTags.length ? { tags: effectiveTags } : {};
       const template_vars = personalize && brief.trim()
         ? { ...vars, _ai_brief: brief.trim() }
         : vars;
@@ -1782,14 +1845,43 @@ function CampaignModal({ onClose }: { onClose: () => void }) {
         </Field>
       )}
       <Field label="Audience">
-        <div style={{ display: "flex", gap: 14, marginBottom: 6 }}>
+        <div style={{ display: "flex", gap: 14, marginBottom: 8 }}>
           <label style={{ fontSize: 13, display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
-            <input type="radio" checked={audienceMode === "all"} onChange={() => setAudienceMode("all")} /> All opted-in
+            <input type="radio" checked={audienceMode === "all"} onChange={() => setAudienceMode("all")} /> Everyone
+          </label>
+          <label style={{ fontSize: 13, display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
+            <input type="radio" checked={audienceMode === "segment"} onChange={() => setAudienceMode("segment")} /> By segment
           </label>
           <label style={{ fontSize: 13, display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
             <input type="radio" checked={audienceMode === "tags"} onChange={() => setAudienceMode("tags")} /> By tags
           </label>
         </div>
+        {audienceMode === "segment" && (
+          <div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {SEGMENTS.map((s) => {
+                const on = segSel.includes(s.key);
+                return (
+                  <button key={s.key} type="button" title={s.hint}
+                    onClick={() => setSegSel((prev) => on ? prev.filter((k) => k !== s.key) : [...prev, s.key])}
+                    style={{
+                      fontSize: 12, padding: "5px 10px", borderRadius: 999, cursor: "pointer",
+                      border: `1px solid ${on ? "var(--pm-green)" : "var(--pm-border)"}`,
+                      background: on ? "var(--pm-green)" : "transparent",
+                      color: on ? "#fff" : "var(--pm-ink)", fontWeight: on ? 600 : 400,
+                    }}>
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 6 }}>
+              {segSel.length
+                ? SEGMENTS.filter((s) => segSel.includes(s.key)).map((s) => `${s.label}: ${s.hint}`).join("  ·  ")
+                : "Pick one or more segments. Refreshed nightly from Shopify order history."}
+            </div>
+          </div>
+        )}
         {audienceMode === "tags" && (
           <input value={tags} onChange={(e) => setTags(e.target.value)} style={inputStyle}
             placeholder="vip, repeat_buyer (comma-separated)" />
