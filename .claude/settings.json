@@ -89,7 +89,15 @@
       "Bash(grep -nE 'className=\"\\(pill|btn|tab|tabs|chip|chips\\) |className=\"\\(pill|btn|tabs|chips\\)\"|`\\(pill|tab|chip\\) ' src/app/dashboard/leads/page.tsx)",
       "Bash(perl -0pi -e 's/className=\"kpi-grid\"/className=\"pm-kpis\"/g; s/className=\"kpi\"/className=\"pm-kpi\"/g;' src/app/dashboard/leads/page.tsx)",
       "Bash(grep -nE 'className=\"\\(tbl|card|card-pad|cell-main|cell-sub|nm|muted\\)\"|`card ' src/app/dashboard/leads/page.tsx)",
-      "Bash(curl -s -o /dev/null -w \"login:%{http_code} root:\" http://localhost:3000/login)"
+      "Bash(curl -s -o /dev/null -w \"login:%{http_code} root:\" http://localhost:3000/login)",
+      "Bash(perl -0pi -e 's/\\(  \\\\/\\\\* KPI ring\\\\/stat rows wrap rather than squashing\\\\. \\\\*\\\\/\\\\n  \\\\.pm-ringwrap \\\\{ flex-wrap: wrap; \\\\}\\\\n  \\\\.pm-statline \\\\{ gap: 12px; \\\\}\\\\n\\)\\\\}/$1\\\\n  \\\\/* Form rows collapse to one column — !important beats inline gridTemplateColumns. *\\\\/\\\\n  .pm-frow { grid-template-columns: 1fr !important; }\\\\n}/' src/app/globals.css)",
+      "Bash(awk '/create table.*amazon_settlements/,/\\\\\\);/' promunch-email-agent/supabase/migrations/*.sql)",
+      "Bash(curl -s http://localhost:3000/login)",
+      "Bash(echo \"deno: $\\(deno --version)",
+      "Bash(curl -s -o /dev/null -w '192.168.1.212:3000 -> %{http_code}\\\\n' http://192.168.1.212:3000/login)",
+      "Bash(awk '{print $2}')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/dashboard/whatsapp)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")"
     ]
   }
 }

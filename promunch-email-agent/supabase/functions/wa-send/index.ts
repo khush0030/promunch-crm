@@ -1,28 +1,60 @@
 // Outbound WhatsApp send. Called by Next.js API route from dashboard.
 //
 // POST body:
-//   { thread_id?: string, to?: string, kind: 'text'|'template'|'image',
+//   { thread_id?: string, to?: string,
+//     kind: 'text'|'template'|'image'|'interactive'|'catalog',
 //     text?: string,
 //     template?: { name, language, components },
-//     image?: { link, caption } }
+//     image?: { link, caption },
+//     interactive?: <raw Meta interactive object>,        // list/buttons/cta_url/product
+//     catalog?: { catalog_id?, header?, body?, footer?,   // product_list or single product
+//                 sections?, product_retailer_id? } }
 //
 // Auth: requires service-role bearer (since verify_jwt = false, also accept SETUP_TOKEN
 // or just trust it for now — tighten later).
 
 import { db } from "../_shared/supabase.ts";
-import { sendText, sendTemplate, sendImage, TemplateComponent } from "../_shared/whatsapp.ts";
+import {
+  sendText,
+  sendTemplate,
+  sendImage,
+  sendInteractive,
+  buildProductList,
+  buildSingleProduct,
+  TemplateComponent,
+  CatalogSection,
+} from "../_shared/whatsapp.ts";
 import { alertWaSendFailure } from "../_shared/connector-log.ts";
 
 interface SendBody {
   thread_id?: string;
   to?: string;
-  kind: "text" | "template" | "image";
+  kind: "text" | "template" | "image" | "interactive" | "catalog";
   text?: string;
   template?: { name: string; language?: string; components?: TemplateComponent[]; vars?: Record<string, string> };
   image?: { link: string; caption?: string };
+  // Raw interactive object passthrough (list / buttons / cta_url / product).
+  interactive?: Record<string, unknown>;
+  // Convenience commerce send — builds a product_list (sections) or single
+  // product card. catalog_id defaults to WHATSAPP_CATALOG_ID.
+  catalog?: {
+    catalog_id?: string;
+    header?: string;
+    body?: string;
+    footer?: string;
+    sections?: CatalogSection[];
+    product_retailer_id?: string;
+  };
   sent_by?: string;
   ai_generated?: boolean;
   ai_meta?: unknown;
+}
+
+// Best-effort human-readable summary of an interactive payload for wa_messages.body.
+function interactiveSummary(i: Record<string, unknown> | undefined): string {
+  const body = (i?.body as { text?: string } | undefined)?.text;
+  const header = (i?.header as { text?: string } | undefined)?.text;
+  return body || header || `[${(i?.type as string) ?? "interactive"}]`;
 }
 
 Deno.serve(async (req) => {
@@ -95,6 +127,29 @@ Deno.serve(async (req) => {
       if (!body.image?.link) return j({ error: "image.link required" }, 400);
       result = await sendImage(waId!, body.image.link, body.image.caption);
       recorded = { ...recorded, type: "image", media_url: body.image.link, body: body.image.caption ?? "[image]" };
+    } else if (body.kind === "interactive") {
+      if (!body.interactive) return j({ error: "interactive required" }, 400);
+      result = await sendInteractive(waId!, body.interactive);
+      recorded = { ...recorded, type: "interactive", body: interactiveSummary(body.interactive) };
+    } else if (body.kind === "catalog") {
+      const catalogId = body.catalog?.catalog_id ?? Deno.env.get("WHATSAPP_CATALOG_ID") ?? "";
+      if (!catalogId) return j({ error: "WHATSAPP_CATALOG_ID not configured" }, 400);
+      let interactive: Record<string, unknown>;
+      if (body.catalog?.sections?.length) {
+        interactive = buildProductList(
+          catalogId,
+          body.catalog.header ?? "Our menu",
+          body.catalog.body ?? "Tap a product to add it to your cart 🛒",
+          body.catalog.sections,
+          body.catalog.footer,
+        );
+      } else if (body.catalog?.product_retailer_id) {
+        interactive = buildSingleProduct(catalogId, body.catalog.product_retailer_id, body.catalog.body, body.catalog.footer);
+      } else {
+        return j({ error: "catalog.sections or catalog.product_retailer_id required" }, 400);
+      }
+      result = await sendInteractive(waId!, interactive);
+      recorded = { ...recorded, type: "catalog", body: body.catalog?.body ?? body.catalog?.header ?? "[catalog]" };
     } else {
       return j({ error: "bad kind" }, 400);
     }

@@ -109,6 +109,70 @@ export function sendImage(to: string, link: string, caption?: string): Promise<S
   });
 }
 
+// ---- Interactive & commerce messages ------------------------------------
+// Docs: https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages#interactive-object
+//       https://developers.facebook.com/docs/whatsapp/cloud-api/guides/sell-products-with-your-messages
+
+// Generic interactive send — caller passes the full `interactive` object.
+// Covers list / reply-button / product / product_list / cta_url shapes.
+export function sendInteractive(to: string, interactive: Record<string, unknown>): Promise<SendResult> {
+  return postMessage({
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "interactive",
+    interactive,
+  });
+}
+
+// A tappable URL button (used to deliver the Shopify checkout link). The URL
+// shows as a real button rather than raw text, and survives the 24h window as a
+// normal session message.
+export function buildCtaUrl(bodyText: string, displayText: string, url: string, footer?: string): Record<string, unknown> {
+  const i: Record<string, unknown> = {
+    type: "cta_url",
+    body: { text: bodyText },
+    action: { name: "cta_url", parameters: { display_text: displayText, url } },
+  };
+  if (footer) i.footer = { text: footer };
+  return i;
+}
+
+// A single product card from the Meta catalog.
+export function buildSingleProduct(catalogId: string, retailerId: string, bodyText?: string, footer?: string): Record<string, unknown> {
+  const i: Record<string, unknown> = {
+    type: "product",
+    action: { catalog_id: catalogId, product_retailer_id: retailerId },
+  };
+  if (bodyText) i.body = { text: bodyText };
+  if (footer) i.footer = { text: footer };
+  return i;
+}
+
+export interface CatalogSection {
+  title: string; // <= 24 chars per Meta
+  product_items: Array<{ product_retailer_id: string }>;
+}
+
+// A multi-product list (the "browse the menu" card). Meta limits: up to 30
+// products total across up to 10 sections; a header is required.
+export function buildProductList(
+  catalogId: string,
+  headerText: string,
+  bodyText: string,
+  sections: CatalogSection[],
+  footer?: string,
+): Record<string, unknown> {
+  const i: Record<string, unknown> = {
+    type: "product_list",
+    header: { type: "text", text: headerText },
+    body: { text: bodyText },
+    action: { catalog_id: catalogId, sections },
+  };
+  if (footer) i.footer = { text: footer };
+  return i;
+}
+
 export function markRead(messageId: string): Promise<SendResult> {
   return postMessage({
     messaging_product: "whatsapp",

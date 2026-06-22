@@ -4,8 +4,9 @@
 //   trigger AI reply if conversation is in 'bot' status.
 
 import { db } from "../_shared/supabase.ts";
-import { verifySignature, downloadMedia, markRead } from "../_shared/whatsapp.ts";
+import { verifySignature, downloadMedia, markRead, buildCtaUrl } from "../_shared/whatsapp.ts";
 import { logConnector, alertWaSendFailure, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
+import { buildCartPermalink, cartFromOrderItems } from "../_shared/shopify-cart.ts";
 
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const WA_MEDIA_BUCKET = Deno.env.get("WA_MEDIA_BUCKET") ?? "wa-media";
@@ -164,6 +165,10 @@ async function handleInboundMessage(msg: any, profile: any) {
   let type = msg.type ?? "text";
   let mediaUrl: string | null = null;
   let mediaMime: string | null = null;
+  // when the customer sends a cart from the WhatsApp catalog (type 'order'),
+  // we capture the line items so we can hand them a Shopify checkout link.
+  let checkoutUrl: string | null = null;
+  let cartTotal: { total: number; currency: string; count: number } | null = null;
 
   if (msg.type === "text") body = msg.text?.body ?? "";
   else if (msg.type === "button") body = msg.button?.text ?? "";
@@ -196,6 +201,19 @@ async function handleInboundMessage(msg: any, profile: any) {
   } else if (msg.type === "reaction") {
     body = msg.reaction?.emoji ?? "";
     type = "reaction";
+  } else if (msg.type === "order") {
+    // Cart submitted from the WhatsApp catalog. Each product_retailer_id is the
+    // Shopify variant id (catalog convention), so we can build a checkout link
+    // with no Shopify product API calls.
+    type = "order";
+    const items = msg.order?.product_items ?? [];
+    const cart = cartFromOrderItems(items);
+    checkoutUrl = buildCartPermalink(cart.lines);
+    cartTotal = { total: cart.total, currency: cart.currency, count: cart.count };
+    const note = (msg.order?.text ?? "").toString().trim();
+    body = `🛒 Cart from WhatsApp: ${cart.count} item(s)` +
+      (cart.total ? ` · ${cart.currency} ${cart.total.toFixed(0)}` : "") +
+      (note ? `\nNote: ${note}` : "");
   } else {
     body = JSON.stringify(msg).slice(0, 500);
   }
@@ -229,6 +247,16 @@ async function handleInboundMessage(msg: any, profile: any) {
     await sb.from("wa_contacts").update({ opted_in: false }).eq("id", contact.id);
   }
 
+  // CART CHECKOUT — a 'order' message is a cart the customer built from the
+  // WhatsApp catalog. Respond deterministically with a Shopify checkout link
+  // (no AI). The inbound wamid dedup at the top of this function guarantees we
+  // only do this once per cart, even if Meta retries the webhook.
+  if (type === "order") {
+    await sendCheckout(thread.id, checkoutUrl, cartTotal)
+      .catch((e) => console.error("[wa-webhook] checkout send failed", e));
+    return;
+  }
+
   // trigger AI reply if bot owns the conversation — any message carrying real
   // text (plain, button/list reply, caption, or a transcribed voice note),
   // or an image (Claude reads the image directly)
@@ -238,6 +266,39 @@ async function handleInboundMessage(msg: any, profile: any) {
     await enqueueAiReply(thread.id, body, isImage ? mediaUrl : null)
       .catch((e) => console.error("[wa-webhook] ai enqueue failed", e));
   }
+}
+
+// Reply to a WhatsApp catalog cart with a Shopify checkout link (or a graceful
+// fallback if the cart couldn't be read). Routes through wa-send so the send is
+// recorded in wa_messages and any failure is Slack-alerted like every other send.
+async function sendCheckout(
+  threadId: string,
+  checkoutUrl: string | null,
+  cart: { total: number; currency: string; count: number } | null,
+) {
+  const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-send`;
+  const auth = `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
+  const post = (payload: Record<string, unknown>) =>
+    fetch(url, { method: "POST", headers: { Authorization: auth, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+
+  if (!checkoutUrl) {
+    await post({
+      thread_id: threadId,
+      kind: "text",
+      sent_by: "checkout",
+      text: "Oops, I couldn't read the items in your cart. Could you add them again from the menu, or tell me what you'd like and I'll help? 🛒",
+    });
+    return;
+  }
+
+  const totalLine = cart?.total ? ` Your total is ${cart.currency} ${cart.total.toFixed(0)}.` : "";
+  const bodyText = `Yay, your cart's ready! 🛒${totalLine}\nTap below to checkout securely. Pay by UPI, card or COD. Free shipping on orders ₹599+ 💚`;
+  await post({
+    thread_id: threadId,
+    kind: "interactive",
+    sent_by: "checkout",
+    interactive: buildCtaUrl(bodyText, "Checkout now", checkoutUrl, "Your Munchy Pal 💚"),
+  });
 }
 
 // Durably hand off an inbound message for an AI reply.

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, Plus, UserPlus, Store } from "lucide-react";
+import { CheckCircle2, Plus, UserPlus, Store, ShoppingBag } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/Toast";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
@@ -35,6 +35,7 @@ export default function SettingsPage() {
     if (h && TABS.some((t) => t.key === h)) setTab(h);
   }, []);
   const [disconnectBusy, setDisconnectBusy] = useState(false);
+  const [catalogBusy, setCatalogBusy] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -64,6 +65,21 @@ export default function SettingsPage() {
       toast.push({ kind: "error", text: `Disconnect failed: ${e instanceof Error ? e.message : "unknown"}` });
     } finally {
       setDisconnectBusy(false);
+    }
+  }
+
+  async function handleCatalogSync() {
+    setCatalogBusy(true);
+    try {
+      const res = await fetch("/api/shopify/catalog", { method: "POST" });
+      const d = await res.json();
+      if (!res.ok || !d.ok) throw new Error(d.error || d.detail || `Sync failed (${d.status ?? res.status})`);
+      const retired = d.deactivated ? `, ${d.deactivated} retired` : "";
+      toast.push({ kind: "success", text: `Synced ${d.synced ?? 0} products to the WhatsApp catalog${retired}.` });
+    } catch (e) {
+      toast.push({ kind: "error", text: `Catalog sync failed: ${e instanceof Error ? e.message : "unknown"}` });
+    } finally {
+      setCatalogBusy(false);
     }
   }
 
@@ -133,9 +149,17 @@ export default function SettingsPage() {
           <Panel title="Shopify store" caption="Sync your Shopify store data">
             <div className="pm-pill"><span className="nm">Store URL</span><span className="pm-muted">{process.env.NEXT_PUBLIC_SHOPIFY_STORE_URL || "—"}</span></div>
             <div className="pm-pill"><span className="nm">Status</span><StatusBadge tone="green" icon={<CheckCircle2 />}>Connected</StatusBadge></div>
-            <button className="pm-btn ghost" style={{ marginTop: 12, color: "var(--pm-terra)" }} onClick={handleDisconnect} disabled={disconnectBusy}>
-              {disconnectBusy ? "Disconnecting…" : "Disconnect Shopify"}
-            </button>
+            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+              <button className="pm-btn primary" onClick={handleCatalogSync} disabled={catalogBusy}>
+                <ShoppingBag size={15} /> {catalogBusy ? "Syncing…" : "Sync catalog to WhatsApp"}
+              </button>
+              <button className="pm-btn ghost" style={{ color: "var(--pm-terra)" }} onClick={handleDisconnect} disabled={disconnectBusy}>
+                {disconnectBusy ? "Disconnecting…" : "Disconnect Shopify"}
+              </button>
+            </div>
+            <p className="pm-muted" style={{ marginTop: 8, fontSize: 12 }}>
+              Pulls active products into the WhatsApp catalog so customers can order in chat. Build your Meta catalog with Content ID = Shopify variant id.
+            </p>
           </Panel>
         </div>
       )}

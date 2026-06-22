@@ -11,6 +11,7 @@
 import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
 import { lookupOrders, orderForAI, type OrderSummary } from "../_shared/orders.ts";
+import { type CatalogSection } from "../_shared/whatsapp.ts";
 import {
   type DueAsk,
   claimAsk,
@@ -26,6 +27,10 @@ const MODEL = Deno.env.get("WA_AI_MODEL") ?? "gpt-4o-mini";
 // 60K, dropped to 12K (~5× cheaper per conversation).
 const KB_CHAR_BUDGET = 12_000;
 const MAX_TOOL_TURNS = 4;
+const CATALOG_ID = Deno.env.get("WHATSAPP_CATALOG_ID") ?? "";
+// Meta limits a product_list to 30 products across 10 sections.
+const MAX_CATALOG_ITEMS = 30;
+const MAX_CATALOG_SECTIONS = 10;
 
 const SYSTEM_PROMPT =
   `You are the WhatsApp customer-support agent for PROMUNCH (a snack brand under Vippy Industries Limited — protein munchies, edamame snacks, "Your Munchy Pal").
@@ -43,6 +48,8 @@ BRAND VOICE: PROMUNCH is "Your Munchy Pal" — warm and friendly. Do NOT write t
 You ALWAYS reply to the customer yourself, using the KNOWLEDGE BASE below. You are a capable support agent: handle product questions, order questions, complaints, refund/return requests and wholesale enquiries by replying helpfully.
 
 ORDER LOOKUP — you have a tool, lookup_order. The customer's phone number is ALREADY KNOWN from WhatsApp — NEVER ask the customer for their phone or contact number. Whenever the customer mentions an order, a delivery, tracking, a missing / wrong / damaged item, a refund or a return: call lookup_order FIRST (no arguments lists their recent orders; pass order_number ONLY if the customer actually stated one). Then reply using the real order details. Only if the lookup returns nothing do you ask the customer for their order number — never their phone number.
+
+ORDERING ON WHATSAPP — customers can shop right here in the chat. You have a tool, show_products. Call it whenever the customer wants to browse, see the menu, order, buy, reorder, or asks "what do you have" / "what flavours" / "I want X" (optionally pass a category like "crunchies" or "edamame" to narrow it). It shows them tappable product cards they add to a cart inside WhatsApp. They then send the cart back and AUTOMATICALLY receive a secure checkout link — the system handles that link, so NEVER write a checkout or cart URL yourself and never quote prices from memory (the cards show real live prices). After calling show_products your reply should be ONE short warm line, e.g. "Here's our menu — tap to add what you fancy 👇". Do NOT list the products as text.
 
 CRITICAL — do not invent anything:
 - NEVER guess or make up an order number. If the customer did not state one, call lookup_order with NO arguments.
@@ -80,6 +87,27 @@ const TOOLS = [
           order_number: {
             type: "string",
             description: "Optional order number if the customer gave one, e.g. '1042' or '#1042'.",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "show_products",
+      description:
+        "Show the customer PROMUNCH products as tappable WhatsApp catalog cards they " +
+        "can add to a cart and order. Call this whenever the customer wants to browse, " +
+        "see the menu, order, buy, reorder, or asks what's available. Optionally pass a " +
+        "category to narrow the list. After this, the customer adds items to a cart and " +
+        "receives a checkout link automatically — you never build links or quote prices.",
+      parameters: {
+        type: "object",
+        properties: {
+          category: {
+            type: "string",
+            description: "Optional category/keyword to filter products, e.g. 'crunchies', 'edamame', 'protein'. Omit to show everything.",
           },
         },
       },
@@ -167,6 +195,9 @@ Deno.serve(async (req) => {
   // Claim it FIRST (atomic) so the template timer can never also send it; if the
   // bot judges the mood wrong and omits the ask, we release the claim.
   let claimedAsk: DueAsk | null = null;
+  // If the model calls show_products, we stash the prepared catalog here and
+  // send it AFTER winning the per-turn claim (so a retry can't double-send).
+  let pendingCatalog: { sections: CatalogSection[]; count: number } | null = null;
   if (!draft && waId) {
     const due = await findDueAsk(sb, waId, new Date().toISOString());
     if (due && (await claimAsk(sb, due.runId))) claimedAsk = due;
@@ -235,6 +266,25 @@ Deno.serve(async (req) => {
               "for their order number. Do NOT ask for a phone number, and do NOT guess one.";
         } else {
           result = orders.map(orderForAI).join("\n\n---\n\n");
+        }
+      } else if (call.function?.name === "show_products") {
+        let arg: { category?: string } = {};
+        try { arg = JSON.parse(call.function.arguments || "{}"); } catch { /* tolerate */ }
+        if (!CATALOG_ID) {
+          result = "Product catalog isn't configured yet — tell the customer that ordering on WhatsApp is coming very soon, and offer to help another way.";
+        } else {
+          const cat = await buildCatalogSections(sb, arg.category ?? null).catch((e) => {
+            console.error("[wa-ai-reply] show_products failed", e);
+            return null;
+          });
+          if (!cat || cat.count === 0) {
+            result = (arg.category && arg.category.trim())
+              ? `No products matched '${arg.category}'. Offer to show the full menu instead (call show_products with no category).`
+              : "No products are available to show right now — tell the customer ordering is briefly unavailable and offer to help another way.";
+          } else {
+            pendingCatalog = { sections: cat.sections, count: cat.count };
+            result = `Prepared ${cat.count} product card(s) (${cat.titles}). They WILL be shown to the customer automatically as tappable catalog cards. Reply with ONE short warm line inviting them to tap and add to cart — do NOT list the products in text and do NOT mention prices.`;
+          }
         }
       }
       messages.push({ role: "tool", tool_call_id: call.id, content: result });
@@ -308,6 +358,23 @@ Deno.serve(async (req) => {
     return j({ ok: false, error: sent.error ?? "send failed" }, 502);
   }
   await markReplyTurnSent(sb, thread_id, answerInbound);
+
+  // If the bot chose to show products, deliver the catalog cards now — AFTER the
+  // text intro and gated by the per-turn claim we just won, so a concurrent run
+  // or a wa-jobs-tick retry can never double-send the menu.
+  if (pendingCatalog) {
+    await callSend({
+      thread_id,
+      kind: "catalog",
+      sent_by: "bot",
+      catalog: {
+        catalog_id: CATALOG_ID,
+        header: "PROMUNCH menu",
+        body: "Tap a product to add it to your cart 🛒",
+        sections: pendingCatalog.sections,
+      },
+    }).catch((e) => console.error("[wa-ai-reply] catalog send failed", e));
+  }
 
   // Hand off ONLY when the customer explicitly asked for a human.
   // Raise a ticket when the AI flagged one — or, if the AI output was
@@ -558,6 +625,42 @@ async function postEscalation(o: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text: `${heading} — ${o.reason}`, blocks }),
   }).catch(() => {});
+}
+
+// Build product_list sections from the wa_catalog_items mirror. Groups in-stock
+// items by category (Meta caps: 30 items / 10 sections), optionally filtered by
+// a category/title keyword. Returns null when nothing matches.
+async function buildCatalogSections(
+  sb: any,
+  category: string | null,
+): Promise<{ sections: CatalogSection[]; count: number; titles: string } | null> {
+  let q = sb.from("wa_catalog_items").select("retailer_id, title, category, sort").eq("in_stock", true);
+  // strip PostgREST control chars so a free-text category can't break the or() filter
+  const c = (category ?? "").replace(/[(),.*%]/g, " ").trim().slice(0, 40);
+  if (c) q = q.or(`category.ilike.%${c}%,title.ilike.%${c}%`);
+  const { data, error } = await q
+    .order("category", { ascending: true })
+    .order("sort", { ascending: true })
+    .limit(MAX_CATALOG_ITEMS);
+  if (error || !data || !data.length) return null;
+
+  const groups = new Map<string, Array<{ product_retailer_id: string }>>();
+  for (const row of data) {
+    const key = ((row.category ?? "More").toString().trim() || "More").slice(0, 24);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push({ product_retailer_id: String(row.retailer_id) });
+  }
+  let sections: CatalogSection[] = [...groups.entries()].map(([title, product_items]) => ({ title, product_items }));
+  // Collapse any sections beyond Meta's cap into a final "More" section.
+  if (sections.length > MAX_CATALOG_SECTIONS) {
+    const head = sections.slice(0, MAX_CATALOG_SECTIONS - 1);
+    const tail = sections.slice(MAX_CATALOG_SECTIONS - 1).flatMap((s) => s.product_items);
+    head.push({ title: "More", product_items: tail });
+    sections = head;
+  }
+  const count = sections.reduce((n, s) => n + s.product_items.length, 0);
+  const titles = data.map((r: any) => r.title).slice(0, 12).join(", ");
+  return { sections, count, titles };
 }
 
 async function callSend(body: unknown): Promise<{ ok?: boolean; error?: string }> {

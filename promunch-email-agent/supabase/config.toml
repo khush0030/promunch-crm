@@ -51,6 +51,9 @@ verify_jwt = false                    # gated by SHOPIFY_BACKFILL_TOKEN query pa
 [functions.shopify-creator-backfill]
 verify_jwt = false                    # gated by SHOPIFY_BACKFILL_TOKEN query param
 
+[functions.shopify-catalog-sync]
+verify_jwt = false                    # called server-side with the service key by /api/shopify/catalog
+
 [functions.shopify-stats]
 verify_jwt = true                     # called server-side with the anon key by /api/shopify/stats
 
@@ -92,6 +95,9 @@ verify_jwt = false                    # invoked by scheduled cron
 
 [functions.wa-watchdog]
 verify_jwt = false                    # invoked by pg_cron + Vercel cron (dead-man's-switch)
+
+[functions.wa-rfm-tick]
+verify_jwt = false                    # invoked by scheduled cron (nightly RFM tag refresh)
 
 [functions.nitro-webhook]
 verify_jwt = false                    # Nitro uses caller-defined Authorization token (NITRO_AUTH_TOKEN)
