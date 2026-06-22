@@ -122,3 +122,30 @@ export async function GET() {
     sync: sync ?? [],
   });
 }
+
+// Manual "Sync now" — triggers the Supabase amazon-poll edge function on demand
+// so the user can force a refresh (and see failures) from the dashboard, incl.
+// mobile. The edge function holds the SP-API secrets and does the real work.
+// Pass ?only=settlements to run just the (heavier) settlement ingest.
+export async function POST(req: Request) {
+  if (!(await authed())) {
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!base || !key) {
+    return NextResponse.json({ ok: false, error: "Supabase env not configured" }, { status: 500 });
+  }
+  const only = new URL(req.url).searchParams.get("only");
+  const target = `${base}/functions/v1/amazon-poll${only ? `?only=${encodeURIComponent(only)}` : ""}`;
+  try {
+    const r = await fetch(target, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    });
+    const detail = (await r.text()).slice(0, 800);
+    return NextResponse.json({ ok: r.ok, status: r.status, detail }, { status: r.ok ? 200 : 502 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "trigger failed" }, { status: 502 });
+  }
+}

@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, IndianRupee, Minus, Wallet, Tag, CircleCheck, Package } from "lucide-react";
+import { RefreshCw, DownloadCloud, IndianRupee, Minus, Wallet, Tag, CircleCheck, Package } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 import { PageHead, SectionLabel, KpiCard, Panel, DataTable, StatusBadge } from "@/components/pm";
 import type { Column } from "@/components/pm";
 
@@ -105,6 +106,29 @@ export default function AmazonPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const toast = useToast();
+  const [syncing, setSyncing] = useState(false);
+  async function syncNow() {
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/amazon", { method: "POST" });
+      const d = await res.json();
+      if (!res.ok || !d.ok) throw new Error(d.error || d.detail || `Sync failed (${d.status ?? res.status})`);
+      toast.push({ kind: "success", text: "Amazon sync triggered — refreshing." });
+      await load();
+    } catch (e) {
+      toast.push({ kind: "error", text: `Sync failed: ${e instanceof Error ? e.message : "unknown"}` });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  // Freshest watermark across sync sections — shows the user how current the data is.
+  const lastSync = data?.sync?.reduce<string | null>((latest, s) => {
+    const t = s.updated_at;
+    return t && (!latest || t > latest) ? t : latest;
+  }, null) ?? null;
+
   const r = data?.financials[range];
 
   const settlementCols: Column<Settlement>[] = [
@@ -141,6 +165,7 @@ export default function AmazonPage() {
           <>
             Sales, fees, net &amp; settlement reconciliation from Seller Central
             {data ? ` · ${data.orders.total} orders · ${data.inventory.skuCount} SKUs` : ""}
+            {lastSync ? ` · synced ${fmtDate(lastSync)}` : ""}
           </>
         }
         actions={
@@ -151,6 +176,7 @@ export default function AmazonPage() {
               ))}
             </div>
             <button className="pm-btn ghost" onClick={load} aria-label="Refresh"><RefreshCw size={15} /> Refresh</button>
+            <button className="pm-btn primary" onClick={syncNow} disabled={syncing}><DownloadCloud size={15} /> {syncing ? "Syncing…" : "Sync now"}</button>
           </>
         }
       />
