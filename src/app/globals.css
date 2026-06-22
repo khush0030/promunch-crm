@@ -676,3 +676,52 @@ table.pm-tbl tbody tr:hover td{background:var(--pm-card2)}
   .pm-side{position:fixed;z-index:100;top:0;left:-260px;transition:left .25s ease;height:100vh}
   .pm-side.open{left:0}
 }
+
+/* ============================================================
+   PROMUNCH REDESIGN — Mobile hardening (≤768px)
+   Make every action surface reachable + tappable on a phone.
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Page header stacks; actions go full-width and wrap so primary
+     buttons (Send, Sync, Create) are easy to reach. */
+  .pm-head { flex-direction: column; align-items: stretch; gap: 12px; }
+  .pm-acts { width: 100%; }
+  .pm-acts > .pm-btn { flex: 1 1 auto; justify-content: center; min-height: 44px; }
+  .pm-ranges { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .pm-ranges button { flex: 1 0 auto; min-height: 38px; }
+
+  /* Tabs scroll horizontally instead of wrapping into a tall stack. */
+  .pm-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .pm-tabs::-webkit-scrollbar { display: none; }
+  .pm-tab { white-space: nowrap; flex: 0 0 auto; }
+
+  /* Toolbars (search + chips) stack; search takes the full width. */
+  .pm-toolbar { gap: 8px; }
+  .pm-search { min-width: 0; width: 100%; flex: 1 1 100%; }
+  .pm-chips { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; padding-bottom: 2px; }
+  .pm-chips::-webkit-scrollbar { display: none; }
+  .pm-chip { flex: 0 0 auto; min-height: 34px; display: inline-flex; align-items: center; }
+
+  /* Comfortable tap targets for all buttons. */
+  .pm-btn { min-height: 42px; }
+  .pm-btn.sm { min-height: 34px; }
+
+  /* 16px form fields stop iOS Safari from zooming the page on focus. */
+  .pm-field input, .pm-field select, .pm-field textarea,
+  .pm-search input, .pm-page input, .pm-page select, .pm-page textarea { font-size: 16px; }
+
+  /* Tables already swipe (table.pm-tbl overflow-x); keep the wrapper from clipping. */
+  .pm-tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* KPI ring/stat rows wrap rather than squashing. */
+  .pm-ringwrap { flex-wrap: wrap; }
+  .pm-statline { gap: 12px; }
+
+  /* Form rows collapse to one column — !important beats inline gridTemplateColumns. */
+  .pm-frow { grid-template-columns: 1fr !important; }
+}
+
+/* Very small phones: KPIs go single-column so numbers never truncate. */
+@media (max-width: 460px) {
+  .pm-kpis, .pm-kpis.k3 { grid-template-columns: 1fr; }
+}
