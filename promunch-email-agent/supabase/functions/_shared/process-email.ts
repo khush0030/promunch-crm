@@ -28,6 +28,13 @@ import { classifyEmail, type Classification } from "./classify.ts";
 
 const MAILBOX = Deno.env.get("MAILBOX_EMAIL") ?? "hello@promunch.in";
 
+// Postgres unique-violation. Raised when two concurrent invocations (Pub/Sub
+// push + the 2-min poll, or a Pub/Sub redelivery — delivery is at-least-once)
+// both pass the read-then-insert check for the same gmail_thread_id and both
+// INSERT. Expected under at-least-once delivery; must self-heal, never alert
+// and never double-post to Slack.
+const PG_UNIQUE_VIOLATION = "23505";
+
 type FetchedEmail = Awaited<ReturnType<typeof getMessage>>;
 
 type DraftResult =
@@ -178,7 +185,19 @@ export async function processIncomingMessage(messageId: string): Promise<{
         })
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) {
+        // Lost a concurrent race — the thread row already exists (another
+        // invocation handled this same message). The winner posts the
+        // no-reply card; back off silently rather than throw + double-post.
+        if (error.code === PG_UNIQUE_VIOLATION) {
+          console.warn(
+            `Duplicate concurrent delivery (no-reply) for thread ${email.gmail_thread_id}; backing off.`,
+          );
+          try { await markRead(messageId); } catch (_) { /* ignore */ }
+          return { status: "processed" };
+        }
+        throw error;
+      }
       try {
         const posted = await postNoReplyCard({
           fromName: email.from_name,
@@ -287,7 +306,28 @@ async function handleNewThread(
     })
     .select("id")
     .single();
-  if (error) throw error;
+  if (error) {
+    // Lost a concurrent race — another invocation already created this thread.
+    // Re-fetch the winner and treat this message as a continuation (idempotent
+    // UPDATE), or back off if it's the exact same message already recorded.
+    if (error.code === PG_UNIQUE_VIOLATION) {
+      const { data: winner } = await supabase
+        .from("email_threads")
+        .select("id, slack_channel_id, slack_thread_ts, gmail_message_id")
+        .eq("gmail_thread_id", email.gmail_thread_id)
+        .maybeSingle();
+      if (!winner || winner.gmail_message_id === email.gmail_message_id) {
+        // Exact duplicate delivery: the winner already posted (or is posting)
+        // to Slack. Back off silently — never double-post.
+        console.warn(
+          `Duplicate concurrent delivery for thread ${email.gmail_thread_id}; backing off.`,
+        );
+        return;
+      }
+      return await handleContinuation(winner, email, classification, draft, messageId);
+    }
+    throw error;
+  }
   const threadRowId = row.id;
 
   let draftRevisionId: string | null = null;
