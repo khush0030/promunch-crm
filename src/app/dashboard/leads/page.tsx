@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Search, Play, RefreshCw, Settings2, Send, Trash2, Sparkles, Ban, MailCheck, Plus, X,
+  BookOpen, ChevronRight, MapPin, MailSearch, PenLine, CheckCircle2,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "./leads.module.css";
@@ -112,6 +113,32 @@ const DEFAULT_CATEGORIES = [
 
 const DEFAULT_CITIES = ["Mumbai", "Delhi", "Bangalore", "Gurgaon", "Pune", "Hyderabad"];
 
+// Plain-language walkthrough of the whole pipeline, shown in the strip + Guide modal.
+const GUIDE_STEPS: { icon: typeof MapPin; title: string; blurb: string }[] = [
+  {
+    icon: MapPin,
+    title: "1. Find companies",
+    blurb: "Pick the kinds of business you sell to (corporate gifting, vending, hotels…) and the cities. We search Google for matching companies.",
+  },
+  {
+    icon: MailSearch,
+    title: "2. We find the emails",
+    blurb: "The pipeline visits each company's site, pulls real email addresses, verifies them, and an AI scores how good a fit they are (0–100) with a reason.",
+  },
+  {
+    icon: PenLine,
+    title: "3. AI writes the email",
+    blurb: "For good-fit leads with a verified email, AI drafts a personal cold email grounded in the PROMUNCH knowledge base. Drafts land in “To review”.",
+  },
+  {
+    icon: CheckCircle2,
+    title: "4. Review & send",
+    blurb: "Open a lead, tweak the subject or body if you want, then hit Approve & send. Replies come to your inbox — mark them “Replied” here.",
+  },
+];
+
+const GUIDE_DISMISS_KEY = "leads_guide_dismissed_v1";
+
 function fitPill(score: number | null): { cls: string; label: string } {
   if (score == null) return { cls: "bg-gray", label: "—" };
   if (score >= 70) return { cls: "bg-green", label: String(score) };
@@ -128,8 +155,19 @@ export default function LeadsPage() {
   const [selected, setSelected] = useState<Lead | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const [showStrip, setShowStrip] = useState(true);
   const [running, setRunning] = useState(false);
   const [runProgress, setRunProgress] = useState("");
+
+  useEffect(() => {
+    setShowStrip(localStorage.getItem(GUIDE_DISMISS_KEY) !== "1");
+  }, []);
+
+  function dismissStrip() {
+    localStorage.setItem(GUIDE_DISMISS_KEY, "1");
+    setShowStrip(false);
+  }
 
   const load = useCallback(async () => {
     try {
@@ -185,16 +223,22 @@ export default function LeadsPage() {
         <div>
           <h1>B2B Leads</h1>
           <p>
-            Find companies, review the AI-drafted email, hit send.
-            {processing > 0 ? `  leads still processing — run the pipeline.` : ""}
+            {running
+              ? `Working… finding emails and writing drafts ${runProgress}`
+              : processing > 0
+                ? `${processing} leads still processing — hit “Keep going” to push them along.`
+                : "Find companies → we find emails & draft → you review and send."}
           </p>
         </div>
         <div className={styles.toolbar}>
-          <button type="button" className="pm-btn" onClick={() => setShowSearch(true)}>
+          <button type="button" className="pm-btn primary" onClick={() => setShowSearch(true)}>
             <Search size={14} /> Find companies
           </button>
           <button type="button" className="pm-btn" onClick={() => runPipeline(10)} disabled={running}>
-            <Play size={14} /> {running ? `Running ${runProgress}` : "Run pipeline"}
+            <Play size={14} /> {running ? `Working ${runProgress}` : "Keep going"}
+          </button>
+          <button type="button" className="pm-btn ghost" onClick={() => setShowGuide(true)}>
+            <BookOpen size={14} /> Guide
           </button>
           <button type="button" className="pm-btn" onClick={() => setShowSettings(true)} aria-label="Settings">
             <Settings2 size={14} />
@@ -204,6 +248,26 @@ export default function LeadsPage() {
           </button>
         </div>
       </div>
+
+      {showStrip && (
+        <div className={styles.strip}>
+          <button type="button" className={styles.stripClose} onClick={dismissStrip} aria-label="Hide guide">
+            <X size={14} />
+          </button>
+          <div className={styles.stripSteps}>
+            {GUIDE_STEPS.map((s, i) => (
+              <div key={s.title} className={styles.stripStep}>
+                <s.icon size={18} className={styles.stripIcon} />
+                <div>
+                  <div className={styles.stripTitle}>{s.title}</div>
+                  <div className={styles.stripBlurb}>{s.blurb}</div>
+                </div>
+                {i < GUIDE_STEPS.length - 1 && <ChevronRight size={16} className={styles.stripArrow} />}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="pm-kpis" style={{ marginBottom: 18 }}>
         <Kpi label="Drafts to review" value={counts.drafted ?? 0} />
@@ -330,13 +394,32 @@ export default function LeadsPage() {
         </div>
         </>
       ) : (
-        <div className="pm-empty">
-          {loading
-            ? "Loading…"
-            : tab === "review"
-              ? "No drafts waiting. Find companies and run the pipeline — drafts appear here for approval."
-              : "Nothing here yet."}
-        </div>
+        loading ? (
+          <div className="pm-empty">Loading…</div>
+        ) : totalLeads === 0 ? (
+          <div className={styles.getStarted}>
+            <div className={styles.getStartedTitle}>Let’s find your first leads</div>
+            <p className={styles.getStartedText}>
+              Tell us the kind of businesses you sell to and where. We find the companies,
+              dig up real email addresses, and an AI writes a personal first email for each —
+              you just review and send.
+            </p>
+            <div className={styles.getStartedActions}>
+              <button type="button" className="pm-btn primary" onClick={() => setShowSearch(true)}>
+                <Search size={14} /> Find companies
+              </button>
+              <button type="button" className="pm-btn ghost" onClick={() => setShowGuide(true)}>
+                <BookOpen size={14} /> How it works
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="pm-empty">
+            {tab === "review"
+              ? "No drafts waiting. Click “Find companies” or “Keep going” — drafts appear here for approval."
+              : "Nothing in this tab yet."}
+          </div>
+        )
       )}
 
       {showSearch && (
@@ -344,11 +427,13 @@ export default function LeadsPage() {
           onClose={() => setShowSearch(false)}
           onQueued={(n) => {
             setShowSearch(false);
-            toast.push({ kind: "success", text: `${n} searches queued. Run the pipeline to discover leads.` });
-            load();
+            toast.push({ kind: "success", text: `${n} searches queued — finding emails and writing drafts now…` });
+            runPipeline(10);
           }}
         />
       )}
+
+      {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
 
       {showSettings && data?.settings && (
         <SettingsModal
@@ -430,7 +515,8 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (n:
           <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
         </div>
         <div className="pm-muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
-          Each category × city pair is one Google Places search (up to 60 companies).
+          Pick who you sell to and where. Each category × city is one Google search (up to ~60 companies).
+          Start small — 1–2 categories and cities — then hit “Find”. We take it from there: emails, fit scores, and draft emails.
         </div>
         <div style={{ fontSize: 12.5, fontWeight: 600, margin: "10px 0 6px" }}>Categories</div>
         <div className="pm-chips" style={{ flexWrap: "wrap" }}>
@@ -457,8 +543,8 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (n:
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
           <button type="button" className="pm-btn" onClick={onClose}>Cancel</button>
-          <button type="button" className="pm-btn" onClick={submit} disabled={busy}>
-            <Search size={14} /> {busy ? "Queuing…" : "Queue searches"}
+          <button type="button" className="pm-btn primary" onClick={submit} disabled={busy}>
+            <Search size={14} /> {busy ? "Starting…" : "Find companies"}
           </button>
         </div>
       </div>
@@ -770,6 +856,51 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
           >
             <Ban size={14} /> Suppress (do not contact)
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------- guide modal --
+
+function GuideModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className={styles.overlay} onClick={onClose}>
+      <div className={`pm-panel ${styles.modal} ${styles.modalMd}`} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.guideHead}>
+          <div className="card-title">How B2B outreach works</div>
+          <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
+        </div>
+        <p className="pm-muted" style={{ fontSize: 13, marginTop: 4 }}>
+          From a list of company types to sent emails — four steps, mostly automatic.
+        </p>
+
+        <ol className={styles.guideList}>
+          {GUIDE_STEPS.map((s) => (
+            <li key={s.title} className={styles.guideItem}>
+              <s.icon size={20} className={styles.guideIcon} />
+              <div>
+                <div className={styles.guideTitle}>{s.title}</div>
+                <div className={styles.guideBlurb}>{s.blurb}</div>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        <div className={styles.guideTips}>
+          <div className={styles.guideTipsTitle}>Good to know</div>
+          <ul className={styles.guideTipList}>
+            <li><b>Find companies</b> queues the searches and starts the work right away. Hit <b>Keep going</b> any time to push leads further along — it also runs automatically every night.</li>
+            <li>Each <b>category × city</b> is one Google search of up to ~60 companies. Start small (1–2 categories, 1–2 cities) to keep results focused.</li>
+            <li>No contact found? Open the lead and add an email by hand (check their site or LinkedIn).</li>
+            <li>In <b>Settings</b>, set a daily send cap and warm up slowly (15 → 30 → 50) so your domain stays trusted. Flip <b>Pause</b> to stop all sends.</li>
+            <li><b>Suppress</b> a lead to make sure it’s never emailed.</li>
+          </ul>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
+          <button type="button" className="pm-btn primary" onClick={onClose}>Got it</button>
         </div>
       </div>
     </div>
