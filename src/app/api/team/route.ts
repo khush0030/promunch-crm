@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { isAllowedEmail, ALLOWED_DOMAINS_LABEL } from "@/lib/auth-domains";
+import { sendEmail } from "@/lib/resend";
+import { inviteEmailHtml, inviteEmailSubject } from "@/lib/emails/invite";
+
+function callerName(user: { email?: string | null; user_metadata?: Record<string, unknown> }): string {
+  const meta = (user.user_metadata || {}) as Record<string, unknown>;
+  return (
+    (typeof meta.full_name === "string" && meta.full_name) ||
+    (typeof meta.name === "string" && meta.name) ||
+    (user.email ? user.email.split("@")[0] : "A teammate")
+  );
+}
 
 // Team management. Every member who can sign in gets full access — there are no
 // roles. This route only lets an already-authenticated, allowed-domain user
@@ -74,9 +85,16 @@ export async function POST(req: NextRequest) {
   }
 
   const origin = new URL(req.url).origin;
-  const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${origin}/auth/callback?next=/auth/set-password`,
-    data: name ? { full_name: name } : undefined,
+
+  // Mint the invite link ourselves (this also creates the auth user) so we can
+  // deliver a branded PROMUNCH email via Resend instead of Supabase's default.
+  const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+    type: "invite",
+    email,
+    options: {
+      redirectTo: `${origin}/auth/callback?next=/auth/set-password`,
+      data: name ? { full_name: name } : undefined,
+    },
   });
 
   if (error) {
@@ -85,6 +103,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: already ? "That email is already on the team." : error.message },
       { status: already ? 409 : 500 }
+    );
+  }
+
+  const inviteUrl = data?.properties?.action_link;
+  if (!inviteUrl) {
+    return NextResponse.json({ error: "Could not generate an invite link." }, { status: 500 });
+  }
+
+  try {
+    const inviterName = callerName(caller);
+    await sendEmail({
+      to: email,
+      subject: inviteEmailSubject(),
+      html: inviteEmailHtml({ inviteUrl, inviterName, recipientName: name || undefined }),
+      replyTo: caller.email || undefined,
+    });
+  } catch (e) {
+    // The auth user now exists but the email failed to go out. Roll it back so a
+    // retry isn't blocked by a "already on the team" 409.
+    if (data?.user?.id) {
+      await supabaseAdmin.auth.admin.deleteUser(data.user.id).catch(() => {});
+    }
+    return NextResponse.json(
+      { error: `Couldn't send the invite email: ${e instanceof Error ? e.message : "unknown"}` },
+      { status: 502 }
     );
   }
 

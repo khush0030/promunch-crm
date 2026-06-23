@@ -1,4 +1,4 @@
-export const ALLOWED_EMAIL_DOMAINS = ["vippysoya.com", "promunch.in"] as const;
+export const ALLOWED_EMAIL_DOMAINS = ["vippysoya.com", "promunch.in", "trypromunch.in"] as const;
 
 export function isAllowedEmail(email: string | null | undefined): boolean {
   if (!email) return false;

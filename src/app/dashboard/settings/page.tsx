@@ -37,6 +37,9 @@ export default function SettingsPage() {
   const [disconnectBusy, setDisconnectBusy] = useState(false);
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
@@ -83,10 +86,10 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleInvite() {
-    const email = prompt("Email of the teammate to invite:");
-    if (!email) return;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+  async function submitInvite() {
+    const email = inviteEmail.trim().toLowerCase();
+    const name = inviteName.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast.push({ kind: "error", text: "That doesn't look like a valid email." });
       return;
     }
@@ -95,11 +98,14 @@ export default function SettingsPage() {
       const r = await fetch("/api/team", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email, name }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d?.error || "Invite failed.");
-      toast.push({ kind: "success", text: `Invite sent to ${email.trim()}.` });
+      toast.push({ kind: "success", text: `Invite sent to ${email}.` });
+      setInviteOpen(false);
+      setInviteEmail("");
+      setInviteName("");
     } catch (e) {
       toast.push({ kind: "error", text: `Invite failed: ${e instanceof Error ? e.message : "unknown"}` });
     } finally {
@@ -214,10 +220,62 @@ export default function SettingsPage() {
         <Panel
           title="Team members"
           caption="Manage access to PROMUNCH CRM"
-          more={<button className="pm-btn ghost sm" onClick={handleInvite} disabled={inviteBusy}><UserPlus size={14} /> {inviteBusy ? "Sending…" : "Invite member"}</button>}
+          more={<button type="button" className="pm-btn ghost sm" onClick={() => setInviteOpen(true)} disabled={inviteBusy}><UserPlus size={14} /> Invite member</button>}
         >
           <div style={{ marginTop: 4 }}><TeamTable /></div>
         </Panel>
+      )}
+
+      {inviteOpen && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(36,30,24,0.5)", display: "grid", placeItems: "center", padding: 20 }}
+          onClick={() => !inviteBusy && setInviteOpen(false)}
+        >
+          <div
+            className="card card-pad"
+            style={{ width: "100%", maxWidth: 420, padding: 28 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 4px" }}>Invite a teammate</h3>
+            <div className="sub" style={{ marginBottom: 16 }}>
+              They&apos;ll get a PROMUNCH email with a link to set a password and join. Only @vippysoya.com, @promunch.in or @trypromunch.in addresses are allowed.
+            </div>
+            <form
+              onSubmit={(e) => { e.preventDefault(); submitInvite(); }}
+              style={{ display: "flex", flexDirection: "column", gap: 12 }}
+            >
+              <div className="field">
+                <label>Name (optional)</label>
+                <input
+                  className="input"
+                  placeholder="Priya Sharma"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div className="field">
+                <label>Work email</label>
+                <input
+                  className="input"
+                  type="email"
+                  placeholder="priya@promunch.in"
+                  required
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                <button type="submit" className="btn primary" disabled={inviteBusy} style={{ justifyContent: "center" }}>
+                  {inviteBusy ? "Sending…" : "Send invite"}
+                </button>
+                <button type="button" className="btn" onClick={() => setInviteOpen(false)} disabled={inviteBusy} style={{ justifyContent: "center" }}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

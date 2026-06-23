@@ -17,13 +17,21 @@ import {
   Route as RouteIcon,
   BarChart3,
   Settings as SettingsIcon,
+  HelpCircle,
   LogOut,
   Menu,
   X,
 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
-type NavLink = { href: string; label: string; icon: React.ReactNode; countKey?: string };
+type NavLink = {
+  href?: string;
+  label: string;
+  icon: React.ReactNode;
+  countKey?: string;
+  tour?: string; // data-tour anchor for the onboarding spotlight
+  action?: "tour"; // renders a button instead of a link
+};
 type NavGroup = { id: string; label?: string; items: NavLink[] };
 
 // Simplified warm-editorial nav. Integrations + Team fold into Settings tabs,
@@ -32,21 +40,21 @@ type NavGroup = { id: string; label?: string; items: NavLink[] };
 const groups: NavGroup[] = [
   {
     id: "overview",
-    items: [{ href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard /> }],
+    items: [{ href: "/dashboard", label: "Dashboard", tour: "dashboard", icon: <LayoutDashboard /> }],
   },
   {
     id: "inbox",
     label: "Inbox",
     items: [
-      { href: "/dashboard/support-emails", label: "Support Emails", countKey: "supportPending", icon: <Mail /> },
-      { href: "/dashboard/whatsapp", label: "WhatsApp", countKey: "whatsappFailed", icon: <MessageCircle /> },
+      { href: "/dashboard/support-emails", label: "Support Emails", tour: "support-emails", countKey: "supportPending", icon: <Mail /> },
+      { href: "/dashboard/whatsapp", label: "WhatsApp", tour: "whatsapp", countKey: "whatsappFailed", icon: <MessageCircle /> },
     ],
   },
   {
     id: "sales",
     label: "Sales",
     items: [
-      { href: "/dashboard/order-confirmations", label: "Order Confirmations", countKey: "confirmationsMissing", icon: <CircleCheck /> },
+      { href: "/dashboard/order-confirmations", label: "Order Confirmations", tour: "order-confirmations", countKey: "confirmationsMissing", icon: <CircleCheck /> },
       { href: "/dashboard/shopify-attribution", label: "Shopify", icon: <Store /> },
       { href: "/dashboard/amazon", label: "Amazon", icon: <Package /> },
       { href: "/dashboard/leads", label: "B2B Leads", icon: <Briefcase /> },
@@ -56,8 +64,8 @@ const groups: NavGroup[] = [
     id: "audience",
     label: "Audience",
     items: [
-      { href: "/dashboard/contacts", label: "Contacts", icon: <Users /> },
-      { href: "/dashboard/campaigns", label: "Campaigns", icon: <Megaphone /> },
+      { href: "/dashboard/contacts", label: "Contacts", tour: "contacts", icon: <Users /> },
+      { href: "/dashboard/campaigns", label: "Campaigns", tour: "campaigns", icon: <Megaphone /> },
       { href: "/dashboard/flows", label: "Flows", icon: <RouteIcon /> },
       { href: "/dashboard/analytics", label: "Analytics", icon: <BarChart3 /> },
     ],
@@ -65,7 +73,10 @@ const groups: NavGroup[] = [
   {
     id: "system",
     label: "System",
-    items: [{ href: "/dashboard/settings", label: "Settings", icon: <SettingsIcon /> }],
+    items: [
+      { href: "/dashboard/settings", label: "Settings", tour: "settings", icon: <SettingsIcon /> },
+      { label: "Help & tour", action: "tour", icon: <HelpCircle /> },
+    ],
   },
 ];
 
@@ -185,13 +196,32 @@ export default function Sidebar({
           <div key={g.id}>
             {g.label && <div className="pm-navgroup">{g.label}</div>}
             {g.items.map((it) => {
-              const active = isActive(it.href);
+              if (it.action === "tour") {
+                return (
+                  <button
+                    key="help-tour"
+                    type="button"
+                    className="pm-nav"
+                    style={{ width: "100%", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
+                    onClick={() => {
+                      if (isMobile) onToggle();
+                      window.dispatchEvent(new Event("pm:start-tour"));
+                    }}
+                  >
+                    {it.icon}
+                    <span style={{ flex: 1 }}>{it.label}</span>
+                  </button>
+                );
+              }
+              const href = it.href!;
+              const active = isActive(href);
               const count = it.countKey ? counts?.[it.countKey] : undefined;
               const showCount = count !== undefined && count !== null && count !== "" && count !== 0;
               return (
                 <Link
-                  key={it.href}
-                  href={it.href}
+                  key={href}
+                  href={href}
+                  data-tour={it.tour}
                   className={`pm-nav${active ? " on" : ""}`}
                   onClick={isMobile ? onToggle : undefined}
                 >

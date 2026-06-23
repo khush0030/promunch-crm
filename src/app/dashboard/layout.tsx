@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
+import Onboarding from "@/components/Onboarding";
 import { ToastProvider } from "@/components/ui/Toast";
 import { supabase } from "@/lib/supabase";
 
@@ -79,6 +80,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           counts={counts}
         />
         <main className="main">{children}</main>
+        <Onboarding />
       </div>
     </ToastProvider>
   );
