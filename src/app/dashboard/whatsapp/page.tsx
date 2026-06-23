@@ -5,7 +5,8 @@ import {
   Send, Bot, User as UserIcon, Search, Plus, Upload, RefreshCw, Trash2,
   Tag, AlertTriangle, CheckCircle2, FileText, Sparkles, Megaphone, Ticket as TicketIcon,
   ExternalLink, ShoppingBag, MapPin, Archive, ArchiveRestore, ChevronLeft, X, ChevronDown,
-  Check, CheckCheck,
+  Check, CheckCheck, Phone, CornerUpLeft, Bold, Italic, Strikethrough, Code,
+  Video, Image as ImageIcon, Clock,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 
@@ -53,10 +54,17 @@ type Template = {
   body: string;
   footer: string | null;
   header_text: string | null;
+  header_type: "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT" | null;
+  header_media_url: string | null;
+  buttons: TemplateButton[] | null;
   variables: any;
   rejection_reason: string | null;
   meta_template_id: string | null;
 };
+type TemplateButton =
+  | { type: "URL"; text: string; url: string; example?: string }
+  | { type: "QUICK_REPLY"; text: string }
+  | { type: "PHONE_NUMBER"; text: string; phone_number: string };
 type KbDoc = {
   id: string;
   name: string;
@@ -1078,6 +1086,95 @@ const templateStatusColor: Record<string, string> = {
   pending: "#92400e", draft: "var(--pm-muted)",
 };
 
+/* Render WhatsApp body text exactly as the app shows it: *bold*, _italic_,
+   ~strikethrough~, ```monospace```, with nesting. Newlines are preserved by the
+   container's white-space: pre-wrap. WhatsApp supports NO colors or fonts — these
+   four marks plus emojis are the entire formatting surface. */
+const WA_MARKS: { re: RegExp; style: React.CSSProperties }[] = [
+  { re: /```([\s\S]+?)```/, style: { fontFamily: "ui-monospace, Menlo, Consolas, monospace" } },
+  { re: /\*([^*\n]+?)\*/, style: { fontWeight: 700 } },
+  { re: /_([^_\n]+?)_/, style: { fontStyle: "italic" } },
+  { re: /~([^~\n]+?)~/, style: { textDecoration: "line-through" } },
+];
+
+function renderWhatsApp(text: string, key = "w"): React.ReactNode[] {
+  if (!text) return [];
+  // Find the earliest-starting mark anywhere in the string.
+  let best: { idx: number; len: number; inner: string; style: React.CSSProperties } | null = null;
+  for (const m of WA_MARKS) {
+    const match = m.re.exec(text);
+    if (match && (best === null || match.index < best.idx)) {
+      best = { idx: match.index, len: match[0].length, inner: match[1], style: m.style };
+    }
+  }
+  if (!best) return [text];
+  const out: React.ReactNode[] = [];
+  if (best.idx > 0) out.push(text.slice(0, best.idx));
+  out.push(
+    <span key={`${key}${best.idx}`} style={best.style}>{renderWhatsApp(best.inner, `${key}${best.idx}-`)}</span>,
+  );
+  const rest = text.slice(best.idx + best.len);
+  if (rest) out.push(...renderWhatsApp(rest, `${key}r`));
+  return out;
+}
+
+/* Pixel-faithful preview of how the template lands in a customer's WhatsApp. */
+function WhatsAppPreview({
+  headerType, headerMediaUrl, headerText, body, footer, buttons,
+}: {
+  headerType?: string | null; headerMediaUrl?: string | null; headerText?: string | null;
+  body: string; footer?: string | null; buttons?: TemplateButton[] | null;
+}) {
+  const ht = (headerType ?? "").toUpperCase();
+  const btns = (buttons ?? []).filter((b) => b && b.text);
+  return (
+    <div style={{ background: "#E5DDD5", borderRadius: 12, padding: 14, minHeight: 120 }}>
+      <div style={{
+        background: "#fff", borderRadius: 8, maxWidth: 320, padding: 6,
+        boxShadow: "0 1px 1px rgba(0,0,0,0.12)", fontSize: 13.5, lineHeight: 1.4, color: "#111b21",
+      }}>
+        {ht === "IMAGE" && headerMediaUrl && (
+          <img src={headerMediaUrl} alt="" style={{ width: "100%", borderRadius: 6, marginBottom: 4, display: "block" }} />
+        )}
+        {ht === "VIDEO" && headerMediaUrl && (
+          <video src={headerMediaUrl} controls style={{ width: "100%", borderRadius: 6, marginBottom: 4, display: "block" }} />
+        )}
+        {ht === "DOCUMENT" && headerMediaUrl && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f0f2f5", borderRadius: 6, padding: 8, marginBottom: 4 }}>
+            <FileText size={20} color="#54656f" /><span style={{ fontSize: 12, color: "#54656f" }}>Document attached</span>
+          </div>
+        )}
+        {ht === "TEXT" && headerText && (
+          <div style={{ fontWeight: 700, padding: "2px 6px 0", marginBottom: 2 }}>{headerText}</div>
+        )}
+        <div style={{ padding: "2px 6px 0", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          {body ? renderWhatsApp(body) : <span style={{ color: "#8696a0" }}>Your message body…</span>}
+        </div>
+        {footer && <div style={{ padding: "4px 6px 2px", fontSize: 11, color: "#8696a0" }}>{footer}</div>}
+        <div style={{ textAlign: "right", fontSize: 10, color: "#8696a0", padding: "0 6px 2px" }}>
+          {(() => { const d = new Date(); let h = d.getHours(); const mm = String(d.getMinutes()).padStart(2, "0"); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return `${h}:${mm} ${ap}`; })()}
+        </div>
+        {btns.length > 0 && (
+          <div style={{ borderTop: "1px solid #e9edef", marginTop: 2 }}>
+            {btns.map((b, i) => (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                color: "#00a5f4", fontWeight: 500, padding: "8px 6px", fontSize: 13.5,
+                borderTop: i > 0 ? "1px solid #e9edef" : "none",
+              }}>
+                {b.type === "URL" && <ExternalLink size={15} />}
+                {b.type === "PHONE_NUMBER" && <Phone size={15} />}
+                {b.type === "QUICK_REPLY" && <CornerUpLeft size={15} />}
+                {b.text}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TemplatesView() {
   const toast = useToast();
   const [list, setList] = useState<Template[]>([]);
@@ -1086,6 +1183,60 @@ function TemplatesView() {
   const [headerSamples, setHeaderSamples] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  /* Wrap the current body selection in a WhatsApp formatting mark. */
+  function wrapBody(mark: string) {
+    const el = bodyRef.current;
+    const src = editing?.body ?? "";
+    if (!el) { setEditing({ ...editing!, body: src + mark + "text" + mark }); return; }
+    const s = el.selectionStart ?? src.length;
+    const e = el.selectionEnd ?? src.length;
+    const sel = src.slice(s, e) || "text";
+    const next = src.slice(0, s) + mark + sel + mark + src.slice(e);
+    setEditing({ ...editing!, body: next });
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(s + mark.length, s + mark.length + sel.length);
+    });
+  }
+
+  async function uploadMedia(file: File, format: "IMAGE" | "VIDEO" | "DOCUMENT") {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("format", format);
+      const r = await fetch("/api/whatsapp/media-upload", { method: "POST", body: fd });
+      const j = await r.json();
+      if (j.error) { toast.push({ kind: "error", text: j.error }); return; }
+      setEditing((cur) => ({ ...cur!, header_type: format, header_media_url: j.url }));
+    } finally { setUploading(false); }
+  }
+
+  function setHeaderKind(kind: "" | "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT") {
+    setEditing((cur) => ({
+      ...cur!,
+      header_type: kind || null,
+      header_text: kind === "TEXT" ? (cur?.header_text ?? "") : null,
+      header_media_url: kind === "IMAGE" || kind === "VIDEO" || kind === "DOCUMENT" ? cur?.header_media_url ?? null : null,
+    }));
+  }
+
+  function addButton(b: TemplateButton) {
+    const cur = editing?.buttons ?? [];
+    if (cur.length >= 3) { toast.push({ kind: "error", text: "Up to 3 buttons keeps marketing templates clean." }); return; }
+    setEditing({ ...editing!, buttons: [...cur, b] });
+  }
+  function updateButton(i: number, patch: Partial<TemplateButton>) {
+    const cur = [...(editing?.buttons ?? [])];
+    cur[i] = { ...cur[i], ...patch } as TemplateButton;
+    setEditing({ ...editing!, buttons: cur });
+  }
+  function removeButton(i: number) {
+    setEditing({ ...editing!, buttons: (editing?.buttons ?? []).filter((_, j) => j !== i) });
+  }
 
   async function load() {
     const r = await fetch("/api/whatsapp/templates");
@@ -1121,8 +1272,9 @@ function TemplatesView() {
 
   async function submitToMeta() {
     if (!editing) return;
+    const isMedia = editing.header_type === "IMAGE" || editing.header_type === "VIDEO" || editing.header_type === "DOCUMENT";
     const bodyVars = templateVars(editing.body);
-    const headerVars = templateVars(editing.header_text);
+    const headerVars = editing.header_type === "TEXT" ? templateVars(editing.header_text) : [];
     if (bodyVars.some((n) => !bodySamples[n]?.trim()) ||
         headerVars.some((n) => !headerSamples[n]?.trim())) {
       toast.push({
@@ -1131,6 +1283,14 @@ function TemplatesView() {
       });
       return;
     }
+    if (isMedia && !editing.header_media_url) {
+      toast.push({ kind: "error", text: `Upload a ${editing.header_type!.toLowerCase()} for the header before submitting.` });
+      return;
+    }
+    const badBtn = (editing.buttons ?? []).find(
+      (b) => (b.type === "URL" && !b.url?.trim()) || (b.type === "PHONE_NUMBER" && !("phone_number" in b && b.phone_number?.trim())),
+    );
+    if (badBtn) { toast.push({ kind: "error", text: "Every button needs its link / phone number filled in." }); return; }
     if (!confirm("Submit this template to Meta for approval?\n\nMeta reviews it (usually minutes to a few hours). You can't send it to customers until it's approved.")) return;
     setBusy(true);
     try {
@@ -1140,11 +1300,14 @@ function TemplatesView() {
           name: editing.name,
           category: editing.category,
           language: editing.language ?? "en",
-          header_text: editing.header_text || undefined,
+          header_text: editing.header_type === "TEXT" ? editing.header_text || undefined : undefined,
+          header_format: editing.header_type || undefined,
+          header_media_url: isMedia ? editing.header_media_url : undefined,
           body: editing.body,
           footer: editing.footer || undefined,
           body_samples: bodyVars.map((n) => bodySamples[n]),
           header_samples: headerVars.map((n) => headerSamples[n]),
+          buttons: (editing.buttons && editing.buttons.length) ? editing.buttons : undefined,
         }),
       });
       const j = await r.json();
@@ -1268,19 +1431,74 @@ function TemplatesView() {
               </span>
             </div>
           )}
-          <Field label="Header text (optional)">
-            <input value={editing.header_text ?? ""} onChange={(e) => setEditing({ ...editing, header_text: e.target.value })} style={inputStyle} />
-          </Field>
-          {headerVars.map((n) => (
-            <Field key={`h${n}`} label={`Sample for header {{${n}}}`}>
-              <input value={headerSamples[n] ?? ""} onChange={(e) => setHeaderSamples({ ...headerSamples, [n]: e.target.value })}
-                placeholder="example value" style={inputStyle} />
-            </Field>
-          ))}
-          <Field label="Body — type {{1}}, {{2}} where each customer's values go">
-            <textarea value={editing.body ?? ""} onChange={(e) => setEditing({ ...editing, body: e.target.value })}
-              rows={6} style={{ ...inputStyle, fontFamily: "inherit", resize: "vertical" }} />
-          </Field>
+          {/* Live preview — sticky so it stays visible while editing below */}
+          <div style={{ position: "sticky", top: -20, zIndex: 5, background: "var(--pm-card)", padding: "4px 0 10px", marginBottom: 6 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--pm-muted)", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+              <Sparkles size={12} /> Live preview — exactly what the customer sees
+            </div>
+            <WhatsAppPreview headerType={editing.header_type} headerMediaUrl={editing.header_media_url}
+              headerText={(editing.header_text ?? "").replace(/\{\{(\d+)\}\}/g, (_, n) => headerSamples[n] || `{{${n}}}`)}
+              body={preview} footer={editing.footer} buttons={editing.buttons} />
+          </div>
+
+          {/* Header */}
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pm-ink)", marginBottom: 4 }}>Header (optional)</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+            {(["", "TEXT", "IMAGE", "VIDEO", "DOCUMENT"] as const).map((k) => (
+              <button key={k || "none"} type="button" onClick={() => setHeaderKind(k)}
+                style={{ ...chip, ...((editing.header_type ?? "") === k ? chipOn : {}) }}>
+                {k === "IMAGE" && <ImageIcon size={13} />}{k === "VIDEO" && <Video size={13} />}
+                {k === "DOCUMENT" && <FileText size={13} />}{k === "" ? "None" : k === "TEXT" ? "Text" : k[0] + k.slice(1).toLowerCase()}
+              </button>
+            ))}
+          </div>
+          {editing.header_type === "TEXT" && (
+            <div style={{ marginBottom: 10 }}>
+              <input value={editing.header_text ?? ""} onChange={(e) => setEditing({ ...editing, header_text: e.target.value })}
+                maxLength={60} placeholder="e.g. A new launch 🌱" style={inputStyle} />
+              {headerVars.map((n) => (
+                <div key={`h${n}`} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, width: 38, color: BRAND }}>{`{{${n}}}`}</span>
+                  <input value={headerSamples[n] ?? ""} onChange={(e) => setHeaderSamples({ ...headerSamples, [n]: e.target.value })}
+                    placeholder="sample value" style={{ ...inputStyle, marginBottom: 0 }} />
+                </div>
+              ))}
+            </div>
+          )}
+          {(editing.header_type === "IMAGE" || editing.header_type === "VIDEO" || editing.header_type === "DOCUMENT") && (
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ ...smallBtn, display: "inline-flex", cursor: uploading ? "wait" : "pointer" }}>
+                <Upload size={14} /> {uploading ? "Uploading…" : editing.header_media_url ? "Replace file" : `Upload ${editing.header_type.toLowerCase()}`}
+                <input type="file" hidden disabled={uploading}
+                  accept={editing.header_type === "IMAGE" ? "image/jpeg,image/png" : editing.header_type === "VIDEO" ? "video/mp4" : "application/pdf"}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMedia(f, editing.header_type as "IMAGE" | "VIDEO" | "DOCUMENT"); }} />
+              </label>
+              {editing.header_media_url && (
+                <span style={{ fontSize: 11, color: "var(--pm-green)", marginLeft: 8 }}>
+                  <Check size={11} style={{ verticalAlign: -1 }} /> uploaded
+                </span>
+              )}
+              <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 4 }}>
+                {editing.header_type === "IMAGE" ? "JPG or PNG, up to 5 MB" : editing.header_type === "VIDEO" ? "MP4, up to 16 MB" : "PDF, up to 100 MB"}
+              </div>
+            </div>
+          )}
+
+          {/* Body + formatting toolbar */}
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pm-ink)", marginBottom: 4 }}>Body</div>
+          <div style={{ display: "flex", gap: 4, marginBottom: 6, alignItems: "center" }}>
+            <button type="button" onClick={() => wrapBody("*")} title="Bold  *text*" style={fmtBtn}><Bold size={14} /></button>
+            <button type="button" onClick={() => wrapBody("_")} title="Italic  _text_" style={fmtBtn}><Italic size={14} /></button>
+            <button type="button" onClick={() => wrapBody("~")} title="Strikethrough  ~text~" style={fmtBtn}><Strikethrough size={14} /></button>
+            <button type="button" onClick={() => wrapBody("```")} title="Monospace  ```text```" style={fmtBtn}><Code size={14} /></button>
+            <span style={{ marginLeft: "auto", fontSize: 11, color: (editing.body ?? "").length > 1024 ? "var(--pm-terra)" : "var(--pm-hint)" }}>
+              {(editing.body ?? "").length}/1024
+            </span>
+          </div>
+          <textarea ref={bodyRef} value={editing.body ?? ""} onChange={(e) => setEditing({ ...editing, body: e.target.value })}
+            rows={6} maxLength={1024}
+            placeholder="Type your message. Select text and tap a format button. Use {{1}}, {{2}} for per-customer values."
+            style={{ ...inputStyle, fontFamily: "inherit", resize: "vertical" }} />
           {bodyVars.length > 0 && (
             <div style={{
               border: "1px solid var(--pm-border)", borderRadius: 8, padding: 10, marginBottom: 10,
@@ -1298,15 +1516,37 @@ function TemplatesView() {
               ))}
             </div>
           )}
-          <Field label="Footer (optional)">
-            <input value={editing.footer ?? ""} onChange={(e) => setEditing({ ...editing, footer: e.target.value })} style={inputStyle} />
+
+          <Field label="Footer (optional) — small grey line, no formatting">
+            <input value={editing.footer ?? ""} onChange={(e) => setEditing({ ...editing, footer: e.target.value })}
+              maxLength={60} placeholder="PROMUNCH · Your Munchy Pal" style={inputStyle} />
           </Field>
-          {editing.body && (
-            <div style={{
-              background: "var(--pm-app)", border: "1px solid var(--pm-border)", borderRadius: 8,
-              padding: 10, fontSize: 13, whiteSpace: "pre-wrap", marginBottom: 4,
-            }}>{preview}</div>
-          )}
+
+          {/* Buttons */}
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pm-ink)", marginBottom: 6 }}>Buttons (optional, up to 3)</div>
+          {(editing.buttons ?? []).map((b, i) => (
+            <div key={i} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: BRAND, width: 42 }}>
+                {b.type === "URL" ? "Link" : b.type === "PHONE_NUMBER" ? "Call" : "Reply"}
+              </span>
+              <input value={b.text} maxLength={25} placeholder="Label" onChange={(e) => updateButton(i, { text: e.target.value })}
+                style={{ ...inputStyle, marginBottom: 0, flex: "0 0 110px" }} />
+              {b.type === "URL" && (
+                <input value={b.url} placeholder="https://promunch.in/…" onChange={(e) => updateButton(i, { url: e.target.value } as Partial<TemplateButton>)}
+                  style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
+              )}
+              {b.type === "PHONE_NUMBER" && (
+                <input value={b.phone_number} placeholder="+9198…" onChange={(e) => updateButton(i, { phone_number: e.target.value } as Partial<TemplateButton>)}
+                  style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
+              )}
+              <button type="button" onClick={() => removeButton(i)} style={{ ...smallBtn, color: "var(--pm-terra)" }}><X size={13} /></button>
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+            <button type="button" style={smallBtn} onClick={() => addButton({ type: "URL", text: "Order Now", url: "" })}><ExternalLink size={13} /> Link</button>
+            <button type="button" style={smallBtn} onClick={() => addButton({ type: "QUICK_REPLY", text: "Tell me more" })}><CornerUpLeft size={13} /> Quick reply</button>
+            <button type="button" style={smallBtn} onClick={() => addButton({ type: "PHONE_NUMBER", text: "Call us", phone_number: "" })}><Phone size={13} /> Call</button>
+          </div>
           <div style={{ fontSize: 11, color: "var(--pm-hint)", marginBottom: 12 }}>
             “Save draft” keeps it local only. “Submit to Meta” sends it for approval — it can't reach customers until Meta approves it.
           </div>
@@ -1508,6 +1748,19 @@ const smallBtn: React.CSSProperties = {
   background: "var(--pm-card)", color: "var(--pm-ink)", fontSize: 12, fontWeight: 600,
   cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4,
 };
+const chip: React.CSSProperties = {
+  padding: "5px 11px", borderRadius: 999, border: "1px solid var(--pm-border)",
+  background: "var(--pm-card)", color: "var(--pm-ink)", fontSize: 12, fontWeight: 600,
+  cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5,
+};
+const chipOn: React.CSSProperties = {
+  background: "rgba(185,28,74,0.08)", borderColor: BRAND, color: BRAND,
+};
+const fmtBtn: React.CSSProperties = {
+  width: 30, height: 28, borderRadius: 6, border: "1px solid var(--pm-border)",
+  background: "var(--pm-card)", color: "var(--pm-ink)", cursor: "pointer",
+  display: "inline-flex", alignItems: "center", justifyContent: "center",
+};
 
 /* ----------------------------------------------------------------- */
 /* CAMPAIGNS — bulk marketing broadcast                               */
@@ -1525,6 +1778,7 @@ type Campaign = {
   read_count: number;
   failed_count: number;
   last_error: string | null;
+  scheduled_at: string | null;
   created_at: string;
   template?: { id: string; name: string; language: string; category: string; status: string } | null;
 };
@@ -1580,6 +1834,13 @@ function CampaignsView() {
   async function remove(id: string) {
     if (!confirm("Delete campaign?")) return;
     await fetch(`/api/whatsapp/campaigns/${id}`, { method: "DELETE" });
+    load();
+  }
+  async function unschedule(id: string) {
+    await fetch(`/api/whatsapp/campaigns/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "draft", scheduled_at: null }),
+    });
     load();
   }
   async function importContacts() {
@@ -1676,12 +1937,20 @@ function CampaignsView() {
                 {c.failed_count > 0 && <span style={{ color: "var(--pm-terra)" }}><strong>{c.failed_count}</strong> failed</span>}
               </div>
               {c.last_error && <div style={{ fontSize: 11, color: "var(--pm-terra)", marginBottom: 8 }}>{c.last_error}</div>}
+              {c.status === "scheduled" && c.scheduled_at && (
+                <div style={{ fontSize: 11, color: "#1d4ed8", fontWeight: 600, marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                  <Clock size={11} /> Scheduled for {new Date(c.scheduled_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                </div>
+              )}
               <div style={{ fontSize: 11, color: "var(--pm-hint)", marginBottom: 10 }}>{timeAgo(c.created_at)} ago</div>
               <div style={{ display: "flex", gap: 6 }}>
                 {(c.status === "draft" || c.status === "scheduled" || c.status === "failed") && (
                   <button onClick={() => send(c)} disabled={busy === c.id} style={primaryBtn}>
                     <Send size={13} /> {busy === c.id ? "Sending…" : "Send now"}
                   </button>
+                )}
+                {c.status === "scheduled" && (
+                  <button type="button" onClick={() => unschedule(c.id)} style={smallBtn}>Unschedule</button>
                 )}
                 {c.status === "sending" && (
                   <button onClick={() => send(c)} disabled={busy === c.id} style={smallBtn}>
@@ -1724,6 +1993,8 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
   const [personalize, setPersonalize] = useState(false);
   const [brief, setBrief] = useState("");
+  const [sendMode, setSendMode] = useState<"now" | "schedule">("now");
+  const [scheduleAt, setScheduleAt] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -1763,9 +2034,16 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
     return tpl.body.replace(/\{\{(\d+)\}\}/g, (_, n) => vars[n] || `{{${n}}}`);
   }, [tpl, vars]);
 
-  async function create(thenSend: boolean) {
+  async function create(action: "draft" | "send" | "schedule") {
     if (!name.trim()) { toast.push({ kind: "error", text: "Campaign name required" }); return; }
     if (!templateId) { toast.push({ kind: "error", text: "Pick an approved template" }); return; }
+    let scheduledIso: string | null = null;
+    if (action === "schedule") {
+      const ms = scheduleAt ? new Date(scheduleAt).getTime() : NaN;
+      if (!ms) { toast.push({ kind: "error", text: "Pick a date & time to schedule." }); return; }
+      if (ms <= Date.now()) { toast.push({ kind: "error", text: "Schedule time must be in the future." }); return; }
+      scheduledIso = new Date(scheduleAt).toISOString();
+    }
     setSaving(true);
     try {
       const audience_filter = effectiveTags.length ? { tags: effectiveTags } : {};
@@ -1774,11 +2052,18 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
         : vars;
       const r = await fetch("/api/whatsapp/campaigns", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, template_id: templateId, template_vars, audience_filter }),
+        body: JSON.stringify({ name, template_id: templateId, template_vars, audience_filter, scheduled_at: scheduledIso }),
       });
       const j = await r.json();
       if (j.error) { toast.push({ kind: "error", text: j.error }); return; }
-      if (thenSend && j.campaign?.id) {
+      if (action === "schedule") {
+        toast.push({
+          kind: "success",
+          text: `Scheduled "${name}" for ${new Date(scheduledIso!).toLocaleString("en-IN")} — ≈${audienceCount ?? "?"} recipient(s). Auto-sends once the template is approved.`,
+        });
+        onClose(); return;
+      }
+      if (action === "send" && j.campaign?.id) {
         if (!confirm(`Send "${name}" to ≈${audienceCount ?? "?"} contact(s) now? Meta bills per message.`)) {
           onClose(); return;
         }
@@ -1821,10 +2106,10 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
         </Field>
       )}
       {tpl && (
-        <div style={{
-          background: "var(--pm-app)", border: "1px solid var(--pm-border)", borderRadius: 8,
-          padding: 10, fontSize: 13, whiteSpace: "pre-wrap", marginBottom: 10,
-        }}>{preview}</div>
+        <div style={{ marginBottom: 10 }}>
+          <WhatsAppPreview headerType={tpl.header_type} headerMediaUrl={tpl.header_media_url}
+            headerText={tpl.header_text} body={preview} footer={tpl.footer} buttons={tpl.buttons} />
+        </div>
       )}
       {tpl && (
         <Field label="AI personalization (optional)">
@@ -1890,12 +2175,37 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
       <div style={{ fontSize: 12, color: "var(--pm-muted)", marginBottom: 12 }}>
         ≈ <strong>{audienceCount ?? "…"}</strong> opted-in recipient(s) will receive this.
       </div>
+      <Field label="When to send">
+        <div style={{ display: "flex", gap: 14, marginBottom: 8 }}>
+          <label style={{ fontSize: 13, display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
+            <input type="radio" checked={sendMode === "now"} onChange={() => setSendMode("now")} /> Send now
+          </label>
+          <label style={{ fontSize: 13, display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
+            <input type="radio" checked={sendMode === "schedule"} onChange={() => setSendMode("schedule")} />
+            <Clock size={13} /> Schedule for later
+          </label>
+        </div>
+        {sendMode === "schedule" && (
+          <>
+            <input type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} style={inputStyle} />
+            <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 4 }}>
+              Your local time. Fires within ~15 min of this slot. If the template isn't Meta-approved yet, it waits and auto-sends once it is.
+            </div>
+          </>
+        )}
+      </Field>
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <button onClick={onClose} style={smallBtn}>Cancel</button>
-        <button onClick={() => create(false)} disabled={saving} style={smallBtn}>Save draft</button>
-        <button onClick={() => create(true)} disabled={saving} style={primaryBtn}>
-          <Send size={13} /> {saving ? "Working…" : "Save & send"}
-        </button>
+        <button onClick={() => create("draft")} disabled={saving} style={smallBtn}>Save draft</button>
+        {sendMode === "schedule" ? (
+          <button onClick={() => create("schedule")} disabled={saving} style={primaryBtn}>
+            <Clock size={13} /> {saving ? "Working…" : "Schedule"}
+          </button>
+        ) : (
+          <button onClick={() => create("send")} disabled={saving} style={primaryBtn}>
+            <Send size={13} /> {saving ? "Working…" : "Save & send"}
+          </button>
+        )}
       </div>
     </Modal>
   );

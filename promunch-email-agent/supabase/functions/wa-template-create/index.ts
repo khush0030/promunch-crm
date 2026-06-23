@@ -34,6 +34,11 @@ function token(): string {
 
 type MetaCategory = "UTILITY" | "MARKETING" | "AUTHENTICATION";
 
+type TplButton =
+  | { type: "URL"; text: string; url: string; example?: string }
+  | { type: "QUICK_REPLY"; text: string }
+  | { type: "PHONE_NUMBER"; text: string; phone_number: string };
+
 interface TemplateDef {
   name: string;
   language: string;
@@ -45,8 +50,12 @@ interface TemplateDef {
   footer?: string;
   bodyExample: string[];    // one sample value per body variable, in order
   headerExample?: string[]; // one sample value per header variable
-  // optional dynamic URL button — url carries a trailing {{1}}, filled per send
-  button?: { text: string; url: string; example: string };
+  // optional URL button — static link, or dynamic when url carries a trailing
+  // {{1}} (filled per send), in which case `example` provides a sample URL.
+  // Kept for the predefined journey set; the dashboard builder uses `buttons`.
+  button?: { text: string; url: string; example?: string };
+  // optional typed button set from the dashboard builder (up to 3).
+  buttons?: TplButton[];
 }
 
 // Predefined journey set — variable contracts mirror what shopify-wa /
@@ -92,7 +101,7 @@ const TEMPLATES: TemplateDef[] = [
       "Your PROMUNCH picks are still sitting in the cart, waiting for you. Tap below to finish in seconds — right where you left off.\n\n" +
       "— Your Munchy Pal 💚",
     bodyExample: ["Aarav"],
-    footer: "Reply STOP to opt out",
+    footer: "Reply STOP to unsubscribe",
     button: {
       text: "Complete Order",
       url: "https://promunch.in/{{1}}",
@@ -112,7 +121,7 @@ const TEMPLATES: TemplateDef[] = [
       "We've unlocked a special discount on your cart — already applied, no code needed. Just tap below and it's done.\n\n" +
       "— Your Munchy Pal 💚",
     bodyExample: ["Aarav"],
-    footer: "Reply STOP to opt out",
+    footer: "Reply STOP to unsubscribe",
     button: {
       text: "Checkout Now",
       url: "https://promunch.in/{{1}}",
@@ -128,7 +137,7 @@ const TEMPLATES: TemplateDef[] = [
       "If PROMUNCH made your munch-time better, a quick review would make our day — 30 seconds, promise:\n{{2}}\n\n" +
       "— Your Munchy Pal 💚",
     bodyExample: ["Aarav", "https://promunch.in/reviews"],
-    footer: "Reply STOP to opt out",
+    footer: "Reply STOP to unsubscribe",
   },
   {
     name: "replenishment_reminder",
@@ -139,7 +148,22 @@ const TEMPLATES: TemplateDef[] = [
       "It's been about a month since your last PROMUNCH haul. Restock before the jar hits empty:\n{{2}}\n\n" +
       "— Your Munchy Pal 💚",
     bodyExample: ["Aarav", "https://promunch.in"],
-    footer: "Reply STOP to opt out",
+    footer: "Reply STOP to unsubscribe",
+  },
+  {
+    // INTERNAL ops alert — sent to OPS_WA_ID (not a customer) the instant a
+    // customer explicitly cancels, so the order is pulled before dispatch.
+    //   1=orderRef 2=customerName 3=customerPhone 4=reason
+    name: "order_cancel_ops",
+    language: "en",
+    category: "UTILITY",
+    body:
+      "🚨 CANCEL ASAP — Order {{1}}\n\n" +
+      "Customer: {{2}}\n" +
+      "Phone: {{3}}\n" +
+      "Reason: {{4}}\n\n" +
+      "Pull this order before dispatch and confirm the cancellation back to the team.",
+    bodyExample: ["#PM1042", "Aarav Sharma", "+919876543210", "Ordered the wrong flavour, wants to cancel"],
   },
 ];
 
@@ -251,6 +275,7 @@ Deno.serve(async (req) => {
         header_media_url: def.headerMediaUrl ?? null,
         body: def.body,
         footer: def.footer ?? null,
+        buttons: def.buttons ?? (def.button ? [{ type: "URL", ...def.button }] : null),
         variables: def.bodyExample.map((sample, i) => ({ name: String(i + 1), sample })),
         rejection_reason: null,
       }, { onConflict: "name,language" });
@@ -294,6 +319,46 @@ function normalizeIncoming(t: Record<string, unknown>): TemplateDef {
     throw new Error(`header has ${headerVars} variable(s) — provide a sample value for each`);
   }
 
+  // optional URL button: { text, url, example? }. example required only when
+  // the url carries a {{1}} variable suffix.
+  let button: TemplateDef["button"] | undefined;
+  if (t.button && typeof t.button === "object") {
+    const bt = t.button as Record<string, unknown>;
+    const btText = String(bt.text ?? "").trim();
+    const btUrl = String(bt.url ?? "").trim();
+    if (btText && btUrl) {
+      const btExample = bt.example ? String(bt.example).trim() : undefined;
+      if (countVars(btUrl) > 0 && !btExample) {
+        throw new Error("button url has a {{1}} variable — provide button.example (a sample URL)");
+      }
+      button = { text: btText, url: btUrl, example: btExample };
+    }
+  }
+
+  // optional typed button set: [{type:URL,text,url,example?} | {type:QUICK_REPLY,text} | {type:PHONE_NUMBER,text,phone_number}]
+  let buttons: TplButton[] | undefined;
+  if (Array.isArray(t.buttons) && t.buttons.length) {
+    buttons = (t.buttons as Record<string, unknown>[]).slice(0, 3).map((raw) => {
+      const type = String(raw.type ?? "").toUpperCase();
+      const text = String(raw.text ?? "").trim();
+      if (!text) throw new Error("each button needs a label");
+      if (type === "URL") {
+        const url = String(raw.url ?? "").trim();
+        if (!url) throw new Error(`button "${text}" needs a URL`);
+        const example = raw.example ? String(raw.example).trim() : undefined;
+        if (countVars(url) > 0 && !example) throw new Error(`button "${text}" url has {{1}} — provide a sample URL`);
+        return { type: "URL", text, url, example };
+      }
+      if (type === "PHONE_NUMBER") {
+        const phone = String(raw.phone_number ?? "").trim();
+        if (!phone) throw new Error(`button "${text}" needs a phone number`);
+        return { type: "PHONE_NUMBER", text, phone_number: phone };
+      }
+      if (type === "QUICK_REPLY") return { type: "QUICK_REPLY", text };
+      throw new Error(`unknown button type "${type}"`);
+    });
+  }
+
   return {
     name,
     language: String(t.language ?? "en").trim() || "en",
@@ -305,6 +370,8 @@ function normalizeIncoming(t: Record<string, unknown>): TemplateDef {
     footer,
     bodyExample: bodyExample.slice(0, bodyVars),
     headerExample: headerExample.slice(0, headerVars),
+    button,
+    buttons,
   };
 }
 
@@ -389,18 +456,41 @@ function buildComponents(def: TemplateDef, headerHandle?: string): Array<Record<
   if (countVars(def.body) > 0) bodyComp.example = { body_text: [def.bodyExample] };
   components.push(bodyComp);
 
-  if (def.footer) components.push({ type: "FOOTER", text: def.footer });
+  // Marketing templates MUST carry an unsubscribe notice — Meta best practice,
+  // and our opt-out flow (wa-webhook) keys on a bare "STOP". Guarantee it even
+  // if the author (e.g. the dashboard builder) left the footer blank or wrote
+  // one without STOP. Meta caps footers at 60 chars.
+  let footer = def.footer?.trim();
+  if (def.category === "MARKETING") {
+    const STOP_NOTICE = "Reply STOP to unsubscribe";
+    if (!footer) footer = STOP_NOTICE;
+    else if (!/stop/i.test(footer)) footer = `${footer} · ${STOP_NOTICE}`.slice(0, 60);
+  }
+  if (footer) components.push({ type: "FOOTER", text: footer });
 
-  if (def.button) {
-    components.push({
-      type: "BUTTONS",
-      buttons: [{
-        type: "URL",
-        text: def.button.text,
-        url: def.button.url,            // ends with {{1}} — dynamic suffix
-        example: [def.button.example],  // one full sample URL
-      }],
+  if (def.buttons && def.buttons.length) {
+    // Typed multi-button set from the dashboard builder.
+    const buttons = def.buttons.map((b) => {
+      if (b.type === "URL") {
+        const o: Record<string, unknown> = { type: "URL", text: b.text, url: b.url };
+        if (countVars(b.url) > 0 && b.example) o.example = [b.example];
+        return o;
+      }
+      if (b.type === "PHONE_NUMBER") return { type: "PHONE_NUMBER", text: b.text, phone_number: b.phone_number };
+      return { type: "QUICK_REPLY", text: b.text };
     });
+    components.push({ type: "BUTTONS", buttons });
+  } else if (def.button) {
+    const btn: Record<string, unknown> = {
+      type: "URL",
+      text: def.button.text,
+      url: def.button.url,
+    };
+    // Meta requires a sample URL only when the button url has a {{1}} suffix.
+    if (countVars(def.button.url) > 0 && def.button.example) {
+      btn.example = [def.button.example];
+    }
+    components.push({ type: "BUTTONS", buttons: [btn] });
   }
   return components;
 }
