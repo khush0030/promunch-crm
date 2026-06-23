@@ -12,7 +12,12 @@ function getClient(): Resend {
   return _client;
 }
 
-export const DEFAULT_FROM = 'PROMUNCH <onboarding@resend.dev>';
+// Customer-facing marketing/campaign sender. Must be a Resend-verified domain
+// (trypromunch.in is verified). Override via env to point at a dedicated
+// marketing subdomain (e.g. PROMUNCH <hello@news.trypromunch.in>) once it's
+// added in Resend, to isolate reputation from B2B cold outreach.
+export const DEFAULT_FROM =
+  process.env.EMAIL_MARKETING_FROM || 'PROMUNCH <hello@trypromunch.in>';
 
 export interface SendEmailOptions {
   to: string | string[];

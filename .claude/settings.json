@@ -97,7 +97,16 @@
       "Bash(curl -s -o /dev/null -w '192.168.1.212:3000 -> %{http_code}\\\\n' http://192.168.1.212:3000/login)",
       "Bash(awk '{print $2}')",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/dashboard/whatsapp)",
-      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")"
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(curl -s -X POST https://api.resend.com/emails -H 'Authorization: Bearer __TRACKED_VAR__' -H 'Content-Type: application/json' -d '{ *)",
+      "Read(//temp/readonly/**)",
+      "Read(//temp/**)",
+      "Bash(curl -s -H 'Authorization: Bearer __TRACKED_VAR__' https://api.resend.com/emails/e3b94224-109f-406e-b343-3e85b43cd404)",
+      "Bash(grep -E '\\(name:|{$\\)')",
+      "Bash(npx --no-install deno --version)",
+      "Bash(grep -E \"\\\\.\\(sql|ts\\)$\")",
+      "Bash(grep -E \"\\\\.\\(tsx?|jsx\\)$\")",
+      "Bash(grep -E \"\\\\.\\(tsx?|jsx|html\\)$\")"
     ]
   }
 }
