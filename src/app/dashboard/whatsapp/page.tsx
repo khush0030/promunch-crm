@@ -1897,7 +1897,7 @@ function CampaignsView() {
                     <div style={{ fontSize: 11, color: "var(--pm-muted)", marginBottom: 10 }}>
                       ₹{Math.round(spend).toLocaleString("en-IN")} lifetime spend
                     </div>
-                    <button type="button" onClick={() => setCreateSeg(seg.tags)} disabled={customers === 0} style={{ ...smallBtn, width: "100%", justifyContent: "center" }}>
+                    <button type="button" onClick={() => setCreateSeg([seg.key])} disabled={customers === 0} style={{ ...smallBtn, width: "100%", justifyContent: "center" }}>
                       <Megaphone size={12} /> Campaign
                     </button>
                   </div>
@@ -1979,6 +1979,10 @@ const SEGMENTS: { key: string; label: string; hint: string; tags: string[] }[] =
   { key: "first", label: "First-time", hint: "single order so far", tags: ["rfm:new", "rfm:one_time"] },
   { key: "at_risk", label: "At-risk", hint: "lapsing, last 3–6 months", tags: ["rfm:at_risk"] },
   { key: "dormant", label: "Dormant", hint: "silent 6+ months", tags: ["rfm:dormant"] },
+  // Prospects: opted-in phones with no purchase history yet (₹0 spend). Targeted by source tag.
+  { key: "crm_import", label: "CRM contacts", hint: "imported, no order yet", tags: ["crm_import"] },
+  { key: "order_phone", label: "Order phones", hint: "phone from an order, no spend matched", tags: ["order_phone"] },
+  { key: "lead", label: "Leads", hint: "B2B / scraped prospects", tags: ["lead"] },
 ];
 
 function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initialSegment?: string[] }) {

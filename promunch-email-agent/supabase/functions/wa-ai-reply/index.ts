@@ -51,7 +51,7 @@ ORDER LOOKUP — you have a tool, lookup_order. The customer's phone number is A
 
 ORDERING ON WHATSAPP — customers can shop right here in the chat. You have a tool, show_products. Call it whenever the customer wants to browse, see the menu, order, buy, reorder, or asks "what do you have" / "what flavours" / "I want X" (optionally pass a category like "crunchies" or "edamame" to narrow it). It shows them tappable product cards they add to a cart inside WhatsApp. They then send the cart back and AUTOMATICALLY receive a secure checkout link — the system handles that link, so NEVER write a checkout or cart URL yourself and never quote prices from memory (the cards show real live prices). After calling show_products your reply should be ONE short warm line, e.g. "Here's our menu — tap to add what you fancy 👇". Do NOT list the products as text.
 
-ORDER CHANGES — you have a tool, request_order_change, for things the TEAM must action on an existing order: cancelling it, a return/replacement, or fixing the delivery address. Call lookup_order FIRST to get the real order number, then call request_order_change with change_type, order_number and details (for an address change, capture the FULL corrected address; for a return/cancel, which item(s) and why). It raises a priority ticket for the team — you still reply in the SAME turn, warmly confirming you've LOGGED the request and the team will sort it shortly. NEVER claim it is already cancelled / refunded / changed — you cannot do it yourself, only log it.
+ORDER CHANGES — you have a tool, request_order_change, for things the TEAM must action on an existing order: cancelling it, a return/replacement, or fixing the delivery address. Call lookup_order FIRST to get the real order number, then call request_order_change with change_type, order_number and details (for an address change, capture the FULL corrected address; for a return/cancel, which item(s) and why). It raises a priority ticket for the team — you still reply in the SAME turn, warmly confirming you've LOGGED the request and the team will sort it shortly. NEVER claim it is already cancelled / refunded / changed — you cannot do it yourself, only log it. CANCELLATION is EXPLICIT-ONLY: call request_order_change with change_type "cancel" ONLY when the customer clearly says they want to cancel their order. A one-word "stop" / "unsubscribe" is an opt-out from messages, NOT a cancellation — never treat it as one. If you are unsure whether they want to cancel, ASK them to confirm first.
 
 CRITICAL — do not invent anything:
 - NEVER guess or make up an order number. If the customer did not state one, call lookup_order with NO arguments.
@@ -456,6 +456,15 @@ Deno.serve(async (req) => {
     : { category: "general", priority: "normal", reason: "AI output unparseable — review chat" };
   if (handoff || ticket) await openTicket(thread_id, waId, ticket, handoff);
 
+  // EXPLICIT cancellation → ping the ops "guard" on WhatsApp ASAP so the order is
+  // pulled before dispatch. The urgent Slack card from openTicket is the
+  // guaranteed path; this is an extra fast nudge to a human's phone. Best-effort,
+  // gated on OPS_WA_ID being set — never blocks the customer reply.
+  if (pendingChange?.changeType === "cancel") {
+    await notifyOpsCancel(waId, pendingChange).catch((e) =>
+      console.error("[wa-ai-reply] ops cancel ping failed", e));
+  }
+
   await markJobDone(job_id);
   return j({ ok: true, action: handoff ? "handoff" : "reply", ticket: !!ticket });
 });
@@ -853,6 +862,41 @@ async function postEscalation(o: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text: `${heading} — ${o.reason}`, blocks }),
   }).catch(() => {});
+}
+
+// Ping the ops "guard" on WhatsApp the instant a customer explicitly cancels, so
+// the order can be pulled before dispatch. Sends the approved `order_cancel_ops`
+// UTILITY template to OPS_WA_ID. Gated on the env var — a no-op until ops set
+// their number, so this can ship before the number/template approval land.
+async function notifyOpsCancel(
+  waId: string | null,
+  change: { orderNumber: string | null; details: string },
+) {
+  const opsWaId = (Deno.env.get("OPS_WA_ID") ?? "").replace(/^\+/, "").replace(/\D/g, "");
+  if (!opsWaId) return; // not configured yet
+  const tpl = Deno.env.get("OPS_CANCEL_TEMPLATE") ?? "order_cancel_ops";
+
+  // Pull verified order details so the alert carries real data, not the model's
+  // recollection. Fall back gracefully when the order can't be matched.
+  let order: OrderSummary | null = null;
+  if (change.orderNumber) {
+    const found = await lookupOrders(waId, change.orderNumber).catch(() => [] as OrderSummary[]);
+    order = found[0] ?? null;
+  }
+
+  const vars = {
+    "1": order?.order_number ?? change.orderNumber ?? "unknown",
+    "2": order?.customer_name ?? "—",
+    "3": waId ? `+${waId}` : "—",
+    "4": (change.details || "Customer requested cancellation").slice(0, 250),
+  };
+
+  await callSend({
+    to: opsWaId,
+    kind: "template",
+    sent_by: "ops_cancel_alert",
+    template: { name: tpl, language: "en", vars },
+  });
 }
 
 // Build product_list sections from the wa_catalog_items mirror. Groups in-stock

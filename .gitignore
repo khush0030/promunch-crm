@@ -46,3 +46,5 @@ next-env.d.ts
 
 .vercel
 edmame-wa-campaign.mp4
+wa-campaign-pgcron.sql
+contacts_*.csv

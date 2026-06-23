@@ -242,9 +242,31 @@ async function handleInboundMessage(msg: any, profile: any) {
   // mark read on Meta side
   if (wamid) markRead(wamid).catch(() => {});
 
-  // honour opt-out keywords — stop marketing to this contact
+  // honour opt-out keywords — stop marketing to this contact. A bare "STOP" is an
+  // UNSUBSCRIBE, never a message: confirm it, then RETURN so the AI never sees it
+  // and never mistakes it for "cancel my order". A cancellation is only ever an
+  // explicit "cancel my order" request, handled by the AI's request_order_change.
   if (type === "text" && /^\s*(stop|unsubscribe|stop promotions?|opt[\s-]?out)\s*$/i.test(body)) {
     await sb.from("wa_contacts").update({ opted_in: false }).eq("id", contact.id);
+    await callSend({
+      thread_id: thread.id,
+      kind: "text",
+      sent_by: "optout",
+      text: "You're unsubscribed from PROMUNCH updates 💚 Reply START anytime to opt back in. Need help with an order? Just tell us.",
+    }).catch((e) => console.error("[wa-webhook] optout confirm failed", e));
+    return;
+  }
+
+  // honour opt-IN — let an unsubscribed contact come back
+  if (type === "text" && /^\s*(start|unstop|subscribe|opt[\s-]?in)\s*$/i.test(body)) {
+    await sb.from("wa_contacts").update({ opted_in: true }).eq("id", contact.id);
+    await callSend({
+      thread_id: thread.id,
+      kind: "text",
+      sent_by: "optin",
+      text: "You're back in 💚 You'll get PROMUNCH updates again. Reply STOP anytime to unsubscribe.",
+    }).catch((e) => console.error("[wa-webhook] optin confirm failed", e));
+    return;
   }
 
   // CART CHECKOUT — a 'order' message is a cart the customer built from the
@@ -266,6 +288,18 @@ async function handleInboundMessage(msg: any, profile: any) {
     await enqueueAiReply(thread.id, body, isImage ? mediaUrl : null)
       .catch((e) => console.error("[wa-webhook] ai enqueue failed", e));
   }
+}
+
+// Fire a send through wa-send so it's recorded in wa_messages and any failure is
+// Slack-alerted like every other send.
+async function callSend(payload: Record<string, unknown>): Promise<void> {
+  const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-send`;
+  const auth = `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
+  await fetch(url, {
+    method: "POST",
+    headers: { Authorization: auth, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
 
 // Reply to a WhatsApp catalog cart with a Shopify checkout link (or a graceful
