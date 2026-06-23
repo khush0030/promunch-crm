@@ -34,8 +34,8 @@ create table if not exists outreach_settings (
   id int primary key default 1 check (id = 1),
   daily_cap int not null default 15,         -- warm-up: raise weekly 15 -> 30 -> 50
   paused boolean not null default false,
-  from_name text not null default 'Khush from ProMunch',
-  from_email text not null default 'khush@trypromunch.in',
+  from_name text not null default 'Parth from PROMUNCH',
+  from_email text not null default 'parth@trypromunch.in',
   reply_to text,
   footer_address text not null default 'PROMUNCH · Mumbai, India'
 );

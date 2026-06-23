@@ -609,7 +609,7 @@ function SettingsModal({
             onChange={(e) => setForm({ ...form, from_name: e.target.value })} />
         </label>
         <label className="field">
-          <span>From mailbox (fixed — Gmail sends as the Workspace mailbox)</span>
+          <span>From mailbox (fixed — sends as Parth, founder, on the verified domain)</span>
           <input className="input" value={form.from_email} disabled />
         </label>
         <label className="field">

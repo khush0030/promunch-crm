@@ -44,7 +44,7 @@ Rules:
 - Indian business English; warm but professional, no hype or exaggerated health claims
 - Exactly one specific reference to the recipient company (use the provided details; never invent facts about the recipient)
 - If writing to an HR/admin inbox, address the HR/admin team; if a generic info@ inbox, address "the team at <company>"
-- Sign off as the founder's office of PROMUNCH (no fake personal familiarity)
+- Sign off as Parth, Founder, PROMUNCH (he is the real founder; do not invent a title, phone number, or fake personal familiarity)
 - End the body with this exact opt-out line on its own paragraph: Reply "no thanks" and I won't write again.
 
 Return JSON: {"subject": "...", "body": "..."}. Subject under 60 characters, specific, no clickbait, no emoji.`;
