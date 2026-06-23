@@ -97,6 +97,7 @@ async function discover(summary: TickSummary) {
           address: p.formattedAddress ?? null,
           city: search.city as string,
           category: search.category as string,
+          search_id: search.id as string,
           types: p.types ?? [],
           status: crawlable ? 'new' : 'no_website',
         };
@@ -263,6 +264,121 @@ export async function markPrimaryContact(leadId: string): Promise<void> {
 
   await supabaseAdmin.from('lead_contacts').update({ is_primary: false }).eq('lead_id', leadId);
   await supabaseAdmin.from('lead_contacts').update({ is_primary: true }).eq('id', sendable[0].id);
+}
+
+// ----------------------------------------------------- on-demand enrichment --
+// Both used by the dashboard lead actions (Re-score / Enrich), outside the
+// queue/claim flow so they work on any lead regardless of its current status.
+
+/** Re-run the AI fit score for a single lead from its existing Places + snippet data. */
+export async function rescoreLead(leadId: string): Promise<{ score: number; reason: string }> {
+  const { data: lead } = await supabaseAdmin
+    .from('leads')
+    .select(LEAD_COLUMNS)
+    .eq('id', leadId)
+    .maybeSingle();
+  if (!lead) throw new Error('lead not found');
+
+  const l = lead as LeadRow;
+  const fit = await scoreFit({
+    companyName: l.name,
+    category: l.category,
+    city: l.city,
+    types: l.types,
+    siteSnippet: l.site_snippet,
+  });
+  await supabaseAdmin
+    .from('leads')
+    .update({ fit_score: fit.score, fit_reason: fit.reason, updated_at: new Date().toISOString() })
+    .eq('id', leadId);
+  return fit;
+}
+
+export interface EnrichResult {
+  contactsFound: number; // total contacts on the lead after enrich
+  newUsable: number; // mx_ok contacts found this pass
+  fit: { score: number; reason: string } | null;
+}
+
+/** Re-crawl a lead's site to (re)discover + verify contacts, then re-score fit. */
+export async function enrichLead(leadId: string): Promise<EnrichResult> {
+  const { data: lead } = await supabaseAdmin
+    .from('leads')
+    .select(`${LEAD_COLUMNS}, status`)
+    .eq('id', leadId)
+    .maybeSingle();
+  if (!lead) throw new Error('lead not found');
+  const l = lead as LeadRow & { status: string };
+  if (!l.website) throw new Error('lead has no website to crawl');
+
+  const result = await crawlSite(l.website);
+  const mxCache = new Map<string, boolean>();
+  let newUsable = 0;
+  const contactRows = [];
+  for (const c of result.contacts) {
+    const verifyStatus = await verifyEmail(c.email, mxCache);
+    const confidence = scoreConfidence(c.email, verifyStatus, l.domain);
+    if (verifyStatus === 'mx_ok') newUsable++;
+    contactRows.push({
+      lead_id: leadId,
+      email: c.email,
+      source_url: c.sourceUrl,
+      source: c.source,
+      kind: c.kind,
+      role_hint: c.roleHint,
+      verify_status: verifyStatus,
+      confidence,
+      is_primary: false,
+    });
+  }
+  if (contactRows.length) {
+    await supabaseAdmin
+      .from('lead_contacts')
+      .upsert(contactRows, { onConflict: 'lead_id,email', ignoreDuplicates: true });
+    await markPrimaryContact(leadId);
+  }
+
+  // Best-effort re-score with the freshest snippet.
+  let fit: { score: number; reason: string } | null = null;
+  const snippet = l.site_snippet ?? result.snippet;
+  try {
+    fit = await scoreFit({
+      companyName: l.name,
+      category: l.category,
+      city: l.city,
+      types: l.types,
+      siteSnippet: snippet,
+    });
+  } catch {
+    /* leave fit unchanged */
+  }
+
+  // Promote a stuck lead back into the pipeline if we now have a sendable contact.
+  const { count: usableTotal } = await supabaseAdmin
+    .from('lead_contacts')
+    .select('id', { count: 'exact', head: true })
+    .eq('lead_id', leadId)
+    .eq('verify_status', 'mx_ok');
+  const { count: contactsFound } = await supabaseAdmin
+    .from('lead_contacts')
+    .select('id', { count: 'exact', head: true })
+    .eq('lead_id', leadId);
+
+  const promote = (usableTotal ?? 0) > 0 && ['new', 'crawling', 'no_contacts', 'no_website'].includes(l.status as string);
+  await supabaseAdmin
+    .from('leads')
+    .update({
+      ...(promote ? { status: 'ready' } : {}),
+      site_snippet: snippet,
+      crawl_attempts: l.crawl_attempts + 1,
+      ...(fit ? { fit_score: fit.score, fit_reason: fit.reason } : {}),
+      error: null,
+      claimed_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', leadId);
+
+  return { contactsFound: contactsFound ?? contactRows.length, newUsable, fit };
 }
 
 // ------------------------------------------------------------------- draft --

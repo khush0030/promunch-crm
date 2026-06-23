@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import {
   Search, Play, RefreshCw, Settings2, Send, Trash2, Sparkles, Ban, MailCheck, Plus, X,
-  BookOpen, ChevronRight, MapPin, MailSearch, PenLine, CheckCircle2,
+  BookOpen, ChevronRight, MapPin, MailSearch, PenLine, CheckCircle2, History, Gauge, Clock,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "./leads.module.css";
@@ -43,6 +43,7 @@ type Lead = {
   fit_score: number | null;
   fit_reason: string | null;
   error: string | null;
+  created_at: string;
   updated_at: string;
   lead_contacts: Contact[];
   outreach_drafts: Draft[];
@@ -56,6 +57,8 @@ type SearchRow = {
   pages_fetched: number;
   results_count: number;
   error: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type OutreachSettings = {
@@ -156,6 +159,7 @@ export default function LeadsPage() {
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [showStrip, setShowStrip] = useState(true);
   const [running, setRunning] = useState(false);
   const [runProgress, setRunProgress] = useState("");
@@ -236,6 +240,9 @@ export default function LeadsPage() {
           </button>
           <button type="button" className="pm-btn" onClick={() => runPipeline(10)} disabled={running}>
             <Play size={14} /> {running ? `Working ${runProgress}` : "Keep going"}
+          </button>
+          <button type="button" className="pm-btn ghost" onClick={() => setShowHistory(true)}>
+            <History size={14} /> Scrape history
           </button>
           <button type="button" className="pm-btn ghost" onClick={() => setShowGuide(true)}>
             <BookOpen size={14} /> Guide
@@ -434,6 +441,10 @@ export default function LeadsPage() {
       )}
 
       {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
+
+      {showHistory && (
+        <ScrapeHistoryModal searches={data?.searches ?? []} onClose={() => setShowHistory(false)} />
+      )}
 
       {showSettings && data?.settings && (
         <SettingsModal
@@ -708,6 +719,33 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
           <div className="pm-muted" style={{ fontSize: 12, color: "var(--amber)" }}>Last error: {lead.error}</div>
         ) : null}
 
+        <div className={styles.actionRow} style={{ marginTop: 12 }}>
+          <button
+            type="button" className="pm-btn"
+            disabled={busy !== null}
+            title="Re-run the AI fit score (0–100) from this company's data"
+            onClick={async () => {
+              if (await call("score", `/api/leads/${lead.id}/score`, { method: "POST" })) {
+                toast.push({ kind: "success", text: "Fit score refreshed." });
+              }
+            }}
+          >
+            <Gauge size={14} /> {busy === "score" ? "Scoring…" : "Re-score fit"}
+          </button>
+          <button
+            type="button" className="pm-btn"
+            disabled={busy !== null || !lead.website}
+            title={lead.website ? "Re-crawl the website to find & verify more contacts, then re-score" : "No website to crawl"}
+            onClick={async () => {
+              if (await call("enrich", `/api/leads/${lead.id}/enrich`, { method: "POST" })) {
+                toast.push({ kind: "success", text: "Enriched — re-crawled for contacts and re-scored." });
+              }
+            }}
+          >
+            <MailSearch size={14} /> {busy === "enrich" ? "Enriching…" : "Enrich (find contacts)"}
+          </button>
+        </div>
+
         <div style={{ fontSize: 12.5, fontWeight: 600, margin: "16px 0 6px" }}>
           Contacts ({(lead.lead_contacts ?? []).length})
         </div>
@@ -858,6 +896,160 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------- scrape history modal --
+
+const SEARCH_STATUS_PILL: Record<string, { cls: string; label: string }> = {
+  pending: { cls: "bg-gray", label: "Queued" },
+  running: { cls: "bg-gold", label: "Running" },
+  done: { cls: "bg-green", label: "Done" },
+  error: { cls: "bg-terra", label: "Error" },
+};
+
+function fmtTime(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString([], {
+    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  });
+}
+
+function ScrapeHistoryModal({ searches, onClose }: { searches: SearchRow[]; onClose: () => void }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const totalCompanies = searches.reduce((a, s) => a + (s.results_count ?? 0), 0);
+
+  return (
+    <div className={styles.overlay} onClick={onClose}>
+      <div className={`pm-panel ${styles.modal} ${styles.modalLg}`} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.guideHead}>
+          <div className="card-title">Scrape history</div>
+          <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
+        </div>
+        <p className="pm-muted" style={{ fontSize: 12.5, marginTop: 4 }}>
+          Every Google search the pipeline ran — when it started, how many companies it pulled,
+          and which leads came out. Click a row to see the companies it scraped.
+        </p>
+
+        <div className="pm-kpis" style={{ margin: "12px 0 14px" }}>
+          <Kpi label="Searches run" value={searches.length} />
+          <Kpi label="Companies scraped" value={totalCompanies} />
+          <Kpi label="Still running" value={searches.filter((s) => ["pending", "running"].includes(s.status)).length} />
+        </div>
+
+        {searches.length === 0 ? (
+          <div className="pm-empty">No searches yet — hit “Find companies” to start scraping.</div>
+        ) : (
+          <div className="pm-tablewrap">
+            <table className="pm-tbl">
+              <thead>
+                <tr>
+                  <th>Search</th>
+                  <th>Started</th>
+                  <th>Last run</th>
+                  <th style={{ textAlign: "right" }}>Companies</th>
+                  <th>Pages</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {searches.map((s) => {
+                  const sp = SEARCH_STATUS_PILL[s.status] ?? { cls: "bg-gray", label: s.status };
+                  const isOpen = openId === s.id;
+                  return (
+                    <Fragment key={s.id}>
+                      <tr className="clickable" onClick={() => setOpenId(isOpen ? null : s.id)}>
+                        <td>
+                          <ChevronRight
+                            size={13}
+                            style={{ transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s", verticalAlign: "middle", marginRight: 4 }}
+                          />
+                          <span className="pm-b7">{s.category}</span>
+                          <span className="pm-dim"> · {s.city}</span>
+                        </td>
+                        <td className="pm-muted" style={{ fontSize: 12.5 }}>
+                          <Clock size={11} style={{ verticalAlign: "middle", marginRight: 3 }} />
+                          {fmtTime(s.created_at)}
+                        </td>
+                        <td className="pm-muted" style={{ fontSize: 12.5 }}>{fmtTime(s.updated_at)}</td>
+                        <td style={{ textAlign: "right", fontWeight: 600 }}>{s.results_count ?? 0}</td>
+                        <td className="pm-muted">{s.pages_fetched}/3</td>
+                        <td>
+                          <span className={`pm-badge2 ${sp.cls}`}>{sp.label}</span>
+                          {s.error ? <span className="pm-dim" title={s.error}> · {s.error.slice(0, 24)}…</span> : null}
+                        </td>
+                      </tr>
+                      {isOpen && (
+                        <tr>
+                          <td colSpan={6} style={{ background: "var(--pm-surface-2, #faf8f4)", padding: 0 }}>
+                            <ScrapeLeadList searchId={s.id} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Lazy-loads the exact leads that came from a given search run (by search_id).
+function ScrapeLeadList({ searchId }: { searchId: string }) {
+  const [leads, setLeads] = useState<Lead[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const params = new URLSearchParams({ searchId, limit: "100" });
+    fetch(`/api/leads?${params}`, { cache: "no-store" })
+      .then(async (r) => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || "load failed");
+        if (alive) setLeads(j.leads as Lead[]);
+      })
+      .catch((e) => alive && setError(e instanceof Error ? e.message : "load failed"));
+    return () => { alive = false; };
+  }, [searchId]);
+
+  if (error) return <div className="pm-muted" style={{ padding: 12, fontSize: 12.5 }}>Could not load: {error}</div>;
+  if (!leads) return <div className="pm-muted" style={{ padding: 12, fontSize: 12.5 }}>Loading companies…</div>;
+  if (!leads.length) return <div className="pm-muted" style={{ padding: 12, fontSize: 12.5 }}>No companies recorded for this search.</div>;
+
+  return (
+    <div style={{ padding: "8px 12px 12px" }}>
+      <table className="pm-tbl" style={{ margin: 0 }}>
+        <thead>
+          <tr>
+            <th style={{ width: 50 }}>Fit</th>
+            <th>Company</th>
+            <th>Scraped</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {leads.map((l) => {
+            const fp = fitPill(l.fit_score);
+            const sp = STATUS_PILL[l.status] ?? { cls: "bg-gray", label: l.status };
+            return (
+              <tr key={l.id}>
+                <td><span className={`pm-badge2 ${fp.cls}`}>{fp.label}</span></td>
+                <td>
+                  <span className="pm-b7">{l.name}</span>
+                  <span className="pm-dim"> {l.domain ? `· ${l.domain}` : ""}</span>
+                </td>
+                <td className="pm-muted" style={{ fontSize: 12 }}>{fmtTime(l.created_at)}</td>
+                <td><span className={`pm-badge2 ${sp.cls}`}>{sp.label}</span></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

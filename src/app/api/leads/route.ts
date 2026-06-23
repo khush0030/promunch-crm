@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     .filter((s) => LEAD_STATUSES.includes(s));
   const city = searchParams.get('city') || '';
   const category = searchParams.get('category') || '';
+  const searchId = searchParams.get('searchId') || '';
   const q = searchParams.get('q') || '';
   const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50')));
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest) {
 
   if (statuses.length) query = query.in('status', statuses);
   else if (status && LEAD_STATUSES.includes(status)) query = query.eq('status', status);
+  if (searchId) query = query.eq('search_id', searchId);
   if (city) query = query.eq('city', city);
   if (category) query = query.eq('category', category);
   if (q) query = query.or(`name.ilike.%${q}%,domain.ilike.%${q}%`);
@@ -44,7 +46,7 @@ export async function GET(req: NextRequest) {
       countByStatus(),
       supabaseAdmin
         .from('lead_searches')
-        .select('id, category, city, status, pages_fetched, results_count, error')
+        .select('id, category, city, status, pages_fetched, results_count, error, created_at, updated_at')
         .order('created_at', { ascending: false })
         .limit(100),
       countSentToday(),
