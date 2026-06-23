@@ -563,68 +563,74 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (ro
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={`pm-panel ${styles.modal} ${styles.modalMd}`} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div className={styles.modalHead}>
           <div className="card-title">Find companies</div>
           <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
         </div>
-        <div className="pm-muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
+        <p className={styles.modalIntro}>
           Pick who you sell to and where. Each category × city is one Google search (up to ~60 companies).
-          Start small — 1–2 categories and cities — then hit “Find”. We take it from there.
-        </div>
-        <div style={{ fontSize: 12.5, fontWeight: 600, margin: "10px 0 6px" }}>Categories</div>
-        <div className="pm-chips" style={{ flexWrap: "wrap" }}>
-          {DEFAULT_CATEGORIES.map((c) => (
-            <button key={c} type="button" className={`pm-chip${categories.includes(c) ? " on" : ""}`} onClick={() => toggle(categories, setCategories, c)}>
-              {c}
-            </button>
-          ))}
-        </div>
-        <input
-          className="input"
-          style={{ marginTop: 8 }}
-          placeholder="Custom category (e.g. 'corporate caterer')"
-          value={customCategory}
-          onChange={(e) => setCustomCategory(e.target.value)}
-        />
-        <div style={{ fontSize: 12.5, fontWeight: 600, margin: "14px 0 6px" }}>Cities</div>
-        <div className="pm-chips" style={{ flexWrap: "wrap" }}>
-          {DEFAULT_CITIES.map((c) => (
-            <button key={c} type="button" className={`pm-chip${cities.includes(c) ? " on" : ""}`} onClick={() => toggle(cities, setCities, c)}>
-              {c}
-            </button>
-          ))}
-        </div>
+          Start small — 1–2 categories and cities — then hit “Find”.
+        </p>
 
-        <div style={{ fontSize: 12.5, fontWeight: 600, margin: "14px 0 6px" }}>How many companies?</div>
-        <div className="pm-chips" style={{ flexWrap: "wrap", alignItems: "center" }}>
-          {COUNT_PRESETS.map((n) => (
-            <button key={n} type="button" className={`pm-chip${target === n ? " on" : ""}`} onClick={() => setTarget(n)}>
-              {n}
-            </button>
-          ))}
+        <div className={styles.fieldGroup}>
+          <div className={styles.fieldLabel}>Categories</div>
+          <div className="pm-chips" style={{ flexWrap: "wrap" }}>
+            {DEFAULT_CATEGORIES.map((c) => (
+              <button key={c} type="button" className={`pm-chip${categories.includes(c) ? " on" : ""}`} onClick={() => toggle(categories, setCategories, c)}>
+                {c}
+              </button>
+            ))}
+          </div>
           <input
-            className="input"
-            type="number"
-            min={1}
-            max={3600}
-            value={target}
-            onChange={(e) => setTarget(Math.max(1, Math.min(3600, parseInt(e.target.value || "1"))))}
-            style={{ width: 90, marginLeft: 4 }}
-            aria-label="Custom company count"
+            className={`input ${styles.customInput}`}
+            placeholder="Custom category (e.g. 'corporate caterer')"
+            value={customCategory}
+            onChange={(e) => setCustomCategory(e.target.value)}
           />
         </div>
 
-        <label className="field" style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 14 }}>
-          <input type="checkbox" checked={findEmails} onChange={(e) => setFindEmails(e.target.checked)} style={{ marginTop: 3 }} />
-          <span style={{ fontSize: 12.5 }}>
+        <div className={styles.fieldGroup}>
+          <div className={styles.fieldLabel}>Cities</div>
+          <div className="pm-chips" style={{ flexWrap: "wrap" }}>
+            {DEFAULT_CITIES.map((c) => (
+              <button key={c} type="button" className={`pm-chip${cities.includes(c) ? " on" : ""}`} onClick={() => toggle(cities, setCities, c)}>
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.fieldGroup}>
+          <div className={styles.fieldLabel}>How many companies?</div>
+          <div className={styles.countRow}>
+            {COUNT_PRESETS.map((n) => (
+              <button key={n} type="button" className={`pm-chip${target === n ? " on" : ""}`} onClick={() => setTarget(n)}>
+                {n}
+              </button>
+            ))}
+            <input
+              className={`input ${styles.countInput}`}
+              type="number"
+              min={1}
+              max={3600}
+              value={target}
+              onChange={(e) => setTarget(Math.max(1, Math.min(3600, parseInt(e.target.value || "1"))))}
+              aria-label="Custom company count"
+            />
+          </div>
+        </div>
+
+        <label className={styles.toggleCard}>
+          <input type="checkbox" checked={findEmails} onChange={(e) => setFindEmails(e.target.checked)} />
+          <span className={styles.toggleCopy}>
             <b>Find email addresses</b> — crawl each company’s site for verified emails and draft a cold email.
-            <span className="pm-muted"> Turn off to just collect the company list (much faster); you can enrich any lead later.</span>
+            <span className={styles.toggleHint}>Turn off to just collect the company list (much faster); you can enrich any lead later.</span>
           </span>
         </label>
 
-        <div className={styles.strip} style={{ marginTop: 14, padding: "10px 12px" }}>
-          <div style={{ fontSize: 12.5, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            <Clock size={14} />
+        <div className={styles.estimate}>
+          <div className={styles.estimateMain}>
+            <Clock size={15} className={styles.estimateIcon} />
             <span>
               Estimated <b>{fmtDuration(plan.lo)}–{fmtDuration(plan.hi)}</b> for up to <b>{plan.actualTarget}</b> companies
               across <b>{combos}</b> search{combos > 1 ? "es" : ""}
@@ -632,16 +638,16 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (ro
             </span>
           </div>
           {plan.capped ? (
-            <div className="pm-muted" style={{ fontSize: 11.5, marginTop: 4 }}>
-              Google caps each search at ~60, so this gets about {plan.actualTarget}. Add more cities/categories to scrape more.
+            <div className={styles.estimateNote}>
+              Google caps each search at ~60, so this gets about {plan.actualTarget}. Add more cities or categories to scrape more.
             </div>
           ) : null}
-          <div className="pm-muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+          <div className={styles.estimateNote}>
             Runs in your browser — keep this tab open. It also continues automatically every night.
           </div>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+        <div className={styles.modalActions}>
           <button type="button" className="pm-btn" onClick={onClose}>Cancel</button>
           <button type="button" className="pm-btn primary" onClick={submit} disabled={busy}>
             <Search size={14} /> {busy ? "Starting…" : "Find companies"}

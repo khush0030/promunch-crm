@@ -220,3 +220,79 @@
   .stripArrow { display: none; }
   .getStarted { padding: 28px 18px; margin: 16px 0; }
 }
+
+/* ---- Find companies modal ---- */
+.modalHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.modalIntro {
+  font-size: 12.5px;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin: 0 0 4px;
+}
+
+/* One labelled section (Categories, Cities, count…) with even rhythm. */
+.fieldGroup { margin-top: 18px; }
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text-1, inherit);
+  margin-bottom: 8px;
+}
+.customInput { margin-top: 10px; }
+
+.countRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.countInput { width: 96px; margin-left: 4px; }
+
+/* "Find email addresses" toggle as a bordered, tappable card. */
+.toggleCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: var(--card-border);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  cursor: pointer;
+}
+.toggleCard input { margin-top: 2px; flex-shrink: 0; width: 16px; height: 16px; }
+.toggleCopy { font-size: 12.5px; line-height: 1.5; }
+.toggleCopy b { font-weight: 600; }
+.toggleHint { display: block; color: var(--text-3); margin-top: 2px; }
+
+/* Estimate panel — distinct from the .strip banner. */
+.estimate {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--pm-green-soft, rgba(47, 125, 91, 0.08));
+  border: 1px solid var(--pm-green-border, rgba(47, 125, 91, 0.2));
+}
+.estimateMain {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.estimateMain b { font-weight: 600; }
+.estimateIcon { color: var(--pm-green, #2f7d5b); flex-shrink: 0; }
+.estimateNote { font-size: 11.5px; color: var(--text-3); line-height: 1.45; margin-top: 6px; }
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+@media (max-width: 768px) {
+  .modalActions { position: sticky; bottom: 0; background: var(--card-bg); padding-top: 12px; }
+  .modalActions button { flex: 1 1 calc(50% - 4px); justify-content: center; min-height: 44px; }
+}
