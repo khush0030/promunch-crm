@@ -3,10 +3,6 @@
     {
       "path": "/api/cron/leads-tick",
       "schedule": "30 4 * * *"
-    },
-    {
-      "path": "/api/cron/wa-campaign-tick",
-      "schedule": "*/15 * * * *"
     }
   ]
 }
