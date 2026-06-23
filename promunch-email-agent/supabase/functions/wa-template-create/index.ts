@@ -20,6 +20,9 @@
 // service-role bearer.
 
 import { db } from "../_shared/supabase.ts";
+import { uploadResumable, fetchMediaBytes } from "../_shared/whatsapp.ts";
+
+type HeaderFormat = "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT";
 
 const GRAPH = `https://graph.facebook.com/${Deno.env.get("WHATSAPP_GRAPH_VERSION") ?? "v21.0"}`;
 
@@ -36,6 +39,8 @@ interface TemplateDef {
   language: string;
   category: MetaCategory;
   header?: string;          // optional TEXT header
+  headerFormat?: HeaderFormat;  // media header type; defaults to TEXT when `header` set
+  headerMediaUrl?: string;  // public URL to the sample/brand media (create-time only)
   body: string;             // positional {{1}} {{2}} …
   footer?: string;
   bodyExample: string[];    // one sample value per body variable, in order
@@ -241,8 +246,9 @@ Deno.serve(async (req) => {
         category: localCategory(def.category),
         status: localStatus(created.status),
         meta_template_id: created.id ?? null,
-        header_type: def.header ? "TEXT" : null,
+        header_type: def.headerFormat ?? (def.header ? "TEXT" : null),
         header_text: def.header ?? null,
+        header_media_url: def.headerMediaUrl ?? null,
         body: def.body,
         footer: def.footer ?? null,
         variables: def.bodyExample.map((sample, i) => ({ name: String(i + 1), sample })),
@@ -266,6 +272,16 @@ function normalizeIncoming(t: Record<string, unknown>): TemplateDef {
   const header = t.header_text ? String(t.header_text).trim() : undefined;
   const footer = t.footer ? String(t.footer).trim() : undefined;
 
+  // Media header (image/video/document). header_media_url is a public URL we
+  // resolve into a Meta upload handle at create time.
+  const hf = String(t.header_format ?? "").toUpperCase();
+  const headerFormat: HeaderFormat | undefined =
+    hf === "IMAGE" || hf === "VIDEO" || hf === "DOCUMENT" ? hf : (header ? "TEXT" : undefined);
+  const headerMediaUrl = t.header_media_url ? String(t.header_media_url).trim() : undefined;
+  if (headerFormat && headerFormat !== "TEXT" && !headerMediaUrl) {
+    throw new Error(`${headerFormat} header requires header_media_url (a public image/video/document URL)`);
+  }
+
   // body_samples / header_samples: one value per {{n}}, in order.
   const bodyVars = countVars(body);
   const bodyExample = (Array.isArray(t.body_samples) ? t.body_samples : []).map(String);
@@ -282,7 +298,9 @@ function normalizeIncoming(t: Record<string, unknown>): TemplateDef {
     name,
     language: String(t.language ?? "en").trim() || "en",
     category: metaCategory(String(t.category ?? "utility")),
-    header,
+    header: headerFormat === "TEXT" ? header : undefined,
+    headerFormat,
+    headerMediaUrl,
     body,
     footer,
     bodyExample: bodyExample.slice(0, bodyVars),
@@ -349,10 +367,19 @@ async function diagnose(): Promise<Record<string, unknown>> {
 // Build the Meta component array for a template def. Shared by create + edit so
 // an edit always resends the FULL component set (body + footer + buttons) — Meta
 // drops any component you omit on an edit.
-function buildComponents(def: TemplateDef): Array<Record<string, unknown>> {
+// `headerHandle` is the Meta upload handle for a media header — resolved by the
+// caller (createTemplate/editTemplate) via uploadResumable() before building.
+function buildComponents(def: TemplateDef, headerHandle?: string): Array<Record<string, unknown>> {
   const components: Array<Record<string, unknown>> = [];
 
-  if (def.header) {
+  if (def.headerFormat && def.headerFormat !== "TEXT" && headerHandle) {
+    // Image / video / document header. The handle stands in as the sample media.
+    components.push({
+      type: "HEADER",
+      format: def.headerFormat,
+      example: { header_handle: [headerHandle] },
+    });
+  } else if (def.header) {
     const h: Record<string, unknown> = { type: "HEADER", format: "TEXT", text: def.header };
     if (countVars(def.header) > 0) h.example = { header_text: def.headerExample ?? [] };
     components.push(h);
@@ -382,7 +409,16 @@ async function createTemplate(
   waba: string,
   def: TemplateDef,
 ): Promise<{ ok: boolean; id?: string; status?: string; error?: string; meta?: unknown }> {
-  const components = buildComponents(def);
+  let headerHandle: string | undefined;
+  if (def.headerFormat && def.headerFormat !== "TEXT" && def.headerMediaUrl) {
+    try {
+      const media = await fetchMediaBytes(def.headerMediaUrl);
+      headerHandle = await uploadResumable(media.bytes, media.mime);
+    } catch (e) {
+      return { ok: false, error: `header media upload failed: ${e instanceof Error ? e.message : e}` };
+    }
+  }
+  const components = buildComponents(def, headerHandle);
 
   const reqBody = {
     name: def.name,
@@ -419,7 +455,16 @@ async function editTemplate(
   templateId: string,
   def: TemplateDef,
 ): Promise<{ ok: boolean; status?: string; error?: string; meta?: unknown }> {
-  const reqBody = { components: buildComponents(def) };
+  let headerHandle: string | undefined;
+  if (def.headerFormat && def.headerFormat !== "TEXT" && def.headerMediaUrl) {
+    try {
+      const media = await fetchMediaBytes(def.headerMediaUrl);
+      headerHandle = await uploadResumable(media.bytes, media.mime);
+    } catch (e) {
+      return { ok: false, error: `header media upload failed: ${e instanceof Error ? e.message : e}` };
+    }
+  }
+  const reqBody = { components: buildComponents(def, headerHandle) };
   const res = await fetch(`${GRAPH}/${templateId}`, {
     method: "POST",
     headers: { "Authorization": `Bearer ${token()}`, "Content-Type": "application/json" },

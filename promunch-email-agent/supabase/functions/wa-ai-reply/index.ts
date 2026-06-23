@@ -51,6 +51,8 @@ ORDER LOOKUP — you have a tool, lookup_order. The customer's phone number is A
 
 ORDERING ON WHATSAPP — customers can shop right here in the chat. You have a tool, show_products. Call it whenever the customer wants to browse, see the menu, order, buy, reorder, or asks "what do you have" / "what flavours" / "I want X" (optionally pass a category like "crunchies" or "edamame" to narrow it). It shows them tappable product cards they add to a cart inside WhatsApp. They then send the cart back and AUTOMATICALLY receive a secure checkout link — the system handles that link, so NEVER write a checkout or cart URL yourself and never quote prices from memory (the cards show real live prices). After calling show_products your reply should be ONE short warm line, e.g. "Here's our menu — tap to add what you fancy 👇". Do NOT list the products as text.
 
+ORDER CHANGES — you have a tool, request_order_change, for things the TEAM must action on an existing order: cancelling it, a return/replacement, or fixing the delivery address. Call lookup_order FIRST to get the real order number, then call request_order_change with change_type, order_number and details (for an address change, capture the FULL corrected address; for a return/cancel, which item(s) and why). It raises a priority ticket for the team — you still reply in the SAME turn, warmly confirming you've LOGGED the request and the team will sort it shortly. NEVER claim it is already cancelled / refunded / changed — you cannot do it yourself, only log it.
+
 CRITICAL — do not invent anything:
 - NEVER guess or make up an order number. If the customer did not state one, call lookup_order with NO arguments.
 - NEVER describe a problem, missing item, delay, damage or complaint the customer did not actually state. Act ONLY on what the customer really said in this conversation. If they simply ask "where is my order", just look it up and tell them its real status — do not invent an issue or raise an order-problem ticket.
@@ -110,6 +112,37 @@ const TOOLS = [
             description: "Optional category/keyword to filter products, e.g. 'crunchies', 'edamame', 'protein'. Omit to show everything.",
           },
         },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "request_order_change",
+      description:
+        "Log a request that needs the TEAM to act on an existing order: cancel it, " +
+        "start a return/replacement, or fix the delivery address. The customer's " +
+        "phone is already known. Call lookup_order first to get the real order " +
+        "number. This raises a priority ticket — you still reply to reassure the " +
+        "customer in the same turn, but you only LOG the request, you never perform it.",
+      parameters: {
+        type: "object",
+        properties: {
+          change_type: {
+            type: "string",
+            enum: ["cancel", "return", "replacement", "address_change"],
+            description: "What the customer needs the team to do.",
+          },
+          order_number: {
+            type: "string",
+            description: "The order this is about, e.g. '1042' or '#1042'. Get it from lookup_order if the customer didn't state it.",
+          },
+          details: {
+            type: "string",
+            description: "Specifics the team needs: item(s) and reason; for address_change, the FULL corrected delivery address.",
+          },
+        },
+        required: ["change_type", "details"],
       },
     },
   },
@@ -179,16 +212,11 @@ Deno.serve(async (req) => {
   }
   if (!latest) return j({ error: "no customer message to answer" }, 400);
 
-  // knowledge base — every ready document, prompt-stuffed
-  const { data: docs } = await sb
-    .from("kb_documents")
-    .select("name, raw_text")
-    .eq("status", "ready");
-  let kb = (docs ?? [])
-    .filter((d) => d.raw_text && String(d.raw_text).trim())
-    .map((d) => `## ${d.name}\n${d.raw_text}`)
-    .join("\n\n");
-  if (kb.length > KB_CHAR_BUDGET) kb = kb.slice(0, KB_CHAR_BUDGET);
+  // knowledge base — semantic retrieval over kb_chunks (embedded by kb-embed),
+  // falling back to prompt-stuffing every ready document when no embeddings
+  // exist yet. The fallback keeps the bot working before/independent of the
+  // embedding pipeline, so this switch can never break replies.
+  const kb = await retrieveKb(sb, latest);
 
   // ---- in-window piggyback: if a post-purchase ask is DUE and we're in an open
   // session, let the bot weave a PERSONALIZED review/restock ask into its reply.
@@ -198,10 +226,19 @@ Deno.serve(async (req) => {
   // If the model calls show_products, we stash the prepared catalog here and
   // send it AFTER winning the per-turn claim (so a retry can't double-send).
   let pendingCatalog: { sections: CatalogSection[]; count: number } | null = null;
+  // Structured order-change request from the request_order_change tool — becomes
+  // THE ticket at the end (takes precedence over decision.ticket so we never
+  // raise two escalations for the same turn).
+  let pendingChange: { changeType: string; orderNumber: string | null; details: string } | null = null;
   if (!draft && waId) {
     const due = await findDueAsk(sb, waId, new Date().toISOString());
     if (due && (await claimAsk(sb, due.runId))) claimedAsk = due;
   }
+
+  // Outside support hours, tell the bot to set follow-up expectations IF it
+  // escalates. It still fully answers now. Skipped in draft mode (a human agent
+  // is at the dashboard).
+  const hoursNote = draft ? null : supportHoursNote();
 
   const userMsg = [
     `KNOWLEDGE BASE:\n${kb || "(empty — no documents added yet)"}`,
@@ -210,6 +247,7 @@ Deno.serve(async (req) => {
     "",
     `LATEST CUSTOMER MESSAGE:\n${latest}`,
     claimedAsk ? "\n" + askInstruction(claimedAsk) : "",
+    hoursNote ? "\n" + hoursNote : "",
     "",
     "Respond with JSON only.",
   ].join("\n");
@@ -232,7 +270,7 @@ Deno.serve(async (req) => {
   let resp: any = null;
   let lastUsage: unknown = null;
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
-    resp = await client.chat.completions.create({
+    resp = await chatCreate(client, {
       model: MODEL,
       max_tokens: 900,
       tools: TOOLS,
@@ -286,9 +324,40 @@ Deno.serve(async (req) => {
             result = `Prepared ${cat.count} product card(s) (${cat.titles}). They WILL be shown to the customer automatically as tappable catalog cards. Reply with ONE short warm line inviting them to tap and add to cart — do NOT list the products in text and do NOT mention prices.`;
           }
         }
+      } else if (call.function?.name === "request_order_change") {
+        let arg: { change_type?: string; order_number?: string; details?: string } = {};
+        try { arg = JSON.parse(call.function.arguments || "{}"); } catch { /* tolerate */ }
+        const ct = (arg.change_type ?? "").toString().trim().toLowerCase();
+        const details = (arg.details ?? "").toString().trim();
+        if (!["cancel", "return", "replacement", "address_change"].includes(ct)) {
+          result = "Ask the customer briefly what they need (cancel, return, replacement, or address change) before logging it.";
+        } else if (!details) {
+          result = "Need the specifics first — for an address change capture the FULL corrected address; for a return/cancel, which item(s) and why.";
+        } else {
+          pendingChange = {
+            changeType: ct,
+            orderNumber: (arg.order_number ?? "").toString().trim() || null,
+            details,
+          };
+          result = `Logged a ${ct.replace("_", " ")} request for the team to action. Reply warmly that you've RAISED it and the team will sort it / follow up shortly — do NOT claim it is already done.`;
+        }
       }
       messages.push({ role: "tool", tool_call_id: call.id, content: result });
     }
+  }
+
+  // If the loop hit MAX_TOOL_TURNS while the model still wanted to call a tool,
+  // `resp` is a tool-call response with no text — which would degrade to the
+  // generic fallback reply AND a spurious "unparseable" ticket. Force ONE more
+  // tool-free completion so the customer gets the real answer.
+  if ((resp?.choices?.[0]?.message?.tool_calls ?? []).length > 0) {
+    resp = await chatCreate(client, {
+      model: MODEL,
+      max_tokens: 900,
+      tool_choice: "none",
+      messages,
+    });
+    lastUsage = resp.usage;
   }
 
   const decision = parseDecision(textOf(resp));
@@ -380,7 +449,9 @@ Deno.serve(async (req) => {
   // Raise a ticket when the AI flagged one — or, if the AI output was
   // unparseable, as a general ticket so nothing slips by silently.
   const handoff = !!decision?.handoff;
-  const ticket: TicketInput | null = decision
+  const ticket: TicketInput | null = pendingChange
+    ? changeToTicket(pendingChange)
+    : decision
     ? (decision.ticket ?? null)
     : { category: "general", priority: "normal", reason: "AI output unparseable — review chat" };
   if (handoff || ticket) await openTicket(thread_id, waId, ticket, handoff);
@@ -392,6 +463,138 @@ Deno.serve(async (req) => {
 // Final assistant text from an OpenAI chat-completion response.
 function textOf(resp: any): string {
   return resp?.choices?.[0]?.message?.content ?? "";
+}
+
+// ---- Knowledge base retrieval ---------------------------------------------
+// Embed the customer's message, pull the most relevant kb_chunks via the
+// match_kb_chunks RPC, and assemble them within the char budget. Falls back to
+// prompt-stuffing every ready document if embeddings aren't populated yet or
+// anything goes wrong — the bot is never left without a KB.
+async function retrieveKb(sb: any, query: string): Promise<string> {
+  try {
+    const emb = await embedText(query);
+    if (emb) {
+      const { data, error } = await sb.rpc("match_kb_chunks", {
+        query_embedding: emb,
+        match_threshold: 0.25,
+        match_count: 10,
+      });
+      if (!error && Array.isArray(data) && data.length) {
+        let kb = "";
+        for (const r of data) {
+          const block = String(r.content ?? "").trim();
+          if (!block) continue;
+          if (kb.length + block.length + 2 > KB_CHAR_BUDGET) break;
+          kb += (kb ? "\n\n" : "") + block;
+        }
+        if (kb) return kb;
+      }
+    }
+  } catch (e) {
+    console.error("[wa-ai-reply] KB retrieval failed — falling back to full KB", e);
+  }
+  return await stuffAllDocs(sb);
+}
+
+// Legacy path: prompt-stuff all ready docs, Master/policy/pricing/FAQ first so
+// they always land inside the budget; budget doc-by-doc (no silent mid-word cut
+// of a whole later doc).
+async function stuffAllDocs(sb: any): Promise<string> {
+  const { data: docs } = await sb
+    .from("kb_documents").select("name, raw_text").eq("status", "ready");
+  const masterRank = (n: string) => (/master|policy|policies|pricing|faq/i.test(n) ? 0 : 1);
+  const ready = (docs ?? [])
+    .filter((d: any) => d.raw_text && String(d.raw_text).trim())
+    .sort((a: any, b: any) => masterRank(a.name) - masterRank(b.name));
+  let kb = "";
+  for (const d of ready) {
+    const block = `## ${d.name}\n${d.raw_text}`;
+    if (kb.length + block.length + 2 > KB_CHAR_BUDGET) {
+      const room = KB_CHAR_BUDGET - kb.length - 2;
+      if (room > 200) kb += (kb ? "\n\n" : "") + block.slice(0, room);
+      break;
+    }
+    kb += (kb ? "\n\n" : "") + block;
+  }
+  return kb;
+}
+
+async function embedText(text: string): Promise<number[] | null> {
+  const t = text.trim().slice(0, 8000);
+  if (!t) return null;
+  const client = new OpenAI({ apiKey: OPENAI_API_KEY });
+  const model = Deno.env.get("WA_EMBED_MODEL") ?? "text-embedding-3-small";
+  const resp = await client.embeddings.create({ model, input: t });
+  return (resp.data?.[0]?.embedding as number[]) ?? null;
+}
+
+// ---- Support hours --------------------------------------------------------
+// Returns a prompt note when the human team is OFFLINE (so the bot can set
+// follow-up expectations when it escalates), or null when open. Configurable:
+//   WA_BUSINESS_TZ (default Asia/Kolkata), WA_BUSINESS_OPEN/CLOSE ("HH:MM"),
+//   WA_BUSINESS_DAYS (CSV, 0=Sun..6=Sat; default Mon–Sat).
+function supportHoursNote(): string | null {
+  try {
+    const tz = Deno.env.get("WA_BUSINESS_TZ") ?? "Asia/Kolkata";
+    const open = Deno.env.get("WA_BUSINESS_OPEN") ?? "10:00";
+    const close = Deno.env.get("WA_BUSINESS_CLOSE") ?? "19:00";
+    const days = (Deno.env.get("WA_BUSINESS_DAYS") ?? "1,2,3,4,5,6")
+      .split(",").map((s) => Number(s.trim())).filter((n) => !Number.isNaN(n));
+
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz, weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false,
+    }).formatToParts(new Date());
+    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+    const wd: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    const dow = wd[get("weekday")] ?? 1;
+    const nowMin = Number(get("hour")) * 60 + Number(get("minute"));
+    const toMin = (s: string) => { const [a, b] = s.split(":").map(Number); return a * 60 + (b || 0); };
+
+    const isOpen = days.includes(dow) && nowMin >= toMin(open) && nowMin < toMin(close);
+    if (isOpen) return null;
+
+    const label = `${fmtHour(open)}–${fmtHour(close)} ${tzAbbr(tz)}, ${dayRange(days)}`;
+    return `SUPPORT HOURS: The human team is currently OFFLINE (hours: ${label}). You STILL fully help the customer now using the knowledge base and tools. But if you raise a ticket or hand off, gently let them know the team is offline and will follow up when they're back (${label}) — one short line, don't over-apologise.`;
+  } catch {
+    return null;
+  }
+}
+function fmtHour(hm: string): string {
+  const [h, m] = hm.split(":").map(Number);
+  const ap = h < 12 ? "am" : "pm";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return m ? `${h12}:${String(m).padStart(2, "0")}${ap}` : `${h12}${ap}`;
+}
+function tzAbbr(tz: string): string {
+  return tz === "Asia/Kolkata" ? "IST" : tz;
+}
+function dayRange(days: number[]): string {
+  const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const key = [...new Set(days)].sort((a, b) => a - b).join(",");
+  if (key === "1,2,3,4,5,6") return "Mon–Sat";
+  if (key === "1,2,3,4,5") return "Mon–Fri";
+  if (key === "0,1,2,3,4,5,6") return "every day";
+  return key.split(",").map((d) => names[Number(d)]).join(", ");
+}
+
+// OpenAI call with bounded retry on TRANSIENT failures (429 / 5xx / network).
+// Safe to retry: every caller is BEFORE any customer send and before the
+// per-turn claim, so a retry can never double-message. A transient blip used to
+// throw → 500 → the customer waited for the next wa-jobs-tick (minutes); now we
+// recover in-line. Non-transient errors (4xx other than 429) fail fast.
+async function chatCreate(client: OpenAI, params: any, retries = 2): Promise<any> {
+  let lastErr: unknown;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await client.chat.completions.create(params);
+    } catch (e: any) {
+      lastErr = e;
+      const status = e?.status ?? e?.response?.status;
+      if (status && status !== 429 && status < 500) break; // not transient
+      if (i < retries) await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+    }
+  }
+  throw lastErr;
 }
 
 // Mark the durable wa_jobs row done so wa-jobs-tick won't retry it.
@@ -511,6 +714,31 @@ interface TicketInput {
   priority?: string;
   reason?: string;
   order_number?: string;
+}
+
+// Map a structured order-change request (request_order_change tool) into a
+// ticket the ops team acts on. Cancels + address fixes must beat dispatch →
+// urgent; returns / replacements → high.
+function changeToTicket(c: { changeType: string; orderNumber: string | null; details: string }): TicketInput {
+  const label: Record<string, string> = {
+    cancel: "Order cancellation",
+    return: "Return / refund",
+    replacement: "Replacement",
+    address_change: "Delivery address change",
+  };
+  const category: Record<string, string> = {
+    cancel: "order_issue",
+    return: "refund",
+    replacement: "order_issue",
+    address_change: "order_issue",
+  };
+  const urgent = c.changeType === "cancel" || c.changeType === "address_change";
+  return {
+    category: category[c.changeType] ?? "order_issue",
+    priority: urgent ? "urgent" : "high",
+    reason: `${label[c.changeType] ?? "Order change"} requested — ${c.details}`,
+    order_number: c.orderNumber ?? undefined,
+  };
 }
 
 // Raise / refresh a support ticket on the thread, then post a Slack escalation.
@@ -748,7 +976,7 @@ async function composeProactiveMessage(
     `Keep it to 1–3 short sentences.`,
   ].join("\n");
   const client = new OpenAI({ apiKey: OPENAI_API_KEY });
-  const resp = await client.chat.completions.create({
+  const resp = await chatCreate(client, {
     model: MODEL,
     max_tokens: 300,
     messages: [

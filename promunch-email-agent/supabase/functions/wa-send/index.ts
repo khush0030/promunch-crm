@@ -31,7 +31,18 @@ interface SendBody {
   to?: string;
   kind: "text" | "template" | "image" | "interactive" | "catalog";
   text?: string;
-  template?: { name: string; language?: string; components?: TemplateComponent[]; vars?: Record<string, string> };
+  template?: {
+    name: string;
+    language?: string;
+    components?: TemplateComponent[];
+    vars?: Record<string, string>;
+    // Per-send media header for image/video/document-header templates. A public
+    // URL is accepted here (unlike at template-create time). Ignored when the
+    // caller passes a full `components` array (build the header yourself then).
+    header_image?: { link: string };
+    header_video?: { link: string };
+    header_document?: { link: string; filename?: string };
+  };
   image?: { link: string; caption?: string };
   // Raw interactive object passthrough (list / buttons / cta_url / product).
   interactive?: Record<string, unknown>;
@@ -112,6 +123,18 @@ Deno.serve(async (req) => {
       if (!body.template?.name) return j({ error: "template.name required" }, 400);
       const lang = body.template.language ?? "en";
       const comps = body.template.components ?? buildSimpleBodyComponents(body.template.vars);
+      // Prepend a media header param (image/video/document) when the caller
+      // supplies one and didn't hand-build the full component array.
+      const headerMediaUrl = body.template.header_image?.link ??
+        body.template.header_video?.link ?? body.template.header_document?.link ?? null;
+      if (!body.template.components && headerMediaUrl) {
+        const param = body.template.header_image
+          ? { type: "image" as const, image: { link: body.template.header_image.link } }
+          : body.template.header_video
+          ? { type: "video" as const, video: { link: body.template.header_video.link } }
+          : { type: "document" as const, document: body.template.header_document! };
+        comps.unshift({ type: "header", parameters: [param] });
+      }
       result = await sendTemplate(waId!, body.template.name, lang, comps);
       // Store what the customer actually received — not a "[template:name]" stub.
       const rendered = await renderTemplate(sb, body.template.name, lang, body.template.vars, comps);
@@ -121,6 +144,7 @@ Deno.serve(async (req) => {
         template_name: body.template.name,
         template_lang: lang,
         template_vars: body.template.vars ?? null,
+        media_url: headerMediaUrl,
         body: rendered ?? `[template:${body.template.name}]`,
       };
     } else if (body.kind === "image") {

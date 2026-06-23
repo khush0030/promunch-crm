@@ -69,6 +69,9 @@ verify_jwt = false                    # invoked by wa-webhook / wa-jobs-tick fun
 [functions.kb-ingest]
 verify_jwt = true                     # invoked by Next.js API with service role bearer
 
+[functions.kb-embed]
+verify_jwt = true                     # invoked by Next.js API / kb-ingest with service role bearer
+
 [functions.wa-campaign-send]
 verify_jwt = false                    # self-chains function-to-function; gateway JWT check broke post-upgrade
 

@@ -208,6 +208,61 @@ export async function downloadMedia(mediaId: string): Promise<{ bytes: Uint8Arra
   };
 }
 
+// ---- Resumable upload (template media handles) --------------------------
+// Image / video / document template HEADERS need a one-time "header handle"
+// from the Resumable Upload API at CREATE time — a public URL is only accepted
+// at SEND time, not when registering the template. Flow: open an upload session
+// against the Meta App ID, POST the bytes, read back the handle `h`.
+// Docs: https://developers.facebook.com/docs/graph-api/guides/upload
+
+async function discoverAppId(): Promise<string | null> {
+  const t = token();
+  const res = await fetch(
+    `${GRAPH}/debug_token?input_token=${encodeURIComponent(t)}&access_token=${encodeURIComponent(t)}`,
+  );
+  const json = await res.json().catch(() => ({}));
+  const id = json?.data?.app_id;
+  return id ? String(id) : null;
+}
+
+export async function uploadResumable(bytes: Uint8Array, mime: string): Promise<string> {
+  const appId = Deno.env.get("WHATSAPP_APP_ID") ?? (await discoverAppId());
+  if (!appId) throw new Error("Could not resolve Meta App ID (set WHATSAPP_APP_ID)");
+  const t = token();
+
+  // 1) open a session
+  const start = await fetch(
+    `${GRAPH}/${appId}/uploads?file_length=${bytes.length}` +
+      `&file_type=${encodeURIComponent(mime)}&access_token=${encodeURIComponent(t)}`,
+    { method: "POST" },
+  );
+  const sj = await start.json().catch(() => ({}));
+  if (!start.ok || !sj?.id) {
+    throw new Error(`upload session failed: ${sj?.error?.message ?? start.status}`);
+  }
+
+  // 2) POST the bytes (OAuth scheme + file_offset header are required here)
+  const up = await fetch(`${GRAPH}/${sj.id}`, {
+    method: "POST",
+    headers: { "Authorization": `OAuth ${t}`, "file_offset": "0" },
+    body: bytes,
+  });
+  const uj = await up.json().catch(() => ({}));
+  if (!up.ok || !uj?.h) {
+    throw new Error(`upload failed: ${uj?.error?.message ?? up.status}`);
+  }
+  return String(uj.h);
+}
+
+// Fetch the bytes of a publicly-hosted media URL (e.g. a Supabase wa-media
+// public URL) so they can be pushed through uploadResumable().
+export async function fetchMediaBytes(url: string): Promise<{ bytes: Uint8Array; mime: string }> {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`could not fetch media ${url}: HTTP ${r.status}`);
+  const mime = r.headers.get("content-type") ?? "image/jpeg";
+  return { bytes: new Uint8Array(await r.arrayBuffer()), mime };
+}
+
 // HMAC-SHA256 verification of X-Hub-Signature-256.
 export async function verifySignature(rawBody: string, signatureHeader: string | null): Promise<boolean> {
   const secret = Deno.env.get("WHATSAPP_APP_SECRET");

@@ -77,12 +77,35 @@ Deno.serve(async (req) => {
     processed_at: new Date().toISOString(),
   }).eq("id", docId);
 
+  // Fire-and-forget: embed this document into kb_chunks for semantic retrieval.
+  // Best-effort — wa-ai-reply falls back to prompt-stuffing when embeddings are
+  // missing, so a failure here never breaks the bot.
+  void triggerEmbed(docId);
+
   return j({ ok: true, document_id: docId, chars: clean.length });
 });
 
 async function fail(sb: ReturnType<typeof db>, id: string | null, msg: string) {
   if (!id) return;
   await sb.from("kb_documents").update({ status: "failed", error: msg }).eq("id", id);
+}
+
+// Best-effort call to kb-embed for one freshly-ingested document. Never throws
+// into the request path — the bot degrades to prompt-stuffing without it.
+async function triggerEmbed(documentId: string | null) {
+  if (!documentId) return;
+  try {
+    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/kb-embed`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ document_id: documentId }),
+    });
+  } catch (e) {
+    console.error("[kb-ingest] triggerEmbed failed", e);
+  }
 }
 
 function j(o: unknown, s = 200) {
