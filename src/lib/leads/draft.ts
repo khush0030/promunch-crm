@@ -8,6 +8,8 @@ export interface DraftInput {
   city: string | null;
   roleHint: string | null; // who we're writing to: hr | sales | info | ...
   siteSnippet: string | null;
+  offer?: string | null; // what we're pitching this round (user-supplied brief)
+  subjectHint?: string | null; // optional subject-line direction from the user
   knowledgeBase?: string; // Master KB text; fetched here if omitted
 }
 
@@ -29,7 +31,10 @@ Pitch angles (pick the ONE that best fits the recipient company):
 - Office pantry: healthy snacking for employees, bulk supply
 - Catering/hospitality (airlines, hotels, caterers): healthy packaged snack for guests/passengers
 
-Offer: a free sample box and a 15-minute call.
+If an OUTREACH BRIEF is provided below, lead with exactly that offer/product and let it drive the angle (still pick the framing that fits the recipient). If no brief is given, pick the best angle yourself.
+If a SUBJECT HINT is provided, base the subject line on that idea, refined for this recipient (still under 60 chars, specific, no clickbait).
+
+Offer (default): a free sample box and a 15-minute call.
 
 FACTUAL ACCURACY (most important rule):
 - State product facts ONLY if they appear in the KNOWLEDGE BASE below. Never invent or guess flavours, prices, protein numbers, certifications, or preparation method.
@@ -68,6 +73,8 @@ export async function generateDraft(input: DraftInput): Promise<DraftOutput> {
   const systemPrompt = buildSystemPrompt(knowledgeBase);
 
   const userPrompt = [
+    input.offer?.trim() ? `OUTREACH BRIEF (what we are pitching this round): ${input.offer.trim()}` : null,
+    input.subjectHint?.trim() ? `SUBJECT HINT: ${input.subjectHint.trim()}` : null,
     `Company: ${input.companyName}`,
     input.category ? `Business type: ${input.category}` : null,
     input.city ? `City: ${input.city}` : null,

@@ -40,6 +40,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       city: lead.city,
       roleHint: contact.role_hint,
       siteSnippet: lead.site_snippet,
+      offer: lead.offer,
+      subjectHint: lead.subject_hint,
     });
 
     // Replace any still-editable draft for this lead.

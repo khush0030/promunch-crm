@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   if (denied) return denied;
 
   const body = (await req.json().catch(() => null)) as
-    | { categories?: string[]; cities?: string[]; maxResults?: number; findEmails?: boolean }
+    | { categories?: string[]; cities?: string[]; maxResults?: number; findEmails?: boolean; offer?: string; subjectHint?: string }
     | null;
   const categories = (body?.categories ?? []).map((s) => s.trim()).filter(Boolean);
   const cities = (body?.cities ?? []).map((s) => s.trim()).filter(Boolean);
@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
   }
 
   const findEmails = body?.findEmails !== false; // default on
+  const offer = (body?.offer ?? '').trim().slice(0, 400) || null;
+  const subjectHint = (body?.subjectHint ?? '').trim().slice(0, 160) || null;
   // Overall target across every search; split evenly per category x city.
   // Places caps each search at 60, so per-search target is clamped to that.
   const rawTarget = Number(body?.maxResults);
@@ -36,6 +38,8 @@ export async function POST(req: NextRequest) {
       status: 'pending',
       max_results: perSearchMax,
       find_emails: findEmails,
+      offer,
+      subject_hint: subjectHint,
       // Re-open a previously-finished search so a new target re-scrapes it.
       next_page_token: null,
       pages_fetched: 0,

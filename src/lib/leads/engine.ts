@@ -35,11 +35,13 @@ type LeadRow = {
   category: string | null;
   types: string[] | null;
   site_snippet: string | null;
+  offer: string | null;
+  subject_hint: string | null;
   crawl_attempts: number;
 };
 
 const LEAD_COLUMNS =
-  'id, name, website, domain, city, category, types, site_snippet, crawl_attempts';
+  'id, name, website, domain, city, category, types, site_snippet, offer, subject_hint, crawl_attempts';
 
 export async function tick(): Promise<TickSummary> {
   const summary: TickSummary = { discovered: 0, crawled: 0, contactsFound: 0, drafted: 0, errors: [] };
@@ -107,6 +109,8 @@ async function discover(summary: TickSummary) {
           city: search.city as string,
           category: search.category as string,
           search_id: search.id as string,
+          offer: (search.offer as string | null) ?? null,
+          subject_hint: (search.subject_hint as string | null) ?? null,
           types: p.types ?? [],
           status,
         };
@@ -441,6 +445,8 @@ async function draftBatch(summary: TickSummary) {
         city: lead.city,
         roleHint: contact.role_hint,
         siteSnippet: lead.site_snippet,
+        offer: lead.offer,
+        subjectHint: lead.subject_hint,
         knowledgeBase,
       });
 

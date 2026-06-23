@@ -532,6 +532,8 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (ro
   const [customCategory, setCustomCategory] = useState("");
   const [target, setTarget] = useState(50);
   const [findEmails, setFindEmails] = useState(true);
+  const [offer, setOffer] = useState("");
+  const [subjectHint, setSubjectHint] = useState("");
   const [busy, setBusy] = useState(false);
 
   function toggle(list: string[], setList: (v: string[]) => void, value: string) {
@@ -554,7 +556,7 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (ro
       const res = await fetch("/api/leads/search", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ categories: cats, cities, maxResults: target, findEmails }),
+        body: JSON.stringify({ categories: cats, cities, maxResults: target, findEmails, offer, subjectHint }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "failed");
@@ -639,6 +641,30 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (ro
             <span className={styles.toggleHint}>Turn off to just collect the company list (much faster); you can enrich any lead later.</span>
           </span>
         </label>
+
+        {findEmails ? (
+          <div className={styles.fieldGroup}>
+            <div className={styles.fieldLabel}>What are you pitching? <span className="pm-muted">(optional, steers the AI)</span></div>
+            <textarea
+              className="input"
+              rows={2}
+              placeholder="e.g. Our new edamame snack as a healthy corporate gifting hamper — free sample box + 15-min call."
+              value={offer}
+              onChange={(e) => setOffer(e.target.value)}
+              maxLength={400}
+            />
+            <input
+              className={`input ${styles.customInput}`}
+              placeholder="Subject line idea (optional) — e.g. 'A healthier snack for your gift hampers'"
+              value={subjectHint}
+              onChange={(e) => setSubjectHint(e.target.value)}
+              maxLength={160}
+            />
+            <div className={styles.toggleHint} style={{ marginTop: 6 }}>
+              Leave blank and the AI picks the best angle from your knowledge base. Anything you write here leads the email; product facts still come only from the KB.
+            </div>
+          </div>
+        ) : null}
 
         <div className={styles.estimate}>
           <div className={styles.estimateMain}>
