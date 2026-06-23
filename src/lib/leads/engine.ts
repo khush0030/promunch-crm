@@ -84,11 +84,20 @@ async function discover(summary: TickSummary) {
       (search.next_page_token as string | null) ?? undefined,
     );
 
+    const findEmails = (search.find_emails as boolean | null) !== false; // default on
+    const maxResults = (search.max_results as number | null) ?? null;
+    const alreadyHave = search.results_count as number;
+    // How many more this search is still allowed to add (null = no target cap).
+    const remaining = maxResults != null ? Math.max(0, maxResults - alreadyHave) : Infinity;
+
     const rows = page.places
       .filter((p) => p.id && p.displayName?.text)
+      .slice(0, remaining)
       .map((p) => {
         const domain = websiteToDomain(p.websiteUri);
         const crawlable = !!p.websiteUri && !isSocialDomain(domain);
+        // find_emails off => keep the company as a plain listing, never crawled.
+        const status = crawlable ? (findEmails ? 'new' : 'listed') : 'no_website';
         return {
           place_id: p.id,
           name: p.displayName!.text!,
@@ -99,7 +108,7 @@ async function discover(summary: TickSummary) {
           category: search.category as string,
           search_id: search.id as string,
           types: p.types ?? [],
-          status: crawlable ? 'new' : 'no_website',
+          status,
         };
       });
 
@@ -111,7 +120,8 @@ async function discover(summary: TickSummary) {
     }
 
     const pagesFetched = (search.pages_fetched as number) + 1;
-    const done = !page.nextPageToken || pagesFetched >= MAX_SEARCH_PAGES;
+    const reachedTarget = maxResults != null && alreadyHave + rows.length >= maxResults;
+    const done = !page.nextPageToken || pagesFetched >= MAX_SEARCH_PAGES || reachedTarget;
     await supabaseAdmin
       .from('lead_searches')
       .update({

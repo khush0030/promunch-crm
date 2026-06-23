@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 export const dynamic = 'force-dynamic';
 
 const LEAD_STATUSES = [
-  'new', 'crawling', 'ready', 'no_contacts', 'no_website', 'drafting', 'drafted',
+  'new', 'crawling', 'ready', 'no_contacts', 'no_website', 'listed', 'drafting', 'drafted',
   'contacted', 'replied', 'bounced', 'suppressed',
 ];
 

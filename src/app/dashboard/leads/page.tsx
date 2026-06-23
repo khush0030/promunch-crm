@@ -85,6 +85,7 @@ const STATUS_PILL: Record<string, { cls: string; label: string }> = {
   ready: { cls: "bg-gold", label: "Needs draft" },
   no_contacts: { cls: "bg-gray", label: "No contacts" },
   no_website: { cls: "bg-gray", label: "No website" },
+  listed: { cls: "bg-gray", label: "Listed (no email)" },
   drafting: { cls: "bg-gold", label: "Drafting" },
   drafted: { cls: "bg-green", label: "Review draft" },
   contacted: { cls: "bg-green", label: "Sent" },
@@ -432,10 +433,9 @@ export default function LeadsPage() {
       {showSearch && (
         <SearchModal
           onClose={() => setShowSearch(false)}
-          onQueued={(n) => {
+          onQueued={(rounds) => {
             setShowSearch(false);
-            toast.push({ kind: "success", text: `${n} searches queued — finding emails and writing drafts now…` });
-            runPipeline(10);
+            runPipeline(rounds);
           }}
         />
       )}
@@ -483,16 +483,52 @@ function bestContact(lead: Lead): Contact | null {
 
 // ----------------------------------------------------------- search modal --
 
-function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (n: number) => void }) {
+const COUNT_PRESETS = [25, 50, 100, 200];
+
+function fmtDuration(sec: number): string {
+  if (sec < 90) return `${Math.max(15, Math.round(sec / 5) * 5)} sec`;
+  return `${Math.round(sec / 60)} min`;
+}
+
+// Honest estimate for the sequential pipeline (one tick = 1 discovery page +
+// up to 5 site crawls + 5 drafts). Also returns the number of ticks to run.
+function planScrape(target: number, combos: number, findEmails: boolean) {
+  const maxReachable = 60 * combos; // Places caps each search at ~60
+  const wanted = Math.max(combos, Math.min(target, maxReachable));
+  const perCombo = Math.min(60, Math.ceil(wanted / combos));
+  const actualTarget = Math.min(wanted, perCombo * combos);
+  const discoverPages = combos * Math.ceil(perCombo / 20);
+
+  let lo = discoverPages * 2.5;
+  let hi = discoverPages * 4;
+  if (findEmails) {
+    lo += actualTarget * 5 + actualTarget * 0.4 * 3; // crawl+MX + ~40% drafted
+    hi += actualTarget * 11 + actualTarget * 0.4 * 5;
+  }
+
+  const crawlRounds = findEmails ? Math.ceil(actualTarget / 5) : 0;
+  const draftRounds = findEmails ? Math.ceil((actualTarget * 0.4) / 5) : 0;
+  const rounds = Math.min(150, discoverPages + crawlRounds + draftRounds + 3);
+
+  return { actualTarget, capped: target > maxReachable, lo, hi, rounds };
+}
+
+function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (rounds: number) => void }) {
   const toast = useToast();
   const [categories, setCategories] = useState<string[]>([DEFAULT_CATEGORIES[0]]);
   const [cities, setCities] = useState<string[]>([DEFAULT_CITIES[0]]);
   const [customCategory, setCustomCategory] = useState("");
+  const [target, setTarget] = useState(50);
+  const [findEmails, setFindEmails] = useState(true);
   const [busy, setBusy] = useState(false);
 
   function toggle(list: string[], setList: (v: string[]) => void, value: string) {
     setList(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
   }
+
+  const allCats = customCategory.trim() ? [...categories, customCategory.trim()] : categories;
+  const combos = Math.max(1, allCats.length * cities.length);
+  const plan = planScrape(target || 1, combos, findEmails);
 
   async function submit() {
     const cats = [...categories];
@@ -506,11 +542,17 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (n:
       const res = await fetch("/api/leads/search", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ categories: cats, cities }),
+        body: JSON.stringify({ categories: cats, cities, maxResults: target, findEmails }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "failed");
-      onQueued(json.enqueued);
+      toast.push({
+        kind: "success",
+        text: findEmails
+          ? `Scraping up to ${plan.actualTarget} companies + finding emails — about ${fmtDuration(plan.lo)}–${fmtDuration(plan.hi)}.`
+          : `Scraping up to ${plan.actualTarget} companies — about ${fmtDuration(plan.lo)}–${fmtDuration(plan.hi)}.`,
+      });
+      onQueued(plan.rounds);
     } catch (e) {
       toast.push({ kind: "error", text: e instanceof Error ? e.message : "Search failed" });
     } finally {
@@ -527,7 +569,7 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (n:
         </div>
         <div className="pm-muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
           Pick who you sell to and where. Each category × city is one Google search (up to ~60 companies).
-          Start small — 1–2 categories and cities — then hit “Find”. We take it from there: emails, fit scores, and draft emails.
+          Start small — 1–2 categories and cities — then hit “Find”. We take it from there.
         </div>
         <div style={{ fontSize: 12.5, fontWeight: 600, margin: "10px 0 6px" }}>Categories</div>
         <div className="pm-chips" style={{ flexWrap: "wrap" }}>
@@ -552,6 +594,53 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (n:
             </button>
           ))}
         </div>
+
+        <div style={{ fontSize: 12.5, fontWeight: 600, margin: "14px 0 6px" }}>How many companies?</div>
+        <div className="pm-chips" style={{ flexWrap: "wrap", alignItems: "center" }}>
+          {COUNT_PRESETS.map((n) => (
+            <button key={n} type="button" className={`pm-chip${target === n ? " on" : ""}`} onClick={() => setTarget(n)}>
+              {n}
+            </button>
+          ))}
+          <input
+            className="input"
+            type="number"
+            min={1}
+            max={3600}
+            value={target}
+            onChange={(e) => setTarget(Math.max(1, Math.min(3600, parseInt(e.target.value || "1"))))}
+            style={{ width: 90, marginLeft: 4 }}
+            aria-label="Custom company count"
+          />
+        </div>
+
+        <label className="field" style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 14 }}>
+          <input type="checkbox" checked={findEmails} onChange={(e) => setFindEmails(e.target.checked)} style={{ marginTop: 3 }} />
+          <span style={{ fontSize: 12.5 }}>
+            <b>Find email addresses</b> — crawl each company’s site for verified emails and draft a cold email.
+            <span className="pm-muted"> Turn off to just collect the company list (much faster); you can enrich any lead later.</span>
+          </span>
+        </label>
+
+        <div className={styles.strip} style={{ marginTop: 14, padding: "10px 12px" }}>
+          <div style={{ fontSize: 12.5, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <Clock size={14} />
+            <span>
+              Estimated <b>{fmtDuration(plan.lo)}–{fmtDuration(plan.hi)}</b> for up to <b>{plan.actualTarget}</b> companies
+              across <b>{combos}</b> search{combos > 1 ? "es" : ""}
+              {findEmails ? " (emails + drafts)" : " (list only)"}.
+            </span>
+          </div>
+          {plan.capped ? (
+            <div className="pm-muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+              Google caps each search at ~60, so this gets about {plan.actualTarget}. Add more cities/categories to scrape more.
+            </div>
+          ) : null}
+          <div className="pm-muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+            Runs in your browser — keep this tab open. It also continues automatically every night.
+          </div>
+        </div>
+
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
           <button type="button" className="pm-btn" onClick={onClose}>Cancel</button>
           <button type="button" className="pm-btn primary" onClick={submit} disabled={busy}>
