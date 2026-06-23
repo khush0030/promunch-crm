@@ -1,9 +1,9 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Search, Play, RefreshCw, Settings2, Send, Trash2, Sparkles, Ban, MailCheck, Plus, X,
-  BookOpen, ChevronRight, MapPin, MailSearch, PenLine, CheckCircle2, History, Gauge, Clock,
+  BookOpen, ChevronRight, ChevronLeft, MapPin, MailSearch, PenLine, CheckCircle2, Gauge, Clock,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "./leads.module.css";
@@ -98,10 +98,11 @@ const CONFIDENCE_PILL: Record<string, string> = { high: "bg-green", medium: "bg-
 
 // Simple workflow tabs instead of one tab per raw status.
 const TABS: { key: string; label: string; statuses: string[] }[] = [
+  { key: "scrapes", label: "Scrapes", statuses: [] },
   { key: "review", label: "To review", statuses: ["drafted"] },
   { key: "sent", label: "Sent", statuses: ["contacted", "replied", "bounced"] },
   { key: "all", label: "All leads", statuses: [] },
-  { key: "skipped", label: "Skipped", statuses: ["no_contacts", "no_website", "suppressed"] },
+  { key: "skipped", label: "Skipped", statuses: ["no_contacts", "no_website", "listed", "suppressed"] },
 ];
 
 const PROCESSING_STATUSES = ["new", "crawling", "ready", "drafting"];
@@ -154,13 +155,13 @@ export default function LeadsPage() {
   const toast = useToast();
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("review");
+  const [tab, setTab] = useState("scrapes");
+  const [selectedSearchId, setSelectedSearchId] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<Lead | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
   const [showStrip, setShowStrip] = useState(true);
   const [running, setRunning] = useState(false);
   const [runProgress, setRunProgress] = useState("");
@@ -179,6 +180,7 @@ export default function LeadsPage() {
       const params = new URLSearchParams();
       const statuses = TABS.find((t) => t.key === tab)?.statuses ?? [];
       if (statuses.length) params.set("statuses", statuses.join(","));
+      if (tab === "scrapes" && selectedSearchId) params.set("searchId", selectedSearchId);
       if (q) params.set("q", q);
       const res = await fetch(`/api/leads?${params}`, { cache: "no-store" });
       if (!res.ok) throw new Error((await res.json()).error || "load failed");
@@ -190,7 +192,7 @@ export default function LeadsPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab, q, toast]);
+  }, [tab, q, selectedSearchId, toast]);
 
   useEffect(() => {
     load();
@@ -241,9 +243,6 @@ export default function LeadsPage() {
           </button>
           <button type="button" className="pm-btn" onClick={() => runPipeline(10)} disabled={running}>
             <Play size={14} /> {running ? `Working ${runProgress}` : "Keep going"}
-          </button>
-          <button type="button" className="pm-btn ghost" onClick={() => setShowHistory(true)}>
-            <History size={14} /> Scrape history
           </button>
           <button type="button" className="pm-btn ghost" onClick={() => setShowGuide(true)}>
             <BookOpen size={14} /> Guide
@@ -296,21 +295,34 @@ export default function LeadsPage() {
                 key={t.key}
                 type="button"
                 className={`pm-tab${tab === t.key ? " on" : ""}`}
-                onClick={() => setTab(t.key)}
+                onClick={() => { setTab(t.key); setSelectedSearchId(null); }}
               >
-                {t.label} ({tabCount(t)})
+                {t.label} ({t.key === "scrapes" ? (data?.searches.length ?? 0) : tabCount(t)})
               </button>
             ))}
           </div>
         </div>
-        <input
-          className={`input ${styles.searchInput}`}
-          placeholder="Search name or domain…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
+        {tab === "scrapes" && !selectedSearchId ? null : (
+          <input
+            className={`input ${styles.searchInput}`}
+            placeholder="Search name or domain…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        )}
       </div>
 
+      {tab === "scrapes" && !selectedSearchId ? (
+        <ScrapeList searches={data?.searches ?? []} onOpen={setSelectedSearchId} />
+      ) : (
+      <>
+      {tab === "scrapes" && selectedSearchId ? (
+        <ScrapeDetailBar
+          search={data?.searches.find((s) => s.id === selectedSearchId)}
+          count={data?.leads.length ?? 0}
+          onBack={() => setSelectedSearchId(null)}
+        />
+      ) : null}
       {data && data.leads.length > 0 ? (
         <>
         <div className={`pm-tablewrap ${styles.tableWrap}`} style={{ opacity: loading ? 0.7 : 1, transition: "opacity 0.2s" }}>
@@ -423,11 +435,15 @@ export default function LeadsPage() {
           </div>
         ) : (
           <div className="pm-empty">
-            {tab === "review"
-              ? "No drafts waiting. Click “Find companies” or “Keep going” — drafts appear here for approval."
-              : "Nothing in this tab yet."}
+            {tab === "scrapes" && selectedSearchId
+              ? "This scrape produced no leads yet — it may still be running."
+              : tab === "review"
+                ? "No drafts waiting. Click “Find companies” or “Keep going” — drafts appear here for approval."
+                : "Nothing in this tab yet."}
           </div>
         )
+      )}
+      </>
       )}
 
       {showSearch && (
@@ -441,10 +457,6 @@ export default function LeadsPage() {
       )}
 
       {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
-
-      {showHistory && (
-        <ScrapeHistoryModal searches={data?.searches ?? []} onClose={() => setShowHistory(false)} />
-      )}
 
       {showSettings && data?.settings && (
         <SettingsModal
@@ -1011,140 +1023,66 @@ function fmtTime(iso: string | null): string {
   });
 }
 
-function ScrapeHistoryModal({ searches, onClose }: { searches: SearchRow[]; onClose: () => void }) {
-  const [openId, setOpenId] = useState<string | null>(null);
-  const totalCompanies = searches.reduce((a, s) => a + (s.results_count ?? 0), 0);
-
-  return (
-    <div className={styles.overlay} onClick={onClose}>
-      <div className={`pm-panel ${styles.modal} ${styles.modalLg}`} onClick={(e) => e.stopPropagation()}>
-        <div className={styles.guideHead}>
-          <div className="card-title">Scrape history</div>
-          <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
-        </div>
-        <p className="pm-muted" style={{ fontSize: 12.5, marginTop: 4 }}>
-          Every Google search the pipeline ran — when it started, how many companies it pulled,
-          and which leads came out. Click a row to see the companies it scraped.
+// Grid of scrape requests — the page's primary view. Click one to drill into
+// the leads it produced (the parent filters the lead table by search_id).
+function ScrapeList({ searches, onOpen }: { searches: SearchRow[]; onOpen: (id: string) => void }) {
+  if (!searches.length) {
+    return (
+      <div className={styles.getStarted}>
+        <div className={styles.getStartedTitle}>No scrapes yet</div>
+        <p className={styles.getStartedText}>
+          Hit “Find companies” at the top to run your first scrape. Every request shows up here —
+          click one to see the companies it pulled and their contacts.
         </p>
-
-        <div className="pm-kpis" style={{ margin: "12px 0 14px" }}>
-          <Kpi label="Searches run" value={searches.length} />
-          <Kpi label="Companies scraped" value={totalCompanies} />
-          <Kpi label="Still running" value={searches.filter((s) => ["pending", "running"].includes(s.status)).length} />
-        </div>
-
-        {searches.length === 0 ? (
-          <div className="pm-empty">No searches yet — hit “Find companies” to start scraping.</div>
-        ) : (
-          <div className="pm-tablewrap">
-            <table className="pm-tbl">
-              <thead>
-                <tr>
-                  <th>Search</th>
-                  <th>Started</th>
-                  <th>Last run</th>
-                  <th style={{ textAlign: "right" }}>Companies</th>
-                  <th>Pages</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {searches.map((s) => {
-                  const sp = SEARCH_STATUS_PILL[s.status] ?? { cls: "bg-gray", label: s.status };
-                  const isOpen = openId === s.id;
-                  return (
-                    <Fragment key={s.id}>
-                      <tr className="clickable" onClick={() => setOpenId(isOpen ? null : s.id)}>
-                        <td>
-                          <ChevronRight
-                            size={13}
-                            style={{ transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s", verticalAlign: "middle", marginRight: 4 }}
-                          />
-                          <span className="pm-b7">{s.category}</span>
-                          <span className="pm-dim"> · {s.city}</span>
-                        </td>
-                        <td className="pm-muted" style={{ fontSize: 12.5 }}>
-                          <Clock size={11} style={{ verticalAlign: "middle", marginRight: 3 }} />
-                          {fmtTime(s.created_at)}
-                        </td>
-                        <td className="pm-muted" style={{ fontSize: 12.5 }}>{fmtTime(s.updated_at)}</td>
-                        <td style={{ textAlign: "right", fontWeight: 600 }}>{s.results_count ?? 0}</td>
-                        <td className="pm-muted">{s.pages_fetched}/3</td>
-                        <td>
-                          <span className={`pm-badge2 ${sp.cls}`}>{sp.label}</span>
-                          {s.error ? <span className="pm-dim" title={s.error}> · {s.error.slice(0, 24)}…</span> : null}
-                        </td>
-                      </tr>
-                      {isOpen && (
-                        <tr>
-                          <td colSpan={6} style={{ background: "var(--pm-surface-2, #faf8f4)", padding: 0 }}>
-                            <ScrapeLeadList searchId={s.id} />
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
+    );
+  }
+  return (
+    <div className={styles.scrapeGrid}>
+      {searches.map((s) => {
+        const sp = SEARCH_STATUS_PILL[s.status] ?? { cls: "bg-gray", label: s.status };
+        const running = ["pending", "running"].includes(s.status);
+        return (
+          <button key={s.id} type="button" className={styles.scrapeCard} onClick={() => onOpen(s.id)}>
+            <div className={styles.scrapeCardTop}>
+              <div className={styles.scrapeTitle}>
+                <span className="pm-b7">{s.category}</span>
+                <span className="pm-dim"> · {s.city}</span>
+              </div>
+              <span className={`pm-badge2 ${sp.cls}`}>{sp.label}</span>
+            </div>
+            <div className={styles.scrapeStat}>
+              <span className={styles.scrapeNum}>{s.results_count ?? 0}</span>
+              <span className="pm-muted">{running ? " companies so far" : " companies"}</span>
+            </div>
+            <div className={styles.scrapeMeta}>
+              <Clock size={12} /> {fmtTime(s.created_at)} · {s.pages_fetched}/3 pages
+            </div>
+            {s.error ? <div className={styles.scrapeErr} title={s.error}>{s.error.slice(0, 70)}</div> : null}
+            <div className={styles.scrapeOpen}>View leads <ChevronRight size={13} /></div>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-// Lazy-loads the exact leads that came from a given search run (by search_id).
-function ScrapeLeadList({ searchId }: { searchId: string }) {
-  const [leads, setLeads] = useState<Lead[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    const params = new URLSearchParams({ searchId, limit: "100" });
-    fetch(`/api/leads?${params}`, { cache: "no-store" })
-      .then(async (r) => {
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error || "load failed");
-        if (alive) setLeads(j.leads as Lead[]);
-      })
-      .catch((e) => alive && setError(e instanceof Error ? e.message : "load failed"));
-    return () => { alive = false; };
-  }, [searchId]);
-
-  if (error) return <div className="pm-muted" style={{ padding: 12, fontSize: 12.5 }}>Could not load: {error}</div>;
-  if (!leads) return <div className="pm-muted" style={{ padding: 12, fontSize: 12.5 }}>Loading companies…</div>;
-  if (!leads.length) return <div className="pm-muted" style={{ padding: 12, fontSize: 12.5 }}>No companies recorded for this search.</div>;
-
+// Header above the lead table when a single scrape is open.
+function ScrapeDetailBar({ search, count, onBack }: { search?: SearchRow; count: number; onBack: () => void }) {
+  const sp = search ? SEARCH_STATUS_PILL[search.status] ?? { cls: "bg-gray", label: search.status } : null;
   return (
-    <div style={{ padding: "8px 12px 12px" }}>
-      <table className="pm-tbl" style={{ margin: 0 }}>
-        <thead>
-          <tr>
-            <th style={{ width: 50 }}>Fit</th>
-            <th>Company</th>
-            <th>Scraped</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {leads.map((l) => {
-            const fp = fitPill(l.fit_score);
-            const sp = STATUS_PILL[l.status] ?? { cls: "bg-gray", label: l.status };
-            return (
-              <tr key={l.id}>
-                <td><span className={`pm-badge2 ${fp.cls}`}>{fp.label}</span></td>
-                <td>
-                  <span className="pm-b7">{l.name}</span>
-                  <span className="pm-dim"> {l.domain ? `· ${l.domain}` : ""}</span>
-                </td>
-                <td className="pm-muted" style={{ fontSize: 12 }}>{fmtTime(l.created_at)}</td>
-                <td><span className={`pm-badge2 ${sp.cls}`}>{sp.label}</span></td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className={styles.detailBar}>
+      <button type="button" className="pm-btn" onClick={onBack}>
+        <ChevronLeft size={14} /> All scrapes
+      </button>
+      {search ? (
+        <div className={styles.detailInfo}>
+          <span className="pm-b7">{search.category}</span>
+          <span className="pm-dim"> · {search.city}</span>
+          <span className="pm-muted">{` — ${count} lead${count === 1 ? "" : "s"} · ${fmtTime(search.created_at)}`}</span>
+          {sp ? <span className={`pm-badge2 ${sp.cls} ${styles.detailPill}`}>{sp.label}</span> : null}
+        </div>
+      ) : null}
     </div>
   );
 }
