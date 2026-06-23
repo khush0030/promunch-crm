@@ -93,11 +93,18 @@ type ChannelOrder = {
   is_creator: boolean | null;
 };
 function channelOf(o: ChannelOrder): string {
+  const sn = o.source_name ?? "";
+  // Marketplaces are their own sales channels — classify by source_name FIRST so a
+  // HYPD order with first_source="direct" is not mislabeled as direct traffic.
   if (o.is_creator) return "HYPD Creator";
+  if (sn === "341128478721" || /hypd/i.test(sn)) return "HYPD Marketplace";
+  // The PROMUNCH Shopify storefront (online store channel) is source_name "web".
+  if (sn === "web") return "PROMUNCH D2C Website";
+  // Other numeric Shopify channel ids = connected marketplaces/apps.
+  if (/^\d+$/.test(sn)) return "Other Marketplace";
+  // Anything left: attribute by first-touch traffic source.
   if (o.first_utm_source) return o.first_utm_source;
   if (o.first_source) return o.first_source;
-  const sn = o.source_name ?? "";
-  if (sn === "341128478721" || /hypd/i.test(sn)) return "HYPD Marketplace";
   if (sn) return sn;
   return "Direct";
 }
@@ -241,11 +248,33 @@ export default function DashboardPage() {
     } catch {
       rows.push({ label: "WhatsApp Cloud API", status: "off", pill: "Unknown" });
     }
-    // Shopify
-    const { count: shop } = await supabase.from("orders").select("id", { count: "exact", head: true }).eq("source", "shopify");
-    rows.push(shop && shop > 0 ? { label: "Shopify", status: "ok", pill: "Connected" } : { label: "Shopify", status: "off", pill: "Not connected" });
-    // Amazon
-    rows.push(amazonOrders && amazonOrders > 0 ? { label: "Amazon SP-API", status: "ok", pill: `${amazonOrders.toLocaleString("en-IN")} orders` } : { label: "Amazon SP-API", status: "off", pill: "Not connected" });
+    // Shopify — live status from the real mirror table (shopify_orders) + freshness.
+    try {
+      const { count: shop } = await supabase.from("shopify_orders").select("*", { count: "exact", head: true });
+      const { data: last } = await supabase.from("shopify_orders").select("shopify_created_at").order("shopify_created_at", { ascending: false }).limit(1);
+      const lastAt = last?.[0]?.shopify_created_at ? new Date(last[0].shopify_created_at as string) : null;
+      const days = lastAt ? Math.floor((Date.now() - lastAt.getTime()) / 86_400_000) : null;
+      rows.push(
+        shop && shop > 0
+          ? { label: "Shopify", status: days != null && days <= 3 ? "ok" : "warn", pill: days === 0 ? "Live · synced today" : days != null ? `Last order ${days}d ago` : "Connected" }
+          : { label: "Shopify", status: "off", pill: "Not connected" }
+      );
+    } catch {
+      rows.push({ label: "Shopify", status: "off", pill: "Unknown" });
+    }
+    // Amazon — read the SP-API mirror endpoint directly (avoids stale-state race
+    // where amazonOrders is still null when detectChannels first runs).
+    try {
+      const a = await (await fetch("/api/amazon")).json();
+      const amz: number = a?.orders?.total ?? 0;
+      rows.push(
+        amz > 0
+          ? { label: "Amazon SP-API", status: "ok", pill: `${amz.toLocaleString("en-IN")} orders` }
+          : { label: "Amazon SP-API", status: "off", pill: "Not connected" }
+      );
+    } catch {
+      rows.push({ label: "Amazon SP-API", status: "off", pill: "Unknown" });
+    }
     // Email
     rows.push({ label: "Email · Resend", status: "ok", pill: "SPF·DKIM·DMARC" });
     return rows;
