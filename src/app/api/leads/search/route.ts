@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   if (denied) return denied;
 
   const body = (await req.json().catch(() => null)) as
-    | { categories?: string[]; cities?: string[]; maxResults?: number; findEmails?: boolean; offer?: string; subjectHint?: string }
+    | { categories?: string[]; cities?: string[]; maxResults?: number; findEmails?: boolean; offer?: string; subjectHint?: string; products?: string[] }
     | null;
   const categories = (body?.categories ?? []).map((s) => s.trim()).filter(Boolean);
   const cities = (body?.cities ?? []).map((s) => s.trim()).filter(Boolean);
@@ -24,11 +24,22 @@ export async function POST(req: NextRequest) {
   const findEmails = body?.findEmails !== false; // default on
   const offer = (body?.offer ?? '').trim().slice(0, 400) || null;
   const subjectHint = (body?.subjectHint ?? '').trim().slice(0, 160) || null;
-  // Overall target across every search; split evenly per category x city.
-  // Places caps each search at 60, so per-search target is clamped to that.
+  const products = Array.isArray(body?.products)
+    ? body.products.map((p) => String(p).trim()).filter(Boolean).slice(0, 8)
+    : null;
+
+  // The user's target is leads WITH a verified email. Only ~40% of crawled
+  // companies yield one, so when finding emails we scan ~2.5x that many
+  // companies (capped at the Places per-search max of 60) to hit the target.
+  const EMAIL_YIELD = 0.4;
   const rawTarget = Number(body?.maxResults);
   const totalTarget = Number.isFinite(rawTarget) && rawTarget > 0 ? Math.floor(rawTarget) : null;
-  const perSearchMax = totalTarget ? Math.min(60, Math.max(1, Math.ceil(totalTarget / combos))) : null;
+  const scanTarget = totalTarget
+    ? findEmails
+      ? Math.ceil(totalTarget / EMAIL_YIELD)
+      : totalTarget
+    : null;
+  const perSearchMax = scanTarget ? Math.min(60, Math.max(1, Math.ceil(scanTarget / combos))) : null;
 
   const rows = categories.flatMap((category) =>
     cities.map((city) => ({
@@ -40,6 +51,7 @@ export async function POST(req: NextRequest) {
       find_emails: findEmails,
       offer,
       subject_hint: subjectHint,
+      products,
       // Re-open a previously-finished search so a new target re-scrapes it.
       next_page_token: null,
       pages_fetched: 0,

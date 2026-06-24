@@ -44,6 +44,7 @@ type Lead = {
   fit_reason: string | null;
   enrichment: Enrichment | null;
   enriched_at: string | null;
+  products: string[] | null;
   error: string | null;
   created_at: string;
   updated_at: string;
@@ -66,6 +67,8 @@ type SearchRow = {
   status: string;
   pages_fetched: number;
   results_count: number;
+  email_count: number;
+  products: string[] | null;
   error: string | null;
   created_at: string;
   updated_at: string;
@@ -127,6 +130,9 @@ const DEFAULT_CATEGORIES = [
 ];
 
 const DEFAULT_CITIES = ["Mumbai", "Delhi", "Bangalore", "Gurgaon", "Pune", "Hyderabad"];
+
+// PROMUNCH products a scrape can be aimed at (drives the cold-email pitch).
+const PRODUCT_OPTIONS = ["Edamame", "Soya Crunchies", "Soya Sticks", "Soya Chips"];
 
 // Plain-language walkthrough of the whole pipeline, shown in the strip + Guide modal.
 const GUIDE_STEPS: { icon: typeof MapPin; title: string; blurb: string }[] = [
@@ -191,6 +197,9 @@ export default function LeadsPage() {
       const statuses = TABS.find((t) => t.key === tab)?.statuses ?? [];
       if (statuses.length) params.set("statuses", statuses.join(","));
       if (tab === "scrapes" && selectedSearchId) params.set("searchId", selectedSearchId);
+      // Every lead must have an email — hide no-email leads everywhere except the
+      // Skipped tab (which exists to show what was filtered out).
+      if (tab !== "skipped") params.set("hasEmail", "1");
       if (q) params.set("q", q);
       const res = await fetch(`/api/leads?${params}`, { cache: "no-store" });
       if (!res.ok) throw new Error((await res.json()).error || "load failed");
@@ -535,27 +544,34 @@ function fmtDuration(sec: number): string {
   return `${Math.round(sec / 60)} min`;
 }
 
-// Honest estimate for the sequential pipeline (one tick = 1 discovery page +
-// up to 5 site crawls + 5 drafts). Also returns the number of ticks to run.
+// Honest estimate. When findEmails is on, `target` is the number of leads WITH
+// an email; ~40% of crawled companies yield one, so we scan ~2.5x that many
+// (capped at the Places 60/search max). One tick = 1 discovery page + up to 5
+// crawls + 5 drafts. Returns expected email-leads, scan size, time, and ticks.
+const EMAIL_YIELD = 0.4;
 function planScrape(target: number, combos: number, findEmails: boolean) {
-  const maxReachable = 60 * combos; // Places caps each search at ~60
-  const wanted = Math.max(combos, Math.min(target, maxReachable));
-  const perCombo = Math.min(60, Math.ceil(wanted / combos));
-  const actualTarget = Math.min(wanted, perCombo * combos);
+  const maxScan = 60 * combos; // Places caps each search at ~60
+  const wantScan = findEmails ? Math.ceil(target / EMAIL_YIELD) : target;
+  const scan = Math.max(combos, Math.min(wantScan, maxScan));
+  const perCombo = Math.min(60, Math.ceil(scan / combos));
+  const actualScan = Math.min(scan, perCombo * combos);
+  const expectedEmails = findEmails ? Math.round(actualScan * EMAIL_YIELD) : actualScan;
   const discoverPages = combos * Math.ceil(perCombo / 20);
 
   let lo = discoverPages * 2.5;
   let hi = discoverPages * 4;
   if (findEmails) {
-    lo += actualTarget * 5 + actualTarget * 0.4 * 3; // crawl+MX + ~40% drafted
-    hi += actualTarget * 11 + actualTarget * 0.4 * 5;
+    lo += actualScan * 5 + expectedEmails * 3; // crawl+MX + drafting the hits
+    hi += actualScan * 11 + expectedEmails * 5;
   }
 
-  const crawlRounds = findEmails ? Math.ceil(actualTarget / 5) : 0;
-  const draftRounds = findEmails ? Math.ceil((actualTarget * 0.4) / 5) : 0;
+  const crawlRounds = findEmails ? Math.ceil(actualScan / 5) : 0;
+  const draftRounds = findEmails ? Math.ceil(expectedEmails / 5) : 0;
   const rounds = Math.min(150, discoverPages + crawlRounds + draftRounds + 3);
 
-  return { actualTarget, capped: target > maxReachable, lo, hi, rounds };
+  // capped = couldn't scan enough companies to likely reach the email target.
+  const capped = findEmails && wantScan > maxScan;
+  return { actualScan, expectedEmails, capped, lo, hi, rounds };
 }
 
 function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (rounds: number) => void }) {
@@ -565,6 +581,7 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (ro
   const [customCategory, setCustomCategory] = useState("");
   const [target, setTarget] = useState(50);
   const [findEmails, setFindEmails] = useState(true);
+  const [products, setProducts] = useState<string[]>([]);
   const [offer, setOffer] = useState("");
   const [subjectHint, setSubjectHint] = useState("");
   const [busy, setBusy] = useState(false);
@@ -589,15 +606,15 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (ro
       const res = await fetch("/api/leads/search", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ categories: cats, cities, maxResults: target, findEmails, offer, subjectHint }),
+        body: JSON.stringify({ categories: cats, cities, maxResults: target, findEmails, products, offer, subjectHint }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "failed");
       toast.push({
         kind: "success",
         text: findEmails
-          ? `Scraping up to ${plan.actualTarget} companies + finding emails — about ${fmtDuration(plan.lo)}–${fmtDuration(plan.hi)}.`
-          : `Scraping up to ${plan.actualTarget} companies — about ${fmtDuration(plan.lo)}–${fmtDuration(plan.hi)}.`,
+          ? `Finding ~${plan.expectedEmails} leads with email (scanning ${plan.actualScan} companies) — about ${fmtDuration(plan.lo)}–${fmtDuration(plan.hi)}.`
+          : `Scraping up to ${plan.actualScan} companies — about ${fmtDuration(plan.lo)}–${fmtDuration(plan.hi)}.`,
       });
       onQueued(plan.rounds);
     } catch (e) {
@@ -648,7 +665,7 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (ro
         </div>
 
         <div className={styles.fieldGroup}>
-          <div className={styles.fieldLabel}>How many companies?</div>
+          <div className={styles.fieldLabel}>{findEmails ? "How many leads (with email)?" : "How many companies?"}</div>
           <div className={styles.countRow}>
             {COUNT_PRESETS.map((n) => (
               <button key={n} type="button" className={`pm-chip${target === n ? " on" : ""}`} onClick={() => setTarget(n)}>
@@ -662,8 +679,19 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (ro
               max={3600}
               value={target}
               onChange={(e) => setTarget(Math.max(1, Math.min(3600, parseInt(e.target.value || "1"))))}
-              aria-label="Custom company count"
+              aria-label="Custom lead count"
             />
+          </div>
+        </div>
+
+        <div className={styles.fieldGroup}>
+          <div className={styles.fieldLabel}>Which product(s) is this for? <span className="pm-muted">(optional — the email leads with these)</span></div>
+          <div className="pm-chips" style={{ flexWrap: "wrap" }}>
+            {PRODUCT_OPTIONS.map((p) => (
+              <button key={p} type="button" className={`pm-chip${products.includes(p) ? " on" : ""}`} onClick={() => toggle(products, setProducts, p)}>
+                {p}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -703,14 +731,16 @@ function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (ro
           <div className={styles.estimateMain}>
             <Clock size={15} className={styles.estimateIcon} />
             <span>
-              Estimated <b>{fmtDuration(plan.lo)}–{fmtDuration(plan.hi)}</b> for up to <b>{plan.actualTarget}</b> companies
-              across <b>{combos}</b> search{combos > 1 ? "es" : ""}
-              {findEmails ? " (emails + drafts)" : " (list only)"}.
+              {findEmails ? (
+                <>Estimated <b>{fmtDuration(plan.lo)}–{fmtDuration(plan.hi)}</b> to find <b>~{plan.expectedEmails} leads with email</b> (scanning <b>{plan.actualScan}</b> companies across <b>{combos}</b> search{combos > 1 ? "es" : ""}).</>
+              ) : (
+                <>Estimated <b>{fmtDuration(plan.lo)}–{fmtDuration(plan.hi)}</b> to list <b>{plan.actualScan}</b> companies across <b>{combos}</b> search{combos > 1 ? "es" : ""}.</>
+              )}
             </span>
           </div>
           {plan.capped ? (
             <div className={styles.estimateNote}>
-              Google caps each search at ~60, so this gets about {plan.actualTarget}. Add more cities or categories to scrape more.
+              Google caps each search at ~60 companies, so this can find about {plan.expectedEmails} with email. Add more cities or categories to get more.
             </div>
           ) : null}
           <div className={styles.estimateNote}>
@@ -877,6 +907,11 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
             </div>
             {lead.fit_reason ? (
               <div className="pm-muted" style={{ fontSize: 12.5, marginTop: 4 }}>{lead.fit_reason}</div>
+            ) : null}
+            {lead.products?.length ? (
+              <div className="pm-muted" style={{ fontSize: 12, marginTop: 4 }}>
+                Pitching: {lead.products.join(", ")}
+              </div>
             ) : null}
           </div>
           <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
@@ -1130,12 +1165,17 @@ function ScrapeList({ searches, onOpen }: { searches: SearchRow[]; onOpen: (id: 
               <span className={`pm-badge2 ${sp.cls}`}>{sp.label}</span>
             </div>
             <div className={styles.scrapeStat}>
-              <span className={styles.scrapeNum}>{s.results_count ?? 0}</span>
-              <span className="pm-muted">{running ? " companies so far" : " companies"}</span>
+              <span className={styles.scrapeNum}>{s.email_count ?? 0}</span>
+              <span className="pm-muted">{running ? " leads with email so far" : " leads with email"}</span>
             </div>
             <div className={styles.scrapeMeta}>
-              <Clock size={12} /> {fmtTime(s.created_at)} · {s.pages_fetched}/3 pages
+              <Clock size={12} /> {fmtTime(s.created_at)} · {s.results_count ?? 0} scanned · {s.pages_fetched}/3 pages
             </div>
+            {s.products?.length ? (
+              <div className={styles.scrapeMeta} style={{ color: "var(--pm-green, #2f7d5b)" }}>
+                {s.products.join(" · ")}
+              </div>
+            ) : null}
             {s.error ? <div className={styles.scrapeErr} title={s.error}>{s.error.slice(0, 70)}</div> : null}
             <div className={styles.scrapeOpen}>View leads <ChevronRight size={13} /></div>
           </button>

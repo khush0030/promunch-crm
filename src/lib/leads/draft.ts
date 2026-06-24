@@ -10,6 +10,7 @@ export interface DraftInput {
   siteSnippet: string | null;
   offer?: string | null; // what we're pitching this round (user-supplied brief)
   subjectHint?: string | null; // optional subject-line direction from the user
+  products?: string[] | null; // specific PROMUNCH products this scrape targets
   enrichment?: { summary?: string; scale?: string; fitAngle?: string; decisionMaker?: string; talkingPoints?: string[] } | null;
   knowledgeBase?: string; // Master KB text; fetched here if omitted
 }
@@ -75,6 +76,7 @@ export async function generateDraft(input: DraftInput): Promise<DraftOutput> {
 
   const e = input.enrichment;
   const userPrompt = [
+    input.products?.length ? `FEATURE THESE PROMUNCH PRODUCTS (lead with them; state their facts ONLY from the KNOWLEDGE BASE): ${input.products.join(', ')}` : null,
     input.offer?.trim() ? `OUTREACH BRIEF (what we are pitching this round): ${input.offer.trim()}` : null,
     input.subjectHint?.trim() ? `SUBJECT HINT: ${input.subjectHint.trim()}` : null,
     `Company: ${input.companyName}`,
