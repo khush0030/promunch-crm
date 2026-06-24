@@ -359,3 +359,42 @@
 @media (max-width: 768px) {
   .scrapeGrid { grid-template-columns: 1fr; }
 }
+
+/* ---- 3-step pipeline progress (lead modal) ---- */
+.steps {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.step {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.stepDone { color: var(--pm-green, #2f7d5b); background: var(--pm-green-soft, rgba(47,125,91,0.08)); border-color: var(--pm-green-border, rgba(47,125,91,0.2)); }
+.stepWait { color: var(--text-3); background: var(--hover, #f6f4ef); }
+.stepSkip { color: var(--text-3); background: transparent; border-color: var(--border, #eee); text-decoration: line-through; }
+
+/* ---- Company intel (enrichment) section ---- */
+.intel {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--hover, #f6f4ef);
+}
+.intelLine { font-size: 13px; line-height: 1.5; margin: 4px 0 10px; }
+.intelGrid { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; line-height: 1.45; }
+.intelKey {
+  display: inline-block;
+  min-width: 92px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.intelPoints { margin: 10px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.intelPoints li { font-size: 12.5px; line-height: 1.45; color: var(--text-2); }

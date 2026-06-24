@@ -11,6 +11,7 @@ import { verifyEmail, scoreConfidence } from './mx';
 import { generateDraft, DRAFT_MODEL } from './draft';
 import { getKnowledgeBase } from './kb';
 import { scoreFit } from './fit';
+import { enrichCompany, CompanyEnrichment } from './enrich-company';
 
 const STALE_CLAIM_MINUTES = 15;
 const MAX_SEARCH_PAGES = 3; // Places caps text search at 60 results
@@ -37,11 +38,12 @@ type LeadRow = {
   site_snippet: string | null;
   offer: string | null;
   subject_hint: string | null;
+  enrichment: CompanyEnrichment | null;
   crawl_attempts: number;
 };
 
 const LEAD_COLUMNS =
-  'id, name, website, domain, city, category, types, site_snippet, offer, subject_hint, crawl_attempts';
+  'id, name, website, domain, city, category, types, site_snippet, offer, subject_hint, enrichment, crawl_attempts';
 
 export async function tick(): Promise<TickSummary> {
   const summary: TickSummary = { discovered: 0, crawled: 0, contactsFound: 0, drafted: 0, errors: [] };
@@ -220,7 +222,10 @@ async function crawlBatch(summary: TickSummary) {
         await markPrimaryContact(lead.id);
       }
 
-      // Fit scoring is best-effort — never fail the crawl over it.
+      const snippet = lead.site_snippet ?? result.snippet;
+
+      // Stage 1 (analysis) + Stage 3 (enrichment) are best-effort — never fail
+      // the crawl over them. Both read the freshly-crawled site text.
       let fit: { score: number; reason: string } | null = null;
       try {
         fit = await scoreFit({
@@ -228,10 +233,23 @@ async function crawlBatch(summary: TickSummary) {
           category: lead.category,
           city: lead.city,
           types: lead.types,
-          siteSnippet: lead.site_snippet ?? result.snippet,
+          siteSnippet: snippet,
         });
       } catch (e) {
         summary.errors.push(`fit ${lead.name}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+
+      let enrichment: CompanyEnrichment | null = null;
+      try {
+        enrichment = await enrichCompany({
+          companyName: lead.name,
+          category: lead.category,
+          city: lead.city,
+          types: lead.types,
+          siteSnippet: snippet,
+        });
+      } catch (e) {
+        summary.errors.push(`enrich ${lead.name}: ${e instanceof Error ? e.message : String(e)}`);
       }
 
       await supabaseAdmin
@@ -240,8 +258,9 @@ async function crawlBatch(summary: TickSummary) {
           status: usable > 0 ? 'ready' : 'no_contacts',
           claimed_at: null,
           crawl_attempts: lead.crawl_attempts + 1,
-          site_snippet: lead.site_snippet ?? result.snippet,
+          site_snippet: snippet,
           ...(fit ? { fit_score: fit.score, fit_reason: fit.reason } : {}),
+          ...(enrichment ? { enrichment, enriched_at: new Date().toISOString() } : {}),
           error: null,
           updated_at: new Date().toISOString(),
         })
@@ -352,9 +371,9 @@ export async function enrichLead(leadId: string): Promise<EnrichResult> {
     await markPrimaryContact(leadId);
   }
 
-  // Best-effort re-score with the freshest snippet.
-  let fit: { score: number; reason: string } | null = null;
+  // Best-effort re-score + re-enrich with the freshest snippet.
   const snippet = l.site_snippet ?? result.snippet;
+  let fit: { score: number; reason: string } | null = null;
   try {
     fit = await scoreFit({
       companyName: l.name,
@@ -365,6 +384,18 @@ export async function enrichLead(leadId: string): Promise<EnrichResult> {
     });
   } catch {
     /* leave fit unchanged */
+  }
+  let enrichment: CompanyEnrichment | null = null;
+  try {
+    enrichment = await enrichCompany({
+      companyName: l.name,
+      category: l.category,
+      city: l.city,
+      types: l.types,
+      siteSnippet: snippet,
+    });
+  } catch {
+    /* leave enrichment unchanged */
   }
 
   // Promote a stuck lead back into the pipeline if we now have a sendable contact.
@@ -386,6 +417,7 @@ export async function enrichLead(leadId: string): Promise<EnrichResult> {
       site_snippet: snippet,
       crawl_attempts: l.crawl_attempts + 1,
       ...(fit ? { fit_score: fit.score, fit_reason: fit.reason } : {}),
+      ...(enrichment ? { enrichment, enriched_at: new Date().toISOString() } : {}),
       error: null,
       claimed_at: null,
       updated_at: new Date().toISOString(),
@@ -447,6 +479,7 @@ async function draftBatch(summary: TickSummary) {
         siteSnippet: lead.site_snippet,
         offer: lead.offer,
         subjectHint: lead.subject_hint,
+        enrichment: lead.enrichment,
         knowledgeBase,
       });
 

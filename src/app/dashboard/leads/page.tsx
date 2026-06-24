@@ -42,11 +42,21 @@ type Lead = {
   status: string;
   fit_score: number | null;
   fit_reason: string | null;
+  enrichment: Enrichment | null;
+  enriched_at: string | null;
   error: string | null;
   created_at: string;
   updated_at: string;
   lead_contacts: Contact[];
   outreach_drafts: Draft[];
+};
+
+type Enrichment = {
+  summary?: string;
+  scale?: string;
+  fitAngle?: string;
+  decisionMaker?: string;
+  talkingPoints?: string[];
 };
 
 type SearchRow = {
@@ -493,6 +503,29 @@ function bestContact(lead: Lead): Contact | null {
   return contacts.find((c) => c.is_primary) ?? contacts[0] ?? null;
 }
 
+// The three pipeline stages, with each lead's progress through them.
+function PipelineSteps({ lead }: { lead: Lead }) {
+  const hasSite = !!lead.website;
+  const analyzed = lead.fit_score != null;
+  const emailFound = (lead.lead_contacts ?? []).some((c) => c.verify_status === "mx_ok");
+  const enriched = !!(lead.enrichment && (lead.enrichment.summary || lead.enrichment.fitAngle));
+  const steps: { label: string; done: boolean; skipped?: boolean }[] = [
+    { label: "1. Analysis", done: analyzed },
+    { label: "2. Email finding", done: emailFound, skipped: !hasSite },
+    { label: "3. Enrichment", done: enriched, skipped: !hasSite },
+  ];
+  return (
+    <div className={styles.steps}>
+      {steps.map((s) => (
+        <div key={s.label} className={`${styles.step} ${s.done ? styles.stepDone : s.skipped ? styles.stepSkip : styles.stepWait}`}>
+          {s.done ? <CheckCircle2 size={13} /> : s.skipped ? <Ban size={13} /> : <Clock size={13} />}
+          <span>{s.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ----------------------------------------------------------- search modal --
 
 const COUNT_PRESETS = [25, 50, 100, 200];
@@ -878,6 +911,25 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
             <MailSearch size={14} /> {busy === "enrich" ? "Enriching…" : "Enrich (find contacts)"}
           </button>
         </div>
+
+        <PipelineSteps lead={lead} />
+
+        {lead.enrichment && (lead.enrichment.summary || lead.enrichment.fitAngle) ? (
+          <div className={styles.intel}>
+            <div className={styles.fieldLabel}>Company intel <span className="pm-muted">(AI enrichment)</span></div>
+            {lead.enrichment.summary ? <p className={styles.intelLine}>{lead.enrichment.summary}</p> : null}
+            <div className={styles.intelGrid}>
+              {lead.enrichment.scale ? <div><span className={styles.intelKey}>Scale</span> {lead.enrichment.scale}</div> : null}
+              {lead.enrichment.decisionMaker ? <div><span className={styles.intelKey}>Who to pitch</span> {lead.enrichment.decisionMaker}</div> : null}
+              {lead.enrichment.fitAngle ? <div><span className={styles.intelKey}>Best angle</span> {lead.enrichment.fitAngle}</div> : null}
+            </div>
+            {lead.enrichment.talkingPoints?.length ? (
+              <ul className={styles.intelPoints}>
+                {lead.enrichment.talkingPoints.map((t, i) => <li key={i}>{t}</li>)}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
 
         <div style={{ fontSize: 12.5, fontWeight: 600, margin: "16px 0 6px" }}>
           Contacts ({(lead.lead_contacts ?? []).length})

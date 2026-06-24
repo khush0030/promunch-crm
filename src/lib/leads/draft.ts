@@ -10,6 +10,7 @@ export interface DraftInput {
   siteSnippet: string | null;
   offer?: string | null; // what we're pitching this round (user-supplied brief)
   subjectHint?: string | null; // optional subject-line direction from the user
+  enrichment?: { summary?: string; scale?: string; fitAngle?: string; decisionMaker?: string; talkingPoints?: string[] } | null;
   knowledgeBase?: string; // Master KB text; fetched here if omitted
 }
 
@@ -72,6 +73,7 @@ export async function generateDraft(input: DraftInput): Promise<DraftOutput> {
   const knowledgeBase = input.knowledgeBase ?? (await getKnowledgeBase());
   const systemPrompt = buildSystemPrompt(knowledgeBase);
 
+  const e = input.enrichment;
   const userPrompt = [
     input.offer?.trim() ? `OUTREACH BRIEF (what we are pitching this round): ${input.offer.trim()}` : null,
     input.subjectHint?.trim() ? `SUBJECT HINT: ${input.subjectHint.trim()}` : null,
@@ -79,6 +81,11 @@ export async function generateDraft(input: DraftInput): Promise<DraftOutput> {
     input.category ? `Business type: ${input.category}` : null,
     input.city ? `City: ${input.city}` : null,
     input.roleHint ? `Recipient inbox type: ${input.roleHint}` : null,
+    // Enrichment (stage 3) — use these to personalise; do not contradict them.
+    e?.summary ? `What they do: ${e.summary}` : null,
+    e?.scale ? `Scale: ${e.scale}` : null,
+    e?.fitAngle ? `Best angle for them: ${e.fitAngle}` : null,
+    e?.talkingPoints?.length ? `Specific hooks to reference (pick one): ${e.talkingPoints.join('; ')}` : null,
     input.siteSnippet ? `From their website: ${input.siteSnippet}` : null,
   ]
     .filter(Boolean)
