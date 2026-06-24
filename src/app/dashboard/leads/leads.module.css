@@ -408,6 +408,20 @@
   border: 1px solid var(--pm-green-border, rgba(47,125,91,0.25));
   background: var(--pm-green-soft, rgba(47,125,91,0.06));
 }
-.replyHead { font-size: 12.5px; }
+.replyHead { font-size: 12.5px; display: flex; align-items: center; }
+.replyDelete {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.replyDelete:hover { background: var(--hover); color: var(--terra, #b4532f); }
 .replySubject { font-size: 12.5px; font-weight: 600; margin-top: 3px; }
 .replyBody { font-size: 12.5px; line-height: 1.5; margin-top: 5px; white-space: pre-wrap; color: var(--text-2); }

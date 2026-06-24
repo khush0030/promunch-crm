@@ -1053,6 +1053,15 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
                   <div className={styles.replyHead}>
                     <span className="pm-b7">{r.from_name || r.from_email || "Unknown"}</span>
                     <span className="pm-dim"> · {new Date(r.received_at).toLocaleString()}</span>
+                    <button
+                      type="button"
+                      className={styles.replyDelete}
+                      title="Delete this reply"
+                      disabled={busy !== null}
+                      onClick={() => call("delreply", `/api/leads/replies/${r.id}`, { method: "DELETE" })}
+                    >
+                      <X size={12} />
+                    </button>
                   </div>
                   {r.subject ? <div className={styles.replySubject}>{r.subject}</div> : null}
                   {r.body_text ? <div className={styles.replyBody}>{r.body_text}</div> : null}
@@ -1134,7 +1143,19 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
           </div>
         )}
 
-        <div style={{ borderTop: "1px solid var(--border, #eee)", marginTop: 18, paddingTop: 12, display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ borderTop: "1px solid var(--border, #eee)", marginTop: 18, paddingTop: 12, display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+          <button
+            type="button" className="pm-btn ghost"
+            disabled={busy !== null || !(lead.lead_contacts ?? []).length}
+            title="Inject a labelled test reply so you can see the Replies flow"
+            onClick={async () => {
+              if (await call("sim", `/api/leads/${lead.id}/simulate-reply`, { method: "POST" })) {
+                toast.push({ kind: "success", text: "Test reply added — see the Replies tab." });
+              }
+            }}
+          >
+            <MailCheck size={14} /> {busy === "sim" ? "Adding…" : "Simulate reply (test)"}
+          </button>
           <button
             type="button" className="pm-btn"
             disabled={busy !== null || lead.status === "suppressed"}
