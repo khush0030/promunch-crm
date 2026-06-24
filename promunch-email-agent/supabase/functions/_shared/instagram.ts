@@ -102,6 +102,9 @@ export interface DiscoveryResult {
   media_count: number | null;
   // engagement rate over the most recent posts, as a fraction (0–1)
   engagement_rate: number | null;
+  biography: string | null;
+  // recent post captions — used for AI niche/brand-fit scoring
+  captions: string[];
 }
 
 // Business Discovery — OFFICIAL, free public metrics for ANY public business /
@@ -109,13 +112,15 @@ export interface DiscoveryResult {
 // collab inquiry (followers + recent engagement) against the target band.
 // Returns nulls on any failure — scoring is best-effort, never blocks a reply.
 export async function businessDiscovery(handle: string): Promise<DiscoveryResult> {
-  const empty: DiscoveryResult = { followers: null, media_count: null, engagement_rate: null };
+  const empty: DiscoveryResult = {
+    followers: null, media_count: null, engagement_rate: null, biography: null, captions: [],
+  };
   const user = (handle ?? "").replace(/^@/, "").trim();
   if (!user) return empty;
   try {
     const fields =
-      `business_discovery.username(${user}){followers_count,media_count,` +
-      `media.limit(12){like_count,comments_count}}`;
+      `business_discovery.username(${user}){followers_count,media_count,biography,` +
+      `media.limit(12){like_count,comments_count,caption}}`;
     const res = await fetch(
       `${GRAPH}/${igUserId()}?fields=${encodeURIComponent(fields)}&access_token=${encodeURIComponent(token())}`,
     );
@@ -133,7 +138,17 @@ export async function businessDiscovery(handle: string): Promise<DiscoveryResult
       );
       er = totalEng / media.length / followers;
     }
-    return { followers, media_count: typeof bd.media_count === "number" ? bd.media_count : null, engagement_rate: er };
+    const captions = media
+      .map((m) => (m.caption ?? "").toString().trim())
+      .filter(Boolean)
+      .slice(0, 8);
+    return {
+      followers,
+      media_count: typeof bd.media_count === "number" ? bd.media_count : null,
+      engagement_rate: er,
+      biography: (bd.biography ?? null) || null,
+      captions,
+    };
   } catch {
     return empty;
   }

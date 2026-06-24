@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Send, Bot, User as UserIcon, Search, RefreshCw, Instagram, Handshake,
-  ShoppingBag, Ban, HelpCircle, Settings as SettingsIcon, ChevronLeft, ExternalLink,
+  ShoppingBag, Ban, HelpCircle, Settings as SettingsIcon, ChevronLeft, ExternalLink, Sparkles,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "./instagram.module.css";
@@ -22,6 +22,11 @@ type Thread = {
   followers: number | null;
   engagement_rate: number | null;
   band_fit: boolean | null;
+  fit_score: number | null;
+  niche_score: number | null;
+  fit_reason: string | null;
+  collab_draft: string | null;
+  biography: string | null;
   last_activity_at: string | null;
   last_message_snippet: string | null;
   unread_count: number;
@@ -79,6 +84,7 @@ export default function InstagramPage() {
   const [activeThread, setActiveThread] = useState<Thread | null>(null);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadThreads = useCallback(async () => {
@@ -136,6 +142,23 @@ export default function InstagramPage() {
       setSending(false);
     }
   }, [activeId, reply, openThread, notifyErr]);
+
+  const analyze = useCallback(async () => {
+    if (!activeId) return;
+    setAnalyzing(true);
+    try {
+      const r = await fetch(`/api/instagram/threads/${activeId}/analyze`, { method: "POST" });
+      const d = await r.json();
+      if (!r.ok || d.ok === false) throw new Error(d.error || "analyze failed");
+      await openThread(activeId);
+      loadThreads();
+      push({ kind: "success", text: `Scored ${d.fit_score}/100${d.discovery_ok ? "" : " (public metrics unavailable)"}` });
+    } catch (e) {
+      notifyErr("Analyze failed", e);
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [activeId, openThread, loadThreads, push, notifyErr]);
 
   const patchThread = useCallback(async (id: string, patch: Record<string, unknown>) => {
     try {
@@ -239,6 +262,9 @@ export default function InstagramPage() {
                   </div>
                   <div className={styles.snippet}>{t.last_message_snippet || "—"}</div>
                   <div className={styles.threadMeta}>
+                    {t.classification === "collab" && t.fit_score != null && (
+                      <span className={styles.scorePill}>{t.fit_score}</span>
+                    )}
                     {t.classification === "collab" && t.collab_stage && (
                       <span className={styles.stagePill}>{STAGE_LABEL[t.collab_stage]}</span>
                     )}
@@ -277,6 +303,40 @@ export default function InstagramPage() {
                     </div>
                   </div>
                 </div>
+
+                {activeThread.classification === "collab" && (
+                  <div className={styles.collabPanel}>
+                    <div className={styles.collabScoreRow}>
+                      {activeThread.fit_score != null ? (
+                        <span className={styles.scoreBadge}>{activeThread.fit_score}<small>/100</small></span>
+                      ) : (
+                        <span className={styles.scoreNone}>Not scored</span>
+                      )}
+                      <div className={styles.collabMetrics}>
+                        {activeThread.followers != null && <span>{fmtNum(activeThread.followers)} followers</span>}
+                        {activeThread.engagement_rate != null && <span>{(activeThread.engagement_rate * 100).toFixed(1)}% ER</span>}
+                        {activeThread.band_fit != null && (
+                          <span className={activeThread.band_fit ? styles.fitYes : styles.fitNo}>
+                            {activeThread.band_fit ? "fits band" : "out of band"}
+                          </span>
+                        )}
+                      </div>
+                      <button className="pm-btn" onClick={analyze} disabled={analyzing}>
+                        <Sparkles size={15} /> {analyzing ? "Analyzing…" : activeThread.fit_score != null ? "Re-analyze" : "Analyze & draft"}
+                      </button>
+                    </div>
+                    {activeThread.fit_reason && <div className={styles.fitReason}>{activeThread.fit_reason}</div>}
+                    {activeThread.collab_draft && (
+                      <div className={styles.draftBox}>
+                        <div className={styles.draftLabel}>Suggested barter terms (review before sending)</div>
+                        <div className={styles.draftText}>{activeThread.collab_draft}</div>
+                        <button className="pm-btn" onClick={() => setReply(activeThread.collab_draft || "")}>
+                          Use as reply
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {activeThread.classification === "collab" && (
                   <div className={styles.stageBar}>

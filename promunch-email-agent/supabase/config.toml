@@ -122,3 +122,6 @@ verify_jwt = false                    # invoked by ig-webhook / ig-jobs-tick fun
 
 [functions.ig-jobs-tick]
 verify_jwt = false                    # invoked by scheduled cron
+
+[functions.ig-analyze]
+verify_jwt = false                    # called function-to-function by the Next dashboard route

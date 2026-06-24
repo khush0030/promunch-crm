@@ -1,6 +1,27 @@
 # Instagram Inbound DM Automation + Collab CRM — Plan
 
-Status: **Phase 1 BUILT (2026-06-24) — not yet deployed (Meta app + secrets pending)**
+Status: **Phase 1 + Phase 2 BUILT (2026-06-24) — not yet deployed (Meta app + secrets pending)**
+
+## Phase 2 — what shipped (code complete, passes tsc + eslint)
+
+Collab scoring + AI barter-terms draft for human approval:
+- `ig-analyze/` edge fn — Business Discovery enrich (followers, ER, bio, recent captions — no
+  scraping) → composite **fit score 0–100** (follower-band fit 0–40 + engagement rate 0–35 +
+  AI niche match 0–25) → AI-drafted barter terms grounded in `ig_settings.barter_terms` + Master
+  KB. Writes score + reason + draft to `ig_threads`. (Avg reel views excluded — not exposed by
+  Business Discovery for arbitrary accounts; noted in `fit_reason`.)
+- `_shared/instagram.ts` — `businessDiscovery` extended to return biography + recent captions.
+- Migration `20260624170000_instagram_collab_scoring.sql` — adds `biography`, `niche_score`,
+  `fit_score`, `fit_reason`, `collab_draft`, `collab_draft_at` to `ig_threads`.
+- Next API: `api/instagram/threads/[id]/analyze` (POST, proxies to ig-analyze).
+- UI: collab threads show a score badge + metrics + "Analyze & draft" button + the AI barter
+  draft with "Use as reply"; the Collabs tab is ranked by `fit_score`.
+- `config.toml` — `ig-analyze` registered (verify_jwt=false).
+
+Deploy: apply the new migration, then `supabase functions deploy ig-analyze` (same Meta/OpenAI
+secrets as Phase 1).
+
+
 
 ## Phase 1 — what shipped (code complete, passes tsc + eslint)
 

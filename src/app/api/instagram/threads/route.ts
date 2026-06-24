@@ -32,8 +32,11 @@ export async function GET(req: NextRequest) {
   let query = supabaseAdmin
     .from('ig_threads')
     .select('*', { count: 'exact' })
-    .order('last_activity_at', { ascending: false })
     .range(offset, offset + limit - 1);
+
+  // The collab tab is a pipeline ranked by fit; everything else is recency-first.
+  if (tab === 'collab') query = query.order('fit_score', { ascending: false, nullsFirst: false }).order('last_activity_at', { ascending: false });
+  else query = query.order('last_activity_at', { ascending: false });
 
   query = (TAB_FILTER[tab] ?? TAB_FILTER.inbox)(query);
   if (classification && CLASSES.includes(classification)) query = query.eq('classification', classification);

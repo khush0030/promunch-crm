@@ -85,6 +85,22 @@
 .convoHandle { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-size: 15px; color: var(--ink, #2b2b2b); text-decoration: none; }
 .convoSub { font-size: 12px; color: var(--muted, #7a7268); }
 
+/* collab analysis panel */
+.collabPanel { padding: 12px 16px; border-bottom: var(--card-border, 1px solid #eadfce); display: flex; flex-direction: column; gap: 8px; background: var(--hover, #f5efe4); }
+.collabScoreRow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.scoreBadge { font-size: 22px; font-weight: 800; color: var(--accent, #c77d4a); line-height: 1; }
+.scoreBadge small { font-size: 12px; font-weight: 600; color: var(--muted, #7a7268); }
+.scoreNone { font-size: 13px; color: var(--muted, #7a7268); font-style: italic; }
+.collabMetrics { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--ink, #2b2b2b); }
+.collabMetrics span { background: var(--card-bg, #fff); border: var(--card-border, 1px solid #eadfce); border-radius: 999px; padding: 2px 9px; }
+.collabScoreRow > button { margin-left: auto; }
+.fitReason { font-size: 12px; color: var(--muted, #7a7268); line-height: 1.5; }
+.draftBox { background: var(--card-bg, #fff); border: var(--card-border, 1px solid #eadfce); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.draftLabel { font-size: 12px; font-weight: 700; color: var(--ink, #2b2b2b); }
+.draftText { font-size: 13px; white-space: pre-wrap; color: var(--ink, #2b2b2b); line-height: 1.55; }
+.draftBox > button { align-self: flex-start; }
+.scorePill { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--accent, #c77d4a); color: #fff; }
+
 .stageBar { display: flex; align-items: center; gap: 6px; padding: 10px 16px; border-bottom: var(--card-border, 1px solid #eadfce); flex-wrap: wrap; overflow-x: auto; }
 .stageBarLabel { font-size: 12px; font-weight: 600; color: var(--muted, #7a7268); }
 .stageStep { font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--card-border, #eadfce); background: transparent; cursor: pointer; color: var(--muted, #7a7268); }
