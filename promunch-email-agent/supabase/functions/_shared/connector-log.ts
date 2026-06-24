@@ -15,7 +15,8 @@ export type ConnectorId =
   | "shopify_slack"    // Shopify order cards posted to Slack
   | "gmail_watch"      // the 7-day Gmail Pub/Sub watch
   | "whatsapp"         // WhatsApp Cloud API inbound webhook
-  | "shopify_wa";      // Shopify → WhatsApp journeys
+  | "shopify_wa"       // Shopify → WhatsApp journeys
+  | "instagram";       // Instagram inbound DM / comment automation
 
 export type ConnectorLevel = "info" | "warn" | "error";
 
@@ -89,6 +90,7 @@ export function slackChannelFor(connector: string): string | undefined {
   const wa = Deno.env.get("WA_HEALTH_CHANNEL_ID");
   const def = Deno.env.get("SLACK_CHANNEL_ID");
   if (connector === "whatsapp" || connector === "shopify_wa") return wa ?? def;
+  if (connector === "instagram") return Deno.env.get("IG_SLACK_CHANNEL_ID") ?? def;
   return def;
 }
 
@@ -137,6 +139,7 @@ const CONNECTOR_LABEL: Record<string, string> = {
   gmail_watch: "Gmail watch",
   whatsapp: "WhatsApp",
   shopify_wa: "WhatsApp journeys",
+  instagram: "Instagram DMs",
 };
 
 function severityBits(sev: Severity): { emoji: string; expectedLine: (expected: boolean) => string } {

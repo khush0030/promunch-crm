@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Mail,
   MessageCircle,
+  Instagram,
   CircleCheck,
   Store,
   Package,
@@ -48,6 +49,7 @@ const groups: NavGroup[] = [
     items: [
       { href: "/dashboard/support-emails", label: "Support Emails", tour: "support-emails", countKey: "supportPending", icon: <Mail /> },
       { href: "/dashboard/whatsapp", label: "WhatsApp", tour: "whatsapp", countKey: "whatsappFailed", icon: <MessageCircle /> },
+      { href: "/dashboard/instagram", label: "Instagram", icon: <Instagram /> },
     ],
   },
   {

@@ -110,3 +110,15 @@ verify_jwt = false                    # Nitro uses caller-defined Authorization 
 
 [functions.amazon-poll]
 verify_jwt = false                    # invoked by scheduled cron (SP-API sync)
+
+[functions.ig-webhook]
+verify_jwt = false                    # Meta verifies via X-Hub-Signature-256
+
+[functions.ig-send]
+verify_jwt = false                    # called function-to-function with the service key
+
+[functions.ig-ai-reply]
+verify_jwt = false                    # invoked by ig-webhook / ig-jobs-tick function-to-function
+
+[functions.ig-jobs-tick]
+verify_jwt = false                    # invoked by scheduled cron
