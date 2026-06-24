@@ -102,25 +102,29 @@ export async function POST(req: NextRequest) {
     draftId = draft?.id ?? null;
   }
 
-  // Store the reply (idempotent on inbound id).
-  const { error: insErr } = await supabaseAdmin
-    .from('outreach_replies')
-    .upsert(
-      {
-        lead_id: contact?.lead_id ?? null,
-        draft_id: draftId,
-        contact_id: contact?.id ?? null,
-        from_email: from.email,
-        from_name: from.name,
-        subject,
-        body_text: bodyText,
-        body_html: bodyHtml,
-        resend_inbound_id: inboundId,
-        in_reply_to: inReplyTo,
-        raw: data,
-      },
-      { onConflict: 'resend_inbound_id', ignoreDuplicates: true },
-    );
+  // Dedup by inbound id, then plain insert (a partial unique index isn't usable
+  // as an ON CONFLICT target, so we check-then-insert instead of upserting).
+  if (inboundId) {
+    const { data: dup } = await supabaseAdmin
+      .from('outreach_replies')
+      .select('id')
+      .eq('resend_inbound_id', inboundId)
+      .maybeSingle();
+    if (dup) return NextResponse.json({ received: true, duplicate: true });
+  }
+  const { error: insErr } = await supabaseAdmin.from('outreach_replies').insert({
+    lead_id: contact?.lead_id ?? null,
+    draft_id: draftId,
+    contact_id: contact?.id ?? null,
+    from_email: from.email,
+    from_name: from.name,
+    subject,
+    body_text: bodyText,
+    body_html: bodyHtml,
+    resend_inbound_id: inboundId,
+    in_reply_to: inReplyTo,
+    raw: data,
+  });
   if (insErr) {
     // Don't 500 the provider — log via Slack and acknowledge.
     await postSlack(`:warning: outreach reply insert failed for ${from.email}: ${insErr.message}`);
