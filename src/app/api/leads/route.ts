@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabaseAdmin
     .from('leads')
-    .select('*, lead_contacts(*), outreach_drafts(*)', { count: 'exact' })
+    .select('*, lead_contacts(*), outreach_drafts(*), outreach_replies(*)', { count: 'exact' })
     .order('fit_score', { ascending: false, nullsFirst: false })
     .order('updated_at', { ascending: false })
     .range(offset, offset + limit - 1);

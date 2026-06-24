@@ -398,3 +398,16 @@
 }
 .intelPoints { margin: 10px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
 .intelPoints li { font-size: 12.5px; line-height: 1.45; color: var(--text-2); }
+
+/* ---- Replies (lead modal) ---- */
+.replies { margin-top: 16px; }
+.replyCard {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--pm-green-border, rgba(47,125,91,0.25));
+  background: var(--pm-green-soft, rgba(47,125,91,0.06));
+}
+.replyHead { font-size: 12.5px; }
+.replySubject { font-size: 12.5px; font-weight: 600; margin-top: 3px; }
+.replyBody { font-size: 12.5px; line-height: 1.5; margin-top: 5px; white-space: pre-wrap; color: var(--text-2); }

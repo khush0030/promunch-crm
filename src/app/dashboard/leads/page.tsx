@@ -50,6 +50,16 @@ type Lead = {
   updated_at: string;
   lead_contacts: Contact[];
   outreach_drafts: Draft[];
+  outreach_replies: Reply[];
+};
+
+type Reply = {
+  id: string;
+  from_email: string | null;
+  from_name: string | null;
+  subject: string | null;
+  body_text: string | null;
+  received_at: string;
 };
 
 type Enrichment = {
@@ -113,6 +123,7 @@ const CONFIDENCE_PILL: Record<string, string> = { high: "bg-green", medium: "bg-
 const TABS: { key: string; label: string; statuses: string[] }[] = [
   { key: "scrapes", label: "Scrapes", statuses: [] },
   { key: "review", label: "To review", statuses: ["drafted"] },
+  { key: "replies", label: "Replies", statuses: ["replied"] },
   { key: "sent", label: "Sent", statuses: ["contacted", "replied", "bounced"] },
   { key: "all", label: "All leads", statuses: [] },
   { key: "skipped", label: "Skipped", statuses: ["no_contacts", "no_website", "listed", "suppressed"] },
@@ -458,7 +469,9 @@ export default function LeadsPage() {
               ? "This scrape produced no leads yet — it may still be running."
               : tab === "review"
                 ? "No drafts waiting. Click “Find companies” or “Keep going” — drafts appear here for approval."
-                : "Nothing in this tab yet."}
+                : tab === "replies"
+                  ? "No replies yet. When someone replies to a cold email, it lands here automatically."
+                  : "Nothing in this tab yet."}
           </div>
         )
       )}
@@ -1027,6 +1040,26 @@ function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => vo
             <Plus size={14} /> Add
           </button>
         </div>
+
+        {(lead.outreach_replies ?? []).length ? (
+          <div className={styles.replies}>
+            <div className={styles.fieldLabel}>
+              <MailCheck size={13} /> Replies ({lead.outreach_replies.length})
+            </div>
+            {[...lead.outreach_replies]
+              .sort((a, b) => +new Date(b.received_at) - +new Date(a.received_at))
+              .map((r) => (
+                <div key={r.id} className={styles.replyCard}>
+                  <div className={styles.replyHead}>
+                    <span className="pm-b7">{r.from_name || r.from_email || "Unknown"}</span>
+                    <span className="pm-dim"> · {new Date(r.received_at).toLocaleString()}</span>
+                  </div>
+                  {r.subject ? <div className={styles.replySubject}>{r.subject}</div> : null}
+                  {r.body_text ? <div className={styles.replyBody}>{r.body_text}</div> : null}
+                </div>
+              ))}
+          </div>
+        ) : null}
 
         <div style={{ fontSize: 12.5, fontWeight: 600, margin: "18px 0 6px" }}>Outreach email</div>
         {activeDraft ? (
