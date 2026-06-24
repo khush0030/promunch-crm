@@ -1,6 +1,31 @@
 # Instagram Inbound DM Automation + Collab CRM — Plan
 
 Status: **Phase 1 + Phase 2 BUILT (2026-06-24) — not yet deployed (Meta app + secrets pending)**
+Phase 3: **NOT started (deferred by owner 2026-06-24).**
+
+## ▶ NEXT TIME — Phase 3 pickup checklist
+
+Phase 3 = manual-send assist + email fallback for any *cold* scored creator (someone we found /
+scored who has NOT messaged us, so the official API can't DM them). Start here:
+
+1. **Manual-send assist UI** — on a collab thread the bot can't legally DM (no inbound), show a
+   "copy pitch + open profile" panel: the `collab_draft` text with a copy button + a link to
+   `instagram.com/<handle>`. Ops sends it by hand from the IG app. (No new send path — official
+   API still can't cold-DM.)
+2. **Email fallback** — if a creator's bio exposes an email (parse it in `ig-analyze` from
+   `biography`, store on a new `ig_threads.bio_email` column), offer "send via email" reusing the
+   existing Resend outreach path (see [[email-marketing-sender]] / leads `drafts/[id]/send`).
+3. **(Optional) seed-list intake** — let ops paste handles to score in bulk via `ig-analyze`
+   without waiting for an inbound DM. New table `ig_prospects` or reuse `ig_threads` with a
+   `source='seed'` flag. Only if outbound prospecting is wanted later.
+
+Everything Phase 3 needs already exists: `ig-analyze` produces the draft + score, `businessDiscovery`
+returns the biography. No Meta-app changes — Phase 3 is pure dashboard/email code.
+
+Before deploy, also: give the two `20260624170000_*` migrations distinct timestamps if using
+`supabase db push` (collab_scoring shares a prefix with an unrelated outreach_replies migration).
+
+
 
 ## Phase 2 — what shipped (code complete, passes tsc + eslint)
 
