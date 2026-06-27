@@ -28,7 +28,7 @@ type Data = {
 
 type Card = {
   id: string; name: string; status: string; sent: number; deliveredPct: number; readPct: number;
-  failed: number; orders: number; revenue: number; cost: number; roi: number | null; grade: string; verdict: string;
+  failed: number; clicks: number; orders: number; revenue: number; cost: number; roi: number | null; grade: string; verdict: string;
 };
 type Hints = {
   bestTime: { hour: number; label: string; note: string } | null;
@@ -265,7 +265,8 @@ function CampaignCards({ cards }: { cards: Card[] }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
               <Mini label="Sent" value={num(c.sent)} />
               <Mini label="Read" value={`${c.readPct}%`} />
-              <Mini label="Orders" value={num(c.orders)} />
+              {c.clicks > 0 ? <Mini label="Clicks" value={num(c.clicks)} /> : <Mini label="Orders" value={num(c.orders)} />}
+              {c.clicks > 0 && <Mini label="Orders" value={num(c.orders)} />}
               <Mini label="Revenue" value={inr(c.revenue)} />
               <Mini label="Cost" value={inr(c.cost)} />
               <Mini label="Return" value={c.roi != null ? `${c.roi.toFixed(1)}x` : "—"} tone={c.roi != null && c.roi < 1 ? "var(--pm-terra)" : undefined} />

@@ -13,6 +13,7 @@
 import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
 import { sendTemplate, TemplateComponent } from "../_shared/whatsapp.ts";
+import { mintCode } from "../_shared/links.ts";
 import { alertWaSendFailure, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
 
 const THROTTLE_MS = 120;
@@ -93,6 +94,14 @@ Deno.serve(async (req) => {
     }
 
     const components = buildComponents(tpl, contactVars, c.name);
+    // Per-recipient click tracking: if the template has a dynamic URL button
+    // (base SITE_URL/r/, needs Meta approval) and the campaign carries a
+    // destination in _track_url, append a tracked code so clicks are
+    // attributable to this campaign + contact. Inert (no-op) otherwise.
+    const trackUrl = typeof contactVars._track_url === "string" ? contactVars._track_url
+      : (typeof baseVars._track_url === "string" ? baseVars._track_url : null);
+    const btn = await buildTrackedButton(sb, tpl, trackUrl, { contact_id: c.id, campaign_id: campaignId });
+    if (btn) components.push(btn);
     let res;
     try {
       res = await sendTemplate(c.wa_id, tpl.name, tpl.language, components);
@@ -244,6 +253,26 @@ async function personalizeVars(
 // Meta error #132012 ("Parameter format does not match") fires when we OMIT the
 // header component for a media-header template — so it must always be sent.
 // A value containing the {name} token is personalised with the contact's name.
+// Build a tracked dynamic-URL button component for one recipient. Returns null
+// unless the template has a URL button whose stored URL is dynamic (contains a
+// {{n}} placeholder or our /r/ base) AND a track destination is given.
+async function buildTrackedButton(
+  sb: ReturnType<typeof db>,
+  tpl: { buttons?: unknown },
+  trackUrl: string | null,
+  meta: { contact_id: string; campaign_id: string },
+): Promise<TemplateComponent | null> {
+  if (!trackUrl) return null;
+  const buttons = Array.isArray(tpl.buttons) ? (tpl.buttons as { type?: string; url?: string }[]) : [];
+  const idx = buttons.findIndex(
+    (b) => (b.type ?? "").toUpperCase() === "URL" && typeof b.url === "string" && (b.url.includes("/r/") || b.url.includes("{{")),
+  );
+  if (idx < 0) return null;
+  const c = await mintCode(sb, trackUrl, meta);
+  if (!c) return null;
+  return { type: "button", sub_type: "url", index: String(idx), parameters: [{ type: "text", text: c }] } as unknown as TemplateComponent;
+}
+
 function buildComponents(
   tpl: { header_type?: string | null; header_media_url?: string | null },
   vars: Record<string, string>,

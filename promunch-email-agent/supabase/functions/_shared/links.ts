@@ -23,6 +23,31 @@ export interface LinkMeta {
   sent_by?: string | null;
 }
 
+// Mint a single tracked short link and return just its code (for dynamic URL
+// template buttons, where Meta appends the code to the approved base
+// SITE_URL/r/). Returns null on any failure so the caller can fall back.
+export async function mintCode(
+  sb: ReturnType<typeof db>,
+  target: string,
+  meta: LinkMeta & { campaign_id?: string | null },
+): Promise<string | null> {
+  try {
+    if (!target) return null;
+    const c = code();
+    const { error } = await sb.from("wa_short_links").insert({
+      code: c,
+      target_url: target,
+      contact_id: meta.contact_id ?? null,
+      journey_run_id: meta.journey_run_id ?? null,
+      // campaign attribution rides in sent_by so analytics can group clicks.
+      sent_by: meta.campaign_id ? `campaign:${meta.campaign_id}` : (meta.sent_by ?? null),
+    });
+    return error ? null : c;
+  } catch {
+    return null;
+  }
+}
+
 // Replace every URL in `text` with a tracked short link. Returns text unchanged
 // on any failure (missing SITE_URL, table not migrated, db error, no URLs).
 export async function wrapLinks(
