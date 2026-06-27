@@ -38,7 +38,11 @@ type Ord = {
   last_utm_campaign: string | null;
 };
 
-const isWa = (s: string | null) => !!s && s.toLowerCase().includes("whatsapp");
+const hasWa = (s: string | null) => !!s && s.toLowerCase().includes("whatsapp");
+// A touch counts as WhatsApp if either its source or medium mentions whatsapp.
+// (appendUtm sets source=whatsapp; some templates carry medium=whatsapp instead.)
+const waLastTouch = (o: Ord) => hasWa(o.last_utm_source) || hasWa(o.last_utm_medium);
+const waFirstTouch = (o: Ord) => hasWa(o.first_utm_source) || hasWa(o.first_utm_medium);
 
 export async function GET(req: NextRequest) {
   const days = Math.min(365, Math.max(1, Number(req.nextUrl.searchParams.get("days")) || 30));
@@ -60,12 +64,12 @@ export async function GET(req: NextRequest) {
     (o) => !o.is_creator && o.financial_status !== "refunded" && o.financial_status !== "voided",
   );
   // last-touch wins for attribution; fall back to first-touch.
-  const wa = live.filter((o) => isWa(o.last_utm_source) || isWa(o.first_utm_source));
+  const wa = live.filter((o) => waLastTouch(o) || waFirstTouch(o));
 
   const byCampaign = new Map<string, { orders: number; revenue: number; medium: string }>();
   let totalOrders = 0, totalRevenue = 0;
   for (const o of wa) {
-    const lastWins = isWa(o.last_utm_source);
+    const lastWins = waLastTouch(o);
     const campaign = (lastWins ? o.last_utm_campaign : o.first_utm_campaign) || "(no campaign tag)";
     const medium = (lastWins ? o.last_utm_medium : o.first_utm_medium) || "—";
     const rev = Number(o.total_price || 0);
