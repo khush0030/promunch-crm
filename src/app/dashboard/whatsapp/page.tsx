@@ -1782,6 +1782,9 @@ type Campaign = {
   failed_count: number;
   last_error: string | null;
   scheduled_at: string | null;
+  repeat_rule: "daily" | "weekly" | "monthly" | null;
+  repeat_until: string | null;
+  parent_campaign_id: string | null;
   created_at: string;
   template?: { id: string; name: string; language: string; category: string; status: string } | null;
 };
@@ -1973,7 +1976,12 @@ function CampaignsView() {
               {c.last_error && <div style={{ fontSize: 11, color: "var(--pm-terra)", marginBottom: 8 }}>{c.last_error}</div>}
               {c.status === "scheduled" && c.scheduled_at && (
                 <div style={{ fontSize: 11, color: "#1d4ed8", fontWeight: 600, marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
-                  <Clock size={11} /> Scheduled for {new Date(c.scheduled_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                  <Clock size={11} /> {c.repeat_rule ? "Next" : "Scheduled for"} {new Date(c.scheduled_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                </div>
+              )}
+              {c.repeat_rule && (
+                <div style={{ fontSize: 11, color: "var(--pm-green)", fontWeight: 600, marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                  <RefreshCw size={11} /> Repeats {c.repeat_rule}{c.repeat_until ? ` until ${new Date(c.repeat_until).toLocaleDateString("en-IN", { dateStyle: "medium" })}` : ""}
                 </div>
               )}
               <div style={{ fontSize: 11, color: "var(--pm-hint)", marginBottom: 10 }}>{timeAgo(c.created_at)} ago</div>
@@ -2033,6 +2041,8 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
   const [brief, setBrief] = useState("");
   const [sendMode, setSendMode] = useState<"now" | "schedule">("now");
   const [scheduleAt, setScheduleAt] = useState("");
+  const [repeatRule, setRepeatRule] = useState<"" | "daily" | "weekly" | "monthly">("");
+  const [repeatUntil, setRepeatUntil] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -2090,7 +2100,11 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
         : vars;
       const r = await fetch("/api/whatsapp/campaigns", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, template_id: templateId, template_vars, audience_filter, scheduled_at: scheduledIso }),
+        body: JSON.stringify({
+          name, template_id: templateId, template_vars, audience_filter, scheduled_at: scheduledIso,
+          repeat_rule: repeatRule || null,
+          repeat_until: repeatRule && repeatUntil ? new Date(repeatUntil).toISOString() : null,
+        }),
       });
       const j = await r.json();
       if (j.error) { toast.push({ kind: "error", text: j.error }); return; }
@@ -2226,8 +2240,25 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
         {sendMode === "schedule" && (
           <>
             <input type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} style={inputStyle} />
+            <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12, color: "var(--pm-muted)" }}>Repeat</span>
+              <select value={repeatRule} onChange={(e) => setRepeatRule(e.target.value as typeof repeatRule)} style={{ ...inputStyle, width: "auto", flex: "0 0 auto" }}>
+                <option value="">One-time</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+              {repeatRule && (
+                <>
+                  <span style={{ fontSize: 12, color: "var(--pm-muted)" }}>until</span>
+                  <input type="date" value={repeatUntil} onChange={(e) => setRepeatUntil(e.target.value)} style={{ ...inputStyle, width: "auto", flex: "0 0 auto" }} />
+                  <span style={{ fontSize: 11, color: "var(--pm-hint)" }}>(blank = forever)</span>
+                </>
+              )}
+            </div>
             <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 4 }}>
               Your local time. Fires within ~15 min of this slot. If the template isn't Meta-approved yet, it waits and auto-sends once it is.
+              {repeatRule && " Each occurrence is a fresh send, so opted-in contacts get it every cycle."}
             </div>
           </>
         )}

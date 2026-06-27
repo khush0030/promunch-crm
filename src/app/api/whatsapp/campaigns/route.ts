@@ -22,6 +22,10 @@ export async function POST(req: NextRequest) {
   // plain draft the user sends manually.
   const scheduledAt = body.scheduled_at ?? null;
   const isScheduled = scheduledAt && new Date(scheduledAt).getTime() > Date.now();
+  // Recurring: a repeat_rule turns a scheduled campaign into an ongoing series.
+  // The wa-campaign-tick cron spawns a child send each occurrence.
+  const repeatRule = ["daily", "weekly", "monthly"].includes(body.repeat_rule)
+    ? body.repeat_rule : null;
   const row = {
     name: body.name,
     template_id: body.template_id,
@@ -30,6 +34,8 @@ export async function POST(req: NextRequest) {
     scheduled_at: scheduledAt,
     status: isScheduled ? "scheduled" : "draft",
     created_by: body.created_by ?? null,
+    repeat_rule: isScheduled ? repeatRule : null, // recurrence needs a schedule
+    repeat_until: isScheduled && repeatRule ? (body.repeat_until ?? null) : null,
   };
   const { data, error } = await supabaseAdmin
     .from("wa_campaigns")

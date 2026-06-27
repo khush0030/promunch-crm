@@ -28,13 +28,75 @@ export async function GET(req: NextRequest) {
   const nowIso = new Date().toISOString();
   const { data: due, error } = await supabaseAdmin
     .from("wa_campaigns")
-    .select("id, name")
+    .select("id, name, scheduled_at, repeat_rule, repeat_until, template_id, template_vars, audience_filter, created_by")
     .eq("status", "scheduled")
     .lte("scheduled_at", nowIso);
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
   const fired: { id: string; name: string; ok: boolean; note?: string }[] = [];
   for (const c of due ?? []) {
+    // Recurring campaign: spawn a one-time CHILD for this occurrence and advance
+    // the parent to the next slot. The parent itself never sends.
+    if (c.repeat_rule) {
+      const next = nextOccurrence(c.scheduled_at, c.repeat_rule);
+      const stop = c.repeat_until != null && next.getTime() > new Date(c.repeat_until).getTime();
+      // Atomic claim: advance scheduled_at guarded on its current value so two
+      // overlapping ticks can't both spawn this occurrence.
+      const { data: advanced } = await supabaseAdmin
+        .from("wa_campaigns")
+        .update(stop
+          ? { status: "completed", completed_at: nowIso }
+          : { scheduled_at: next.toISOString() })
+        .eq("id", c.id)
+        .eq("status", "scheduled")
+        .eq("scheduled_at", c.scheduled_at)
+        .select("id")
+        .maybeSingle();
+      if (!advanced) continue; // another tick won the claim
+
+      const occLabel = new Date(c.scheduled_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+      const { data: child, error: childErr } = await supabaseAdmin
+        .from("wa_campaigns")
+        .insert({
+          name: `${c.name} · ${occLabel}`,
+          template_id: c.template_id,
+          template_vars: c.template_vars ?? {},
+          audience_filter: c.audience_filter ?? {},
+          status: "sending",
+          started_at: nowIso,
+          parent_campaign_id: c.id,
+          created_by: c.created_by ?? null,
+        })
+        .select("id")
+        .single();
+      if (childErr || !child) {
+        fired.push({ id: c.id, name: c.name, ok: false, note: `spawn failed: ${childErr?.message ?? "?"}` });
+        continue;
+      }
+      try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/wa-campaign-send`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ campaign_id: child.id, _continue: true }),
+        });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok || j.error) {
+          await supabaseAdmin.from("wa_campaigns")
+            .update({ status: "failed", last_error: String(j.error ?? `send HTTP ${res.status}`) })
+            .eq("id", child.id);
+          fired.push({ id: child.id, name: `${c.name} (occurrence)`, ok: false, note: String(j.error ?? res.status) });
+        } else {
+          fired.push({ id: child.id, name: `${c.name} (occurrence)`, ok: true, note: `${j.sent ?? 0} sent${stop ? " · series ended" : " · next " + next.toISOString().slice(0, 10)}` });
+        }
+      } catch (e) {
+        await supabaseAdmin.from("wa_campaigns")
+          .update({ status: "failed", last_error: e instanceof Error ? e.message : String(e) })
+          .eq("id", child.id);
+        fired.push({ id: child.id, name: `${c.name} (occurrence)`, ok: false, note: e instanceof Error ? e.message : String(e) });
+      }
+      continue;
+    }
+
     // Atomic claim: only the tick that flips 'scheduled' → 'sending' proceeds.
     const { data: claimed } = await supabaseAdmin
       .from("wa_campaigns")
@@ -74,4 +136,20 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, checked: (due ?? []).length, fired });
+}
+
+// Next occurrence from a given time for a repeat rule. Monthly clamps to the
+// last day of shorter months (e.g. Jan 31 -> Feb 28).
+function nextOccurrence(fromIso: string, rule: string): Date {
+  const d = new Date(fromIso);
+  if (rule === "daily") d.setUTCDate(d.getUTCDate() + 1);
+  else if (rule === "weekly") d.setUTCDate(d.getUTCDate() + 7);
+  else if (rule === "monthly") {
+    const day = d.getUTCDate();
+    d.setUTCDate(1);
+    d.setUTCMonth(d.getUTCMonth() + 1);
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    d.setUTCDate(Math.min(day, last));
+  }
+  return d;
 }
