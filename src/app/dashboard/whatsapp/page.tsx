@@ -1801,6 +1801,9 @@ function CampaignsView() {
   const [busy, setBusy] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
+  const [recovery, setRecovery] = useState<
+    { enrolled: number; recovered: number; delivered: number; retrying: number; missed: number; reached: number; reachRate: number } | null
+  >(null);
 
   const load = useCallback(async () => {
     const r = await fetch("/api/whatsapp/campaigns");
@@ -1810,6 +1813,12 @@ function CampaignsView() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     fetch("/api/whatsapp/segments").then((r) => r.json()).then((j) => setSegs(j.segments ?? [])).catch(() => {});
+  }, []);
+  useEffect(() => {
+    const f = () => fetch("/api/whatsapp/cart-recovery").then((r) => r.json()).then((j) => setRecovery(j.stats ?? null)).catch(() => {});
+    f();
+    const t = setInterval(f, 15000);
+    return () => clearInterval(t);
   }, []);
   useEffect(() => {
     const t = setInterval(load, 8000);
@@ -1874,6 +1883,28 @@ function CampaignsView() {
           <button onClick={() => setCreating(true)} style={primaryBtn}><Plus size={14} /> New campaign</button>
         </div>
       </div>
+
+      {recovery && recovery.enrolled > 0 && (
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 }}>
+            Abandoned-cart recovery · last 30 days
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 10 }}>
+            {[
+              { n: recovery.reached, l: "Reached", hint: `${recovery.reachRate}% of ${recovery.enrolled} carts got a message`, color: "var(--pm-green)" },
+              { n: recovery.recovered, l: "Recovered", hint: "checked out after the nudge", color: "var(--pm-green)" },
+              { n: recovery.retrying, l: "Retrying", hint: "in-flight, not yet delivered", color: "var(--pm-gold)" },
+              { n: recovery.missed, l: "Missed", hint: "deadline passed, never delivered", color: recovery.missed > 0 ? "var(--pm-terra)" : "var(--pm-hint)" },
+            ].map((s) => (
+              <div key={s.l} style={cardStyle}>
+                <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: -0.6, color: s.color }}>{s.n.toLocaleString("en-IN")}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-muted)", marginTop: 2 }}>{s.l}</div>
+                <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 3, lineHeight: 1.3 }}>{s.hint}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {segs.length > 0 && (() => {
         const byTier = Object.fromEntries(segs.map((s) => [s.rfm_tier, s]));
