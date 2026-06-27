@@ -30,10 +30,24 @@ async function requireCaller() {
   return user;
 }
 
+// Roles live in user_metadata.role. Missing role = "admin" for back-compat
+// (the team was previously flat full-access). Only owner/admin may manage the
+// team (invite, remove, change roles); "agent" is a limited member.
+type Role = "owner" | "admin" | "agent";
+function roleOf(u: { user_metadata?: Record<string, unknown> }): Role {
+  const r = (u.user_metadata || {}).role;
+  return r === "owner" || r === "agent" ? r : "admin";
+}
+function canManage(u: { user_metadata?: Record<string, unknown> }): boolean {
+  const r = roleOf(u);
+  return r === "owner" || r === "admin";
+}
+
 type TeamUser = {
   id: string;
   email: string | null;
   name: string;
+  role: Role;
   created_at: string;
   last_sign_in_at: string | null;
   confirmed: boolean;
@@ -56,6 +70,7 @@ export async function GET() {
       id: u.id,
       email: u.email ?? null,
       name,
+      role: roleOf(u),
       created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at ?? null,
       confirmed: Boolean(u.email_confirmed_at || u.confirmed_at),
@@ -63,12 +78,18 @@ export async function GET() {
   });
   users.sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
 
-  return NextResponse.json({ users, currentUserId: caller.id });
+  return NextResponse.json({
+    users,
+    currentUserId: caller.id,
+    currentUserEmail: caller.email ?? null,
+    currentUserRole: roleOf(caller),
+  });
 }
 
 export async function POST(req: NextRequest) {
   const caller = await requireCaller();
   if (!caller) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!canManage(caller)) return NextResponse.json({ error: "Only admins can invite members." }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
   const email = String(body?.email ?? "").trim().toLowerCase();
@@ -134,9 +155,33 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
+// Change a member's role (owner/admin/agent). Admins only; you can't change
+// your own role (prevents the last admin locking themselves out).
+export async function PATCH(req: NextRequest) {
+  const caller = await requireCaller();
+  if (!caller) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!canManage(caller)) return NextResponse.json({ error: "Only admins can change roles." }, { status: 403 });
+
+  const body = await req.json().catch(() => ({}));
+  const id = String(body?.id ?? "");
+  const role = String(body?.role ?? "");
+  if (!id) return NextResponse.json({ error: "Missing user id." }, { status: 400 });
+  if (!["owner", "admin", "agent"].includes(role)) {
+    return NextResponse.json({ error: "Invalid role." }, { status: 400 });
+  }
+  if (id === caller.id) return NextResponse.json({ error: "You can't change your own role." }, { status: 400 });
+
+  const { data: target } = await supabaseAdmin.auth.admin.getUserById(id);
+  const meta = { ...(target.user?.user_metadata ?? {}), role };
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(id, { user_metadata: meta });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
+
 export async function DELETE(req: NextRequest) {
   const caller = await requireCaller();
   if (!caller) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!canManage(caller)) return NextResponse.json({ error: "Only admins can remove members." }, { status: 403 });
 
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Missing user id." }, { status: 400 });

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Plus, UserPlus, Store, ShoppingBag } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/Toast";
@@ -281,31 +281,55 @@ export default function SettingsPage() {
   );
 }
 
-type Member = { name: string; email: string };
+type Member = { id: string; name: string; email: string | null; role: string; confirmed: boolean };
+
+const ROLE_TONE: Record<string, "terra" | "gold" | "blue"> = { owner: "terra", admin: "gold", agent: "blue" };
 
 function TeamTable() {
-  const supabase = createSupabaseBrowserClient();
-  const [me, setMe] = useState<Member | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [currentId, setCurrentId] = useState<string | null>(null);
+  const [currentRole, setCurrentRole] = useState<string>("admin");
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
-        const meta = data.user.user_metadata || {};
-        const name =
-          (typeof meta.full_name === "string" && meta.full_name) ||
-          (typeof meta.name === "string" && meta.name) ||
-          (data.user.email ? data.user.email.split("@")[0] : "User");
-        setMe({ name, email: data.user.email || "" });
-      }
+  const load = useCallback(() => {
+    fetch("/api/team")
+      .then((r) => r.json())
+      .then((j) => {
+        setMembers(j.users ?? []);
+        setCurrentId(j.currentUserId ?? null);
+        setCurrentRole(j.currentUserRole ?? "admin");
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const canManage = currentRole === "owner" || currentRole === "admin";
+
+  async function setRole(id: string, role: string) {
+    await fetch("/api/team", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, role }),
     });
-  }, [supabase]);
+    load();
+  }
 
   const columns: Column<Member>[] = [
     { header: "Member", cell: (m) => <div className="pm-cellname"><Avatar name={m.name} size={30} /><span className="pm-b7">{m.name}</span></div> },
     { header: "Email", cell: (m) => <span className="pm-dim">{m.email}</span> },
-    { header: "Role", cell: () => <StatusBadge tone="terra">Admin</StatusBadge> },
-    { header: "Status", cell: () => <StatusBadge tone="green">Active</StatusBadge> },
+    {
+      header: "Role",
+      cell: (m) =>
+        canManage && m.id !== currentId ? (
+          <select className="select" value={m.role} onChange={(e) => setRole(m.id, e.target.value)} aria-label={`Role for ${m.name}`}>
+            <option value="owner">Owner</option>
+            <option value="admin">Admin</option>
+            <option value="agent">Agent</option>
+          </select>
+        ) : (
+          <StatusBadge tone={ROLE_TONE[m.role] ?? "gold"}>{m.role[0].toUpperCase() + m.role.slice(1)}</StatusBadge>
+        ),
+    },
+    { header: "Status", cell: (m) => <StatusBadge tone={m.confirmed ? "green" : "gold"}>{m.confirmed ? "Active" : "Invited"}</StatusBadge> },
   ];
 
-  return <DataTable columns={columns} rows={me ? [me] : []} rowKey={(m) => m.email} empty="No team data yet" />;
+  return <DataTable columns={columns} rows={members} rowKey={(m) => m.id} empty="No team data yet" />;
 }

@@ -34,6 +34,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     "ticket_category",
     "ticket_subject",
     "ticket_assignee",
+    "assigned_to",
   ];
   const patch: Record<string, unknown> = {};
   for (const k of allowed) if (k in body) patch[k] = body[k];

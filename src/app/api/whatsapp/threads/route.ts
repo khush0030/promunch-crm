@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status") || "";        // bot|human|snoozed|closed
   const ticket = searchParams.get("ticket") || "";        // none|open|pending|resolved|closed
   const search = searchParams.get("search") || "";
+  const assignee = searchParams.get("assignee") || "";    // email | "unassigned"
   const archived = searchParams.get("archived") === "1";  // 1 = show archived only
   const from = (page - 1) * limit;
   const to = from + limit - 1;
@@ -34,6 +35,8 @@ export async function GET(req: NextRequest) {
 
     if (status) q = q.eq("status", status);
     if (ticket) q = q.eq("ticket_status", ticket);
+    if (assignee === "unassigned") q = q.is("assigned_to", null);
+    else if (assignee) q = q.eq("assigned_to", assignee);
     if (search) q = q.or(`wa_id.ilike.%${search}%,last_message_snippet.ilike.%${search}%,ticket_subject.ilike.%${search}%`);
     return q;
   };

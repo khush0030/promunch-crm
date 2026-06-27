@@ -24,6 +24,7 @@ type Thread = {
   ticket_category: string | null;
   ticket_subject: string | null;
   ticket_assignee: string | null;
+  assigned_to: string | null;
   escalation_reason: string | null;
   last_inbound_at: string | null;
   last_outbound_at: string | null;
@@ -142,6 +143,23 @@ const ticketStatusStyle: Record<string, { bg: string; color: string; label: stri
   closed:   { bg: "rgba(107,114,128,0.14)", color: "var(--pm-muted)", label: "Closed" },
   none:     { bg: "rgba(229,231,235,0.6)",  color: "var(--pm-muted)", label: "—" },
 };
+
+type TeamMember = { id: string; email: string | null; name: string; role: string };
+// Team roster + current user, for chat assignment. Fetched once per mount.
+function useTeam() {
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [me, setMe] = useState<{ email: string | null; role: string }>({ email: null, role: "admin" });
+  useEffect(() => {
+    fetch("/api/team")
+      .then((r) => r.json())
+      .then((j) => {
+        setMembers(j.users ?? []);
+        setMe({ email: j.currentUserEmail ?? null, role: j.currentUserRole ?? "admin" });
+      })
+      .catch(() => {});
+  }, []);
+  return { members, me };
+}
 
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(false);
@@ -324,6 +342,8 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
   const [status, setStatus] = useState<string>("");
   const [ticket, setTicket] = useState<string>(ticketsOnly ? "open" : "");
   const [search, setSearch] = useState("");
+  const [assignFilter, setAssignFilter] = useState<"" | "mine" | "unassigned">("");
+  const { members, me } = useTeam();
   const [loading, setLoading] = useState(true);
   const [hover, setHover] = useState<string | null>(null);
   const isMobile = useIsMobile();
@@ -338,12 +358,14 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
     else if (status) qs.set("status", status);
     if (ticket) qs.set("ticket", ticket);
     if (search) qs.set("search", search);
+    if (assignFilter === "unassigned") qs.set("assignee", "unassigned");
+    else if (assignFilter === "mine" && me.email) qs.set("assignee", me.email);
     qs.set("limit", "60");
     const res = await fetch(`/api/whatsapp/threads?${qs}`);
     const j = await res.json();
     setThreads(j.threads ?? []);
     setLoading(false);
-  }, [status, ticket, search]);
+  }, [status, ticket, search, assignFilter, me.email]);
 
   // Archive (hide) or unarchive a thread — never deletes messages.
   const archiveThread = useCallback(async (id: string, archived: boolean) => {
@@ -417,6 +439,18 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
               );
             })}
           </div>
+          {!ticketsOnly && (
+            <div className="pm-chips" style={{ marginTop: 6 }}>
+              {([{ k: "", l: "Everyone" }, { k: "mine", l: "Assigned to me" }, { k: "unassigned", l: "Unassigned" }] as const).map((f) => (
+                <button key={f.l} type="button"
+                  className={`pm-chip${assignFilter === f.k ? " on" : ""}`}
+                  onClick={() => setAssignFilter(f.k)}
+                  style={{ padding: isMobile ? "8px 14px" : "4px 10px", minHeight: isMobile ? 36 : undefined, fontSize: isMobile ? 13 : 12 }}>
+                  {f.l}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div style={{ flex: 1, overflowY: "auto" }}>
           {loading && <div style={{ padding: 24, color: "var(--pm-hint)", fontSize: 13 }}>Loading…</div>}
@@ -496,6 +530,7 @@ function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
           isMobile={isMobile}
           onBack={() => setMobileView("list")}
           onShowDetails={() => setMobileView("details")}
+          members={members}
         />
       </div>
 
@@ -521,12 +556,13 @@ function Pill({ icon: Icon, label, bg, color }: { icon: any; label: string; bg: 
   );
 }
 
-function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDetails }: {
+function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDetails, members = [] }: {
   thread: Thread | null;
   onChange: (t: Thread) => void;
   isMobile?: boolean;
   onBack?: () => void;
   onShowDetails?: () => void;
+  members?: TeamMember[];
 }) {
   const toast = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -699,6 +735,16 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
               <option value="human">Human</option>
               <option value="snoozed">Snoozed</option>
               <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div className="ctl">
+            {!isMobile && <span>Assigned</span>}
+            <select aria-label="Assigned to" value={thread.assigned_to ?? ""} onChange={(e) => patch({ assigned_to: e.target.value || null })}
+              className="select">
+              <option value="">Unassigned</option>
+              {members.filter((m) => m.email).map((m) => (
+                <option key={m.id} value={m.email!}>{m.name}</option>
+              ))}
             </select>
           </div>
           <div className="ctl">
