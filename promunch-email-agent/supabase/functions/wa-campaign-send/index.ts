@@ -13,6 +13,7 @@
 import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
 import { sendTemplate, TemplateComponent } from "../_shared/whatsapp.ts";
+import { alertWaSendFailure, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
 
 const THROTTLE_MS = 120;
 // Per-invocation caps — kept well under the edge-function wall-clock limit so
@@ -83,6 +84,7 @@ Deno.serve(async (req) => {
   const openai = personalized ? new OpenAI({ apiKey: Deno.env.get("OPENAI_API_KEY")! }) : null;
 
   let sent = 0, failed = 0;
+  let firstError: string | null = null;
   for (const c of queue) {
     let contactVars = baseVars;
     if (personalized && openai && varKeys.length) {
@@ -90,12 +92,12 @@ Deno.serve(async (req) => {
       if (ai) contactVars = { ...baseVars, ...ai };
     }
 
-    const components = buildComponents(contactVars, c.name);
+    const components = buildComponents(tpl, contactVars, c.name);
     let res;
     try {
       res = await sendTemplate(c.wa_id, tpl.name, tpl.language, components);
     } catch (e) {
-      res = { ok: false, message_id: null as string | null, raw: null, error: String(e) };
+      res = { ok: false, message_id: null as string | null, raw: null, error: String(e), error_code: undefined as number | undefined, error_detail: undefined as string | undefined };
     }
 
     const { data: thread } = await sb.from("wa_threads")
@@ -125,11 +127,46 @@ Deno.serve(async (req) => {
       }).eq("id", thread.id);
     }
 
+    if (!res.ok) {
+      if (!firstError) firstError = res.error ?? "unknown";
+      // Per-recipient alert (throttled to one Slack ping per error-code per 5 min,
+      // so a wholesale-failing blast pings once — not once per recipient).
+      await alertWaSendFailure({
+        to: c.wa_id,
+        kind: "template",
+        templateName: tpl.name,
+        error: res.error,
+        errorCode: (res as { error_code?: number }).error_code,
+        errorDetail: (res as { error_detail?: string }).error_detail,
+        sentBy: personalized ? "campaign-ai" : "campaign",
+      }).catch(() => {});
+    }
+
     res.ok ? sent++ : failed++;
     if (THROTTLE_MS) await sleep(THROTTLE_MS);
   }
 
   await sb.rpc("wa_campaign_recount", { p_campaign: campaignId });
+
+  // Structural-failure circuit breaker: a whole batch failed and nothing sent.
+  // That's a bad template / params / token — NOT a per-recipient deliverability
+  // blip. Halt the campaign (don't chain through the rest of the list) and fire
+  // one loud, un-throttled Slack alert so a launch blast can never fail silently.
+  if (sent === 0 && failed > 0) {
+    await sb.from("wa_campaigns").update({
+      status: "failed",
+      last_error: `Halted: ${failed}/${queue.length} sends failed, 0 delivered. First error: ${firstError ?? "unknown"}`,
+    }).eq("id", campaignId);
+    await postSlack(
+      slackChannelFor("whatsapp"),
+      `🚨 *Campaign halted — wholesale send failure*\n` +
+      `*Campaign:* ${campaign.name}\n` +
+      `*Result:* 0 delivered, ${failed} failed in this batch (campaign paused before blasting the rest).\n` +
+      `*Meta said:* ${firstError ?? "unknown"}\n` +
+      `Fix the template/params, then re-run. Nobody else was messaged.`,
+    ).catch(() => {});
+    return j({ ok: false, sent, failed, processed: queue.length, status: "failed", error: firstError });
+  }
 
   const remaining = contacts.length - doneSet.size - queue.length;
   if (remaining > 0) {
@@ -200,16 +237,40 @@ async function personalizeVars(
   }
 }
 
-// Build the template body component from numbered variables.
+// Build the template's components: a media header (when the template was created
+// with an IMAGE/VIDEO/DOCUMENT header) plus the body from numbered variables.
+// Meta error #132012 ("Parameter format does not match") fires when we OMIT the
+// header component for a media-header template — so it must always be sent.
 // A value containing the {name} token is personalised with the contact's name.
-function buildComponents(vars: Record<string, string>, contactName?: string | null): TemplateComponent[] {
+function buildComponents(
+  tpl: { header_type?: string | null; header_media_url?: string | null },
+  vars: Record<string, string>,
+  contactName?: string | null,
+): TemplateComponent[] {
+  const comps: TemplateComponent[] = [];
+
+  // Media header — required whenever the template carries one, even with no body vars.
+  const ht = (tpl.header_type ?? "").toUpperCase();
+  const link = tpl.header_media_url ?? null;
+  if (link && ht === "IMAGE") {
+    comps.push({ type: "header", parameters: [{ type: "image", image: { link } }] });
+  } else if (link && ht === "VIDEO") {
+    comps.push({ type: "header", parameters: [{ type: "video", video: { link } }] });
+  } else if (link && ht === "DOCUMENT") {
+    comps.push({ type: "header", parameters: [{ type: "document", document: { link } }] });
+  }
+
+  // Body — only when the template has numbered {{n}} placeholders.
   const keys = Object.keys(vars).filter((k) => /^\d+$/.test(k)).sort((a, b) => Number(a) - Number(b));
-  if (keys.length === 0) return [];
-  const name = (contactName ?? "").trim() || "there";
-  return [{
-    type: "body",
-    parameters: keys.map((k) => ({ type: "text", text: String(vars[k] ?? "").replace(/\{name\}/gi, name) })),
-  }];
+  if (keys.length > 0) {
+    const name = (contactName ?? "").trim() || "there";
+    comps.push({
+      type: "body",
+      parameters: keys.map((k) => ({ type: "text", text: String(vars[k] ?? "").replace(/\{name\}/gi, name) })),
+    });
+  }
+
+  return comps;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
