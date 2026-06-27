@@ -24,9 +24,10 @@ export async function GET() {
       .limit(12),
     supabaseAdmin
       .from("wa_campaigns")
-      .select("name,sent,failed,started_at,updated_at")
-      .eq("status", "sent")
-      .order("updated_at", { ascending: false })
+      .select("name,sent_count,failed_count,started_at,completed_at")
+      .eq("status", "completed")
+      .gte("completed_at", since)
+      .order("completed_at", { ascending: false })
       .limit(8),
     supabaseAdmin
       .from("shopify_orders")
@@ -46,12 +47,12 @@ export async function GET() {
   });
 
   (camps.data ?? []).forEach((c: any) => {
-    const at = c.started_at || c.updated_at;
+    const at = c.completed_at || c.started_at;
     if (!at) return;
     items.push({
       at, type: "campaign", tone: "g",
       title: `Campaign "${c.name}" finished`,
-      sub: `${(c.sent ?? 0).toLocaleString("en-IN")} sent${c.failed ? ` · ${c.failed} failed` : ""}`,
+      sub: `${(c.sent_count ?? 0).toLocaleString("en-IN")} sent${c.failed_count ? ` · ${c.failed_count} failed` : ""}`,
     });
   });
 

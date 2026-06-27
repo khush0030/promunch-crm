@@ -40,8 +40,8 @@ Deno.serve(async () => {
 
   // top campaign this week (by volume sent)
   const { data: camps } = await supa.from("wa_campaigns")
-    .select("name,sent,failed").eq("status", "sent").gte("updated_at", since)
-    .order("sent", { ascending: false }).limit(1);
+    .select("name,sent_count,failed_count").eq("status", "completed").gte("completed_at", since)
+    .order("sent_count", { ascending: false }).limit(1);
   const top = camps?.[0];
 
   const deliveredPct = sent ? Math.round((delivered / sent) * 100) : 0;
@@ -66,7 +66,7 @@ Deno.serve(async () => {
   if (top) {
     blocks.push({
       type: "section",
-      text: { type: "mrkdwn", text: `*Top campaign*\n${top.name} · ${(top.sent ?? 0).toLocaleString("en-IN")} sent${top.failed ? ` · ${top.failed} failed` : ""}` },
+      text: { type: "mrkdwn", text: `*Top campaign*\n${top.name} · ${(top.sent_count ?? 0).toLocaleString("en-IN")} sent${top.failed_count ? ` · ${top.failed_count} failed` : ""}` },
     });
   }
 

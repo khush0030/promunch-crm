@@ -32,10 +32,11 @@ export async function GET(req: NextRequest) {
   const days = Math.min(365, Math.max(1, Number(req.nextUrl.searchParams.get("days")) || 30));
   const since = new Date(Date.now() - days * 86400000).toISOString();
 
-  // Campaigns in window (most recent first), with template category.
+  // Campaigns in window (most recent first), with template category. Delivery
+  // counts are authoritative on the row (maintained by wa_campaign_recount).
   const { data: camps } = await supabaseAdmin
     .from("wa_campaigns")
-    .select("id,name,sent,failed,status,started_at,created_at,template:wa_templates(category)")
+    .select("id,name,status,sent_count,delivered_count,read_count,failed_count,started_at,created_at,template:wa_templates(category)")
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(40);
@@ -89,11 +90,11 @@ export async function GET(req: NextRequest) {
   // Build a report card per campaign.
   const cards = campaigns.map((c: any) => {
     const s = stat.get(c.id) || { delivered: 0, read: 0, sent: 0, failed: 0, contacts: new Set<string>() };
-    const sent = s.sent || c.sent || 0;
-    const deliveredPct = sent ? Math.round((s.delivered / sent) * 100) : 0;
-    const readPct = sent ? Math.round((s.read / sent) * 100) : 0;
+    const sent = c.sent_count || 0;
+    const deliveredPct = sent ? Math.round((c.delivered_count / sent) * 100) : 0;
+    const readPct = sent ? Math.round((c.read_count / sent) * 100) : 0;
     const cat = c.template?.category || "marketing";
-    const cost = Math.round((c.sent || sent) * (PRICE[cat] ?? 0) * 100) / 100;
+    const cost = Math.round(sent * (PRICE[cat] ?? 0) * 100) / 100;
 
     // Orders after this campaign went out, from people it messaged.
     const after = c.started_at || c.created_at;
@@ -111,7 +112,7 @@ export async function GET(req: NextRequest) {
 
     return {
       id: c.id, name: c.name, status: c.status,
-      sent, deliveredPct, readPct, failed: s.failed,
+      sent, deliveredPct, readPct, failed: c.failed_count || 0,
       orders: orderCount, revenue, cost, roi, grade, verdict,
     };
   });
