@@ -126,6 +126,9 @@ export async function GET(req: NextRequest) {
   // --- failure translator ---
   const failures = await summariseFailures(since);
 
+  // --- link clicks (free-text tracked links; 0 if table not migrated yet) ---
+  const clicks = await countClicks(since);
+
   // --- derived ---
   const deliveredPct = sent ? Math.round((delivered / sent) * 100) : 0;
   const readPct = sent ? Math.round((read / sent) * 100) : 0;
@@ -148,7 +151,7 @@ export async function GET(req: NextRequest) {
     { key: "delivered", label: "Delivered", count: delivered, pct: deliveredPct, unit: "messages" },
     { key: "read", label: "Read", count: read, pct: readPct, unit: "messages" },
     { key: "replied", label: "Replies received", count: replies, pct: sent ? Math.round((replies / sent) * 100) : 0, unit: "replies" },
-    { key: "clicked", label: "Link clicks", count: null as number | null, pct: 0, unit: "clicks", soon: true },
+    { key: "clicked", label: "Link clicks", count: clicks, pct: sent ? Math.round((clicks / sent) * 100) : 0, unit: "clicks" },
     { key: "bought", label: "Orders", count: orders, pct: sent ? Math.round((orders / sent) * 100) : 0, unit: "orders" },
   ];
 
@@ -171,6 +174,15 @@ export async function GET(req: NextRequest) {
     failures,
     health,
   });
+}
+
+async function countClicks(since: string): Promise<number> {
+  const { count, error } = await supabaseAdmin
+    .from("wa_link_clicks")
+    .select("*", { count: "exact", head: true })
+    .gte("clicked_at", since);
+  if (error) return 0; // table not migrated yet → degrade to 0
+  return count ?? 0;
 }
 
 async function estimateSpend(since: string): Promise<number> {

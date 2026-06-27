@@ -25,6 +25,7 @@ import {
   CatalogSection,
 } from "../_shared/whatsapp.ts";
 import { alertWaSendFailure } from "../_shared/connector-log.ts";
+import { wrapLinks } from "../_shared/links.ts";
 
 interface SendBody {
   thread_id?: string;
@@ -121,8 +122,14 @@ Deno.serve(async (req) => {
   try {
     if (body.kind === "text") {
       if (!body.text) return j({ error: "text required" }, 400);
-      result = await sendText(waId!, body.text);
-      recorded = { ...recorded, type: "text", body: body.text };
+      // Rewrite URLs to tracked /r/<code> links so we can measure clicks +
+      // click->order conversion. Fail-safe: returns original text on any error.
+      const text = await wrapLinks(sb, body.text, {
+        contact_id: contactId, thread_id: threadId,
+        journey_run_id: body.journey_run_id ?? null, sent_by: body.sent_by ?? null,
+      });
+      result = await sendText(waId!, text);
+      recorded = { ...recorded, type: "text", body: text };
     } else if (body.kind === "template") {
       if (!body.template?.name) return j({ error: "template.name required" }, 400);
       const lang = body.template.language ?? "en";

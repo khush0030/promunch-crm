@@ -2,7 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isAllowedEmail } from "@/lib/auth-domains";
 
-const PUBLIC_PATHS = ["/login", "/auth"];
+// /r/* = public click-tracking redirects (WhatsApp short links) — must be
+// reachable without a dashboard session.
+const PUBLIC_PATHS = ["/login", "/auth", "/r"];
 // API routes reachable WITHOUT a browser session. Everything else under /api/*
 // requires an allowed, logged-in user. These self-authenticate instead:
 //   /api/cron/*     → CRON_SECRET (Vercel sends it as a Bearer token)
