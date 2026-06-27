@@ -7,6 +7,7 @@ import { db } from "../_shared/supabase.ts";
 import { verifySignature, downloadMedia, markRead, buildCtaUrl } from "../_shared/whatsapp.ts";
 import { logConnector, alertWaSendFailure, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
 import { buildCartPermalink, cartFromOrderItems } from "../_shared/shopify-cart.ts";
+import { CART_TEMPLATE_BACKOFF_HOURS } from "../_shared/journeys.ts";
 
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const WA_MEDIA_BUCKET = Deno.env.get("WA_MEDIA_BUCKET") ?? "wa-media";
@@ -106,7 +107,7 @@ async function handleStatus(status: any) {
   const { data: updated } = await sb.from("wa_messages").update({
     status: next,
     error: errTitle,
-  }).eq("wa_message_id", wamid).select("campaign_id, template_name, type, sent_by").maybeSingle();
+  }).eq("wa_message_id", wamid).select("campaign_id, template_name, type, sent_by, journey_run_id").maybeSingle();
 
   // roll up delivery stats if this message belongs to a marketing campaign
   if (updated?.campaign_id) {
@@ -114,9 +115,52 @@ async function handleStatus(status: any) {
       .then(() => {}, () => {});
   }
 
+  // CART DELIVERY GUARANTEE — confirm or reopen the journey run that sent this.
+  // A send returning ok only means Meta ACCEPTED it; the real verdict arrives
+  // here. Only abandoned_checkout runs carry the at-least-once guarantee.
+  if (updated?.journey_run_id && updated.sent_by === "journey:abandoned_checkout") {
+    if (next === "delivered" || next === "read") {
+      // SUCCESS — one message landed. Set the terminal delivered flag so no tick
+      // and no later reopen ever sends this cart again (CLAUDE.md §0: never twice).
+      await sb.from("wa_journey_runs")
+        .update({ delivered_at: new Date().toISOString(), status: "completed", last_error: null })
+        .eq("id", updated.journey_run_id).is("delivered_at", null)
+        .then(() => {}, () => {});
+    } else if (next === "failed") {
+      // ASYNC FAILURE (usually #131049 cap) — the send did NOT land. Reopen the
+      // run for another attempt UNLESS it already delivered or passed its
+      // deadline. Reopening only from a confirmed non-delivery keeps at-least-once
+      // from ever becoming twice. Guarded on the current status so a duplicate
+      // 'failed' callback can't double-reopen.
+      const { data: run } = await sb.from("wa_journey_runs")
+        .select("deadline_at, delivered_at, attempts")
+        .eq("id", updated.journey_run_id).maybeSingle();
+      const nowIso = new Date().toISOString();
+      if (run && !run.delivered_at) {
+        if (run.deadline_at && run.deadline_at < nowIso) {
+          await sb.from("wa_journey_runs")
+            .update({ status: "expired", last_error: "recovery deadline passed (async cap)" })
+            .eq("id", updated.journey_run_id).neq("status", "expired")
+            .then(() => {}, () => {});
+        } else {
+          const nextAt = new Date(Date.now() + CART_TEMPLATE_BACKOFF_HOURS * 3600_000).toISOString();
+          await sb.from("wa_journey_runs").update({
+            status: "active",
+            next_action_at: nextAt,
+            attempts: (run.attempts ?? 0) + 1,
+            last_error: `async cap (#${status?.errors?.[0]?.code ?? "?"}) — reopened, retry in ${CART_TEMPLATE_BACKOFF_HOURS}h`,
+          }).eq("id", updated.journey_run_id).eq("status", "completed")
+            .then(() => {}, () => {});
+        }
+      }
+    }
+  }
+
   // ASYNC delivery failure — Meta reports "undeliverable" / frequency-cap /
   // re-engagement here, AFTER the send call already returned ok. This is where
   // most real failures surface, so it must alert too (with the Meta reason).
+  // Routine deliverability rejections no longer Slack-post (connector-log), so
+  // this is recorded-not-shouted for cart caps — exactly the intended quiet.
   if (next === "failed" && updated) {
     const err = status?.errors?.[0] ?? {};
     await alertWaSendFailure({

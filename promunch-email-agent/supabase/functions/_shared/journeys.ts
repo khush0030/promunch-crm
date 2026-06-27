@@ -6,6 +6,12 @@ export const SITE_URL = Deno.env.get("PROMUNCH_SITE_URL") ?? "https://promunch.i
 // (verified live). Override per-store with PROMUNCH_REVIEW_URL.
 export const REVIEW_URL = Deno.env.get("PROMUNCH_REVIEW_URL") ?? `${SITE_URL}/pages/review-submission`;
 
+// Abandoned-cart recovery delivery guarantee (see wa-journey-tick + wa-webhook).
+// Keep retrying a blocked cart until ONE message is delivered or this deadline
+// passes; space capped template retries this far apart to protect quality rating.
+export const CART_RECOVERY_DEADLINE_HOURS = 72;
+export const CART_TEMPLATE_BACKOFF_HOURS = 6;
+
 // Timed journeys: journey_key -> approved template + delay from enrolment.
 // Event-driven messages (order_confirmation, shipping_update) are NOT here —
 // shopify-wa sends those immediately.

@@ -364,6 +364,13 @@ export async function alertWaSendFailure(args: {
 
     if (recent) return; // throttled — recorded above, but don't re-ping Slack
 
+    // Routine deliverability rejections (Meta per-user MARKETING frequency cap
+    // #131049/#131050, recipient not on WhatsApp, outside-24h-window) are recorded
+    // above for the dashboard/history but NEVER posted to Slack — they're expected
+    // noise, not faults. Only action-needed errors (auth/template/rate/system/
+    // unknown) reach the channel, so the WhatsApp status stays urgent-only.
+    if (!ex.action) return;
+
     const channel = slackChannelFor("whatsapp");
     if (!channel) return;
 

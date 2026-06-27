@@ -22,8 +22,21 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 // Only these post-purchase asks are personalized + window-eligible. Abandoned-
-// cart stays on its template (it carries a dynamic recovery-checkout button).
+// cart stays on its template (it carries a dynamic recovery-checkout button)
+// for the INBOUND weave; abandoned_checkout is handled by the dedicated tick
+// delivery path (WINDOW_DELIVER_JOURNEYS) so it never gets mislabeled as a
+// post-purchase ask in a support reply.
 export const WINDOW_ASK_JOURNEYS = ["review_request", "replenishment_reminder"] as const;
+
+// Journeys whose DUE run wa-journey-tick may deliver as cap-immune free text
+// when the 24h service window is open. Superset of WINDOW_ASK_JOURNEYS:
+// abandoned_checkout's recovery is delivered free-form (no #131049 cap) whenever
+// the customer has an open window, falling back to the capped template otherwise.
+export const WINDOW_DELIVER_JOURNEYS = [
+  "review_request",
+  "replenishment_reminder",
+  "abandoned_checkout",
+] as const;
 
 export const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 

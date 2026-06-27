@@ -1005,19 +1005,26 @@ async function composeProactiveMessage(
   products: string[],
   url: string,
 ): Promise<string> {
-  const kind = journeyKey === "replenishment_reminder"
+  const kind = journeyKey === "abandoned_checkout"
+    ? "a friendly abandoned-cart recovery nudge"
+    : journeyKey === "replenishment_reminder"
     ? "a gentle restock / reorder reminder"
     : "a quick request to leave a product review";
+  const isCart = journeyKey === "abandoned_checkout";
   const sys =
     `You write short, warm WhatsApp messages for PROMUNCH ("Your Munchy Pal"), an Indian healthy-snack brand. ` +
     `India-English, friendly, never corporate. Output ONLY the message text — no preamble, no quotes, no JSON.`;
   const user = [
     `Write ${kind} as ONE WhatsApp message.`,
     `Customer first name: ${firstName}.`,
-    products.length
+    isCart
+      ? `They left snacks in their cart without checking out. Gently remind them their cart is waiting and nudge them to complete the order — warm, low-pressure, no guilt. Do NOT invent specific product names.`
+      : products.length
       ? `They actually ordered: ${products.join(", ")}. Mention these specific products by name — do NOT be vague or generic.`
       : `You don't have their exact products — keep it warm and personal using their first name; do not invent product names.`,
-    url ? `Include this link exactly once: ${url}` : `Do not include any link.`,
+    url
+      ? (isCart ? `Include this checkout link exactly once: ${url}` : `Include this link exactly once: ${url}`)
+      : `Do not include any link.`,
     `End with the tagline "Your Munchy Pal 💚".`,
     `Keep it to 1–3 short sentences.`,
   ].join("\n");

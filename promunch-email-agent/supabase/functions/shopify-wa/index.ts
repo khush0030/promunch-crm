@@ -13,7 +13,7 @@
 import { db } from "../_shared/supabase.ts";
 import { verifyShopifyHmac } from "../_shared/shopify.ts";
 import { logConnector } from "../_shared/connector-log.ts";
-import { SITE_URL, firstName, toWaId } from "../_shared/journeys.ts";
+import { CART_RECOVERY_DEADLINE_HOURS, SITE_URL, firstName, toWaId } from "../_shared/journeys.ts";
 import { handleOrderCreated } from "../_shared/order-confirmation.ts";
 import { claimSend, markSendSent, releaseSend } from "../_shared/confirmations.ts";
 
@@ -217,15 +217,28 @@ async function handleCheckout(checkout: any) {
   // context.template, falling back to the journey default). The whole sequence
   // stops early once the customer orders: orders/create flips active runs to
   // 'converted', so they never get a nudge after buying.
+  // Full tappable URLs for the cap-immune FREE-TEXT recovery path (wa-journey-tick
+  // delivers these when the customer's 24h window is open, dodging #131049). The
+  // template path uses the path-suffix components above; the free-text path needs
+  // the whole https URL. vars["1"]=name, vars["2"]=link, matching callProactiveAsk.
+  const reminderUrl = recoverUrl;
+  const discountUrl = `${SITE_URL}/${discountSuffix}`;
+
+  // All cart runs share one retry deadline: keep trying (free text in-window, or
+  // spaced template) until ONE message is delivered or this passes (see migration
+  // 20260627160000). Measured from enrolment so both steps expire together.
+  const deadlineAt = new Date(Date.now() + CART_RECOVERY_DEADLINE_HOURS * 3600_000).toISOString();
+
   const steps = [
-    { h: 1, template: "abandoned_cart_reminder", components: reminderComponents },
-    { h: 6, template: "abandoned_cart_recovery", components: discountComponents },
+    { h: 1, template: "abandoned_cart_reminder", components: reminderComponents, url: reminderUrl },
+    { h: 6, template: "abandoned_cart_recovery", components: discountComponents, url: discountUrl },
   ];
   const rows = steps.map((s) => ({
     journey_key: "abandoned_checkout",
     wa_id: waId,
     next_action_at: new Date(Date.now() + s.h * 3600_000).toISOString(),
-    context: { template: s.template, language: "en", components: s.components },
+    deadline_at: deadlineAt,
+    context: { template: s.template, language: "en", components: s.components, vars: { "1": name, "2": s.url } },
     order_ref: token,
   }));
   await sb.from("wa_journey_runs").insert(rows);

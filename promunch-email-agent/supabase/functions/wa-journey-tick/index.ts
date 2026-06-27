@@ -8,13 +8,16 @@
 // and retried on the next tick (so journeys self-heal once templates land).
 
 import { db } from "../_shared/supabase.ts";
-import { TIMED_JOURNEYS } from "../_shared/journeys.ts";
+import { CART_TEMPLATE_BACKOFF_HOURS, TIMED_JOURNEYS } from "../_shared/journeys.ts";
 import { isOrderCancelled } from "../_shared/orders.ts";
-import { WINDOW_ASK_JOURNEYS, claimAsk, releaseAsk, sessionOpen } from "../_shared/window-asks.ts";
+import { logConnector } from "../_shared/connector-log.ts";
+import { WINDOW_DELIVER_JOURNEYS, claimAsk, releaseAsk, sessionOpen } from "../_shared/window-asks.ts";
 
 const BATCH = 200;
 // Max times to retry the (per-recipient-capped) template fallback for a
-// window-eligible ask before standing down and waiting for an open 24h window.
+// post-purchase ask before standing down and waiting for an open 24h window.
+// (abandoned_checkout does NOT stand down — it retries on a spaced backoff until
+// its deadline, because every missed cart is lost revenue.)
 const TPL_FALLBACK_MAX = 3;
 
 Deno.serve(async () => {
@@ -40,6 +43,22 @@ Deno.serve(async () => {
       continue;
     }
 
+    // DELIVERY-GUARANTEE deadline (abandoned_checkout): keep retrying a blocked
+    // cart until ONE message is delivered or this passes. Past the deadline, stop
+    // — the cart is cold and re-nudging it reads as spam. Record it (no Slack
+    // noise) so the miss is measurable on the dashboard. delivered_at being set
+    // means a message already landed; the run would not still be 'active' then.
+    if (run.deadline_at && run.deadline_at < now) {
+      await mark(run.id, "expired", `recovery deadline passed after ${run.attempts ?? 0} attempt(s)`);
+      logConnector({
+        connector: "shopify_wa", level: "warn", event: "cart_recovery_exhausted",
+        message: `Cart ${run.order_ref ?? run.id}: no recovery message delivered in ${run.attempts ?? 0} attempt(s) before deadline.`,
+        ref: run.order_ref ?? run.id,
+      }).catch(() => {});
+      skipped++;
+      continue;
+    }
+
     // Shopify status guard — post-purchase journeys (review_request,
     // replenishment_reminder) are tied to an order. If that order was
     // cancelled/refunded after enrolment, drop the run instead of messaging
@@ -53,15 +72,20 @@ Deno.serve(async () => {
       }
     }
 
-    const windowEligible = (WINDOW_ASK_JOURNEYS as readonly string[]).includes(run.journey_key);
+    const windowEligible = (WINDOW_DELIVER_JOURNEYS as readonly string[]).includes(run.journey_key);
+    const isCart = run.journey_key === "abandoned_checkout";
 
-    // In-window delivery: review_request / replenishment_reminder are MARKETING
-    // templates that Meta throttles per-recipient (131049). If the customer's 24h
-    // service window is open, deliver a personalized FREE-TEXT ask instead — no
-    // cap, no fee. wa-ai-reply claims the run atomically and composes the message
-    // from the customer's real order. Falls through to the (capped) template only
-    // if the window is closed or the in-window send fails.
-    if (windowEligible) {
+    // In-window delivery: review_request / replenishment_reminder / abandoned_cart
+    // recovery are MARKETING templates that Meta throttles per-recipient (131049).
+    // If the customer's 24h service window is open, deliver a personalized
+    // FREE-TEXT message instead — no cap, no fee. wa-ai-reply claims the run
+    // atomically and composes it. Falls through to the (capped) template only if
+    // the window is closed or the in-window send fails.
+    // A cart's free-text recovery needs its checkout link (vars["2"]); runs
+    // enrolled before that was stored fall straight through to the template
+    // (which still carries the button) rather than send a linkless nudge.
+    const freeTextReady = !isCart || !!run.context?.vars?.["2"];
+    if (windowEligible && freeTextReady) {
       const { data: th } = await sb
         .from("wa_threads")
         .select("id, last_inbound_at")
@@ -100,7 +124,11 @@ Deno.serve(async () => {
     // it in an open window) but stop re-sending the capped template every tick.
     const tplAttempts = Number(run.context?.tpl_attempts ?? 0);
     if (windowEligible) {
-      if (tplAttempts >= TPL_FALLBACK_MAX) { skipped++; continue; }
+      // Post-purchase asks stand down after a few capped attempts and wait for an
+      // open window. A CART never stands down — every missed cart is lost revenue,
+      // so it keeps probing the template on a spaced backoff until its deadline
+      // (the backoff is applied in the failure branch below).
+      if (!isCart && tplAttempts >= TPL_FALLBACK_MAX) { skipped++; continue; }
       // claim atomically before the send so an inbound piggyback can't also send.
       if (!(await claimAsk(sb, run.id))) { skipped++; continue; }
     } else {
@@ -129,12 +157,32 @@ Deno.serve(async () => {
         vars: run.context?.vars ?? {},
       },
       sent_by: `journey:${run.journey_key}`,
+      // so the async delivery webhook can confirm (delivered) or reopen (failed)
+      // THIS run — the linchpin of the at-least-once cart guarantee.
+      journey_run_id: run.id,
     });
 
     if (res?.ok) {
-      // window-eligible runs are already 'completed' via claimAsk above.
+      // window-eligible runs are already 'completed' via claimAsk above. NOTE:
+      // ok here means Meta ACCEPTED the send, not that it was delivered — a
+      // marketing template can still be async-failed (#131049) by the status
+      // webhook, which reopens the run (see wa-webhook handleStatus).
       if (!windowEligible) await mark(run.id, "completed", null);
       sent++;
+    } else if (isCart) {
+      // Cart template send was rejected at call time (often the cap). Don't drop
+      // it — hand the claim back and push the next attempt out by the backoff so
+      // we probe across cap windows without hammering the number's quality
+      // rating. The 72h deadline (checked at the top) is the hard stop.
+      await releaseAsk(sb, run.id);
+      const nextAt = new Date(Date.now() + CART_TEMPLATE_BACKOFF_HOURS * 3600_000).toISOString();
+      await sb.from("wa_journey_runs").update({
+        next_action_at: nextAt,
+        attempts: (run.attempts ?? 0) + 1,
+        last_error: `cart template attempt ${(run.attempts ?? 0) + 1} failed: ${res?.error ?? "send failed"}`,
+        context: { ...(run.context ?? {}), tpl_attempts: tplAttempts + 1 },
+      }).eq("id", run.id).then(() => {}, () => {});
+      failed++;
     } else if (windowEligible) {
       // Hand the claim back (status -> active) AND record the attempt, so the
       // template fallback is bounded but the run stays alive for the window path.

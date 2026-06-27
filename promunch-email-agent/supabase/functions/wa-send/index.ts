@@ -59,6 +59,9 @@ interface SendBody {
   sent_by?: string;
   ai_generated?: boolean;
   ai_meta?: unknown;
+  // Links this send to the wa_journey_runs row that triggered it, so the async
+  // delivery webhook can confirm (delivered) or reopen (failed) the right run.
+  journey_run_id?: string;
 }
 
 // Best-effort human-readable summary of an interactive payload for wa_messages.body.
@@ -112,6 +115,7 @@ Deno.serve(async (req) => {
     direction: "outbound",
     sent_by: body.sent_by ?? "dashboard",
     ai_meta: body.ai_meta ?? null,
+    journey_run_id: body.journey_run_id ?? null,
   };
 
   try {
