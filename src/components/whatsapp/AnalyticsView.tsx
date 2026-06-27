@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Send, CheckCheck, Eye, CornerUpLeft, ShoppingBag, IndianRupee,
-  TrendingUp, Activity, AlertTriangle, RefreshCw, Info, Clock, Users, Megaphone,
+  TrendingUp, Activity, AlertTriangle, RefreshCw, Info, Clock, Users, Megaphone, Radio,
 } from "lucide-react";
 import { KpiCard, Panel, AttentionItem, StatusBadge } from "@/components/pm";
 import type { KpiTone } from "@/components/pm";
@@ -35,6 +35,7 @@ type Hints = {
   topSegment: { name: string; note: string } | null;
 };
 type CampData = { campaigns: Card[]; hints: Hints };
+type ActItem = { at: string; type: "reply" | "campaign" | "order"; tone: "b" | "g" | "o"; title: string; sub?: string };
 
 const WINDOWS = [
   { days: 7, label: "7 days" },
@@ -53,6 +54,7 @@ export default function AnalyticsView() {
   const [days, setDays] = useState(30);
   const [d, setD] = useState<Data | null>(null);
   const [c, setC] = useState<CampData | null>(null);
+  const [act, setAct] = useState<ActItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -68,6 +70,21 @@ export default function AnalyticsView() {
     setLoading(false);
   }, [days]);
   useEffect(() => { load(); }, [load]);
+
+  // Live feed: independent of the window, polled every 30s.
+  useEffect(() => {
+    let alive = true;
+    const pull = async () => {
+      try {
+        const r = await fetch("/api/whatsapp/analytics/activity");
+        const j = await r.json();
+        if (alive) setAct(j.items ?? []);
+      } catch { /* keep last good */ }
+    };
+    pull();
+    const t = setInterval(pull, 30000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
 
   return (
     <div>
@@ -114,9 +131,49 @@ export default function AnalyticsView() {
               <CampaignCards cards={c.campaigns} />
             </>
           )}
+          {act.length > 0 && (
+            <>
+              <div style={{ height: 18 }} />
+              <ActivityFeed items={act} />
+            </>
+          )}
         </>
       )}
     </div>
+  );
+}
+
+// ---- Live activity feed: watch the channel work ------------------------------
+
+function timeAgo(iso: string): string {
+  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+function ActivityFeed({ items }: { items: ActItem[] }) {
+  const dot = (t: ActItem["tone"]) => (t === "g" ? "var(--pm-green)" : t === "b" ? "var(--pm-blue)" : "var(--pm-gold)");
+  const ico = (t: ActItem["type"]) =>
+    t === "order" ? <ShoppingBag size={14} /> : t === "reply" ? <CornerUpLeft size={14} /> : <Megaphone size={14} />;
+  return (
+    <Panel title="Live activity" icon={<Radio className="tic" size={18} />} caption="The latest replies, campaigns and orders — refreshes on its own.">
+      <div>
+        {items.map((it, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 0", borderTop: i === 0 ? "0" : "1px solid var(--pm-line)" }}>
+            <span style={{ width: 26, height: 26, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: dot(it.tone), background: "var(--pm-card2)" }}>
+              {ico(it.type)}
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: 13.5, fontWeight: 500, color: "var(--pm-ink)" }}>{it.title}</span>
+              {it.sub && <span style={{ display: "block", fontSize: 11.5, color: "var(--pm-hint)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.sub}</span>}
+            </span>
+            <span style={{ fontSize: 11.5, color: "var(--pm-hint)", flexShrink: 0 }}>{timeAgo(it.at)}</span>
+          </div>
+        ))}
+      </div>
+    </Panel>
   );
 }
 
