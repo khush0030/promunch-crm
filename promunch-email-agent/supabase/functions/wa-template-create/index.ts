@@ -241,6 +241,50 @@ Deno.serve(async (req) => {
     return j({ ok: results.every((r) => r.ok), mode: "edit", waba, results });
   }
 
+  // --- editDb mode: edit a DASHBOARD-made template (one NOT in the hardcoded
+  // TEMPLATES set) by rebuilding its Meta components from its wa_templates row.
+  // { editDb:true, name, language?, button_url? } — optionally swap the URL
+  // button's link. Re-uploads any media header, PATCHes Meta (re-review ->
+  // pending) and mirrors the change locally.
+  if (b?.editDb === true) {
+    const name = typeof b?.name === "string" ? b.name : null;
+    if (!name) return j({ error: "editDb requires name" }, 400);
+    const language = typeof b?.language === "string" ? b.language : "en";
+    const { data: row } = await sb.from("wa_templates").select("*")
+      .eq("name", name).eq("language", language).maybeSingle();
+    if (!row) return j({ error: `template '${name}' (${language}) not found` }, 404);
+    if (!row.meta_template_id) return j({ error: "no meta_template_id on file — create it first" }, 400);
+
+    const dbButtons: TplButton[] = Array.isArray(row.buttons) ? row.buttons : [];
+    const newUrl = typeof b?.button_url === "string" ? b.button_url : null;
+    const buttons = dbButtons.map((bt) =>
+      bt.type === "URL" && newUrl ? { ...bt, url: newUrl } : bt
+    );
+    const def: TemplateDef = {
+      name: row.name,
+      language: row.language ?? language,
+      category: String(row.category ?? "marketing").toUpperCase() as MetaCategory,
+      headerFormat: (row.header_type ?? "TEXT") as HeaderFormat,
+      headerMediaUrl: row.header_media_url ?? undefined,
+      header: row.header_text ?? undefined,
+      body: row.body ?? "",
+      footer: row.footer ?? undefined,
+      bodyExample: Array.isArray(row.variables)
+        ? row.variables.map((v: { sample?: string }) => v.sample ?? "")
+        : [],
+      buttons: buttons.length ? buttons : undefined,
+    };
+    const edited = await editTemplate(String(row.meta_template_id), def);
+    if (edited.ok) {
+      await sb.from("wa_templates").update({
+        status: "pending",
+        buttons: buttons.length ? buttons : null,
+        rejection_reason: null,
+      }).eq("id", row.id);
+    }
+    return j({ ok: edited.ok, mode: "editDb", name, language, button_url: newUrl, ...edited });
+  }
+
   // --- build the list of definitions to create ------------------------------
   let defs: TemplateDef[];
   if (b?.template) {
