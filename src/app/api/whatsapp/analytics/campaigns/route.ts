@@ -62,28 +62,29 @@ export async function GET(req: NextRequest) {
     stat.set(m.campaign_id, s);
   }
 
-  // wa_contact → CRM contact + rfm tag, for revenue + segment hints.
+  // wa_contact → wa_id (phone) + rfm tag, for revenue + segment hints.
   const allWa = [...new Set(msgs.map((m) => m.contact_id).filter(Boolean))] as string[];
-  const waMeta = new Map<string, { crm: string | null; rfm: string | null }>();
+  const waMeta = new Map<string, { phone: string | null; rfm: string | null }>();
   for (let i = 0; i < allWa.length; i += 500) {
     const slice = allWa.slice(i, i + 500);
-    const { data } = await supabaseAdmin.from("wa_contacts").select("id,contact_id,tags").in("id", slice);
-    (data ?? []).forEach((w: { id: string; contact_id: string | null; tags: string[] | null }) =>
-      waMeta.set(w.id, { crm: w.contact_id, rfm: (w.tags || []).find((t) => t.startsWith("rfm:")) || null })
+    const { data } = await supabaseAdmin.from("wa_contacts").select("id,wa_id,tags").in("id", slice);
+    (data ?? []).forEach((w: { id: string; wa_id: string | null; tags: string[] | null }) =>
+      waMeta.set(w.id, { phone: w.wa_id, rfm: (w.tags || []).find((t) => t.startsWith("rfm:")) || null })
     );
   }
 
-  // Live orders in window, keyed by CRM contact.
-  type Ord = { contact_id: string; total_amount: number | string; placed_at: string; status: string };
+  // Live orders in window, keyed by customer_phone (= wa_id). Excludes HYPD
+  // creator seeds and refunded/voided orders.
+  type Ord = { customer_phone: string; total_price: number | string; shopify_created_at: string; financial_status: string | null; is_creator: boolean | null };
   const orders = (await pageAll<Ord>(() =>
     supabaseAdmin
       .from("shopify_orders")
-      .select("contact_id,total_amount,placed_at,status")
-      .gte("placed_at", since)
-      .not("contact_id", "is", null)
-  )).filter((o) => o.status !== "cancelled" && o.status !== "refunded");
-  const ordersByCrm = new Map<string, Ord[]>();
-  orders.forEach((o) => { (ordersByCrm.get(o.contact_id) || ordersByCrm.set(o.contact_id, []).get(o.contact_id)!).push(o); });
+      .select("customer_phone,total_price,shopify_created_at,financial_status,is_creator")
+      .gte("shopify_created_at", since)
+      .not("customer_phone", "is", null)
+  )).filter((o) => !o.is_creator && o.financial_status !== "refunded" && o.financial_status !== "voided");
+  const ordersByPhone = new Map<string, Ord[]>();
+  orders.forEach((o) => { (ordersByPhone.get(o.customer_phone) || ordersByPhone.set(o.customer_phone, []).get(o.customer_phone)!).push(o); });
 
   // Build a report card per campaign.
   const cards = campaigns.map((c: any) => {
@@ -97,11 +98,11 @@ export async function GET(req: NextRequest) {
     // Orders after this campaign went out, from people it messaged.
     const after = c.started_at || c.created_at;
     let revenue = 0, orderCount = 0;
-    s.contacts.forEach((waId) => {
-      const meta = waMeta.get(waId);
-      if (!meta?.crm) return;
-      (ordersByCrm.get(meta.crm) || []).forEach((o) => {
-        if (o.placed_at >= after) { revenue += Number(o.total_amount || 0); orderCount++; }
+    s.contacts.forEach((waContactId) => {
+      const phone = waMeta.get(waContactId)?.phone;
+      if (!phone) return;
+      (ordersByPhone.get(phone) || []).forEach((o) => {
+        if (o.shopify_created_at >= after) { revenue += Number(o.total_price || 0); orderCount++; }
       });
     });
     revenue = Math.round(revenue);
@@ -141,7 +142,7 @@ function gradeCampaign(deliveredPct: number, readPct: number, roi: number | null
 async function buildHints(
   since: string,
   campMsgs: { contact_id: string | null }[],
-  waMeta: Map<string, { crm: string | null; rfm: string | null }>
+  waMeta: Map<string, { phone: string | null; rfm: string | null }>
 ) {
   // Best time to send: when do customer replies land (IST hour histogram)?
   const inbound = await pageAll<{ created_at: string }>(() =>

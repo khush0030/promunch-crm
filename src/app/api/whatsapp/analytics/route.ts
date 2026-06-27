@@ -196,49 +196,54 @@ async function estimateSpend(since: string): Promise<number> {
 }
 
 // Attribute orders to WhatsApp: customers we messaged in the window who then
-// placed an order in the window. Loose (not click-through) but defensible and
-// clearly labelled in the UI. Bounded by order volume, not message volume.
+// placed an order in the window. Orders link to a WhatsApp contact by
+// customer_phone (a normalised wa_id, same shape as wa_contacts.wa_id — see the
+// RFM rollup). HYPD creator seeds (₹0.01, is_creator) and refunded/voided
+// orders are excluded. Loose (not click-through) but defensible.
+type OrderRow = { customer_phone: string | null; total_price: number | string; financial_status: string | null; is_creator: boolean | null };
+function liveOrders(rows: OrderRow[] | null): OrderRow[] {
+  return (rows ?? []).filter(
+    (o) => o.customer_phone && !o.is_creator &&
+      o.financial_status !== "refunded" && o.financial_status !== "voided"
+  );
+}
+
 async function attributeRevenue(since: string): Promise<{ orders: number; revenue: number }> {
   const { data: ordRows } = await supabaseAdmin
     .from("shopify_orders")
-    .select("contact_id,total_amount,status")
-    .gte("placed_at", since)
-    .not("contact_id", "is", null)
+    .select("customer_phone,total_price,financial_status,is_creator")
+    .gte("shopify_created_at", since)
+    .not("customer_phone", "is", null)
     .limit(1000);
-  const live = (ordRows ?? []).filter(
-    (o: { status: string }) => o.status !== "cancelled" && o.status !== "refunded"
-  );
+  const live = liveOrders(ordRows as OrderRow[]);
   if (!live.length) return { orders: 0, revenue: 0 };
 
-  const crmIds = [...new Set(live.map((o: { contact_id: string }) => o.contact_id))];
-  // CRM contact -> wa_contact
+  const phones = [...new Set(live.map((o) => o.customer_phone!))];
+  // wa_contacts for those phones → their internal ids
   const { data: waC } = await supabaseAdmin
     .from("wa_contacts")
-    .select("id,contact_id")
-    .in("contact_id", crmIds);
-  const waToCrm = new Map<string, string>();
-  (waC ?? []).forEach((w: { id: string; contact_id: string }) => waToCrm.set(w.id, w.contact_id));
-  if (!waToCrm.size) return { orders: 0, revenue: 0 };
+    .select("id,wa_id")
+    .in("wa_id", phones);
+  const idToPhone = new Map<string, string>();
+  (waC ?? []).forEach((w: { id: string; wa_id: string }) => idToPhone.set(w.id, w.wa_id));
+  if (!idToPhone.size) return { orders: 0, revenue: 0 };
 
-  // which of those wa_contacts got an outbound message in the window
+  // which of those contacts got an outbound message in the window
   const { data: msgged } = await supabaseAdmin
     .from("wa_messages")
     .select("contact_id")
     .eq("direction", "outbound")
     .gte("created_at", since)
-    .in("contact_id", [...waToCrm.keys()]);
-  const engagedCrm = new Set<string>();
+    .in("contact_id", [...idToPhone.keys()]);
+  const engagedPhones = new Set<string>();
   (msgged ?? []).forEach((m: { contact_id: string }) => {
-    const crm = waToCrm.get(m.contact_id);
-    if (crm) engagedCrm.add(crm);
+    const p = idToPhone.get(m.contact_id);
+    if (p) engagedPhones.add(p);
   });
-  if (!engagedCrm.size) return { orders: 0, revenue: 0 };
+  if (!engagedPhones.size) return { orders: 0, revenue: 0 };
 
-  const matched = live.filter((o: { contact_id: string }) => engagedCrm.has(o.contact_id));
-  const revenue = matched.reduce(
-    (s: number, o: { total_amount: number | string }) => s + Number(o.total_amount || 0),
-    0
-  );
+  const matched = live.filter((o) => engagedPhones.has(o.customer_phone!));
+  const revenue = matched.reduce((s, o) => s + Number(o.total_price || 0), 0);
   return { orders: matched.length, revenue: Math.round(revenue) };
 }
 
