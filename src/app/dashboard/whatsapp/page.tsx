@@ -9,8 +9,9 @@ import {
   Video, Image as ImageIcon, Clock,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import AnalyticsView from "@/components/whatsapp/AnalyticsView";
 
-type Tab = "inbox" | "templates" | "campaigns" | "kb" | "tickets";
+type Tab = "inbox" | "templates" | "campaigns" | "analytics" | "kb" | "tickets";
 
 type Contact = { id: string; wa_id: string; phone: string; name: string | null; tags?: string[] | null };
 type Thread = {
@@ -166,6 +167,7 @@ export default function WhatsAppPage() {
         {tab === "tickets" && <InboxView ticketsOnly={true} />}
         {tab === "templates" && <TemplatesView />}
         {tab === "campaigns" && <CampaignsView />}
+        {tab === "analytics" && <AnalyticsView />}
         {tab === "kb" && <KbView />}
       </div>
     </div>
@@ -293,6 +295,7 @@ function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
     { key: "tickets", label: "Tickets" },
     { key: "templates", label: "Templates" },
     { key: "campaigns", label: "Campaigns" },
+    { key: "analytics", label: "Analytics" },
     { key: "kb", label: "Knowledge Base" },
   ];
   return (
