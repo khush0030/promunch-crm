@@ -56,13 +56,28 @@ async function postMessage(body: Record<string, unknown>): Promise<SendResult> {
   return { ok: true, message_id: id, raw: json };
 }
 
+// Brand copy rule: PROMUNCH never sends an em/en dash to a customer (it reads as
+// AI-written). This is the deterministic safety net — applied to EVERY free-text
+// WhatsApp message regardless of which function composed it. A spaced dash becomes
+// a comma (", "), or just a space after existing sentence punctuation; a tight
+// dash (word—word) becomes a hyphen. Then doubled punctuation/space is tidied.
+export function stripEmDashes(text: string): string {
+  return text
+    .replace(/([.!?,;:])\s+[—–]\s+/g, "$1 ")  // after sentence punctuation -> just a space
+    .replace(/\s+[—–]\s+/g, ", ")              // spaced dash -> comma
+    .replace(/[—–]/g, "-")                      // any remaining tight dash -> hyphen
+    .replace(/ {2,}/g, " ")
+    .replace(/,\s*,/g, ",")
+    .replace(/\s+([.!?,])/g, "$1");
+}
+
 export function sendText(to: string, text: string, previewUrl = false): Promise<SendResult> {
   return postMessage({
     messaging_product: "whatsapp",
     recipient_type: "individual",
     to,
     type: "text",
-    text: { body: text, preview_url: previewUrl },
+    text: { body: stripEmDashes(text), preview_url: previewUrl },
   });
 }
 

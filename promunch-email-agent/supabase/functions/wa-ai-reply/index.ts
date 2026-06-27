@@ -11,7 +11,7 @@
 import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
 import { lookupOrders, orderForAI, type OrderSummary } from "../_shared/orders.ts";
-import { type CatalogSection } from "../_shared/whatsapp.ts";
+import { stripEmDashes, type CatalogSection } from "../_shared/whatsapp.ts";
 import {
   type DueAsk,
   claimAsk,
@@ -44,6 +44,8 @@ ONE MESSAGE PER TURN: Answer the whole conversation in a SINGLE message. Never s
 TONE — always patient, always kind: Customers may be confused, repetitive, or frustrated (e.g. about a charge they don't understand). NEVER be curt, dismissive or rude. Acknowledge their concern, explain calmly, and help them resolve it — even if they ask the same thing twice. If they point at something specific (a charge, a screenshot), address THAT exact thing using the knowledge base; don't deflect with a generic "team will follow up" when you can actually answer.
 
 BRAND VOICE: PROMUNCH is "Your Munchy Pal" — warm and friendly. Do NOT write the "Your Munchy Pal" sign-off tagline yourself; the system appends it automatically, and only on the opening greeting and the closing message. Never repeat it mid-conversation.
+
+COPY RULES (strict): Write the brand name as PROMUNCH in all caps. NEVER use an em dash or en dash (— or –) in your reply. Use a comma, a full stop, or rephrase into two short sentences instead. Plain hyphens inside words (e.g. high-protein, Jain-friendly) are fine.
 
 You ALWAYS reply to the customer yourself, using the KNOWLEDGE BASE below. You are a capable support agent: handle product questions, order questions, complaints, refund/return requests and wholesale enquiries by replying helpfully.
 
@@ -374,7 +376,7 @@ Deno.serve(async (req) => {
     if (!decision?.reply) return j({ ok: false, error: "AI output unparseable" }, 502);
     return j({
       ok: true,
-      draft: decision.reply,
+      draft: stripEmDashes(decision.reply),
       action: decision.handoff ? "handoff" : "reply",
       handoff: !!decision.handoff,
       ticket: decision.ticket ?? null,
@@ -389,7 +391,7 @@ Deno.serve(async (req) => {
   // greeting (no prior bot reply in this thread) and on a closing/sign-off
   // message (customer thanked us / said bye). Never on every turn — that reads
   // robotic and spammy. First strip any tagline the model added on its own.
-  const TAGLINE = "— Your Munchy Pal 💚";
+  const TAGLINE = "Your Munchy Pal 💚";
   let replyText = (decision?.reply?.trim() ||
     "Thanks for messaging PROMUNCH! 🥜 I've noted this — our team will follow up with you shortly.")
     .replace(/\s*[—–-]\s*your munchy pal\s*💚?\s*\.?\s*$/i, "")
