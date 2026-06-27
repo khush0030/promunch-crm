@@ -387,7 +387,7 @@ export default function InstagramPage() {
                         Resolve
                       </button>
                     )}
-                    <button className="pm-btn pm-btn-primary" onClick={sendReply} disabled={sending || !reply.trim()}>
+                    <button className="pm-btn primary" onClick={sendReply} disabled={sending || !reply.trim()}>
                       <Send size={15} /> {sending ? "Sending…" : "Send"}
                     </button>
                   </div>
@@ -427,7 +427,7 @@ function SettingsPanel({ settings, onSave }: { settings: Settings | null; onSave
           <span>How the bot handles a barter inquiry.</span>
         </div>
         <select
-          className="pm-input"
+          className={styles.field}
           value={settings.auto_reply_scope}
           onChange={(e) => onSave({ auto_reply_scope: e.target.value as Settings["auto_reply_scope"] })}
         >
@@ -442,9 +442,9 @@ function SettingsPanel({ settings, onSave }: { settings: Settings | null; onSave
           <span>Used to flag whether a collab inquiry fits (Business Discovery).</span>
         </div>
         <div className={styles.bandInputs}>
-          <input className="pm-input" type="number" value={min} onChange={(e) => setMin(+e.target.value)} onBlur={() => onSave({ min_followers: min })} />
+          <input className={styles.field} type="number" value={min} onChange={(e) => setMin(+e.target.value)} onBlur={() => onSave({ min_followers: min })} />
           <span>to</span>
-          <input className="pm-input" type="number" value={max} onChange={(e) => setMax(+e.target.value)} onBlur={() => onSave({ max_followers: max })} />
+          <input className={styles.field} type="number" value={max} onChange={(e) => setMax(+e.target.value)} onBlur={() => onSave({ max_followers: max })} />
         </div>
       </div>
 
@@ -454,13 +454,13 @@ function SettingsPanel({ settings, onSave }: { settings: Settings | null; onSave
           <span>What we offer + what we expect. The bot uses this for collab replies (in &quot;reply with terms&quot; mode).</span>
         </div>
         <textarea
-          className="pm-input"
+          className={styles.field}
           rows={5}
           value={terms}
           onChange={(e) => setTerms(e.target.value)}
           placeholder="e.g. We send a PROMUNCH hamper (worth ₹X) in exchange for 1 reel + 2 stories tagging @promunch within 2 weeks…"
         />
-        <button className="pm-btn pm-btn-primary" onClick={() => onSave({ barter_terms: terms })} style={{ alignSelf: "flex-start" }}>
+        <button className="pm-btn primary" onClick={() => onSave({ barter_terms: terms })} style={{ alignSelf: "flex-start" }}>
           Save terms
         </button>
       </div>

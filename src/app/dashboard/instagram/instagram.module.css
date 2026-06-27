@@ -118,18 +118,35 @@
 .composerInput { width: 100%; resize: vertical; min-height: 56px; border: var(--card-border, 1px solid #eadfce); border-radius: 10px; padding: 9px 12px; font-size: 14px; font-family: inherit; outline: 0; }
 .composerActions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 
-/* settings */
-.settings { display: flex; flex-direction: column; gap: 4px; max-width: 720px; }
+/* settings — single card panel, rows divided by hairlines */
+.settings {
+  display: flex; flex-direction: column; max-width: 720px;
+  background: var(--card-bg, #fff); border: var(--card-border, 1px solid #eadfce);
+  border-radius: var(--radius, 14px); overflow: hidden;
+}
 .setRow {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 16px; border-bottom: var(--card-border, 1px solid #eadfce);
+  padding: 16px 18px; border-bottom: 1px solid var(--border-2, #eadfce);
 }
-.setCol { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
-.setLabel { display: flex; flex-direction: column; gap: 3px; }
-.setLabel strong { font-size: 14px; color: var(--ink, #2b2b2b); }
-.setLabel span { font-size: 12px; color: var(--muted, #7a7268); }
-.bandInputs { display: flex; align-items: center; gap: 8px; }
+.setCol { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--border-2, #eadfce); }
+.settings > :last-child { border-bottom: 0; }
+.setLabel { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.setLabel strong { font-size: 14px; font-weight: 600; color: var(--ink, #2b2b2b); }
+.setLabel span { font-size: 12px; color: var(--muted, #7a7268); line-height: 1.45; }
+.bandInputs { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .bandInputs input { width: 110px; }
+.bandInputs > span { font-size: 13px; color: var(--muted, #7a7268); }
+
+/* form controls — matches the pm-field input look (page referenced a non-existent class) */
+.field {
+  font-family: inherit; font-size: 13.5px; color: var(--ink, #2b2b2b);
+  background: var(--card-bg, #fff); border: 1px solid var(--border-2, #dfd5c5);
+  border-radius: 10px; padding: 9px 12px; outline: 0; transition: border-color 0.15s;
+}
+.field:focus { border-color: var(--accent, #c77d4a); }
+.setRow .field { max-width: 280px; }
+.setCol .field { width: 100%; resize: vertical; }
+select.field { cursor: pointer; }
 
 .switch { width: 44px; height: 24px; border-radius: 999px; background: #d6cdbf; border: 0; position: relative; cursor: pointer; flex-shrink: 0; transition: background 0.15s; }
 .switchOn { background: var(--accent, #c77d4a); }
