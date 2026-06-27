@@ -28,7 +28,7 @@ type Data = {
 
 type Card = {
   id: string; name: string; status: string; sent: number; deliveredPct: number; readPct: number;
-  failed: number; clicks: number; orders: number; revenue: number; cost: number; roi: number | null; grade: string; verdict: string;
+  failed: number; orders: number; revenue: number; cost: number; roi: number | null; grade: string; verdict: string;
 };
 type Hints = {
   bestTime: { hour: number; label: string; note: string } | null;
@@ -36,8 +36,8 @@ type Hints = {
 };
 type CampData = { campaigns: Card[]; hints: Hints };
 type ActItem = { at: string; type: "reply" | "campaign" | "order"; tone: "b" | "g" | "o"; title: string; sub?: string };
-type ConvRow = { dest: string; sent: number; clicks: number; clickers: number; orders: number; revenue: number; convPct: number };
-type ConvData = { totals: { links: number; clicks: number; clickers: number; orders: number; revenue: number; convPct: number }; rows: ConvRow[] };
+type ConvRow = { campaign: string; medium: string; orders: number; revenue: number };
+type ConvData = { totals: { orders: number; revenue: number }; rows: ConvRow[] };
 
 const WINDOWS = [
   { days: 7, label: "7 days" },
@@ -136,7 +136,7 @@ export default function AnalyticsView() {
               <CampaignCards cards={c.campaigns} />
             </>
           )}
-          {conv && (conv.rows.length > 0 || conv.totals.clicks > 0) && (
+          {conv && (conv.rows.length > 0 || conv.totals.orders > 0) && (
             <>
               <div style={{ height: 18 }} />
               <ConversionPanel conv={conv} />
@@ -159,24 +159,19 @@ export default function AnalyticsView() {
 function ConversionPanel({ conv }: { conv: ConvData }) {
   const t = conv.totals;
   const cols: Column<ConvRow>[] = [
-    { header: "Link", cell: (r) => <span style={{ fontWeight: 600, wordBreak: "break-all" }}>{r.dest}</span> },
-    { header: "Sent", align: "right", cell: (r) => num(r.sent) },
-    { header: "Clicks", align: "right", cell: (r) => num(r.clicks) },
-    { header: "Buyers", align: "right", cell: (r) => num(r.orders) },
+    { header: "Campaign", cell: (r) => <span style={{ fontWeight: 600, wordBreak: "break-word" }}>{r.campaign}</span> },
+    { header: "Via", cell: (r) => <span className="pm-dim">{r.medium}</span> },
+    { header: "Orders", align: "right", cell: (r) => num(r.orders) },
     { header: "Revenue", align: "right", cell: (r) => <span style={{ fontWeight: 700 }}>{inr(r.revenue)}</span> },
-    {
-      header: "Conv.", align: "right",
-      cell: (r) => <StatusBadge tone={r.convPct >= 20 ? "green" : r.convPct > 0 ? "gold" : "gray"}>{r.convPct}%</StatusBadge>,
-    },
   ];
   return (
-    <Panel title="What links drove orders" icon={<TrendingUp className="tic" size={18} />} caption={`Tracked links a customer clicked, then bought within 7 days (last-click). ${num(t.clicks)} clicks from ${num(t.clickers)} people → ${num(t.orders)} orders (${inr(t.revenue)}).`}>
+    <Panel title="Revenue from WhatsApp" icon={<TrendingUp className="tic" size={18} />} caption={`Orders Shopify attributed to WhatsApp (utm_source=whatsapp), grouped by campaign. ${num(t.orders)} orders worth ${inr(t.revenue)} this period.`}>
       {conv.rows.length === 0 ? (
         <div className="pm-csub" style={{ padding: "18px 0", marginBottom: 0 }}>
-          Links are being clicked but no orders yet in this window.
+          No WhatsApp-attributed orders yet. Tagged links start attributing once customers click and buy.
         </div>
       ) : (
-        <DataTable columns={cols} rows={conv.rows} rowKey={(r) => r.dest} />
+        <DataTable columns={cols} rows={conv.rows} rowKey={(r) => r.campaign} />
       )}
     </Panel>
   );
@@ -265,8 +260,7 @@ function CampaignCards({ cards }: { cards: Card[] }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
               <Mini label="Sent" value={num(c.sent)} />
               <Mini label="Read" value={`${c.readPct}%`} />
-              {c.clicks > 0 ? <Mini label="Clicks" value={num(c.clicks)} /> : <Mini label="Orders" value={num(c.orders)} />}
-              {c.clicks > 0 && <Mini label="Orders" value={num(c.orders)} />}
+              <Mini label="Orders" value={num(c.orders)} />
               <Mini label="Revenue" value={inr(c.revenue)} />
               <Mini label="Cost" value={inr(c.cost)} />
               <Mini label="Return" value={c.roi != null ? `${c.roi.toFixed(1)}x` : "—"} tone={c.roi != null && c.roi < 1 ? "var(--pm-terra)" : undefined} />

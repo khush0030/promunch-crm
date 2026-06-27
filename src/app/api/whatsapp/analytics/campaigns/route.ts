@@ -87,23 +87,6 @@ export async function GET(req: NextRequest) {
   const ordersByPhone = new Map<string, Ord[]>();
   orders.forEach((o) => { (ordersByPhone.get(o.customer_phone) || ordersByPhone.set(o.customer_phone, []).get(o.customer_phone)!).push(o); });
 
-  // Per-campaign click counts from tracked dynamic-button links (sent_by =
-  // "campaign:<id>"). Empty until templates use dynamic /r/ buttons.
-  const clicksByCampaign = new Map<string, number>();
-  try {
-    const sl = await pageAll<{ code: string; sent_by: string | null }>(() =>
-      supabaseAdmin.from("wa_short_links").select("code,sent_by").like("sent_by", "campaign:%").gte("created_at", since)
-    );
-    if (sl.length) {
-      const codeToCamp = new Map<string, string>();
-      sl.forEach((r) => { const id = r.sent_by?.slice("campaign:".length); if (id) codeToCamp.set(r.code, id); });
-      const cl = await pageAll<{ code: string }>(() =>
-        supabaseAdmin.from("wa_link_clicks").select("code").gte("clicked_at", since)
-      );
-      cl.forEach((x) => { const id = codeToCamp.get(x.code); if (id) clicksByCampaign.set(id, (clicksByCampaign.get(id) ?? 0) + 1); });
-    }
-  } catch { /* tracking tables not migrated → no clicks */ }
-
   // Build a report card per campaign.
   const cards = campaigns.map((c: any) => {
     const s = stat.get(c.id) || { delivered: 0, read: 0, sent: 0, failed: 0, contacts: new Set<string>() };
@@ -130,7 +113,6 @@ export async function GET(req: NextRequest) {
     return {
       id: c.id, name: c.name, status: c.status,
       sent, deliveredPct, readPct, failed: c.failed_count || 0,
-      clicks: clicksByCampaign.get(c.id) ?? 0,
       orders: orderCount, revenue, cost, roi, grade, verdict,
     };
   });

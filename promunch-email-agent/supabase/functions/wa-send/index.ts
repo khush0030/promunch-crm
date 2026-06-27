@@ -25,7 +25,7 @@ import {
   CatalogSection,
 } from "../_shared/whatsapp.ts";
 import { alertWaSendFailure } from "../_shared/connector-log.ts";
-import { wrapLinks } from "../_shared/links.ts";
+import { appendUtm } from "../_shared/links.ts";
 
 interface SendBody {
   thread_id?: string;
@@ -122,12 +122,11 @@ Deno.serve(async (req) => {
   try {
     if (body.kind === "text") {
       if (!body.text) return j({ error: "text required" }, 400);
-      // Rewrite URLs to tracked /r/<code> links so we can measure clicks +
-      // click->order conversion. Fail-safe: returns original text on any error.
-      const text = await wrapLinks(sb, body.text, {
-        contact_id: contactId, thread_id: threadId,
-        journey_run_id: body.journey_run_id ?? null, sent_by: body.sent_by ?? null,
-      });
+      // Tag our own links with utm_source=whatsapp so Shopify attributes the
+      // resulting order to WhatsApp. Keeps the branded URL; fail-safe.
+      const medium = body.journey_run_id ? "journey"
+        : (body.sent_by ?? "").startsWith("campaign") ? "campaign" : "chat";
+      const text = appendUtm(body.text, { medium });
       result = await sendText(waId!, text);
       recorded = { ...recorded, type: "text", body: text };
     } else if (body.kind === "template") {

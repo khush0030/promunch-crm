@@ -5,6 +5,41 @@
 
 import { db } from "./supabase.ts";
 
+// Append UTM params to PROMUNCH/Shopify links in an outbound message so Shopify's
+// customer-journey attribution credits the resulting order to WhatsApp. Unlike
+// redirect-wrapping this keeps the original branded URL (just adds query params)
+// and needs no redirect service. Only our own domains are tagged; third-party
+// links and already-tagged links are left untouched. Fail-safe: returns the
+// original text on any error.
+const OUR_DOMAINS = ["promunch.in", "trypromunch.in", "myshopify.com"];
+const URL_RE_UTM = /https?:\/\/[^\s<>()]+[^\s<>().,!?]/g;
+
+export function appendUtm(
+  text: string,
+  opts: { medium?: string; campaign?: string },
+): string {
+  try {
+    if (!text) return text;
+    return text.replace(URL_RE_UTM, (raw) => {
+      try {
+        const url = new URL(raw);
+        const host = url.hostname.toLowerCase();
+        const ours = OUR_DOMAINS.some((d) => host === d || host.endsWith("." + d) || host.endsWith(d));
+        if (!ours) return raw;
+        if (url.searchParams.has("utm_source")) return raw; // don't double-tag
+        url.searchParams.set("utm_source", "whatsapp");
+        url.searchParams.set("utm_medium", opts.medium || "chat");
+        if (opts.campaign) url.searchParams.set("utm_campaign", opts.campaign);
+        return url.toString();
+      } catch {
+        return raw;
+      }
+    });
+  } catch {
+    return text;
+  }
+}
+
 const URL_RE = /https?:\/\/[^\s<>()]+[^\s<>().,!?]/g;
 const ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
