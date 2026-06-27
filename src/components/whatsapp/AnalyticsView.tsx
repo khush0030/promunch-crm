@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Send, CheckCheck, Eye, CornerUpLeft, ShoppingBag, IndianRupee,
-  TrendingUp, Activity, AlertTriangle, RefreshCw, Info,
+  TrendingUp, Activity, AlertTriangle, RefreshCw, Info, Clock, Users, Megaphone,
 } from "lucide-react";
 import { KpiCard, Panel, AttentionItem, StatusBadge } from "@/components/pm";
 import type { KpiTone } from "@/components/pm";
@@ -26,11 +26,25 @@ type Data = {
   health: { tone: "g" | "a" | "r"; label: string; note: string };
 };
 
+type Card = {
+  id: string; name: string; status: string; sent: number; deliveredPct: number; readPct: number;
+  failed: number; orders: number; revenue: number; cost: number; roi: number | null; grade: string; verdict: string;
+};
+type Hints = {
+  bestTime: { hour: number; label: string; note: string } | null;
+  topSegment: { name: string; note: string } | null;
+};
+type CampData = { campaigns: Card[]; hints: Hints };
+
 const WINDOWS = [
   { days: 7, label: "7 days" },
   { days: 30, label: "30 days" },
   { days: 90, label: "90 days" },
 ];
+
+const GRADE_TONE: Record<string, "green" | "gold" | "terra" | "gray"> = {
+  A: "green", B: "green", C: "gold", D: "gold", F: "terra",
+};
 
 const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 const num = (n: number) => n.toLocaleString("en-IN");
@@ -38,13 +52,18 @@ const num = (n: number) => n.toLocaleString("en-IN");
 export default function AnalyticsView() {
   const [days, setDays] = useState(30);
   const [d, setD] = useState<Data | null>(null);
+  const [c, setC] = useState<CampData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`/api/whatsapp/analytics?days=${days}`);
-      setD(await r.json());
+      const [r1, r2] = await Promise.all([
+        fetch(`/api/whatsapp/analytics?days=${days}`),
+        fetch(`/api/whatsapp/analytics/campaigns?days=${days}`),
+      ]);
+      setD(await r1.json());
+      setC(await r2.json());
     } catch { /* keep last good */ }
     setLoading(false);
   }, [days]);
@@ -78,13 +97,95 @@ export default function AnalyticsView() {
       ) : (
         <>
           <Headline d={d} />
+          {c?.hints && (c.hints.bestTime || c.hints.topSegment) && (
+            <>
+              <div style={{ height: 18 }} />
+              <HintsRow hints={c.hints} />
+            </>
+          )}
           <div style={{ height: 18 }} />
           <div className="pm-grid g-2">
             <FunnelPanel d={d} />
             <FailurePanel d={d} />
           </div>
+          {c?.campaigns && c.campaigns.length > 0 && (
+            <>
+              <div style={{ height: 18 }} />
+              <CampaignCards cards={c.campaigns} />
+            </>
+          )}
         </>
       )}
+    </div>
+  );
+}
+
+// ---- Smart hints: data-driven nudges, not charts -----------------------------
+
+function HintsRow({ hints }: { hints: Hints }) {
+  return (
+    <div className="pm-grid g-11">
+      {hints.bestTime && (
+        <Panel title="Best time to send" icon={<Clock className="tic" size={18} />}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-.6px", color: "var(--pm-green)" }}>
+              {hints.bestTime.label}
+            </div>
+            <span className="pm-csub" style={{ margin: 0 }}>{hints.bestTime.note}</span>
+          </div>
+        </Panel>
+      )}
+      {hints.topSegment && (
+        <Panel title="Best-responding customers" icon={<Users className="tic" size={18} />}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-.6px", color: "var(--pm-blue)" }}>
+              {hints.topSegment.name}
+            </div>
+            <span className="pm-csub" style={{ margin: 0 }}>{hints.topSegment.note}</span>
+          </div>
+        </Panel>
+      )}
+    </div>
+  );
+}
+
+// ---- Campaign report cards: a grade + verdict per campaign -------------------
+
+function CampaignCards({ cards }: { cards: Card[] }) {
+  return (
+    <Panel title="Campaign report cards" icon={<Megaphone className="tic" size={18} />} caption="Each campaign graded A–F with a one-line verdict, so you can see what worked at a glance.">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12, marginTop: 4 }}>
+        {cards.map((c) => (
+          <div key={c.id} style={{ border: "1px solid var(--pm-border)", borderRadius: "var(--pm-r2)", padding: "14px 15px", background: "var(--pm-card)" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.3, minWidth: 0 }}>{c.name}</div>
+              <span style={{
+                flexShrink: 0, width: 30, height: 30, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 800, fontSize: 15, color: "#fff",
+                background: c.grade === "A" || c.grade === "B" ? "var(--pm-green)" : c.grade === "C" || c.grade === "D" ? "var(--pm-gold)" : "var(--pm-terra)",
+              }}>{c.grade}</span>
+            </div>
+            <p style={{ fontSize: 12, color: "var(--pm-muted)", margin: "7px 0 11px", lineHeight: 1.4 }}>{c.verdict}</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
+              <Mini label="Sent" value={num(c.sent)} />
+              <Mini label="Read" value={`${c.readPct}%`} />
+              <Mini label="Orders" value={num(c.orders)} />
+              <Mini label="Revenue" value={inr(c.revenue)} />
+              <Mini label="Cost" value={inr(c.cost)} />
+              <Mini label="Return" value={c.roi != null ? `${c.roi.toFixed(1)}x` : "—"} tone={c.roi != null && c.roi < 1 ? "var(--pm-terra)" : undefined} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function Mini({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div>
+      <div style={{ color: "var(--pm-hint)", fontSize: 10.5, marginBottom: 1 }}>{label}</div>
+      <div style={{ fontWeight: 700, color: tone ?? "var(--pm-ink)" }}>{value}</div>
     </div>
   );
 }
