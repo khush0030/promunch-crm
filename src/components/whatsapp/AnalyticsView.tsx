@@ -5,8 +5,8 @@ import {
   Send, CheckCheck, Eye, CornerUpLeft, ShoppingBag, IndianRupee,
   TrendingUp, Activity, AlertTriangle, RefreshCw, Info, Clock, Users, Megaphone, Radio,
 } from "lucide-react";
-import { KpiCard, Panel, AttentionItem, StatusBadge } from "@/components/pm";
-import type { KpiTone } from "@/components/pm";
+import { KpiCard, Panel, AttentionItem, StatusBadge, DataTable } from "@/components/pm";
+import type { KpiTone, Column } from "@/components/pm";
 
 // WhatsApp analytics, written for an employee, not an engineer. Every tile and
 // bar carries a plain-English meaning + a verdict, so nobody has to know what
@@ -36,6 +36,8 @@ type Hints = {
 };
 type CampData = { campaigns: Card[]; hints: Hints };
 type ActItem = { at: string; type: "reply" | "campaign" | "order"; tone: "b" | "g" | "o"; title: string; sub?: string };
+type ConvRow = { dest: string; sent: number; clicks: number; clickers: number; orders: number; revenue: number; convPct: number };
+type ConvData = { totals: { links: number; clicks: number; clickers: number; orders: number; revenue: number; convPct: number }; rows: ConvRow[] };
 
 const WINDOWS = [
   { days: 7, label: "7 days" },
@@ -54,18 +56,21 @@ export default function AnalyticsView() {
   const [days, setDays] = useState(30);
   const [d, setD] = useState<Data | null>(null);
   const [c, setC] = useState<CampData | null>(null);
+  const [conv, setConv] = useState<ConvData | null>(null);
   const [act, setAct] = useState<ActItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [r1, r2] = await Promise.all([
+      const [r1, r2, r3] = await Promise.all([
         fetch(`/api/whatsapp/analytics?days=${days}`),
         fetch(`/api/whatsapp/analytics/campaigns?days=${days}`),
+        fetch(`/api/whatsapp/analytics/conversion?days=${days}`),
       ]);
       setD(await r1.json());
       setC(await r2.json());
+      setConv(await r3.json());
     } catch { /* keep last good */ }
     setLoading(false);
   }, [days]);
@@ -131,6 +136,12 @@ export default function AnalyticsView() {
               <CampaignCards cards={c.campaigns} />
             </>
           )}
+          {conv && (conv.rows.length > 0 || conv.totals.clicks > 0) && (
+            <>
+              <div style={{ height: 18 }} />
+              <ConversionPanel conv={conv} />
+            </>
+          )}
           {act.length > 0 && (
             <>
               <div style={{ height: 18 }} />
@@ -140,6 +151,34 @@ export default function AnalyticsView() {
         </>
       )}
     </div>
+  );
+}
+
+// ---- Conversion: which links drove orders -----------------------------------
+
+function ConversionPanel({ conv }: { conv: ConvData }) {
+  const t = conv.totals;
+  const cols: Column<ConvRow>[] = [
+    { header: "Link", cell: (r) => <span style={{ fontWeight: 600, wordBreak: "break-all" }}>{r.dest}</span> },
+    { header: "Sent", align: "right", cell: (r) => num(r.sent) },
+    { header: "Clicks", align: "right", cell: (r) => num(r.clicks) },
+    { header: "Buyers", align: "right", cell: (r) => num(r.orders) },
+    { header: "Revenue", align: "right", cell: (r) => <span style={{ fontWeight: 700 }}>{inr(r.revenue)}</span> },
+    {
+      header: "Conv.", align: "right",
+      cell: (r) => <StatusBadge tone={r.convPct >= 20 ? "green" : r.convPct > 0 ? "gold" : "gray"}>{r.convPct}%</StatusBadge>,
+    },
+  ];
+  return (
+    <Panel title="What links drove orders" icon={<TrendingUp className="tic" size={18} />} caption={`Tracked links a customer clicked, then bought within 7 days (last-click). ${num(t.clicks)} clicks from ${num(t.clickers)} people → ${num(t.orders)} orders (${inr(t.revenue)}).`}>
+      {conv.rows.length === 0 ? (
+        <div className="pm-csub" style={{ padding: "18px 0", marginBottom: 0 }}>
+          Links are being clicked but no orders yet in this window.
+        </div>
+      ) : (
+        <DataTable columns={cols} rows={conv.rows} rowKey={(r) => r.dest} />
+      )}
+    </Panel>
   );
 }
 
