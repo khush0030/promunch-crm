@@ -9,9 +9,9 @@
 //              normal marketing-throttle, vs everything else which is worth a look).
 
 import { db } from "../_shared/supabase.ts";
-import { postSlack, slackChannelFor } from "../_shared/connector-log.ts";
+import { logConnector, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
 
-interface Body { campaign_id?: string }
+interface Body { campaign_id?: string; settled?: boolean }
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return j({ error: "POST only" }, 405);
@@ -19,6 +19,7 @@ Deno.serve(async (req) => {
   const campaignId = body.campaign_id;
   if (!campaignId) return j({ error: "campaign_id required" }, 400);
 
+  const settled = body.settled === true;
   const sb = db();
   const { data: campaign } = await sb.from("wa_campaigns").select("*").eq("id", campaignId).single();
   if (!campaign) return j({ error: "campaign not found" }, 404);
@@ -61,8 +62,9 @@ Deno.serve(async (req) => {
     .map(([msg, n]) => `        • ${n}× ${msg}`)
     .join("\n");
 
+  const phase = settled ? "final" : "initial — delivery still settling";
   const lines = [
-    `📊 *Campaign report — ${campaign.name}*`,
+    `📊 *Campaign report — ${campaign.name}* (${phase})`,
     `*Status:* ${campaign.status}`,
     `*Audience messaged:* ${total}`,
     ``,
@@ -79,7 +81,17 @@ Deno.serve(async (req) => {
   const channel = slackChannelFor("whatsapp");
   const posted = channel ? await postSlack(channel, lines.join("\n")) : false;
 
-  return j({ ok: true, campaign: campaign.name, total, received, sent, failed, throttled, other, posted });
+  // Ledger row — lets wa-jobs-tick dedup the settled report (fire it exactly once).
+  await logConnector({
+    connector: "whatsapp",
+    level: "info",
+    event: settled ? "campaign_report_settled" : "campaign_report_initial",
+    message: `Campaign '${campaign.name}' report (${phase}): ${received} received, ${sent} sent, ${failed} failed.`,
+    ref: campaignId,
+    detail: { total, received, sent, failed, throttled, other },
+  }).catch(() => {});
+
+  return j({ ok: true, campaign: campaign.name, settled, total, received, sent, failed, throttled, other, posted });
 });
 
 function j(o: unknown, s = 200) {

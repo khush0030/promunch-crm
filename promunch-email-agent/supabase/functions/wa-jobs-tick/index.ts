@@ -21,8 +21,50 @@ const CAMPAIGN_STALE_MIN = 15;
 Deno.serve(async () => {
   const jobs = await drainJobs().catch((e) => ({ error: String(e) }));
   const campaigns = await sweepCampaigns().catch((e) => ({ error: String(e) }));
-  return j({ ok: true, jobs, campaigns });
+  const reports = await sweepReports().catch((e) => ({ error: String(e) }));
+  return j({ ok: true, jobs, campaigns, reports });
 });
+
+// Fire the SETTLED analytics report exactly once, ~15 min after a campaign
+// completes — late enough that Meta's delivery/read receipts have landed, so
+// "received" is accurate. Dedup is the connector_events ledger row that
+// wa-campaign-report writes (event 'campaign_report_settled', ref = campaign id).
+const REPORT_DELAY_MIN = 15;
+async function sweepReports() {
+  const sb = db();
+  const readyBefore = new Date(Date.now() - REPORT_DELAY_MIN * 60_000).toISOString();
+  const window = new Date(Date.now() - 120 * 60_000).toISOString(); // ignore anything >2h old
+  const { data: done } = await sb
+    .from("wa_campaigns")
+    .select("id, name, completed_at")
+    .eq("status", "completed")
+    .not("completed_at", "is", null)
+    .lt("completed_at", readyBefore)
+    .gt("completed_at", window)
+    .limit(20);
+
+  let reported = 0;
+  for (const c of done ?? []) {
+    const { data: already } = await sb
+      .from("connector_events")
+      .select("id")
+      .eq("event", "campaign_report_settled")
+      .eq("ref", c.id)
+      .limit(1)
+      .maybeSingle();
+    if (already) continue;
+    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-campaign-report`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ campaign_id: c.id, settled: true }),
+    }).catch(() => {});
+    reported++;
+  }
+  return { candidates: done?.length ?? 0, reported };
+}
 
 // ---- 1. wa_jobs queue ------------------------------------------------------
 async function drainJobs() {

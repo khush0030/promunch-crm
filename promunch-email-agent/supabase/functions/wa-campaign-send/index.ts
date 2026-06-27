@@ -165,6 +165,7 @@ Deno.serve(async (req) => {
       `*Meta said:* ${firstError ?? "unknown"}\n` +
       `Fix the template/params, then re-run. Nobody else was messaged.`,
     ).catch(() => {});
+    fireReport(campaignId);
     return j({ ok: false, sent, failed, processed: queue.length, status: "failed", error: firstError });
   }
 
@@ -183,6 +184,7 @@ Deno.serve(async (req) => {
     await sb.from("wa_campaigns").update({
       status: "completed", completed_at: new Date().toISOString(),
     }).eq("id", campaignId);
+    fireReport(campaignId);  // immediate snapshot; wa-jobs-tick fires the settled one later
   }
 
   return j({
@@ -271,6 +273,19 @@ function buildComponents(
   }
 
   return comps;
+}
+
+// Fire-and-forget: post the analytics report to Slack the moment the campaign
+// finishes. wa-jobs-tick fires the settled follow-up ~15 min later.
+function fireReport(campaignId: string, settled = false) {
+  fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-campaign-report`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ campaign_id: campaignId, settled }),
+  }).catch(() => {});
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
