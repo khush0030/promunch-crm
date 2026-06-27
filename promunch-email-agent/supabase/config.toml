@@ -105,6 +105,9 @@ verify_jwt = false                    # invoked by pg_cron + Vercel cron (dead-m
 [functions.wa-rfm-tick]
 verify_jwt = false                    # invoked by scheduled cron (nightly RFM tag refresh)
 
+[functions.wa-campaign-report]
+verify_jwt = false                    # invoked by pg_cron after a campaign fires; posts analytics to Slack
+
 [functions.nitro-webhook]
 verify_jwt = false                    # Nitro uses caller-defined Authorization token (NITRO_AUTH_TOKEN)
 
