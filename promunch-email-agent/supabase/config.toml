@@ -111,6 +111,9 @@ verify_jwt = false                    # invoked by pg_cron after a campaign fire
 [functions.wa-weekly-summary]
 verify_jwt = false                    # invoked by pg_cron (Mon 09:00 IST); posts WhatsApp recap to Slack
 
+[functions.wa-meta-info]
+verify_jwt = false                    # read-only Graph diagnostic (tier/quality), no secrets returned
+
 [functions.nitro-webhook]
 verify_jwt = false                    # Nitro uses caller-defined Authorization token (NITRO_AUTH_TOKEN)
 
