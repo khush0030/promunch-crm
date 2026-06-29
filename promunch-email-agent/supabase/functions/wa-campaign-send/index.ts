@@ -54,6 +54,30 @@ Deno.serve(async (req) => {
     return j({ error: `template '${tpl.name}' is '${tpl.status}' — must be 'approved' by Meta first` }, 400);
   }
 
+  // ---- atomic send lock ----
+  // Only ONE sender may run a campaign at a time. A guarded UPDATE: we win the
+  // lock only if it's free or stale (TTL). Without this, concurrent invocations
+  // (manual resume + self-chain + worker) re-send to the same people — the
+  // duplicate incident. Released before chaining the next batch.
+  const LOCK_TTL_MS = 100_000;
+  const lockCutoff = new Date(Date.now() - LOCK_TTL_MS).toISOString();
+  const { data: lockRow, error: lockErr } = await sb
+    .from("wa_campaigns")
+    .update({ send_lock_at: new Date().toISOString() })
+    .eq("id", campaignId)
+    .or(`send_lock_at.is.null,send_lock_at.lt.${lockCutoff}`)
+    .select("id")
+    .maybeSingle();
+  if (lockErr) {
+    return j({ error: "send lock unavailable — run the send_lock migration", detail: lockErr.message }, 500);
+  }
+  if (!lockRow) {
+    // Another sender holds the lock — bail quietly (NOT an error). The holder
+    // will finish + chain; the worker re-kicks if it ever dies.
+    return j({ ok: true, skipped: "another sender holds the lock for this campaign" });
+  }
+  const releaseLock = () => sb.from("wa_campaigns").update({ send_lock_at: null }).eq("id", campaignId);
+
   // ---- audience ----
   let q = sb.from("wa_contacts").select("id, wa_id, name, email, tags").eq("opted_in", true);
   const tags: string[] = Array.isArray(campaign.audience_filter?.tags) ? campaign.audience_filter.tags : [];
@@ -63,6 +87,7 @@ Deno.serve(async (req) => {
   if (!contacts || contacts.length === 0) {
     await sb.from("wa_campaigns").update({
       status: "completed", completed_at: new Date().toISOString(), last_error: "no opted-in recipients matched",
+      send_lock_at: null,
     }).eq("id", campaignId);
     return j({ ok: true, sent: 0, failed: 0, remaining: 0, status: "completed", note: "no recipients" });
   }
@@ -71,11 +96,24 @@ Deno.serve(async (req) => {
   const { data: done } = await sb.from("wa_messages").select("contact_id").eq("campaign_id", campaignId);
   const doneSet = new Set((done ?? []).map((d) => d.contact_id));
 
+  // Never market to a customer with a LIVE support ticket. Blasting "leave a
+  // review" / "restock now" at someone mid-complaint (cancel, missing item,
+  // delay) reads as tone-deaf and burns trust — the one thing this brand can't
+  // afford. Pull every contact with an open/pending ticket and drop them from
+  // the audience. They re-enter automatically once the ticket is resolved.
+  const { data: ticketed } = await sb.from("wa_threads")
+    .select("contact_id")
+    .in("ticket_status", ["open", "pending"])
+    .not("contact_id", "is", null);
+  const blockedSet = new Set((ticketed ?? []).map((t) => t.contact_id));
+
   const baseVars: Record<string, string> = campaign.template_vars ?? {};
   const aiBrief = typeof baseVars._ai_brief === "string" ? baseVars._ai_brief.trim() : "";
   const personalized = aiBrief.length > 0;
   const cap = personalized ? MAX_PERSONALIZED : MAX_STATIC;
-  const queue = contacts.filter((c) => !doneSet.has(c.id)).slice(0, cap);
+  const eligible = contacts.filter((c) => !doneSet.has(c.id) && !blockedSet.has(c.id));
+  const ticketSkipped = contacts.filter((c) => !doneSet.has(c.id) && blockedSet.has(c.id)).length;
+  const queue = eligible.slice(0, cap);
 
   await sb.from("wa_campaigns").update({
     status: "sending",
@@ -159,6 +197,11 @@ Deno.serve(async (req) => {
 
   await sb.rpc("wa_campaign_recount", { p_campaign: campaignId });
 
+  // Release the lock now that this batch's rows are committed. The next batch
+  // (chain) or the worker will re-claim it cleanly. Done before any return below
+  // so the lock is never left held.
+  await releaseLock();
+
   // Structural-failure circuit breaker: a whole batch failed and nothing sent.
   // That's a bad template / params / token — NOT a per-recipient deliverability
   // blip. Halt the campaign (don't chain through the rest of the list) and fire
@@ -180,7 +223,10 @@ Deno.serve(async (req) => {
     return j({ ok: false, sent, failed, processed: queue.length, status: "failed", error: firstError });
   }
 
-  const remaining = contacts.length - doneSet.size - queue.length;
+  // Base "remaining" on ELIGIBLE recipients only. If blocked (ticketed) contacts
+  // were counted here, the campaign would self-chain forever — every hop's queue
+  // excludes them, so remaining could never reach 0.
+  const remaining = eligible.length - queue.length;
   if (remaining > 0) {
     // Chain the next batch. Wrap in waitUntil so Deno Deploy keeps the request
     // alive after we return the response — otherwise the chain can be cancelled
@@ -203,6 +249,7 @@ Deno.serve(async (req) => {
 
   return j({
     ok: true, sent, failed, processed: queue.length, remaining, personalized,
+    ticket_skipped: ticketSkipped,
     status: remaining > 0 ? "sending" : "completed",
   });
 });

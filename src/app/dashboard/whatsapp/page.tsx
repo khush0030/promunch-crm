@@ -1844,6 +1844,92 @@ const campaignStatusStyle: Record<string, { bg: string; color: string }> = {
   cancelled: { bg: "rgba(229,231,235,0.7)",  color: "var(--pm-muted)" },
 };
 
+type Recipient = { contact_id: string; name: string | null; wa_id: string | null; status: string; attempts: number; duplicate: boolean; error: string | null; at: string };
+type RecipientSummary = { rows: number; contacts: number; received: number; delivered: number; read: number; failed: number; duplicates: number };
+
+// Per-campaign "who did this actually go to" view. Groups by contact, shows each
+// person's final status + flags anyone messaged more than once (duplicate).
+function RecipientsModal({ campaign, onClose }: { campaign: Campaign; onClose: () => void }) {
+  const [data, setData] = useState<{ summary: RecipientSummary; recipients: Recipient[] } | null>(null);
+  const [filter, setFilter] = useState<"all" | "received" | "failed" | "duplicate">("all");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/whatsapp/campaigns/${campaign.id}/recipients`)
+      .then((r) => r.json()).then((j) => setData(j)).catch(() => {}).finally(() => setLoading(false));
+  }, [campaign.id]);
+
+  const sb = data?.summary;
+  const rows = (data?.recipients ?? []).filter((r) =>
+    filter === "all" ? true :
+    filter === "received" ? ["sent", "delivered", "read"].includes(r.status) :
+    filter === "failed" ? r.status === "failed" :
+    r.duplicate);
+
+  const statusColor = (s: string) => s === "read" ? "var(--pm-green)" : s === "delivered" ? "var(--pm-green)" : s === "sent" ? "#1d4ed8" : s === "failed" ? "var(--pm-terra)" : "var(--pm-muted)";
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--pm-card)", borderRadius: 14, width: "min(720px, 100%)", maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid var(--pm-border)" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--pm-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{campaign.name}</div>
+            <div style={{ fontSize: 12, color: "var(--pm-hint)" }}>Recipients &amp; delivery status</div>
+          </div>
+          <button type="button" title="Close" aria-label="Close" onClick={onClose} style={{ ...smallBtn, padding: "6px 9px" }}><X size={14} /></button>
+        </div>
+
+        {loading ? (
+          <div style={{ padding: 40, textAlign: "center", color: "var(--pm-hint)" }}>Loading…</div>
+        ) : !sb ? (
+          <div style={{ padding: 40, textAlign: "center", color: "var(--pm-hint)" }}>No data.</div>
+        ) : (
+          <>
+            <div style={{ display: "flex", gap: 8, padding: "12px 20px", flexWrap: "wrap", borderBottom: "1px solid var(--pm-line)" }}>
+              {[
+                { k: "received", n: sb.received, l: "received", c: "var(--pm-green)" },
+                { k: "read", n: sb.read, l: "read", c: "var(--pm-green)" },
+                { k: "failed", n: sb.failed, l: "failed", c: "var(--pm-terra)" },
+                { k: "duplicates", n: sb.duplicates, l: "got duplicates", c: sb.duplicates > 0 ? "var(--pm-terra)" : "var(--pm-muted)" },
+                { k: "contacts", n: sb.contacts, l: "unique people", c: "var(--pm-ink)" },
+              ].map((s) => (
+                <div key={s.k} style={{ minWidth: 92 }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: s.c }}>{s.n.toLocaleString("en-IN")}</div>
+                  <div style={{ fontSize: 11, color: "var(--pm-hint)" }}>{s.l}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="pm-chips" style={{ padding: "10px 20px 4px" }}>
+              {(["all", "received", "failed", "duplicate"] as const).map((f) => (
+                <button key={f} type="button" className={`pm-chip${filter === f ? " on" : ""}`} onClick={() => setFilter(f)} style={{ fontSize: 12 }}>
+                  {f === "all" ? "All" : f === "received" ? "Received" : f === "failed" ? "Failed" : "Duplicates"}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ overflowY: "auto", padding: "8px 20px 16px" }}>
+              {rows.length === 0 ? (
+                <div style={{ padding: 24, textAlign: "center", color: "var(--pm-hint)", fontSize: 13 }}>None.</div>
+              ) : rows.map((r) => (
+                <div key={r.contact_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid var(--pm-line)" }}>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 500 }}>{r.name || r.wa_id || "Unknown"}</span>
+                    {r.name && r.wa_id && <span style={{ fontSize: 11, color: "var(--pm-hint)" }}> · {r.wa_id}</span>}
+                    {r.error && <span style={{ display: "block", fontSize: 11, color: "var(--pm-terra)" }}>{r.error}</span>}
+                  </span>
+                  {r.duplicate && <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--pm-terra)", background: "var(--pm-terra-soft)", padding: "2px 7px", borderRadius: 20 }}>×{r.attempts} DUP</span>}
+                  <span style={{ fontSize: 12, fontWeight: 600, color: statusColor(r.status), textTransform: "capitalize", minWidth: 64, textAlign: "right" }}>{r.status}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CampaignsView() {
   const toast = useToast();
   const [list, setList] = useState<Campaign[]>([]);
@@ -1853,6 +1939,7 @@ function CampaignsView() {
   const [busy, setBusy] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
+  const [recipientsFor, setRecipientsFor] = useState<Campaign | null>(null);
   const [recovery, setRecovery] = useState<
     { enrolled: number; recovered: number; delivered: number; retrying: number; missed: number; reached: number; reachRate: number } | null
   >(null);
@@ -2045,6 +2132,11 @@ function CampaignsView() {
                     <RefreshCw size={12} /> {busy === c.id ? "Working…" : "Resume"}
                   </button>
                 )}
+                {(c.sent_count > 0 || c.failed_count > 0 || c.status === "completed" || c.status === "sending" || c.status === "cancelled") && (
+                  <button type="button" onClick={() => setRecipientsFor(c)} style={smallBtn}>
+                    <UserIcon size={12} /> Recipients
+                  </button>
+                )}
                 <button type="button" title="Delete campaign" onClick={() => remove(c.id)} style={{ ...smallBtn, color: "var(--pm-terra)" }}><Trash2 size={12} /></button>
               </div>
             </div>
@@ -2055,6 +2147,7 @@ function CampaignsView() {
       {creating && <CampaignModal onClose={() => { setCreating(false); load(); }} />}
       {createSeg && <CampaignModal initialSegment={createSeg} onClose={() => { setCreateSeg(null); load(); }} />}
       {csvOpen && <CsvImportModal onClose={() => setCsvOpen(false)} />}
+      {recipientsFor && <RecipientsModal campaign={recipientsFor} onClose={() => setRecipientsFor(null)} />}
     </div>
   );
 }
