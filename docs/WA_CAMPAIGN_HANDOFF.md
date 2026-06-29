@@ -27,13 +27,9 @@ _Last updated: 2026-06-29. Paste this into a fresh chat to continue without re-r
 - **`wa-campaign-worker`** edge fn = pg_cron heartbeat every 2 min (Supabase-native, NO Vercel, NO secret): promotes due scheduled+recurring campaigns, re-kicks stalled ones (self-heals), Slack-alerts >12min stalls, leaves cap-deferred campaigns dormant until `resume_at`. Scheduled via `scripts/wa-campaign-worker-cron.sql` (**cron job 22, already running**). Replaced the broken Vercel `wa-campaign-tick` (now just a daily backstop in vercel.json).
 - **Cap-aware multi-day sending** (deployed, commit d2d8573): sender classifies the ledger — `reached` (never re-send), `permanentFail` (give up), `triedToday` (attempt each contact <=1x/day). #131049 cap failures are retried on later days. When the day's eligible set is exhausted or a batch is wholly capped → set `resume_at` = next 12:00 IST, stay `sending`. Completes only when all reached/permanently-failed.
 
-## PENDING — what's needed to finish
-1. **Run this migration** (the only blocker for the daily auto-sender):
-   ```sql
-   alter table wa_campaigns add column if not exists resume_at timestamptz;
-   ```
-   (`send_lock_at` migration `20260629120000` is ALREADY applied. pg_net is ON. Worker cron job 22 is running.)
-2. **Then flip Edamame v2 onto the daily sender:** set it `status='sending'`, `resume_at`=tomorrow 12:00 IST, clear `send_lock_at`/`last_error`. The worker then sends ~380/day, retries capped next day, skips the 151 already-reached (incl the 86 dupes), auto-completes in ~2–3 days. Campaign id: `cd1dbabb-a233-4b6b-9772-81cd606e490e`.
+## DONE — daily auto-sender is live (2026-06-29)
+1. ~~**Run this migration**~~ ✅ APPLIED via Management API: `alter table wa_campaigns add column if not exists resume_at timestamptz;` (`send_lock_at` migration `20260629120000` already applied. pg_net ON. Worker cron job 22 running.)
+2. ~~**Flip Edamame v2**~~ ✅ DONE: campaign `cd1dbabb-a233-4b6b-9772-81cd606e490e` set `status='sending'`, `resume_at='2026-06-30T06:30:00Z'` (12:00 IST), `send_lock_at`/`last_error` cleared. Worker sends ~380/day, retries capped next day, skips already-reached, auto-completes in ~2–3 days.
 
 ## Key facts / deliverability
 - **Meta daily messaging tier ≈ 380/day** for this number. As of 2026-06-29 today's cap is **exhausted** (~379 delivered in last 24h, then #131049 on everything). Tier is set by Meta, identical on every platform — no app can exceed it.
