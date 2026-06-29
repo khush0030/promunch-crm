@@ -26,6 +26,20 @@ const MAX_STATIC = 50;         // per-invocation cap, static send — kept small
                               // function's wall-clock budget and reliably self-chains.
 const MAX_PERSONALIZED = 20;   // per-invocation cap, AI send (a Claude call each)
 const STALE_MS = 10 * 60_000;
+
+// Meta's per-user marketing cap (#131049). A contact who fails with this is NOT
+// permanently lost — their cap resets, so we retry them on a later day.
+const CAP_RE = /healthy ecosystem|131049/i;
+
+// Next daily send slot = next 12:00 IST (06:30 UTC) strictly in the future.
+function nextSendSlotISO(): string {
+  const IST = 5.5 * 60 * 60 * 1000;
+  const now = Date.now();
+  const ist = new Date(now + IST);
+  let slot = Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate(), 12, 0, 0) - IST;
+  if (slot <= now) slot = Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate() + 1, 12, 0, 0) - IST;
+  return new Date(slot).toISOString();
+}
 const PERSONALIZE_MODEL = Deno.env.get("WA_PERSONALIZE_MODEL") ?? "gpt-4o-mini";
 
 interface Body { campaign_id?: string; _continue?: boolean }
@@ -92,15 +106,28 @@ Deno.serve(async (req) => {
     return j({ ok: true, sent: 0, failed: 0, remaining: 0, status: "completed", note: "no recipients" });
   }
 
-  // resumable: skip recipients already messaged for this campaign
-  const { data: done } = await sb.from("wa_messages").select("contact_id").eq("campaign_id", campaignId);
-  const doneSet = new Set((done ?? []).map((d) => d.contact_id));
+  // Classify the ledger so multi-day cap-aware sending works:
+  //   reached       = got a sent/delivered/read row (NEVER message again)
+  //   permanentFail = failed for a non-cap reason (not on WhatsApp, etc.) — give up
+  //   triedToday    = any attempt since 00:00 IST (so we attempt each contact at
+  //                   most once per day; cap-failed ones become eligible again
+  //                   tomorrow, never re-sent to the reached)
+  const { data: done } = await sb.from("wa_messages")
+    .select("contact_id,status,error,created_at").eq("campaign_id", campaignId);
+  const IST_MS = 5.5 * 60 * 60 * 1000;
+  const istNow = new Date(Date.now() + IST_MS);
+  const todayStartUTC = Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - IST_MS;
+  const reached = new Set<string>(), permanentFail = new Set<string>(), triedToday = new Set<string>();
+  for (const r of (done ?? []) as { contact_id: string | null; status: string; error: string | null; created_at: string }[]) {
+    if (!r.contact_id) continue;
+    if (["sent", "delivered", "read"].includes(r.status)) reached.add(r.contact_id);
+    else if (r.status === "failed" && !CAP_RE.test(r.error ?? "")) permanentFail.add(r.contact_id);
+    if (new Date(r.created_at).getTime() >= todayStartUTC) triedToday.add(r.contact_id);
+  }
 
   // Never market to a customer with a LIVE support ticket. Blasting "leave a
-  // review" / "restock now" at someone mid-complaint (cancel, missing item,
-  // delay) reads as tone-deaf and burns trust — the one thing this brand can't
-  // afford. Pull every contact with an open/pending ticket and drop them from
-  // the audience. They re-enter automatically once the ticket is resolved.
+  // review" / "restock now" at someone mid-complaint reads as tone-deaf. They
+  // re-enter automatically once the ticket is resolved.
   const { data: ticketed } = await sb.from("wa_threads")
     .select("contact_id")
     .in("ticket_status", ["open", "pending"])
@@ -111,9 +138,26 @@ Deno.serve(async (req) => {
   const aiBrief = typeof baseVars._ai_brief === "string" ? baseVars._ai_brief.trim() : "";
   const personalized = aiBrief.length > 0;
   const cap = personalized ? MAX_PERSONALIZED : MAX_STATIC;
-  const eligible = contacts.filter((c) => !doneSet.has(c.id) && !blockedSet.has(c.id));
-  const ticketSkipped = contacts.filter((c) => !doneSet.has(c.id) && blockedSet.has(c.id)).length;
-  const queue = eligible.slice(0, cap);
+
+  // everyone still owed a message (not reached, not permanently failed, not in a ticket)
+  const trulyRemaining = contacts.filter((c) => !reached.has(c.id) && !permanentFail.has(c.id) && !blockedSet.has(c.id));
+  if (trulyRemaining.length === 0) {
+    await sb.from("wa_campaigns").update({
+      status: "completed", completed_at: new Date().toISOString(), send_lock_at: null, resume_at: null,
+    }).eq("id", campaignId);
+    fireReport(campaignId);
+    return j({ ok: true, status: "completed", reached: reached.size, note: "all eligible contacts reached or permanently failed" });
+  }
+  // today's wave already attempted everyone left → wait for tomorrow's reset
+  const eligibleToday = trulyRemaining.filter((c) => !triedToday.has(c.id));
+  if (eligibleToday.length === 0) {
+    await sb.from("wa_campaigns").update({
+      status: "sending", send_lock_at: null, resume_at: nextSendSlotISO(),
+    }).eq("id", campaignId);
+    return j({ ok: true, status: "sending", deferred: true, remaining: trulyRemaining.length, note: "daily cap reached — resuming next day" });
+  }
+  const ticketSkipped = contacts.filter((c) => !reached.has(c.id) && !permanentFail.has(c.id) && blockedSet.has(c.id)).length;
+  const queue = eligibleToday.slice(0, cap);
 
   await sb.from("wa_campaigns").update({
     status: "sending",
@@ -124,7 +168,7 @@ Deno.serve(async (req) => {
   const varKeys = extractVarKeys(tpl.body ?? "");
   const openai = personalized ? new OpenAI({ apiKey: Deno.env.get("OPENAI_API_KEY")! }) : null;
 
-  let sent = 0, failed = 0;
+  let sent = 0, failed = 0, capFails = 0;
   let firstError: string | null = null;
   for (const c of queue) {
     let contactVars = baseVars;
@@ -177,6 +221,7 @@ Deno.serve(async (req) => {
     }
 
     if (!res.ok) {
+      if (CAP_RE.test(res.error ?? "")) capFails++;
       if (!firstError) firstError = res.error ?? "unknown";
       // Per-recipient alert (throttled to one Slack ping per error-code per 5 min,
       // so a wholesale-failing blast pings once — not once per recipient).
@@ -202,11 +247,12 @@ Deno.serve(async (req) => {
   // so the lock is never left held.
   await releaseLock();
 
-  // Structural-failure circuit breaker: a whole batch failed and nothing sent.
-  // That's a bad template / params / token — NOT a per-recipient deliverability
-  // blip. Halt the campaign (don't chain through the rest of the list) and fire
-  // one loud, un-throttled Slack alert so a launch blast can never fail silently.
-  if (sent === 0 && failed > 0) {
+  const realFails = failed - capFails;
+
+  // Structural-failure circuit breaker: nothing delivered and the failures are
+  // NOT the marketing cap — a bad template / params / token. Halt loudly so a
+  // launch blast can never fail silently.
+  if (sent === 0 && realFails > 0) {
     await sb.from("wa_campaigns").update({
       status: "failed",
       last_error: `Halted: ${failed}/${queue.length} sends failed, 0 delivered. First error: ${firstError ?? "unknown"}`,
@@ -223,35 +269,29 @@ Deno.serve(async (req) => {
     return j({ ok: false, sent, failed, processed: queue.length, status: "failed", error: firstError });
   }
 
-  // Base "remaining" on ELIGIBLE recipients only. If blocked (ticketed) contacts
-  // were counted here, the campaign would self-chain forever — every hop's queue
-  // excludes them, so remaining could never reach 0.
-  const remaining = eligible.length - queue.length;
-  if (remaining > 0) {
-    // Chain the next batch. Wrap in waitUntil so Deno Deploy keeps the request
-    // alive after we return the response — otherwise the chain can be cancelled
-    // and the campaign stalls mid-list (the 75/939 freeze bug).
-    const chain = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-campaign-send`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ campaign_id: campaignId, _continue: true }),
-    }).catch(() => {});
-    try { (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil?.(chain); } catch { /* not on edge runtime */ }
-  } else {
-    await sb.from("wa_campaigns").update({
-      status: "completed", completed_at: new Date().toISOString(),
-    }).eq("id", campaignId);
-    fireReport(campaignId);  // immediate snapshot; wa-jobs-tick fires the settled one later
+  // Whole batch hit the per-user marketing cap (#131049) → today's daily limit
+  // is exhausted. Defer the rest to the next daily wave (no re-sends; the capped
+  // contacts retry tomorrow because they're not marked reached).
+  if (sent === 0 && capFails > 0) {
+    await sb.from("wa_campaigns").update({ status: "sending", resume_at: nextSendSlotISO() }).eq("id", campaignId);
+    return j({ ok: true, status: "sending", deferred: true, sent, failed, note: "daily marketing cap reached — resuming next day" });
   }
 
-  return j({
-    ok: true, sent, failed, processed: queue.length, remaining, personalized,
-    ticket_skipped: ticketSkipped,
-    status: remaining > 0 ? "sending" : "completed",
-  });
+  // Productive batch → chain. The next invocation re-classifies the ledger and
+  // will COMPLETE (everyone reached), DEFER (only cap-failed remain today), or
+  // CONTINUE (more eligible today). resume_at cleared = wave active.
+  await sb.from("wa_campaigns").update({ resume_at: null }).eq("id", campaignId);
+  const chain = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-campaign-send`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ campaign_id: campaignId, _continue: true }),
+  }).catch(() => {});
+  try { (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil?.(chain); } catch { /* not on edge runtime */ }
+
+  return j({ ok: true, sent, failed, processed: queue.length, personalized, ticket_skipped: ticketSkipped, status: "sending" });
 });
 
 function extractVarKeys(body: string): string[] {

@@ -68,10 +68,17 @@ Deno.serve(async () => {
   // 2. DRIVE + 3. WATCHDOG in-flight campaigns -------------------------------
   const { data: sending } = await sb
     .from("wa_campaigns")
-    .select("id,name,started_at,sent_count,failed_count")
+    .select("id,name,started_at,sent_count,failed_count,resume_at")
     .eq("status", "sending");
 
   for (const c of sending ?? []) {
+    // Cap-aware: a campaign deferred to its next daily wave stays dormant until
+    // resume_at passes (don't kick, don't alert). When it passes, the idle check
+    // below wakes it for the new wave.
+    if (c.resume_at && new Date(c.resume_at).getTime() > now) {
+      log.push(`"${c.name}" dormant until ${c.resume_at}`);
+      continue;
+    }
     const { data: last } = await sb.from("wa_messages")
       .select("created_at").eq("campaign_id", c.id)
       .order("created_at", { ascending: false }).limit(1);
