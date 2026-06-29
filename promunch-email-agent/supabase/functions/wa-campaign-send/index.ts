@@ -21,7 +21,9 @@ const THROTTLE_MS = 120;
 // a batch always returns and chains its successor. 300 static sends ≈ 96s of
 // throttle + send; 20 personalised sends ≈ 20 Claude calls. The campaign
 // self-chains, so a lower cap just means more (safer) hops.
-const MAX_STATIC = 300;        // per-invocation cap, static send
+const MAX_STATIC = 50;         // per-invocation cap, static send — kept small so a
+                              // batch (~0.8s/send via Meta) finishes well within the
+                              // function's wall-clock budget and reliably self-chains.
 const MAX_PERSONALIZED = 20;   // per-invocation cap, AI send (a Claude call each)
 const STALE_MS = 10 * 60_000;
 const PERSONALIZE_MODEL = Deno.env.get("WA_PERSONALIZE_MODEL") ?? "gpt-4o-mini";
@@ -180,8 +182,10 @@ Deno.serve(async (req) => {
 
   const remaining = contacts.length - doneSet.size - queue.length;
   if (remaining > 0) {
-    // chain the next batch automatically — no await
-    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-campaign-send`, {
+    // Chain the next batch. Wrap in waitUntil so Deno Deploy keeps the request
+    // alive after we return the response — otherwise the chain can be cancelled
+    // and the campaign stalls mid-list (the 75/939 freeze bug).
+    const chain = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-campaign-send`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
@@ -189,6 +193,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({ campaign_id: campaignId, _continue: true }),
     }).catch(() => {});
+    try { (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil?.(chain); } catch { /* not on edge runtime */ }
   } else {
     await sb.from("wa_campaigns").update({
       status: "completed", completed_at: new Date().toISOString(),

@@ -114,6 +114,9 @@ verify_jwt = false                    # invoked by pg_cron (Mon 09:00 IST); post
 [functions.wa-meta-info]
 verify_jwt = false                    # read-only Graph diagnostic (tier/quality), no secrets returned
 
+[functions.wa-campaign-worker]
+verify_jwt = false                    # invoked by pg_cron every ~2 min; promotes scheduled + drives/heals sending campaigns
+
 [functions.nitro-webhook]
 verify_jwt = false                    # Nitro uses caller-defined Authorization token (NITRO_AUTH_TOKEN)
 
