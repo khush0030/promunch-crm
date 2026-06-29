@@ -302,6 +302,14 @@ export function explainWaError(code: number | undefined, message: string | undef
   if (c === 131049 || c === 131050 || c === 130472 || m.includes("healthy ecosystem"))
     return { category: "deliverability", action: false, cause: "Meta's per-user MARKETING frequency cap — template is approved, but Meta throttled delivery to this user (too many marketing messages / low engagement). Expected for marketing templates; not a system fault." };
 
+  // Media header fetch/upload — Meta couldn't pull the template's header image/
+  // video/document. Almost always transient (Meta's fetch of the public link
+  // timed out) and per-recipient; a genuinely broken/expired header URL fails
+  // the WHOLE batch, which the sender's 0-delivered circuit breaker catches and
+  // halts loudly. So an isolated #131053 is expected noise, not a fault.
+  if (c === 131053 || m.includes("media upload error"))
+    return { category: "deliverability", action: false, cause: "Meta couldn't fetch/upload the template's header media for this recipient (#131053) — usually a transient fetch timeout on Meta's side. If EVERY send fails this way, the header media URL is broken/expired (the wholesale-failure circuit breaker halts the campaign in that case)." };
+
   // Recipient cannot receive.
   if (c === 131026 || m.includes("undeliverable"))
     return { category: "deliverability", action: false, cause: "Recipient can't receive — number isn't on WhatsApp, hasn't accepted WhatsApp's terms, or can't get this message type. Recipient-side." };

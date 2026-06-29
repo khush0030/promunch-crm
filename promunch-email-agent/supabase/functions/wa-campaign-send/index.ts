@@ -60,6 +60,16 @@ Deno.serve(async (req) => {
     const age = Date.now() - new Date(campaign.started_at ?? 0).getTime();
     if (age < STALE_MS) return j({ error: "campaign send already in progress" }, 409);
   }
+  // Authoritative dormancy: a campaign deferred to a future daily wave must NOT
+  // send until resume_at passes — for ANY caller (worker, self-chain, a stale
+  // pre-deploy cron tick, manual kick). resume_at was previously honoured only
+  // by the worker, so a single stray kick would clear it (productive-batch path)
+  // and run a full out-of-slot wave into an exhausted cap. Gate it here too so
+  // resume_at is the single source of truth everywhere. (At the real slot it has
+  // just passed, so > now is false and the wave proceeds normally.)
+  if (campaign.resume_at && new Date(campaign.resume_at).getTime() > Date.now()) {
+    return j({ ok: true, status: "sending", deferred: true, note: `dormant until ${campaign.resume_at}` });
+  }
   if (!campaign.template_id) return j({ error: "campaign has no template" }, 400);
 
   const { data: tpl } = await sb.from("wa_templates").select("*").eq("id", campaign.template_id).single();
