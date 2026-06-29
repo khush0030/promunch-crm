@@ -33,6 +33,16 @@ Deno.serve(async () => {
     .limit(BATCH);
   if (error) return j({ ok: false, error: error.message }, 500);
 
+  // Customers with a LIVE support ticket are paused, not marketed to. A review
+  // ask / restock nudge / cart reminder landing mid-complaint reads as
+  // tone-deaf. Pull every wa_id with an open/pending ticket once, up front, and
+  // defer their due runs by 12h (nothing is lost — they resume after the ticket
+  // resolves and the deadline guard above still retires genuinely-cold carts).
+  const { data: ticketed } = await sb.from("wa_threads")
+    .select("wa_id")
+    .in("ticket_status", ["open", "pending"]);
+  const blockedWa = new Set((ticketed ?? []).map((t) => t.wa_id));
+
   let sent = 0, failed = 0, skipped = 0;
 
   for (const run of due ?? []) {
@@ -70,6 +80,18 @@ Deno.serve(async () => {
         skipped++;
         continue;
       }
+    }
+
+    // Pause marketing while this customer has an open/pending support ticket.
+    // Defer (don't drop) the run so it resumes once the ticket is resolved.
+    if (blockedWa.has(run.wa_id)) {
+      const nextAt = new Date(Date.now() + 12 * 3600_000).toISOString();
+      await sb.from("wa_journey_runs").update({
+        next_action_at: nextAt,
+        last_error: "paused — customer has an open support ticket",
+      }).eq("id", run.id).then(() => {}, () => {});
+      skipped++;
+      continue;
     }
 
     const windowEligible = (WINDOW_DELIVER_JOURNEYS as readonly string[]).includes(run.journey_key);

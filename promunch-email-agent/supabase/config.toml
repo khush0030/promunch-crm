@@ -111,6 +111,9 @@ verify_jwt = false                    # invoked by pg_cron after a campaign fire
 [functions.wa-weekly-summary]
 verify_jwt = false                    # invoked by pg_cron (Mon 09:00 IST); posts WhatsApp recap to Slack
 
+[functions.wa-ticket-watchdog]
+verify_jwt = false                    # invoked by pg_cron: re-pings unowned tickets past SLA + daily digest
+
 [functions.wa-meta-info]
 verify_jwt = false                    # read-only Graph diagnostic (tier/quality), no secrets returned
 

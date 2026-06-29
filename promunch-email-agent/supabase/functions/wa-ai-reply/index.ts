@@ -19,6 +19,7 @@ import {
   firstNameOf,
   releaseAsk,
 } from "../_shared/window-asks.ts";
+import { errStr, logConnector } from "../_shared/connector-log.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const MODEL = Deno.env.get("WA_AI_MODEL") ?? "gpt-4o-mini";
@@ -49,9 +50,15 @@ COPY RULES (strict): Write the brand name as PROMUNCH in all caps. NEVER use an 
 
 You ALWAYS reply to the customer yourself, using the KNOWLEDGE BASE below. You are a capable support agent: handle product questions, order questions, complaints, refund/return requests and wholesale enquiries by replying helpfully.
 
+SOURCE OF TRUTH (strict): The KNOWLEDGE BASE below is your ONLY source of truth about PROMUNCH, its products, flavours, ingredients, nutrition, prices and policies. NEVER use your own general or outside knowledge, and NEVER guess or fill in a detail that is not written in the knowledge base. If the customer asks something the knowledge base does not cover, do NOT make it up: tell them warmly you've noted it and the team will follow up. Only state a product fact, flavour, nutrition number or price if it is actually present in the knowledge base.
+
+PRODUCT INTRO — when the customer asks what products PROMUNCH has / what you sell / what's available / "what do you have": warmly introduce the products listed in the knowledge base (e.g. "We have X, Y, Z"), THEN mention that we recently launched a new product line, PROMUNCH Roasted Edamame (roasted in olive oil, which is our USP), and ask if they'd like to know more about it. Keep it short and friendly, WhatsApp style. Do NOT mention any price unless they explicitly ask.
+
 ORDER LOOKUP — you have a tool, lookup_order. The customer's phone number is ALREADY KNOWN from WhatsApp — NEVER ask the customer for their phone or contact number. Whenever the customer mentions an order, a delivery, tracking, a missing / wrong / damaged item, a refund or a return: call lookup_order FIRST (no arguments lists their recent orders; pass order_number ONLY if the customer actually stated one). Then reply using the real order details. Only if the lookup returns nothing do you ask the customer for their order number — never their phone number.
 
-ORDERING ON WHATSAPP — customers can shop right here in the chat. You have a tool, show_products. Call it whenever the customer wants to browse, see the menu, order, buy, reorder, or asks "what do you have" / "what flavours" / "I want X" (optionally pass a category like "crunchies" or "edamame" to narrow it). It shows them tappable product cards they add to a cart inside WhatsApp. They then send the cart back and AUTOMATICALLY receive a secure checkout link — the system handles that link, so NEVER write a checkout or cart URL yourself and never quote prices from memory (the cards show real live prices). After calling show_products your reply should be ONE short warm line, e.g. "Here's our menu — tap to add what you fancy 👇". Do NOT list the products as text.
+${CATALOG_ID
+    ? `ORDERING ON WHATSAPP — customers can shop right here in the chat. You have a tool, show_products. Call it whenever the customer wants to browse, see the menu, order, buy, reorder, or asks "what do you have" / "what flavours" / "I want X" (optionally pass a category like "crunchies" or "edamame" to narrow it). It shows them tappable product cards they add to a cart inside WhatsApp. They then send the cart back and AUTOMATICALLY receive a secure checkout link — the system handles that link, so NEVER write a checkout or cart URL yourself and never quote prices from memory (the cards show real live prices). After calling show_products your reply should be ONE short warm line, e.g. "Here's our menu — tap to add what you fancy 👇". Do NOT list the products as text.`
+    : `PRODUCTS — when a customer wants to browse, see the menu, or asks what flavours / products PROMUNCH has, answer warmly using ONLY the KNOWLEDGE BASE below: name the products and flavours exactly as written there, and point them to the website to order. Do NOT add flavours, claims or details that are not in the knowledge base, and do NOT mention price unless the customer explicitly asks. NEVER say ordering or shopping on WhatsApp is "coming soon", unavailable, or not ready — just help them like a normal brand assistant.`}
 
 ORDER CHANGES — you have a tool, request_order_change, for things the TEAM must action on an existing order: cancelling it, a return/replacement, or fixing the delivery address. Call lookup_order FIRST to get the real order number, then call request_order_change with change_type, order_number and details (for an address change, capture the FULL corrected address; for a return/cancel, which item(s) and why). It raises a priority ticket for the team — you still reply in the SAME turn, warmly confirming you've LOGGED the request and the team will sort it shortly. NEVER claim it is already cancelled / refunded / changed — you cannot do it yourself, only log it. CANCELLATION is EXPLICIT-ONLY: call request_order_change with change_type "cancel" ONLY when the customer clearly says they want to cancel their order. A one-word "stop" / "unsubscribe" is an opt-out from messages, NOT a cancellation — never treat it as one. If you are unsure whether they want to cancel, ASK them to confirm first.
 
@@ -96,27 +103,32 @@ const TOOLS = [
       },
     },
   },
-  {
-    type: "function" as const,
-    function: {
-      name: "show_products",
-      description:
-        "Show the customer PROMUNCH products as tappable WhatsApp catalog cards they " +
-        "can add to a cart and order. Call this whenever the customer wants to browse, " +
-        "see the menu, order, buy, reorder, or asks what's available. Optionally pass a " +
-        "category to narrow the list. After this, the customer adds items to a cart and " +
-        "receives a checkout link automatically — you never build links or quote prices.",
-      parameters: {
-        type: "object",
-        properties: {
-          category: {
-            type: "string",
-            description: "Optional category/keyword to filter products, e.g. 'crunchies', 'edamame', 'protein'. Omit to show everything.",
+  // show_products is only advertised when a WhatsApp catalog is actually configured.
+  // Without it the cards can't render, so we never tempt the model into calling it
+  // (and never surface a "coming soon" style fallback to the customer).
+  ...(CATALOG_ID
+    ? [{
+      type: "function" as const,
+      function: {
+        name: "show_products",
+        description:
+          "Show the customer PROMUNCH products as tappable WhatsApp catalog cards they " +
+          "can add to a cart and order. Call this whenever the customer wants to browse, " +
+          "see the menu, order, buy, reorder, or asks what's available. Optionally pass a " +
+          "category to narrow the list. After this, the customer adds items to a cart and " +
+          "receives a checkout link automatically — you never build links or quote prices.",
+        parameters: {
+          type: "object",
+          properties: {
+            category: {
+              type: "string",
+              description: "Optional category/keyword to filter products, e.g. 'crunchies', 'edamame', 'protein'. Omit to show everything.",
+            },
           },
         },
       },
-    },
-  },
+    }]
+    : []),
   {
     type: "function" as const,
     function: {
@@ -311,7 +323,7 @@ Deno.serve(async (req) => {
         let arg: { category?: string } = {};
         try { arg = JSON.parse(call.function.arguments || "{}"); } catch { /* tolerate */ }
         if (!CATALOG_ID) {
-          result = "Product catalog isn't configured yet — tell the customer that ordering on WhatsApp is coming very soon, and offer to help another way.";
+          result = "The in-chat product cards aren't available right now. Do NOT mention this to the customer and NEVER say ordering is 'coming soon' or unavailable. Instead, warmly help them using the knowledge base: describe PROMUNCH's products, flavours and what makes them great, answer their question, and point them to the website to order. Act like a normal, helpful brand assistant.";
         } else {
           const cat = await buildCatalogSections(sb, arg.category ?? null).catch((e) => {
             console.error("[wa-ai-reply] show_products failed", e);
@@ -320,7 +332,7 @@ Deno.serve(async (req) => {
           if (!cat || cat.count === 0) {
             result = (arg.category && arg.category.trim())
               ? `No products matched '${arg.category}'. Offer to show the full menu instead (call show_products with no category).`
-              : "No products are available to show right now — tell the customer ordering is briefly unavailable and offer to help another way.";
+              : "The in-chat product cards aren't available right now. Do NOT mention this or say ordering is unavailable. Help the customer using the knowledge base — describe PROMUNCH's products and flavours, answer their question, and point them to the website to order.";
           } else {
             pendingCatalog = { sections: cat.sections, count: cat.count };
             result = `Prepared ${cat.count} product card(s) (${cat.titles}). They WILL be shown to the customer automatically as tappable catalog cards. Reply with ONE short warm line inviting them to tap and add to cart — do NOT list the products in text and do NOT mention prices.`;
@@ -753,10 +765,15 @@ function changeToTicket(c: { changeType: string; orderNumber: string | null; det
 }
 
 // Raise / refresh a support ticket on the thread, then post a Slack escalation.
-//   handoff=false → ticket only; the thread stays 'bot' and the AI keeps
-//                   replying. This is the normal case.
-//   handoff=true  → also flip the thread to 'human' so the bot goes quiet and
-//                   a person takes over. ONLY when the customer asked for one.
+//
+// ANY open ticket flips the thread to 'human': the reply we just sent this turn
+// is the customer's one acknowledgement ("I've raised this with the team…"),
+// and from here the bot goes quiet so a person owns the conversation — no more
+// AI improvising on a live complaint, and (with the campaign/journey ticket
+// guards) no marketing blasts while the issue is open. The bot resumes
+// automatically when the ticket is resolved/closed in the dashboard.
+//   handoff=true is still tracked separately (drives the Slack card heading +
+//   priority default) but no longer the only thing that silences the bot.
 async function openTicket(
   threadId: string,
   waId: string | null,
@@ -778,10 +795,16 @@ async function openTicket(
     ticket_priority: ticket?.priority ?? (handoff ? "high" : "normal"),
     escalation_reason: reason,
   };
-  // don't reset the opened-at clock on a ticket that is already open
-  if (thread?.ticket_status !== "open") upd.ticket_opened_at = new Date().toISOString();
-  // silence the bot ONLY on an explicit human request
-  if (handoff) upd.status = "human";
+  // don't reset the opened-at clock (or the watchdog's alert counters) on a
+  // ticket that is already open — only on a fresh one.
+  if (thread?.ticket_status !== "open") {
+    upd.ticket_opened_at = new Date().toISOString();
+    upd.ticket_last_alert_at = null;
+    upd.ticket_alert_count = 0;
+  }
+  // A ticket = a human owns it now. Silence the bot so it can't talk over the
+  // team on a live issue. The bot resumes when the ticket is resolved/closed.
+  upd.status = "human";
 
   await sb.from("wa_threads").update(upd).eq("id", threadId);
 
@@ -859,11 +882,29 @@ async function postEscalation(o: {
     }],
   });
 
-  await fetch(webhook, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: `${heading} — ${o.reason}`, blocks }),
-  }).catch(() => {});
+  try {
+    const r = await fetch(webhook, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: `${heading} — ${o.reason}`, blocks }),
+    });
+    // A non-2xx from the Slack webhook means the escalation never reached the
+    // team — record it so a broken/rotated webhook surfaces on the dashboard
+    // instead of dropping tickets silently. The watchdog re-ping is the backstop.
+    if (!r.ok) {
+      await logConnector({
+        connector: "whatsapp", level: "error", event: "ticket_escalation_post_failed",
+        message: `Slack escalation webhook returned HTTP ${r.status} — ticket ${o.threadId} may not have reached the team`,
+        ref: o.threadId, throttleMinutes: 15,
+      }).catch(() => {});
+    }
+  } catch (e) {
+    await logConnector({
+      connector: "whatsapp", level: "error", event: "ticket_escalation_post_failed",
+      message: `Slack escalation webhook threw: ${errStr(e)}`,
+      ref: o.threadId, throttleMinutes: 15,
+    }).catch(() => {});
+  }
 }
 
 // Ping the ops "guard" on WhatsApp the instant a customer explicitly cancels, so

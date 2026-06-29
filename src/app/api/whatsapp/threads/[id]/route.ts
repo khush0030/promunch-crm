@@ -40,6 +40,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   for (const k of allowed) if (k in body) patch[k] = body[k];
   if (body.ticket_status === "resolved" || body.ticket_status === "closed") {
     patch.ticket_resolved_at = new Date().toISOString();
+    // Resume the bot once the issue is handled. Opening a ticket flips the
+    // thread to 'human' (bot goes silent so a person owns the conversation);
+    // resolving it hands the customer back to the assistant — unless the agent
+    // explicitly set a status in this same request (respect that).
+    if (!("status" in body)) patch.status = "bot";
   }
   // archive / unarchive — hides the thread from the inbox, keeps all messages
   if ("archived" in body) {
