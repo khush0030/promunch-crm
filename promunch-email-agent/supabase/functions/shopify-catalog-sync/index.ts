@@ -1,7 +1,7 @@
 // Sync the Shopify product catalog → wa_catalog_items (the WhatsApp ordering
-// mirror). Triggered manually from the dashboard (/api/shopify/catalog) or by
-// cron. Reads ACTIVE products via the Admin GraphQL API and upserts one row per
-// variant.
+// mirror) AND the bot's knowledge base. Triggered manually from the dashboard
+// (/api/shopify/catalog) or by cron. Reads ACTIVE products via the Admin
+// GraphQL API and upserts one row per variant.
 //
 // CONVENTION (see docs/WHATSAPP_ORDERING.md): retailer_id = the Shopify variant
 // numeric id, which must equal the Meta catalog Content ID. Build your Meta
@@ -10,9 +10,18 @@
 //
 // The sync OWNS the table: variants it sees → in_stock per Shopify availability;
 // any retailer_id it no longer sees → in_stock = false (retired / deleted).
+//
+// KB BRIDGE: it also rebuilds a generated kb_documents row ("Live Product
+// Catalog") from the same live Shopify data and re-embeds it via kb-embed, so
+// wa-ai-reply answers product questions ("what do you sell / is X in stock /
+// what flavours") from CURRENT Shopify — no manual KB edits. The hand-written
+// Master KB still owns nutrition, policies and brand voice.
 
 import { db } from "../_shared/supabase.ts";
 import { adminGraphQL } from "../_shared/shopify-customer.ts";
+
+// Stable name for the generated KB doc — we upsert this single row each run.
+const KB_DOC_NAME = "Live Product Catalog (auto-synced from Shopify)";
 
 const PRODUCTS_QUERY = `
 query CatalogSync($cursor: String) {
@@ -23,6 +32,8 @@ query CatalogSync($cursor: String) {
         id
         title
         productType
+        descriptionPlainText: description(truncateAt: 600)
+        tags
         variants(first: 100) {
           edges {
             node {
@@ -61,6 +72,16 @@ Deno.serve(async (req) => {
     updated_at: string;
   }> = [];
 
+  // Product-level view (for the KB doc) — one entry per Shopify product, with
+  // its variants rolled up. The bot reasons over this prose, not the cards.
+  const products: Array<{
+    title: string;
+    category: string | null;
+    description: string;
+    tags: string[];
+    variants: Array<{ title: string; price: number | null; inStock: boolean }>;
+  }> = [];
+
   let cursor: string | null = null;
   let pages = 0;
   let sort = 0;
@@ -76,6 +97,13 @@ Deno.serve(async (req) => {
       for (const pe of conn.edges ?? []) {
         const p = pe.node;
         const category = (p.productType ?? "").trim() || null;
+        const prod = {
+          title: String(p.title ?? "").trim(),
+          category,
+          description: String(p.descriptionPlainText ?? "").trim(),
+          tags: Array.isArray(p.tags) ? p.tags.map((t: string) => String(t).trim()).filter(Boolean) : [],
+          variants: [] as Array<{ title: string; price: number | null; inStock: boolean }>,
+        };
         for (const ve of p.variants?.edges ?? []) {
           const v = ve.node;
           const retailerId = variantNumericId(v.id);
@@ -97,7 +125,13 @@ Deno.serve(async (req) => {
             sort: sort++,
             updated_at: new Date().toISOString(),
           });
+          prod.variants.push({
+            title: variantTitle && variantTitle !== "Default Title" ? variantTitle : "",
+            price: Number.isFinite(price as number) ? (price as number) : null,
+            inStock,
+          });
         }
+        if (prod.title) products.push(prod);
       }
 
       cursor = conn.pageInfo?.hasNextPage ? conn.pageInfo.endCursor : null;
@@ -128,8 +162,118 @@ Deno.serve(async (req) => {
     .select("retailer_id");
   deactivated = stale?.length ?? 0;
 
-  return j({ ok: true, synced: rows.length, deactivated, pages });
+  // ---- KB bridge: rebuild the generated "Live Product Catalog" doc + re-embed.
+  // Best-effort: a KB failure must never fail the catalog sync itself.
+  let kb: { ok: boolean; products: number; error?: string };
+  try {
+    kb = await syncKbDoc(sb, products);
+  } catch (e) {
+    kb = { ok: false, products: 0, error: String(e instanceof Error ? e.message : e) };
+  }
+
+  return j({ ok: true, synced: rows.length, deactivated, pages, kb });
 });
+
+// Build a readable prose catalog from live Shopify products and upsert it as the
+// single generated kb_documents row, then trigger kb-embed for just that doc.
+async function syncKbDoc(
+  sb: any,
+  products: Array<{
+    title: string;
+    category: string | null;
+    description: string;
+    tags: string[];
+    variants: Array<{ title: string; price: number | null; inStock: boolean }>;
+  }>,
+): Promise<{ ok: boolean; products: number; error?: string }> {
+  if (!products.length) return { ok: true, products: 0 };
+
+  const rupee = (n: number | null) => (n == null ? "" : `₹${Number.isInteger(n) ? n : n.toFixed(2)}`);
+  const now = new Date().toISOString();
+
+  const lines: string[] = [];
+  lines.push("# PROMUNCH — Live Product Catalog");
+  lines.push(
+    "This is the current list of PROMUNCH products, auto-synced from the live Shopify store. " +
+      "Use it to answer what products and flavours we sell, what is in or out of stock, and prices. " +
+      "If a product or flavour is not listed here, we do not currently sell it. " +
+      `(Last synced: ${now}.)`,
+  );
+  lines.push("");
+
+  for (const p of products) {
+    const inStockVariants = p.variants.filter((v) => v.inStock);
+    const availability = inStockVariants.length
+      ? "in stock"
+      : "currently out of stock / sold out";
+    lines.push(`## ${p.title}${p.category ? ` — ${p.category}` : ""}`);
+    lines.push(`Availability: ${availability}.`);
+    if (p.description) lines.push(p.description);
+
+    const named = p.variants.filter((v) => v.title);
+    if (named.length) {
+      lines.push("Variants / flavours:");
+      for (const v of named) {
+        const price = rupee(v.price);
+        lines.push(
+          `- ${v.title}${price ? ` — ${price}` : ""} (${v.inStock ? "in stock" : "out of stock"})`,
+        );
+      }
+    } else {
+      const v = p.variants[0];
+      if (v && v.price != null) lines.push(`Price: ${rupee(v.price)}.`);
+    }
+    if (p.tags.length) lines.push(`Tags: ${p.tags.join(", ")}.`);
+    lines.push("");
+  }
+
+  const rawText = lines.join("\n").trim();
+
+  // Upsert by stable name — one generated row, no duplicates across runs.
+  const { data: existing } = await sb
+    .from("kb_documents").select("id").eq("name", KB_DOC_NAME).limit(1).maybeSingle();
+
+  let docId: string | null = existing?.id ?? null;
+  if (docId) {
+    const { error } = await sb
+      .from("kb_documents")
+      .update({ raw_text: rawText, status: "ready", source_type: "manual", processed_at: now, error: null })
+      .eq("id", docId);
+    if (error) return { ok: false, products: products.length, error: error.message };
+  } else {
+    const { data, error } = await sb
+      .from("kb_documents")
+      .insert({
+        name: KB_DOC_NAME,
+        source_type: "manual",
+        raw_text: rawText,
+        status: "ready",
+        uploaded_by: "shopify-catalog-sync",
+        processed_at: now,
+      })
+      .select("id").single();
+    if (error) return { ok: false, products: products.length, error: error.message };
+    docId = data?.id ?? null;
+  }
+
+  // Re-embed just this doc so semantic retrieval picks up the changes. Best-effort.
+  if (docId) {
+    try {
+      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/kb-embed`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ document_id: docId }),
+      });
+    } catch (e) {
+      console.error("[shopify-catalog-sync] kb-embed trigger failed", e);
+    }
+  }
+
+  return { ok: true, products: products.length };
+}
 
 function j(o: unknown, s = 200) {
   return new Response(JSON.stringify(o), { status: s, headers: { "content-type": "application/json" } });
