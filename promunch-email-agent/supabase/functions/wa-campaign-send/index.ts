@@ -259,12 +259,14 @@ Deno.serve(async (req) => {
       error: res.ok ? null : res.error,
     }).eq("id", claim.id);
 
-    if (res.ok && thread?.id) {
-      await sb.from("wa_threads").update({
-        last_outbound_at: new Date().toISOString(),
-        last_message_snippet: `📣 ${campaign.name}`,
-      }).eq("id", thread.id);
-    }
+    // NOTE: we deliberately do NOT bump the thread's last_outbound_at or
+    // last_message_snippet here. A marketing broadcast is not a support
+    // conversation — bumping these would shove every recipient to the top of the
+    // human support inbox (which sorts by last_activity_at = greatest(inbound,
+    // outbound)) and bury real queries. Campaign performance lives in the
+    // Analytics tab + the per-campaign Recipients view, not the chat inbox. The
+    // send is still fully recorded in wa_messages (campaign_id set); if the
+    // customer REPLIES, their inbound bumps the thread and it surfaces normally.
 
     if (!res.ok) {
       if (CAP_RE.test(res.error ?? "")) capFails++;
