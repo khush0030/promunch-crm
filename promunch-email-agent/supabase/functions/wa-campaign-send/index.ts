@@ -102,6 +102,15 @@ Deno.serve(async (req) => {
   }
   const releaseLock = () => sb.from("wa_campaigns").update({ send_lock_at: null }).eq("id", campaignId);
 
+  // Reclaim claims orphaned by a crashed/timed-out prior batch (sender died
+  // between the claim insert and its finalize). Anything still 'queued' older
+  // than the lock TTL can't be a live in-flight claim, so demote it to 'failed'
+  // (which is outside the unique index) → eligible to retry. Without this a
+  // crash would permanently block that contact.
+  await sb.from("wa_messages").update({ status: "failed", error: "stale claim reclaimed" })
+    .eq("campaign_id", campaignId).eq("status", "queued")
+    .lt("created_at", new Date(Date.now() - 5 * 60_000).toISOString());
+
   // ---- audience ----
   let q = sb.from("wa_contacts").select("id, wa_id, name, email, tags").eq("opted_in", true);
   const tags: string[] = Array.isArray(campaign.audience_filter?.tags) ? campaign.audience_filter.tags : [];
@@ -122,8 +131,21 @@ Deno.serve(async (req) => {
   //   triedToday    = any attempt since 00:00 IST (so we attempt each contact at
   //                   most once per day; cap-failed ones become eligible again
   //                   tomorrow, never re-sent to the reached)
-  const { data: done } = await sb.from("wa_messages")
-    .select("contact_id,status,error,created_at").eq("campaign_id", campaignId);
+  // Page through the FULL ledger. PostgREST caps a single response at 1000 rows;
+  // a campaign with >1000 message rows was silently deduped against only the
+  // first 1000, so everyone past that window was re-sent every batch (the 195-
+  // duplicate Edamame incident). Paginate so the reached/triedToday sets are
+  // complete. (The DB unique index is the hard guarantee; this keeps the
+  // wave/completion logic correct so a campaign actually finishes.)
+  const done: { contact_id: string | null; status: string; error: string | null; created_at: string }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data: page } = await sb.from("wa_messages")
+      .select("contact_id,status,error,created_at").eq("campaign_id", campaignId)
+      .range(from, from + 999);
+    if (!page || page.length === 0) break;
+    done.push(...(page as typeof done));
+    if (page.length < 1000) break;
+  }
   const IST_MS = 5.5 * 60 * 60 * 1000;
   const istNow = new Date(Date.now() + IST_MS);
   const todayStartUTC = Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - IST_MS;
@@ -178,7 +200,7 @@ Deno.serve(async (req) => {
   const varKeys = extractVarKeys(tpl.body ?? "");
   const openai = personalized ? new OpenAI({ apiKey: Deno.env.get("OPENAI_API_KEY")! }) : null;
 
-  let sent = 0, failed = 0, capFails = 0;
+  let sent = 0, failed = 0, capFails = 0, skipped = 0;
   let firstError: string | null = null;
   for (const c of queue) {
     let contactVars = baseVars;
@@ -186,6 +208,31 @@ Deno.serve(async (req) => {
       const ai = await personalizeVars(openai, tpl.body ?? "", aiBrief, c, varKeys).catch(() => null);
       if (ai) contactVars = { ...baseVars, ...ai };
     }
+
+    // ---- CLAIM BEFORE SEND (the hard no-duplicate guarantee) ----
+    // Insert a 'queued' row FIRST. The partial unique index
+    // wa_messages_campaign_recipient_uniq on (campaign_id, contact_id) WHERE
+    // status IN (queued,sent,delivered,read) makes a second row impossible — so
+    // if this contact was already messaged (or is being messaged by a racing
+    // sender) the insert fails and we SKIP, never calling Meta twice. This holds
+    // regardless of query caps, lock TTLs, concurrent schedulers, or future code
+    // bugs: correctness lives in the database, not in this loop. 'failed' rows
+    // are outside the index so a cap-deferred contact is still retried tomorrow.
+    const { data: thread } = await sb.from("wa_threads")
+      .upsert({ contact_id: c.id, wa_id: c.wa_id }, { onConflict: "contact_id" })
+      .select("id").single();
+    const { data: claim, error: claimErr } = await sb.from("wa_messages").insert({
+      thread_id: thread?.id ?? null,
+      contact_id: c.id,
+      campaign_id: campaignId,
+      direction: "outbound",
+      type: "template",
+      status: "queued",
+      template_name: tpl.name,
+      template_lang: tpl.language,
+      sent_by: personalized ? "campaign-ai" : "campaign",
+    }).select("id").maybeSingle();
+    if (claimErr || !claim) { skipped++; continue; } // lost the claim → already handled, do NOT send
 
     const components = buildComponents(tpl, contactVars, c.name);
     // Per-recipient click tracking: if the template has a dynamic URL button
@@ -203,25 +250,14 @@ Deno.serve(async (req) => {
       res = { ok: false, message_id: null as string | null, raw: null, error: String(e), error_code: undefined as number | undefined, error_detail: undefined as string | undefined };
     }
 
-    const { data: thread } = await sb.from("wa_threads")
-      .upsert({ contact_id: c.id, wa_id: c.wa_id }, { onConflict: "contact_id" })
-      .select("id").single();
-
-    await sb.from("wa_messages").insert({
-      thread_id: thread?.id ?? null,
-      contact_id: c.id,
-      campaign_id: campaignId,
-      direction: "outbound",
-      type: "template",
+    // Finalize the claimed row IN PLACE (update, never a second insert).
+    await sb.from("wa_messages").update({
       body: `[campaign:${campaign.name}]`,
-      template_name: tpl.name,
-      template_lang: tpl.language,
       template_vars: contactVars,
       wa_message_id: res.message_id,
       status: res.ok ? "sent" : "failed",
       error: res.ok ? null : res.error,
-      sent_by: personalized ? "campaign-ai" : "campaign",
-    });
+    }).eq("id", claim.id);
 
     if (res.ok && thread?.id) {
       await sb.from("wa_threads").update({
@@ -301,7 +337,7 @@ Deno.serve(async (req) => {
   }).catch(() => {});
   try { (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil?.(chain); } catch { /* not on edge runtime */ }
 
-  return j({ ok: true, sent, failed, processed: queue.length, personalized, ticket_skipped: ticketSkipped, status: "sending" });
+  return j({ ok: true, sent, failed, claim_skipped: skipped, processed: queue.length, personalized, ticket_skipped: ticketSkipped, status: "sending" });
 });
 
 function extractVarKeys(body: string): string[] {
