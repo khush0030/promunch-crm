@@ -25,10 +25,9 @@ export interface OrderSummary {
   tracking: string | null;
 }
 
-// Find a customer's orders.
-//   - orderNumber given  → that order (verified to be the chatter's, if the
-//                          phone also matches; otherwise returned anyway so
-//                          the agent can still help).
+// Find a customer's orders. ALWAYS scoped to the chatter's own phone, so the
+// agent can never read another customer's order (audit H1).
+//   - orderNumber given  → that order, only if it belongs to the chatter.
 //   - orderNumber absent → all of the chatter's orders, most recent first.
 export async function lookupOrders(
   waId: string | null,
@@ -45,9 +44,17 @@ export async function lookupOrders(
     .order("shopify_created_at", { ascending: false })
     .limit(10);
 
-  const clean = orderNumber?.trim().replace(/^#/, "");
+  // Whitelist the order number to alphanumerics — never let customer-supplied
+  // text reach the PostgREST filter (audit H2: a value like
+  // "1,customer_email.not.is.null" would otherwise inject an attacker filter).
+  const clean = (orderNumber ?? "").replace(/[^A-Za-z0-9-]/g, "").slice(0, 32);
   if (clean) {
-    q = q.or(`order_number.eq.#${clean},order_number.eq.${clean},order_number.ilike.%${clean}%`);
+    // Order number given. ALWAYS constrain to the chatter's own phone so we can
+    // never return another customer's order (audit H1: cross-customer PII leak
+    // via a guessable order number). No phone on file → refuse, don't leak.
+    if (!normalized) return [];
+    q = q.eq("customer_phone", normalized)
+      .or(`order_number.eq.#${clean},order_number.eq.${clean},order_number.ilike.%${clean}%`);
   } else if (normalized) {
     q = q.eq("customer_phone", normalized);
   } else {
@@ -56,13 +63,11 @@ export async function lookupOrders(
 
   const { data, error } = await q;
   if (error) throw new Error(`shopify_orders query failed: ${error.message}`);
-  let rows = data ?? [];
-
-  // searched by order number → prefer rows that are actually this customer's
-  if (clean && normalized) {
-    const own = rows.filter((r) => r.customer_phone === normalized);
-    if (own.length) rows = own;
-  }
+  // Defensive: the query is already phone-scoped, but drop anything that isn't
+  // this customer's before mapping, so a stranger's row can never be returned.
+  const rows = normalized
+    ? (data ?? []).filter((r) => r.customer_phone === normalized)
+    : (data ?? []);
   return rows.map(toSummary);
 }
 
@@ -95,7 +100,7 @@ export async function isOrderCancelled(
   orderRef: string | null | undefined,
 ): Promise<boolean> {
   if (!orderRef) return false;
-  const clean = String(orderRef).trim().replace(/^#/, "");
+  const clean = String(orderRef).replace(/[^A-Za-z0-9-]/g, "").slice(0, 32);
   if (!clean) return false;
 
   const { data } = await db()

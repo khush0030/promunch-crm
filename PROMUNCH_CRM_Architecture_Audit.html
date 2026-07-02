@@ -537,8 +537,8 @@ Staff schedules a campaign in the dashboard
       <tr><td>C4 unsigned webhook</td><td><span class="badge b-crit">Critical</span></td><td><span class="badge b-prog">Code done</span></td><td>Set SHOPIFY_WEBHOOK_SECRET (if route is live), deploy</td></tr>
       <tr><td>H4 cron fail-open</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Set CRON_SECRET in Vercel, deploy</td></tr>
       <tr><td>H5 resend fail-open</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Set RESEND_*_SECRET in Vercel, deploy</td></tr>
-      <tr><td>H1 bot order IDOR</td><td><span class="badge b-high">High</span></td><td><span class="badge b-open">Open</span></td><td>Not started — constrain lookup_order by chatter phone</td></tr>
-      <tr><td>H2 filter injection</td><td><span class="badge b-high">High</span></td><td><span class="badge b-open">Open</span></td><td>Not started — whitelist order # to digits, drop string .or()</td></tr>
+      <tr><td>H1 bot order IDOR</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy wa-ai-reply (phone-scoped lookup)</td></tr>
+      <tr><td>H2 filter injection</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy edge fns (order # whitelisted)</td></tr>
       <tr><td>M1 no rate limiting</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-open">Open</span></td><td>Not started</td></tr>
       <tr><td>M3 ungated cron fns</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-open">Open</span></td><td>Needs pg_cron bearer before gating tick/worker fns</td></tr>
       <tr><td>L1/L2/L3 hardening</td><td><span class="badge b-low">Low</span></td><td><span class="badge b-open">Open</span></td><td>Sanitize HTML, remove dbg endpoints, add CSP headers</td></tr>
@@ -582,7 +582,7 @@ Staff schedules a campaign in the dashboard
   </div>
 
   <div class="finding high">
-    <div class="fh"><span class="id" style="color:var(--high)">H1</span><span class="ti">Cross-customer order PII leak (IDOR) in the WhatsApp bot</span><span class="badge b-high">High</span><span class="badge b-open">OPEN · next up</span></div>
+    <div class="fh"><span class="id" style="color:var(--high)">H1</span><span class="ti">Cross-customer order PII leak (IDOR) in the WhatsApp bot</span><span class="badge b-high">High</span><span class="badge b-prog">CODE DONE · pending fn deploy</span></div>
     <div class="fb">
       <div class="row"><span class="k">Where</span><span><code>_shared/orders.ts:33-67</code> — order lookup filters by order number only; when the chatter isn't on the order it falls back to returning the stranger's row (name/email/phone/tracking).</span></div>
       <div class="row"><span class="k">Exploit</span><span>Customer messages "check order #1042" (guessable, not theirs); the bot's <code>lookup_order</code> tool reads a stranger's PII back to them.</span></div>
@@ -591,7 +591,7 @@ Staff schedules a campaign in the dashboard
   </div>
 
   <div class="finding high">
-    <div class="fh"><span class="id" style="color:var(--high)">H2</span><span class="ti">PostgREST filter injection from customer input</span><span class="badge b-high">High</span><span class="badge b-open">OPEN · next up</span></div>
+    <div class="fh"><span class="id" style="color:var(--high)">H2</span><span class="ti">PostgREST filter injection from customer input</span><span class="badge b-high">High</span><span class="badge b-prog">CODE DONE · pending fn deploy</span></div>
     <div class="fb">
       <div class="row"><span class="k">Where</span><span><code>_shared/orders.ts:50</code> / <code>wa-ai-reply/index.ts:898</code> — customer/AI strings interpolated straight into a PostgREST <code>.or()</code> filter; commas &amp; operators not stripped.</span></div>
       <div class="row"><span class="k">Exploit</span><span>An "order number" like <code>1,customer_email.not.is.null</code> injects an attacker-chosen filter to enumerate <code>shopify_orders</code> beyond the intended row.</span></div>
