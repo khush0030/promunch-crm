@@ -467,10 +467,10 @@ Staff schedules a campaign in the dashboard
       <h4>Gaps &amp; smells</h4>
       <ul class="clean">
         <li class="warn"><code>wa_journey_runs</code> has <b>no</b> DB-level uniqueness on <code>(journey_key, order_ref)</code> — journey idempotency is app-only</li>
-        <li class="warn">Unindexed hot-path columns: <code>wa_link_clicks.contact_id</code>, <code>outreach_events.resend_email_id</code></li>
+        <li class="warn"><b>✓ fixed:</b> added indexes on <code>wa_link_clicks.contact_id</code>, <code>outreach_events.resend_email_id/lead_id</code></li>
         <li class="warn">5 duplicate migration timestamps → ambiguous apply order</li>
         <li class="warn">Evidence of in-place migration edits (defensive re-adds) → environments may hold different subsets</li>
-        <li class="warn"><code>recompute_wa_rfm_tags()</code> is <code>SECURITY DEFINER</code> with no pinned <code>search_path</code></li>
+        <li class="warn"><b>✓ fixed:</b> <code>recompute_wa_rfm_tags()</code> <code>search_path</code> now pinned (definer hardening)</li>
       </ul>
     </div>
   </div>
@@ -505,7 +505,7 @@ Staff schedules a campaign in the dashboard
     <div class="card">
       <h4><span class="badge b-high">Weak</span> Silent-failure pockets</h4>
       <ul class="clean">
-        <li class="warn"><code>amazon-poll</code> (496 lines, 3 pipelines) — 5 swallow-and-retry catches, <b>no connector-log alerting</b>; a permanently-failing item never surfaces</li>
+        <li class="warn"><b>✓ fixed:</b> <code>amazon-poll</code> now Slack-alerts on any pipeline error (was silent — cron ignores the HTTP response)</li>
         <li class="warn">KB pipeline &amp; Shopify backfills have no structured alerting either</li>
         <li class="warn">Slack-post failures degrade to <code>console.warn</code> only — if Slack is the failing dependency, alert visibility drops to logs</li>
         <li class="warn">Backfill functions page entire history with no pagination-resume guard — a large run can be killed mid-page</li>
