@@ -24,8 +24,6 @@ verify_jwt = false                    # gated by SETUP_TOKEN query param instead
 [functions.backfill-brand]
 verify_jwt = false                    # gated by SETUP_TOKEN query param instead
 
-[functions.dbg-mailbox]
-verify_jwt = false
 
 [functions.nudge-pending]
 verify_jwt = false                    # invoked by pg_cron
@@ -120,8 +118,6 @@ verify_jwt = false                    # read-only Graph diagnostic (tier/quality
 [functions.wa-campaign-worker]
 verify_jwt = false                    # invoked by pg_cron every ~2 min; promotes scheduled + drives/heals sending campaigns
 
-[functions.nitro-webhook]
-verify_jwt = false                    # Nitro uses caller-defined Authorization token (NITRO_AUTH_TOKEN)
 
 [functions.amazon-poll]
 verify_jwt = false                    # invoked by scheduled cron (SP-API sync)

@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
   const rawBody = await req.text();
   const sigHeader = req.headers.get("x-hub-signature-256");
   const sigOk = await verifySignature(rawBody, sigHeader);
-  if (!sigOk && Deno.env.get("WA_SKIP_SIGNATURE") !== "1") {
+  if (!sigOk) {
     console.warn("[wa-webhook] signature check failed");
     return new Response("bad signature", { status: 401 });
   }

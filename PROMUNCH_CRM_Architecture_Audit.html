@@ -539,9 +539,12 @@ Staff schedules a campaign in the dashboard
       <tr><td>H5 resend fail-open</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Set RESEND_*_SECRET in Vercel, deploy</td></tr>
       <tr><td>H1 bot order IDOR</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy wa-ai-reply (phone-scoped lookup)</td></tr>
       <tr><td>H2 filter injection</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy edge fns (order # whitelisted)</td></tr>
-      <tr><td>M1 no rate limiting</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-open">Open</span></td><td>Not started</td></tr>
-      <tr><td>M3 ungated cron fns</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-open">Open</span></td><td>Needs pg_cron bearer before gating tick/worker fns</td></tr>
-      <tr><td>L1/L2/L3 hardening</td><td><span class="badge b-low">Low</span></td><td><span class="badge b-open">Open</span></td><td>Sanitize HTML, remove dbg endpoints, add CSP headers</td></tr>
+      <tr><td>M1 no rate limiting</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-open">Decision needed</span></td><td>Infra choice: Vercel Firewall/BotID (no code) vs Upstash ratelimit</td></tr>
+      <tr><td>M2 skip-sig flags</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy wa-webhook + ig-webhook (HMAC bypass removed)</td></tr>
+      <tr><td>M3 ungated cron fns</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-open">Blocked</span></td><td>Needs live cron.job listing (some schedulers are dashboard-only/invisible)</td></tr>
+      <tr><td>L1 campaign XSS</td><td><span class="badge b-low">Low</span></td><td><span class="badge b-prog">Code done</span></td><td>DOMPurify sanitize; deploy app</td></tr>
+      <tr><td>L2 dbg/orphan endpoints</td><td><span class="badge b-low">Low</span></td><td><span class="badge b-prog">Code done</span></td><td>Run supabase functions delete dbg-mailbox</td></tr>
+      <tr><td>L3 no security headers</td><td><span class="badge b-low">Low</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy app (headers in next.config)</td></tr>
     </table></div>
   </div>
 

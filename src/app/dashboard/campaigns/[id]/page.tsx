@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Send, Trash2 } from "lucide-react";
+import DOMPurify from "isomorphic-dompurify";
 import { useToast } from "@/components/ui/Toast";
 import { PageHead, KpiCard, Panel, MiniBar, StatusBadge } from "@/components/pm";
 import type { BadgeTone } from "@/components/pm";
@@ -180,7 +181,7 @@ export default function CampaignDetailPage() {
         {campaign.body_html ? (
           <div
             style={{ marginTop: 18, padding: 16, border: "1px solid var(--pm-line)", borderRadius: 10, background: "var(--pm-card2)", maxHeight: 400, overflow: "auto" }}
-            dangerouslySetInnerHTML={{ __html: campaign.body_html }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(campaign.body_html) }}
           />
         ) : (
           <div className="pm-dim" style={{ marginTop: 18, fontSize: 13 }}>No HTML body yet.</div>
