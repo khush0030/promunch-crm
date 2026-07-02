@@ -72,6 +72,11 @@
   .b-low{background:#101b2a;color:var(--info);border:1px solid #1d3345}
   .b-ok{background:var(--okbg);color:var(--ok);border:1px solid #1c3d30}
   .b-info{background:#141b2b;color:var(--tx2);border:1px solid var(--line2)}
+  .b-prog{background:#10241f;color:#5fe0b0;border:1px solid #1c4a3a}
+  .b-open{background:#241016;color:#ff8595;border:1px solid #4a1c26}
+  .status-board{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--card);margin:14px 0}
+  .status-board .sbh{padding:12px 16px;background:var(--card2);border-bottom:1px solid var(--line);font-weight:700;display:flex;justify-content:space-between;align-items:center}
+  .updated{color:var(--tx3);font-size:12px;font-weight:500}
   .b-live{background:#2c1017;color:#ff8595;border:1px solid #5a2230}
 
   table{width:100%;border-collapse:collapse;font-size:13.5px;margin:8px 0}
@@ -161,7 +166,7 @@
   <div class="metaline">
     Audited <b>2026-07-02</b> · repo <b>promunch-crm</b> @ <b>main</b> ·
     <b>~18.7k</b> lines frontend / <b>~14.7k</b> lines edge functions ·
-    <span class="badge b-live">2 criticals verified live against prod</span>
+    <span class="badge b-live">2 criticals verified live</span> <span class="badge b-prog">criticals fixed in code · pending deploy</span>
   </div>
 </div></header>
 
@@ -522,8 +527,26 @@ Staff schedules a campaign in the dashboard
     <span class="k"><span class="badge b-low">Low</span> defense-in-depth</span>
   </div>
 
+  <div class="status-board">
+    <div class="sbh"><span>Remediation status</span><span class="updated">updated 2026-07-02 · commit 070e16b · code-complete, not yet deployed</span></div>
+    <div class="tbl-wrap" style="border:none"><table>
+      <tr><th>ID</th><th>Severity</th><th>Status</th><th>What's left</th></tr>
+      <tr><td>C1 anon PII</td><td><span class="badge b-crit">Critical</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy app, then apply migration 004 in Supabase SQL editor</td></tr>
+      <tr><td>C2 leaked key</td><td><span class="badge b-crit">Critical</span></td><td><span class="badge b-open">Partial</span></td><td>Rotate service_role key + purge git history (manual, not done)</td></tr>
+      <tr><td>C3 unauth send fns</td><td><span class="badge b-crit">Critical</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy the 6 gated edge functions</td></tr>
+      <tr><td>C4 unsigned webhook</td><td><span class="badge b-crit">Critical</span></td><td><span class="badge b-prog">Code done</span></td><td>Set SHOPIFY_WEBHOOK_SECRET (if route is live), deploy</td></tr>
+      <tr><td>H4 cron fail-open</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Set CRON_SECRET in Vercel, deploy</td></tr>
+      <tr><td>H5 resend fail-open</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Set RESEND_*_SECRET in Vercel, deploy</td></tr>
+      <tr><td>H1 bot order IDOR</td><td><span class="badge b-high">High</span></td><td><span class="badge b-open">Open</span></td><td>Not started — constrain lookup_order by chatter phone</td></tr>
+      <tr><td>H2 filter injection</td><td><span class="badge b-high">High</span></td><td><span class="badge b-open">Open</span></td><td>Not started — whitelist order # to digits, drop string .or()</td></tr>
+      <tr><td>M1 no rate limiting</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-open">Open</span></td><td>Not started</td></tr>
+      <tr><td>M3 ungated cron fns</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-open">Open</span></td><td>Needs pg_cron bearer before gating tick/worker fns</td></tr>
+      <tr><td>L1/L2/L3 hardening</td><td><span class="badge b-low">Low</span></td><td><span class="badge b-open">Open</span></td><td>Sanitize HTML, remove dbg endpoints, add CSP headers</td></tr>
+    </table></div>
+  </div>
+
   <div class="finding crit">
-    <div class="fh"><span class="id" style="color:var(--crit)">C1</span><span class="ti">Public anon key reads &amp; writes all customer PII</span><span class="badge b-live">Verified live</span></div>
+    <div class="fh"><span class="id" style="color:var(--crit)">C1</span><span class="ti">Public anon key reads &amp; writes all customer PII</span><span class="badge b-prog">CODE DONE · pending migration+deploy</span></div>
     <div class="fb">
       <div class="row"><span class="k">Where</span><span><code>supabase/migrations/001_initial_schema.sql</code> — <code>CREATE POLICY … ON contacts FOR ALL TO anon USING(true) WITH CHECK(true)</code> (also orders, campaigns, flows, email_events)</span></div>
       <div class="row"><span class="k">Exploit</span><span>Anyone runs <code>GET /rest/v1/contacts?select=*</code> with the browser-shipped anon key and reads — or writes/deletes — the entire customer table. Confirmed: returned real names, emails, phone numbers.</span></div>
@@ -532,7 +555,7 @@ Staff schedules a campaign in the dashboard
   </div>
 
   <div class="finding crit">
-    <div class="fh"><span class="id" style="color:var(--crit)">C2</span><span class="ti">Live service_role key in git history, never rotated</span><span class="badge b-live">Verified live</span></div>
+    <div class="fh"><span class="id" style="color:var(--crit)">C2</span><span class="ti">Live service_role key in git history, never rotated</span><span class="badge b-open">PARTIAL · key NOT rotated yet</span></div>
     <div class="fb">
       <div class="row"><span class="k">Where</span><span><code>.claude/settings.json</code> — a JWT with <code>role: service_role</code>, ref <code>hlykspakpewuilttnydm</code>, committed in <code>6f809d5</code>, "removed" in <code>d17e5e9</code>, still in history. Its tail matches the active key in <code>.env.local</code>.</span></div>
       <div class="row"><span class="k">Exploit</span><span>Anyone with repo/history access extracts the key → full DB access bypassing all RLS (god mode). The working tree re-introduces it, ready to be committed again.</span></div>
@@ -541,7 +564,7 @@ Staff schedules a campaign in the dashboard
   </div>
 
   <div class="finding high">
-    <div class="fh"><span class="id" style="color:var(--high)">C3</span><span class="ti">Unauthenticated paid-send edge functions</span><span class="badge b-crit">Critical</span></div>
+    <div class="fh"><span class="id" style="color:var(--high)">C3</span><span class="ti">Unauthenticated paid-send edge functions</span><span class="badge b-prog">CODE DONE · pending fn deploy</span></div>
     <div class="fb">
       <div class="row"><span class="k">Where</span><span><code>config.toml</code>: <code>verify_jwt=false</code> for <code>wa-send</code>, <code>wa-campaign-send</code>, <code>ig-send</code>, <code>wa-ai-reply</code>; <code>wa-send/index.ts:13</code> literally says <em>"just trust it for now — tighten later."</em></span></div>
       <div class="row"><span class="k">Exploit</span><span><code>POST /functions/v1/wa-send {to, text}</code> sends arbitrary paid WhatsApp messages; <code>wa-campaign-send {campaign_id}</code> fires a full broadcast — burning the Meta tier, incurring cost, damaging the brand. <code>wa-ai-reply</code> drives OpenAI spend + chains into the data-leak paths below.</span></div>
@@ -550,7 +573,7 @@ Staff schedules a campaign in the dashboard
   </div>
 
   <div class="finding high">
-    <div class="fh"><span class="id" style="color:var(--high)">C4</span><span class="ti">Next.js Shopify webhook performs no HMAC verification</span><span class="badge b-crit">Critical</span></div>
+    <div class="fh"><span class="id" style="color:var(--high)">C4</span><span class="ti">Next.js Shopify webhook performs no HMAC verification</span><span class="badge b-prog">CODE DONE · pending deploy</span></div>
     <div class="fb">
       <div class="row"><span class="k">Where</span><span><code>src/app/api/webhooks/shopify/route.ts</code> — comment claims HMAC validation, but the handler just <code>request.json()</code> and upserts to <code>contacts</code>/<code>shopify_orders</code>. No signature check anywhere; middleware exempts the route.</span></div>
       <div class="row"><span class="k">Exploit</span><span>Forge a <code>customers/create</code> POST to inject/overwrite arbitrary contacts and orders (PII injection, order-status poisoning).</span></div>
@@ -559,7 +582,7 @@ Staff schedules a campaign in the dashboard
   </div>
 
   <div class="finding high">
-    <div class="fh"><span class="id" style="color:var(--high)">H1</span><span class="ti">Cross-customer order PII leak (IDOR) in the WhatsApp bot</span><span class="badge b-high">High</span></div>
+    <div class="fh"><span class="id" style="color:var(--high)">H1</span><span class="ti">Cross-customer order PII leak (IDOR) in the WhatsApp bot</span><span class="badge b-high">High</span><span class="badge b-open">OPEN · next up</span></div>
     <div class="fb">
       <div class="row"><span class="k">Where</span><span><code>_shared/orders.ts:33-67</code> — order lookup filters by order number only; when the chatter isn't on the order it falls back to returning the stranger's row (name/email/phone/tracking).</span></div>
       <div class="row"><span class="k">Exploit</span><span>Customer messages "check order #1042" (guessable, not theirs); the bot's <code>lookup_order</code> tool reads a stranger's PII back to them.</span></div>
@@ -568,7 +591,7 @@ Staff schedules a campaign in the dashboard
   </div>
 
   <div class="finding high">
-    <div class="fh"><span class="id" style="color:var(--high)">H2</span><span class="ti">PostgREST filter injection from customer input</span><span class="badge b-high">High</span></div>
+    <div class="fh"><span class="id" style="color:var(--high)">H2</span><span class="ti">PostgREST filter injection from customer input</span><span class="badge b-high">High</span><span class="badge b-open">OPEN · next up</span></div>
     <div class="fb">
       <div class="row"><span class="k">Where</span><span><code>_shared/orders.ts:50</code> / <code>wa-ai-reply/index.ts:898</code> — customer/AI strings interpolated straight into a PostgREST <code>.or()</code> filter; commas &amp; operators not stripped.</span></div>
       <div class="row"><span class="k">Exploit</span><span>An "order number" like <code>1,customer_email.not.is.null</code> injects an attacker-chosen filter to enumerate <code>shopify_orders</code> beyond the intended row.</span></div>
@@ -577,7 +600,7 @@ Staff schedules a campaign in the dashboard
   </div>
 
   <div class="finding high">
-    <div class="fh"><span class="id" style="color:var(--high)">H4</span><span class="ti">Cron routes fail open when CRON_SECRET is unset</span><span class="badge b-high">High</span></div>
+    <div class="fh"><span class="id" style="color:var(--high)">H4</span><span class="ti">Cron routes fail open when CRON_SECRET is unset</span><span class="badge b-high">High</span><span class="badge b-prog">CODE DONE · pending deploy</span></div>
     <div class="fb">
       <div class="row"><span class="k">Where</span><span><code>amazon-poll</code>, <code>amazon-settlements</code>, <code>leads-tick</code>, <code>wa-watchdog</code> routes use <code>if (secret &amp;&amp; …)</code> — no secret ⇒ auth skipped. Only <code>wa-campaign-tick</code> fails closed.</span></div>
       <div class="row"><span class="k">Exploit</span><span>If <code>CRON_SECRET</code> isn't set in prod, <code>POST /api/cron/leads-tick</code> triggers the paid B2B outreach batch at will; others force syncs/resource burn.</span></div>
@@ -586,7 +609,7 @@ Staff schedules a campaign in the dashboard
   </div>
 
   <div class="finding high">
-    <div class="fh"><span class="id" style="color:var(--high)">H5</span><span class="ti">Resend-inbound signature bypass via omitted headers</span><span class="badge b-high">High</span></div>
+    <div class="fh"><span class="id" style="color:var(--high)">H5</span><span class="ti">Resend-inbound signature bypass via omitted headers</span><span class="badge b-high">High</span><span class="badge b-prog">CODE DONE · pending deploy</span></div>
     <div class="fb">
       <div class="row"><span class="k">Where</span><span><code>webhooks/resend-inbound/route.ts:17-22</code>: <code>if (!secret || !svixId || !svixTs || !svixSig) return true;</code> — omit the svix-* headers and verification returns true.</span></div>
       <div class="row"><span class="k">Exploit</span><span>POST with no svix headers is accepted as genuine → forge inbound email events / reply records. Same fail-open pattern in <code>webhooks/resend</code>.</span></div>
