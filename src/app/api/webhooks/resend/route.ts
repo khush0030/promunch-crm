@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { verifySvix } from '@/lib/webhook-verify';
 import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
@@ -33,35 +33,10 @@ const EVENT_TO_TYPE: Record<string, string> = {
   'email.complained': 'bounced',
 };
 
-// Svix signature check (Resend signs webhooks via Svix). Enforced only when
-// RESEND_WEBHOOK_SECRET is set, so the pre-existing unsigned setup keeps working
-// until the secret is added to Vercel env.
-function verifySignature(req: NextRequest, rawBody: string): boolean {
-  const secret = process.env.RESEND_WEBHOOK_SECRET;
-  if (!secret) return false; // fail closed (audit H5/M1)
-
-  const svixId = req.headers.get('svix-id');
-  const svixTimestamp = req.headers.get('svix-timestamp');
-  const svixSignature = req.headers.get('svix-signature');
-  if (!svixId || !svixTimestamp || !svixSignature) return false;
-
-  const key = Buffer.from(secret.replace(/^whsec_/, ''), 'base64');
-  const expected = createHmac('sha256', key)
-    .update(`${svixId}.${svixTimestamp}.${rawBody}`)
-    .digest('base64');
-
-  return svixSignature.split(' ').some((part) => {
-    const sig = part.split(',')[1];
-    if (!sig) return false;
-    const a = Buffer.from(sig);
-    const b = Buffer.from(expected);
-    return a.length === b.length && timingSafeEqual(a, b);
-  });
-}
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
-  if (!verifySignature(request, rawBody)) {
+  if (!verifySvix({ secret: process.env.RESEND_WEBHOOK_SECRET, svixId: request.headers.get('svix-id'), svixTs: request.headers.get('svix-timestamp'), svixSig: request.headers.get('svix-signature'), rawBody })) {
     return NextResponse.json({ error: 'invalid signature' }, { status: 401 });
   }
 

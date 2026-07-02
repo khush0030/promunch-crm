@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { verifySvix } from '@/lib/webhook-verify';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
 // Resend INBOUND webhook — receives replies to our B2B cold emails, matches them
@@ -12,27 +12,6 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
 
-// Soft Svix verification — only enforced when the secret AND signature headers
-// are both present, so inbound keeps working before the secret is configured.
-function verify(req: NextRequest, raw: string): boolean {
-  const secret = process.env.RESEND_INBOUND_SECRET || process.env.RESEND_WEBHOOK_SECRET;
-  const svixId = req.headers.get('svix-id');
-  const svixTs = req.headers.get('svix-timestamp');
-  const svixSig = req.headers.get('svix-signature');
-  if (!secret || !svixId || !svixTs || !svixSig) return false; // fail closed (audit H5)
-  try {
-    const key = Buffer.from(secret.replace(/^whsec_/, ''), 'base64');
-    const expected = createHmac('sha256', key).update(`${svixId}.${svixTs}.${raw}`).digest('base64');
-    return svixSig.split(' ').some((p) => {
-      const sig = p.split(',')[1];
-      if (!sig) return false;
-      const a = Buffer.from(sig), b = Buffer.from(expected);
-      return a.length === b.length && timingSafeEqual(a, b);
-    });
-  } catch {
-    return false;
-  }
-}
 
 function extractEmail(v: unknown): { email: string; name: string | null } | null {
   if (!v) return null;
@@ -57,7 +36,7 @@ function pick(obj: Record<string, unknown>, ...keys: string[]): unknown {
 
 export async function POST(req: NextRequest) {
   const raw = await req.text();
-  if (!verify(req, raw)) {
+  if (!verifySvix({ secret: process.env.RESEND_INBOUND_SECRET || process.env.RESEND_WEBHOOK_SECRET, svixId: req.headers.get('svix-id'), svixTs: req.headers.get('svix-timestamp'), svixSig: req.headers.get('svix-signature'), rawBody: raw })) {
     return NextResponse.json({ error: 'invalid signature' }, { status: 401 });
   }
 

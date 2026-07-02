@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { verifyShopifyHmac } from '@/lib/webhook-verify';
 import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
 
 // Shopify webhook handler.
@@ -53,20 +53,11 @@ function mapOrderStatus(financial: string, fulfillment: string | null): string {
   return 'pending';
 }
 
-// Shopify signs the raw body: base64(HMAC-SHA256(body, secret)).
-function verifyShopifyHmac(rawBody: string, header: string | null): boolean {
-  const secret = process.env.SHOPIFY_WEBHOOK_SECRET;
-  if (!secret || !header) return false; // fail closed
-  const expected = createHmac('sha256', secret).update(rawBody, 'utf8').digest('base64');
-  const a = Buffer.from(header);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
 
-  if (!verifyShopifyHmac(rawBody, request.headers.get('x-shopify-hmac-sha256'))) {
+  if (!verifyShopifyHmac(rawBody, request.headers.get('x-shopify-hmac-sha256'), process.env.SHOPIFY_WEBHOOK_SECRET)) {
     return NextResponse.json({ error: 'invalid signature' }, { status: 401 });
   }
 
