@@ -105,6 +105,13 @@ Covers the Next.js `/api/*` surface (the Supabase edge functions are gated separ
 2. Enable **BotID** (Firewall → Bot Management) to challenge automated traffic. For deep protection on a specific sensitive route you can later add `checkBotId()` in code, but the managed challenge is config-only.
 3. Note: rules apply at the edge before the function runs, so they also blunt the C3/C4/H4 abuse vectors from the internet side.
 
-## M3 — Gate cron/worker edge functions (pending your cron.job listing)
+## M3 — Gate cron/worker edge functions (code done; coordinated apply)
 
-Blocked on: `SELECT jobname, schedule, command FROM cron.job ORDER BY jobname;` output, because some schedulers are dashboard-created and invisible to the repo. Once provided: gate each cron/worker fn with the internal secret + update every scheduler's `net.http_post` to send `Authorization: Bearer <service_role from Vault>`, applied together so nothing stops draining.
+12 cron-only functions are now gated with `requireInternal`. Apply in this order (AFTER C2 rotation, so the Vault key matches the new service_role key):
+1. Set the Vault secret to the current service_role key (see `scripts/m3-gate-cron-auth.sql` header for the exact `vault.create_secret` / `vault.update_secret` call).
+2. Deploy the 12 gated functions:
+   ```bash
+   cd promunch-email-agent && supabase functions deploy amazon-poll gmail-poll gmail-watch-renew nudge-pending shopify-daily-summary wa-campaign-worker wa-health wa-jobs-tick wa-journey-tick wa-rfm-tick wa-ticket-watchdog wa-weekly-summary
+   ```
+3. Run `promunch-email-agent/scripts/m3-gate-cron-auth.sql` in the SQL editor (re-schedules all 16 cron jobs to send the Vault bearer; also removes the anon key hardcoded in the shopify-monthly-recap job).
+4. Verify: `curl -s -o /dev/null -w '%{http_code}' -X POST "$URL/functions/v1/wa-jobs-tick"` → 401; check a cron run succeeds (2xx) in the function logs.

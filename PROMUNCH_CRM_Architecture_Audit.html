@@ -528,7 +528,7 @@ Staff schedules a campaign in the dashboard
   </div>
 
   <div class="status-board">
-    <div class="sbh"><span>Remediation status</span><span class="updated">updated 2026-07-02 · commit 2ba128e · 11 of 12 code-complete · C2 rotation in progress · pending deploy</span></div>
+    <div class="sbh"><span>Remediation status</span><span class="updated">updated 2026-07-02 · commit 2ba128e · 12/12 findings addressed in code · C2 rotation in progress · pending deploy</span></div>
     <div class="tbl-wrap" style="border:none"><table>
       <tr><th>ID</th><th>Severity</th><th>Status</th><th>What's left</th></tr>
       <tr><td>C1 anon PII</td><td><span class="badge b-crit">Critical</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy app, then apply migration 004 in Supabase SQL editor</td></tr>
@@ -541,7 +541,7 @@ Staff schedules a campaign in the dashboard
       <tr><td>H2 filter injection</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy edge fns (order # whitelisted)</td></tr>
       <tr><td>M1 no rate limiting</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-prog">Config path set</span></td><td>Vercel Firewall + BotID rules (dashboard) — steps in runbook</td></tr>
       <tr><td>M2 skip-sig flags</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy wa-webhook + ig-webhook (HMAC bypass removed)</td></tr>
-      <tr><td>M3 ungated cron fns</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-open">Blocked</span></td><td>Needs live cron.job listing (some schedulers are dashboard-only/invisible)</td></tr>
+      <tr><td>M3 ungated cron fns</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-prog">Code done</span></td><td>12 fns gated + cron SQL ready; coordinated apply (Vault key + deploy + run SQL)</td></tr>
       <tr><td>L1 campaign XSS</td><td><span class="badge b-low">Low</span></td><td><span class="badge b-prog">Code done</span></td><td>DOMPurify sanitize; deploy app</td></tr>
       <tr><td>L2 dbg/orphan endpoints</td><td><span class="badge b-low">Low</span></td><td><span class="badge b-prog">Code done</span></td><td>Run supabase functions delete dbg-mailbox</td></tr>
       <tr><td>L3 no security headers</td><td><span class="badge b-low">Low</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy app (headers in next.config)</td></tr>
