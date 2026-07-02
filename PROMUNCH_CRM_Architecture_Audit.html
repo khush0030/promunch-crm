@@ -166,7 +166,7 @@
   <div class="metaline">
     Audited <b>2026-07-02</b> · repo <b>promunch-crm</b> @ <b>main</b> ·
     <b>~18.7k</b> lines frontend / <b>~14.7k</b> lines edge functions ·
-    <span class="badge b-live">2 criticals verified live</span> <span class="badge b-prog">criticals fixed in code · pending deploy</span>
+    <span class="badge b-live">2 criticals verified live</span> <span class="badge b-prog">11/12 findings fixed in code · pending deploy + C2 key rotation</span>
   </div>
 </div></header>
 
@@ -528,11 +528,11 @@ Staff schedules a campaign in the dashboard
   </div>
 
   <div class="status-board">
-    <div class="sbh"><span>Remediation status</span><span class="updated">updated 2026-07-02 · commit 070e16b · code-complete, not yet deployed</span></div>
+    <div class="sbh"><span>Remediation status</span><span class="updated">updated 2026-07-02 · commit 2ba128e · 11 of 12 code-complete · C2 rotation in progress · pending deploy</span></div>
     <div class="tbl-wrap" style="border:none"><table>
       <tr><th>ID</th><th>Severity</th><th>Status</th><th>What's left</th></tr>
       <tr><td>C1 anon PII</td><td><span class="badge b-crit">Critical</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy app, then apply migration 004 in Supabase SQL editor</td></tr>
-      <tr><td>C2 leaked key</td><td><span class="badge b-crit">Critical</span></td><td><span class="badge b-open">Partial</span></td><td>Rotate service_role key + purge git history (manual, not done)</td></tr>
+      <tr><td>C2 leaked key</td><td><span class="badge b-crit">Critical</span></td><td><span class="badge b-open">In progress</span></td><td>Rotate via <b>Legacy JWT Secret</b> (signing-key rotate does NOT kill it) — leaked key verified STILL LIVE at last check; then purge git history</td></tr>
       <tr><td>C3 unauth send fns</td><td><span class="badge b-crit">Critical</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy the 6 gated edge functions</td></tr>
       <tr><td>C4 unsigned webhook</td><td><span class="badge b-crit">Critical</span></td><td><span class="badge b-prog">Code done</span></td><td>Set SHOPIFY_WEBHOOK_SECRET (if route is live), deploy</td></tr>
       <tr><td>H4 cron fail-open</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Set CRON_SECRET in Vercel, deploy</td></tr>
