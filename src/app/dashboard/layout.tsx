@@ -3,9 +3,10 @@ import { useState, useEffect } from "react";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import Onboarding from "@/components/Onboarding";
 import { ToastProvider } from "@/components/ui/Toast";
-import { supabase } from "@/lib/supabase";
+import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const supabase = createSupabaseBrowserClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [counts, setCounts] = useState<Record<string, number | string>>({});

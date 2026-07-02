@@ -12,6 +12,7 @@
 
 import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { businessDiscovery } from "../_shared/instagram.ts";
 import { postSlack, slackChannelFor } from "../_shared/connector-log.ts";
 
@@ -58,6 +59,8 @@ function systemPrompt(scope: string, barterTerms: string | null): string {
 }
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   if (req.method !== "POST") return new Response("method", { status: 405 });
   const { thread_id, last_message, inbound_id, kind, comment_id, draft, job_id } =
     (await req.json()) as InvokeBody;

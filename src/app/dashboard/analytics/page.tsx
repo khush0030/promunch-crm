@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { IndianRupee, Mail, Coins, TrendingUp, Users } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { PageHead, KpiCard, Panel, MiniBar, StatLine, DataTable } from "@/components/pm";
 import type { Column, KpiTone } from "@/components/pm";
 
@@ -16,6 +16,7 @@ type EmailHealthRow = { label: string; value: string; pct: number; color: string
 type Growth = { newSubs: number; unsubscribed: number; net: number; totalActive: number };
 
 export default function AnalyticsPage() {
+  const supabase = createSupabaseBrowserClient();
   const [activeRange, setActiveRange] = useState("Last 30 Days");
   const [topMetrics, setTopMetrics] = useState<TopMetric[]>([]);
   const [campaignPerf, setCampaignPerf] = useState<CampaignPerf[]>([]);

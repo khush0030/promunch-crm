@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/supabase-admin";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // Bulk-import CRM contacts (Shopify-synced) into wa_contacts so they can be

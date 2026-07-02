@@ -9,6 +9,7 @@
 
 import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { businessDiscovery } from "../_shared/instagram.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
@@ -20,6 +21,8 @@ interface InvokeBody {
 }
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   if (req.method !== "POST") return new Response("method", { status: 405 });
   const { thread_id } = (await req.json()) as InvokeBody;
   if (!thread_id) return j({ error: "thread_id required" }, 400);

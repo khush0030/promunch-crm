@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PROMUNCH CRM — Architecture &amp; Security Audit</title>
+<style>
+  :root{
+    --bg:#0b0e14; --bg2:#111725; --bg3:#161d2e; --card:#141b2b; --card2:#1a2436;
+    --line:#243044; --line2:#2e3c54;
+    --tx:#e8edf6; --tx2:#a9b6cc; --tx3:#6f7f9b;
+    --accent:#6ea8ff; --accent2:#8b7bff;
+    --ok:#3fbf8f; --okbg:#12271f;
+    --warn:#e0a83a; --warnbg:#2a2210;
+    --high:#ff8a4c; --highbg:#2c1a10;
+    --crit:#ff5b6e; --critbg:#2c1017;
+    --info:#5cc8e6;
+    --radius:14px;
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:radial-gradient(1200px 700px at 80% -10%,#182238 0%,var(--bg) 55%);color:var(--tx);font-family:var(--sans);line-height:1.55;font-size:15px;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code,.mono{font-family:var(--mono);font-size:.86em}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+
+  /* nav */
+  nav.top{position:sticky;top:0;z-index:50;background:rgba(11,14,20,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+  nav.top .wrap{display:flex;gap:6px;align-items:center;height:52px;overflow-x:auto;scrollbar-width:none}
+  nav.top .wrap::-webkit-scrollbar{display:none}
+  nav.top .brand{font-weight:700;letter-spacing:.5px;margin-right:14px;white-space:nowrap;color:var(--tx)}
+  nav.top a{color:var(--tx3);font-size:13px;padding:6px 10px;border-radius:8px;white-space:nowrap;font-weight:500}
+  nav.top a:hover{color:var(--tx);background:var(--bg3);text-decoration:none}
+
+  header.hero{padding:60px 0 34px}
+  .eyebrow{color:var(--accent);font-weight:600;letter-spacing:2px;font-size:12px;text-transform:uppercase}
+  h1{font-size:40px;line-height:1.1;margin:12px 0 8px;font-weight:800;letter-spacing:-.5px}
+  h1 .g{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--tx2);font-size:17px;max-width:760px}
+  .metaline{margin-top:14px;color:var(--tx3);font-size:13px}
+  .metaline b{color:var(--tx2)}
+
+  section{padding:34px 0;border-top:1px solid var(--line)}
+  h2{font-size:24px;font-weight:750;margin:0 0 4px;letter-spacing:-.3px;display:flex;align-items:center;gap:10px}
+  h2 .num{font-family:var(--mono);font-size:13px;color:var(--accent);border:1px solid var(--line2);border-radius:7px;padding:3px 8px;font-weight:600}
+  h3{font-size:16px;font-weight:700;margin:22px 0 10px;color:var(--tx)}
+  .lead{color:var(--tx2);max-width:820px;margin:6px 0 18px}
+  p{margin:10px 0}
+
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:860px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+  .card{background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+  .card h4{margin:0 0 6px;font-size:15px;font-weight:700}
+  .card p{margin:6px 0;color:var(--tx2);font-size:14px}
+
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+  .stat .n{font-size:30px;font-weight:800;letter-spacing:-1px}
+  .stat .l{color:var(--tx3);font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin-top:2px}
+  .stat .d{color:var(--tx2);font-size:12.5px;margin-top:6px}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;letter-spacing:.3px;text-transform:uppercase;vertical-align:middle}
+  .b-crit{background:var(--critbg);color:var(--crit);border:1px solid #4a1c26}
+  .b-high{background:var(--highbg);color:var(--high);border:1px solid #472712}
+  .b-med{background:var(--warnbg);color:var(--warn);border:1px solid #45380f}
+  .b-low{background:#101b2a;color:var(--info);border:1px solid #1d3345}
+  .b-ok{background:var(--okbg);color:var(--ok);border:1px solid #1c3d30}
+  .b-info{background:#141b2b;color:var(--tx2);border:1px solid var(--line2)}
+  .b-live{background:#2c1017;color:#ff8595;border:1px solid #5a2230}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:8px 0}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--tx3);font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+  tr:hover td{background:var(--bg3)}
+  td .mono{color:var(--tx)}
+  .tbl-wrap{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--card)}
+  .tbl-wrap table{margin:0}
+
+  .pill{display:inline-block;font-family:var(--mono);font-size:11.5px;background:var(--bg3);border:1px solid var(--line2);border-radius:6px;padding:1px 7px;color:var(--tx2)}
+
+  .finding{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin:12px 0;background:var(--card)}
+  .finding .fh{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;background:var(--card2);border-bottom:1px solid var(--line)}
+  .finding .fh .id{font-family:var(--mono);font-weight:800;font-size:15px}
+  .finding .fh .ti{font-weight:700;font-size:15px;flex:1}
+  .finding .fb{padding:14px 16px;font-size:14px;color:var(--tx2)}
+  .finding .fb .row{margin:7px 0;display:flex;gap:8px}
+  .finding .fb .row .k{color:var(--tx3);font-weight:700;min-width:64px;font-size:12px;text-transform:uppercase;letter-spacing:.4px;padding-top:1px}
+  .finding.crit{border-color:#4a1c26}
+  .finding.crit .fh{background:linear-gradient(180deg,#25121a,#1a1017)}
+  .finding.high .fh{background:linear-gradient(180deg,#241710,#181310)}
+
+  .callout{border-left:3px solid var(--accent);background:var(--bg3);border-radius:0 10px 10px 0;padding:12px 16px;margin:14px 0;color:var(--tx2);font-size:14px}
+  .callout.crit{border-color:var(--crit);background:var(--critbg)}
+  .callout.ok{border-color:var(--ok);background:var(--okbg)}
+  .callout.warn{border-color:var(--warn);background:var(--warnbg)}
+  .callout b{color:var(--tx)}
+
+  pre{background:#0a0d13;border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.5;color:#cdd8ea}
+  pre .c{color:var(--tx3)}
+  pre .r{color:#ff8595}
+  pre .gr{color:#7fd8a8}
+  pre .y{color:#e6c46a}
+
+  ul.clean{list-style:none;padding:0;margin:8px 0}
+  ul.clean li{padding:6px 0 6px 22px;position:relative;color:var(--tx2);font-size:14px;border-bottom:1px solid var(--line)}
+  ul.clean li:last-child{border-bottom:none}
+  ul.clean li::before{content:"";position:absolute;left:2px;top:12px;width:7px;height:7px;border-radius:2px;background:var(--accent)}
+  ul.clean li.ok::before{background:var(--ok)}
+  ul.clean li.warn::before{background:var(--warn)}
+  ul.clean li.crit::before{background:var(--crit)}
+
+  .flow{font-family:var(--mono);font-size:12.5px;background:#0a0d13;border:1px solid var(--line);border-radius:12px;padding:16px;overflow-x:auto;line-height:1.7}
+
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin:10px 0;font-size:12.5px;color:var(--tx2)}
+  .legend .k{display:inline-flex;gap:6px;align-items:center}
+  .dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+  .scorebar{display:flex;height:12px;border-radius:999px;overflow:hidden;border:1px solid var(--line);margin:6px 0}
+  .scorebar i{display:block;height:100%}
+
+  .roadmap{counter-reset:step}
+  .step{display:flex;gap:16px;padding:16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--card);margin:10px 0}
+  .step .snum{counter-increment:step;flex:0 0 34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:800;color:#0b0e14}
+  .step .snum::before{content:counter(step)}
+  .step .sc h4{margin:2px 0 4px;font-size:15px}
+  .step .sc p{margin:2px 0;font-size:13.5px;color:var(--tx2)}
+  .tag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:6px;background:var(--bg3);color:var(--tx3);border:1px solid var(--line2)}
+
+  footer{padding:40px 0 60px;color:var(--tx3);font-size:12.5px;border-top:1px solid var(--line)}
+  .muted{color:var(--tx3)}
+  .hl{color:var(--tx);font-weight:600}
+  .kbd{font-family:var(--mono);background:var(--bg3);border:1px solid var(--line2);border-radius:5px;padding:0 5px;font-size:11.5px}
+</style>
+</head>
+<body>
+
+<nav class="top"><div class="wrap">
+  <span class="brand">PROMUNCH · AUDIT</span>
+  <a href="#exec">Summary</a>
+  <a href="#stack">Stack</a>
+  <a href="#arch">Architecture</a>
+  <a href="#flow">Data Flow</a>
+  <a href="#backend">Backend</a>
+  <a href="#data">Data Model</a>
+  <a href="#reliability">Reliability</a>
+  <a href="#security">Security</a>
+  <a href="#debt">Tech Debt</a>
+  <a href="#roadmap">Roadmap</a>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <div class="eyebrow">Architecture &amp; Security Deep-Dive</div>
+  <h1>PROMUNCH CRM — <span class="g">how the system really works</span>, and what to fix</h1>
+  <p class="sub">A full read-through audit of the multi-channel customer platform: a Next.js 16 dashboard fronting 48 Supabase Deno edge functions, Postgres, and live integrations with Meta WhatsApp, Instagram, Shopify, Amazon, Gmail and Slack. This document maps the real backend, then ranks what needs hardening for a reliable production startup.</p>
+  <div class="metaline">
+    Audited <b>2026-07-02</b> · repo <b>promunch-crm</b> @ <b>main</b> ·
+    <b>~18.7k</b> lines frontend / <b>~14.7k</b> lines edge functions ·
+    <span class="badge b-live">2 criticals verified live against prod</span>
+  </div>
+</div></header>
+
+<!-- ===================== EXEC SUMMARY ===================== -->
+<section id="exec"><div class="wrap">
+  <h2><span class="num">01</span> Executive Summary</h2>
+  <p class="lead">The product is genuinely impressive for its size: one owned system replacing Klaviyo + a WhatsApp BSP + manual ops, with real durability engineering on the money-critical paths (message dedup, atomic send locks, dead-letter queues, reconciliation sweeps). The gap is <b>security posture and operational reproducibility</b> — the same corners cut to ship fast now expose live customer PII and paid-send endpoints to the open internet.</p>
+
+  <div class="grid g4" style="margin:16px 0">
+    <div class="stat"><div class="n">48</div><div class="l">Edge functions</div><div class="d">Deno, 6 integration domains</div></div>
+    <div class="stat"><div class="n">78</div><div class="l">API routes</div><div class="d">23 dashboard pages</div></div>
+    <div class="stat"><div class="n">48</div><div class="l">DB tables</div><div class="d">across 2 migration dirs</div></div>
+    <div class="stat"><div class="n" style="color:var(--crit)">2</div><div class="l">Live criticals</div><div class="d">confirmed against prod</div></div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card">
+      <h4>What's strong <span class="badge b-ok">keep</span></h4>
+      <ul class="clean">
+        <li class="ok">Money paths are idempotent: <code>wa_messages</code> unique constraints, atomic per-order/per-turn claim tables, per-campaign send lock — the 86-customer and 195-duplicate incidents were fixed structurally at the DB, not patched in app code.</li>
+        <li class="ok">Durable job queues (<code>wa_jobs</code>/<code>ig_jobs</code>) with backoff + dead-letter, plus reconciliation sweeps and health watchdogs — inbound work is rarely silently lost.</li>
+        <li class="ok">Middleware fails <em>closed</em> on <code>/api/*</code>: every dashboard route needs a session; only webhooks + cron are exempt (and self-verify).</li>
+        <li class="ok">Shared code is mostly centralized: one service-role client used by 38 functions; a single alerting module used by 24.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>What's urgent <span class="badge b-crit">fix now</span></h4>
+      <ul class="clean">
+        <li class="crit"><b>Public anon key reads &amp; writes all customer PII</b> — verified: dumped real names, emails, phones from <code>contacts</code> + <code>orders</code> live.</li>
+        <li class="crit"><b>service_role key is in git history and never rotated</b> — the leaked key still matches the active <code>.env.local</code> key. God-mode over the DB.</li>
+        <li class="high">Paid-send edge functions (<code>wa-send</code>, <code>wa-campaign-send</code>, <code>ig-send</code>, <code>wa-ai-reply</code>) are internet-callable with no auth.</li>
+        <li class="high">The Next.js Shopify webhook does zero HMAC verification; several webhook/cron secrets fail <em>open</em> when unset.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Risk posture at a glance</h3>
+  <div class="legend">
+    <span class="k"><i class="dot" style="background:var(--ok)"></i> Solid</span>
+    <span class="k"><i class="dot" style="background:var(--warn)"></i> Needs work</span>
+    <span class="k"><i class="dot" style="background:var(--high)"></i> Weak</span>
+    <span class="k"><i class="dot" style="background:var(--crit)"></i> Critical</span>
+  </div>
+  <div class="tbl-wrap"><table>
+    <tr><th>Dimension</th><th>Rating</th><th>Notes</th></tr>
+    <tr><td>Data integrity / dedup</td><td><span class="badge b-ok">Solid</span></td><td>Best-in-class for the codebase size; DB-enforced invariants.</td></tr>
+    <tr><td>Reliability / self-healing</td><td><span class="badge b-ok">Solid</span></td><td>Queues, sweeps, watchdogs. One weak spot: Amazon poll swallows errors.</td></tr>
+    <tr><td>Authn / authz</td><td><span class="badge b-crit">Critical</span></td><td>Open anon RLS, unauth send functions, no roles/RBAC.</td></tr>
+    <tr><td>Secrets management</td><td><span class="badge b-crit">Critical</span></td><td>Live service_role key recoverable from git history, unrotated.</td></tr>
+    <tr><td>Webhook / input trust</td><td><span class="badge b-high">Weak</span></td><td>No HMAC on Next Shopify route; fail-open secrets; filter injection.</td></tr>
+    <tr><td>Operational reproducibility</td><td><span class="badge b-med">Needs work</span></td><td>Cron topology + schema split across dirs and the dashboard UI; not in source.</td></tr>
+    <tr><td>Code maintainability</td><td><span class="badge b-med">Needs work</span></td><td>2,540-line page, 1,029-line function, triplicated helpers, zero tests.</td></tr>
+    <tr><td>Frontend / UX architecture</td><td><span class="badge b-med">Needs work</span></td><td>No data-fetching or state library; giant client components.</td></tr>
+  </table></div>
+</div></section>
+
+<!-- ===================== STACK ===================== -->
+<section id="stack"><div class="wrap">
+  <h2><span class="num">02</span> Tech Stack</h2>
+  <p class="lead">A lean, modern, mostly-serverless stack. Notably: <b>no test framework, no state manager, no data-fetching library</b> in the frontend, and the AI "brain" lives entirely in the separate Deno edge-function project — the Next app has no <code>openai</code> dependency.</p>
+
+  <div class="grid g3">
+    <div class="card">
+      <h4>Frontend</h4>
+      <ul class="clean">
+        <li>Next.js <span class="pill">16.1.7</span> App Router</li>
+        <li>React <span class="pill">19.2.3</span> + React DOM</li>
+        <li>TypeScript <span class="pill">5</span></li>
+        <li>Tailwind CSS <span class="pill">v4</span> + PostCSS</li>
+        <li>lucide-react icons, geist font</li>
+        <li class="warn">No React Query / SWR / Zustand</li>
+        <li class="warn">No test framework at all</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>Backend / Data</h4>
+      <ul class="clean">
+        <li>Supabase Postgres (primary DB)</li>
+        <li>Supabase Auth (email + domain allowlist)</li>
+        <li>48 Deno edge functions <span class="muted">(Supabase Functions)</span></li>
+        <li>pgvector for RAG (<code>kb_chunks</code>, 1536-dim)</li>
+        <li>pg_cron + pg_net for scheduling</li>
+        <li>Supabase Vault (one cron secret)</li>
+        <li>@supabase/ssr + supabase-js <span class="pill">2.99</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>Hosting / Delivery</h4>
+      <ul class="clean">
+        <li>Vercel (Next app + 2 crons)</li>
+        <li>Ships via <code>vercel --prod</code> <span class="muted">(no git auto-deploy)</span></li>
+        <li>Supabase-hosted functions + DB</li>
+        <li>Resend <span class="pill">6.9</span> <span class="muted">(email; being phased to Gmail SA)</span></li>
+        <li class="warn">Hobby plan: crons capped at daily</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>External integrations (the real surface area)</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>Domain</th><th>API</th><th>Auth model</th><th>What flows</th></tr>
+    <tr><td>WhatsApp</td><td class="mono">graph.facebook.com</td><td>Access token + HMAC webhook</td><td>Inbound support, AI replies, marketing broadcasts, journeys, in-chat ordering</td></tr>
+    <tr><td>Instagram</td><td class="mono">graph.facebook.com</td><td>Access token + HMAC webhook</td><td>DM/comment triage, collab pipeline</td></tr>
+    <tr><td>Shopify</td><td class="mono">Admin GraphQL</td><td>Access token + HMAC webhook</td><td>Orders, customers, catalog, attribution</td></tr>
+    <tr><td>Amazon</td><td class="mono">SP-API (EU)</td><td>LWA refresh token</td><td>Orders, FBA inventory, finances, settlement recon</td></tr>
+    <tr><td>Gmail</td><td class="mono">Gmail REST + OAuth</td><td>OAuth refresh + service-account DWD</td><td>Support email agent, B2B cold outreach</td></tr>
+    <tr><td>OpenAI</td><td class="mono">api.openai.com</td><td>API key</td><td>AI replies, embeddings, personalization, transcription</td></tr>
+    <tr><td>Slack</td><td class="mono">slack.com/api</td><td>Bot token + signing secret</td><td>Ops alerts, order cards, slash commands, digests</td></tr>
+  </table></div>
+</div></section>
+
+<!-- ===================== ARCHITECTURE ===================== -->
+<section id="arch"><div class="wrap">
+  <h2><span class="num">03</span> High-Level Architecture</h2>
+  <p class="lead">Three tiers. The Next.js app is a thin dashboard + API proxy; the real logic lives in Deno edge functions triggered by webhooks and cron; Postgres is the shared source of truth and the coordination layer (locks, claims, queues all live in tables).</p>
+
+  <div style="background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:8px;margin:12px 0">
+  <svg viewBox="0 0 1120 660" width="100%" font-family="var(--sans)" role="img" aria-label="Architecture diagram">
+    <defs>
+      <linearGradient id="gA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1b2743"/><stop offset="1" stop-color="#141b2b"/></linearGradient>
+      <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#4a5b7a"/></marker>
+    </defs>
+    <style>
+      .box{fill:url(#gA);stroke:#2e3c54;rx:12}
+      .lbl{fill:#e8edf6;font-weight:700;font-size:14px}
+      .sub{fill:#a9b6cc;font-size:11px}
+      .tier{fill:#6f7f9b;font-size:11px;font-weight:700;letter-spacing:1px}
+      .edge{stroke:#4a5b7a;stroke-width:1.6;fill:none}
+      .ext{fill:#141b2b;stroke:#3a2a1a;rx:9}
+      .extt{fill:#e0a83a;font-size:11px;font-weight:600}
+      .pg{fill:#12271f;stroke:#1c3d30;rx:12}
+    </style>
+
+    <!-- clients -->
+    <text class="tier" x="40" y="34">CLIENTS</text>
+    <rect class="box" x="40" y="46" width="200" height="58" rx="12"/>
+    <text class="lbl" x="60" y="72">Staff Dashboard</text><text class="sub" x="60" y="90">browser · Supabase Auth</text>
+    <rect class="ext" x="260" y="46" width="150" height="58" rx="9"/>
+    <text class="extt" x="278" y="70">Customers</text><text class="sub" x="278" y="88">WhatsApp · IG · email</text>
+    <rect class="ext" x="430" y="46" width="170" height="58" rx="9"/>
+    <text class="extt" x="448" y="70">Shopify / Amazon</text><text class="sub" x="448" y="88">order &amp; catalog webhooks</text>
+    <rect class="ext" x="620" y="46" width="140" height="58" rx="9"/>
+    <text class="extt" x="638" y="70">Vercel Cron</text><text class="sub" x="638" y="88">+ pg_cron</text>
+
+    <!-- next app -->
+    <text class="tier" x="40" y="150">NEXT.JS 16 APP  ·  Vercel</text>
+    <rect class="box" x="40" y="162" width="720" height="86" rx="12"/>
+    <text class="lbl" x="60" y="190">middleware.ts — session gate (fails closed on /api/*)</text>
+    <text class="sub" x="60" y="212">78 API routes · 23 pages · service-role client used in ~50 routes (RLS bypassed)</text>
+    <text class="sub" x="60" y="230">public exemptions: /api/webhooks/*  ·  /api/cron/*  ·  /r/* redirects</text>
+
+    <!-- edge functions -->
+    <text class="tier" x="40" y="292">SUPABASE EDGE FUNCTIONS  ·  Deno  ·  48 functions</text>
+    <g>
+      <rect class="box" x="40" y="304" width="165" height="86" rx="12"/><text class="lbl" x="56" y="330">WhatsApp</text><text class="sub" x="56" y="350">webhook · ai-reply</text><text class="sub" x="56" y="366">campaigns · journeys</text><text class="sub" x="56" y="382">jobs · watchdogs</text>
+      <rect class="box" x="220" y="304" width="150" height="86" rx="12"/><text class="lbl" x="236" y="330">Shopify</text><text class="sub" x="236" y="350">webhooks ×3</text><text class="sub" x="236" y="366">catalog-sync</text><text class="sub" x="236" y="382">backfills</text>
+      <rect class="box" x="385" y="304" width="130" height="86" rx="12"/><text class="lbl" x="401" y="330">Amazon</text><text class="sub" x="401" y="350">poll (orders)</text><text class="sub" x="401" y="366">finances</text><text class="sub" x="401" y="382">settlements</text>
+      <rect class="box" x="530" y="304" width="140" height="86" rx="12"/><text class="lbl" x="546" y="330">Instagram</text><text class="sub" x="546" y="350">webhook · ai-reply</text><text class="sub" x="546" y="366">send · jobs</text><text class="sub" x="546" y="382">analyze/collab</text>
+      <rect class="box" x="685" y="304" width="150" height="86" rx="12"/><text class="lbl" x="701" y="330">Gmail / B2B</text><text class="sub" x="701" y="350">webhook · poll</text><text class="sub" x="701" y="366">b2b-send</text><text class="sub" x="701" y="382">brand backfill</text>
+      <rect class="box" x="850" y="304" width="130" height="86" rx="12"/><text class="lbl" x="866" y="330">Slack + KB</text><text class="sub" x="866" y="350">events</text><text class="sub" x="866" y="366">interactivity</text><text class="sub" x="866" y="382">kb-ingest/embed</text>
+    </g>
+
+    <!-- shared -->
+    <rect class="box" x="40" y="404" width="940" height="40" rx="10"/>
+    <text class="lbl" x="56" y="429">_shared/ — 25 modules · one service-role db() client · connector-log alerting · per-channel send + HMAC helpers</text>
+
+    <!-- postgres -->
+    <text class="tier" x="40" y="486">POSTGRES  ·  Supabase</text>
+    <rect class="pg" x="40" y="498" width="940" height="120" rx="12"/>
+    <text class="lbl" x="60" y="524" fill="#7fd8a8">Source of truth + coordination layer</text>
+    <text class="sub" x="60" y="546">CRM: contacts · orders · campaigns   |   WA: wa_threads · wa_messages · wa_campaigns · wa_journey_runs · wa_jobs</text>
+    <text class="sub" x="60" y="566">Shopify: shopify_orders (+attribution)   |   Amazon: orders · finances · settlements   |   IG: ig_threads · ig_messages</text>
+    <text class="sub" x="60" y="586">B2B: leads · outreach_drafts   |   RAG: kb_documents · kb_chunks (pgvector)   |   secrets: oauth_tokens</text>
+    <text class="sub" x="60" y="606" fill="#e0a83a">Locks &amp; claims live in tables: send_lock · claim_ai_reply · claim_order_confirmation · wa_jobs dead-letter</text>
+
+    <!-- external APIs strip -->
+    <rect class="ext" x="1000" y="304" width="90" height="314" rx="9"/>
+    <text class="extt" x="1016" y="330" transform="rotate(0)">Meta</text>
+    <text class="extt" x="1016" y="352">Shopify</text>
+    <text class="extt" x="1016" y="374">Amazon</text>
+    <text class="extt" x="1016" y="396">OpenAI</text>
+    <text class="extt" x="1016" y="418">Gmail</text>
+    <text class="extt" x="1016" y="440">Slack</text>
+    <text class="sub" x="1016" y="470">outbound</text><text class="sub" x="1016" y="486">API calls</text>
+
+    <!-- edges -->
+    <path class="edge" d="M140,104 L140,162" marker-end="url(#arr)"/>
+    <path class="edge" d="M335,104 C335,140 250,150 210,304" marker-end="url(#arr)"/>
+    <path class="edge" d="M515,104 C515,150 400,240 350,304" marker-end="url(#arr)"/>
+    <path class="edge" d="M690,104 C690,180 760,240 760,304" marker-end="url(#arr)"/>
+    <path class="edge" d="M400,248 L300,304" marker-end="url(#arr)"/>
+    <path class="edge" d="M120,390 L120,404"/><path class="edge" d="M300,390 L300,404"/><path class="edge" d="M600,390 L600,404"/><path class="edge" d="M760,390 L760,404"/>
+    <path class="edge" d="M510,444 L510,498" marker-end="url(#arr)"/>
+    <path class="edge" d="M980,440 L1000,440" marker-end="url(#arr)"/>
+  </svg>
+  </div>
+
+  <div class="grid g3">
+    <div class="card"><h4>Tier 1 — Dashboard</h4><p>Next.js App Router. Server + client components. Talks to Postgres two ways: server API routes with the <b>service-role key</b> (bypassing RLS, ~50 routes), and client components with the <b>anon key</b> (RLS-dependent).</p></div>
+    <div class="card"><h4>Tier 2 — Edge functions</h4><p>The actual product logic. Triggered by provider webhooks, cron, and function-to-function calls. Each domain mirrors the same shape: webhook → enqueue job → AI reply → send chokepoint → ledger.</p></div>
+    <div class="card"><h4>Tier 3 — Postgres</h4><p>Not just storage — it's the coordination substrate. Locks, atomic claims, dedup constraints, and job queues are all tables, which is why the money paths are correct under concurrency.</p></div>
+  </div>
+</div></section>
+
+<!-- ===================== DATA FLOW ===================== -->
+<section id="flow"><div class="wrap">
+  <h2><span class="num">04</span> How a Request Actually Moves</h2>
+  <p class="lead">Two representative paths — an inbound WhatsApp message and a marketing broadcast — show the "webhook → queue → AI → chokepoint → ledger" spine that every channel reuses.</p>
+
+  <h3>Inbound WhatsApp support message</h3>
+  <div class="flow">
+Customer texts the business number
+   <span class="y">│</span>
+   <span class="gr">▼ Meta Graph POST (X-Hub-Signature-256)</span>
+<span class="hl">wa-webhook</span>  — verify HMAC → dedup on wa_message_id → upsert wa_thread/wa_message
+   <span class="y">│</span>  if thread.status == 'bot':
+   <span class="y">├──▶</span> <span class="hl">wa-ai-reply</span> (fast path, best-effort)  → claim_ai_reply (atomic per-turn)
+   <span class="y">│</span>        → stuff Master KB into prompt → OpenAI
+   <span class="y">│</span>        → tool: lookup_order / request_order_change
+   <span class="y">│</span>        → <span class="hl">wa-send</span> (single outbound chokepoint) → records wa_message → Meta
+   <span class="y">└──▶</span> enqueue <span class="hl">wa_jobs</span>(kind=ai_reply)  ← backstop if fast path failed
+            <span class="y">│</span>
+            <span class="gr">▼ cron ~1 min</span>
+         <span class="hl">wa-jobs-tick</span> — drains queue, backoff, dead-letters after max_attempts
+  </div>
+  <div class="callout"><b>Why this is well-built:</b> the fast path is for UX latency, but correctness is guaranteed by the enqueued job. The atomic <code>claim_ai_reply</code> means two workers can't double-reply to the same turn, and <code>wa-send</code> is the one place every outbound send is recorded + failure-alerted.</div>
+
+  <h3>Marketing broadcast (the incident-hardened path)</h3>
+  <div class="flow">
+Staff schedules a campaign in the dashboard
+   <span class="y">│</span>
+   <span class="gr">▼ pg_cron every ~2 min</span>
+<span class="hl">wa-campaign-worker</span> — promotes scheduled→sending, acquires per-campaign <span class="hl">send_lock</span>
+   <span class="y">│</span>
+   <span class="y">▼</span> <span class="hl">wa-campaign-send</span> — for each opted-in contact:
+        guard: partial-unique (campaign_id, contact_id) WHERE status in (queued,sent,delivered,read)
+        → personalize (Claude) → Meta template send → wa_message row
+   <span class="y">│</span>
+   <span class="y">▼</span> <span class="hl">wa-campaign-report</span> — recount from wa_messages → Slack card
+  </div>
+  <div class="callout warn"><b>The one weak seam:</b> <code>wa-campaign-send</code> does <em>not</em> route through the guarded <code>wa-send</code> chokepoint, so campaign failures rely on a separate alert path — which previously had an arity-mismatch bug in one of the three <code>postSlack</code> helpers. The dedup itself is now structurally safe (DB-enforced), which is what stopped the 195-duplicate Edamame incident.</div>
+</div></section>
+
+<!-- ===================== BACKEND ===================== -->
+<section id="backend"><div class="wrap">
+  <h2><span class="num">05</span> Backend Deep-Dive</h2>
+  <p class="lead">48 edge functions, ~14.7k lines, organized by domain. Every channel is a near-mirror of the WhatsApp stack (webhook → jobs-tick → ai-reply → send). The largest single file, <code>wa-ai-reply</code> at 1,029 lines, holds triage, KB retrieval, the order-lookup tool loop, ticketing, and human handoff — a clear refactor target.</p>
+
+  <h3>Function domains &amp; triggers</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>Domain</th><th>Fns</th><th>Key functions</th><th>Trigger mix</th></tr>
+    <tr><td>WhatsApp bot</td><td>13</td><td class="mono">wa-webhook (612) · wa-ai-reply (1029) · wa-send · wa-jobs-tick · wa-journey-tick · wa-confirmation-sweep · watchdogs</td><td>Meta webhook · fn-to-fn · cron</td></tr>
+    <tr><td>WA campaigns</td><td>4</td><td class="mono">wa-campaign-send (464) · wa-campaign-worker · wa-campaign-report · wa-rfm-tick</td><td>pg_cron · fn-to-fn</td></tr>
+    <tr><td>Shopify</td><td>12</td><td class="mono">shopify-webhook (337) · shopify-wa · shopify-status · shopify-catalog-sync · 4× backfill</td><td>HMAC webhook · cron · token</td></tr>
+    <tr><td>Amazon</td><td>1</td><td class="mono">amazon-poll (496) — orders + inventory + finances in one fn</td><td>pg_cron ×2</td></tr>
+    <tr><td>Instagram</td><td>5</td><td class="mono">ig-webhook · ig-ai-reply (399) · ig-send · ig-jobs-tick · ig-analyze</td><td>Meta webhook · fn-to-fn · cron</td></tr>
+    <tr><td>Gmail / B2B</td><td>8</td><td class="mono">gmail-webhook · gmail-poll · b2b-send · backfill-brand · nudge-pending</td><td>Pub/Sub · cron · token</td></tr>
+    <tr><td>Slack</td><td>2</td><td class="mono">slack-events · slack-interactivity</td><td>Slack signing secret</td></tr>
+    <tr><td>Knowledge base</td><td>2</td><td class="mono">kb-ingest · kb-embed (pgvector, 1536-dim)</td><td>HTTP (JWT)</td></tr>
+  </table></div>
+
+  <h3>Cron topology <span class="badge b-med">not fully in source</span></h3>
+  <p>Scheduling is split across three systems, and most of it isn't captured in version control — a reproducibility risk.</p>
+  <div class="grid g3">
+    <div class="card"><h4>Vercel cron <span class="muted">(vercel.json)</span></h4><ul class="clean"><li><code>leads-tick</code> — 04:30 daily</li><li><code>wa-campaign-tick</code> — 06:00 daily</li></ul></div>
+    <div class="card"><h4>pg_cron <span class="muted">(loose SQL scripts)</span></h4><ul class="clean"><li><code>wa-campaign-worker</code> — every 2 min</li><li><code>amazon-poll</code> — every 15 min</li><li><code>wa-ticket-watchdog</code>, weekly summary, catalog sync</li></ul></div>
+    <div class="card"><h4>Dashboard-only <span class="badge b-med">invisible</span></h4><ul class="clean"><li class="warn"><code>wa-jobs-tick</code>, <code>wa-journey-tick</code>, <code>gmail-poll</code>, <code>ig-jobs-tick</code>, <code>nudge-pending</code>…</li><li class="warn">~11 workers scheduled via Supabase UI — not reproducible from the repo</li></ul></div>
+  </div>
+  <div class="callout warn"><b>Split-brain firing:</b> the campaign tick exists as <em>both</em> a Vercel daily cron and a pg_cron every-15-min job, plus the every-2-min worker — three overlapping mechanisms kept correct only by the DB send-lock. Only <b>1 of ~8</b> active pg_cron jobs lives in a versioned migration.</div>
+
+  <h3>Code duplication worth consolidating</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>Pattern</th><th>Copies</th><th>Risk</th></tr>
+    <tr><td><code>postSlack()</code> helper</td><td>3 incompatible signatures</td><td><span class="badge b-high">Real bug surface</span> — arity mismatch already broke campaign alerting</td></tr>
+    <tr><td>HMAC signature verifiers</td><td>4 (WA / IG / Shopify / Slack)</td><td><span class="badge b-low">Parallel-by-design</span> but no shared hardening</td></tr>
+    <tr><td>Per-channel send library</td><td>2 near-mirrors (WA / IG)</td><td><span class="badge b-med">Copy-adapted</span>, drift-prone</td></tr>
+    <tr><td>updated_at trigger fn</td><td>3 differently-named</td><td><span class="badge b-low">Cosmetic</span>; B2B/IG tables have none</td></tr>
+  </table></div>
+</div></section>
+
+<!-- ===================== DATA MODEL ===================== -->
+<section id="data"><div class="wrap">
+  <h2><span class="num">06</span> Data Model &amp; RLS Posture</h2>
+  <p class="lead">The schema is split across <b>two</b> migration directories — a 3-file legacy set at the repo root (<code>contacts</code>, <code>orders</code>, <code>campaigns</code>) and a 45-file set in <code>promunch-email-agent/</code> (everything WhatsApp / Shopify / Amazon / IG / B2B). This split is the root of the security inconsistency below.</p>
+
+  <div class="grid g2">
+    <div class="card">
+      <h4>Idempotency machinery <span class="badge b-ok">exemplary</span></h4>
+      <ul class="clean">
+        <li class="ok"><code>wa_messages.wa_message_id</code> UNIQUE — inbound dedup</li>
+        <li class="ok">partial UNIQUE <code>(campaign_id, contact_id)</code> — structural anti-duplicate for broadcasts</li>
+        <li class="ok"><code>wa_campaigns.send_lock_at</code> — per-campaign single-sender lock</li>
+        <li class="ok"><code>claim_order_confirmation()</code> / <code>claim_ai_reply()</code> / <code>claim_ig_reply()</code> — atomic per-entity claims with steal windows</li>
+        <li class="ok"><code>amazon_finance_events.dedup_key</code> UNIQUE — re-poll safe</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>Gaps &amp; smells</h4>
+      <ul class="clean">
+        <li class="warn"><code>wa_journey_runs</code> has <b>no</b> DB-level uniqueness on <code>(journey_key, order_ref)</code> — journey idempotency is app-only</li>
+        <li class="warn">Unindexed hot-path columns: <code>wa_link_clicks.contact_id</code>, <code>outreach_events.resend_email_id</code></li>
+        <li class="warn">5 duplicate migration timestamps → ambiguous apply order</li>
+        <li class="warn">Evidence of in-place migration edits (defensive re-adds) → environments may hold different subsets</li>
+        <li class="warn"><code>recompute_wa_rfm_tags()</code> is <code>SECURITY DEFINER</code> with no pinned <code>search_path</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>RLS / anon-key exposure — <span class="badge b-crit">inconsistent</span></h3>
+  <p>I verified this live against production using the public anon key. The newer <code>promunch-email-agent</code> tables are correctly locked (anon has no grant → <code>42501 permission denied</code>). The legacy root tables are wide open.</p>
+  <div class="tbl-wrap"><table>
+    <tr><th>Table</th><th>Anon access (verified live)</th><th>Verdict</th></tr>
+    <tr><td class="mono">contacts</td><td>Full read <b>+ write</b> — returned real name/email/phone</td><td><span class="badge b-crit">Exposed</span></td></tr>
+    <tr><td class="mono">orders</td><td>Full read — returned order #, amount, customer link</td><td><span class="badge b-crit">Exposed</span></td></tr>
+    <tr><td class="mono">shopify_orders</td><td><code>42501</code> on PII cols; only 38 attribution columns granted</td><td><span class="badge b-ok">Locked</span></td></tr>
+    <tr><td class="mono">wa_messages / wa_contacts / email_threads</td><td><code>42501</code> permission denied</td><td><span class="badge b-ok">Locked</span></td></tr>
+    <tr><td class="mono">oauth_tokens / leads / kb_chunks</td><td><code>42501</code> permission denied</td><td><span class="badge b-ok">Locked</span></td></tr>
+  </table></div>
+  <div class="callout crit"><b>Verified:</b> <code>GET /rest/v1/contacts?select=*</code> with the browser-shipped anon key returned live customer PII (e.g. a real name, <code>gmail.com</code> address, and <code>+91…</code> phone). The <code>orders</code> table is equally open. This is a reportable data breach exposure, not a theoretical one. The fix is to drop the <code>USING(true)</code> anon policies on the legacy tables and route all access through server API routes — matching how the newer tables were already secured.</div>
+</div></section>
+
+<!-- ===================== RELIABILITY ===================== -->
+<section id="reliability"><div class="wrap">
+  <h2><span class="num">07</span> Reliability Engineering</h2>
+  <p class="lead">This is the strongest part of the system and worth calling out — the durability patterns are more disciplined than most startups at this stage. The weaknesses are localized, not structural.</p>
+  <div class="grid g2">
+    <div class="card">
+      <h4><span class="badge b-ok">Strong</span> Self-healing spine</h4>
+      <ul class="clean">
+        <li class="ok"><b>Durable queues:</b> <code>wa_jobs</code>/<code>ig_jobs</code> with backoff + dead-letter to human after max attempts</li>
+        <li class="ok"><b>Reconciliation sweeps:</b> <code>wa-confirmation-sweep</code> diffs shopify_orders vs sent; <code>gmail-poll</code> re-picks unread; order backfill as webhook backstop</li>
+        <li class="ok"><b>Watchdogs:</b> <code>wa-health</code> heartbeat → <code>wa-watchdog</code> dead-man's-switch alerts if beats stop</li>
+        <li class="ok"><b>Single send chokepoints</b> record every send + Slack-alert failures with decoded Meta error codes</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4><span class="badge b-high">Weak</span> Silent-failure pockets</h4>
+      <ul class="clean">
+        <li class="warn"><code>amazon-poll</code> (496 lines, 3 pipelines) — 5 swallow-and-retry catches, <b>no connector-log alerting</b>; a permanently-failing item never surfaces</li>
+        <li class="warn">KB pipeline &amp; Shopify backfills have no structured alerting either</li>
+        <li class="warn">Slack-post failures degrade to <code>console.warn</code> only — if Slack is the failing dependency, alert visibility drops to logs</li>
+        <li class="warn">Backfill functions page entire history with no pagination-resume guard — a large run can be killed mid-page</li>
+        <li class="warn"><code>WA_SKIP_SIGNATURE</code> / <code>IG_SKIP_SIGNATURE</code> env flags can disable HMAC verification entirely</li>
+      </ul>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===================== SECURITY ===================== -->
+<section id="security"><div class="wrap">
+  <h2><span class="num">08</span> Security Vulnerabilities</h2>
+  <p class="lead">Ranked by severity. The two CRITICALs were <b>verified live against production</b>; the rest are read from source (authoritative for what's deployed). Every finding lists the exploit and the one-line fix.</p>
+
+  <div class="legend" style="margin-bottom:14px">
+    <span class="k"><span class="badge b-crit">Critical</span> immediate exposure</span>
+    <span class="k"><span class="badge b-high">High</span> exploitable, real impact</span>
+    <span class="k"><span class="badge b-med">Medium</span> conditional / abuse</span>
+    <span class="k"><span class="badge b-low">Low</span> defense-in-depth</span>
+  </div>
+
+  <div class="finding crit">
+    <div class="fh"><span class="id" style="color:var(--crit)">C1</span><span class="ti">Public anon key reads &amp; writes all customer PII</span><span class="badge b-live">Verified live</span></div>
+    <div class="fb">
+      <div class="row"><span class="k">Where</span><span><code>supabase/migrations/001_initial_schema.sql</code> — <code>CREATE POLICY … ON contacts FOR ALL TO anon USING(true) WITH CHECK(true)</code> (also orders, campaigns, flows, email_events)</span></div>
+      <div class="row"><span class="k">Exploit</span><span>Anyone runs <code>GET /rest/v1/contacts?select=*</code> with the browser-shipped anon key and reads — or writes/deletes — the entire customer table. Confirmed: returned real names, emails, phone numbers.</span></div>
+      <div class="row"><span class="k">Fix</span><span>Drop the <code>USING(true)</code> anon policies; restrict these tables to <code>service_role</code> (or authenticated with a real predicate) and go through server API routes — as the newer tables already do.</span></div>
+    </div>
+  </div>
+
+  <div class="finding crit">
+    <div class="fh"><span class="id" style="color:var(--crit)">C2</span><span class="ti">Live service_role key in git history, never rotated</span><span class="badge b-live">Verified live</span></div>
+    <div class="fb">
+      <div class="row"><span class="k">Where</span><span><code>.claude/settings.json</code> — a JWT with <code>role: service_role</code>, ref <code>hlykspakpewuilttnydm</code>, committed in <code>6f809d5</code>, "removed" in <code>d17e5e9</code>, still in history. Its tail matches the active key in <code>.env.local</code>.</span></div>
+      <div class="row"><span class="k">Exploit</span><span>Anyone with repo/history access extracts the key → full DB access bypassing all RLS (god mode). The working tree re-introduces it, ready to be committed again.</span></div>
+      <div class="row"><span class="k">Fix</span><span>Rotate the service_role key <b>now</b>; purge from history (git-filter-repo / BFG); never place secrets in the settings allowlist. Rotate the other plaintext keys as a precaution.</span></div>
+    </div>
+  </div>
+
+  <div class="finding high">
+    <div class="fh"><span class="id" style="color:var(--high)">C3</span><span class="ti">Unauthenticated paid-send edge functions</span><span class="badge b-crit">Critical</span></div>
+    <div class="fb">
+      <div class="row"><span class="k">Where</span><span><code>config.toml</code>: <code>verify_jwt=false</code> for <code>wa-send</code>, <code>wa-campaign-send</code>, <code>ig-send</code>, <code>wa-ai-reply</code>; <code>wa-send/index.ts:13</code> literally says <em>"just trust it for now — tighten later."</em></span></div>
+      <div class="row"><span class="k">Exploit</span><span><code>POST /functions/v1/wa-send {to, text}</code> sends arbitrary paid WhatsApp messages; <code>wa-campaign-send {campaign_id}</code> fires a full broadcast — burning the Meta tier, incurring cost, damaging the brand. <code>wa-ai-reply</code> drives OpenAI spend + chains into the data-leak paths below.</span></div>
+      <div class="row"><span class="k">Fix</span><span>Add a constant-time shared-secret Bearer check at the top of each function, or set <code>verify_jwt=true</code> and call with the service-role JWT.</span></div>
+    </div>
+  </div>
+
+  <div class="finding high">
+    <div class="fh"><span class="id" style="color:var(--high)">C4</span><span class="ti">Next.js Shopify webhook performs no HMAC verification</span><span class="badge b-crit">Critical</span></div>
+    <div class="fb">
+      <div class="row"><span class="k">Where</span><span><code>src/app/api/webhooks/shopify/route.ts</code> — comment claims HMAC validation, but the handler just <code>request.json()</code> and upserts to <code>contacts</code>/<code>shopify_orders</code>. No signature check anywhere; middleware exempts the route.</span></div>
+      <div class="row"><span class="k">Exploit</span><span>Forge a <code>customers/create</code> POST to inject/overwrite arbitrary contacts and orders (PII injection, order-status poisoning).</span></div>
+      <div class="row"><span class="k">Fix</span><span>Verify <code>x-shopify-hmac-sha256</code> against <code>SHOPIFY_WEBHOOK_SECRET</code> with a timing-safe compare and <b>fail closed</b> when the secret is missing.</span></div>
+    </div>
+  </div>
+
+  <div class="finding high">
+    <div class="fh"><span class="id" style="color:var(--high)">H1</span><span class="ti">Cross-customer order PII leak (IDOR) in the WhatsApp bot</span><span class="badge b-high">High</span></div>
+    <div class="fb">
+      <div class="row"><span class="k">Where</span><span><code>_shared/orders.ts:33-67</code> — order lookup filters by order number only; when the chatter isn't on the order it falls back to returning the stranger's row (name/email/phone/tracking).</span></div>
+      <div class="row"><span class="k">Exploit</span><span>Customer messages "check order #1042" (guessable, not theirs); the bot's <code>lookup_order</code> tool reads a stranger's PII back to them.</span></div>
+      <div class="row"><span class="k">Fix</span><span>Always constrain by the chatter's <code>customer_phone</code>; return an order only when its phone matches — never fall back to unrelated rows.</span></div>
+    </div>
+  </div>
+
+  <div class="finding high">
+    <div class="fh"><span class="id" style="color:var(--high)">H2</span><span class="ti">PostgREST filter injection from customer input</span><span class="badge b-high">High</span></div>
+    <div class="fb">
+      <div class="row"><span class="k">Where</span><span><code>_shared/orders.ts:50</code> / <code>wa-ai-reply/index.ts:898</code> — customer/AI strings interpolated straight into a PostgREST <code>.or()</code> filter; commas &amp; operators not stripped.</span></div>
+      <div class="row"><span class="k">Exploit</span><span>An "order number" like <code>1,customer_email.not.is.null</code> injects an attacker-chosen filter to enumerate <code>shopify_orders</code> beyond the intended row.</span></div>
+      <div class="row"><span class="k">Fix</span><span>Whitelist to <code>[0-9]+</code> before building the filter; use discrete <code>.eq()</code>/<code>.in()</code> calls instead of string-built <code>.or()</code>.</span></div>
+    </div>
+  </div>
+
+  <div class="finding high">
+    <div class="fh"><span class="id" style="color:var(--high)">H4</span><span class="ti">Cron routes fail open when CRON_SECRET is unset</span><span class="badge b-high">High</span></div>
+    <div class="fb">
+      <div class="row"><span class="k">Where</span><span><code>amazon-poll</code>, <code>amazon-settlements</code>, <code>leads-tick</code>, <code>wa-watchdog</code> routes use <code>if (secret &amp;&amp; …)</code> — no secret ⇒ auth skipped. Only <code>wa-campaign-tick</code> fails closed.</span></div>
+      <div class="row"><span class="k">Exploit</span><span>If <code>CRON_SECRET</code> isn't set in prod, <code>POST /api/cron/leads-tick</code> triggers the paid B2B outreach batch at will; others force syncs/resource burn.</span></div>
+      <div class="row"><span class="k">Fix</span><span>Fail closed everywhere: <code>if (!secret) return 401</code> and always require the Bearer match.</span></div>
+    </div>
+  </div>
+
+  <div class="finding high">
+    <div class="fh"><span class="id" style="color:var(--high)">H5</span><span class="ti">Resend-inbound signature bypass via omitted headers</span><span class="badge b-high">High</span></div>
+    <div class="fb">
+      <div class="row"><span class="k">Where</span><span><code>webhooks/resend-inbound/route.ts:17-22</code>: <code>if (!secret || !svixId || !svixTs || !svixSig) return true;</code> — omit the svix-* headers and verification returns true.</span></div>
+      <div class="row"><span class="k">Exploit</span><span>POST with no svix headers is accepted as genuine → forge inbound email events / reply records. Same fail-open pattern in <code>webhooks/resend</code>.</span></div>
+      <div class="row"><span class="k">Fix</span><span>When the secret is configured, require the headers + a valid signature; return 401 when absent.</span></div>
+    </div>
+  </div>
+
+  <h3>Medium &amp; Low</h3>
+  <div class="tbl-wrap"><table>
+    <tr><th>ID</th><th>Issue</th><th>Fix</th></tr>
+    <tr><td><span class="badge b-med">M1</span></td><td>No rate limiting on any public endpoint — amplifies C3/C4/H4 into DoS &amp; mass-send abuse</td><td>Per-IP / per-key limits on public functions + routes</td></tr>
+    <tr><td><span class="badge b-med">M2</span></td><td><code>WA_SKIP_SIGNATURE=1</code> disables Meta HMAC → forged inbound can spoof the ops number to close tickets</td><td>Remove the flag or gate to non-prod builds</td></tr>
+    <tr><td><span class="badge b-med">M3</span></td><td>~11 tick/worker functions (<code>wa-jobs-tick</code>, <code>wa-journey-tick</code>, <code>wa-confirmation-sweep</code>…) are <code>verify_jwt=false</code> with no inbound secret</td><td>Gate with a shared secret</td></tr>
+    <tr><td><span class="badge b-med">M4</span></td><td>Live third-party keys (OpenAI, Klaviyo, Google Places, Resend) in plaintext <code>.env.local</code></td><td>Rotate given the C2 leak; confirm none reach the client bundle</td></tr>
+    <tr><td><span class="badge b-low">L1</span></td><td><code>dangerouslySetInnerHTML</code> of <code>campaign.body_html</code>, no sanitizer dependency</td><td>Sanitize before render (stored-XSS via compromised staff account)</td></tr>
+    <tr><td><span class="badge b-low">L2</span></td><td><code>dbg-mailbox</code> debug endpoint deployed public; <code>nitro-webhook</code> orphan config entry</td><td>Remove dead/debug endpoints from prod</td></tr>
+    <tr><td><span class="badge b-low">L3</span></td><td><code>next.config.ts</code> is empty — no CSP / HSTS / X-Frame-Options headers</td><td>Add a security-headers block</td></tr>
+  </table></div>
+</div></section>
+
+<!-- ===================== TECH DEBT ===================== -->
+<section id="debt"><div class="wrap">
+  <h2><span class="num">09</span> Tech Debt &amp; Optimization</h2>
+  <div class="grid g2">
+    <div class="card">
+      <h4>Maintainability</h4>
+      <ul class="clean">
+        <li class="warn"><b>2,540-line</b> <code>dashboard/whatsapp/page.tsx</code> and <b>1,305-line</b> leads page — split into feature components + hooks</li>
+        <li class="warn"><b>1,029-line</b> <code>wa-ai-reply</code> monolith — extract triage / tools / ticketing / KB modules</li>
+        <li class="warn">Zero tests across the whole app — the money paths especially need coverage</li>
+        <li class="warn">3× <code>postSlack</code>, 2× send libs, 3× updated_at triggers — consolidate</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>Frontend / performance</h4>
+      <ul class="clean">
+        <li class="warn">No data-fetching library (React Query/SWR) — manual fetch + state in giant client components</li>
+        <li class="warn">No shared state manager; prop-drilling in the mega-pages</li>
+        <li class="warn">Next.js 16: migrate <code>middleware.ts</code> → <code>proxy.ts</code>; adopt Cache Components + <code>next/image</code></li>
+        <li class="warn">3.7 MB <code>edmame-wa-campaign.mp4</code> + redesign HTML artifacts committed to the repo root</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>Operational reproducibility</h4>
+      <ul class="clean">
+        <li class="warn">Schema split across 2 migration dirs; cron across 3 systems (some dashboard-only)</li>
+        <li class="warn">Migrations applied by hand ("Run ONCE in SQL editor") → environment drift risk</li>
+        <li class="warn">5 duplicate migration timestamps → non-deterministic apply order</li>
+        <li class="ok">Move all pg_cron definitions + the legacy tables into versioned migrations</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>Architecture consistency</h4>
+      <ul class="clean">
+        <li class="warn">Two auth styles: <code>leads/*</code> + <code>instagram/*</code> double-check the session; the larger <code>whatsapp/*</code> surface relies on middleware only</li>
+        <li class="warn">No RBAC — "everyone gets full access" (fine at 3 people, a liability as the team grows)</li>
+        <li class="warn"><code>wa-campaign-send</code> bypasses the <code>wa-send</code> chokepoint — unify the send path</li>
+        <li class="warn">god-table <code>shopify_orders</code> patched by 5 migrations (status + ~30 attribution cols + creator flag)</li>
+      </ul>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===================== ROADMAP ===================== -->
+<section id="roadmap"><div class="wrap">
+  <h2><span class="num">10</span> Prioritized Remediation Roadmap</h2>
+  <p class="lead">Ordered by risk-reduction per hour of work. The first three are same-day and stop active exposure; the rest harden the platform toward production-grade.</p>
+
+  <div class="roadmap">
+    <div class="step"><span class="snum"></span><div class="sc">
+      <h4>Rotate the service_role key &amp; purge git history <span class="tag">~1 hr</span> <span class="badge b-crit">C2</span></h4>
+      <p>Rotate in Supabase, update <code>.env.local</code> + Vercel/Supabase secrets, then BFG/git-filter-repo the value out of history and force-push. Remove secrets from <code>.claude/settings.json</code>.</p>
+    </div></div>
+    <div class="step"><span class="snum"></span><div class="sc">
+      <h4>Lock the legacy anon RLS policies <span class="tag">~1 hr</span> <span class="badge b-crit">C1</span></h4>
+      <p>Drop <code>USING(true)</code> anon policies on <code>contacts</code>/<code>orders</code>/<code>campaigns</code>/<code>flows</code>/<code>email_events</code>; move them to <code>service_role</code>-only, matching the newer tables. Verify with the anon-key curl test.</p>
+    </div></div>
+    <div class="step"><span class="snum"></span><div class="sc">
+      <h4>Authenticate the send + worker functions <span class="tag">~2 hr</span> <span class="badge b-high">C3 · H3 · M3</span></h4>
+      <p>Add one shared-secret Bearer check helper; apply to <code>wa-send</code>, <code>wa-campaign-send</code>, <code>ig-send</code>, <code>wa-ai-reply</code>, and the tick/worker functions. Stops arbitrary paid sends and AI-spend abuse.</p>
+    </div></div>
+    <div class="step"><span class="snum"></span><div class="sc">
+      <h4>Fix webhook/cron trust <span class="tag">~2 hr</span> <span class="badge b-high">C4 · H4 · H5</span></h4>
+      <p>Add real HMAC to the Next Shopify route; make every webhook/cron secret <b>fail closed</b> when unset; remove the <code>WA_SKIP_SIGNATURE</code> bypass from prod.</p>
+    </div></div>
+    <div class="step"><span class="snum"></span><div class="sc">
+      <h4>Constrain order lookup &amp; sanitize filters <span class="tag">~2 hr</span> <span class="badge b-high">H1 · H2</span></h4>
+      <p>Scope <code>lookup_order</code> to the chatter's phone; whitelist order numbers to digits; replace string-built <code>.or()</code> with discrete <code>.eq()</code>/<code>.in()</code>.</p>
+    </div></div>
+    <div class="step"><span class="snum"></span><div class="sc">
+      <h4>Add rate limiting + security headers <span class="tag">~half day</span> <span class="badge b-med">M1 · L3</span></h4>
+      <p>Per-IP/key limits on public functions and API routes; a CSP/HSTS/X-Frame-Options block in <code>next.config.ts</code>.</p>
+    </div></div>
+    <div class="step"><span class="snum"></span><div class="sc">
+      <h4>Reproducible ops: consolidate cron + schema <span class="tag">~1 day</span> <span class="badge b-med">debt</span></h4>
+      <p>Move all pg_cron jobs and the legacy tables into versioned migrations; fix duplicate timestamps; document the one-schema source of truth. Add alerting to <code>amazon-poll</code> + backfills.</p>
+    </div></div>
+    <div class="step"><span class="snum"></span><div class="sc">
+      <h4>Refactor + test the money paths <span class="tag">ongoing</span> <span class="badge b-info">quality</span></h4>
+      <p>Break up the 2,540-line page and 1,029-line function; consolidate the 3 <code>postSlack</code> helpers; add tests around dedup/claims/send. Introduce RBAC before the team grows. Adopt React Query for the dashboard.</p>
+    </div></div>
+  </div>
+
+  <div class="callout ok" style="margin-top:20px"><b>Bottom line:</b> the hard part — a correct, self-healing, multi-channel backend — is already built and genuinely good. The remaining work is almost entirely <b>access control and reproducibility</b>, and the four highest-risk items are each a few hours. Do the top three today, and this moves from "impressive but exposed" to "production-grade for a reliable startup."</div>
+</div></section>
+
+<footer><div class="wrap">
+  <p>PROMUNCH CRM architecture &amp; security audit · generated 2026-07-02 · read-only analysis of the <code>main</code> branch.</p>
+  <p class="muted">Findings C1 and C2 were verified live against production using the public anon key and git history respectively. All other findings are read from source, which is authoritative for deployed behavior; confirm production matches before closing each item. This document contains no live secrets.</p>
+</div></footer>
+
+</body>
+</html>

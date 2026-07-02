@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
 type ResendWebhookEvent = {
@@ -38,7 +38,7 @@ const EVENT_TO_TYPE: Record<string, string> = {
 // until the secret is added to Vercel env.
 function verifySignature(req: NextRequest, rawBody: string): boolean {
   const secret = process.env.RESEND_WEBHOOK_SECRET;
-  if (!secret) return true;
+  if (!secret) return false; // fail closed (audit H5/M1)
 
   const svixId = req.headers.get('svix-id');
   const svixTimestamp = req.headers.get('svix-timestamp');

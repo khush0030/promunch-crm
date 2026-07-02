@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
 
-// Shopify webhook handler — scaffold
-// Validates HMAC signature when SHOPIFY_WEBHOOK_SECRET is set
+// Shopify webhook handler.
+// SECURITY (audit C4): verifies the Shopify HMAC signature and FAILS CLOSED —
+// if SHOPIFY_WEBHOOK_SECRET is unset or the signature is missing/invalid the
+// request is rejected 401. Writes go through the service-role client (this
+// endpoint is public; middleware exempts /api/webhooks/*).
+//
+// NOTE: this route writes to the legacy `contacts`/`orders` tables and largely
+// duplicates the Supabase edge function `shopify-webhook` (which writes
+// `shopify_orders`). Confirm whether Shopify is actually pointed here before
+// relying on it; if not, prefer removing this route.
+
+export const dynamic = 'force-dynamic';
 
 type ShopifyCustomer = {
   id: number;
@@ -42,12 +53,27 @@ function mapOrderStatus(financial: string, fulfillment: string | null): string {
   return 'pending';
 }
 
+// Shopify signs the raw body: base64(HMAC-SHA256(body, secret)).
+function verifyShopifyHmac(rawBody: string, header: string | null): boolean {
+  const secret = process.env.SHOPIFY_WEBHOOK_SECRET;
+  if (!secret || !header) return false; // fail closed
+  const expected = createHmac('sha256', secret).update(rawBody, 'utf8').digest('base64');
+  const a = Buffer.from(header);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export async function POST(request: NextRequest) {
+  const rawBody = await request.text();
+
+  if (!verifyShopifyHmac(rawBody, request.headers.get('x-shopify-hmac-sha256'))) {
+    return NextResponse.json({ error: 'invalid signature' }, { status: 401 });
+  }
+
   const topic = request.headers.get('x-shopify-topic') || '';
   let body: unknown;
-
   try {
-    body = await request.json();
+    body = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }

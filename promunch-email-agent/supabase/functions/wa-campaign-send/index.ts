@@ -12,6 +12,7 @@
 
 import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { sendTemplate, TemplateComponent } from "../_shared/whatsapp.ts";
 import { mintCode } from "../_shared/links.ts";
 import { alertWaSendFailure, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
@@ -45,6 +46,8 @@ const PERSONALIZE_MODEL = Deno.env.get("WA_PERSONALIZE_MODEL") ?? "gpt-4o-mini";
 interface Body { campaign_id?: string; _continue?: boolean }
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   if (req.method !== "POST") return j({ error: "method" }, 405);
 
   const body = (await req.json().catch(() => ({}))) as Body;

@@ -11,6 +11,7 @@
 // Auth: requires service-role bearer (verify_jwt = false; called function-to-function).
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { sendDM, privateReply } from "../_shared/instagram.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 
@@ -26,6 +27,8 @@ interface SendBody {
 }
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   if (req.method !== "POST") return new Response("method", { status: 405 });
 
   let body: SendBody;

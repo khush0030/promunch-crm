@@ -17,7 +17,7 @@ import {
   MessageSquare,
   History,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { useToast } from "@/components/ui/Toast";
 import { PageHead, KpiCard, Panel, StatusBadge, EmptyState } from "@/components/pm";
 import type { KpiTone, BadgeTone } from "@/components/pm";
@@ -85,6 +85,7 @@ function fmtMonth(d?: string | null) {
 }
 
 export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const supabase = createSupabaseBrowserClient();
   const { id } = use(params);
   const router = useRouter();
   const toast = useToast();

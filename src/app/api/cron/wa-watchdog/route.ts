@@ -20,7 +20,8 @@ const DEDUPE_MINUTES = 20;
 export async function GET(req: NextRequest) {
   // If CRON_SECRET is set, require it (Vercel cron sends it as a Bearer token).
   const secret = process.env.CRON_SECRET;
-  if (secret) {
+  if (!secret) return NextResponse.json({ ok: false, error: "CRON_SECRET not configured" }, { status: 401 });
+  {
     const auth = req.headers.get("authorization");
     if (auth !== `Bearer ${secret}`) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });

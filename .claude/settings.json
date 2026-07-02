@@ -90,7 +90,7 @@
       "Bash(perl -0pi -e 's/className=\"kpi-grid\"/className=\"pm-kpis\"/g; s/className=\"kpi\"/className=\"pm-kpi\"/g;' src/app/dashboard/leads/page.tsx)",
       "Bash(grep -nE 'className=\"\\(tbl|card|card-pad|cell-main|cell-sub|nm|muted\\)\"|`card ' src/app/dashboard/leads/page.tsx)",
       "Bash(curl -s -o /dev/null -w \"login:%{http_code} root:\" http://localhost:3000/login)",
-      "Bash(perl -0pi -e 's/\\(  \\\\/\\\\* KPI ring\\\\/stat rows wrap rather than squashing\\\\. \\\\*\\\\/\\\\n  \\\\.pm-ringwrap \\\\{ flex-wrap: wrap; \\\\}\\\\n  \\\\.pm-statline \\\\{ gap: 12px; \\\\}\\\\n\\)\\\\}/$1\\\\n  \\\\/* Form rows collapse to one column — !important beats inline gridTemplateColumns. *\\\\/\\\\n  .pm-frow { grid-template-columns: 1fr !important; }\\\\n}/' src/app/globals.css)",
+      "Bash(perl -0pi -e 's/\\(  \\\\/\\\\* KPI ring\\\\/stat rows wrap rather than squashing\\\\. \\\\*\\\\/\\\\n  \\\\.pm-ringwrap \\\\{ flex-wrap: wrap; \\\\}\\\\n  \\\\.pm-statline \\\\{ gap: 12px; \\\\}\\\\n\\)\\\\}/$1\\\\n  \\\\/* Form rows collapse to one column \u2014 !important beats inline gridTemplateColumns. *\\\\/\\\\n  .pm-frow { grid-template-columns: 1fr !important; }\\\\n}/' src/app/globals.css)",
       "Bash(awk '/create table.*amazon_settlements/,/\\\\\\);/' promunch-email-agent/supabase/migrations/*.sql)",
       "Bash(curl -s http://localhost:3000/login)",
       "Bash(echo \"deno: $\\(deno --version)",
@@ -132,7 +132,27 @@
       "Bash(awk '{print $5, $9}')",
       "Bash(cp .claude/settings.json /tmp/settings.bak.json)",
       "Bash(mv /tmp/settings.clean.json .claude/settings.json)",
-      "Bash(python3 -c \"import json; json.load\\(open\\('.claude/settings.json'\\)\\); print\\('valid JSON, ok'\\)\")"
+      "Bash(python3 -c \"import json; json.load\\(open\\('.claude/settings.json'\\)\\); print\\('valid JSON, ok'\\)\")",
+      "Bash(grep -oE \"re_[A-Za-z0-9]+|sk-[A-Za-z0-9_-]{10,}|SHOPIFY[A-Z_]*|xoxb-[A-Za-z0-9-]+\" /tmp/settings.bak.json)",
+      "Bash(shred -u /tmp/settings.bak.json)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('projectId:', d.get\\('projectId','?'\\)[:12], 'name:', d.get\\('projectName','?'\\)\\)\")",
+      "Bash(curl -s -m 60 -o /tmp/tick1.json -w \"HTTP %{http_code}\\\\n\" \"https://promunch-5kbfdgbyt-oltaflock-ai.vercel.app/api/cron/leads-tick\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('dev:', p.scripts.dev\\); console.log\\('next:', \\(p.dependencies.next||p.devDependencies?.next\\)\\)\")",
+      "Bash(PORT=3210 nohup npm run dev -- -p 3210)",
+      "Bash(curl -s -m 5 -o /dev/null -w \"localhost:3210 -> HTTP %{http_code}\\\\n\" http://localhost:3210/api/cron/leads-tick)",
+      "Bash(node \"/private/tmp/claude-501/-Users-khush-Projects-promunch-crm/89d1e578-8b61-4def-9ba4-2f4d49b7072e/scratchpad/test-scrape.mjs\")",
+      "Bash(npx tsx *)",
+      "Bash(node \"/private/tmp/claude-501/-Users-khush-Projects-promunch-crm/89d1e578-8b61-4def-9ba4-2f4d49b7072e/scratchpad/test-scrape2.mjs\")",
+      "Bash(node \"/private/tmp/claude-501/-Users-khush-Projects-promunch-crm/89d1e578-8b61-4def-9ba4-2f4d49b7072e/scratchpad/test-full.mjs\")",
+      "Bash(sed -n '/Media header/,/Body \u2014/p' wa-campaign-send/index.ts)",
+      "Bash(sed -n '/Structural-failure circuit breaker/,/^  const remaining/p' wa-campaign-send/index.ts)",
+      "Bash(ls docs/)",
+      "Bash(ls promunch-email-agent/docs/)",
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(awk -F: '$1>1820 && $1<1900')",
+      "Bash(awk '/[Cc][Rr][Ee][Aa][Tt][Ee] [Tt][Aa][Bb][Ll][Ee].*shopify_orders/,/\\\\\\);/' supabase/migrations/*.sql)",
+      "Bash(awk '/function CampaignsView/,0' src/app/dashboard/whatsapp/page.tsx)",
+      "Bash(awk '/function CampaignsView/,/^function [A-Z]/' src/app/dashboard/whatsapp/page.tsx)"
     ]
   }
 }

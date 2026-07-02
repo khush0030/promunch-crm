@@ -10,6 +10,7 @@
 
 import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { lookupOrders, orderForAI, type OrderSummary } from "../_shared/orders.ts";
 import { stripEmDashes, type CatalogSection } from "../_shared/whatsapp.ts";
 import {
@@ -174,6 +175,8 @@ interface InvokeBody {
 }
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   if (req.method !== "POST") return new Response("method", { status: 405 });
   const { thread_id, last_message, draft, job_id, image_url, proactive_ask } =
     (await req.json()) as InvokeBody;

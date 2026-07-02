@@ -14,6 +14,7 @@
 // or just trust it for now — tighten later).
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import {
   sendText,
   sendTemplate,
@@ -73,6 +74,8 @@ function interactiveSummary(i: Record<string, unknown> | undefined): string {
 }
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   if (req.method !== "POST") return new Response("method", { status: 405 });
 
   let body: SendBody;

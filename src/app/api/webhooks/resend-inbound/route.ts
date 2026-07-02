@@ -19,7 +19,7 @@ function verify(req: NextRequest, raw: string): boolean {
   const svixId = req.headers.get('svix-id');
   const svixTs = req.headers.get('svix-timestamp');
   const svixSig = req.headers.get('svix-signature');
-  if (!secret || !svixId || !svixTs || !svixSig) return true;
+  if (!secret || !svixId || !svixTs || !svixSig) return false; // fail closed (audit H5)
   try {
     const key = Buffer.from(secret.replace(/^whsec_/, ''), 'base64');
     const expected = createHmac('sha256', key).update(`${svixId}.${svixTs}.${raw}`).digest('base64');
