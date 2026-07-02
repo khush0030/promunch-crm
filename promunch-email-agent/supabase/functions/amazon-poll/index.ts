@@ -494,6 +494,20 @@ Deno.serve(async (req) => {
   if (only === "settlements") await run("settlements", () => syncSettlements(url.searchParams.get("debug") === "1", url.searchParams.get("reprocess") === "1"));
 
   result.ok = errors.length === 0;
-  if (errors.length) result.errors = errors;
+  if (errors.length) {
+    result.errors = errors;
+    // Surface pipeline failures to Slack — cron ignores the HTTP response, so
+    // without this an SP-API outage would be silent (audit: amazon-poll had no
+    // failure alerting). Best-effort; must never fail the poll.
+    try {
+      await postSlack(
+        ordersChannel(),
+        [{ type: "section", text: { type: "mrkdwn",
+          text: `:rotating_light: *Amazon poll: ${errors.length} error(s)*\n` +
+            errors.map((e) => `• ${e}`).join("\n").slice(0, 2800) } }],
+        `Amazon poll errors: ${errors.length}`,
+      );
+    } catch (_e) { /* alerting must not fail the poll */ }
+  }
   return json(result, errors.length ? 207 : 200);
 });
