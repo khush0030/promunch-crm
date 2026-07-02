@@ -20,12 +20,15 @@
 // verify_jwt = false (invoked by pg_cron). GET or POST.
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { postSlack, slackChannelFor } from "../_shared/connector-log.ts";
 
 const STALL_MS = 3 * 60_000;   // no progress for 3 min → re-kick the sender
 const ALERT_MS = 12 * 60_000;  // stalled 12 min → Slack alert
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   const sb = db();
   const now = Date.now();
   const nowIso = new Date().toISOString();

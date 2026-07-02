@@ -11,6 +11,7 @@
 // Schedule via pg_cron to call this every ~15 minutes.
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { replyInThread } from "../_shared/slack.ts";
 import { logEvent } from "../_shared/log.ts";
 
@@ -29,6 +30,8 @@ function mentions(ids: string[]): string {
 }
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   if (req.method !== "POST" && req.method !== "GET") {
     return new Response("method not allowed", { status: 405 });
   }

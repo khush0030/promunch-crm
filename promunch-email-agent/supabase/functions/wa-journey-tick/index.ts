@@ -8,6 +8,7 @@
 // and retried on the next tick (so journeys self-heal once templates land).
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { CART_TEMPLATE_BACKOFF_HOURS, TIMED_JOURNEYS } from "../_shared/journeys.ts";
 import { isOrderCancelled } from "../_shared/orders.ts";
 import { logConnector } from "../_shared/connector-log.ts";
@@ -20,7 +21,9 @@ const BATCH = 200;
 // its deadline, because every missed cart is lost revenue.)
 const TPL_FALLBACK_MAX = 3;
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   const sb = db();
   const now = new Date().toISOString();
 

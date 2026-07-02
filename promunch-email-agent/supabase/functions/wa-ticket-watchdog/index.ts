@@ -24,6 +24,7 @@
 // scripts/wa-ticket-watchdog-cron.sql).
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { errStr } from "../_shared/connector-log.ts";
 
 // How long a ticket may sit after the first ping before the second person is
@@ -57,6 +58,8 @@ interface Ticket {
 }
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   const mode = new URL(req.url).searchParams.get("mode") ?? "reping";
   const sb = db();
 

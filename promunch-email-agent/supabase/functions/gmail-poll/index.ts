@@ -11,10 +11,13 @@
 //   supabase functions schedule create gmail-poll "*/2 * * * *"
 
 import { listUnreadInbox } from "../_shared/gmail.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { processIncomingMessage } from "../_shared/process-email.ts";
 import { logConnector, errStr } from "../_shared/connector-log.ts";
 
-Deno.serve(async (_req) => {
+Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   let processed = 0;
   let skipped = 0;
   const errors: string[] = [];

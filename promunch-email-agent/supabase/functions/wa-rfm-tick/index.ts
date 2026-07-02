@@ -11,9 +11,12 @@
 //   supabase functions schedule create wa-rfm-tick "30 1 * * *"   # 01:30 UTC = 07:00 IST
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   const sb = db();
 
   const { data: affected, error } = await sb.rpc("recompute_wa_rfm_tags");

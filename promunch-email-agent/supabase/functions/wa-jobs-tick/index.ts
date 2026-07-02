@@ -13,12 +13,15 @@
 //   supabase functions schedule create wa-jobs-tick "* * * * *"
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 
 const JOB_BATCH = 50;
 const CAMPAIGN_STALE_MIN = 15;
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   const jobs = await drainJobs().catch((e) => ({ error: String(e) }));
   const campaigns = await sweepCampaigns().catch((e) => ({ error: String(e) }));
   const reports = await sweepReports().catch((e) => ({ error: String(e) }));

@@ -7,13 +7,16 @@
 //   supabase functions schedule create gmail-watch-renew "0 6 * * *"
 
 import { startWatch } from "../_shared/gmail.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { db } from "../_shared/supabase.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 
 const TOPIC = Deno.env.get("GMAIL_PUBSUB_TOPIC")!;             // projects/<proj>/topics/<name>
 const MAILBOX = Deno.env.get("MAILBOX_EMAIL") ?? "hello@promunch.in";
 
-Deno.serve(async (_req) => {
+Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   try {
     const result = await startWatch(TOPIC);
     const expiration = new Date(Number(result.expiration)).toISOString();

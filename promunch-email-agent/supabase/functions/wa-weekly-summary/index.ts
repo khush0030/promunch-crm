@@ -7,6 +7,7 @@
 // Schedule: see scripts/wa-weekly-summary-cron.sql (Mondays 09:00 IST).
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { fmtMoney, postSlack } from "../_shared/shopify.ts";
 
 const BILLED = ["sent", "delivered", "read"];
@@ -14,7 +15,9 @@ const PRICE: Record<string, number> = {
   marketing: 0.78, offer: 0.78, utility: 0.115, authentication: 0.115, service: 0,
 };
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   const channel = Deno.env.get("WA_SLACK_CHANNEL_ID") || Deno.env.get("SHOPIFY_SLACK_CHANNEL_ID");
   if (!channel) return new Response("no-channel", { status: 500 });
 

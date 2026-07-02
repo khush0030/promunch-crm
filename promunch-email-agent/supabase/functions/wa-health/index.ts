@@ -9,10 +9,13 @@
 //        url:='https://hlykspakpewuilttnydm.supabase.co/functions/v1/wa-health')$$);
 
 import { logConnector } from "../_shared/connector-log.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 
 const GRAPH = `https://graph.facebook.com/${Deno.env.get("WHATSAPP_GRAPH_VERSION") ?? "v21.0"}`;
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   const token = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
   const phoneId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
 

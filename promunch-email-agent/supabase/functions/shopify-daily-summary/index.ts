@@ -3,6 +3,7 @@
 // All timestamps interpreted in Asia/Kolkata.
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { fmtMoney, postSlack } from "../_shared/shopify.ts";
 
 const IST_OFFSET_MIN = 330;
@@ -43,6 +44,8 @@ function summarize(rows: Row[]) {
 }
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   const url = new URL(req.url);
   const period = (url.searchParams.get("period") as Period) || "day";
   const channel = Deno.env.get("SHOPIFY_SLACK_CHANNEL_ID");

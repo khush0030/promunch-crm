@@ -17,6 +17,7 @@
 // but config.toml sets verify_jwt=false for the cron caller.
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import {
   getOrders, getOrderItems, getInventorySummaries, listFinancialEvents,
   shipmentEconomics, getReports, fetchReportText, parseTSV, SETTLEMENT_REPORT_TYPE,
@@ -461,6 +462,8 @@ async function syncSettlements(debug = false, reprocess = false): Promise<{ inge
 }
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   const url = new URL(req.url);
   const only = url.searchParams.get("only"); // ?only=orders|inventory|finances for manual runs
   // First-run lookback window (only used if no watermark yet). Keep small to stay
