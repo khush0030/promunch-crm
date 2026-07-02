@@ -165,6 +165,24 @@ const TEMPLATES: TemplateDef[] = [
       "Pull this order before dispatch and confirm the cancellation back to the team.",
     bodyExample: ["#PM1042", "Aarav Sharma", "+919876543210", "Ordered the wrong flavour, wants to cancel"],
   },
+  {
+    // INTERNAL generic ops alert — sent to a human's WhatsApp (never a customer)
+    // the moment the AI raises a ticket. Routed by lane: order issues go to the
+    // ops guard (OPS_WA_ID) then Narendra (OPS_WA_ID_2) on SLA fallback; every
+    // other ticket goes to the owner (ESCALATION_WA_ID). Reply "done <ticket#>"
+    // back on WhatsApp to close it — no dashboard needed.
+    //   1=type label  2=ticket#  3=customerName  4=customerPhone  5=details
+    name: "ops_ticket_alert",
+    language: "en",
+    category: "UTILITY",
+    body:
+      "🚨 {{1}} — Ticket {{2}}\n\n" +
+      "Customer: {{3}}\n" +
+      "Phone: {{4}}\n" +
+      "Details: {{5}}\n\n" +
+      "Reply \"done {{2}}\" here once it is handled.",
+    bodyExample: ["Order issue", "1042", "Aarav Sharma", "+919876543210", "Wants to cancel, ordered the wrong flavour"],
+  },
 ];
 
 Deno.serve(async (req) => {

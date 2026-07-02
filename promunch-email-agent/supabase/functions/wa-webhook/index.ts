@@ -313,6 +313,45 @@ async function handleInboundMessage(msg: any, profile: any) {
     return;
   }
 
+  // OPS RESOLVE — one of the escalation numbers (ops guard, Narendra, or the
+  // owner) replying "done 42" / "resolved 42" / "close 42" closes ticket #42 and
+  // hands that customer's chat back to the bot. Fully phone-driven, no dashboard.
+  // Only these known internal numbers can close a ticket this way; a customer
+  // typing "done" hits the AI path as normal.
+  if (type === "text") {
+    const opsNums = new Set(
+      ["OPS_WA_ID", "OPS_WA_ID_2", "ESCALATION_WA_ID"]
+        .map((k) => (Deno.env.get(k) ?? "").replace(/^\+/, "").replace(/\D/g, ""))
+        .filter(Boolean),
+    );
+    const m = body.match(/^\s*(?:done|resolved?|closed?)\s*#?\s*(\d{1,10})\b/i);
+    if (opsNums.has(waId) && m) {
+      const ticketNo = Number(m[1]);
+      const { data: closed } = await sb
+        .from("wa_threads")
+        .update({
+          ticket_status: "closed",
+          ticket_resolved_at: new Date().toISOString(),
+          status: "bot",
+          ticket_last_alert_at: null,
+          ticket_alert_count: 0,
+        })
+        .eq("ticket_number", ticketNo)
+        .in("ticket_status", ["open", "pending"])
+        .select("id")
+        .maybeSingle();
+      await callSend({
+        thread_id: thread.id,
+        kind: "text",
+        sent_by: "ops_resolve",
+        text: closed
+          ? `✅ Ticket #${ticketNo} closed. The bot is handling that chat again.`
+          : `⚠️ No open ticket #${ticketNo} found — it may already be closed.`,
+      }).catch((e) => console.error("[wa-webhook] ops resolve confirm failed", e));
+      return;
+    }
+  }
+
   // CART CHECKOUT — a 'order' message is a cart the customer built from the
   // WhatsApp catalog. Respond deterministically with a Shopify checkout link
   // (no AI). The inbound wamid dedup at the top of this function guarantees we

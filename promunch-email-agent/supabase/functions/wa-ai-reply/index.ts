@@ -468,16 +468,10 @@ Deno.serve(async (req) => {
     : decision
     ? (decision.ticket ?? null)
     : { category: "general", priority: "normal", reason: "AI output unparseable — review chat" };
+  // openTicket() fires the WhatsApp ops ping (order lane → OPS_WA_ID/Narendra,
+  // everything else → owner) on a fresh ticket — including explicit cancels,
+  // which map to an urgent order_issue ticket. No separate cancel ping needed.
   if (handoff || ticket) await openTicket(thread_id, waId, ticket, handoff);
-
-  // EXPLICIT cancellation → ping the ops "guard" on WhatsApp ASAP so the order is
-  // pulled before dispatch. The urgent Slack card from openTicket is the
-  // guaranteed path; this is an extra fast nudge to a human's phone. Best-effort,
-  // gated on OPS_WA_ID being set — never blocks the customer reply.
-  if (pendingChange?.changeType === "cancel") {
-    await notifyOpsCancel(waId, pendingChange).catch((e) =>
-      console.error("[wa-ai-reply] ops cancel ping failed", e));
-  }
 
   await markJobDone(job_id);
   return j({ ok: true, action: handoff ? "handoff" : "reply", ticket: !!ticket });
@@ -783,164 +777,113 @@ async function openTicket(
   const sb = db();
   const { data: thread } = await sb
     .from("wa_threads")
-    .select("ticket_status")
+    .select("ticket_status, ticket_number")
     .eq("id", threadId)
     .maybeSingle();
 
   const reason = ticket?.reason ??
     (handoff ? "Customer asked to speak to a human" : "Ticket raised by AI agent");
+  const category = ticket?.category ?? "general";
+  const priority = ticket?.priority ?? (handoff ? "high" : "normal");
   const upd: Record<string, unknown> = {
     ticket_status: "open",
-    ticket_category: ticket?.category ?? "general",
-    ticket_priority: ticket?.priority ?? (handoff ? "high" : "normal"),
+    ticket_category: category,
+    ticket_priority: priority,
     escalation_reason: reason,
   };
   // don't reset the opened-at clock (or the watchdog's alert counters) on a
   // ticket that is already open — only on a fresh one.
-  if (thread?.ticket_status !== "open") {
+  const fresh = thread?.ticket_status !== "open";
+  if (fresh) {
     upd.ticket_opened_at = new Date().toISOString();
     upd.ticket_last_alert_at = null;
     upd.ticket_alert_count = 0;
   }
-  // A ticket = a human owns it now. Silence the bot so it can't talk over the
-  // team on a live issue. The bot resumes when the ticket is resolved/closed.
-  upd.status = "human";
+  // NOTE: the bot deliberately KEEPS replying while a ticket is open (status
+  // stays 'bot'). Escalation is now a quiet WhatsApp ping to a human, not a
+  // takeover — so threads never rot in silence waiting for someone to grab one.
 
   await sb.from("wa_threads").update(upd).eq("id", threadId);
 
-  // when the ticket names an order, pull it from the DB so the escalation
-  // card carries verified details — never the model's recollection.
+  // Only ping a human on a FRESH ticket — never re-ping on every follow-up turn
+  // while the same ticket is still open (the SLA watchdog owns the fallback).
+  if (!fresh) return;
+
+  // when the ticket names an order, pull it from the DB so the alert carries
+  // verified details — never the model's recollection.
   let order: OrderSummary | null = null;
   if (ticket?.order_number) {
     const found = await lookupOrders(waId, ticket.order_number).catch(() => [] as OrderSummary[]);
     order = found[0] ?? null;
   }
 
-  await postEscalation({
-    threadId,
+  await notifyOps({
     waId,
     handoff,
-    category: String(upd.ticket_category),
-    priority: String(upd.ticket_priority),
+    category,
+    ticketNumber: thread?.ticket_number ?? null,
     reason,
     order,
-  });
+  }).catch((e) => console.error("[wa-ai-reply] ops ticket ping failed", e));
 }
 
-// Post the escalation to Slack — a rich card the production / ops team acts on.
-async function postEscalation(o: {
-  threadId: string;
+// Ticket categories that ride the ORDER lane: pinged to the ops guard
+// (OPS_WA_ID) first, then Narendra (OPS_WA_ID_2) on SLA fallback via the
+// watchdog. Everything else routes to the owner (ESCALATION_WA_ID).
+const ORDER_LANE = new Set(["order_issue", "refund"]);
+const TYPE_LABEL: Record<string, string> = {
+  order_issue: "Order issue",
+  refund: "Refund / return",
+  product_query: "Product question",
+  partnership: "Partnership lead",
+  complaint: "Complaint",
+  wholesale: "Wholesale lead",
+  general: "New ticket",
+};
+
+// Ping the right human on WhatsApp the instant a ticket is raised. Order issues
+// → OPS_WA_ID (number 1); every other ticket → ESCALATION_WA_ID (owner). Uses
+// the approved `ops_ticket_alert` UTILITY template so it lands outside any 24h
+// window. Best-effort, gated on the env vars — a no-op until the number/template
+// are live, and it never blocks the customer reply. Slack is intentionally gone:
+// the two-number WhatsApp ladder is the only escalation channel now.
+async function notifyOps(o: {
   waId: string | null;
   handoff: boolean;
   category: string;
-  priority: string;
+  ticketNumber: number | string | null;
   reason: string;
   order: OrderSummary | null;
 }) {
-  const webhook = Deno.env.get("SLACK_WEBHOOK_URL");
-  if (!webhook) return;
+  const clean = (v: string | undefined) => (v ?? "").replace(/^\+/, "").replace(/\D/g, "");
+  const orderLane = !o.handoff && ORDER_LANE.has(o.category);
+  const to = orderLane ? clean(Deno.env.get("OPS_WA_ID")) : clean(Deno.env.get("ESCALATION_WA_ID"));
+  if (!to) return; // number not configured yet
 
-  const heading = o.handoff
-    ? `🙋 Human handoff requested — ${o.priority.toUpperCase()}`
-    : o.order
-      ? `🏭 Order issue — needs the team — ${o.priority.toUpperCase()}`
-      : `🎫 Ticket raised by AI — ${o.priority.toUpperCase()}`;
-
-  const blocks: unknown[] = [
-    { type: "header", text: { type: "plain_text", text: heading } },
-    { type: "section", text: { type: "mrkdwn", text: `*Issue*\n${o.reason}` } },
-  ];
-
-  if (o.order) {
-    const items = o.order.items.map((i) => `• ${i.qty} × ${i.name}`).join("\n") || "_none_";
-    blocks.push({
-      type: "section",
-      fields: [
-        { type: "mrkdwn", text: `*Order*\n${o.order.order_number}` },
-        { type: "mrkdwn", text: `*Placed*\n${o.order.placed_at}` },
-        { type: "mrkdwn", text: `*Payment*\n${o.order.financial_status ?? "—"}` },
-        { type: "mrkdwn", text: `*Fulfillment*\n${o.order.fulfillment_status}` },
-        { type: "mrkdwn", text: `*Total*\n${o.order.total}` },
-        { type: "mrkdwn", text: `*Customer*\n${o.order.customer_name ?? "—"}` },
-      ],
-    });
-    blocks.push({ type: "section", text: { type: "mrkdwn", text: `*Items*\n${items}` } });
-    if (o.order.tracking) {
-      blocks.push({ type: "section", text: { type: "mrkdwn", text: `*Tracking*\n${o.order.tracking}` } });
-    }
-  }
-
-  const contact = [
-    o.waId ? `WhatsApp: +${o.waId}` : null,
-    o.order?.customer_email ? `Email: ${o.order.customer_email}` : null,
-  ].filter(Boolean).join("  ·  ");
-  blocks.push({
-    type: "context",
-    elements: [{
-      type: "mrkdwn",
-      text: `${contact || "—"}  ·  category: ${o.category}  ·  thread: ${o.threadId}`,
-    }],
-  });
-
-  try {
-    const r = await fetch(webhook, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: `${heading} — ${o.reason}`, blocks }),
-    });
-    // A non-2xx from the Slack webhook means the escalation never reached the
-    // team — record it so a broken/rotated webhook surfaces on the dashboard
-    // instead of dropping tickets silently. The watchdog re-ping is the backstop.
-    if (!r.ok) {
-      await logConnector({
-        connector: "whatsapp", level: "error", event: "ticket_escalation_post_failed",
-        message: `Slack escalation webhook returned HTTP ${r.status} — ticket ${o.threadId} may not have reached the team`,
-        ref: o.threadId, throttleMinutes: 15,
-      }).catch(() => {});
-    }
-  } catch (e) {
-    await logConnector({
-      connector: "whatsapp", level: "error", event: "ticket_escalation_post_failed",
-      message: `Slack escalation webhook threw: ${errStr(e)}`,
-      ref: o.threadId, throttleMinutes: 15,
-    }).catch(() => {});
-  }
-}
-
-// Ping the ops "guard" on WhatsApp the instant a customer explicitly cancels, so
-// the order can be pulled before dispatch. Sends the approved `order_cancel_ops`
-// UTILITY template to OPS_WA_ID. Gated on the env var — a no-op until ops set
-// their number, so this can ship before the number/template approval land.
-async function notifyOpsCancel(
-  waId: string | null,
-  change: { orderNumber: string | null; details: string },
-) {
-  const opsWaId = (Deno.env.get("OPS_WA_ID") ?? "").replace(/^\+/, "").replace(/\D/g, "");
-  if (!opsWaId) return; // not configured yet
-  const tpl = Deno.env.get("OPS_CANCEL_TEMPLATE") ?? "order_cancel_ops";
-
-  // Pull verified order details so the alert carries real data, not the model's
-  // recollection. Fall back gracefully when the order can't be matched.
-  let order: OrderSummary | null = null;
-  if (change.orderNumber) {
-    const found = await lookupOrders(waId, change.orderNumber).catch(() => [] as OrderSummary[]);
-    order = found[0] ?? null;
-  }
-
+  const tpl = Deno.env.get("OPS_ALERT_TEMPLATE") ?? "ops_ticket_alert";
+  const label = o.handoff ? "Human requested" : (TYPE_LABEL[o.category] ?? "New ticket");
   const vars = {
-    "1": order?.order_number ?? change.orderNumber ?? "unknown",
-    "2": order?.customer_name ?? "—",
-    "3": waId ? `+${waId}` : "—",
-    "4": (change.details || "Customer requested cancellation").slice(0, 250),
+    "1": label,
+    "2": String(o.ticketNumber ?? "—"),
+    "3": o.order?.customer_name ?? "—",
+    "4": o.waId ? `+${o.waId}` : "—",
+    "5": (o.reason || "See chat").slice(0, 300),
   };
 
   await callSend({
-    to: opsWaId,
+    to,
     kind: "template",
-    sent_by: "ops_cancel_alert",
+    sent_by: "ops_ticket_alert",
     template: { name: tpl, language: "en", vars },
   });
 }
+
+// ---- retired ---------------------------------------------------------------
+// postEscalation() (Slack ticket card) and notifyOpsCancel() (cancel-only ops
+// ping) were removed. Ticket escalation is now a single WhatsApp ping via
+// notifyOps() above — routed to the ops guard/Narendra for order issues, or to
+// the owner for everything else. The Slack firehose + human-takeover model is
+// gone. Send/delivery FAILURE alerts (connector-log) are unrelated and stay on.
 
 // Build product_list sections from the wa_catalog_items mirror. Groups in-stock
 // items by category (Meta caps: 30 items / 10 sections), optionally filtered by
