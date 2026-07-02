@@ -90,3 +90,21 @@ Per repo convention, commit directly to `main` (no auto-deploy on Vercel, so com
 - **M1:** no rate limiting on public endpoints.
 - **L3:** empty `next.config.ts` — add CSP/HSTS/X-Frame-Options.
 - Rotate the other plaintext keys in `.env.local` (OpenAI, Klaviyo, Google Places, Resend) as a precaution given the service-key leak.
+
+---
+
+## M1 — Rate limiting (chosen: Vercel Firewall + BotID; dashboard, no code)
+
+Covers the Next.js `/api/*` surface (the Supabase edge functions are gated separately by M3's secret + Supabase's own limits).
+
+1. Vercel → your project → **Firewall** → **Configure** → add **Rate Limiting** rules:
+   - `/api/webhooks/*` — e.g. 60 req / 10s per IP (webhooks burst legitimately; tune to provider volume).
+   - `/api/cron/*` — e.g. 10 req / 60s per IP (only Vercel Cron should hit these).
+   - `/api/*` (catch-all, lower priority) — e.g. 100 req / 10s per IP.
+   - Action: **Deny** (429) on exceed.
+2. Enable **BotID** (Firewall → Bot Management) to challenge automated traffic. For deep protection on a specific sensitive route you can later add `checkBotId()` in code, but the managed challenge is config-only.
+3. Note: rules apply at the edge before the function runs, so they also blunt the C3/C4/H4 abuse vectors from the internet side.
+
+## M3 — Gate cron/worker edge functions (pending your cron.job listing)
+
+Blocked on: `SELECT jobname, schedule, command FROM cron.job ORDER BY jobname;` output, because some schedulers are dashboard-created and invisible to the repo. Once provided: gate each cron/worker fn with the internal secret + update every scheduler's `net.http_post` to send `Authorization: Bearer <service_role from Vault>`, applied together so nothing stops draining.

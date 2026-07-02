@@ -539,7 +539,7 @@ Staff schedules a campaign in the dashboard
       <tr><td>H5 resend fail-open</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Set RESEND_*_SECRET in Vercel, deploy</td></tr>
       <tr><td>H1 bot order IDOR</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy wa-ai-reply (phone-scoped lookup)</td></tr>
       <tr><td>H2 filter injection</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy edge fns (order # whitelisted)</td></tr>
-      <tr><td>M1 no rate limiting</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-open">Decision needed</span></td><td>Infra choice: Vercel Firewall/BotID (no code) vs Upstash ratelimit</td></tr>
+      <tr><td>M1 no rate limiting</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-prog">Config path set</span></td><td>Vercel Firewall + BotID rules (dashboard) — steps in runbook</td></tr>
       <tr><td>M2 skip-sig flags</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy wa-webhook + ig-webhook (HMAC bypass removed)</td></tr>
       <tr><td>M3 ungated cron fns</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-open">Blocked</span></td><td>Needs live cron.job listing (some schedulers are dashboard-only/invisible)</td></tr>
       <tr><td>L1 campaign XSS</td><td><span class="badge b-low">Low</span></td><td><span class="badge b-prog">Code done</span></td><td>DOMPurify sanitize; deploy app</td></tr>
