@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import AnalyticsView from "@/components/whatsapp/AnalyticsView";
+import { msgTime, mostRecent, timeAgo, templateVars } from "./format";
 
 type Tab = "inbox" | "templates" | "campaigns" | "analytics" | "kb" | "tickets";
 
@@ -80,38 +81,6 @@ type KbDoc = {
 
 const BRAND = "var(--pm-green)";
 const WA_GREEN = "#25D366";
-
-/* Absolute send time for a chat bubble: clock time if today, e.g.
-   "22 May, 5:42 PM" otherwise. */
-function msgTime(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const time = d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
-  return d.toDateString() === new Date().toDateString()
-    ? time
-    : `${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}, ${time}`;
-}
-
-// Latest of two timestamps — so the inbox row shows when we last *touched* the
-// chat in either direction. Inbound-only timing hides proactive/bot sends to
-// first-time recipients (no reply yet → no inbound → blank time).
-function mostRecent(a: string | null, b: string | null): string | null {
-  if (!a) return b;
-  if (!b) return a;
-  return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
-}
-
-function timeAgo(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  const sec = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (sec < 60) return `${sec}s`;
-  if (sec < 3600) return `${Math.floor(sec / 60)}m`;
-  if (sec < 86400) return `${Math.floor(sec / 3600)}h`;
-  const days = Math.floor(sec / 86400);
-  if (days < 30) return `${days}d`;
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
-}
 
 // WhatsApp-style delivery ticks for an outbound message.
 //   sent      → single grey check
@@ -1123,12 +1092,6 @@ function TemplatePicker({ templates, onCancel, onSend }: {
 /* ----------------------------------------------------------------- */
 /* TEMPLATES                                                          */
 /* ----------------------------------------------------------------- */
-
-/* Variables {{1}}, {{2}}… present in a string, de-duplicated and ordered. */
-function templateVars(s: string | null | undefined): string[] {
-  const m = (s ?? "").match(/\{\{(\d+)\}\}/g) ?? [];
-  return Array.from(new Set(m.map((x) => x.replace(/[{}]/g, "")))).sort((a, b) => +a - +b);
-}
 
 const templateStatusColor: Record<string, string> = {
   approved: "var(--pm-green)", rejected: "var(--pm-terra)", disabled: "var(--pm-muted)",
