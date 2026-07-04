@@ -23,7 +23,7 @@ import {
   shipmentEconomics, getReports, fetchReportText, parseTSV, SETTLEMENT_REPORT_TYPE,
   num, MARKETPLACE_ID, type AmazonOrder,
 } from "../_shared/amazon.ts";
-import { fmtMoney, postSlack } from "../_shared/shopify.ts";
+import { fmtMoney, postSlackBlocks } from "../_shared/shopify.ts";
 
 const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json" } });
@@ -201,7 +201,7 @@ async function syncOrders(firstRunDays: number): Promise<{ upserts: number; aler
         { type: "section", text: { type: "mrkdwn", text: `*Items*\n${itemLines}` } },
       ];
       try {
-        await postSlack(ch, blocks, `New Amazon order ${o.amazon_order_id}: ${fmtMoney(num(o.order_total), o.currency)}`);
+        await postSlackBlocks(ch, blocks, `New Amazon order ${o.amazon_order_id}: ${fmtMoney(num(o.order_total), o.currency)}`);
         await db().from("amazon_orders").update({ alerted_at: new Date().toISOString() }).eq("amazon_order_id", o.amazon_order_id);
         alerts++;
       } catch (_e) { /* leave alerted_at null -> retried next run, never double-sent */ }
@@ -267,7 +267,7 @@ async function syncInventory(): Promise<{ upserts: number; alerts: number; error
         { type: "section", text: { type: "mrkdwn", text: lines } },
       ];
       try {
-        await postSlack(ch, blocks, `${low.length} Amazon SKU(s) low on FBA stock`);
+        await postSlackBlocks(ch, blocks, `${low.length} Amazon SKU(s) low on FBA stock`);
         const now = new Date().toISOString();
         await db().from("amazon_inventory").update({ low_stock_alerted_at: now })
           .in("seller_sku", low.map((r: any) => r.seller_sku));
@@ -452,7 +452,7 @@ async function syncSettlements(debug = false, reprocess = false): Promise<{ inge
         { type: "context", elements: [{ type: "mrkdwn", text: `Period ${periodStart ?? "?"} → ${periodEnd ?? "?"}. Investigate fees/refunds not captured.` }] },
       ];
       try {
-        await postSlack(ch, blocks, `Amazon settlement ${settlementId} variance ${fmtMoney(variance, currency)}`);
+        await postSlackBlocks(ch, blocks, `Amazon settlement ${settlementId} variance ${fmtMoney(variance, currency)}`);
         await db().from("amazon_settlements").update({ alerted_at: new Date().toISOString() }).eq("settlement_id", settlementId);
       } catch (_e) { /* retried next run */ }
     }
@@ -499,15 +499,18 @@ Deno.serve(async (req) => {
     // Surface pipeline failures to Slack — cron ignores the HTTP response, so
     // without this an SP-API outage would be silent (audit: amazon-poll had no
     // failure alerting). Best-effort; must never fail the poll.
-    try {
-      await postSlack(
-        ordersChannel(),
-        [{ type: "section", text: { type: "mrkdwn",
-          text: `:rotating_light: *Amazon poll: ${errors.length} error(s)*\n` +
-            errors.map((e) => `• ${e}`).join("\n").slice(0, 2800) } }],
-        `Amazon poll errors: ${errors.length}`,
-      );
-    } catch (_e) { /* alerting must not fail the poll */ }
+    const alertCh = ordersChannel();
+    if (alertCh) {
+      try {
+        await postSlackBlocks(
+          alertCh,
+          [{ type: "section", text: { type: "mrkdwn",
+            text: `:rotating_light: *Amazon poll: ${errors.length} error(s)*\n` +
+              errors.map((e) => `• ${e}`).join("\n").slice(0, 2800) } }],
+          `Amazon poll errors: ${errors.length}`,
+        );
+      } catch (_e) { /* alerting must not fail the poll */ }
+    }
   }
   return json(result, errors.length ? 207 : 200);
 });

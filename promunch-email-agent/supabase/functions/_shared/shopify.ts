@@ -74,7 +74,7 @@ export function buildOrderBlocks(order: {
   return blocks;
 }
 
-export async function postSlack(channel: string, blocks: unknown[], text: string, threadTs?: string): Promise<string> {
+export async function postSlackBlocks(channel: string, blocks: unknown[], text: string, threadTs?: string): Promise<string> {
   // Single-bot ("Maya"): all Slack posts use the one app token. Channels route, not bots.
   const token = Deno.env.get("SLACK_BOT_TOKEN");
   if (!token) throw new Error("SLACK_BOT_TOKEN missing");

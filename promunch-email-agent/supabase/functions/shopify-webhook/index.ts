@@ -15,7 +15,7 @@
 // Webhooks (or via the Admin API) all pointed at this same URL.
 
 import { db } from "../_shared/supabase.ts";
-import { buildOrderBlocks, fmtMoney, postSlack, verifyShopifyHmac } from "../_shared/shopify.ts";
+import { buildOrderBlocks, fmtMoney, postSlackBlocks, verifyShopifyHmac } from "../_shared/shopify.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 import { toWaId } from "../_shared/journeys.ts";
 import { handleOrderCreated } from "../_shared/order-confirmation.ts";
@@ -282,7 +282,7 @@ Deno.serve(async (req) => {
 
   if (channel) {
     try {
-      const ts = await postSlack(channel, blocks, `New order ${orderNumber}`);
+      const ts = await postSlackBlocks(channel, blocks, `New order ${orderNumber}`);
       if (upserted?.id) await db().from("shopify_orders").update({ slack_thread_ts: ts }).eq("id", upserted.id);
       await logConnector({
         connector: "shopify_slack",
@@ -319,7 +319,7 @@ Deno.serve(async (req) => {
     });
   }
   if (isBig && bigChannel && bigChannel !== channel) {
-    try { await postSlack(bigChannel, blocks, `Big order ${orderNumber} ${fmtMoney(totalPrice, currency)}`); }
+    try { await postSlackBlocks(bigChannel, blocks, `Big order ${orderNumber} ${fmtMoney(totalPrice, currency)}`); }
     catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("slack big-order post failed", e);

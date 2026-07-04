@@ -3,7 +3,7 @@
 // Updates DB and posts a threaded reply on the original order's Slack message.
 
 import { db } from "../_shared/supabase.ts";
-import { fmtMoney, postSlack, verifyShopifyHmac } from "../_shared/shopify.ts";
+import { fmtMoney, postSlackBlocks, verifyShopifyHmac } from "../_shared/shopify.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 
 Deno.serve(async (req) => {
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
   const channel = Deno.env.get("SHOPIFY_SLACK_CHANNEL_ID");
   if (channel && row.slack_thread_ts) {
     try {
-      await postSlack(channel, [{ type: "section", text: { type: "mrkdwn", text: threadText } }], threadText, row.slack_thread_ts);
+      await postSlackBlocks(channel, [{ type: "section", text: { type: "mrkdwn", text: threadText } }], threadText, row.slack_thread_ts);
       await logConnector({
         connector: "shopify_slack",
         level: "info",

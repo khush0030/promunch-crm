@@ -4,7 +4,7 @@
 
 import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
-import { fmtMoney, postSlack } from "../_shared/shopify.ts";
+import { fmtMoney, postSlackBlocks } from "../_shared/shopify.ts";
 
 const IST_OFFSET_MIN = 330;
 
@@ -94,6 +94,6 @@ Deno.serve(async (req) => {
     { type: "section", text: { type: "mrkdwn", text: `*Top items*\n${topLines}` } },
   ];
 
-  await postSlack(channel, blocks, `${cfg.label}: ${fmtMoney(p.total, currency)} · ${p.count} orders`);
+  await postSlackBlocks(channel, blocks, `${cfg.label}: ${fmtMoney(p.total, currency)} · ${p.count} orders`);
   return new Response(JSON.stringify({ ok: true, period, total: p.total, count: p.count }), { headers: { "content-type": "application/json" } });
 });

@@ -8,7 +8,7 @@
 
 import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
-import { fmtMoney, postSlack } from "../_shared/shopify.ts";
+import { fmtMoney, postSlackBlocks } from "../_shared/shopify.ts";
 
 const BILLED = ["sent", "delivered", "read"];
 const PRICE: Record<string, number> = {
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  await postSlack(channel, blocks, `WhatsApp weekly: ${sent} sent · ${fmtMoney(revenue, "INR")} revenue`);
+  await postSlackBlocks(channel, blocks, `WhatsApp weekly: ${sent} sent · ${fmtMoney(revenue, "INR")} revenue`);
   return new Response(JSON.stringify({ ok: true, sent, revenue, orders }), {
     headers: { "content-type": "application/json" },
   });
