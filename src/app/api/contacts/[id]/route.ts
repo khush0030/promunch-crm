@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from "@/lib/rbac-server";
 import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
 
 export async function GET(
@@ -75,6 +76,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
   const { id } = await params;
 
   const { error } = await supabase

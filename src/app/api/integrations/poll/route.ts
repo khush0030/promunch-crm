@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/rbac-server";
 
 // Triggers the Supabase gmail-poll edge function on demand. The poll fetches
 // unread mail AND retries any emails whose AI draft previously failed — so
@@ -7,6 +8,8 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
   const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!base || !anon) {

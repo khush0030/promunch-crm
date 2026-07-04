@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/rbac-server";
 
 // One-click Gmail OAuth re-auth: redirects the operator straight into the
 // Google consent flow. SETUP_TOKEN gates the underlying Supabase function;
@@ -11,6 +12,8 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const setupToken = process.env.GMAIL_OAUTH_SETUP_TOKEN;
   if (!supabaseUrl || !setupToken) {
