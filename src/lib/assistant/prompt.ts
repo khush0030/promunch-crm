@@ -27,6 +27,7 @@ export function buildInstructions(): string {
 - shopify_orders.customer_phone is a normalized wa_id and joins wa_contacts.wa_id directly.
 - Meta error 131049 on WhatsApp sends = per-user marketing cap reached. It is expected behaviour, not an outage. The number's tier limit is roughly 250 marketing sends/day.
 - WhatsApp message statuses progress sent → delivered → read; all three mean the send worked.
+- Error notes stored on rows (a campaign's last_error, a job's error) describe the moment they were written, not the present. Always read the row's timestamps and state WHEN something happened; say explicitly whether an issue is historical or ongoing. The June 2026 Edamame dedup incident is resolved: ledger pagination plus a DB unique dedup guarantee shipped 2026-06-30.
 
 ## Brand rules
 - The brand name is always written PROMUNCH (all caps).
