@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useEscapeKey } from "./useEscapeKey";
 import { Ban, Gauge, MailCheck, MailSearch, Plus, Send, Sparkles, Trash2, X } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "@/app/dashboard/leads/leads.module.css";
@@ -12,6 +13,7 @@ import PipelineSteps from "./PipelineSteps";
 // ------------------------------------------------------------- lead modal --
 
 export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; onClose: () => void; onChanged: () => void }) {
+  useEscapeKey(onClose);
   const toast = useToast();
   const activeDraft = (lead.outreach_drafts ?? []).find((d) =>
     ["draft", "approved", "failed", "sending"].includes(d.status),
@@ -69,6 +71,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div
+        role="dialog" aria-modal="true" aria-label="Lead details"
         className={`pm-panel ${styles.modal} ${styles.modalLg}`}
         onClick={(e) => e.stopPropagation()}
       >

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useEscapeKey } from "./useEscapeKey";
 import { X } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "@/app/dashboard/leads/leads.module.css";
@@ -11,6 +12,7 @@ import type { OutreachSettings } from "./types";
 export default function SettingsModal({
   settings, onClose, onSaved,
 }: { settings: OutreachSettings; onClose: () => void; onSaved: () => void }) {
+  useEscapeKey(onClose);
   const toast = useToast();
   const [form, setForm] = useState({ ...settings, reply_to: settings.reply_to ?? "" });
   const [busy, setBusy] = useState(false);
@@ -36,7 +38,7 @@ export default function SettingsModal({
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={`pm-panel ${styles.modal} ${styles.modalSm}`} onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label="Outreach settings" className={`pm-panel ${styles.modal} ${styles.modalSm}`} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div className="card-title">Outreach settings</div>
           <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>

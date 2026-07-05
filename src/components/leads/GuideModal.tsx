@@ -3,13 +3,15 @@
 import { X } from "lucide-react";
 import styles from "@/app/dashboard/leads/leads.module.css";
 import { GUIDE_STEPS } from "./constants";
+import { useEscapeKey } from "./useEscapeKey";
 
 // -------------------------------------------------------------- guide modal --
 
 export default function GuideModal({ onClose }: { onClose: () => void }) {
+  useEscapeKey(onClose);
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={`pm-panel ${styles.modal} ${styles.modalMd}`} onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label="How it works" className={`pm-panel ${styles.modal} ${styles.modalMd}`} onClick={(e) => e.stopPropagation()}>
         <div className={styles.guideHead}>
           <div className="card-title">How B2B outreach works</div>
           <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>

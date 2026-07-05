@@ -250,7 +250,7 @@ export default function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
                   )}
                 </div>
                 {(isMobile || hover === t.id) && (
-                  <button
+                  <button type="button"
                     title={status === "archived" ? "Unarchive chat" : "Archive chat"}
                     onClick={(e) => { e.stopPropagation(); archiveThread(t.id, status !== "archived"); }}
                     style={{
@@ -411,7 +411,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
       }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0 }}>
           {isMobile && (
-            <button onClick={onBack} aria-label="Back to inbox"
+            <button type="button" onClick={onBack} aria-label="Back to inbox"
               style={{
                 flexShrink: 0, width: 36, height: 36, borderRadius: 8,
                 border: "1px solid var(--pm-border)", background: "var(--pm-card)",
@@ -436,7 +436,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
           )}
           </div>
           {isMobile && (
-            <button onClick={onShowDetails} aria-label="Customer details"
+            <button type="button" onClick={onShowDetails} aria-label="Customer details"
               style={{
                 flexShrink: 0, width: 36, height: 36, borderRadius: 8,
                 border: "1px solid var(--pm-border)", background: "var(--pm-card)",
@@ -449,7 +449,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
           {(thread.ticket_status === "open" || thread.ticket_status === "pending") && (
-            <button onClick={() => patch({ ticket_status: "resolved" })}
+            <button type="button" onClick={() => patch({ ticket_status: "resolved" })}
               title="Mark this ticket resolved"
               style={{
                 display: "inline-flex", alignItems: "center", gap: 5,
@@ -546,7 +546,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
           borderTop: "1px solid var(--pm-border)",
           display: "flex", gap: 8, alignItems: "center",
         }}>
-          <button onClick={() => setPickingTemplate(true)} title="Send template" aria-label="Send template"
+          <button type="button" onClick={() => setPickingTemplate(true)} title="Send template" aria-label="Send template"
             style={{
               minWidth: 44, minHeight: 44, padding: isMobile ? 0 : "10px 14px", borderRadius: 10, border: "1px solid var(--pm-border)",
               background: "var(--pm-card)", cursor: "pointer", color: BRAND, fontWeight: 600, fontSize: 13,
@@ -554,7 +554,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
             }}>
             <Megaphone size={isMobile ? 18 : 14} /> {!isMobile && "Template"}
           </button>
-          <button onClick={draftReply} disabled={drafting} title="AI-draft a reply" aria-label="AI draft"
+          <button type="button" onClick={draftReply} disabled={drafting} title="AI-draft a reply" aria-label="AI draft"
             style={{
               minWidth: 44, minHeight: 44, padding: isMobile ? 0 : "10px 14px", borderRadius: 10, border: "1px solid var(--pm-border)",
               background: "var(--pm-card)", cursor: drafting ? "wait" : "pointer", color: WA_GREEN, fontWeight: 600, fontSize: 13,
@@ -576,7 +576,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
             onFocus={(e) => { e.currentTarget.style.background = "var(--pm-card)"; e.currentTarget.style.borderColor = "var(--pm-terra)"; }}
             onBlur={(e) => { e.currentTarget.style.background = "var(--pm-card2)"; e.currentTarget.style.borderColor = "var(--pm-border)"; }}
           />
-          <button disabled={!text.trim() || sending} onClick={() => send("text")} aria-label="Send message"
+          <button type="button" disabled={!text.trim() || sending} onClick={() => send("text")} aria-label="Send message"
             style={{
               minWidth: 44, minHeight: 44, padding: isMobile ? 0 : "10px 16px", borderRadius: 10, border: "none",
               background: text.trim() ? BRAND : "var(--pm-border)",
@@ -685,7 +685,7 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose }: {
           marginBottom: 12, paddingBottom: 10, borderBottom: "1px solid var(--pm-border)",
         }}>
           <strong style={{ fontSize: 15 }}>Customer details</strong>
-          <button onClick={onClose} aria-label="Close details"
+          <button type="button" onClick={onClose} aria-label="Close details"
             style={{
               width: 36, height: 36, borderRadius: 8,
               border: "1px solid var(--pm-border)", background: "var(--pm-card)",
@@ -815,13 +815,13 @@ function TemplatePicker({ templates, onCancel, onSend }: {
     <div style={{ padding: 12, borderTop: "1px solid var(--pm-border)", maxHeight: 320, overflowY: "auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
         <strong style={{ fontSize: 13 }}>Send approved template</strong>
-        <button onClick={onCancel} style={{ background: "none", border: "none", color: "var(--pm-muted)", cursor: "pointer" }}>Cancel</button>
+        <button type="button" onClick={onCancel} style={{ background: "none", border: "none", color: "var(--pm-muted)", cursor: "pointer" }}>Cancel</button>
       </div>
       {!pick && (
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
           {templates.length === 0 && <div style={{ fontSize: 12, color: "var(--pm-hint)" }}>No approved templates yet.</div>}
           {templates.map((t) => (
-            <button key={t.id} onClick={() => setPick(t)} style={{
+            <button type="button" key={t.id} onClick={() => setPick(t)} style={{
               textAlign: "left", padding: 10, borderRadius: 8, border: "1px solid var(--pm-border)",
               background: "var(--pm-card)", cursor: "pointer",
             }}>
@@ -846,8 +846,8 @@ function TemplatePicker({ templates, onCancel, onSend }: {
             {preview}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setPick(null)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--pm-border)", background: "var(--pm-card)", cursor: "pointer", fontSize: 13 }}>Back</button>
-            <button onClick={() => onSend(pick, vars)} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: BRAND, color: "var(--pm-card)", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Send</button>
+            <button type="button" onClick={() => setPick(null)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--pm-border)", background: "var(--pm-card)", cursor: "pointer", fontSize: 13 }}>Back</button>
+            <button type="button" onClick={() => onSend(pick, vars)} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: BRAND, color: "var(--pm-card)", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Send</button>
           </div>
         </div>
       )}

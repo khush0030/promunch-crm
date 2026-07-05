@@ -60,8 +60,8 @@ export default function KbView() {
           Documents feed the AI agent. Upload PDFs/TXT or paste content. PDFs are parsed, chunked, and embedded.
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => setManualOpen(true)} style={smallBtn}><FileText size={14} /> Paste text</button>
-          <button onClick={() => fileRef.current?.click()} style={primaryBtn} disabled={uploading}>
+          <button type="button" onClick={() => setManualOpen(true)} style={smallBtn}><FileText size={14} /> Paste text</button>
+          <button type="button" onClick={() => fileRef.current?.click()} style={primaryBtn} disabled={uploading}>
             <Upload size={14} /> {uploading ? "Uploading…" : "Upload PDF"}
           </button>
           <input ref={fileRef} type="file" accept=".pdf,.txt,.md" hidden
@@ -89,8 +89,8 @@ export default function KbView() {
             </div>
             {d.error && <div style={{ fontSize: 11, color: "var(--pm-terra)", marginTop: 6 }}>{d.error}</div>}
             <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-              <button onClick={() => reingest(d.id)} style={smallBtn}><RefreshCw size={12} /> Re-ingest</button>
-              <button onClick={() => remove(d.id)} style={{ ...smallBtn, color: "var(--pm-terra)" }}><Trash2 size={12} /></button>
+              <button type="button" onClick={() => reingest(d.id)} style={smallBtn}><RefreshCw size={12} /> Re-ingest</button>
+              <button type="button" aria-label="Delete document" onClick={() => remove(d.id)} style={{ ...smallBtn, color: "var(--pm-terra)" }}><Trash2 size={12} /></button>
             </div>
           </div>
         ))}
@@ -140,8 +140,8 @@ function ManualKbModal({ onClose }: { onClose: () => void }) {
           placeholder="Paste FAQ, policy, product info…" />
       </Field>
       <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
-        <button onClick={onClose} style={smallBtn}>Cancel</button>
-        <button onClick={save} disabled={saving} style={primaryBtn}>{saving ? "Saving…" : "Ingest"}</button>
+        <button type="button" onClick={onClose} style={smallBtn}>Cancel</button>
+        <button type="button" onClick={save} disabled={saving} style={primaryBtn}>{saving ? "Saving…" : "Ingest"}</button>
       </div>
     </Modal>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useEscapeKey } from "./useEscapeKey";
 import { Clock, Search, X } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "@/app/dashboard/leads/leads.module.css";
@@ -46,6 +47,7 @@ function planScrape(target: number, combos: number, findEmails: boolean) {
 }
 
 export default function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (rounds: number) => void }) {
+  useEscapeKey(onClose);
   const toast = useToast();
   const [categories, setCategories] = useState<string[]>([DEFAULT_CATEGORIES[0]]);
   const [cities, setCities] = useState<string[]>([DEFAULT_CITIES[0]]);
@@ -97,7 +99,7 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={`pm-panel ${styles.modal} ${styles.modalMd}`} onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label="Find companies" className={`pm-panel ${styles.modal} ${styles.modalMd}`} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHead}>
           <div className="card-title">Find companies</div>
           <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>

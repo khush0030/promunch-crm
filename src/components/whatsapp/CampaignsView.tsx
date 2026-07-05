@@ -184,13 +184,13 @@ export default function CampaignsView() {
           Broadcast an approved marketing template to opted-in WhatsApp contacts. Meta bills per message.
         </div>
         <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
-          <button onClick={importContacts} disabled={importing} style={smallBtn}>
+          <button type="button" onClick={importContacts} disabled={importing} style={smallBtn}>
             <Upload size={14} /> {importing ? "Importing…" : "From Shopify"}
           </button>
-          <button onClick={() => setCsvOpen(true)} style={smallBtn}>
+          <button type="button" onClick={() => setCsvOpen(true)} style={smallBtn}>
             <FileText size={14} /> Upload CSV
           </button>
-          <button onClick={() => setCreating(true)} style={primaryBtn}><Plus size={14} /> New campaign</button>
+          <button type="button" onClick={() => setCreating(true)} style={primaryBtn}><Plus size={14} /> New campaign</button>
         </div>
       </div>
 
@@ -291,7 +291,7 @@ export default function CampaignsView() {
               <div style={{ fontSize: 11, color: "var(--pm-hint)", marginBottom: 10 }}>{timeAgo(c.created_at)} ago</div>
               <div style={{ display: "flex", gap: 6 }}>
                 {(c.status === "draft" || c.status === "scheduled" || c.status === "failed") && (
-                  <button onClick={() => send(c)} disabled={busy === c.id} style={primaryBtn}>
+                  <button type="button" onClick={() => send(c)} disabled={busy === c.id} style={primaryBtn}>
                     <Send size={13} /> {busy === c.id ? "Sending…" : "Send now"}
                   </button>
                 )}
@@ -299,7 +299,7 @@ export default function CampaignsView() {
                   <button type="button" onClick={() => unschedule(c.id)} style={smallBtn}>Unschedule</button>
                 )}
                 {c.status === "sending" && (
-                  <button onClick={() => send(c)} disabled={busy === c.id} style={smallBtn}>
+                  <button type="button" onClick={() => send(c)} disabled={busy === c.id} style={smallBtn}>
                     <RefreshCw size={12} /> {busy === c.id ? "Working…" : "Resume"}
                   </button>
                 )}
@@ -574,14 +574,14 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
         )}
       </Field>
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <button onClick={onClose} style={smallBtn}>Cancel</button>
-        <button onClick={() => create("draft")} disabled={saving} style={smallBtn}>Save draft</button>
+        <button type="button" onClick={onClose} style={smallBtn}>Cancel</button>
+        <button type="button" onClick={() => create("draft")} disabled={saving} style={smallBtn}>Save draft</button>
         {sendMode === "schedule" ? (
-          <button onClick={() => create("schedule")} disabled={saving} style={primaryBtn}>
+          <button type="button" onClick={() => create("schedule")} disabled={saving} style={primaryBtn}>
             <Clock size={13} /> {saving ? "Working…" : "Schedule"}
           </button>
         ) : (
-          <button onClick={() => create("send")} disabled={saving} style={primaryBtn}>
+          <button type="button" onClick={() => create("send")} disabled={saving} style={primaryBtn}>
             <Send size={13} /> {saving ? "Working…" : "Save & send"}
           </button>
         )}
@@ -701,8 +701,8 @@ function CsvImportModal({ onClose }: { onClose: () => void }) {
         </>
       )}
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <button onClick={onClose} style={smallBtn}>Cancel</button>
-        <button onClick={doImport} disabled={importing || headers.length === 0} style={primaryBtn}>
+        <button type="button" onClick={onClose} style={smallBtn}>Cancel</button>
+        <button type="button" onClick={doImport} disabled={importing || headers.length === 0} style={primaryBtn}>
           <Upload size={14} /> {importing ? "Importing…" : "Import"}
         </button>
       </div>

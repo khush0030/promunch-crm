@@ -208,10 +208,10 @@ export default function TemplatesView() {
           use “Sync from Meta” to refresh approvals.
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={syncFromMeta} disabled={syncing} style={smallBtn}>
+          <button type="button" onClick={syncFromMeta} disabled={syncing} style={smallBtn}>
             <RefreshCw size={14} /> {syncing ? "Syncing…" : "Sync from Meta"}
           </button>
-          <button onClick={() => open({ category: "marketing", language: "en", body: "" })} style={primaryBtn}>
+          <button type="button" onClick={() => open({ category: "marketing", language: "en", body: "" })} style={primaryBtn}>
             <Plus size={14} /> New template
           </button>
         </div>
@@ -239,8 +239,8 @@ export default function TemplatesView() {
               </div>
             )}
             <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-              <button onClick={() => open(t)} style={smallBtn}>Edit / Resubmit</button>
-              <button onClick={() => remove(t.id)} style={{ ...smallBtn, color: "var(--pm-terra)" }}>
+              <button type="button" onClick={() => open(t)} style={smallBtn}>Edit / Resubmit</button>
+              <button type="button" onClick={() => remove(t.id)} style={{ ...smallBtn, color: "var(--pm-terra)" }}>
                 <Trash2 size={12} />
               </button>
             </div>
@@ -395,9 +395,9 @@ export default function TemplatesView() {
             “Save draft” keeps it local only. “Submit to Meta” sends it for approval — it can't reach customers until Meta approves it.
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 4, justifyContent: "flex-end" }}>
-            <button onClick={() => setEditing(null)} style={smallBtn}>Cancel</button>
-            <button onClick={saveDraft} disabled={busy} style={smallBtn}>Save draft</button>
-            <button onClick={submitToMeta} disabled={busy || !editing.name || !editing.body} style={primaryBtn}>
+            <button type="button" onClick={() => setEditing(null)} style={smallBtn}>Cancel</button>
+            <button type="button" onClick={saveDraft} disabled={busy} style={smallBtn}>Save draft</button>
+            <button type="button" onClick={submitToMeta} disabled={busy || !editing.name || !editing.body} style={primaryBtn}>
               <Send size={13} /> {busy ? "Working…" : "Submit to Meta"}
             </button>
           </div>
