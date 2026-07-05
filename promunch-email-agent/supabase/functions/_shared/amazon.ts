@@ -240,23 +240,94 @@ export interface OrderEconomics {
 
 export function shipmentEconomics(ev: any): OrderEconomics {
   let gross = 0, promo = 0, referralFee = 0, fbaFee = 0, otherFees = 0;
-  const items = ev.ShipmentItemList ?? ev.RefundItemList ?? [];
+  // Refund events nest items under ShipmentItemAdjustmentList with *AdjustmentList
+  // fee/charge arrays — miss those and every refund silently counts as ₹0.
+  const items = ev.ShipmentItemList ?? ev.ShipmentItemAdjustmentList ?? ev.RefundItemList ?? [];
   for (const it of items) {
-    for (const c of it.ItemChargeList ?? []) gross += num(c.ChargeAmount?.CurrencyAmount);
-    for (const p of it.PromotionList ?? []) promo += num(p.PromotionAmount?.CurrencyAmount);
-    for (const f of it.ItemFeeList ?? []) {
+    for (const c of it.ItemChargeList ?? it.ItemChargeAdjustmentList ?? []) gross += num(c.ChargeAmount?.CurrencyAmount);
+    for (const p of it.PromotionList ?? it.PromotionAdjustmentList ?? []) promo += num(p.PromotionAmount?.CurrencyAmount);
+    for (const f of it.ItemFeeList ?? it.ItemFeeAdjustmentList ?? []) {
       const amt = num(f.FeeAmount?.CurrencyAmount);
       const t = String(f.FeeType ?? "");
-      if (t === "Commission") referralFee += amt;
+      if (t === "Commission" || t === "RefundCommission") referralFee += amt;
       else if (t.startsWith("FBA")) fbaFee += amt;
       else otherFees += amt;
     }
   }
   // order-level fees (outside item lists)
-  for (const f of ev.ShipmentFeeList ?? ev.OrderFeeList ?? []) otherFees += num(f.FeeAmount?.CurrencyAmount);
-  for (const p of ev.PromotionList ?? []) promo += num(p.PromotionAmount?.CurrencyAmount);
+  for (const f of ev.ShipmentFeeList ?? ev.ShipmentFeeAdjustmentList ?? ev.OrderFeeList ?? ev.OrderFeeAdjustmentList ?? []) otherFees += num(f.FeeAmount?.CurrencyAmount);
+  for (const p of ev.PromotionList ?? ev.PromotionAdjustmentList ?? []) promo += num(p.PromotionAmount?.CurrencyAmount);
   const net = gross + promo + referralFee + fbaFee + otherFees;
   return { gross, promo, referralFee, fbaFee, otherFees, net };
+}
+
+// ---- Per-item (per-SKU) fee breakdown ----------------------------------------
+// One ShipmentEvent/RefundEvent contains N items, each with its own SKU, qty and
+// fee lists. This is the ONLY place Amazon exposes per-SKU economics, so we
+// flatten each item into a row for amazon_finance_item_events.
+export interface ItemEconomics {
+  orderItemId: string | null;
+  sellerSku: string | null;
+  quantity: number;
+  principal: number; tax: number; otherCharges: number; gross: number;
+  promo: number; referralFee: number; fbaFee: number; closingFee: number; otherFees: number;
+  net: number;
+}
+
+export function itemEconomics(ev: any): ItemEconomics[] {
+  const items = ev.ShipmentItemList ?? ev.ShipmentItemAdjustmentList ?? ev.RefundItemList ?? [];
+  const perEntry = items.map((it: any) => {
+    let principal = 0, tax = 0, otherCharges = 0;
+    // Refund events use ItemChargeAdjustmentList / ItemFeeAdjustmentList etc.
+    for (const c of it.ItemChargeList ?? it.ItemChargeAdjustmentList ?? []) {
+      const amt = num(c.ChargeAmount?.CurrencyAmount);
+      const t = String(c.ChargeType ?? "");
+      if (t === "Principal") principal += amt;
+      else if (t.includes("Tax") && !t.startsWith("TCS") && !t.startsWith("TDS")) tax += amt;
+      else otherCharges += amt;
+    }
+    let promo = 0;
+    for (const p of it.PromotionList ?? it.PromotionAdjustmentList ?? []) {
+      promo += num(p.PromotionAmount?.CurrencyAmount);
+    }
+    let referralFee = 0, fbaFee = 0, closingFee = 0, otherFees = 0;
+    for (const f of it.ItemFeeList ?? it.ItemFeeAdjustmentList ?? []) {
+      const amt = num(f.FeeAmount?.CurrencyAmount);
+      const t = String(f.FeeType ?? "");
+      if (t === "Commission" || t === "RefundCommission") referralFee += amt;
+      else if (t.startsWith("FBA")) fbaFee += amt;
+      else if (t.includes("ClosingFee")) closingFee += amt;
+      else otherFees += amt;
+    }
+    // NOTE: ItemTaxWithheldList is deliberately ignored — TCS/TDS lines are
+    // duplicated inside ItemChargeList (verified 67/67 events), and the
+    // order-level ledger that reconciles against bank deposits counts them once.
+    const gross = principal + tax + otherCharges;
+    const net = gross + promo + referralFee + fbaFee + closingFee + otherFees;
+    return {
+      orderItemId: it.OrderItemId ?? it.OrderAdjustmentItemId ?? null,
+      sellerSku: it.SellerSKU ?? null,
+      quantity: num(it.QuantityShipped),
+      principal, tax, otherCharges, gross,
+      promo, referralFee, fbaFee, closingFee, otherFees, net,
+    };
+  });
+  // Amazon can split ONE order item across multiple list entries (e.g. qty 2
+  // shipped as 1+1, each with its own charges). Merge by OrderItemId so the
+  // dedup key stays stable and no entry is silently dropped on upsert.
+  const merged = new Map<string, ItemEconomics>();
+  perEntry.forEach((e: ItemEconomics, idx: number) => {
+    const key = e.orderItemId ?? `idx-${idx}`;
+    const prev = merged.get(key);
+    if (!prev) { merged.set(key, { ...e }); return; }
+    prev.quantity += e.quantity;
+    prev.principal += e.principal; prev.tax += e.tax; prev.otherCharges += e.otherCharges;
+    prev.gross += e.gross; prev.promo += e.promo;
+    prev.referralFee += e.referralFee; prev.fbaFee += e.fbaFee;
+    prev.closingFee += e.closingFee; prev.otherFees += e.otherFees;
+    prev.net += e.net;
+  });
+  return [...merged.values()];
 }
 
 // ---- Reports API (used for the V2 Settlement Report = bank-truth deposits) ---

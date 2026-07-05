@@ -4,7 +4,7 @@
 // and the "Enroll in sequence" action that kicks off a bulk campaign.
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Pencil, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, MailSearch, Pencil, Send, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "@/app/dashboard/leads/leads.module.css";
 import type { Lead, ListLead, ListSummary, SequenceRow } from "./types";
@@ -32,6 +32,9 @@ export default function ListDetail({
   const [leads, setLeads] = useState<ListLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEnroll, setShowEnroll] = useState(false);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [revealing, setRevealing] = useState<string | null>(null); // lead id or "bulk"
+  const [revealProgress, setRevealProgress] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -59,6 +62,51 @@ export default function ListDetail({
     });
     if (res.ok) load();
     else toast.push({ kind: "error", text: (await res.json()).error || "rename failed" });
+  }
+
+  // "Reveal email" = the existing enrich pass: re-crawl the site, extract
+  // addresses, MX-verify, promote the lead if one checks out.
+  async function revealOne(lead: ListLead): Promise<"found" | "none" | "failed"> {
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/enrich`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "enrich failed");
+      return (json.newUsable ?? 0) > 0 || (json.contactsFound ?? 0) > 0 ? "found" : "none";
+    } catch {
+      return "failed";
+    }
+  }
+
+  async function revealEmail(lead: ListLead) {
+    setRevealing(lead.id);
+    const outcome = await revealOne(lead);
+    setRevealing(null);
+    if (outcome === "found") toast.push({ kind: "success", text: `Found an email for ${lead.name}.` });
+    else if (outcome === "none") toast.push({ kind: "error", text: `${lead.name}: crawled the site but no verified email turned up.` });
+    else toast.push({ kind: "error", text: `${lead.name}: could not crawl (no website or site unreachable).` });
+    load();
+  }
+
+  async function revealSelected() {
+    const targets = leads.filter((l) => checked.has(l.id));
+    if (!targets.length) return;
+    setRevealing("bulk");
+    let found = 0, none = 0, failed = 0;
+    for (let i = 0; i < targets.length; i++) {
+      setRevealProgress(`${i + 1}/${targets.length}`);
+      const outcome = await revealOne(targets[i]);
+      if (outcome === "found") found++;
+      else if (outcome === "none") none++;
+      else failed++;
+    }
+    setRevealing(null);
+    setRevealProgress("");
+    setChecked(new Set());
+    toast.push({
+      kind: found ? "success" : "error",
+      text: `Emails found for ${found} of ${targets.length} leads${none ? `, ${none} had none on their site` : ""}${failed ? `, ${failed} could not be crawled` : ""}.`,
+    });
+    load();
   }
 
   async function removeLead(leadId: string, name: string) {
@@ -99,10 +147,45 @@ export default function ListDetail({
           header to let the pipeline finish discovering and verifying emails.
         </div>
       ) : (
+        <>
+        {(() => {
+          const noEmailIds = leads.filter((l) => !bestContact(l)).map((l) => l.id);
+          const allChecked = noEmailIds.length > 0 && noEmailIds.every((id) => checked.has(id));
+          return (
+            <>
+            {checked.size > 0 && (
+              <div className={styles.bulkBar}>
+                <span>{checked.size} lead{checked.size === 1 ? "" : "s"} selected</span>
+                <button
+                  type="button"
+                  className="pm-btn primary"
+                  disabled={revealing !== null}
+                  onClick={revealSelected}
+                >
+                  <MailSearch size={13} />{" "}
+                  {revealing === "bulk" ? `Finding emails ${revealProgress}…` : `Find emails (${checked.size})`}
+                </button>
+                <button type="button" className="pm-btn ghost" onClick={() => setChecked(new Set())} disabled={revealing !== null}>
+                  Clear
+                </button>
+              </div>
+            )}
         <div className={`pm-tablewrap ${styles.tableWrap}`}>
           <table className="pm-tbl">
             <thead>
               <tr>
+                <th style={{ width: 34 }}>
+                  {noEmailIds.length > 0 && (
+                    <input
+                      type="checkbox"
+                      aria-label="Select all leads without a verified email"
+                      checked={allChecked}
+                      onChange={(e) =>
+                        setChecked(e.target.checked ? new Set(noEmailIds) : new Set())
+                      }
+                    />
+                  )}
+                </th>
                 <th style={{ width: 56 }}>Fit</th>
                 <th>Company</th>
                 <th>Contact</th>
@@ -119,6 +202,23 @@ export default function ListDetail({
                 const ep = en ? ENROLL_PILL[en.status] ?? { cls: "bg-gray", label: en.status } : null;
                 return (
                   <tr key={lead.id} className="clickable" onClick={() => onOpenLead(lead)}>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      {!best && (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${lead.name}`}
+                          checked={checked.has(lead.id)}
+                          onChange={(e) =>
+                            setChecked((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(lead.id);
+                              else next.delete(lead.id);
+                              return next;
+                            })
+                          }
+                        />
+                      )}
+                    </td>
                     <td><span className={`pm-badge2 ${fp.cls}`}>{fp.label}</span></td>
                     <td>
                       <div className="pm-cellname"><span className="pm-b7">{lead.name}</span></div>
@@ -131,7 +231,18 @@ export default function ListDetail({
                           <span className={`pm-badge2 ${CONFIDENCE_PILL[best.confidence] ?? "bg-gray"}`}>{best.confidence}</span>
                         </span>
                       ) : (
-                        <span className="pm-muted">no verified email</span>
+                        <span className={styles.noEmailCell} onClick={(e) => e.stopPropagation()}>
+                          <span className="pm-muted">no verified email</span>
+                          <button
+                            type="button"
+                            className="pm-btn"
+                            style={{ padding: "3px 9px", fontSize: 11.5 }}
+                            disabled={revealing !== null}
+                            onClick={() => revealEmail(lead)}
+                          >
+                            <MailSearch size={12} /> {revealing === lead.id ? "Finding…" : "Find email"}
+                          </button>
+                        </span>
                       )}
                     </td>
                     <td>
@@ -172,6 +283,10 @@ export default function ListDetail({
             </tbody>
           </table>
         </div>
+            </>
+          );
+        })()}
+        </>
       )}
 
       {showEnroll && (

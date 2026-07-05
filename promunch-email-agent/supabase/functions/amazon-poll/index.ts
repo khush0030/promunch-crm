@@ -20,7 +20,7 @@ import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import {
   getOrders, getOrderItems, getInventorySummaries, listFinancialEvents,
-  shipmentEconomics, getReports, fetchReportText, parseTSV, SETTLEMENT_REPORT_TYPE,
+  shipmentEconomics, itemEconomics, getReports, fetchReportText, parseTSV, SETTLEMENT_REPORT_TYPE,
   num, MARKETPLACE_ID, type AmazonOrder,
 } from "../_shared/amazon.ts";
 import { fmtMoney, postSlackBlocks } from "../_shared/shopify.ts";
@@ -295,6 +295,7 @@ async function syncFinances(): Promise<{ upserts: number; error?: string }> {
   }
 
   const rows: any[] = [];
+  const itemRows: any[] = [];
   const push = (list: any[] = [], type: string) => {
     for (const ev of list) {
       const orderId = ev.AmazonOrderId ?? null;
@@ -314,6 +315,29 @@ async function syncFinances(): Promise<{ upserts: number; error?: string }> {
         raw: ev,
         dedup_key: `${type}:${orderId ?? "na"}:${posted ?? "na"}`,
       });
+      // Per-SKU explode of the same event — powers the unit-economics view.
+      itemEconomics(ev).forEach((it, idx) => {
+        itemRows.push({
+          amazon_order_id: orderId,
+          order_item_id: it.orderItemId,
+          event_type: type,
+          posted_date: posted,
+          seller_sku: it.sellerSku,
+          quantity: it.quantity,
+          principal: it.principal,
+          tax: it.tax,
+          other_charges: it.otherCharges,
+          gross: it.gross,
+          promo: it.promo,
+          referral_fee: it.referralFee,
+          fba_fee: it.fbaFee,
+          closing_fee: it.closingFee,
+          other_fees: it.otherFees,
+          net: it.net,
+          currency: "INR",
+          dedup_key: `${type}:${orderId ?? "na"}:${posted ?? "na"}:${it.orderItemId ?? idx}`,
+        });
+      });
     }
   };
   push(events.ShipmentEventList, "Shipment");
@@ -325,7 +349,11 @@ async function syncFinances(): Promise<{ upserts: number; error?: string }> {
     if (error) return { upserts: 0, error: `finances upsert: ${error.message}` };
     upserts = rows.length;
   }
-  await setWatermark("finances", runStart, { events: rows.length });
+  if (itemRows.length) {
+    const { error } = await db().from("amazon_finance_item_events").upsert(itemRows, { onConflict: "dedup_key", ignoreDuplicates: true });
+    if (error) return { upserts, error: `finance items upsert: ${error.message}` };
+  }
+  await setWatermark("finances", runStart, { events: rows.length, items: itemRows.length });
   return { upserts };
 }
 
@@ -392,6 +420,8 @@ async function syncSettlements(debug = false, reprocess = false): Promise<{ inge
       amount_description: r["amount-description"] || null,
       amount: num(r["amount"]),
       posted_date: parseSettlementDate(r["posted-date-time"] || r["posted-date"]),
+      sku: r["sku"] || null,
+      quantity: r["quantity-purchased"] ? num(r["quantity-purchased"]) : null,
     }));
 
   // Everything below is derived from the report's OWN lines — one source of truth.
