@@ -135,6 +135,25 @@ async function discover(summary: TickSummary) {
         .from('leads')
         .upsert(rows, { onConflict: 'place_id', ignoreDuplicates: true });
       if (error) throw new Error(`lead upsert: ${error.message}`);
+
+      // Membership: every discovered company joins the search's list — also
+      // companies that already existed as leads from an earlier search
+      // (upsert ignored them, but this list should still contain them).
+      const listId = search.list_id as string | null;
+      if (listId) {
+        const { data: pageLeads } = await supabaseAdmin
+          .from('leads')
+          .select('id')
+          .in('place_id', rows.map((r) => r.place_id));
+        if (pageLeads?.length) {
+          await supabaseAdmin
+            .from('lead_list_members')
+            .upsert(
+              pageLeads.map((l) => ({ list_id: listId, lead_id: l.id })),
+              { onConflict: 'list_id,lead_id', ignoreDuplicates: true },
+            );
+        }
+      }
     }
 
     const pagesFetched = (search.pages_fetched as number) + 1;

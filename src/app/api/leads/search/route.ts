@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   if (denied) return denied;
 
   const body = (await req.json().catch(() => null)) as
-    | { categories?: string[]; cities?: string[]; maxResults?: number; findEmails?: boolean; offer?: string; subjectHint?: string; products?: string[] }
+    | { categories?: string[]; cities?: string[]; maxResults?: number; findEmails?: boolean; offer?: string; subjectHint?: string; products?: string[]; listName?: string }
     | null;
   const categories = (body?.categories ?? []).map((s) => s.trim()).filter(Boolean);
   const cities = (body?.cities ?? []).map((s) => s.trim()).filter(Boolean);
@@ -62,11 +62,32 @@ export async function POST(req: NextRequest) {
 
   // Merge (not ignore) so re-running "Find" updates the target / email toggle
   // and re-queues the search; already-discovered leads dedupe by place_id.
-  const { error } = await supabaseAdmin
+  const { data: upserted, error } = await supabaseAdmin
     .from('lead_searches')
-    .upsert(rows, { onConflict: 'category,city' });
+    .upsert(rows, { onConflict: 'category,city' })
+    .select('id, category, city, list_id');
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Every search materialises a list the results land in. A custom list name
+  // applies when the request is a single category × city; fan-outs get
+  // auto-names ("Gifting companies — Mumbai").
+  const customName = combos === 1 ? (body?.listName ?? '').trim().slice(0, 120) || null : null;
+  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  for (const s of upserted ?? []) {
+    const name = customName ?? `${cap(s.category)} — ${cap(s.city)}`;
+    if (s.list_id) {
+      // Re-run of an existing search: keep the list, refresh a custom name.
+      if (customName) await supabaseAdmin.from('lead_lists').update({ name }).eq('id', s.list_id);
+      continue;
+    }
+    const { data: list } = await supabaseAdmin
+      .from('lead_lists')
+      .insert({ name, source_search_id: s.id })
+      .select('id')
+      .single();
+    if (list) await supabaseAdmin.from('lead_searches').update({ list_id: list.id }).eq('id', s.id);
   }
 
   return NextResponse.json({
