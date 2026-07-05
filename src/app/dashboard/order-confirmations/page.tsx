@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { RefreshCw, Send, Percent, AlertCircle, CircleCheck, Ban } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { PageHead, SectionLabel, KpiCard, DataTable, StatusBadge } from "@/components/pm";
@@ -73,30 +74,27 @@ function money(n: number | null, cur: string | null): string {
 
 export default function OrderConfirmationsPage() {
   const toast = useToast();
-  const [data, setData] = useState<Data | null>(null);
   const [hours, setHours] = useState(720);
-  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState<string | null>(null); // "all" | order_number
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/whatsapp/confirmations?hours=${hours}`, { cache: "no-store" });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "load failed");
-      setData(d);
-    } catch {
-      toast.push({ kind: "error", text: "Could not load confirmation coverage." });
-    } finally {
-      setLoading(false);
-    }
-  }, [hours, toast]);
-
-  useEffect(() => {
-    setLoading(true);
-    load();
-    const t = setInterval(load, 30_000);
-    return () => clearInterval(t);
-  }, [load]);
+  // Replaces the old load() + mount effect + 30s setInterval poll.
+  const { data, refetch, isLoading } = useQuery({
+    queryKey: ["order-confirmations", hours],
+    queryFn: async (): Promise<Data> => {
+      try {
+        const res = await fetch(`/api/whatsapp/confirmations?hours=${hours}`, { cache: "no-store" });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || "load failed");
+        return d;
+      } catch (e) {
+        toast.push({ kind: "error", text: "Could not load confirmation coverage." });
+        throw e;
+      }
+    },
+    refetchInterval: 30_000,
+    placeholderData: keepPreviousData,
+  });
+  const load = () => refetch();
 
   async function send(orders: string[] | null, key: string) {
     if (orders && orders.length === 0) return;
@@ -194,7 +192,7 @@ export default function OrderConfirmationsPage() {
         }
       />
 
-      {loading && !data ? (
+      {isLoading ? (
         <div className="pm-panel pm-dim">Loading confirmation coverage…</div>
       ) : !data || !s ? (
         <div className="pm-panel pm-dim">No coverage data.</div>

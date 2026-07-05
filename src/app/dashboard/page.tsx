@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import Link from "next/link";
 import {
   RefreshCw,
@@ -125,19 +126,13 @@ type ChannelRow = { label: string; status: HealthStatus; pill: string };
 export default function DashboardPage() {
   const [period, setPeriod] = useState<Period>("30d");
   const [refreshing, setRefreshing] = useState(false);
-  const [loaded, setLoaded] = useState(false);
 
-  const [shopifyRevPeriod, setShopifyRevPeriod] = useState(0);
-  const [ordersPeriod, setOrdersPeriod] = useState(0);
   const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
   const [amazonGross, setAmazonGross] = useState<Record<Period, number> | null>(null);
   const [amazonOrders, setAmazonOrders] = useState<number | null>(null);
-  const [channelSegs, setChannelSegs] = useState<ChannelSeg[]>([]);
-  const [conf, setConf] = useState<Confirmations | null>(null);
   const [waHealth, setWaHealth] = useState<WaHealth | null>(null);
   const [needs, setNeeds] = useState<NeedsAttention | null>(null);
   const [support, setSupport] = useState<SupportStat | null>(null);
-  const [channels, setChannels] = useState<ChannelRow[]>([]);
 
   // Live Shopify snapshot (revenue/orders windows, customers, AOV).
   useEffect(() => {
@@ -186,9 +181,12 @@ export default function DashboardPage() {
       .catch(() => {});
   }, []);
 
-  async function load(opts?: { silent?: boolean }) {
-    if (!opts?.silent) setRefreshing(true);
-    try {
+  // Period-scoped snapshot: orders-table revenue/count, confirmation coverage,
+  // D2C channel mix and channel health. Replaces the old load() + [period] mount
+  // effect + 30s setInterval + focus/visibility refresh.
+  const { data, refetch } = useQuery({
+    queryKey: ["dashboard-snapshot", period],
+    queryFn: async () => {
       const sinceIso = sinceForPeriod(period);
 
       // Orders-table revenue + count for the window (mirror; live snapshot wins below).
@@ -196,28 +194,30 @@ export default function DashboardPage() {
       if (sinceIso) ordersQ = ordersQ.gte("placed_at", sinceIso);
       const ordersRes = await ordersQ;
       const orderRows = ordersRes.data || [];
-      setShopifyRevPeriod(orderRows.reduce((s, o) => s + (Number(o.total_amount) || 0), 0));
-      setOrdersPeriod(orderRows.length);
+      const shopifyRevPeriod = orderRows.reduce((s, o) => s + (Number(o.total_amount) || 0), 0);
+      const ordersPeriod = orderRows.length;
 
       // Order-confirmation coverage for the window.
+      let conf: Confirmations | null = null;
       try {
         const r = await fetch(`/api/whatsapp/confirmations?hours=${hoursForPeriod[period]}`, { cache: "no-store" });
         if (r.ok) {
           const d = await r.json();
           const s = d?.summary;
-          if (s) setConf({ sent: s.sent, outstanding: s.outstanding, noPhone: s.noPhone, cancelled: s.cancelled, total: s.total, coveragePct: s.coveragePct });
+          if (s) conf = { sent: s.sent, outstanding: s.outstanding, noPhone: s.noPhone, cancelled: s.cancelled, total: s.total, coveragePct: s.coveragePct };
         }
       } catch {}
 
       // D2C channel mix for the donut (capped read of shopify_orders in window).
+      let channelSegs: ChannelSeg[] = [];
       try {
         let q = supabase
           .from("shopify_orders")
           .select("total_price, first_utm_source, first_source, source_name, is_creator")
           .range(0, 999);
         if (sinceIso) q = q.gte("shopify_created_at", sinceIso);
-        const { data } = await q;
-        const rows = (data || []) as ChannelOrder[];
+        const { data: chanData } = await q;
+        const rows = (chanData || []) as ChannelOrder[];
         const map = new Map<string, number>();
         for (const o of rows) map.set(channelOf(o), (map.get(channelOf(o)) ?? 0) + (Number(o.total_price) || 0));
         const sorted = [...map.entries()].sort((a, b) => b[1] - a[1]);
@@ -225,15 +225,29 @@ export default function DashboardPage() {
         const otherTotal = sorted.slice(4).reduce((s, [, v]) => s + v, 0);
         const segs: ChannelSeg[] = top.map(([label, value], i) => ({ label, value, color: CHAN_COLORS[i] }));
         if (otherTotal > 0) segs.push({ label: "Other", value: otherTotal, color: CHAN_COLORS[4] });
-        setChannelSegs(segs);
+        channelSegs = segs;
       } catch {}
 
-      setChannels(await detectChannels());
-      setLoaded(true);
-    } finally {
-      setRefreshing(false);
-    }
+      const channels = await detectChannels();
+      return { shopifyRevPeriod, ordersPeriod, conf, channelSegs, channels };
+    },
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
+  });
+
+  // "Sync now" shows its spinner only for an explicit manual refetch, matching
+  // the old load() (which set refreshing) vs the silent interval poll.
+  async function syncNow() {
+    setRefreshing(true);
+    try { await refetch(); } finally { setRefreshing(false); }
   }
+
+  const shopifyRevPeriod = data?.shopifyRevPeriod ?? 0;
+  const ordersPeriod = data?.ordersPeriod ?? 0;
+  const conf = data?.conf ?? null;
+  const channelSegs = data?.channelSegs ?? [];
+  const channels = data?.channels ?? [];
 
   async function detectChannels(): Promise<ChannelRow[]> {
     const rows: ChannelRow[] = [];
@@ -280,25 +294,6 @@ export default function DashboardPage() {
     return rows;
   }
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period]);
-
-  useEffect(() => {
-    const refresh = () => load({ silent: true });
-    const id = setInterval(refresh, 30_000);
-    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", refresh);
-    return () => {
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", refresh);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period]);
-
   // Derived figures
   const statKey: Record<Period, string> = { today: "today", "7d": "d7", "30d": "d30", "90d": "d90", all: "all" };
   const liveRevenue = liveStats ? liveStats.revenue[statKey[period]] : undefined;
@@ -322,7 +317,7 @@ export default function DashboardPage() {
 
   const channelTotal = channelSegs.reduce((s, x) => s + x.value, 0);
 
-  if (!loaded) {
+  if (!data) {
     return (
       <div className="pm-page">
         <PageHead title="Dashboard" subtitle="Loading…" />
@@ -344,7 +339,7 @@ export default function DashboardPage() {
                 </button>
               ))}
             </div>
-            <button className="pm-btn primary" onClick={() => load()} disabled={refreshing}>
+            <button className="pm-btn primary" onClick={syncNow} disabled={refreshing}>
               <RefreshCw size={15} /> {refreshing ? "Syncing…" : "Sync now"}
             </button>
           </>

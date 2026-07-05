@@ -4,7 +4,8 @@
 // (segments, scheduling, AI personalization), per-campaign recipients view and
 // the CSV contact importer. Extracted from dashboard/whatsapp/page.tsx (audit R5).
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle, Check, Clock, FileText, Megaphone, Phone, Plus, RefreshCw,
   Send, Sparkles, Trash2, Upload, User as UserIcon, X,
@@ -108,7 +109,6 @@ function RecipientsModal({ campaign, onClose }: { campaign: Campaign; onClose: (
 
 export default function CampaignsView() {
   const toast = useToast();
-  const [list, setList] = useState<Campaign[]>([]);
   const [creating, setCreating] = useState(false);
   const [createSeg, setCreateSeg] = useState<string[] | null>(null);
   const [segs, setSegs] = useState<{ rfm_tier: string; customers: number; spend: number; avg_recency: number }[]>([]);
@@ -116,29 +116,35 @@ export default function CampaignsView() {
   const [importing, setImporting] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
   const [recipientsFor, setRecipientsFor] = useState<Campaign | null>(null);
-  const [recovery, setRecovery] = useState<
-    { enrolled: number; recovered: number; delivered: number; retrying: number; missed: number; reached: number; reachRate: number } | null
-  >(null);
 
-  const load = useCallback(async () => {
-    const r = await fetch("/api/whatsapp/campaigns");
-    const j = await r.json();
-    setList(j.campaigns ?? []);
-  }, []);
-  useEffect(() => { load(); }, [load]);
+  // Replaces the old load() + mount effect + 8s setInterval poll.
+  const { data: list = [], refetch } = useQuery({
+    queryKey: ["wa-campaigns"],
+    queryFn: async (): Promise<Campaign[]> => {
+      const r = await fetch("/api/whatsapp/campaigns");
+      const j = await r.json();
+      return j.campaigns ?? [];
+    },
+    refetchInterval: 8000,
+  });
+  const load = () => refetch();
+
   useEffect(() => {
     fetch("/api/whatsapp/segments").then((r) => r.json()).then((j) => setSegs(j.segments ?? [])).catch(() => {});
   }, []);
-  useEffect(() => {
-    const f = () => fetch("/api/whatsapp/cart-recovery").then((r) => r.json()).then((j) => setRecovery(j.stats ?? null)).catch(() => {});
-    f();
-    const t = setInterval(f, 15000);
-    return () => clearInterval(t);
-  }, []);
-  useEffect(() => {
-    const t = setInterval(load, 8000);
-    return () => clearInterval(t);
-  }, [load]);
+
+  // Replaces the old cart-recovery mount fetch + 15s setInterval poll.
+  const { data: recovery = null } = useQuery({
+    queryKey: ["wa-cart-recovery"],
+    queryFn: async (): Promise<
+      { enrolled: number; recovered: number; delivered: number; retrying: number; missed: number; reached: number; reachRate: number } | null
+    > => {
+      const r = await fetch("/api/whatsapp/cart-recovery");
+      const j = await r.json();
+      return j.stats ?? null;
+    },
+    refetchInterval: 15000,
+  });
 
   async function send(c: Campaign) {
     if (!confirm(`Send "${c.name}" now? This messages every matching opted-in contact and is billed by Meta.`)) return;
