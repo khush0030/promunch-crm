@@ -17,6 +17,7 @@ import { SITE_URL, firstName, toWaId } from "../_shared/journeys.ts";
 import { getFlowSettings } from "../_shared/flow-settings.ts";
 import { handleOrderCreated } from "../_shared/order-confirmation.ts";
 import { claimSend, markSendSent, releaseSend } from "../_shared/confirmations.ts";
+import { enrolCustomFlows } from "../_shared/custom-flows.ts";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
@@ -68,10 +69,16 @@ async function handleOrderFulfilled(order: any) {
   );
   if (!waId) return;
 
+  const name = firstName(order.customer?.first_name, order.shipping_address?.first_name);
+
+  // User-created flows on this trigger (own atomic claim per flow+order;
+  // independent of the built-in shipping-update toggle).
+  await enrolCustomFlows("order_fulfilled", { waId, name, entityRef: orderRef })
+    .catch((e) => console.warn("[shopify-wa] custom enrol (fulfilled):", e));
+
   // Dashboard kill-switch (Flows tab).
   if (!(await getFlowSettings()).shipping_update_enabled) return;
 
-  const name = firstName(order.customer?.first_name, order.shipping_address?.first_name);
   const f = Array.isArray(order.fulfillments) ? order.fulfillments[0] : null;
   const tracking: string = resolveTrackingUrl(f, order);
 
@@ -163,6 +170,22 @@ async function handleCheckout(checkout: any) {
 
   // Dashboard settings (Flows tab): kill-switch + step delays + deadline + coupon.
   const flows = await getFlowSettings();
+
+  const name = firstName(checkout.customer?.first_name, checkout.shipping_address?.first_name);
+  // The third-party checkout partner (sales channel SMB-1CCO) skips the native
+  // Shopify checkout, so `abandoned_checkout_url` points at a cart the customer
+  // can't actually complete. The partner instead drops its OWN recovery URL into
+  // the order note — a /cart/?atomsSt=<token>&bzCartRec=true link. Always prefer
+  // that note URL; the token rehydrates the partner cart on tap. Only fall back
+  // to Shopify's native URL (then /cart) when the note carries no link.
+  const noteUrl = noteCheckoutUrl(checkout);
+  const recoverUrl: string = noteUrl || checkout.abandoned_checkout_url || `${SITE_URL}/cart`;
+
+  // User-created flows on this trigger (own atomic claim per flow+checkout;
+  // independent of the built-in cart flow's toggle and enrol gate).
+  await enrolCustomFlows("checkout_abandoned", { waId, name, entityRef: token, checkoutUrl: recoverUrl })
+    .catch((e) => console.warn("[shopify-wa] custom enrol (checkout):", e));
+
   if (!flows.abandoned_cart_enabled) return;
 
   // ATOMIC gate — two checkouts/create+update webhooks for the same token could
@@ -174,15 +197,6 @@ async function handleCheckout(checkout: any) {
   const { data: prior } = await sb.from("wa_journey_runs").select("id").eq("order_ref", token).limit(1);
   if (prior && prior.length) { await markSendSent(enrolKey); return; }
 
-  const name = firstName(checkout.customer?.first_name, checkout.shipping_address?.first_name);
-  // The third-party checkout partner (sales channel SMB-1CCO) skips the native
-  // Shopify checkout, so `abandoned_checkout_url` points at a cart the customer
-  // can't actually complete. The partner instead drops its OWN recovery URL into
-  // the order note — a /cart/?atomsSt=<token>&bzCartRec=true link. Always prefer
-  // that note URL; the token rehydrates the partner cart on tap. Only fall back
-  // to Shopify's native URL (then /cart) when the note carries no link.
-  const noteUrl = noteCheckoutUrl(checkout);
-  const recoverUrl: string = noteUrl || checkout.abandoned_checkout_url || `${SITE_URL}/cart`;
   await logConnector({
     connector: "shopify_wa", level: "info", event: "abandoned_recover_url",
     message: `Cart ${token}: recovery link from ${noteUrl ? "note" : (checkout.abandoned_checkout_url ? "shopify_url" : "fallback")}.`,

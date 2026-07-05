@@ -12,10 +12,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, ArrowRight, CheckCircle2, Clock, MessageSquareText,
-  PackageCheck, RefreshCw, ShoppingCart, Star, Truck, Zap,
+  PackageCheck, Pencil, Plus, RefreshCw, ShoppingCart, Star, Trash2, Truck, X, Zap,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { cardStyle, primaryBtn, smallBtn } from "./styles";
+import type { Template } from "./types";
+import { cardStyle, inputStyle, primaryBtn, smallBtn } from "./styles";
+import { Modal, Field } from "./primitives";
 
 type FlowSettings = {
   order_confirmation_enabled: boolean;
@@ -33,6 +35,22 @@ type FlowSettings = {
 };
 type TplRow = { name: string; language: string; status: string };
 type Stats = Record<string, Record<string, number>>;
+
+type CustomStep = { delay_hours: number; template: string; language: string; vars: Record<string, string> };
+type CustomFlow = {
+  id: string; name: string; enabled: boolean;
+  trigger_event: "order_placed" | "order_fulfilled" | "checkout_abandoned";
+  steps: CustomStep[];
+};
+
+const TRIGGER_LABELS: Record<CustomFlow["trigger_event"], { label: string; icon: typeof PackageCheck }> = {
+  order_placed: { label: "Order placed", icon: PackageCheck },
+  order_fulfilled: { label: "Order shipped", icon: Truck },
+  checkout_abandoned: { label: "Checkout abandoned", icon: ShoppingCart },
+};
+
+const fmtDelay = (h: number) =>
+  h === 0 ? "instantly" : h % 24 === 0 && h >= 24 ? `after ${h / 24} day${h === 24 ? "" : "s"}` : `after ${h}h`;
 
 /* ---------- small building blocks ---------------------------------- */
 
@@ -177,14 +195,37 @@ export default function FlowsView() {
   const [templates, setTemplates] = useState<TplRow[]>([]);
   const [stats, setStats] = useState<Stats>({});
   const [saving, setSaving] = useState(false);
+  const [custom, setCustom] = useState<CustomFlow[]>([]);
+  const [builder, setBuilder] = useState<CustomFlow | "new" | null>(null);
 
-  useEffect(() => {
+  function load() {
     fetch("/api/whatsapp/flows").then((r) => r.json()).then((j) => {
-      if (j.settings) { setSettings(j.settings); setDraft(j.settings); }
+      if (j.settings) { setSettings(j.settings); setDraft((d) => (d ? d : j.settings)); }
       setTemplates(j.templates ?? []);
       setStats(j.stats ?? {});
+      setCustom(j.custom ?? []);
     }).catch(() => {});
-  }, []);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, []);
+
+  async function toggleCustom(f: CustomFlow, enabled: boolean) {
+    setCustom((cs) => cs.map((c) => (c.id === f.id ? { ...c, enabled } : c)));
+    const r = await fetch(`/api/whatsapp/flows/custom/${f.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    const j = await r.json();
+    if (j.error) { toast.push({ kind: "error", text: j.error }); load(); }
+  }
+
+  async function removeCustom(f: CustomFlow) {
+    if (!confirm(`Delete flow "${f.name}"? Pending messages for it are cancelled — customers already messaged are unaffected.`)) return;
+    const r = await fetch(`/api/whatsapp/flows/custom/${f.id}`, { method: "DELETE" });
+    const j = await r.json();
+    if (j.error) toast.push({ kind: "error", text: j.error });
+    load();
+  }
 
   const dirty = useMemo(
     () => !!settings && !!draft && JSON.stringify(settings) !== JSON.stringify(draft),
@@ -230,14 +271,19 @@ export default function FlowsView() {
           changes apply to customers entering the flow from then on (already-scheduled messages keep
           their original time). Turning a flow off holds its pending messages without deleting them.
         </div>
-        {dirty && (
-          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-            <button type="button" style={smallBtn} onClick={() => setDraft(settings)}>Discard</button>
-            <button type="button" style={primaryBtn} disabled={saving} onClick={save}>
-              <CheckCircle2 size={14} /> {saving ? "Saving…" : "Save changes"}
-            </button>
-          </div>
-        )}
+        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+          {dirty && (
+            <>
+              <button type="button" style={smallBtn} onClick={() => setDraft(settings)}>Discard</button>
+              <button type="button" style={smallBtn} disabled={saving} onClick={save}>
+                <CheckCircle2 size={14} /> {saving ? "Saving…" : "Save changes"}
+              </button>
+            </>
+          )}
+          <button type="button" style={primaryBtn} onClick={() => setBuilder("new")}>
+            <Plus size={14} /> New flow
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "grid", gap: 12 }}>
@@ -389,6 +435,64 @@ export default function FlowsView() {
         </FlowCard>
       </div>
 
+      {/* user-created flows */}
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-muted)", margin: "20px 0 10px", textTransform: "uppercase", letterSpacing: 0.4 }}>
+        Your flows
+      </div>
+      {custom.length === 0 && (
+        <div style={{ ...cardStyle, color: "var(--pm-hint)", fontSize: 13 }}>
+          No custom flows yet. Hit <strong>New flow</strong> to build one — pick a trigger (order placed /
+          shipped / checkout abandoned), add one or more timed messages using your approved templates, and it
+          runs automatically with the same no-duplicate guarantees as the built-ins.
+        </div>
+      )}
+      <div style={{ display: "grid", gap: 12 }}>
+        {custom.map((f) => {
+          const trig = TRIGGER_LABELS[f.trigger_event] ?? TRIGGER_LABELS.order_placed;
+          const st = stats[`custom:${f.id}`] ?? {};
+          return (
+            <FlowCard key={f.id} title={f.name} icon={trig.icon}
+              enabled={f.enabled} dimmed={!f.enabled}
+              onToggle={(v) => toggleCustom(f, v)}>
+              <Timeline>
+                <Node icon={trig.icon} title={trig.label} sub="Shopify webhook" tone="brand" />
+                {f.steps.map((s, i) => (
+                  <span key={i} style={{ display: "contents" }}>
+                    <Arrow />
+                    <Wait>{fmtDelay(Number(s.delay_hours))}</Wait>
+                    <Arrow />
+                    <Node icon={MessageSquareText} title={`Message ${i + 1}`}
+                      sub={<TplBadge name={s.template} templates={templates} />} tone="green" />
+                  </span>
+                ))}
+              </Timeline>
+              <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                <button type="button" style={smallBtn} onClick={() => setBuilder(f)}>
+                  <Pencil size={12} /> Edit
+                </button>
+                <button type="button" style={{ ...smallBtn, color: "var(--pm-terra)" }}
+                  aria-label={`Delete flow ${f.name}`} onClick={() => removeCustom(f)}>
+                  <Trash2 size={12} />
+                </button>
+              </div>
+              <StatChips rows={[
+                { label: "sent", value: st.completed ?? 0, color: "var(--pm-green)" },
+                { label: "waiting", value: st.active ?? 0, color: "var(--pm-gold)" },
+                { label: "failed", value: st.failed ?? 0, color: (st.failed ?? 0) > 0 ? "var(--pm-terra)" : "var(--pm-hint)" },
+                { label: "stopped (ordered/cancelled)", value: (st.converted ?? 0) + (st.cancelled ?? 0) },
+              ]} />
+            </FlowCard>
+          );
+        })}
+      </div>
+
+      {builder && (
+        <CustomFlowBuilder
+          initial={builder === "new" ? null : builder}
+          onClose={(changed) => { setBuilder(null); if (changed) load(); }}
+        />
+      )}
+
       {dirty && (
         <div style={{
           position: "sticky", bottom: 12, marginTop: 14, display: "flex", justifyContent: "flex-end",
@@ -405,5 +509,167 @@ export default function FlowsView() {
         </div>
       )}
     </div>
+  );
+}
+
+/* ---------- flow builder modal -------------------------------------- */
+
+const VAR_HINT = "{name} = customer's first name · {order_ref} = order number · {checkout_url} = cart recovery link (checkout trigger only)";
+
+function CustomFlowBuilder({ initial, onClose }: {
+  initial: CustomFlow | null;
+  onClose: (changed: boolean) => void;
+}) {
+  const toast = useToast();
+  const [name, setName] = useState(initial?.name ?? "");
+  const [trigger, setTrigger] = useState<CustomFlow["trigger_event"]>(initial?.trigger_event ?? "order_placed");
+  const [steps, setSteps] = useState<CustomStep[]>(
+    initial?.steps?.length
+      ? initial.steps.map((s) => ({ ...s, vars: { ...(s.vars ?? {}) } }))
+      : [{ delay_hours: 24, template: "", language: "en", vars: {} }],
+  );
+  const [approved, setApproved] = useState<Template[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/whatsapp/templates?status=approved")
+      .then((r) => r.json()).then((j) => setApproved(j.templates ?? [])).catch(() => {});
+  }, []);
+
+  const tplByName = useMemo(() => new Map(approved.map((t) => [t.name, t])), [approved]);
+  const varsOf = (tplName: string) => {
+    const body = tplByName.get(tplName)?.body ?? "";
+    return Array.from(new Set((body.match(/\{\{(\d+)\}\}/g) ?? []).map((m) => m.replace(/[{}]/g, ""))));
+  };
+
+  function setStep(i: number, patch: Partial<CustomStep>) {
+    setSteps((ss) => ss.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+  }
+
+  async function save() {
+    if (!name.trim()) { toast.push({ kind: "error", text: "Give the flow a name." }); return; }
+    if (steps.some((s) => !s.template)) { toast.push({ kind: "error", text: "Pick a template for every message." }); return; }
+    const missing = steps.flatMap((s, i) =>
+      varsOf(s.template).filter((n) => !(s.vars[n] ?? "").trim()).map((n) => `message ${i + 1} {{${n}}}`));
+    if (missing.length) { toast.push({ kind: "error", text: `Fill ${missing.join(", ")} — empty values fail at Meta.` }); return; }
+    setSaving(true);
+    try {
+      const body = {
+        name: name.trim(),
+        trigger_event: trigger,
+        enabled: initial?.enabled ?? true,
+        steps: steps.map((s) => ({
+          delay_hours: Number(s.delay_hours),
+          template: s.template,
+          language: tplByName.get(s.template)?.language ?? s.language ?? "en",
+          vars: Object.fromEntries(varsOf(s.template).map((n) => [n, s.vars[n] ?? ""])),
+        })),
+      };
+      const r = await fetch(initial ? `/api/whatsapp/flows/custom/${initial.id}` : "/api/whatsapp/flows/custom", {
+        method: initial ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json();
+      if (j.error) { toast.push({ kind: "error", text: j.error }); return; }
+      toast.push({
+        kind: "success",
+        text: initial
+          ? `Flow "${name.trim()}" updated — applies to customers entering it from now on.`
+          : `Flow "${name.trim()}" is live — customers hitting the trigger from now on will get it.`,
+      });
+      onClose(true);
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <Modal onClose={() => onClose(false)} title={initial ? "Edit flow" : "New flow"}>
+      <Field label="Flow name (internal — customers never see it)">
+        <input value={name} onChange={(e) => setName(e.target.value)}
+          placeholder="Post-delivery cross-sell" style={inputStyle} />
+      </Field>
+      <Field label="Trigger — what starts the flow">
+        <select aria-label="Flow trigger" value={trigger} disabled={!!initial}
+          onChange={(e) => setTrigger(e.target.value as CustomFlow["trigger_event"])} style={inputStyle}>
+          <option value="order_placed">Order placed</option>
+          <option value="order_fulfilled">Order shipped (fulfilled)</option>
+          <option value="checkout_abandoned">Checkout abandoned (has phone)</option>
+        </select>
+        {!!initial && <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 4 }}>
+          The trigger can&apos;t change on an existing flow — make a new flow instead.
+        </div>}
+      </Field>
+
+      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Messages (up to 5, delays measured from the trigger)</div>
+      {approved.length === 0 && (
+        <div style={{ fontSize: 12, color: "var(--pm-terra)", marginBottom: 10 }}>
+          No approved templates yet — create one in the Templates tab first.
+        </div>
+      )}
+      {steps.map((s, i) => (
+        <div key={i} style={{ border: "1px solid var(--pm-border)", borderRadius: 8, padding: 10, marginBottom: 8, background: "var(--pm-app)" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-muted)" }}>#{i + 1}</span>
+            <Clock size={13} style={{ color: "var(--pm-gold)" }} />
+            <span style={{ fontSize: 12, color: "var(--pm-muted)" }}>after</span>
+            <input type="number" min={0} max={2160} step={1} value={s.delay_hours}
+              aria-label={`Message ${i + 1} delay in hours`}
+              onChange={(e) => setStep(i, { delay_hours: Number(e.target.value) })}
+              style={{ ...inputStyle, width: 80, marginBottom: 0, textAlign: "center", fontWeight: 700 }} />
+            <span style={{ fontSize: 12, color: "var(--pm-muted)" }}>
+              hours{Number(s.delay_hours) >= 24 ? ` (= ${Math.round((Number(s.delay_hours) / 24) * 10) / 10} days)` : ""}
+            </span>
+            {steps.length > 1 && (
+              <button type="button" aria-label={`Remove message ${i + 1}`}
+                onClick={() => setSteps((ss) => ss.filter((_, j) => j !== i))}
+                style={{ ...smallBtn, marginLeft: "auto", color: "var(--pm-terra)" }}>
+                <X size={13} />
+              </button>
+            )}
+          </div>
+          <select aria-label={`Message ${i + 1} template`} value={s.template}
+            onChange={(e) => setStep(i, { template: e.target.value, vars: {} })}
+            style={{ ...inputStyle, marginBottom: 6 }}>
+            <option value="">— pick an approved template —</option>
+            {approved.map((t) => <option key={t.id} value={t.name}>{t.name} ({t.language})</option>)}
+          </select>
+          {varsOf(s.template).map((n) => (
+            <div key={n} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, width: 38, color: "var(--pm-green)" }}>{`{{${n}}}`}</span>
+              <input value={s.vars[n] ?? ""} placeholder="value — supports {name}, {order_ref}, {checkout_url}"
+                onChange={(e) => setStep(i, { vars: { ...s.vars, [n]: e.target.value } })}
+                style={{ ...inputStyle, marginBottom: 0 }} />
+            </div>
+          ))}
+          {s.template && tplByName.get(s.template)?.body && (
+            <div style={{ fontSize: 11.5, color: "var(--pm-muted)", whiteSpace: "pre-wrap", marginTop: 4, lineHeight: 1.4 }}>
+              {(tplByName.get(s.template)!.body).replace(/\{\{(\d+)\}\}/g, (_, n) => s.vars[n] || `{{${n}}}`)}
+            </div>
+          )}
+        </div>
+      ))}
+      {steps.length < 5 && (
+        <button type="button" style={{ ...smallBtn, marginBottom: 12 }}
+          onClick={() => setSteps((ss) => [...ss, {
+            delay_hours: Math.max(24, Number(ss[ss.length - 1]?.delay_hours ?? 0) + 24),
+            template: "", language: "en", vars: {},
+          }])}>
+          <Plus size={13} /> Add another message
+        </button>
+      )}
+
+      <div style={{ fontSize: 11, color: "var(--pm-hint)", marginBottom: 12, lineHeight: 1.5 }}>
+        {VAR_HINT}. Each customer enters a flow at most once per order/checkout (no duplicates, ever).
+        Checkout flows stop automatically when the customer orders; order flows stop if the order is cancelled.
+        Customers with an open support ticket are paused, not messaged.
+      </div>
+
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button type="button" style={smallBtn} onClick={() => onClose(false)}>Cancel</button>
+        <button type="button" style={primaryBtn} disabled={saving || approved.length === 0} onClick={save}>
+          <CheckCircle2 size={14} /> {saving ? "Saving…" : initial ? "Save flow" : "Create flow"}
+        </button>
+      </div>
+    </Modal>
   );
 }

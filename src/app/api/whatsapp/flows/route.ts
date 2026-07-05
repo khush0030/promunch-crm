@@ -40,13 +40,6 @@ const NUM_LIMITS: Record<string, { min: number; max: number }> = {
   replenishment_delay_days: { min: 1, max: 365 },
 };
 
-// Templates each flow depends on — surfaced so the page can flag one that
-// isn't approved at Meta (the tick holds sends until it is).
-const FLOW_TEMPLATES = [
-  "order_confirmation_v2", "shipping_update", "abandoned_cart_reminder",
-  "abandoned_cart_recovery", "review_request", "replenishment_reminder",
-];
-
 async function currentSettings(): Promise<Settings> {
   const { data } = await supabaseAdmin
     .from("wa_flow_settings").select("*").eq("id", 1).maybeSingle();
@@ -77,12 +70,19 @@ export async function GET() {
     byKey[r.status] = (byKey[r.status] ?? 0) + 1;
   }
 
+  // Templates: the built-in flow set PLUS any referenced by custom flows —
+  // fetch all names so the page can show approval dots everywhere.
   const { data: templates } = await supabaseAdmin
     .from("wa_templates")
-    .select("name, language, status")
-    .in("name", FLOW_TEMPLATES);
+    .select("name, language, status");
 
-  return NextResponse.json({ settings, stats, templates: templates ?? [] });
+  // User-created flows (empty array when the table isn't migrated yet).
+  const { data: custom } = await supabaseAdmin
+    .from("wa_custom_flows")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  return NextResponse.json({ settings, stats, templates: templates ?? [], custom: custom ?? [] });
 }
 
 export async function PATCH(req: NextRequest) {

@@ -19,6 +19,7 @@ import {
 } from "./confirmations.ts";
 import { REVIEW_URL, SITE_URL, firstName, toWaId } from "./journeys.ts";
 import { getFlowSettings, type FlowSettings } from "./flow-settings.ts";
+import { enrolCustomFlows } from "./custom-flows.ts";
 
 export interface OrderConfirmationResult {
   orderRef: string;
@@ -108,10 +109,22 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
     console.warn(`[order-confirmation] enrol failed for ${orderRef}:`, e)
   );
 
+  // user-created flows on this trigger (own atomic claim per flow+order)
+  await enrolCustomFlows("order_placed", { waId, name, entityRef: orderRef }).catch((e) =>
+    console.warn(`[order-confirmation] custom enrol failed for ${orderRef}:`, e)
+  );
+
   // cancel any open abandoned-checkout reminder — they converted
   await db().from("wa_journey_runs")
     .update({ status: "converted" })
     .eq("wa_id", waId).eq("journey_key", "abandoned_checkout").eq("status", "active")
+    .then(() => {}, () => {});
+  // ...and any user-created checkout-abandoned flow runs for this customer —
+  // a "come back to your cart" message after they just ordered reads as spam.
+  await db().from("wa_journey_runs")
+    .update({ status: "converted" })
+    .eq("wa_id", waId).like("journey_key", "custom:%")
+    .eq("context->>trigger", "checkout_abandoned").eq("status", "active")
     .then(() => {}, () => {});
 
   return { orderRef, status: sendStatus, detail: sendDetail };

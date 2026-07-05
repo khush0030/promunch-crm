@@ -11,6 +11,7 @@ import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { TIMED_JOURNEYS } from "../_shared/journeys.ts";
 import { getFlowSettings } from "../_shared/flow-settings.ts";
+import { CUSTOM_KEY_PREFIX, loadCustomFlows } from "../_shared/custom-flows.ts";
 import { isOrderCancelled } from "../_shared/orders.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 import { WINDOW_DELIVER_JOURNEYS, claimAsk, releaseAsk, sessionOpen } from "../_shared/window-asks.ts";
@@ -35,6 +36,8 @@ Deno.serve(async (req) => {
     review_request: flows.review_request_enabled,
     replenishment_reminder: flows.replenishment_enabled,
   };
+  // User-created flows (journey_key 'custom:<id>') — for enabled/deleted checks.
+  const customFlows = new Map((await loadCustomFlows()).map((f) => [f.id, f]));
 
   const { data: due, error } = await sb
     .from("wa_journey_runs")
@@ -58,10 +61,26 @@ Deno.serve(async (req) => {
   let sent = 0, failed = 0, skipped = 0;
 
   for (const run of due ?? []) {
-    const cfg = TIMED_JOURNEYS[run.journey_key];
+    // Custom flows carry their template/language in context (stamped at enrol);
+    // built-ins come from TIMED_JOURNEYS.
+    const isCustom = String(run.journey_key ?? "").startsWith(CUSTOM_KEY_PREFIX);
+    const customFlow = isCustom
+      ? customFlows.get(String(run.journey_key).slice(CUSTOM_KEY_PREFIX.length))
+      : undefined;
+    const cfg = isCustom
+      ? (run.context?.template
+          ? { template: String(run.context.template), language: String(run.context.language ?? "en"), delayHours: 0 }
+          : undefined)
+      : TIMED_JOURNEYS[run.journey_key];
     if (!cfg) {
       await mark(run.id, "failed", `unknown journey '${run.journey_key}'`);
       failed++;
+      continue;
+    }
+    if (isCustom && !customFlow) {
+      // Flow was deleted in the dashboard — retire its pending runs quietly.
+      await mark(run.id, "cancelled", "custom flow deleted");
+      skipped++;
       continue;
     }
 
@@ -85,7 +104,7 @@ Deno.serve(async (req) => {
     // re-enabling the flow resumes where it left off. Placed AFTER the
     // deadline guard so a paused cart still expires at its deadline instead
     // of nudging a days-cold cart when the flow comes back on.
-    if (flowEnabled[run.journey_key] === false) {
+    if (flowEnabled[run.journey_key] === false || (customFlow && !customFlow.enabled)) {
       await sb.from("wa_journey_runs").update({
         next_action_at: new Date(Date.now() + 6 * 3600_000).toISOString(),
         last_error: "paused — flow disabled in dashboard settings",
