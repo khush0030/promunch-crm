@@ -5,6 +5,7 @@ import { isAllowedEmail, ALLOWED_DOMAINS_LABEL } from "@/lib/auth-domains";
 import { sendEmail } from "@/lib/resend";
 import { inviteEmailHtml, inviteEmailSubject } from "@/lib/emails/invite";
 import { recordAudit } from "@/lib/audit";
+import { assertHuman } from "@/lib/botid-guard";
 
 function callerName(user: { email?: string | null; user_metadata?: Record<string, unknown> }): string {
   const meta = (user.user_metadata || {}) as Record<string, unknown>;
@@ -88,6 +89,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const bot = await assertHuman();
+  if (bot) return bot;
   const caller = await requireCaller();
   if (!caller) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!canManage(caller)) return NextResponse.json({ error: "Only admins can invite members." }, { status: 403 });
@@ -169,6 +172,8 @@ export async function POST(req: NextRequest) {
 // Change a member's role (owner/admin/agent). Admins only; you can't change
 // your own role (prevents the last admin locking themselves out).
 export async function PATCH(req: NextRequest) {
+  const bot = await assertHuman();
+  if (bot) return bot;
   const caller = await requireCaller();
   if (!caller) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!canManage(caller)) return NextResponse.json({ error: "Only admins can change roles." }, { status: 403 });
@@ -202,6 +207,8 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const bot = await assertHuman();
+  if (bot) return bot;
   const caller = await requireCaller();
   if (!caller) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!canManage(caller)) return NextResponse.json({ error: "Only admins can remove members." }, { status: 403 });
