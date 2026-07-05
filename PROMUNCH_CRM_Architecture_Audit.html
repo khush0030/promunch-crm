@@ -217,9 +217,9 @@
     <tr><td>Authn / authz</td><td><span class="badge b-crit">Critical</span></td><td>Open anon RLS, unauth send functions, no roles/RBAC.</td></tr>
     <tr><td>Secrets management</td><td><span class="badge b-crit">Critical</span></td><td>Live service_role key recoverable from git history, unrotated.</td></tr>
     <tr><td>Webhook / input trust</td><td><span class="badge b-high">Weak</span></td><td>No HMAC on Next Shopify route; fail-open secrets; filter injection.</td></tr>
-    <tr><td>Operational reproducibility</td><td><span class="badge b-med">Needs work</span></td><td>Cron topology + schema split across dirs and the dashboard UI; not in source.</td></tr>
-    <tr><td>Code maintainability</td><td><span class="badge b-med">Needs work</span></td><td>1,029-line wa-ai-reply still monolithic; WhatsApp page split into components (page.tsx 2,540→152) + 33 unit tests, postSlack collision fixed, RBAC added.</td></tr>
-    <tr><td>Frontend / UX architecture</td><td><span class="badge b-med">Needs work</span></td><td>No data-fetching or state library; giant client components.</td></tr>
+    <tr><td>Operational reproducibility</td><td><span class="badge b-ok">Fixed in code</span></td><td>All 18 pg_cron jobs now in a versioned idempotent migration (20260705100000) + docs/CRON_TOPOLOGY.md maps all 3 schedulers. Left: apply the migration in SQL editor.</td></tr>
+    <tr><td>Code maintainability</td><td><span class="badge b-med">Needs work</span></td><td>wa-ai-reply split into 11 modules (verbatim, NOT deployed); WhatsApp page 2,540→152 and leads page 1,305→236 split into components; 33 unit tests; all 48 edge fns deno-check clean; CI gate (tsc+vitest+deno check) on every push.</td></tr>
+    <tr><td>Frontend / UX architecture</td><td><span class="badge b-prog">In progress</span></td><td>TanStack Query adopted (provider + KbView exemplar); both giant pages split into feature components. Left: migrate remaining views to useQuery.</td></tr>
   </table></div>
 </div></section>
 
@@ -413,7 +413,7 @@ Staff schedules a campaign in the dashboard
 <!-- ===================== BACKEND ===================== -->
 <section id="backend"><div class="wrap">
   <h2><span class="num">05</span> Backend Deep-Dive</h2>
-  <p class="lead">48 edge functions, ~14.7k lines, organized by domain. Every channel is a near-mirror of the WhatsApp stack (webhook → jobs-tick → ai-reply → send). The largest single file, <code>wa-ai-reply</code> at 1,029 lines, holds triage, KB retrieval, the order-lookup tool loop, ticketing, and human handoff — a clear refactor target.</p>
+  <p class="lead">48 edge functions, ~14.7k lines, organized by domain. Every channel is a near-mirror of the WhatsApp stack (webhook → jobs-tick → ai-reply → send). The former 1,029-line <code>wa-ai-reply</code> monolith is now 11 modules (config/prompt/kb/support-hours/openai-util/turn-claim/parse/ticket/catalog/send/asks + a 344-line handler) — split verbatim 2026-07-05, pending deploy sign-off.</p>
 
   <h3>Function domains &amp; triggers</h3>
   <div class="tbl-wrap"><table>
@@ -528,7 +528,7 @@ Staff schedules a campaign in the dashboard
   </div>
 
   <div class="status-board">
-    <div class="sbh"><span>Remediation status</span><span class="updated">updated 2026-07-05 · commit 1dc4811 · 12/12 findings addressed in code · C2 rotation STILL PENDING (key verified live 2026-07-05) · pending deploy</span></div>
+    <div class="sbh"><span>Remediation status</span><span class="updated">updated 2026-07-05 · commit 916c51c · 12/12 findings addressed in code · C2 rotation STILL PENDING (key verified live 2026-07-05) · pending deploy</span></div>
     <div class="tbl-wrap" style="border:none"><table>
       <tr><th>ID</th><th>Severity</th><th>Status</th><th>What's left</th></tr>
       <tr><td>C1 anon PII</td><td><span class="badge b-crit">Critical</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy app, then apply migration 004 in Supabase SQL editor</td></tr>
@@ -658,7 +658,7 @@ Staff schedules a campaign in the dashboard
     <div class="card">
       <h4>Operational reproducibility</h4>
       <ul class="clean">
-        <li class="warn">Schema split across 2 migration dirs; cron across 3 systems (some dashboard-only)</li>
+        <li class="ok"><b>DONE (2026-07-05):</b> cron fully versioned — canonical pg_cron migration + docs/CRON_TOPOLOGY.md. Schema still split across 2 migration dirs (documented in docs/MIGRATIONS.md + CI timestamp guard).</li>
         <li class="warn">Migrations applied by hand ("Run ONCE in SQL editor") → environment drift risk</li>
         <li class="warn">5 duplicate migration timestamps → non-deterministic apply order</li>
         <li class="ok">Move all pg_cron definitions + the legacy tables into versioned migrations</li>
