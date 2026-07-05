@@ -44,6 +44,7 @@ These make the new fail-closed checks pass for legitimate traffic:
 - `CRON_SECRET` — Vercel Cron auto-sends it as `Authorization: Bearer <CRON_SECRET>` once set. Required by leads-tick + wa-campaign-tick (scheduled) and the amazon/wa-watchdog routes.
 - `SHOPIFY_WEBHOOK_SECRET` — **only if** the Next.js `/api/webhooks/shopify` route is actually registered in Shopify (see note). Must equal the secret Shopify signs with.
 - `RESEND_WEBHOOK_SECRET` and `RESEND_INBOUND_SECRET` — from the Resend dashboard webhook signing secret. **If these webhooks are live and you deploy without setting these, email tracking + cold-email replies will 401.**
+- `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN` — *optional but recommended.* From the Sentry project (Settings → Client Keys). Both hold the same DSN (server + browser). Until set, Sentry is a no-op — the app runs fine, just with no error tracking. For source-map upload at build, also set `SENTRY_ORG`, `SENTRY_PROJECT`, and `SENTRY_AUTH_TOKEN` (build succeeds without them, just no upload).
 
 > **Note on the Shopify Next route:** it duplicates the Supabase edge `shopify-webhook` (which writes `shopify_orders`); this route writes the legacy `orders`/`contacts` tables. Check Shopify → Settings → Notifications/webhooks to see if anything points at `promunch-crm.vercel.app/api/webhooks/shopify`. If nothing does, failing it closed is harmless and you can delete the route instead.
 

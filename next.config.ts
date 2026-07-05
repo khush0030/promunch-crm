@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 // Security headers applied to every response (audit L3). Deliberately avoids a
 // restrictive script-src CSP (which would need nonces and risk breaking the
@@ -18,4 +19,12 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry build plugin. Source-map upload only runs when SENTRY_AUTH_TOKEN +
+// org/project are set; without them the build still succeeds (no upload). The
+// runtime SDK stays disabled until a DSN is set (see sentry.*.config.ts).
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+});
