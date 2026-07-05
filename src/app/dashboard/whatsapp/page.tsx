@@ -11,76 +11,15 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import AnalyticsView from "@/components/whatsapp/AnalyticsView";
 import { msgTime, mostRecent, timeAgo, templateVars } from "./format";
+import type {
+  Tab, Contact, Thread, Message, Template, TemplateButton, KbDoc,
+  TeamMember, Campaign, Recipient, RecipientSummary,
+} from "@/components/whatsapp/types";
+import {
+  BRAND, WA_GREEN, priorityStyle, ticketStatusStyle, templateStatusColor,
+  campaignStatusStyle, inputStyle, cardStyle, primaryBtn, smallBtn, chip, chipOn, fmtBtn,
+} from "@/components/whatsapp/styles";
 
-type Tab = "inbox" | "templates" | "campaigns" | "analytics" | "kb" | "tickets";
-
-type Contact = { id: string; wa_id: string; phone: string; name: string | null; tags?: string[] | null };
-type Thread = {
-  id: string;
-  wa_id: string;
-  status: "bot" | "human" | "snoozed" | "closed";
-  ticket_status: "none" | "open" | "pending" | "resolved" | "closed";
-  ticket_number: number;
-  ticket_priority: "low" | "normal" | "high" | "urgent" | null;
-  ticket_category: string | null;
-  ticket_subject: string | null;
-  ticket_assignee: string | null;
-  assigned_to: string | null;
-  escalation_reason: string | null;
-  last_inbound_at: string | null;
-  last_outbound_at: string | null;
-  last_message_snippet: string | null;
-  last_message_direction: "inbound" | "outbound" | null;
-  last_outbound_status: "received" | "queued" | "sent" | "delivered" | "read" | "failed" | null;
-  unread_count: number;
-  archived_at: string | null;
-  contact: Contact;
-};
-type Message = {
-  id: string;
-  direction: "inbound" | "outbound";
-  type: string;
-  body: string | null;
-  media_url: string | null;
-  status: string;
-  template_name: string | null;
-  sent_by: string | null;
-  ai_meta: any;
-  created_at: string;
-};
-type Template = {
-  id: string;
-  name: string;
-  language: string;
-  category: "marketing" | "utility" | "authentication" | "offer";
-  status: string;
-  body: string;
-  footer: string | null;
-  header_text: string | null;
-  header_type: "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT" | null;
-  header_media_url: string | null;
-  buttons: TemplateButton[] | null;
-  variables: any;
-  rejection_reason: string | null;
-  meta_template_id: string | null;
-};
-type TemplateButton =
-  | { type: "URL"; text: string; url: string; example?: string }
-  | { type: "QUICK_REPLY"; text: string }
-  | { type: "PHONE_NUMBER"; text: string; phone_number: string };
-type KbDoc = {
-  id: string;
-  name: string;
-  source_type: string;
-  mime_type: string | null;
-  status: "pending" | "processing" | "ready" | "failed";
-  chunk_count: number;
-  error: string | null;
-  created_at: string;
-};
-
-const BRAND = "var(--pm-green)";
-const WA_GREEN = "#25D366";
 
 // WhatsApp-style delivery ticks for an outbound message.
 //   sent      → single grey check
@@ -98,22 +37,6 @@ function Ticks({ status }: { status: Thread["last_outbound_status"] }) {
   return <Check size={14} color="var(--pm-hint)" strokeWidth={2} style={{ opacity: 0.5 }} />;
 }
 
-const priorityStyle: Record<string, { bg: string; color: string }> = {
-  urgent: { bg: "rgba(239,68,68,0.12)", color: "var(--pm-terra)" },
-  high:   { bg: "rgba(249,115,22,0.12)", color: "var(--pm-gold)" },
-  normal: { bg: "rgba(59,130,246,0.10)", color: "#1d4ed8" },
-  low:    { bg: "rgba(107,114,128,0.10)", color: "var(--pm-muted)" },
-};
-
-const ticketStatusStyle: Record<string, { bg: string; color: string; label: string }> = {
-  open:     { bg: "rgba(245,183,49,0.14)", color: "#92400e", label: "Open" },
-  pending:  { bg: "rgba(59,130,246,0.14)", color: "#1d4ed8", label: "Pending" },
-  resolved: { bg: "rgba(16,185,129,0.14)", color: "var(--pm-green)", label: "Resolved" },
-  closed:   { bg: "rgba(107,114,128,0.14)", color: "var(--pm-muted)", label: "Closed" },
-  none:     { bg: "rgba(229,231,235,0.6)",  color: "var(--pm-muted)", label: "—" },
-};
-
-type TeamMember = { id: string; email: string | null; name: string; role: string };
 // Team roster + current user, for chat assignment. Fetched once per mount.
 function useTeam() {
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -1093,10 +1016,6 @@ function TemplatePicker({ templates, onCancel, onSend }: {
 /* TEMPLATES                                                          */
 /* ----------------------------------------------------------------- */
 
-const templateStatusColor: Record<string, string> = {
-  approved: "var(--pm-green)", rejected: "var(--pm-terra)", disabled: "var(--pm-muted)",
-  pending: "#92400e", draft: "var(--pm-muted)",
-};
 
 /* Render WhatsApp body text exactly as the app shows it: *bold*, _italic_,
    ~strikethrough~, ```monospace```, with nesting. Newlines are preserved by the
@@ -1743,72 +1662,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "8px 10px", border: "1px solid var(--pm-border)",
-  borderRadius: 8, fontSize: 13, outline: "none", background: "var(--pm-card)", color: "var(--pm-ink)",
-};
-const cardStyle: React.CSSProperties = {
-  background: "var(--pm-card)", border: "1px solid var(--pm-border)", borderRadius: 12, padding: 14,
-};
-const primaryBtn: React.CSSProperties = {
-  padding: "8px 14px", borderRadius: 8, border: "none", background: BRAND,
-  color: "var(--pm-card)", fontWeight: 600, fontSize: 13, cursor: "pointer",
-  display: "inline-flex", alignItems: "center", gap: 6,
-};
-const smallBtn: React.CSSProperties = {
-  padding: "6px 10px", borderRadius: 8, border: "1px solid var(--pm-border)",
-  background: "var(--pm-card)", color: "var(--pm-ink)", fontSize: 12, fontWeight: 600,
-  cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4,
-};
-const chip: React.CSSProperties = {
-  padding: "5px 11px", borderRadius: 999, border: "1px solid var(--pm-border)",
-  background: "var(--pm-card)", color: "var(--pm-ink)", fontSize: 12, fontWeight: 600,
-  cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5,
-};
-const chipOn: React.CSSProperties = {
-  background: "rgba(185,28,74,0.08)", borderColor: BRAND, color: BRAND,
-};
-const fmtBtn: React.CSSProperties = {
-  width: 30, height: 28, borderRadius: 6, border: "1px solid var(--pm-border)",
-  background: "var(--pm-card)", color: "var(--pm-ink)", cursor: "pointer",
-  display: "inline-flex", alignItems: "center", justifyContent: "center",
-};
 
 /* ----------------------------------------------------------------- */
 /* CAMPAIGNS — bulk marketing broadcast                               */
 /* ----------------------------------------------------------------- */
 
-type Campaign = {
-  id: string;
-  name: string;
-  status: "draft" | "scheduled" | "sending" | "completed" | "failed" | "cancelled";
-  template_id: string | null;
-  template_vars: Record<string, string> | null;
-  audience_filter: { tags?: string[] } | null;
-  sent_count: number;
-  delivered_count: number;
-  read_count: number;
-  failed_count: number;
-  last_error: string | null;
-  scheduled_at: string | null;
-  repeat_rule: "daily" | "weekly" | "monthly" | null;
-  repeat_until: string | null;
-  parent_campaign_id: string | null;
-  created_at: string;
-  template?: { id: string; name: string; language: string; category: string; status: string } | null;
-};
-
-const campaignStatusStyle: Record<string, { bg: string; color: string }> = {
-  draft:     { bg: "rgba(229,231,235,0.7)",  color: "var(--pm-muted)" },
-  scheduled: { bg: "rgba(59,130,246,0.12)",  color: "#1d4ed8" },
-  sending:   { bg: "rgba(245,183,49,0.16)",  color: "#92400e" },
-  completed: { bg: "rgba(16,185,129,0.14)",  color: "var(--pm-green)" },
-  failed:    { bg: "rgba(239,68,68,0.12)",   color: "var(--pm-terra)" },
-  cancelled: { bg: "rgba(229,231,235,0.7)",  color: "var(--pm-muted)" },
-};
-
-type Recipient = { contact_id: string; name: string | null; wa_id: string | null; status: string; attempts: number; duplicate: boolean; error: string | null; at: string };
-type RecipientSummary = { rows: number; contacts: number; received: number; delivered: number; read: number; failed: number; duplicates: number };
 
 // Per-campaign "who did this actually go to" view. Groups by contact, shows each
 // person's final status + flags anyone messaged more than once (duplicate).
