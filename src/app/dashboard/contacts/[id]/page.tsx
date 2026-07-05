@@ -43,6 +43,7 @@ type Contact = {
   status?: string;
   tags?: string[] | null;
   accepts_marketing?: boolean | null;
+  anonymized_at?: string | null;
   email_consent?: string | null;
   sms_consent?: string | null;
   klaviyo_lists?: string[] | null;
@@ -148,6 +149,29 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  async function handleExport() {
+    if (!contact) return;
+    // Right-to-access: download everything we hold about this contact as JSON.
+    window.open(`/api/contacts/${contact.id}/export`, "_blank");
+  }
+
+  async function handleAnonymize() {
+    if (!contact) return;
+    if (!confirm(`Anonymize ${contact.email}? This scrubs their personal data (name, email, phone, address) but keeps order records for accounting. This cannot be undone.`)) return;
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/contacts/${contact.id}/anonymize`, { method: "POST" });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Anonymize failed");
+      toast.push({ kind: "success", text: "Contact anonymized." });
+      router.push("/dashboard/contacts");
+    } catch (e) {
+      toast.push({ kind: "error", text: e instanceof Error ? e.message : "Anonymize failed" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleDelete() {
     if (!contact) return;
     if (!confirm(`Delete ${contact.email}? This cannot be undone.`)) return;
@@ -222,6 +246,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           <>
             {contact.status !== "unsubscribed" && (
               <button className="pm-btn ghost" onClick={handleUnsubscribe} disabled={busy}>Unsubscribe</button>
+            )}
+            <button className="pm-btn ghost" onClick={handleExport} disabled={busy}>Export data</button>
+            {!contact.anonymized_at && (
+              <button className="pm-btn ghost" onClick={handleAnonymize} disabled={busy} style={{ color: "var(--pm-terra)" }}>Anonymize</button>
             )}
             <button className="pm-btn ghost" onClick={handleDelete} disabled={busy} style={{ color: "var(--pm-terra)" }} aria-label="Delete contact">
               <Trash2 size={15} />

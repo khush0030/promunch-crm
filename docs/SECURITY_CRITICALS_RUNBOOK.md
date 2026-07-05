@@ -58,6 +58,13 @@ Activates C1 (app side), C4, H4, H5. Do this **only after Steps 1–2**.
 ## Step 4 — Apply the RLS migration (C1)  ⚠️ after the app deploy
 
 Supabase dashboard → **SQL editor** → paste and run `supabase/migrations/004_lock_anon_rls.sql`.
+
+Then also apply the later hardening migrations (order doesn't matter between them):
+- `supabase/migrations/005_audit_log.sql` — audit-log table (append-only; without it the destructive routes still work, they just can't record — `recordAudit()` swallows the missing-table error).
+- `supabase/migrations/006_gdpr_anonymized_at.sql` — adds `contacts.anonymized_at` (the GDPR anonymize flow needs this column).
+- `promunch-email-agent/supabase/migrations/20260705100000_cron_jobs_canonical.sql` — canonical pg_cron topology (needs Vault secrets `service_role_key` + `cron_secret`; see docs/CRON_TOPOLOGY.md).
+
+**M1 / BotID:** enable **Firewall → Rules → Vercel BotID Deep Analysis** in the Vercel dashboard for the project (the code already calls `checkBotId()` on team + contact-erasure routes; Basic checks are free, Deep Analysis is the dashboard opt-in).
 Then verify the breach is closed (both should return `42501 / permission denied`):
 ```bash
 URL=<NEXT_PUBLIC_SUPABASE_URL>; ANON=<NEXT_PUBLIC_SUPABASE_ANON_KEY>
