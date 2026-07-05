@@ -11,19 +11,24 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.7",
+    "@ai-sdk/react": "^4.0.16",
     "@sentry/nextjs": "^10.63.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.99.2",
     "@tanstack/react-query": "^5.101.2",
+    "ai": "^7.0.15",
     "botid": "^1.5.11",
     "cheerio": "^1.2.0",
     "geist": "^1.7.0",
     "isomorphic-dompurify": "^3.18.0",
     "lucide-react": "^0.577.0",
+    "marked": "^18.0.5",
     "next": "16.1.7",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "resend": "^6.9.4"
+    "resend": "^6.9.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

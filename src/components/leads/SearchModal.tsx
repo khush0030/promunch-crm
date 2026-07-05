@@ -57,6 +57,7 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
   const [products, setProducts] = useState<string[]>([]);
   const [offer, setOffer] = useState("");
   const [subjectHint, setSubjectHint] = useState("");
+  const [listName, setListName] = useState("");
   const [busy, setBusy] = useState(false);
 
   function toggle(list: string[], setList: (v: string[]) => void, value: string) {
@@ -79,7 +80,7 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
       const res = await fetch("/api/leads/search", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ categories: cats, cities, maxResults: target, findEmails, products, offer, subjectHint }),
+        body: JSON.stringify({ categories: cats, cities, maxResults: target, findEmails, products, offer, subjectHint, listName }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "failed");
@@ -199,6 +200,25 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
             </div>
           </div>
         ) : null}
+
+        <div className={styles.fieldGroup}>
+          <div className={styles.fieldLabel}>Save results as a list</div>
+          <input
+            className="input"
+            placeholder={
+              combos === 1
+                ? `List name (default: ${allCats[0] ? allCats[0][0].toUpperCase() + allCats[0].slice(1) : "Category"} — ${cities[0] ?? "City"})`
+                : "Each category × city gets its own auto-named list"
+            }
+            value={listName}
+            onChange={(e) => setListName(e.target.value)}
+            disabled={combos > 1}
+            maxLength={120}
+          />
+          <div className={styles.toggleHint} style={{ marginTop: 6 }}>
+            Results land in the Lists tab; from there you enroll the list in an email sequence.
+          </div>
+        </div>
 
         <div className={styles.estimate}>
           <div className={styles.estimateMain}>

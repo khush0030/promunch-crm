@@ -213,6 +213,40 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
           </button>
         </div>
 
+        {(() => {
+          // Contact history: every sent email (manual or sequence step) +
+          // every reply, newest first.
+          const sends = (lead.outreach_drafts ?? [])
+            .filter((d) => d.sent_at)
+            .map((d) => ({
+              kind: "sent" as const,
+              at: d.sent_at!,
+              title: d.step_position != null ? `Step ${d.step_position + 1} sent` : "Email sent",
+              detail: d.subject,
+            }));
+          const replies = (lead.outreach_replies ?? []).map((r) => ({
+            kind: "reply" as const,
+            at: r.received_at,
+            title: "Replied",
+            detail: r.subject || r.body_text?.slice(0, 80) || "",
+          }));
+          const events = [...sends, ...replies].sort((a, b) => +new Date(b.at) - +new Date(a.at));
+          if (!events.length) return null;
+          return (
+            <div style={{ marginTop: 18 }}>
+              <div className={styles.fieldLabel}>Contact history</div>
+              <div className={styles.history}>
+                {events.map((e, i) => (
+                  <div key={i} className={`${styles.historyEvent} ${e.kind === "sent" ? styles.historySent : styles.historyReply}`}>
+                    <b>{e.title}</b>{e.detail ? <> — {e.detail}</> : null}
+                    <div className={styles.historyWhen}>{new Date(e.at).toLocaleString()}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {(lead.outreach_replies ?? []).length ? (
           <div className={styles.replies}>
             <div className={styles.fieldLabel}>

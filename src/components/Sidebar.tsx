@@ -19,6 +19,7 @@ import {
   BarChart3,
   Settings as SettingsIcon,
   ScrollText,
+  Sparkles,
   HelpCircle,
   LogOut,
   Menu,
@@ -42,7 +43,10 @@ type NavGroup = { id: string; label?: string; items: NavLink[] };
 const groups: NavGroup[] = [
   {
     id: "overview",
-    items: [{ href: "/dashboard", label: "Dashboard", tour: "dashboard", icon: <LayoutDashboard /> }],
+    items: [
+      { href: "/dashboard", label: "Dashboard", tour: "dashboard", icon: <LayoutDashboard /> },
+      { href: "/dashboard/assistant", label: "Ask Maya", icon: <Sparkles /> },
+    ],
   },
   {
     id: "inbox",

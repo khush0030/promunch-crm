@@ -1,17 +1,25 @@
 "use client";
 
+// B2B Leads v2 — organised around saved Lists. Search results become lists;
+// lists get enrolled in template-driven email sequences; Analytics reads the
+// Resend event stream. Discovery still runs through the browser-driven tick
+// loop ("Keep going") with the hourly pg_cron as the hands-free driver.
+
 import { useCallback, useEffect, useState } from "react";
 import {
   Search, Play, RefreshCw, Settings2, X, BookOpen, ChevronRight,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "./leads.module.css";
-import type { ApiResponse, Lead } from "@/components/leads/types";
+import type { ApiResponse, Lead, ListSummary } from "@/components/leads/types";
 import { GUIDE_DISMISS_KEY, GUIDE_STEPS, PROCESSING_STATUSES, TABS } from "@/components/leads/constants";
 import Kpi from "@/components/leads/Kpi";
 import LeadTable from "@/components/leads/LeadTable";
-import ScrapeList from "@/components/leads/ScrapeList";
-import ScrapeDetailBar from "@/components/leads/ScrapeDetailBar";
+import ListsView from "@/components/leads/ListsView";
+import ListDetail from "@/components/leads/ListDetail";
+import SequencesView from "@/components/leads/SequencesView";
+import TemplatesView from "@/components/leads/TemplatesView";
+import AnalyticsView from "@/components/leads/AnalyticsView";
 import SearchModal from "@/components/leads/SearchModal";
 import SettingsModal from "@/components/leads/SettingsModal";
 import GuideModal from "@/components/leads/GuideModal";
@@ -20,10 +28,12 @@ import LeadModal from "@/components/leads/LeadModal";
 export default function LeadsPage() {
   const toast = useToast();
   const [data, setData] = useState<ApiResponse | null>(null);
+  const [lists, setLists] = useState<ListSummary[]>([]);
+  const [listsLoading, setListsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("scrapes");
-  const [selectedSearchId, setSelectedSearchId] = useState<string | null>(null);
-  const [q, setQ] = useState("");
+  const [tab, setTab] = useState("lists");
+  const [openListId, setOpenListId] = useState<string | null>(null);
+  const [listReloadKey, setListReloadKey] = useState(0);
   const [selected, setSelected] = useState<Lead | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -41,17 +51,10 @@ export default function LeadsPage() {
     setShowStrip(false);
   }
 
+  // KPI numbers + the Replies tab come from the classic leads endpoint.
   const load = useCallback(async () => {
     try {
-      const params = new URLSearchParams();
-      const statuses = TABS.find((t) => t.key === tab)?.statuses ?? [];
-      if (statuses.length) params.set("statuses", statuses.join(","));
-      if (tab === "scrapes" && selectedSearchId) params.set("searchId", selectedSearchId);
-      // Every lead must have an email — hide no-email leads everywhere except the
-      // Skipped tab (which exists to show what was filtered out).
-      if (tab !== "skipped") params.set("hasEmail", "1");
-      if (q) params.set("q", q);
-      const res = await fetch(`/api/leads?${params}`, { cache: "no-store" });
+      const res = await fetch("/api/leads?statuses=replied", { cache: "no-store" });
       if (!res.ok) throw new Error((await res.json()).error || "load failed");
       const json = (await res.json()) as ApiResponse;
       setData(json);
@@ -61,11 +64,28 @@ export default function LeadsPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab, q, selectedSearchId, toast]);
+  }, [toast]);
 
-  useEffect(() => {
+  const loadLists = useCallback(async () => {
+    try {
+      const res = await fetch("/api/leads/lists", { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "load failed");
+      setLists(json.lists ?? []);
+    } catch (e) {
+      toast.push({ kind: "error", text: `Could not load lists: ${e instanceof Error ? e.message : "unknown"}` });
+    } finally {
+      setListsLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => { load(); loadLists(); }, [load, loadLists]);
+
+  const reloadAll = useCallback(() => {
     load();
-  }, [load]);
+    loadLists();
+    setListReloadKey((k) => k + 1);
+  }, [load, loadLists]);
 
   async function runPipeline(rounds: number) {
     setRunning(true);
@@ -75,9 +95,9 @@ export default function LeadsPage() {
         const res = await fetch("/api/leads/tick", { method: "POST" });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "tick failed");
-        await load();
-        if (!json.discovered && !json.crawled && !json.drafted) break;
+        if (!json.discovered && !json.crawled && !json.drafted && !json.sequenceSent) break;
       }
+      reloadAll();
       toast.push({ kind: "success", text: "Pipeline run complete." });
     } catch (e) {
       toast.push({ kind: "error", text: `Pipeline: ${e instanceof Error ? e.message : "unknown"}` });
@@ -90,8 +110,6 @@ export default function LeadsPage() {
   const counts = data?.statusCounts ?? {};
   const totalLeads = Object.values(counts).reduce((a, b) => a + b, 0);
   const processing = PROCESSING_STATUSES.reduce((a, s) => a + (counts[s] ?? 0), 0);
-  const tabCount = (t: { statuses: string[] }) =>
-    t.statuses.length ? t.statuses.reduce((a, s) => a + (counts[s] ?? 0), 0) : totalLeads;
 
   return (
     <div className="pm-page">
@@ -100,10 +118,10 @@ export default function LeadsPage() {
           <h1>B2B Leads</h1>
           <p>
             {running
-              ? `Working… finding emails and writing drafts ${runProgress}`
+              ? `Working… discovering companies and sending due emails ${runProgress}`
               : processing > 0
                 ? `${processing} leads still processing — hit “Keep going” to push them along.`
-                : "Find companies → we find emails & draft → you review and send."}
+                : "Find companies, save them as lists, run email sequences."}
           </p>
         </div>
         <div className={styles.toolbar}>
@@ -119,7 +137,7 @@ export default function LeadsPage() {
           <button type="button" className="pm-btn" onClick={() => setShowSettings(true)} aria-label="Settings">
             <Settings2 size={14} />
           </button>
-          <button type="button" className="pm-btn" onClick={load} aria-label="Refresh">
+          <button type="button" className="pm-btn" onClick={reloadAll} aria-label="Refresh">
             <RefreshCw size={14} />
           </button>
         </div>
@@ -146,12 +164,12 @@ export default function LeadsPage() {
       )}
 
       <div className="pm-kpis" style={{ marginBottom: 18 }}>
-        <Kpi label="Drafts to review" value={counts.drafted ?? 0} />
         <Kpi
           label="Sent today"
           value={`${data?.sentToday ?? 0}/${data?.settings?.daily_cap ?? "—"}`}
           accent={data?.settings?.paused ? "Paused" : undefined}
         />
+        <Kpi label="In sequences now" value={data?.activeEnrollments ?? 0} />
         <Kpi label="Replied" value={counts.replied ?? 0} />
         <Kpi label="Total leads" value={totalLeads} />
       </div>
@@ -164,52 +182,62 @@ export default function LeadsPage() {
                 key={t.key}
                 type="button"
                 className={`pm-tab${tab === t.key ? " on" : ""}`}
-                onClick={() => { setTab(t.key); setSelectedSearchId(null); }}
+                onClick={() => { setTab(t.key); setOpenListId(null); }}
               >
-                {t.label} ({t.key === "scrapes" ? (data?.searches.length ?? 0) : tabCount(t)})
+                {t.label}
+                {t.key === "lists" && lists.length ? ` (${lists.length})` : ""}
+                {t.key === "replies" && (counts.replied ?? 0) > 0 ? ` (${counts.replied})` : ""}
               </button>
             ))}
           </div>
         </div>
-        {tab === "scrapes" && !selectedSearchId ? null : (
-          <input
-            className={`input ${styles.searchInput}`}
-            placeholder="Search name or domain…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        )}
       </div>
 
-      {tab === "scrapes" && !selectedSearchId ? (
-        <ScrapeList searches={data?.searches ?? []} onOpen={setSelectedSearchId} />
-      ) : (
-      <>
-      {tab === "scrapes" && selectedSearchId ? (
-        <ScrapeDetailBar
-          search={data?.searches.find((s) => s.id === selectedSearchId)}
-          count={data?.leads.length ?? 0}
-          onBack={() => setSelectedSearchId(null)}
+      {tab === "lists" && !openListId && (
+        <ListsView
+          lists={lists}
+          loading={listsLoading}
+          onOpen={setOpenListId}
+          onChanged={loadLists}
+          onFind={() => setShowSearch(true)}
         />
-      ) : null}
-      <LeadTable
-        data={data}
-        loading={loading}
-        totalLeads={totalLeads}
-        tab={tab}
-        selectedSearchId={selectedSearchId}
-        setSelected={setSelected}
-        setShowSearch={setShowSearch}
-        setShowGuide={setShowGuide}
-      />
-      </>
       )}
+
+      {tab === "lists" && openListId && (
+        <ListDetail
+          key={`${openListId}:${listReloadKey}`}
+          listId={openListId}
+          onBack={() => { setOpenListId(null); loadLists(); }}
+          onOpenLead={setSelected}
+        />
+      )}
+
+      {tab === "sequences" && <SequencesView onChanged={reloadAll} />}
+
+      {tab === "templates" && <TemplatesView onChanged={reloadAll} />}
+
+      {tab === "replies" && (
+        <LeadTable
+          data={data}
+          loading={loading}
+          totalLeads={totalLeads}
+          tab="replies"
+          selectedSearchId={null}
+          setSelected={setSelected}
+          setShowSearch={setShowSearch}
+          setShowGuide={setShowGuide}
+        />
+      )}
+
+      {tab === "analytics" && <AnalyticsView />}
 
       {showSearch && (
         <SearchModal
           onClose={() => setShowSearch(false)}
           onQueued={(rounds) => {
             setShowSearch(false);
+            setTab("lists");
+            setOpenListId(null);
             runPipeline(rounds);
           }}
         />
@@ -229,7 +257,7 @@ export default function LeadsPage() {
       )}
 
       {selected && (
-        <LeadModal lead={selected} onClose={() => setSelected(null)} onChanged={load} />
+        <LeadModal lead={selected} onClose={() => setSelected(null)} onChanged={reloadAll} />
       )}
     </div>
   );

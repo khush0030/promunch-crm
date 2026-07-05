@@ -15,7 +15,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     supabaseAdmin.from('lead_lists').select('*').eq('id', id).maybeSingle(),
     supabaseAdmin
       .from('lead_list_members')
-      .select('lead_id, added_at, leads(*, lead_contacts(*), outreach_drafts(id, subject, status, sent_at, step_position), outreach_replies(id, received_at))')
+      .select('lead_id, added_at, leads(*, lead_contacts(*), outreach_drafts(*), outreach_replies(*))')
       .eq('list_id', id)
       .limit(2000),
     supabaseAdmin

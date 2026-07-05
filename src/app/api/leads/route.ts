@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
   if (category) query = query.eq('category', category);
   if (q) query = query.or(`name.ilike.%${q}%,domain.ilike.%${q}%`);
 
-  const [{ data: leads, count, error }, statusCounts, searches, sentToday, settings] =
+  const [{ data: leads, count, error }, statusCounts, searches, sentToday, settings, activeEnrollments] =
     await Promise.all([
       query,
       countByStatus(),
@@ -58,6 +58,11 @@ export async function GET(req: NextRequest) {
         .limit(100),
       countSentToday(),
       supabaseAdmin.from('outreach_settings').select('*').eq('id', 1).maybeSingle(),
+      supabaseAdmin
+        .from('sequence_enrollments')
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['active', 'sending'])
+        .then((r) => r.count ?? 0),
     ]);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -77,6 +82,7 @@ export async function GET(req: NextRequest) {
     statusCounts,
     searches: searchesOut,
     sentToday,
+    activeEnrollments,
     settings: settings.data ?? null,
   });
 }

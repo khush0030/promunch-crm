@@ -3,14 +3,13 @@
 
 import { CheckCircle2, MailSearch, MapPin, PenLine } from "lucide-react";
 
-// Simple workflow tabs instead of one tab per raw status.
-export const TABS: { key: string; label: string; statuses: string[] }[] = [
-  { key: "scrapes", label: "Scrapes", statuses: [] },
-  { key: "review", label: "To review", statuses: ["drafted"] },
-  { key: "replies", label: "Replies", statuses: ["replied"] },
-  { key: "sent", label: "Sent", statuses: ["contacted", "replied", "bounced"] },
-  { key: "all", label: "All leads", statuses: [] },
-  { key: "skipped", label: "Skipped", statuses: ["no_contacts", "no_website", "listed", "suppressed"] },
+// v2 tabs: Lists are the primary object; sending happens through sequences.
+export const TABS: { key: string; label: string }[] = [
+  { key: "lists", label: "Lists" },
+  { key: "sequences", label: "Sequences" },
+  { key: "templates", label: "Templates" },
+  { key: "replies", label: "Replies" },
+  { key: "analytics", label: "Analytics" },
 ];
 
 export const PROCESSING_STATUSES = ["new", "crawling", "ready", "drafting"];
@@ -43,13 +42,13 @@ export const GUIDE_STEPS: { icon: typeof MapPin; title: string; blurb: string }[
   },
   {
     icon: PenLine,
-    title: "3. AI writes the email",
-    blurb: "For good-fit leads with a verified email, AI drafts a personal cold email grounded in the PROMUNCH knowledge base. Drafts land in “To review”.",
+    title: "3. Build templates & a sequence",
+    blurb: "Write email templates (or let AI draft three options), then chain them into a sequence: intro, wait a few days, follow-up. Variables like {company} fill in per lead.",
   },
   {
     icon: CheckCircle2,
-    title: "4. Review & send",
-    blurb: "Open a lead, tweak the subject or body if you want, then hit Approve & send. Replies come to your inbox — mark them “Replied” here.",
+    title: "4. Enroll the list",
+    blurb: "Open a list and hit “Enroll in sequence”. Emails go out automatically inside the send window and daily cap; anyone who replies is stopped and lands in Replies.",
   },
 ];
 
