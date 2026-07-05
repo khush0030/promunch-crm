@@ -219,7 +219,7 @@
     <tr><td>Webhook / input trust</td><td><span class="badge b-high">Weak</span></td><td>No HMAC on Next Shopify route; fail-open secrets; filter injection.</td></tr>
     <tr><td>Operational reproducibility</td><td><span class="badge b-ok">Fixed in code</span></td><td>All 18 pg_cron jobs now in a versioned idempotent migration (20260705100000) + docs/CRON_TOPOLOGY.md maps all 3 schedulers. Left: apply the migration in SQL editor.</td></tr>
     <tr><td>Code maintainability</td><td><span class="badge b-med">Needs work</span></td><td>wa-ai-reply split into 11 modules (verbatim, NOT deployed); WhatsApp page 2,540→152 and leads page 1,305→236 split into components; 33 unit tests; all 48 edge fns deno-check clean; CI gate (tsc+vitest+deno check) on every push.</td></tr>
-    <tr><td>Frontend / UX architecture</td><td><span class="badge b-prog">In progress</span></td><td>TanStack Query adopted (provider + KbView exemplar); both giant pages split into feature components. Left: migrate remaining views to useQuery.</td></tr>
+    <tr><td>Frontend / UX architecture</td><td><span class="badge b-ok">Fixed in code</span></td><td>TanStack Query across dashboard, order-confirmations, campaigns, inbox, KB; both giant pages split into feature components; a11y (focus-trap modals, labels, dialog roles).</td></tr>
   </table></div>
 </div></section>
 
@@ -528,7 +528,7 @@ Staff schedules a campaign in the dashboard
   </div>
 
   <div class="status-board">
-    <div class="sbh"><span>Remediation status</span><span class="updated">updated 2026-07-05 · commit cd1a186 · 12/12 findings in code + hardening (audit log, Sentry, gitleaks CI, a11y) · C2 rotation STILL PENDING (key verified live 2026-07-05) · pending deploy</span></div>
+    <div class="sbh"><span>Remediation status</span><span class="updated">updated 2026-07-05 · commit cd61b19 · 12/12 findings + full hardening (audit log, Sentry, gitleaks, a11y, React Query, BotID/M1, GDPR export+erasure) · C2 rotation STILL PENDING · pending deploy</span></div>
     <div class="tbl-wrap" style="border:none"><table>
       <tr><th>ID</th><th>Severity</th><th>Status</th><th>What's left</th></tr>
       <tr><td>C1 anon PII</td><td><span class="badge b-crit">Critical</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy app, then apply migration 004 in Supabase SQL editor</td></tr>
@@ -539,7 +539,8 @@ Staff schedules a campaign in the dashboard
       <tr><td>H5 resend fail-open</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Set RESEND_*_SECRET in Vercel, deploy</td></tr>
       <tr><td>H1 bot order IDOR</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy wa-ai-reply (phone-scoped lookup)</td></tr>
       <tr><td>H2 filter injection</td><td><span class="badge b-high">High</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy edge fns (order # whitelisted)</td></tr>
-      <tr><td>M1 no rate limiting</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-prog">Config path set</span></td><td>Vercel Firewall + BotID rules (dashboard) — steps in runbook</td></tr>
+      <tr><td>GDPR / data-subject rights</td><td><span class="badge b-med">Compliance</span></td><td><span class="badge b-ok">Code done</span></td><td>Contact data export (JSON) + anonymize-in-place erasure, admin-gated + audit-logged; migration 006 adds anonymized_at (manual apply)</td></tr>
+      <tr><td>M1 no rate limiting</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-ok">Code done</span></td><td>Vercel BotID wired (withBotId + initBotId + checkBotId on team + contact-erasure routes); enable Deep Analysis in Firewall dashboard</td></tr>
       <tr><td>M2 skip-sig flags</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy wa-webhook + ig-webhook (HMAC bypass removed)</td></tr>
       <tr><td>M3 ungated cron fns</td><td><span class="badge b-med">Medium</span></td><td><span class="badge b-prog">Code done</span></td><td>12 fns gated + cron SQL ready; coordinated apply (Vault key + deploy + run SQL)</td></tr>
       <tr><td>L1 campaign XSS</td><td><span class="badge b-low">Low</span></td><td><span class="badge b-prog">Code done</span></td><td>DOMPurify sanitize; deploy app</td></tr>
