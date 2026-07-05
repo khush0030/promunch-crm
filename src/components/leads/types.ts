@@ -105,6 +105,8 @@ export type ListSummary = {
   name: string;
   description: string | null;
   source_search_id: string | null;
+  category: string | null;
+  city: string | null;
   created_at: string;
   updated_at: string;
   leads: number;

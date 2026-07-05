@@ -1,15 +1,31 @@
 "use client";
 
-// Lists tab: card grid of saved lead lists. Every "Find companies" run makes
-// one automatically; empty lists can be created by hand and filled from a
-// list's detail view.
+// Lists tab: collapsible category groups with one slim row per list. Quiet by
+// design — progress bars and badges only appear once a list has activity, so
+// 24 untouched lists read as a short calm index, not 24 shouting cards.
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "@/app/dashboard/leads/leads.module.css";
 import type { ListSummary } from "./types";
-import { fmtTime } from "./format";
+
+function groupLabel(l: ListSummary): string {
+  if (l.category) return l.category;
+  // Custom / hand-made lists: try the auto-name shape "Category — City".
+  const beforeDash = l.name.split(" — ")[0];
+  return beforeDash !== l.name ? beforeDash : "Custom lists";
+}
+
+function rowLabel(l: ListSummary): string {
+  if (l.city) return l.city;
+  const afterDash = l.name.split(" — ")[1];
+  return afterDash ?? l.name;
+}
+
+function fmtDay(iso: string): string {
+  return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
+}
 
 export default function ListsView({
   lists, loading, onOpen, onChanged, onFind,
@@ -21,6 +37,7 @@ export default function ListsView({
   onFind: () => void;
 }) {
   const toast = useToast();
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
 
   async function createList() {
@@ -59,36 +76,78 @@ export default function ListsView({
     );
   }
 
+  // Group by category; groups with activity first, then by size.
+  const groups = new Map<string, ListSummary[]>();
+  for (const l of lists) {
+    const g = groupLabel(l);
+    groups.set(g, [...(groups.get(g) ?? []), l]);
+  }
+  const groupActivity = (items: ListSummary[]) =>
+    items.reduce((a, l) => a + l.contacted + l.replied + (l.active_sequence ? 100 : 0), 0);
+  const ordered = [...groups.entries()].sort(
+    ([, a], [, b]) => groupActivity(b) - groupActivity(a) || b.length - a.length,
+  );
+
+  function toggle(g: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(g)) next.delete(g);
+      else next.add(g);
+      return next;
+    });
+  }
+
   return (
-    <div className={styles.listGrid}>
-      {lists.map((l) => {
-        const pct = l.leads ? Math.round((l.contacted / l.leads) * 100) : 0;
-        return (
-          <button type="button" key={l.id} className={styles.listCard} onClick={() => onOpen(l.id)}>
-            <div className={styles.listCardTop}>
-              <span className={styles.listCardName}>{l.name}</span>
-              {l.active_sequence ? (
-                <span className="pm-badge2 bg-green">● {l.active_sequence}</span>
-              ) : l.contacted > 0 ? (
-                <span className="pm-badge2 bg-gold">Contacted</span>
-              ) : (
-                <span className="pm-badge2 bg-gray">Not contacted</span>
+    <div>
+      <div className={styles.tplToolbar} style={{ marginBottom: 10 }}>
+        <button type="button" className="pm-btn" onClick={createList} disabled={creating}>
+          <Plus size={13} /> New empty list
+        </button>
+      </div>
+
+      <div className={styles.groupStack}>
+        {ordered.map(([group, items]) => {
+          const isCollapsed = collapsed.has(group);
+          const totalLeads = items.reduce((a, l) => a + l.leads, 0);
+          const totalReplied = items.reduce((a, l) => a + l.replied, 0);
+          const running = items.filter((l) => l.active_sequence).length;
+          return (
+            <section key={group} className={styles.group}>
+              <button type="button" className={styles.groupHead} onClick={() => toggle(group)} aria-expanded={isCollapsed ? "false" : "true"}>
+                {isCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+                <span className={styles.groupName}>{group}</span>
+                <span className={styles.groupMeta}>
+                  {items.length} list{items.length === 1 ? "" : "s"} · {totalLeads} leads
+                  {running ? ` · ${running} sequence${running === 1 ? "" : "s"} running` : ""}
+                  {totalReplied ? ` · ${totalReplied} replied` : ""}
+                </span>
+              </button>
+              {!isCollapsed && (
+                <div className={styles.groupRows}>
+                  {items.map((l) => (
+                    <button type="button" key={l.id} className={styles.listRow} onClick={() => onOpen(l.id)}>
+                      <span className={styles.listRowName}>{rowLabel(l)}</span>
+                      <span className={styles.listRowStat}>
+                        {l.leads} leads · {l.withEmail} ✉
+                      </span>
+                      <span className={styles.listRowActivity}>
+                        {l.active_sequence ? (
+                          <span className="pm-badge2 bg-green">● {l.active_sequence}</span>
+                        ) : l.replied > 0 ? (
+                          <span className="pm-badge2 bg-gold">{l.replied} replied</span>
+                        ) : l.contacted > 0 ? (
+                          <span className="pm-dim">{l.contacted} of {l.leads} contacted</span>
+                        ) : null}
+                      </span>
+                      <span className={styles.listRowDate}>{fmtDay(l.updated_at)}</span>
+                    </button>
+                  ))}
+                </div>
               )}
-            </div>
-            <div className="pm-dim" style={{ fontSize: 12.5 }}>
-              {l.leads} leads · {l.withEmail} with verified email{l.replied ? ` · ${l.replied} replied` : ""}
-            </div>
-            <div className={styles.listBar}><i style={{ width: `${pct}%` }} /></div>
-            <div className={styles.listCardFoot}>
-              <span>{l.contacted} of {l.leads} contacted</span>
-              <span>{fmtTime(l.updated_at)}</span>
-            </div>
-          </button>
-        );
-      })}
-      <button type="button" className={styles.newListCard} onClick={createList} disabled={creating}>
-        <Plus size={15} /> New empty list
-      </button>
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }

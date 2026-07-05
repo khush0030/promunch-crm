@@ -12,7 +12,9 @@ export async function GET() {
   const [{ data: lists, error }, { data: members }, { data: enrollments }] = await Promise.all([
     supabaseAdmin
       .from('lead_lists')
-      .select('id, name, description, source_search_id, archived, created_at, updated_at')
+      // Two FKs link lead_lists <-> lead_searches, so the embed must name the
+      // source_search_id one explicitly.
+      .select('id, name, description, source_search_id, archived, created_at, updated_at, lead_searches!lead_lists_source_search_id_fkey(category, city)')
       .eq('archived', false)
       .order('created_at', { ascending: false }),
     supabaseAdmin
@@ -53,11 +55,18 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    lists: (lists ?? []).map((l) => ({
-      ...l,
-      ...(agg.get(l.id) ?? { leads: 0, withEmail: 0, contacted: 0, replied: 0 }),
-      active_sequence: activeSeq.get(l.id) ?? null,
-    })),
+    lists: (lists ?? []).map((l) => {
+      const search = l.lead_searches as unknown as { category: string; city: string } | null;
+      const { lead_searches: _drop, ...rest } = l as Record<string, unknown>;
+      void _drop;
+      return {
+        ...rest,
+        category: search?.category ?? null,
+        city: search?.city ?? null,
+        ...(agg.get(l.id) ?? { leads: 0, withEmail: 0, contacted: 0, replied: 0 }),
+        active_sequence: activeSeq.get(l.id) ?? null,
+      };
+    }),
   });
 }
 
