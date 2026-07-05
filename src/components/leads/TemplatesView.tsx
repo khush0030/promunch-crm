@@ -144,7 +144,7 @@ export default function TemplatesView({ onChanged }: { onChanged: () => void }) 
 
       {editor && (
         <div className={styles.overlay} onClick={() => setEditor(null)}>
-          <div className={`pm-card ${styles.modal} ${styles.modalXl}`} onClick={(e) => e.stopPropagation()} style={{ padding: 20 }}>
+          <div className={`pm-panel ${styles.modal} ${styles.modalXl}`} onClick={(e) => e.stopPropagation()} style={{ padding: 20 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>
               {editor.id ? "Edit template" : "New template"}
             </h3>
@@ -269,7 +269,7 @@ function AiDraftModal({
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={`pm-card ${styles.modal} ${styles.modalLg}`} onClick={(e) => e.stopPropagation()} style={{ padding: 20 }}>
+      <div className={`pm-panel ${styles.modal} ${styles.modalLg}`} onClick={(e) => e.stopPropagation()} style={{ padding: 20 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Draft with AI</h3>
         <p className="pm-muted" style={{ fontSize: 12.5, marginBottom: 12 }}>
           Describe the pitch; you get three template options grounded in the PROMUNCH knowledge base.

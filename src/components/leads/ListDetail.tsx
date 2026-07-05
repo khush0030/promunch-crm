@@ -348,7 +348,7 @@ function EnrollModal({
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={`pm-card ${styles.modal} ${styles.modalSm}`} onClick={(e) => e.stopPropagation()} style={{ padding: 20 }}>
+      <div className={`pm-panel ${styles.modal} ${styles.modalSm}`} onClick={(e) => e.stopPropagation()} style={{ padding: 20 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Enroll “{listName}”</h3>
         <p className="pm-muted" style={{ fontSize: 12.5, marginBottom: 14 }}>
           Every lead with a verified email joins the sequence. Emails go out inside the send window,

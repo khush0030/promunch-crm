@@ -20,7 +20,11 @@ export interface CrawlResult {
   pagesFetched: number;
 }
 
-const UA = 'Mozilla/5.0 (compatible; ProMunchBot/1.0; +https://promunch.in)';
+// A plain browser UA: SMB sites (Shopify/Wix bot protection, cheap WAFs) hard-403
+// anything that self-identifies as a bot, which silently zeroed out real emails
+// (e.g. wrapnwows.com serves 403 to "ProMunchBot" but 200 to a browser UA).
+const UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 const PAGE_TIMEOUT_MS = 10_000;
 const MAX_EXTRA_PAGES = 4;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
