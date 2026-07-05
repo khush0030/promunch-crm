@@ -237,7 +237,7 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
             </div>
           ) : null}
           <div className={styles.estimateNote}>
-            Runs in your browser — keep this tab open. It also continues automatically every night.
+            Runs in your browser — keep this tab open. It also continues automatically every hour once the cron migration is applied.
           </div>
         </div>
 
