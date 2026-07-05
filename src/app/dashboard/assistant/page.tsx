@@ -4,41 +4,59 @@ import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, SendHorizonal, Sparkles, Trash2 } from "lucide-react";
+import {
+  BookOpen,
+  Check,
+  Copy,
+  HeartPulse,
+  MessageCircle,
+  Plus,
+  SendHorizonal,
+  Sparkles,
+  Square,
+  TrendingUp,
+  Trash2,
+} from "lucide-react";
 import { PageHead } from "@/components/pm";
 import { Markdown } from "@/components/assistant/Markdown";
+import { ToolResult } from "@/components/assistant/ToolResult";
 import styles from "./assistant.module.css";
 
 type Convo = { id: string; title: string | null; updated_at: string };
 type StoredMessage = { id: string; role: "user" | "assistant"; content: string };
 
-const TOOL_LABELS: Record<string, string> = {
-  query_orders: "Checked Shopify orders",
-  get_whatsapp_stats: "Checked WhatsApp stats",
-  get_system_health: "Ran system health checks",
-  get_leads_pipeline: "Checked B2B pipeline",
-  get_email_stats: "Checked email stats",
-  get_amazon_stats: "Checked Amazon",
-  search_customer: "Looked up customer",
-  search_kb: "Read the knowledge base",
-  get_audit_log: "Checked the audit log",
-};
-
 const SUGGESTIONS = [
-  "Is everything working right now?",
-  "Revenue in the last 7 days vs the 7 before, by channel",
-  "How did WhatsApp sends perform this week?",
-  "Any failed jobs or connector errors today?",
-  "What is our shipping and COD policy?",
+  { icon: HeartPulse, kicker: "System health", q: "Is everything working right now?" },
+  { icon: TrendingUp, kicker: "Revenue", q: "Revenue in the last 7 days vs the 7 before, by channel" },
+  { icon: MessageCircle, kicker: "WhatsApp", q: "How did WhatsApp sends perform this week?" },
+  { icon: BookOpen, kicker: "Brand & policy", q: "What is our shipping and COD policy?" },
 ];
+
+function ago(iso: string): string {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return "now";
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
+}
+
+function MayaAvatar() {
+  return (
+    <span className={styles.avatar} aria-hidden>
+      <Sparkles size={13} />
+    </span>
+  );
+}
 
 export default function AssistantPage() {
   const qc = useQueryClient();
   const [input, setInput] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const { messages, sendMessage, status, setMessages, error } = useChat({
+  const { messages, sendMessage, status, setMessages, error, stop } = useChat({
     transport: new DefaultChatTransport({ api: "/api/assistant/chat" }),
     onFinish: () => qc.invalidateQueries({ queryKey: ["assistant-convos"] }),
   });
@@ -97,6 +115,7 @@ export default function AssistantPage() {
     if (busy) return;
     setActiveId(null);
     setMessages([]);
+    inputRef.current?.focus();
   }
 
   async function deleteConvo(id: string) {
@@ -106,99 +125,156 @@ export default function AssistantPage() {
     if (id === activeId) newChat();
   }
 
+  function copyAnswer(id: string, text: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1600);
+    });
+  }
+
+  const lastMessage = messages[messages.length - 1];
+  const waitingForMaya =
+    busy && (lastMessage?.role === "user" || (lastMessage?.role === "assistant" && !lastMessage.parts.some((p) => p.type === "text")));
+
   return (
     <div className="pm-page">
       <PageHead
         title="Ask Maya"
-        subtitle="Your PROMUNCH data assistant. Ask about revenue, WhatsApp, leads, Amazon or whether everything is running."
+        subtitle="Your PROMUNCH data analyst. Every answer is read live from Shopify, WhatsApp, email, leads and Amazon."
       />
       <div className={styles.wrap}>
         <aside className={styles.rail}>
-          <button type="button" className="pm-btn sm" onClick={newChat}>
-            <Plus size={14} /> New chat
+          <button type="button" className={styles.newChat} onClick={newChat}>
+            <Plus size={14} /> New conversation
           </button>
+          <div className={styles.railHead}>Recent</div>
           <div className={styles.railList}>
             {(convos ?? []).map((c) => (
-              <div
-                key={c.id}
-                className={`${styles.railItem} ${c.id === activeId ? styles.railItemOn : ""}`}
-                onClick={() => openConvo(c.id)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === "Enter" && openConvo(c.id)}
-              >
-                <span className={styles.railTitle}>{c.title || "New conversation"}</span>
+              <div key={c.id} className={`${styles.railItem} ${c.id === activeId ? styles.railItemOn : ""}`}>
+                <button type="button" className={styles.railOpen} onClick={() => openConvo(c.id)}>
+                  <span className={styles.railTitle}>{c.title || "New conversation"}</span>
+                  <span className={styles.railTime}>{ago(c.updated_at)}</span>
+                </button>
                 <button
                   type="button"
                   className={styles.railDelete}
                   aria-label="Delete conversation"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteConvo(c.id);
-                  }}
+                  onClick={() => deleteConvo(c.id)}
                 >
                   <Trash2 size={13} />
                 </button>
               </div>
             ))}
+            {convos && convos.length === 0 && <div className={styles.railEmpty}>Nothing yet</div>}
           </div>
         </aside>
 
         <section className={styles.chat}>
           {messages.length === 0 ? (
-            <div className={styles.suggest}>
-              <Sparkles size={26} color="var(--pm-gold)" />
-              <div className={styles.suggestTitle}>Hi, I&apos;m Maya</div>
-              <div className={styles.suggestSub}>
-                I can read Shopify orders, WhatsApp, email, B2B leads, Amazon and the system health
-                checks. Everything I say comes from live data.
+            <div className={styles.hero}>
+              <div className={styles.heroMark}>
+                <Sparkles size={22} />
               </div>
-              <div className={styles.chips}>
-                {SUGGESTIONS.map((s) => (
-                  <button key={s} type="button" className={styles.chip} onClick={() => send(s)}>
-                    {s}
+              <h2 className={styles.heroTitle}>Ask Maya.</h2>
+              <p className={styles.heroSub}>
+                She reads the live PROMUNCH data before she answers: orders, WhatsApp, email, B2B
+                leads, Amazon, cron jobs and the Master KB.
+              </p>
+              <div className={styles.heroGrid}>
+                {SUGGESTIONS.map((s, i) => (
+                  <button
+                    key={s.q}
+                    type="button"
+                    className={styles.heroCard}
+                    style={{ animationDelay: `${i * 70}ms` }}
+                    onClick={() => send(s.q)}
+                  >
+                    <span className={styles.heroIcon}>
+                      <s.icon size={15} />
+                    </span>
+                    <span>
+                      <span className={styles.heroKicker}>{s.kicker}</span>
+                      <span className={styles.heroQ}>{s.q}</span>
+                    </span>
                   </button>
                 ))}
               </div>
             </div>
           ) : (
             <div className={styles.scroll} ref={scrollRef}>
-              {messages.map((m) => {
-                const toolParts = m.parts.filter((p) => p.type.startsWith("tool-"));
-                const text = m.parts
+              {messages.map((m, mi) => {
+                if (m.role === "user") {
+                  const text = m.parts
+                    .filter((p) => p.type === "text")
+                    .map((p) => (p as { text: string }).text)
+                    .join("\n\n");
+                  return (
+                    <div key={m.id} className={styles.userRow}>
+                      <div className={styles.userPill}>{text}</div>
+                    </div>
+                  );
+                }
+                const fullText = m.parts
                   .filter((p) => p.type === "text")
                   .map((p) => (p as { text: string }).text)
                   .join("\n\n");
+                const isStreamingThis = busy && mi === messages.length - 1;
                 return (
-                  <div key={m.id} style={{ display: "contents" }}>
-                    {toolParts.length > 0 && (
-                      <div className={styles.toolChips}>
-                        {toolParts.map((p, i) => {
-                          const name = p.type.replace(/^tool-/, "");
-                          const state = (p as { state?: string }).state;
-                          const done = state === "output-available" || state === "output-error";
+                  <div key={m.id} className={styles.mayaBlock}>
+                    <div className={styles.mayaName}>
+                      <MayaAvatar />
+                      Maya
+                      {fullText && !isStreamingThis && (
+                        <button
+                          type="button"
+                          className={styles.copyBtn}
+                          aria-label="Copy answer"
+                          onClick={() => copyAnswer(m.id, fullText)}
+                        >
+                          {copiedId === m.id ? <Check size={12} /> : <Copy size={12} />}
+                        </button>
+                      )}
+                    </div>
+                    <div className={styles.mayaBody}>
+                      {m.parts.map((p, i) => {
+                        if (p.type === "text") {
+                          const t = (p as { text: string }).text;
+                          if (!t) return null;
                           return (
-                            <span key={i} className={styles.toolChip}>
-                              <span className={`${styles.toolDot} ${done ? styles.toolDotDone : ""}`} />
-                              {TOOL_LABELS[name] ?? name}
-                            </span>
+                            <div key={i} className={styles.prose}>
+                              <Markdown text={t} className={styles.md} />
+                            </div>
                           );
-                        })}
-                      </div>
-                    )}
-                    {text &&
-                      (m.role === "user" ? (
-                        <div className={styles.msgUser}>{text}</div>
-                      ) : (
-                        <div className={styles.msgAssistant}>
-                          <Markdown text={text} className={styles.md} />
-                        </div>
-                      ))}
+                        }
+                        if (p.type.startsWith("tool-")) {
+                          return (
+                            <div key={i} className={styles.toolSlot}>
+                              <ToolResult part={p as { type: string; state?: string; output?: unknown }} />
+                            </div>
+                          );
+                        }
+                        return null;
+                      })}
+                      {isStreamingThis && <span className={styles.caret} aria-hidden />}
+                    </div>
                   </div>
                 );
               })}
-              {busy && messages[messages.length - 1]?.role === "user" && (
-                <div className={styles.thinking}>Maya is looking at the data…</div>
+              {waitingForMaya && (
+                <div className={styles.mayaBlock}>
+                  <div className={styles.mayaName}>
+                    <MayaAvatar />
+                    Maya
+                  </div>
+                  <div className={styles.thinking}>
+                    reading the data
+                    <span className={styles.dots}>
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -213,10 +289,11 @@ export default function AssistantPage() {
             }}
           >
             <textarea
+              ref={inputRef}
               className={styles.input}
               rows={1}
               value={input}
-              placeholder="Ask Maya about PROMUNCH data…"
+              placeholder="Ask about revenue, campaigns, customers or system health…"
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -225,10 +302,17 @@ export default function AssistantPage() {
                 }
               }}
             />
-            <button type="submit" className="pm-btn primary" disabled={busy || !input.trim()}>
-              <SendHorizonal size={15} />
-            </button>
+            {busy ? (
+              <button type="button" className={styles.stopBtn} onClick={() => stop()} aria-label="Stop">
+                <Square size={13} />
+              </button>
+            ) : (
+              <button type="submit" className={styles.sendBtn} disabled={!input.trim()} aria-label="Send">
+                <SendHorizonal size={15} />
+              </button>
+            )}
           </form>
+          <div className={styles.hint}>Maya reads live data, so answers can take a few seconds. Enter to send · Shift+Enter for a new line.</div>
         </section>
       </div>
     </div>

@@ -1,0 +1,168 @@
+/* Data cards Maya stamps into the conversation when a tool returns. */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--pm-muted);
+  background: var(--pm-card);
+  border: 1px solid var(--pm-line);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+.chipPending {
+  color: var(--pm-gold);
+  border-style: dashed;
+  border-color: var(--pm-gold);
+  animation: chipPulse 1.4s ease-in-out infinite;
+}
+.chipError { color: var(--pm-terra); border-color: var(--pm-terra-soft, #eccfc7); }
+@keyframes chipPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.card {
+  background: var(--pm-card);
+  border: 1px solid var(--pm-border);
+  border-radius: 13px;
+  padding: 14px 16px 12px;
+  max-width: 560px;
+  box-shadow: 0 1px 2px rgba(26, 23, 20, 0.04);
+  animation: cardIn 0.35s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pm-hint);
+  margin-bottom: 10px;
+}
+.cardHead svg { color: var(--pm-gold); }
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.kpi { min-width: 0; }
+.kpiLabel { font-size: 11px; color: var(--pm-muted); margin-bottom: 2px; }
+.kpiValue {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--pm-ink);
+  font-variant-numeric: tabular-nums;
+}
+.kpiSub { font-size: 11px; color: var(--pm-hint); }
+
+.divider { border: 0; border-top: 1px solid var(--pm-line); margin: 10px 0; }
+
+/* Horizontal channel bars */
+.barRow {
+  display: grid;
+  grid-template-columns: 128px 1fr 74px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.barLabel {
+  font-size: 12px;
+  color: var(--pm-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.barTrack { height: 9px; border-radius: 0 4px 4px 0; background: transparent; }
+.barFill { height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; }
+.barValue {
+  font-size: 12px;
+  color: var(--pm-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sparkline */
+.spark { display: block; width: 100%; height: 56px; margin-top: 2px; }
+.sparkPoint { fill: #31875a; opacity: 0; }
+.sparkPoint:hover { opacity: 1; }
+.sparkMeta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: var(--pm-hint);
+  margin-top: 2px;
+}
+
+/* Status rows (health card) */
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--pm-line);
+}
+.statusRow:last-of-type { border-bottom: 0; }
+.statusDot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.dotGood { background: #31875a; }
+.dotWarn { background: #b87a10; }
+.dotBad { background: #c2492e; }
+.dotUnknown { background: var(--pm-hint); }
+.statusLabel { font-size: 12.5px; color: var(--pm-ink); flex: 1; }
+.statusPill {
+  font-size: 11.5px;
+  color: var(--pm-muted);
+  background: var(--pm-app);
+  border: 1px solid var(--pm-line);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Delivery split bar (WhatsApp card) */
+.split { display: flex; gap: 2px; height: 10px; margin: 8px 0 6px; }
+.splitSeg { border-radius: 3px; min-width: 3px; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 4px; }
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--pm-muted);
+  font-variant-numeric: tabular-nums;
+}
+.legendDot { width: 7px; height: 7px; border-radius: 2px; }
+
+/* Generic fact grid */
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px 14px;
+}
+.fact { min-width: 0; }
+.factLabel {
+  font-size: 10.5px;
+  color: var(--pm-hint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.factValue {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--pm-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.footnote { font-size: 10.5px; color: var(--pm-hint); margin-top: 9px; }
