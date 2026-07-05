@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { recordAudit } from "@/lib/audit";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -16,11 +17,18 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
   return NextResponse.json(await r.json(), { status: r.status });
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const { data: doc } = await supabaseAdmin.from("kb_documents").select("source_uri").eq("id", id).single();
   if (doc?.source_uri) await supabaseAdmin.storage.from(BUCKET).remove([doc.source_uri]).catch(() => {});
   const { error } = await supabaseAdmin.from("kb_documents").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await recordAudit({
+    action: "kb_document.delete",
+    entityType: "kb_document",
+    entityId: id,
+    summary: `Deleted knowledge-base document ${id}`,
+    request: req,
+  });
   return NextResponse.json({ ok: true });
 }

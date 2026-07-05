@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/leads/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { recordAudit } from '@/lib/audit';
 
 // Delete a reply (e.g. a simulated test reply). If it was the lead's last reply
 // and the lead is flagged 'replied', revert the lead to a sensible prior status.
@@ -17,6 +18,13 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!reply) return NextResponse.json({ error: 'reply not found' }, { status: 404 });
 
   await supabaseAdmin.from('outreach_replies').delete().eq('id', id);
+  await recordAudit({
+    action: "lead_reply.delete",
+    entityType: "outreach_reply",
+    entityId: id,
+    summary: `Deleted outreach reply ${id}`,
+    metadata: { lead_id: reply.lead_id },
+  });
 
   const leadId = reply.lead_id as string | null;
   if (leadId) {

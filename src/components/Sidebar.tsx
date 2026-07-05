@@ -18,6 +18,7 @@ import {
   Route as RouteIcon,
   BarChart3,
   Settings as SettingsIcon,
+  ScrollText,
   HelpCircle,
   LogOut,
   Menu,
@@ -77,6 +78,7 @@ const groups: NavGroup[] = [
     label: "System",
     items: [
       { href: "/dashboard/settings", label: "Settings", tour: "settings", icon: <SettingsIcon /> },
+      { href: "/dashboard/audit-log", label: "Audit Log", icon: <ScrollText /> },
       { label: "Help & tour", action: "tour", icon: <HelpCircle /> },
     ],
   },

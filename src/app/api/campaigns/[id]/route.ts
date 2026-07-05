@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from "@/lib/rbac-server";
+import { recordAudit } from "@/lib/audit";
 import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
 
 export async function GET(
@@ -84,6 +85,15 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  await recordAudit({
+    action: "campaign.delete",
+    entityType: "campaign",
+    entityId: id,
+    summary: `Deleted campaign ${id}`,
+    actor: gate.user,
+    request,
+  });
 
   return NextResponse.json({ success: true });
 }

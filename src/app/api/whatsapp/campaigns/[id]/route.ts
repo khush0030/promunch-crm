@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { recordAudit } from "@/lib/audit";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -25,9 +26,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   return NextResponse.json({ campaign: data });
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const { error } = await supabaseAdmin.from("wa_campaigns").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await recordAudit({
+    action: "wa_campaign.delete",
+    entityType: "wa_campaign",
+    entityId: id,
+    summary: `Deleted WhatsApp campaign ${id}`,
+    request: req,
+  });
   return NextResponse.json({ ok: true });
 }

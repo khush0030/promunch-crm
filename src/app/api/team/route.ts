@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { isAllowedEmail, ALLOWED_DOMAINS_LABEL } from "@/lib/auth-domains";
 import { sendEmail } from "@/lib/resend";
 import { inviteEmailHtml, inviteEmailSubject } from "@/lib/emails/invite";
+import { recordAudit } from "@/lib/audit";
 
 function callerName(user: { email?: string | null; user_metadata?: Record<string, unknown> }): string {
   const meta = (user.user_metadata || {}) as Record<string, unknown>;
@@ -152,6 +153,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  await recordAudit({
+    action: "team.invite",
+    entityType: "user",
+    entityId: data?.user?.id,
+    summary: `Invited ${email} to the team`,
+    metadata: { email, name: name || null },
+    actor: caller,
+    request: req,
+  });
+
   return NextResponse.json({ ok: true });
 }
 
@@ -172,9 +183,21 @@ export async function PATCH(req: NextRequest) {
   if (id === caller.id) return NextResponse.json({ error: "You can't change your own role." }, { status: 400 });
 
   const { data: target } = await supabaseAdmin.auth.admin.getUserById(id);
+  const prevRole = roleOf(target.user ?? {});
   const meta = { ...(target.user?.user_metadata ?? {}), role };
   const { error } = await supabaseAdmin.auth.admin.updateUserById(id, { user_metadata: meta });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await recordAudit({
+    action: "team.role_change",
+    entityType: "user",
+    entityId: id,
+    summary: `Changed ${target.user?.email ?? id} role: ${prevRole} → ${role}`,
+    metadata: { from: prevRole, to: role, email: target.user?.email ?? null },
+    actor: caller,
+    request: req,
+  });
+
   return NextResponse.json({ ok: true });
 }
 
@@ -189,8 +212,19 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "You can't remove yourself." }, { status: 400 });
   }
 
+  const { data: target } = await supabaseAdmin.auth.admin.getUserById(id);
   const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await recordAudit({
+    action: "team.remove",
+    entityType: "user",
+    entityId: id,
+    summary: `Removed ${target.user?.email ?? id} from the team`,
+    metadata: { email: target.user?.email ?? null },
+    actor: caller,
+    request: req,
+  });
 
   return NextResponse.json({ ok: true });
 }
