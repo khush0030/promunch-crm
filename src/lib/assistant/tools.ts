@@ -375,7 +375,7 @@ const getEmailStats = tool({
 
       const [threads, sentReplies] = await Promise.all([
         countRows("email_threads"),
-        countRows("sent_replies", (q) => q.gte("created_at", since(days))),
+        countRows("sent_replies", (q) => q.gte("sent_at", since(days))),
       ]);
 
       return {
