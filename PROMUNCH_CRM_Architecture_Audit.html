@@ -237,8 +237,8 @@
         <li>TypeScript <span class="pill">5</span></li>
         <li>Tailwind CSS <span class="pill">v4</span> + PostCSS</li>
         <li>lucide-react icons, geist font</li>
-        <li class="warn">No React Query / SWR / Zustand</li>
-        <li class="warn">No test framework at all</li>
+        <li class="ok">TanStack Query adopted (provider + KbView exemplar; migrating view-by-view)</li>
+        <li class="ok">Vitest + 33 tests; Sentry error tracking + global error boundary; gitleaks + CI</li>
       </ul>
     </div>
     <div class="card">
@@ -528,7 +528,7 @@ Staff schedules a campaign in the dashboard
   </div>
 
   <div class="status-board">
-    <div class="sbh"><span>Remediation status</span><span class="updated">updated 2026-07-05 · commit 916c51c · 12/12 findings addressed in code · C2 rotation STILL PENDING (key verified live 2026-07-05) · pending deploy</span></div>
+    <div class="sbh"><span>Remediation status</span><span class="updated">updated 2026-07-05 · commit cd1a186 · 12/12 findings in code + hardening (audit log, Sentry, gitleaks CI, a11y) · C2 rotation STILL PENDING (key verified live 2026-07-05) · pending deploy</span></div>
     <div class="tbl-wrap" style="border:none"><table>
       <tr><th>ID</th><th>Severity</th><th>Status</th><th>What's left</th></tr>
       <tr><td>C1 anon PII</td><td><span class="badge b-crit">Critical</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy app, then apply migration 004 in Supabase SQL editor</td></tr>
