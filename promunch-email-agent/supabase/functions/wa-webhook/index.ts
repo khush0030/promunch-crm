@@ -7,7 +7,7 @@ import { db } from "../_shared/supabase.ts";
 import { verifySignature, downloadMedia, markRead, buildCtaUrl } from "../_shared/whatsapp.ts";
 import { logConnector, alertWaSendFailure, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
 import { buildCartPermalink, cartFromOrderItems } from "../_shared/shopify-cart.ts";
-import { CART_TEMPLATE_BACKOFF_HOURS } from "../_shared/journeys.ts";
+import { getFlowSettings } from "../_shared/flow-settings.ts";
 
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const WA_MEDIA_BUCKET = Deno.env.get("WA_MEDIA_BUCKET") ?? "wa-media";
@@ -143,12 +143,13 @@ async function handleStatus(status: any) {
             .eq("id", updated.journey_run_id).neq("status", "expired")
             .then(() => {}, () => {});
         } else {
-          const nextAt = new Date(Date.now() + CART_TEMPLATE_BACKOFF_HOURS * 3600_000).toISOString();
+          const backoffH = (await getFlowSettings()).cart_backoff_hours;
+          const nextAt = new Date(Date.now() + backoffH * 3600_000).toISOString();
           await sb.from("wa_journey_runs").update({
             status: "active",
             next_action_at: nextAt,
             attempts: (run.attempts ?? 0) + 1,
-            last_error: `async cap (#${status?.errors?.[0]?.code ?? "?"}) — reopened, retry in ${CART_TEMPLATE_BACKOFF_HOURS}h`,
+            last_error: `async cap (#${status?.errors?.[0]?.code ?? "?"}) — reopened, retry in ${backoffH}h`,
           }).eq("id", updated.journey_run_id).eq("status", "completed")
             .then(() => {}, () => {});
         }

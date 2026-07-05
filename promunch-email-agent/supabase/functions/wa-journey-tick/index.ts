@@ -9,7 +9,8 @@
 
 import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
-import { CART_TEMPLATE_BACKOFF_HOURS, TIMED_JOURNEYS } from "../_shared/journeys.ts";
+import { TIMED_JOURNEYS } from "../_shared/journeys.ts";
+import { getFlowSettings } from "../_shared/flow-settings.ts";
 import { isOrderCancelled } from "../_shared/orders.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 import { WINDOW_DELIVER_JOURNEYS, claimAsk, releaseAsk, sessionOpen } from "../_shared/window-asks.ts";
@@ -26,6 +27,14 @@ Deno.serve(async (req) => {
   if (gate) return gate;
   const sb = db();
   const now = new Date().toISOString();
+
+  // Dashboard flow settings (Flows tab): per-journey kill-switch + cart backoff.
+  const flows = await getFlowSettings();
+  const flowEnabled: Record<string, boolean> = {
+    abandoned_checkout: flows.abandoned_cart_enabled,
+    review_request: flows.review_request_enabled,
+    replenishment_reminder: flows.replenishment_enabled,
+  };
 
   const { data: due, error } = await sb
     .from("wa_journey_runs")
@@ -68,6 +77,19 @@ Deno.serve(async (req) => {
         message: `Cart ${run.order_ref ?? run.id}: no recovery message delivered in ${run.attempts ?? 0} attempt(s) before deadline.`,
         ref: run.order_ref ?? run.id,
       }).catch(() => {});
+      skipped++;
+      continue;
+    }
+
+    // Paused from the dashboard: hold the run (defer 6h), don't delete it —
+    // re-enabling the flow resumes where it left off. Placed AFTER the
+    // deadline guard so a paused cart still expires at its deadline instead
+    // of nudging a days-cold cart when the flow comes back on.
+    if (flowEnabled[run.journey_key] === false) {
+      await sb.from("wa_journey_runs").update({
+        next_action_at: new Date(Date.now() + 6 * 3600_000).toISOString(),
+        last_error: "paused — flow disabled in dashboard settings",
+      }).eq("id", run.id).then(() => {}, () => {});
       skipped++;
       continue;
     }
@@ -200,7 +222,7 @@ Deno.serve(async (req) => {
       // we probe across cap windows without hammering the number's quality
       // rating. The 72h deadline (checked at the top) is the hard stop.
       await releaseAsk(sb, run.id);
-      const nextAt = new Date(Date.now() + CART_TEMPLATE_BACKOFF_HOURS * 3600_000).toISOString();
+      const nextAt = new Date(Date.now() + flows.cart_backoff_hours * 3600_000).toISOString();
       await sb.from("wa_journey_runs").update({
         next_action_at: nextAt,
         attempts: (run.attempts ?? 0) + 1,

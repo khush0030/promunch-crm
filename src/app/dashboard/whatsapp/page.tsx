@@ -9,6 +9,7 @@ import { WA_GREEN } from "@/components/whatsapp/styles";
 import TemplatesView from "@/components/whatsapp/TemplatesView";
 import KbView from "@/components/whatsapp/KbView";
 import CampaignsView from "@/components/whatsapp/CampaignsView";
+import FlowsView from "@/components/whatsapp/FlowsView";
 import InboxView from "@/components/whatsapp/InboxView";
 
 
@@ -26,6 +27,7 @@ export default function WhatsAppPage() {
         {tab === "tickets" && <InboxView ticketsOnly={true} />}
         {tab === "templates" && <TemplatesView />}
         {tab === "campaigns" && <CampaignsView />}
+        {tab === "flows" && <FlowsView />}
         {tab === "analytics" && <AnalyticsView />}
         {tab === "kb" && <KbView />}
       </div>
@@ -132,6 +134,7 @@ function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
     { key: "tickets", label: "Tickets" },
     { key: "templates", label: "Templates" },
     { key: "campaigns", label: "Campaigns" },
+    { key: "flows", label: "Flows" },
     { key: "analytics", label: "Analytics" },
     { key: "kb", label: "Knowledge Base" },
   ];

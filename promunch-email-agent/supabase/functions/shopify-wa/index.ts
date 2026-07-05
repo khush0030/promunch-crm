@@ -13,7 +13,8 @@
 import { db } from "../_shared/supabase.ts";
 import { verifyShopifyHmac } from "../_shared/shopify.ts";
 import { logConnector } from "../_shared/connector-log.ts";
-import { CART_RECOVERY_DEADLINE_HOURS, SITE_URL, firstName, toWaId } from "../_shared/journeys.ts";
+import { SITE_URL, firstName, toWaId } from "../_shared/journeys.ts";
+import { getFlowSettings } from "../_shared/flow-settings.ts";
 import { handleOrderCreated } from "../_shared/order-confirmation.ts";
 import { claimSend, markSendSent, releaseSend } from "../_shared/confirmations.ts";
 
@@ -66,6 +67,9 @@ async function handleOrderFulfilled(order: any) {
     order.customer?.phone ?? order.phone ?? order.shipping_address?.phone ?? order.billing_address?.phone,
   );
   if (!waId) return;
+
+  // Dashboard kill-switch (Flows tab).
+  if (!(await getFlowSettings()).shipping_update_enabled) return;
 
   const name = firstName(order.customer?.first_name, order.shipping_address?.first_name);
   const f = Array.isArray(order.fulfillments) ? order.fulfillments[0] : null;
@@ -157,6 +161,10 @@ async function handleCheckout(checkout: any) {
   );
   if (!waId) return;
 
+  // Dashboard settings (Flows tab): kill-switch + step delays + deadline + coupon.
+  const flows = await getFlowSettings();
+  if (!flows.abandoned_cart_enabled) return;
+
   // ATOMIC gate — two checkouts/create+update webhooks for the same token could
   // both pass the select-based dedup below and enrol the 3-step sequence twice
   // (6 abandoned-cart messages). claimSend makes enrolment happen exactly once.
@@ -180,9 +188,9 @@ async function handleCheckout(checkout: any) {
     message: `Cart ${token}: recovery link from ${noteUrl ? "note" : (checkout.abandoned_checkout_url ? "shopify_url" : "fallback")}.`,
     ref: token,
   }).catch(() => {});
-  // PROMUNCH10 (10% off on orders ₹399+) is the ONLY live code — PROTEIN15 was
-  // discontinued 2026-06. Always link this coupon in the recovery message.
-  const code = "PROMUNCH10";
+  // Coupon comes from the dashboard (Flows tab); defaults to PROMUNCH10 (10%
+  // off on orders ₹399+, the only live code — PROTEIN15 discontinued 2026-06).
+  const code = (flows.cart_coupon_code || "PROMUNCH10").trim();
 
   // Both templates carry a dynamic URL button: base https://promunch.in/{{1}}.
   // We fill {{1}} with a path suffix that gets appended to that base.
@@ -227,11 +235,12 @@ async function handleCheckout(checkout: any) {
   // All cart runs share one retry deadline: keep trying (free text in-window, or
   // spaced template) until ONE message is delivered or this passes (see migration
   // 20260627160000). Measured from enrolment so both steps expire together.
-  const deadlineAt = new Date(Date.now() + CART_RECOVERY_DEADLINE_HOURS * 3600_000).toISOString();
+  const deadlineAt = new Date(Date.now() + flows.cart_deadline_hours * 3600_000).toISOString();
 
+  // Delays measured from abandonment (dashboard-configurable; defaults +1h / +6h).
   const steps = [
-    { h: 1, template: "abandoned_cart_reminder", components: reminderComponents, url: reminderUrl },
-    { h: 6, template: "abandoned_cart_recovery", components: discountComponents, url: discountUrl },
+    { h: flows.cart_step1_delay_hours, template: "abandoned_cart_reminder", components: reminderComponents, url: reminderUrl },
+    { h: flows.cart_step2_delay_hours, template: "abandoned_cart_recovery", components: discountComponents, url: discountUrl },
   ];
   const rows = steps.map((s) => ({
     journey_key: "abandoned_checkout",

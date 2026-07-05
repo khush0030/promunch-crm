@@ -23,6 +23,7 @@
 import { db } from "../_shared/supabase.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 import { firstName, toWaId } from "../_shared/journeys.ts";
+import { getFlowSettings } from "../_shared/flow-settings.ts";
 import {
   buildConfirmationTemplate,
   claimConfirmation,
@@ -53,6 +54,12 @@ const norm = (s: string | null | undefined) => String(s ?? "").trim().replace(/^
 
 Deno.serve(async (req) => {
   const sb = db();
+
+  // Dashboard kill-switch (Flows tab): with the flow off, the sweep must not
+  // resend confirmations or raise stuck-order alerts.
+  if (!(await getFlowSettings()).order_confirmation_enabled) {
+    return j({ ok: true, skipped: "order confirmation disabled in flow settings" });
+  }
 
   // force mode — POST {"orders":[...]}; cron invokes with no/empty body
   let forced: string[] = [];

@@ -17,7 +17,8 @@ import {
   claimSend,
   markSendSent,
 } from "./confirmations.ts";
-import { REVIEW_URL, SITE_URL, TIMED_JOURNEYS, firstName, toWaId } from "./journeys.ts";
+import { REVIEW_URL, SITE_URL, firstName, toWaId } from "./journeys.ts";
+import { getFlowSettings, type FlowSettings } from "./flow-settings.ts";
 
 export interface OrderConfirmationResult {
   orderRef: string;
@@ -55,9 +56,16 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
   // 2. Atomic claim: win the per-order DB lock or stand down. This closes the
   //    race where two trigger paths both pass guard (1) in the same instant
   //    and both send — the bug that messaged order #2050 twice.
+  const flows = await getFlowSettings();
+
   let sendStatus: OrderConfirmationResult["status"];
   let sendDetail: string | undefined;
-  if (await confirmationAlreadySent(orderRef)) {
+  if (!flows.order_confirmation_enabled) {
+    // Dashboard kill-switch (Flows tab). Post-purchase enrolment and cart
+    // conversion below still run — they're separate flows.
+    sendStatus = "not_active";
+    sendDetail = "order confirmation disabled in flow settings";
+  } else if (await confirmationAlreadySent(orderRef)) {
     sendStatus = "duplicate";
     await logConnector({
       connector: "shopify_wa", level: "info", event: "confirmation_skipped_dup",
@@ -96,7 +104,7 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
   }
 
   // enrol the timed post-purchase journeys (idempotent — checks for prior rows)
-  await enrolPostPurchaseJourneys(orderRef, waId, name).catch((e) =>
+  await enrolPostPurchaseJourneys(orderRef, waId, name, flows).catch((e) =>
     console.warn(`[order-confirmation] enrol failed for ${orderRef}:`, e)
   );
 
@@ -109,7 +117,7 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
   return { orderRef, status: sendStatus, detail: sendDetail };
 }
 
-async function enrolPostPurchaseJourneys(orderRef: string, waId: string, name: string) {
+async function enrolPostPurchaseJourneys(orderRef: string, waId: string, name: string, flows: FlowSettings) {
   const sb = db();
   // ATOMIC gate — the select-based dedup below is check-then-act: two
   // confirmation paths firing together both saw "no prior runs" and both
@@ -125,14 +133,15 @@ async function enrolPostPurchaseJourneys(orderRef: string, waId: string, name: s
     .limit(1);
   if (prior && prior.length) { await markSendSent(enrolKey); return; }
 
-  const enrolments: Array<readonly [string, Record<string, string>]> = [
-    ["review_request", { "1": name, "2": REVIEW_URL }],
-    ["replenishment_reminder", { "1": name, "2": SITE_URL }],
-  ];
-  for (const [key, vars] of enrolments) {
-    const cfg = TIMED_JOURNEYS[key];
-    if (!cfg) continue;
-    const due = new Date(Date.now() + cfg.delayHours * 3600_000).toISOString();
+  // Delays come from the dashboard (Flows tab); a disabled flow simply isn't
+  // enrolled — this order stays out of it even if re-enabled later.
+  const enrolments: Array<readonly [string, Record<string, string>, number]> = [];
+  if (flows.review_request_enabled)
+    enrolments.push(["review_request", { "1": name, "2": REVIEW_URL }, flows.review_delay_days * 24]);
+  if (flows.replenishment_enabled)
+    enrolments.push(["replenishment_reminder", { "1": name, "2": SITE_URL }, flows.replenishment_delay_days * 24]);
+  for (const [key, vars, delayHours] of enrolments) {
+    const due = new Date(Date.now() + delayHours * 3600_000).toISOString();
     await sb.from("wa_journey_runs").insert({
       journey_key: key, wa_id: waId, next_action_at: due,
       context: { vars }, order_ref: orderRef,
