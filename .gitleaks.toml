@@ -1,0 +1,36 @@
+# gitleaks config — CI secret scanning.
+#
+# Uses the built-in ruleset (API keys, JWTs, private keys, tokens…) and then
+# allowlists the ALREADY-KNOWN historical leaks that are pending a git-history
+# purge (git-filter-repo). Once history is rewritten, delete those commit
+# entries so any re-introduction is caught again. New secrets in new commits
+# are NOT allowlisted and will fail the build.
+
+title = "PROMUNCH CRM gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known historical leaks (pending history purge) + false positives"
+
+# Commits that carried the leaked Supabase service_role/anon keys and the
+# Google service-account JSON. These are being removed from history; until then
+# a full-history scan would fail on them forever. Do NOT add new commits here.
+commits = [
+  "6f809d565a71078ef4a020b166371ee01533908e",  # WIP commit carrying leaked service_role/anon JWTs in .claude/settings.json
+  "9f2b77730b1959bad839216def111d0a15ad77c9",  # PM-CRM_GKeys.json (Google SA key) committed here
+]
+
+# Paths that only ever held historical/placeholder credentials.
+paths = [
+  '''PM-CRM_GKeys\.json''',        # Google SA key — now gitignored, purge pending
+  '''.*\.env\.example$''',         # example env files hold placeholders, not secrets
+]
+
+# The Claude command-allowlist in .claude/settings.json contains curl/awk
+# command STRINGS that mention env-var NAMES (not values) — false positives.
+regexes = [
+  '''__TRACKED_VAR__''',
+  '''__CMDSUB_OUTPUT__''',
+]
