@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifySvix } from '@/lib/webhook-verify';
 import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { stopEnrollmentsForLead } from '@/lib/leads/sequence-engine';
 
 type ResendWebhookEvent = {
   type: string;
@@ -213,6 +214,8 @@ async function handleOutreachEvent(
     .from('leads')
     .update({ status: 'bounced', updated_at: new Date().toISOString() })
     .eq('id', draft.lead_id);
+  // A bounce/complaint always halts any running sequence for this lead.
+  await stopEnrollmentsForLead(draft.lead_id, 'bounced');
 
   await postSlack(
     [

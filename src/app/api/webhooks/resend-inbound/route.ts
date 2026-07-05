@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifySvix } from '@/lib/webhook-verify';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { stopEnrollmentsForLead } from '@/lib/leads/sequence-engine';
 
 // Resend INBOUND webhook — receives replies to our B2B cold emails, matches them
 // to the lead by sender address, stores the reply, and flags the lead + its sent
@@ -127,6 +128,9 @@ export async function POST(req: NextRequest) {
       type: 'replied',
       payload: { from: from.email, subject },
     });
+    // A reply halts any running sequence for this lead (unless the sequence
+    // opted out of stop_on_reply).
+    await stopEnrollmentsForLead(contact.lead_id, 'replied');
   }
 
   const { data: lead } = contact?.lead_id

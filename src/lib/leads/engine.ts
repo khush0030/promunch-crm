@@ -12,6 +12,7 @@ import { generateDraft, DRAFT_MODEL } from './draft';
 import { getKnowledgeBase } from './kb';
 import { scoreFit } from './fit';
 import { enrichCompany, CompanyEnrichment } from './enrich-company';
+import { processSequences } from './sequence-engine';
 
 const STALE_CLAIM_MINUTES = 15;
 const MAX_SEARCH_PAGES = 3; // Places caps text search at 60 results
@@ -24,6 +25,7 @@ export interface TickSummary {
   crawled: number;
   contactsFound: number;
   drafted: number;
+  sequenceSent: number;
   errors: string[];
 }
 
@@ -47,12 +49,13 @@ const LEAD_COLUMNS =
   'id, name, website, domain, city, category, types, site_snippet, offer, subject_hint, products, enrichment, crawl_attempts';
 
 export async function tick(): Promise<TickSummary> {
-  const summary: TickSummary = { discovered: 0, crawled: 0, contactsFound: 0, drafted: 0, errors: [] };
+  const summary: TickSummary = { discovered: 0, crawled: 0, contactsFound: 0, drafted: 0, sequenceSent: 0, errors: [] };
 
   await recoverStaleClaims();
   await discover(summary);
   await crawlBatch(summary);
   await draftBatch(summary);
+  await processSequences(summary);
 
   return summary;
 }
@@ -69,6 +72,13 @@ async function recoverStaleClaims() {
     .update({ status: 'ready', claimed_at: null })
     .eq('status', 'drafting')
     .lt('claimed_at', staleBefore);
+  // Enrollments stuck in 'sending' (tick died mid-send) go back to active;
+  // the outreach_drafts 'sending' row keeps the evidence of what happened.
+  await supabaseAdmin
+    .from('sequence_enrollments')
+    .update({ status: 'active' })
+    .eq('status', 'sending')
+    .lt('updated_at', staleBefore);
 }
 
 // ---------------------------------------------------------------- discover --
