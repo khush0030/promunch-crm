@@ -6,9 +6,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Clock, FileText, Megaphone, Phone, Plus, RefreshCw, Send, Sparkles,
-  Trash2, Upload, User as UserIcon, X,
+  AlertTriangle, Check, Clock, FileText, Megaphone, Phone, Plus, RefreshCw,
+  Send, Sparkles, Trash2, Upload, User as UserIcon, X,
 } from "lucide-react";
+import { explainWaError } from "./waErrors";
 import { useToast } from "@/components/ui/Toast";
 import { timeAgo } from "@/app/dashboard/whatsapp/format";
 import type { Campaign, Template, Recipient, RecipientSummary } from "./types";
@@ -87,7 +88,11 @@ function RecipientsModal({ campaign, onClose }: { campaign: Campaign; onClose: (
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ fontSize: 13.5, fontWeight: 500 }}>{r.name || r.wa_id || "Unknown"}</span>
                     {r.name && r.wa_id && <span style={{ fontSize: 11, color: "var(--pm-hint)" }}> · {r.wa_id}</span>}
-                    {r.error && <span style={{ display: "block", fontSize: 11, color: "var(--pm-terra)" }}>{r.error}</span>}
+                    {r.error && (
+                      <span style={{ display: "block", fontSize: 11, color: "var(--pm-terra)" }}>
+                        {explainWaError(r.error) ?? r.error}
+                      </span>
+                    )}
                   </span>
                   {r.duplicate && <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--pm-terra)", background: "var(--pm-terra-soft)", padding: "2px 7px", borderRadius: 20 }}>×{r.attempts} DUP</span>}
                   <span style={{ fontSize: 12, fontWeight: 600, color: statusColor(r.status), textTransform: "capitalize", minWidth: 64, textAlign: "right" }}>{r.status}</span>
@@ -277,7 +282,21 @@ export default function CampaignsView() {
                 <span><strong>{c.read_count}</strong> read</span>
                 {c.failed_count > 0 && <span style={{ color: "var(--pm-terra)" }}><strong>{c.failed_count}</strong> failed</span>}
               </div>
-              {c.last_error && <div style={{ fontSize: 11, color: "var(--pm-terra)", marginBottom: 8 }}>{c.last_error}</div>}
+              {c.last_error && (() => {
+                const friendly = explainWaError(c.last_error);
+                return (
+                  <div style={{ fontSize: 11, color: "var(--pm-terra)", marginBottom: 8 }}>
+                    {friendly ?? c.last_error}
+                    {friendly && <div style={{ color: "var(--pm-hint)", marginTop: 2 }}>{c.last_error}</div>}
+                  </div>
+                );
+              })()}
+              {c.status === "sending" && c.resume_at && new Date(c.resume_at).getTime() > Date.now() && (
+                <div style={{ fontSize: 11, color: "#92400e", fontWeight: 600, marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                  <Clock size={11} /> Meta&apos;s daily sending limit reached — paused, auto-resumes{" "}
+                  {new Date(c.resume_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                </div>
+              )}
               {c.status === "scheduled" && c.scheduled_at && (
                 <div style={{ fontSize: 11, color: "#1d4ed8", fontWeight: 600, marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
                   <Clock size={11} /> {c.repeat_rule ? "Next" : "Scheduled for"} {new Date(c.scheduled_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
@@ -337,6 +356,11 @@ const SEGMENTS: { key: string; label: string; hint: string; tags: string[] }[] =
   { key: "lead", label: "Leads", hint: "B2B / scraped prospects", tags: ["lead"] },
 ];
 
+// Meta's daily marketing-message tier for our number (docs/WA_CAMPAIGN_HANDOFF.md).
+// Used only for the multi-day estimate shown to staff; the engine enforces the
+// real cap at send time via resume_at.
+const DAILY_TIER = 380;
+
 function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initialSegment?: string[] }) {
   const toast = useToast();
   const [name, setName] = useState("");
@@ -354,6 +378,8 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
   const [repeatRule, setRepeatRule] = useState<"" | "daily" | "weekly" | "monthly">("");
   const [repeatUntil, setRepeatUntil] = useState("");
   const [saving, setSaving] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     fetch("/api/whatsapp/templates?status=approved")
@@ -392,9 +418,64 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
     return tpl.body.replace(/\{\{(\d+)\}\}/g, (_, n) => vars[n] || `{{${n}}}`);
   }, [tpl, vars]);
 
+  // Pre-flight: catch the two mistakes that fail EVERY recipient (missing
+  // media header → #132012, empty {{n}} values → #132000) before Meta does.
+  // See docs/META_WHATSAPP_TEMPLATE_RULES.md.
+  const isMediaHeader = tpl?.header_type === "IMAGE" || tpl?.header_type === "VIDEO" || tpl?.header_type === "DOCUMENT";
+  const missingVars = varNames.filter((n) => !(vars[n] ?? "").trim());
+  const checks: { ok: boolean; text: string }[] = !tpl ? [] : [
+    ...(isMediaHeader ? [{
+      ok: !!tpl.header_media_url,
+      text: tpl.header_media_url
+        ? `${tpl.header_type!.toLowerCase()} header attached`
+        : `This template has a ${tpl.header_type!.toLowerCase()} header but no media file saved — every send would fail (Meta #132012). Re-upload it in the Templates tab, or hit Sync from Meta.`,
+    }] : []),
+    ...(varNames.length ? [{
+      ok: missingVars.length === 0 || personalize,
+      text: missingVars.length === 0
+        ? "All template variables filled"
+        : personalize
+          ? "Empty variables will be filled per contact by AI"
+          : `Fill ${missingVars.map((n) => `{{${n}}}`).join(", ")} — empty values fail at Meta (#132000).`,
+    }] : []),
+  ];
+  const blocked = checks.some((c) => !c.ok);
+
+  // Send the exact campaign message to one phone (usually your own) first —
+  // the single most reliable deliverability check we have.
+  async function sendTest() {
+    if (!tpl) return;
+    const digits = testPhone.replace(/\D/g, "");
+    if (digits.length < 10) { toast.push({ kind: "error", text: "Enter a full phone number for the test." }); return; }
+    const to = digits.length === 10 ? "91" + digits : digits;
+    setTesting(true);
+    try {
+      const template: Record<string, unknown> = { name: tpl.name, language: tpl.language || "en", vars };
+      if (tpl.header_media_url) {
+        if (tpl.header_type === "IMAGE") template.header_image = { link: tpl.header_media_url };
+        else if (tpl.header_type === "VIDEO") template.header_video = { link: tpl.header_media_url };
+        else if (tpl.header_type === "DOCUMENT") template.header_document = { link: tpl.header_media_url };
+      }
+      const r = await fetch("/api/whatsapp/send", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, kind: "template", template, sent_by: "campaign-test" }),
+      });
+      const jr = await r.json().catch(() => ({}));
+      if (jr.error || jr.ok === false) {
+        toast.push({ kind: "error", text: "Test failed: " + (explainWaError(jr.error) ?? jr.error ?? "unknown") });
+      } else {
+        toast.push({ kind: "success", text: `Test sent to +${to} — check the phone (header, media, links) before the real send.` });
+      }
+    } finally { setTesting(false); }
+  }
+
   async function create(action: "draft" | "send" | "schedule") {
     if (!name.trim()) { toast.push({ kind: "error", text: "Campaign name required" }); return; }
     if (!templateId) { toast.push({ kind: "error", text: "Pick an approved template" }); return; }
+    if (blocked && action !== "draft") {
+      toast.push({ kind: "error", text: "Fix the pre-flight warnings first — this send would fail for every recipient." });
+      return;
+    }
     let scheduledIso: string | null = null;
     if (action === "schedule") {
       const ms = scheduleAt ? new Date(scheduleAt).getTime() : NaN;
@@ -473,6 +554,32 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
             headerText={tpl.header_text} body={preview} footer={tpl.footer} buttons={tpl.buttons} />
         </div>
       )}
+      {tpl && checks.length > 0 && (
+        <div style={{ border: "1px solid var(--pm-border)", borderRadius: 8, padding: 10, marginBottom: 10, background: "var(--pm-app)" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Pre-flight checks</div>
+          {checks.map((c, i) => (
+            <div key={i} style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 12, marginBottom: 4, color: c.ok ? "var(--pm-green)" : "var(--pm-terra)" }}>
+              {c.ok ? <Check size={13} style={{ flexShrink: 0, marginTop: 1 }} /> : <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />}
+              <span style={{ color: c.ok ? "var(--pm-muted)" : "var(--pm-terra)" }}>{c.text}</span>
+            </div>
+          ))}
+          <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 6 }}>
+            Even after these pass, Meta may skip contacts who hit their personal marketing cap (#131049) — those retry automatically on later days.
+          </div>
+        </div>
+      )}
+      {tpl && (
+        <Field label="Test send — try it on your own WhatsApp before the real blast">
+          <div style={{ display: "flex", gap: 8 }}>
+            <input value={testPhone} onChange={(e) => setTestPhone(e.target.value)}
+              placeholder="+91 98…" inputMode="tel" aria-label="Test phone number"
+              style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
+            <button type="button" onClick={sendTest} disabled={testing} style={{ ...smallBtn, flexShrink: 0 }}>
+              <Phone size={13} /> {testing ? "Sending…" : "Send test"}
+            </button>
+          </div>
+        </Field>
+      )}
       {tpl && (
         <Field label="AI personalization (optional)">
           <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}>
@@ -536,6 +643,8 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
       </Field>
       <div style={{ fontSize: 12, color: "var(--pm-muted)", marginBottom: 12 }}>
         ≈ <strong>{audienceCount ?? "…"}</strong> opted-in recipient(s) will receive this.
+        {audienceCount != null && audienceCount > DAILY_TIER &&
+          ` That's above Meta's ~${DAILY_TIER}/day tier for our number — the campaign auto-spreads over ≈${Math.ceil(audienceCount / DAILY_TIER)} days, resuming each day.`}
       </div>
       <Field label="When to send">
         <div style={{ display: "flex", gap: 14, marginBottom: 8 }}>
@@ -577,11 +686,13 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
         <button type="button" onClick={onClose} style={smallBtn}>Cancel</button>
         <button type="button" onClick={() => create("draft")} disabled={saving} style={smallBtn}>Save draft</button>
         {sendMode === "schedule" ? (
-          <button type="button" onClick={() => create("schedule")} disabled={saving} style={primaryBtn}>
+          <button type="button" onClick={() => create("schedule")} disabled={saving || blocked}
+            title={blocked ? "Fix the pre-flight warnings first" : undefined} style={primaryBtn}>
             <Clock size={13} /> {saving ? "Working…" : "Schedule"}
           </button>
         ) : (
-          <button type="button" onClick={() => create("send")} disabled={saving} style={primaryBtn}>
+          <button type="button" onClick={() => create("send")} disabled={saving || blocked}
+            title={blocked ? "Fix the pre-flight warnings first" : undefined} style={primaryBtn}>
             <Send size={13} /> {saving ? "Working…" : "Save & send"}
           </button>
         )}

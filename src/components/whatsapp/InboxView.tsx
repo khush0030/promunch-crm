@@ -15,6 +15,7 @@ import { msgTime, mostRecent, timeAgo } from "@/app/dashboard/whatsapp/format";
 import type { Thread, Message, Template, TeamMember } from "./types";
 import { BRAND, WA_GREEN, priorityStyle, ticketStatusStyle, chip } from "./styles";
 import { Pill } from "./primitives";
+import { WindowTimer, WindowChip } from "./WindowTimer";
 
 // WhatsApp-style delivery ticks for an outbound message.
 //   sent      → single grey check
@@ -242,6 +243,7 @@ export default function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
                     <Pill icon={AlertTriangle} label={t.ticket_priority}
                       bg={priorityStyle[t.ticket_priority].bg} color={priorityStyle[t.ticket_priority].color} />
                   )}
+                  <WindowChip lastInboundAt={t.last_inbound_at} />
                   {t.unread_count > 0 && (
                     <span style={{
                       marginLeft: "auto", background: BRAND, color: "var(--pm-card)", fontSize: 11,
@@ -325,6 +327,17 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
     const t = setInterval(load, 8000);
     return () => clearInterval(t);
   }, [load, thread]);
+
+  // Freshest inbound timestamp for the 24h-window timer: the thread row can
+  // lag behind the 8s message poll, so also scan the loaded messages.
+  const lastInboundAt = useMemo(() => {
+    let best = thread?.last_inbound_at ?? null;
+    for (const m of messages) {
+      if (m.direction !== "inbound") continue;
+      if (!best || Date.parse(m.created_at) > Date.parse(best)) best = m.created_at;
+    }
+    return best;
+  }, [messages, thread?.last_inbound_at]);
 
   if (!thread) {
     return (
@@ -426,6 +439,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
             {thread.contact.name || thread.contact.phone}
             <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 500, color: "var(--pm-muted)" }}>{thread.contact.phone}</span>
           </div>
+          <WindowTimer lastInboundAt={lastInboundAt} />
           {/* Status / ticket / priority live in the <select> dropdowns on the right —
               the read-only Pills here were a duplicate and have been removed. */}
           {thread.escalation_reason &&

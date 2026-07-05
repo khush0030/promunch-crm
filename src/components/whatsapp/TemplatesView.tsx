@@ -82,12 +82,35 @@ export default function TemplatesView() {
     setEditing({ ...editing!, buttons: (editing?.buttons ?? []).filter((_, j) => j !== i) });
   }
 
-  async function load() {
+  async function load(): Promise<Template[]> {
     const r = await fetch("/api/whatsapp/templates");
     const j = await r.json();
-    setList(j.templates ?? []);
+    const templates: Template[] = j.templates ?? [];
+    setList(templates);
+    return templates;
   }
-  useEffect(() => { load(); }, []);
+  // On open: load, and if anything is still in Meta review, silently sync so
+  // approvals land without anyone having to click "Sync from Meta". Toast only
+  // on an actual status change; errors stay silent (the manual button reports them).
+  useEffect(() => {
+    (async () => {
+      const before = await load();
+      if (!before.some((t) => t.status === "pending")) return;
+      const r = await fetch("/api/whatsapp/templates/sync", { method: "POST" }).catch(() => null);
+      const j = await r?.json().catch(() => null);
+      if (!j || j.error || j.ok === false) return;
+      const after = await load();
+      const prev = new Map(before.map((t) => [`${t.name}:${t.language}`, t.status]));
+      for (const t of after) {
+        if (prev.get(`${t.name}:${t.language}`) !== "pending") continue;
+        if (t.status === "approved")
+          toast.push({ kind: "success", text: `Template “${t.name}” approved by Meta — ready to send.` });
+        else if (t.status === "rejected")
+          toast.push({ kind: "error", text: `Template “${t.name}” rejected by Meta${t.rejection_reason ? ": " + t.rejection_reason : ""}.` });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* Open the builder, pre-filling variable samples from a saved template. */
   function open(t: Partial<Template> | null) {
@@ -236,6 +259,11 @@ export default function TemplatesView() {
             {t.status === "rejected" && t.rejection_reason && (
               <div style={{ fontSize: 11, color: "var(--pm-terra)", marginTop: 6 }}>
                 <AlertTriangle size={11} style={{ verticalAlign: -1 }} /> Rejected: {t.rejection_reason}
+              </div>
+            )}
+            {t.status === "pending" && (
+              <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 6 }}>
+                In Meta review — usually minutes to a few hours. This tab checks automatically when opened.
               </div>
             )}
             <div style={{ display: "flex", gap: 6, marginTop: 10 }}>

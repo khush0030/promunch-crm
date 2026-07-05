@@ -91,6 +91,11 @@ export type Campaign = {
   repeat_rule: "daily" | "weekly" | "monthly" | null;
   repeat_until: string | null;
   parent_campaign_id: string | null;
+  // Cap-aware multi-day sending: when Meta's daily tier is exhausted the
+  // engine parks the campaign and resumes at this time (wa-campaign-send).
+  resume_at?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
   created_at: string;
   template?: { id: string; name: string; language: string; category: string; status: string } | null;
 };

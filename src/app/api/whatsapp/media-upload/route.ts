@@ -46,10 +46,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `File too large — ${format} limit is ${rule.label}.` }, { status: 400 });
   }
 
-  // Stable-ish unique path. We avoid Date.now()/random in some runtimes; the
-  // browser supplies a fresh filename per pick, and upsert keeps re-uploads idempotent.
-  const path = `campaigns/${slugify(file.name)}`;
+  // Content-addressed path: two different files with the same filename used to
+  // overwrite each other (breaking already-approved templates that referenced
+  // the old asset). A short content hash keeps re-uploads of the same file
+  // idempotent while distinct content always gets its own URL.
   const bytes = new Uint8Array(await file.arrayBuffer());
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const hash = Array.from(new Uint8Array(digest).slice(0, 8))
+    .map((b) => b.toString(16).padStart(2, "0")).join("");
+  const path = `campaigns/${hash}-${slugify(file.name)}`;
 
   const { error } = await supabaseAdmin.storage
     .from("wa-media")

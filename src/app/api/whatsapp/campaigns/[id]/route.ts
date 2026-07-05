@@ -13,12 +13,25 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   return NextResponse.json({ campaign: data });
 }
 
+// Only fields the dashboard legitimately edits — a raw passthrough would let
+// any caller flip engine-owned columns (send_lock_at, counts, resume_at).
+const PATCHABLE = new Set([
+  "name", "status", "template_id", "template_vars", "audience_filter",
+  "scheduled_at", "repeat_rule", "repeat_until",
+]);
+
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const body = await req.json();
+  const patch = Object.fromEntries(
+    Object.entries(body ?? {}).filter(([k]) => PATCHABLE.has(k)),
+  );
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json({ error: "no editable fields in body" }, { status: 400 });
+  }
   const { data, error } = await supabaseAdmin
     .from("wa_campaigns")
-    .update(body)
+    .update(patch)
     .eq("id", id)
     .select("*")
     .single();
