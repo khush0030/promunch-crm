@@ -3,7 +3,8 @@
 // Knowledge-base tab of the WhatsApp dashboard: KB document list, upload and
 // paste-text flows. Extracted from dashboard/whatsapp/page.tsx (audit R5).
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, FileText, RefreshCw, Trash2, Upload } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { timeAgo } from "@/app/dashboard/whatsapp/format";
@@ -13,21 +14,21 @@ import { Modal, Field } from "./primitives";
 
 export default function KbView() {
   const toast = useToast();
-  const [docs, setDocs] = useState<KbDoc[]>([]);
   const [uploading, setUploading] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  async function load() {
-    const r = await fetch("/api/whatsapp/kb");
-    const j = await r.json();
-    setDocs(j.documents ?? []);
-  }
-  useEffect(() => { load(); }, []);
-  useEffect(() => {
-    const t = setInterval(load, 6000);
-    return () => clearInterval(t);
-  }, []);
+  // Replaces the old load() + mount effect + 6s setInterval poll.
+  const { data: docs = [], refetch } = useQuery({
+    queryKey: ["wa-kb-documents"],
+    queryFn: async (): Promise<KbDoc[]> => {
+      const r = await fetch("/api/whatsapp/kb");
+      const j = await r.json();
+      return j.documents ?? [];
+    },
+    refetchInterval: 6000,
+  });
+  const load = () => refetch();
 
   async function upload(f: File) {
     setUploading(true);

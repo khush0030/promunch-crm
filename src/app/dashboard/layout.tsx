@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import Onboarding from "@/components/Onboarding";
 import { ToastProvider } from "@/components/ui/Toast";
+import QueryProvider from "@/components/QueryProvider";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -71,6 +72,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, []);
 
   return (
+    <QueryProvider>
     <ToastProvider>
       <div className="app">
         {isMobile && <MobileHeader onToggle={() => setSidebarOpen(!sidebarOpen)} />}
@@ -84,5 +86,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Onboarding />
       </div>
     </ToastProvider>
+    </QueryProvider>
   );
 }
