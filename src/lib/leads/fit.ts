@@ -2,6 +2,8 @@
 // ProMunch (corporate gifting / office pantry / catering supply). Scored once
 // after crawl from the Places data + site snippet; gpt-4o-mini, ~$0.0001/lead.
 
+import { getSecret } from '@/lib/secrets';
+
 export interface FitInput {
   companyName: string;
   category: string | null;
@@ -28,7 +30,7 @@ Judge from the evidence given; thin evidence caps the score at 60. Never invent 
 Return JSON: {"score": <int>, "reason": "<max 12 words, concrete, e.g. 'Curates festival hampers for corporates — snacks fit their boxes'>"}`;
 
 export async function scoreFit(input: FitInput): Promise<FitOutput> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = await getSecret('OPENAI_API_KEY');
   if (!apiKey) throw new Error('OPENAI_API_KEY is not set');
 
   const userPrompt = [

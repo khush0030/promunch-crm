@@ -9,13 +9,14 @@ import {
   toUIMessageStream,
   type UIMessage,
 } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { createOpenAI } from "@ai-sdk/openai";
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { recordAudit } from "@/lib/audit";
 import { assistantTools } from "@/lib/assistant/tools";
 import { buildInstructions } from "@/lib/assistant/prompt";
+import { getSecret } from "@/lib/secrets";
 
 export const maxDuration = 120;
 
@@ -97,6 +98,10 @@ export async function POST(req: Request) {
     summary: lastUser ? textOf(lastUser).slice(0, 140) : undefined,
     actor: user,
   });
+
+  // Key resolves through Settings → API keys with env fallback, so the owner
+  // can rotate it without a redeploy.
+  const openai = createOpenAI({ apiKey: (await getSecret("OPENAI_API_KEY")) ?? undefined });
 
   const result = streamText({
     model: openai(MODEL),

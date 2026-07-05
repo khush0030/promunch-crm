@@ -3,6 +3,8 @@
 // can use to personalise sharply (and the dashboard can show). gpt-4o-mini,
 // ~$0.0002/lead. Best-effort: callers must tolerate it throwing.
 
+import { getSecret } from '@/lib/secrets';
+
 export interface EnrichInput {
   companyName: string;
   category: string | null;
@@ -34,7 +36,7 @@ Return JSON exactly:
 Keep every field short. talkingPoints: 2-3 items, each under 14 words, grounded in the evidence.`;
 
 export async function enrichCompany(input: EnrichInput): Promise<CompanyEnrichment> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = await getSecret('OPENAI_API_KEY');
   if (!apiKey) throw new Error('OPENAI_API_KEY is not set');
 
   const userPrompt = [

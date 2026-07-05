@@ -1,14 +1,19 @@
 import { Resend } from 'resend';
+import { getSecret } from '@/lib/secrets';
 
 let _client: Resend | null = null;
+let _clientKey: string | null = null;
 
-function getClient(): Resend {
-  if (_client) return _client;
-  const key = process.env.RESEND_API_KEY;
+async function getClient(): Promise<Resend> {
+  const key = await getSecret('RESEND_API_KEY');
   if (!key) {
-    throw new Error('RESEND_API_KEY is not set. Add it to .env.local or Vercel project env.');
+    throw new Error('RESEND_API_KEY is not set. Add it in Settings → API keys, .env.local or Vercel project env.');
   }
-  _client = new Resend(key);
+  // Rebuild the client when the owner rotates the key from the dashboard.
+  if (!_client || _clientKey !== key) {
+    _client = new Resend(key);
+    _clientKey = key;
+  }
   return _client;
 }
 
@@ -28,7 +33,7 @@ export interface SendEmailOptions {
 }
 
 export async function sendEmail({ to, subject, html, from, replyTo }: SendEmailOptions) {
-  const result = await getClient().emails.send({
+  const result = await (await getClient()).emails.send({
     from: from || DEFAULT_FROM,
     to: Array.isArray(to) ? to : [to],
     subject,
@@ -53,7 +58,7 @@ export async function sendBatchEmails(emails: BatchEmailItem[]) {
     html: e.html,
   }));
 
-  const client = getClient();
+  const client = await getClient();
   const results = [];
   for (let i = 0; i < batches.length; i += 100) {
     const chunk = batches.slice(i, i + 100);

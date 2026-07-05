@@ -1,14 +1,16 @@
 // Shopify integration scaffold
 // Requires SHOPIFY_ACCESS_TOKEN to be set with a real Admin API token
 
+import { getSecret } from '@/lib/secrets';
+
 const SHOPIFY_STORE_URL = process.env.SHOPIFY_STORE_URL;
-const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
 
 const shopifyApiBase = `https://${SHOPIFY_STORE_URL}/admin/api/2024-01`;
 
 async function shopifyFetch(endpoint: string) {
+  const SHOPIFY_ACCESS_TOKEN = await getSecret('SHOPIFY_ACCESS_TOKEN');
   if (!SHOPIFY_ACCESS_TOKEN || SHOPIFY_ACCESS_TOKEN === 'placeholder_needs_real_token') {
-    throw new Error('Shopify Admin API token not configured. Set SHOPIFY_ACCESS_TOKEN in environment variables.');
+    throw new Error('Shopify Admin API token not configured. Set SHOPIFY_ACCESS_TOKEN in Settings → API keys or environment variables.');
   }
 
   const response = await fetch(`${shopifyApiBase}${endpoint}`, {

@@ -1,10 +1,12 @@
+import { getSecret } from '@/lib/secrets';
+
 const KLAVIYO_BASE = 'https://a.klaviyo.com/api';
 const KLAVIYO_REVISION = '2024-10-15';
 
 export const PLACED_ORDER_METRIC_ID = 'XZHFcf';
 
-function getKey(): string {
-  const key = process.env.KLAVIYO_API_KEY;
+async function getKey(): Promise<string> {
+  const key = await getSecret('KLAVIYO_API_KEY');
   if (!key) throw new Error('KLAVIYO_API_KEY is not set');
   return key;
 }
@@ -13,7 +15,7 @@ async function klaviyoFetch(url: string, retries = 3): Promise<Response> {
   for (let attempt = 0; attempt < retries; attempt++) {
     const res = await fetch(url, {
       headers: {
-        Authorization: `Klaviyo-API-Key ${getKey()}`,
+        Authorization: `Klaviyo-API-Key ${await getKey()}`,
         revision: KLAVIYO_REVISION,
         Accept: 'application/json',
       },

@@ -1,6 +1,8 @@
 // Google Places API (New) Text Search — one 20-result page per call.
 // Field mask keeps billing at the Pro tier (websiteUri is the expensive field we need).
 
+import { getSecret } from '@/lib/secrets';
+
 export interface PlaceResult {
   id: string;
   displayName?: { text?: string };
@@ -18,7 +20,7 @@ const FIELD_MASK =
   'places.id,places.displayName,places.websiteUri,places.formattedAddress,places.types,nextPageToken';
 
 export async function searchTextPage(query: string, pageToken?: string): Promise<PlacesPage> {
-  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  const apiKey = await getSecret('GOOGLE_PLACES_API_KEY');
   if (!apiKey) throw new Error('GOOGLE_PLACES_API_KEY is not set');
 
   const res = await fetch('https://places.googleapis.com/v1/places:searchText', {

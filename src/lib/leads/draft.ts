@@ -1,6 +1,7 @@
 // AI cold-email drafting for B2B outreach — OpenAI via plain fetch
 // (same pattern as promunch-email-agent/supabase/functions/_shared/openai.ts).
 import { getKnowledgeBase } from './kb';
+import { getSecret } from '@/lib/secrets';
 
 export interface DraftInput {
   companyName: string;
@@ -66,7 +67,7 @@ ${kb}`;
 }
 
 export async function generateDraft(input: DraftInput): Promise<DraftOutput> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = await getSecret('OPENAI_API_KEY');
   if (!apiKey) throw new Error('OPENAI_API_KEY is not set');
 
   // Ground every product fact in the real Master KB. Fetch here if the caller

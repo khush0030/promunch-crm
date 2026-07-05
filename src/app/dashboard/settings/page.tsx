@@ -5,6 +5,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/Toast";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { PageHead, Tabs, Panel, HealthPill, StatusBadge, DataTable } from "@/components/pm";
+import { ApiKeysPanel } from "@/components/settings/ApiKeysPanel";
 import type { Column, HealthStatus } from "@/components/pm";
 
 type Status = "healthy" | "degraded" | "down" | "unknown";
@@ -16,6 +17,7 @@ const statusLabel: Record<Status, string> = { healthy: "Healthy", degraded: "Deg
 
 const TABS = [
   { key: "connections", label: "Connections" },
+  { key: "apikeys", label: "API keys" },
   { key: "email", label: "Email" },
   { key: "brand", label: "Brand" },
   { key: "team", label: "Team" },
@@ -168,6 +170,12 @@ export default function SettingsPage() {
             </p>
           </Panel>
         </div>
+      )}
+
+      {tab === "apikeys" && (
+        <Panel title="API keys" caption="Connect or rotate service keys. Locked to the workspace owner.">
+          <ApiKeysPanel />
+        </Panel>
       )}
 
       {tab === "email" && (
