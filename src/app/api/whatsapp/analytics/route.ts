@@ -199,7 +199,7 @@ async function estimateSpend(since: string): Promise<number> {
 // customer_phone (a normalised wa_id, same shape as wa_contacts.wa_id — see the
 // RFM rollup). HYPD creator seeds (₹0.01, is_creator) and refunded/voided
 // orders are excluded. Loose (not click-through) but defensible.
-type OrderRow = { customer_phone: string | null; total_price: number | string; financial_status: string | null; is_creator: boolean | null };
+type OrderRow = { customer_phone: string | null; total_price: number | string; financial_status: string | null; is_creator: boolean | null; shopify_created_at: string };
 function liveOrders(rows: OrderRow[] | null): OrderRow[] {
   return (rows ?? []).filter(
     (o) => o.customer_phone && !o.is_creator &&
@@ -207,41 +207,81 @@ function liveOrders(rows: OrderRow[] | null): OrderRow[] {
   );
 }
 
+// Pull every row of a query, 1000 at a time (PostgREST silently caps a single
+// response at 1000 rows — an unpaged read here undercounts as soon as the
+// window holds more than that; 30 days is already ~6k outbound messages).
+async function pageAll<T>(mk: () => any, cap = 60000): Promise<T[]> {
+  const size = 1000;
+  let from = 0;
+  const out: T[] = [];
+  for (;;) {
+    const { data, error } = await mk().range(from, from + size - 1);
+    if (error || !data || data.length === 0) break;
+    out.push(...(data as T[]));
+    if (data.length < size || from >= cap) break;
+    from += size;
+  }
+  return out;
+}
+
+// A long .in() list overflows the PostgREST query string — chunk it.
+function chunk<T>(arr: T[], n: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+  return out;
+}
+
 async function attributeRevenue(since: string): Promise<{ orders: number; revenue: number }> {
-  const { data: ordRows } = await supabaseAdmin
-    .from("shopify_orders")
-    .select("customer_phone,total_price,financial_status,is_creator")
-    .gte("shopify_created_at", since)
-    .not("customer_phone", "is", null)
-    .limit(1000);
-  const live = liveOrders(ordRows as OrderRow[]);
+  const ordRows = await pageAll<OrderRow>(() =>
+    supabaseAdmin
+      .from("shopify_orders")
+      .select("customer_phone,total_price,financial_status,is_creator,shopify_created_at")
+      .gte("shopify_created_at", since)
+      .not("customer_phone", "is", null)
+  );
+  const live = liveOrders(ordRows);
   if (!live.length) return { orders: 0, revenue: 0 };
 
   const phones = [...new Set(live.map((o) => o.customer_phone!))];
   // wa_contacts for those phones → their internal ids
-  const { data: waC } = await supabaseAdmin
-    .from("wa_contacts")
-    .select("id,wa_id")
-    .in("wa_id", phones);
   const idToPhone = new Map<string, string>();
-  (waC ?? []).forEach((w: { id: string; wa_id: string }) => idToPhone.set(w.id, w.wa_id));
+  for (const slice of chunk(phones, 200)) {
+    const { data: waC } = await supabaseAdmin
+      .from("wa_contacts")
+      .select("id,wa_id")
+      .in("wa_id", slice);
+    (waC ?? []).forEach((w: { id: string; wa_id: string }) => idToPhone.set(w.id, w.wa_id));
+  }
   if (!idToPhone.size) return { orders: 0, revenue: 0 };
 
-  // which of those contacts got an outbound message in the window
-  const { data: msgged } = await supabaseAdmin
-    .from("wa_messages")
-    .select("contact_id")
-    .eq("direction", "outbound")
-    .gte("created_at", since)
-    .in("contact_id", [...idToPhone.keys()]);
-  const engagedPhones = new Set<string>();
-  (msgged ?? []).forEach((m: { contact_id: string }) => {
-    const p = idToPhone.get(m.contact_id);
-    if (p) engagedPhones.add(p);
-  });
-  if (!engagedPhones.size) return { orders: 0, revenue: 0 };
+  // Earliest outbound message per contact in the window. An order only counts
+  // as WhatsApp-influenced when a message PRECEDED it — otherwise the order
+  // confirmation we send for every purchase "attributes" its own order and the
+  // headline claims nearly all store revenue (measured: 343 of 365 orders).
+  const firstMsgAt = new Map<string, number>(); // phone → earliest outbound (epoch ms)
+  for (const slice of chunk([...idToPhone.keys()], 200)) {
+    const msgged = await pageAll<{ contact_id: string; created_at: string }>(() =>
+      supabaseAdmin
+        .from("wa_messages")
+        .select("contact_id,created_at")
+        .eq("direction", "outbound")
+        .gte("created_at", since)
+        .in("contact_id", slice)
+    );
+    msgged.forEach((m) => {
+      const p = idToPhone.get(m.contact_id);
+      if (!p) return;
+      const t = new Date(m.created_at).getTime();
+      const cur = firstMsgAt.get(p);
+      if (cur == null || t < cur) firstMsgAt.set(p, t);
+    });
+  }
+  if (!firstMsgAt.size) return { orders: 0, revenue: 0 };
 
-  const matched = live.filter((o) => engagedPhones.has(o.customer_phone!));
+  const matched = live.filter((o) => {
+    const at = firstMsgAt.get(o.customer_phone!);
+    return at != null && at < new Date(o.shopify_created_at).getTime();
+  });
   const revenue = matched.reduce((s, o) => s + Number(o.total_price || 0), 0);
   return { orders: matched.length, revenue: Math.round(revenue) };
 }

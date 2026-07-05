@@ -36,13 +36,26 @@ type Ord = {
   last_utm_medium: string | null;
   first_utm_campaign: string | null;
   last_utm_campaign: string | null;
+  first_landing_page: string | null;
+  last_landing_page: string | null;
 };
 
 const hasWa = (s: string | null) => !!s && s.toLowerCase().includes("whatsapp");
+// Landing-page fallback: Shopify sometimes records the raw landing URL without
+// parsing its query into utmParameters — catch our tags there too.
+const waLanding = (s: string | null) =>
+  !!s && /utm_(source|medium)=whatsapp/i.test(s);
 // A touch counts as WhatsApp if either its source or medium mentions whatsapp.
 // (appendUtm sets source=whatsapp; some templates carry medium=whatsapp instead.)
-const waLastTouch = (o: Ord) => hasWa(o.last_utm_source) || hasWa(o.last_utm_medium);
-const waFirstTouch = (o: Ord) => hasWa(o.first_utm_source) || hasWa(o.first_utm_medium);
+const waLastTouch = (o: Ord) => hasWa(o.last_utm_source) || hasWa(o.last_utm_medium) || waLanding(o.last_landing_page);
+const waFirstTouch = (o: Ord) => hasWa(o.first_utm_source) || hasWa(o.first_utm_medium) || waLanding(o.first_landing_page);
+
+// utm_campaign recovered from the landing page URL when Shopify didn't parse it.
+function landingCampaign(s: string | null): string | null {
+  if (!s) return null;
+  const m = s.match(/utm_campaign=([^&\s]+)/i);
+  try { return m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : null; } catch { return m ? m[1] : null; }
+}
 
 export async function GET(req: NextRequest) {
   const days = Math.min(365, Math.max(1, Number(req.nextUrl.searchParams.get("days")) || 30));
@@ -53,7 +66,7 @@ export async function GET(req: NextRequest) {
     orders = await pageAll<Ord>(() =>
       supabaseAdmin
         .from("shopify_orders")
-        .select("total_price,financial_status,is_creator,first_utm_source,last_utm_source,first_utm_medium,last_utm_medium,first_utm_campaign,last_utm_campaign")
+        .select("total_price,financial_status,is_creator,first_utm_source,last_utm_source,first_utm_medium,last_utm_medium,first_utm_campaign,last_utm_campaign,first_landing_page,last_landing_page")
         .gte("shopify_created_at", since)
     );
   } catch {
@@ -70,7 +83,10 @@ export async function GET(req: NextRequest) {
   let totalOrders = 0, totalRevenue = 0;
   for (const o of wa) {
     const lastWins = waLastTouch(o);
-    const campaign = (lastWins ? o.last_utm_campaign : o.first_utm_campaign) || "(no campaign tag)";
+    const campaign =
+      (lastWins ? o.last_utm_campaign : o.first_utm_campaign) ||
+      landingCampaign(lastWins ? o.last_landing_page : o.first_landing_page) ||
+      "(no campaign tag)";
     const medium = (lastWins ? o.last_utm_medium : o.first_utm_medium) || "—";
     const rev = Number(o.total_price || 0);
     const b = byCampaign.get(campaign) || { orders: 0, revenue: 0, medium };

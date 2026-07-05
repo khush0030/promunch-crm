@@ -379,6 +379,10 @@ export default function TemplatesView() {
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
                 Sample values — Meta needs one example per variable to review the template
               </div>
+              <div style={{ fontSize: 11, color: "var(--pm-hint)", marginBottom: 8 }}>
+                These are only examples for Meta&apos;s reviewer. The real value of each {"{{n}}"} (like the
+                customer&apos;s name) is chosen later, when you send a campaign with this template.
+              </div>
               {bodyVars.map((n) => (
                 <div key={`b${n}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, width: 38, color: BRAND }}>{`{{${n}}}`}</span>
@@ -421,6 +425,8 @@ export default function TemplatesView() {
           </div>
           <div style={{ fontSize: 11, color: "var(--pm-hint)", marginBottom: 12 }}>
             “Save draft” keeps it local only. “Submit to Meta” sends it for approval — it can't reach customers until Meta approves it.
+            Link buttons pointing at our store are tagged automatically on submit so orders they drive show up under
+            “Revenue from WhatsApp” in Analytics.
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 4, justifyContent: "flex-end" }}>
             <button type="button" onClick={() => setEditing(null)} style={smallBtn}>Cancel</button>

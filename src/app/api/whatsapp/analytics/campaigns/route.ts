@@ -84,29 +84,48 @@ export async function GET(req: NextRequest) {
       .gte("shopify_created_at", since)
       .not("customer_phone", "is", null)
   )).filter((o) => !o.is_creator && o.financial_status !== "refunded" && o.financial_status !== "voided");
-  const ordersByPhone = new Map<string, Ord[]>();
-  orders.forEach((o) => { (ordersByPhone.get(o.customer_phone) || ordersByPhone.set(o.customer_phone, []).get(o.customer_phone)!).push(o); });
+  // Last-touch attribution: credit each order to the ONE most recent campaign
+  // that messaged that customer before the order. The old "every campaign that
+  // ever messaged them" approach counted the same order (and its revenue) on
+  // multiple report cards at once.
+  const campStart = new Map<string, number>(
+    campaigns.map((c: any) => [c.id, new Date(c.started_at || c.created_at).getTime()]),
+  );
+  const phoneCamps = new Map<string, { id: string; at: number }[]>();
+  for (const [cid, s] of stat) {
+    const at = campStart.get(cid);
+    if (at == null) continue; // campaign row outside the window — no card to credit
+    s.contacts.forEach((waContactId) => {
+      const phone = waMeta.get(waContactId)?.phone;
+      if (!phone) return;
+      const list = phoneCamps.get(phone) ?? [];
+      list.push({ id: cid, at });
+      phoneCamps.set(phone, list);
+    });
+  }
+  const revByCamp = new Map<string, { revenue: number; orders: number }>();
+  for (const o of orders) {
+    const orderedAt = new Date(o.shopify_created_at).getTime();
+    const before = (phoneCamps.get(o.customer_phone) ?? []).filter((c) => c.at <= orderedAt);
+    if (!before.length) continue;
+    const winner = before.reduce((a, b) => (a.at >= b.at ? a : b));
+    const r = revByCamp.get(winner.id) ?? { revenue: 0, orders: 0 };
+    r.revenue += Number(o.total_price || 0);
+    r.orders++;
+    revByCamp.set(winner.id, r);
+  }
 
   // Build a report card per campaign.
   const cards = campaigns.map((c: any) => {
-    const s = stat.get(c.id) || { delivered: 0, read: 0, sent: 0, failed: 0, contacts: new Set<string>() };
     const sent = c.sent_count || 0;
     const deliveredPct = sent ? Math.round((c.delivered_count / sent) * 100) : 0;
     const readPct = sent ? Math.round((c.read_count / sent) * 100) : 0;
     const cat = c.template?.category || "marketing";
     const cost = Math.round(sent * (PRICE[cat] ?? 0) * 100) / 100;
 
-    // Orders after this campaign went out, from people it messaged.
-    const after = c.started_at || c.created_at;
-    let revenue = 0, orderCount = 0;
-    s.contacts.forEach((waContactId) => {
-      const phone = waMeta.get(waContactId)?.phone;
-      if (!phone) return;
-      (ordersByPhone.get(phone) || []).forEach((o) => {
-        if (o.shopify_created_at >= after) { revenue += Number(o.total_price || 0); orderCount++; }
-      });
-    });
-    revenue = Math.round(revenue);
+    const attributed = revByCamp.get(c.id) ?? { revenue: 0, orders: 0 };
+    const revenue = Math.round(attributed.revenue);
+    const orderCount = attributed.orders;
     const roi = cost > 0 ? revenue / cost : null;
     const { grade, verdict } = gradeCampaign(deliveredPct, readPct, roi, orderCount);
 
@@ -167,10 +186,12 @@ async function buildHints(
   // contacts we messaged in campaigns, with their rfm
   const messagedRfm = new Map<string, string>();
   campMsgs.forEach((m) => { if (m.contact_id) { const r = waMeta.get(m.contact_id)?.rfm; if (r) messagedRfm.set(m.contact_id, r); } });
-  // who among them replied
-  const { data: repliers } = await supabaseAdmin
-    .from("wa_messages").select("contact_id").eq("direction", "inbound").gte("created_at", since).limit(5000);
-  (repliers ?? []).forEach((r: { contact_id: string | null }) => {
+  // who among them replied (paged — .limit(5000) still gets capped at
+  // PostgREST's 1000-row response ceiling)
+  const repliers = await pageAll<{ contact_id: string | null }>(() =>
+    supabaseAdmin.from("wa_messages").select("contact_id").eq("direction", "inbound").gte("created_at", since)
+  );
+  repliers.forEach((r: { contact_id: string | null }) => {
     if (!r.contact_id) return;
     const rfm = messagedRfm.get(r.contact_id);
     if (rfm) segReplies.set(rfm, (segReplies.get(rfm) || 0) + 1);

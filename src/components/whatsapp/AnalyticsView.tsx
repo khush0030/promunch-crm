@@ -349,7 +349,9 @@ function Headline({ d }: { d: Data }) {
       </div>
       <p className="pm-csub" style={{ marginTop: 10 }}>
         <Info size={12} style={{ verticalAlign: "-2px" }} /> &ldquo;Orders from WhatsApp&rdquo; counts customers we
-        messaged in this period who then placed an order. Exact click-to-order tracking is coming soon.
+        messaged in this period who then placed an order — a broad measure. The &ldquo;Revenue from
+        WhatsApp&rdquo; panel below is the strict one: only orders where the customer clicked a tagged
+        WhatsApp link and bought.
       </p>
     </>
   );

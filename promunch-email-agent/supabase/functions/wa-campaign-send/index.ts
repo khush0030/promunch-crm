@@ -14,7 +14,7 @@ import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { sendTemplate, TemplateComponent } from "../_shared/whatsapp.ts";
-import { mintCode } from "../_shared/links.ts";
+import { appendUtm, mintCode } from "../_shared/links.ts";
 import { alertWaSendFailure, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
 
 const THROTTLE_MS = 120;
@@ -211,6 +211,14 @@ Deno.serve(async (req) => {
       const ai = await personalizeVars(openai, tpl.body ?? "", aiBrief, c, varKeys).catch(() => null);
       if (ai) contactVars = { ...baseVars, ...ai };
     }
+    // Any link riding in a body variable gets utm_source=whatsapp + this
+    // campaign's name, so Shopify attributes the resulting order to it.
+    contactVars = Object.fromEntries(
+      Object.entries(contactVars).map(([k, v]) => [
+        k,
+        typeof v === "string" ? appendUtm(v, { medium: "campaign", campaign: campaign.name }) : v,
+      ]),
+    ) as Record<string, string>;
 
     // ---- CLAIM BEFORE SEND (the hard no-duplicate guarantee) ----
     // Insert a 'queued' row FIRST. The partial unique index

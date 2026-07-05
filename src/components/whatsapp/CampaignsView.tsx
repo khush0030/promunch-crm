@@ -365,6 +365,10 @@ const SEGMENTS: { key: string; label: string; hint: string; tags: string[] }[] =
 // Meta's daily marketing-message tier for our number (docs/WA_CAMPAIGN_HANDOFF.md).
 // Used only for the multi-day estimate shown to staff; the engine enforces the
 // real cap at send time via resume_at.
+// Stand-in customer name for previews and test sends — the real send replaces
+// the {name} token with each contact's saved name ("there" when unknown).
+const SAMPLE_NAME = "Priya";
+
 const DAILY_TIER = 380;
 
 function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initialSegment?: string[] }) {
@@ -421,7 +425,8 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
 
   const preview = useMemo(() => {
     if (!tpl) return "";
-    return tpl.body.replace(/\{\{(\d+)\}\}/g, (_, n) => vars[n] || `{{${n}}}`);
+    return tpl.body.replace(/\{\{(\d+)\}\}/g, (_, n) =>
+      (vars[n] || `{{${n}}}`).replace(/\{name\}/gi, SAMPLE_NAME));
   }, [tpl, vars]);
 
   // Pre-flight: catch the two mistakes that fail EVERY recipient (missing
@@ -456,7 +461,12 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
     const to = digits.length === 10 ? "91" + digits : digits;
     setTesting(true);
     try {
-      const template: Record<string, unknown> = { name: tpl.name, language: tpl.language || "en", vars };
+      // The campaign engine swaps {name} per contact; the test path doesn't, so
+      // substitute the sample name here or the token would go out literally.
+      const sampleVars = Object.fromEntries(
+        Object.entries(vars).map(([k, v]) => [k, String(v ?? "").replace(/\{name\}/gi, SAMPLE_NAME)]),
+      );
+      const template: Record<string, unknown> = { name: tpl.name, language: tpl.language || "en", vars: sampleVars };
       if (tpl.header_media_url) {
         if (tpl.header_type === "IMAGE") template.header_image = { link: tpl.header_media_url };
         else if (tpl.header_type === "VIDEO") template.header_video = { link: tpl.header_media_url };
@@ -546,12 +556,36 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
         </div>
       )}
       {varNames.length > 0 && (
-        <Field label="Template variables — tip: type {name} to insert each contact's name">
-          {varNames.map((n) => (
-            <input key={n} placeholder={`{{${n}}}`} value={vars[n] ?? ""}
-              onChange={(e) => setVars({ ...vars, [n]: e.target.value })}
-              style={{ ...inputStyle, marginBottom: 6 }} />
-          ))}
+        <Field label="Template variables — pick what each {{n}} becomes for every customer">
+          {varNames.map((n) => {
+            const isName = (vars[n] ?? "").trim().toLowerCase() === "{name}";
+            return (
+              <div key={n} style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, width: 38, flexShrink: 0, color: WA_GREEN }}>{`{{${n}}}`}</span>
+                <select
+                  aria-label={`Variable {{${n}}} source`}
+                  value={isName ? "name" : "custom"}
+                  onChange={(e) => setVars({ ...vars, [n]: e.target.value === "name" ? "{name}" : "" })}
+                  style={{ ...inputStyle, marginBottom: 0, flex: "0 0 160px", width: "auto" }}
+                >
+                  <option value="custom">Custom text</option>
+                  <option value="name">Customer&apos;s name</option>
+                </select>
+                {isName ? (
+                  <span style={{ fontSize: 11.5, color: "var(--pm-hint)", flex: 1 }}>
+                    <UserIcon size={11} style={{ verticalAlign: -1 }} /> Each contact&apos;s saved name (&ldquo;there&rdquo; when we don&apos;t have one).
+                  </span>
+                ) : (
+                  <input placeholder="Same text for everyone" value={vars[n] ?? ""}
+                    onChange={(e) => setVars({ ...vars, [n]: e.target.value })}
+                    style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
+                )}
+              </div>
+            );
+          })}
+          <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 2 }}>
+            The preview below shows exactly what a customer named {SAMPLE_NAME} would receive.
+          </div>
         </Field>
       )}
       {tpl && (
