@@ -48,3 +48,6 @@ next-env.d.ts
 edmame-wa-campaign.mp4
 wa-campaign-pgcron.sql
 contacts_*.csv
+
+# Local credentials — never commit
+PM-CRM_GKeys.json
