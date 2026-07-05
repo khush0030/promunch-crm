@@ -218,7 +218,7 @@
     <tr><td>Secrets management</td><td><span class="badge b-crit">Critical</span></td><td>Live service_role key recoverable from git history, unrotated.</td></tr>
     <tr><td>Webhook / input trust</td><td><span class="badge b-high">Weak</span></td><td>No HMAC on Next Shopify route; fail-open secrets; filter injection.</td></tr>
     <tr><td>Operational reproducibility</td><td><span class="badge b-med">Needs work</span></td><td>Cron topology + schema split across dirs and the dashboard UI; not in source.</td></tr>
-    <tr><td>Code maintainability</td><td><span class="badge b-med">Needs work</span></td><td>2,540-line page, 1,029-line function, triplicated helpers, zero tests.</td></tr>
+    <tr><td>Code maintainability</td><td><span class="badge b-med">Needs work</span></td><td>1,029-line wa-ai-reply still monolithic; WhatsApp page split into components (page.tsx 2,540→152) + 33 unit tests, postSlack collision fixed, RBAC added.</td></tr>
     <tr><td>Frontend / UX architecture</td><td><span class="badge b-med">Needs work</span></td><td>No data-fetching or state library; giant client components.</td></tr>
   </table></div>
 </div></section>
@@ -528,7 +528,7 @@ Staff schedules a campaign in the dashboard
   </div>
 
   <div class="status-board">
-    <div class="sbh"><span>Remediation status</span><span class="updated">updated 2026-07-02 · commit 2ba128e · 12/12 findings addressed in code · C2 rotation in progress · pending deploy</span></div>
+    <div class="sbh"><span>Remediation status</span><span class="updated">updated 2026-07-05 · commit 1dc4811 · 12/12 findings addressed in code · C2 rotation STILL PENDING (key verified live 2026-07-05) · pending deploy</span></div>
     <div class="tbl-wrap" style="border:none"><table>
       <tr><th>ID</th><th>Severity</th><th>Status</th><th>What's left</th></tr>
       <tr><td>C1 anon PII</td><td><span class="badge b-crit">Critical</span></td><td><span class="badge b-prog">Code done</span></td><td>Deploy app, then apply migration 004 in Supabase SQL editor</td></tr>
@@ -640,7 +640,7 @@ Staff schedules a campaign in the dashboard
     <div class="card">
       <h4>Maintainability</h4>
       <ul class="clean">
-        <li class="warn"><b>2,540-line</b> <code>dashboard/whatsapp/page.tsx</code> and <b>1,305-line</b> leads page — split into feature components + hooks</li>
+        <li class="ok"><b>DONE (2026-07-05):</b> <code>dashboard/whatsapp/page.tsx</code> split 2,540→152 lines — views now live in <code>components/whatsapp/</code> (Inbox, Templates, Campaigns, KB, preview, primitives, shared types/styles), format helpers unit-tested. Leads page (1,305 lines) still pending.</li>
         <li class="warn"><b>1,029-line</b> <code>wa-ai-reply</code> monolith — extract triage / tools / ticketing / KB modules</li>
         <li class="warn">Zero tests across the whole app — the money paths especially need coverage</li>
         <li class="warn">3× <code>postSlack</code>, 2× send libs, 3× updated_at triggers — consolidate</li>
@@ -712,7 +712,7 @@ Staff schedules a campaign in the dashboard
     </div></div>
     <div class="step"><span class="snum"></span><div class="sc">
       <h4>Refactor + test the money paths <span class="tag">ongoing</span> <span class="badge b-info">quality</span></h4>
-      <p>Break up the 2,540-line page and 1,029-line function; consolidate the 3 <code>postSlack</code> helpers; add tests around dedup/claims/send. Introduce RBAC before the team grows. Adopt React Query for the dashboard.</p>
+      <p><b>Done:</b> WhatsApp page split into feature components (2,540→152 lines), <code>postSlack</code> collision resolved, Vitest harness + 33 tests, Admin/Member RBAC live in code. <b>Left:</b> split the 1,029-line <code>wa-ai-reply</code> (needs owner sign-off — reply-behavior rule), tests around send dedup/claims, React Query.</p>
     </div></div>
   </div>
 
