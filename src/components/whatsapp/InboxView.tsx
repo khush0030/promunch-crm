@@ -5,6 +5,7 @@
 // controls. Extracted from dashboard/whatsapp/page.tsx (audit R5).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   AlertTriangle, Archive, ArchiveRestore, Bot, Check, CheckCheck, CheckCircle2,
   ChevronLeft, ExternalLink, MapPin, Megaphone, Search, Send, ShoppingBag,
@@ -84,35 +85,41 @@ function MediaView({ url, type }: { url: string; type: string }) {
 }
 
 export default function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
-  const [threads, setThreads] = useState<Thread[]>([]);
   const [selected, setSelected] = useState<Thread | null>(null);
   const [status, setStatus] = useState<string>("");
   const [ticket, setTicket] = useState<string>(ticketsOnly ? "open" : "");
   const [search, setSearch] = useState("");
   const [assignFilter, setAssignFilter] = useState<"" | "mine" | "unassigned">("");
   const { members, me } = useTeam();
-  const [loading, setLoading] = useState(true);
   const [hover, setHover] = useState<string | null>(null);
   const isMobile = useIsMobile();
   // On mobile we route between three full-width views; on desktop everything is visible.
   const [mobileView, setMobileView] = useState<"list" | "conv" | "details">("list");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const qs = new URLSearchParams();
-    // "archived" is a view, not a real thread status — it maps to ?archived=1
-    if (status === "archived") qs.set("archived", "1");
-    else if (status) qs.set("status", status);
-    if (ticket) qs.set("ticket", ticket);
-    if (search) qs.set("search", search);
-    if (assignFilter === "unassigned") qs.set("assignee", "unassigned");
-    else if (assignFilter === "mine" && me.email) qs.set("assignee", me.email);
-    qs.set("limit", "60");
-    const res = await fetch(`/api/whatsapp/threads?${qs}`);
-    const j = await res.json();
-    setThreads(j.threads ?? []);
-    setLoading(false);
-  }, [status, ticket, search, assignFilter, me.email]);
+  // isPending (not isFetching) drives the "Loading…" banner: it's true only
+  // before the FIRST data arrives. Background refetches must not mount the
+  // banner — it shifts the list and throws away the user's scroll position.
+  // keepPreviousData keeps the list visible while a filter change refetches.
+  const { data: threads = [], refetch, isPending: loading } = useQuery({
+    queryKey: ["wa-threads", { status, ticket, search, assignFilter, me: me.email }],
+    queryFn: async (): Promise<Thread[]> => {
+      const qs = new URLSearchParams();
+      // "archived" is a view, not a real thread status — it maps to ?archived=1
+      if (status === "archived") qs.set("archived", "1");
+      else if (status) qs.set("status", status);
+      if (ticket) qs.set("ticket", ticket);
+      if (search) qs.set("search", search);
+      if (assignFilter === "unassigned") qs.set("assignee", "unassigned");
+      else if (assignFilter === "mine" && me.email) qs.set("assignee", me.email);
+      qs.set("limit", "60");
+      const res = await fetch(`/api/whatsapp/threads?${qs}`);
+      const j = await res.json();
+      return j.threads ?? [];
+    },
+    refetchInterval: 4000,
+    placeholderData: keepPreviousData,
+  });
+  const load = () => refetch();
 
   // Archive (hide) or unarchive a thread — never deletes messages.
   const archiveThread = useCallback(async (id: string, archived: boolean) => {
@@ -122,14 +129,8 @@ export default function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
       body: JSON.stringify({ archived }),
     });
     setSelected((s) => (s?.id === id ? null : s));
-    load();
-  }, [load]);
-
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => {
-    const t = setInterval(load, 15000);
-    return () => clearInterval(t);
-  }, [load]);
+    refetch();
+  }, [refetch]);
 
   return (
     <div style={{
@@ -278,7 +279,6 @@ export default function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
           isMobile={isMobile}
           onBack={() => setMobileView("list")}
           onShowDetails={() => setMobileView("details")}
-          members={members}
         />
       </div>
 
@@ -287,22 +287,22 @@ export default function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
         isMobile={isMobile}
         visible={!isMobile || mobileView === "details"}
         onClose={() => setMobileView("conv")}
+        members={members}
+        onChange={(t) => { setSelected(t); load(); }}
       />
     </div>
   );
 }
 
 
-function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDetails, members = [] }: {
+function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDetails }: {
   thread: Thread | null;
   onChange: (t: Thread) => void;
   isMobile?: boolean;
   onBack?: () => void;
   onShowDetails?: () => void;
-  members?: TeamMember[];
 }) {
   const toast = useToast();
-  const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -310,23 +310,42 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
   const [drafting, setDrafting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const load = useCallback(async () => {
-    if (!thread) return;
-    const r = await fetch(`/api/whatsapp/threads/${thread.id}`);
-    const j = await r.json();
-    setMessages(j.messages ?? []);
-    setTimeout(() => scrollRef.current?.scrollTo({ top: 9e9, behavior: "smooth" }), 50);
-  }, [thread]);
+  const { data: messages = [], refetch } = useQuery({
+    queryKey: ["wa-thread-messages", thread?.id],
+    queryFn: async (): Promise<Message[]> => {
+      const r = await fetch(`/api/whatsapp/threads/${thread!.id}`);
+      const j = await r.json();
+      return j.messages ?? [];
+    },
+    enabled: !!thread,
+    refetchInterval: 4000,
+  });
+  const load = () => refetch();
 
-  useEffect(() => { load(); }, [load]);
+  // Scroll to the bottom only when it should: on first paint of a thread, or
+  // when a NEW message arrives while the user is already near the bottom.
+  // A background poll must never yank the user away from older messages
+  // they're reading. (React Query's structural sharing means this effect only
+  // re-runs when the data actually changed.)
+  const lastSeenRef = useRef<string | null>(null);
+  useEffect(() => { lastSeenRef.current = null; }, [thread?.id]);
+  useEffect(() => {
+    if (!thread) return;
+    const lastId = messages.length ? messages[messages.length - 1].id : "empty";
+    const first = lastSeenRef.current === null;
+    const changed = lastSeenRef.current !== lastId;
+    lastSeenRef.current = lastId;
+    if (!first && !changed) return;
+    const el = scrollRef.current;
+    const nearBottom = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+    if (first || nearBottom) {
+      setTimeout(() => scrollRef.current?.scrollTo({ top: 9e9, behavior: first ? "auto" : "smooth" }), 50);
+    }
+  }, [messages, thread]);
+
   useEffect(() => {
     fetch("/api/whatsapp/templates?status=approved").then((r) => r.json()).then((j) => setTemplates(j.templates ?? []));
   }, []);
-  useEffect(() => {
-    if (!thread) return;
-    const t = setInterval(load, 8000);
-    return () => clearInterval(t);
-  }, [load, thread]);
 
   // Freshest inbound timestamp for the 24h-window timer: the thread row can
   // lag behind the 8s message poll, so also scan the loaded messages.
@@ -474,49 +493,9 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
               <CheckCircle2 size={13} /> Resolve ticket
             </button>
           )}
-          {/* Labeled controls — without the tiny caption the three dropdowns
-              read as mystery values ("Bot / Closed / Normal"). */}
-          <div className="ctl">
-            {!isMobile && <span>Handled by</span>}
-            <select aria-label="Handled by" value={thread.status} onChange={(e) => patch({ status: e.target.value as any })}
-              className="select">
-              <option value="bot">Bot</option>
-              <option value="human">Human</option>
-              <option value="snoozed">Snoozed</option>
-              <option value="closed">Closed</option>
-            </select>
-          </div>
-          <div className="ctl">
-            {!isMobile && <span>Assigned</span>}
-            <select aria-label="Assigned to" value={thread.assigned_to ?? ""} onChange={(e) => patch({ assigned_to: e.target.value || null })}
-              className="select">
-              <option value="">Unassigned</option>
-              {members.filter((m) => m.email).map((m) => (
-                <option key={m.id} value={m.email!}>{m.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="ctl">
-            {!isMobile && <span>Ticket</span>}
-            <select aria-label="Ticket status" value={thread.ticket_status} onChange={(e) => patch({ ticket_status: e.target.value as any })}
-              className="select">
-              <option value="none">No ticket</option>
-              <option value="open">Open</option>
-              <option value="pending">Pending</option>
-              <option value="resolved">Resolved</option>
-              <option value="closed">Closed</option>
-            </select>
-          </div>
-          <div className="ctl">
-            {!isMobile && <span>Priority</span>}
-            <select aria-label="Ticket priority" value={thread.ticket_priority ?? "normal"} onChange={(e) => patch({ ticket_priority: e.target.value as any })}
-              className="select">
-              <option value="low">Low</option>
-              <option value="normal">Normal</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
-            </select>
-          </div>
+          {/* Handled-by / assignee / ticket / priority controls moved to the
+              right-rail CustomerPanel ("Conversation" card) — prominent
+              buttons there instead of four cramped dropdowns here. */}
         </div>
       </div>
 
@@ -642,25 +621,39 @@ type CustomerData = {
 
 /* Right-rail customer 360: the WhatsApp chat stitched to Shopify orders and
    the CRM contact record, matched by the customer's WhatsApp number. */
-function CustomerPanel({ thread, isMobile = false, visible = true, onClose }: {
+function CustomerPanel({ thread, isMobile = false, visible = true, onClose, members = [], onChange }: {
   thread: Thread | null;
   isMobile?: boolean;
   visible?: boolean;
   onClose?: () => void;
+  members?: TeamMember[];
+  onChange?: (t: Thread) => void;
 }) {
   const [data, setData] = useState<CustomerData | null>(null);
   const [loading, setLoading] = useState(false);
+  const threadId = thread?.id;
 
   useEffect(() => {
-    if (!thread) { setData(null); return; }
+    if (!threadId) { setData(null); return; }
     let live = true;
     setLoading(true);
-    fetch(`/api/whatsapp/threads/${thread.id}/customer`)
+    // Keyed on the id, not the object: status/ticket patches swap the thread
+    // object but must not refetch the Shopify/CRM data.
+    fetch(`/api/whatsapp/threads/${threadId}/customer`)
       .then((r) => r.json())
       .then((j) => { if (live) setData(j?.error ? null : j); })
       .finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
-  }, [thread]);
+  }, [threadId]);
+
+  async function patch(p: Partial<Thread>) {
+    if (!thread) return;
+    const r = await fetch(`/api/whatsapp/threads/${thread.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p),
+    });
+    const j = await r.json();
+    if (j.thread) onChange?.({ ...thread, ...j.thread, contact: thread.contact });
+  }
 
   if (!visible) return null;
 
@@ -710,6 +703,105 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose }: {
           </button>
         </div>
       )}
+      {/* conversation controls — moved here from the chat header so they get
+          real, labeled buttons instead of four cramped dropdowns */}
+      <div style={{ border: "1px solid var(--pm-border)", borderRadius: 10, padding: 12, marginBottom: 14, background: "var(--pm-card2)" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--pm-muted)", marginBottom: 10 }}>
+          Conversation
+        </div>
+
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Handled by</div>
+        <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+          {([["bot", "Bot"], ["human", "Human"], ["snoozed", "Snoozed"], ["closed", "Closed"]] as const).map(([v, l]) => {
+            const on = thread.status === v;
+            const onColor = v === "bot" ? "var(--pm-green)" : v === "human" ? "#1d4ed8" : "var(--pm-muted)";
+            return (
+              <button key={v} type="button" onClick={() => patch({ status: v })}
+                style={{
+                  flex: 1, padding: "8px 0", borderRadius: 8, fontSize: 12, cursor: "pointer",
+                  fontWeight: on ? 700 : 500,
+                  border: `1px solid ${on ? onColor : "var(--pm-border)"}`,
+                  background: on ? onColor : "var(--pm-card)",
+                  color: on ? "#fff" : "var(--pm-ink)",
+                }}>
+                {v === "bot" && <Bot size={12} style={{ verticalAlign: -2, marginRight: 3 }} />}
+                {v === "human" && <UserIcon size={12} style={{ verticalAlign: -2, marginRight: 3 }} />}
+                {l}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Assigned to</div>
+        <select aria-label="Assigned to" value={thread.assigned_to ?? ""}
+          onChange={(e) => patch({ assigned_to: e.target.value || null })}
+          style={{
+            width: "100%", padding: "9px 10px", borderRadius: 8, marginBottom: 12,
+            border: "1px solid var(--pm-border)", fontSize: 13, background: "var(--pm-card)",
+          }}>
+          <option value="">Unassigned</option>
+          {members.filter((m) => m.email).map((m) => (
+            <option key={m.id} value={m.email!}>{m.name}</option>
+          ))}
+        </select>
+
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+          Ticket{thread.ticket_status !== "none" && (
+            <span style={{ color: "var(--pm-muted)", fontWeight: 500 }}> · #{thread.ticket_number}</span>
+          )}
+        </div>
+        {thread.ticket_status === "none" ? (
+          <button type="button" onClick={() => patch({ ticket_status: "open" })}
+            style={{
+              width: "100%", padding: "9px 0", borderRadius: 8, fontSize: 13, fontWeight: 600,
+              border: "1px solid var(--pm-border)", background: "var(--pm-card)", color: "var(--pm-ink)",
+              cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
+              gap: 6, marginBottom: 12,
+            }}>
+            <TicketIcon size={14} /> Open a ticket
+          </button>
+        ) : (
+          <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+            {(["open", "pending", "resolved", "closed"] as const).map((v) => {
+              const on = thread.ticket_status === v;
+              const st = ticketStatusStyle[v];
+              return (
+                <button key={v} type="button" onClick={() => patch({ ticket_status: v })}
+                  style={{
+                    flex: 1, padding: "8px 0", borderRadius: 8, fontSize: 12, cursor: "pointer",
+                    fontWeight: on ? 700 : 500,
+                    border: `1px solid ${on ? st.color : "var(--pm-border)"}`,
+                    background: on ? st.bg : "var(--pm-card)",
+                    color: on ? st.color : "var(--pm-ink)",
+                  }}>
+                  {st.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Priority</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {(["low", "normal", "high", "urgent"] as const).map((v) => {
+            const on = (thread.ticket_priority ?? "normal") === v;
+            const st = priorityStyle[v];
+            return (
+              <button key={v} type="button" onClick={() => patch({ ticket_priority: v })}
+                style={{
+                  flex: 1, padding: "7px 0", borderRadius: 8, fontSize: 12, cursor: "pointer",
+                  textTransform: "capitalize", fontWeight: on ? 700 : 500,
+                  border: `1px solid ${on ? st.color : "var(--pm-border)"}`,
+                  background: on ? st.bg : "var(--pm-card)",
+                  color: on ? st.color : "var(--pm-ink)",
+                }}>
+                {v}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* identity */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
         <div style={{
