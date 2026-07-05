@@ -300,7 +300,7 @@ Deno.serve(async (req) => {
         rejection_reason: null,
       }).eq("id", row.id);
     }
-    return j({ ok: edited.ok, mode: "editDb", name, language, button_url: newUrl, ...edited });
+    return j({ mode: "editDb", name, language, button_url: newUrl, ...edited });
   }
 
   // --- build the list of definitions to create ------------------------------

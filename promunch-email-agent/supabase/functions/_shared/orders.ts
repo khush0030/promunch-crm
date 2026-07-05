@@ -65,9 +65,12 @@ export async function lookupOrders(
   if (error) throw new Error(`shopify_orders query failed: ${error.message}`);
   // Defensive: the query is already phone-scoped, but drop anything that isn't
   // this customer's before mapping, so a stranger's row can never be returned.
+  // Type-only cast: supabase-js can't infer the row shape through the .or()
+  // chain and degrades the element type; runtime rows are unchanged.
+  const all = (data ?? []) as Record<string, any>[];
   const rows = normalized
-    ? (data ?? []).filter((r) => r.customer_phone === normalized)
-    : (data ?? []);
+    ? all.filter((r) => r.customer_phone === normalized)
+    : all;
   return rows.map(toSummary);
 }
 

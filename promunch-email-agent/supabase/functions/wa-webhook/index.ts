@@ -475,7 +475,8 @@ async function transcribeAudio(bytes: Uint8Array, mime: string): Promise<string 
   if (!key) return null;
   try {
     const fd = new FormData();
-    fd.append("file", new Blob([bytes], { type: mime }), `voice.${mimeExt(mime)}`);
+    // Type-only cast: Uint8Array<ArrayBufferLike> vs BlobPart lib mismatch.
+    fd.append("file", new Blob([bytes as unknown as BlobPart], { type: mime }), `voice.${mimeExt(mime)}`);
     fd.append("model", Deno.env.get("WA_TRANSCRIBE_MODEL") ?? "whisper-1");
     const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",

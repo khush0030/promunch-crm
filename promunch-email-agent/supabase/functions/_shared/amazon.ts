@@ -285,7 +285,11 @@ export async function fetchReportText(reportDocumentId: string): Promise<string>
   if (!r.ok) throw new Error(`report download ${r.status}`);
   if (meta.compressionAlgorithm === "GZIP") {
     const ds = new DecompressionStream("gzip");
-    const stream = (r.body as ReadableStream<Uint8Array>).pipeThrough(ds);
+    // Type-only cast: Deno's dom lib disagrees with itself on the Uint8Array
+    // generic (ArrayBuffer vs ArrayBufferLike); runtime is unaffected.
+    const stream = (r.body as ReadableStream<Uint8Array>).pipeThrough<Uint8Array>(
+      ds as unknown as ReadableWritablePair<Uint8Array, Uint8Array>,
+    );
     return await new Response(stream).text();
   }
   return await r.text();

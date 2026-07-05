@@ -16,6 +16,8 @@ export type ConnectorId =
   | "gmail_watch"      // the 7-day Gmail Pub/Sub watch
   | "whatsapp"         // WhatsApp Cloud API inbound webhook
   | "shopify_wa"       // Shopify → WhatsApp journeys
+  | "shopify"          // Shopify webhook intake (Next.js + edge)
+  | "b2b_outreach"     // B2B cold-email outreach sends
   | "instagram";       // Instagram inbound DM / comment automation
 
 export type ConnectorLevel = "info" | "warn" | "error";

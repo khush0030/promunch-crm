@@ -260,7 +260,8 @@ export async function uploadResumable(bytes: Uint8Array, mime: string): Promise<
   const up = await fetch(`${GRAPH}/${sj.id}`, {
     method: "POST",
     headers: { "Authorization": `OAuth ${t}`, "file_offset": "0" },
-    body: bytes,
+    // Type-only cast: Uint8Array<ArrayBufferLike> vs BodyInit lib mismatch.
+    body: bytes as unknown as BodyInit,
   });
   const uj = await up.json().catch(() => ({}));
   if (!up.ok || !uj?.h) {
