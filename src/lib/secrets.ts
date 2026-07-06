@@ -29,7 +29,10 @@ export const EDITABLE_KEYS: SecretDef[] = [
   { name: "OPENAI_API_KEY", label: "OpenAI", group: "AI", hint: "Maya assistant, B2B drafts, lead scoring", testable: true },
   { name: "RESEND_API_KEY", label: "Resend", group: "Email", hint: "Campaign, outreach and invite email sending", testable: true },
   { name: "GOOGLE_PLACES_API_KEY", label: "Google Places", group: "B2B leads", hint: "Lead discovery search", testable: true },
-  { name: "SHOPIFY_ACCESS_TOKEN", label: "Shopify Admin API", group: "Commerce", hint: "Customer and order reads from the dashboard", testable: true },
+  // SHOPIFY_ACCESS_TOKEN is intentionally not listed: no dashboard route calls
+  // the Admin API client today (order/customer data flows through the
+  // shopify_orders mirror synced by edge functions). Re-add when a route uses
+  // src/lib/shopify.ts, which already reads getSecret().
   { name: "KLAVIYO_API_KEY", label: "Klaviyo", group: "Email", hint: "Legacy profile enrichment imports", testable: true },
 ];
 
