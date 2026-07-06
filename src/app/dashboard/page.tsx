@@ -264,7 +264,10 @@ export default function DashboardPage() {
     }
     // Shopify — live status from the real mirror table (shopify_orders) + freshness.
     try {
-      const { count: shop } = await supabase.from("shopify_orders").select("*", { count: "exact", head: true });
+      // Count on a granted column: shopify_orders has column-level grants (PII
+      // columns are withheld from browser roles), so a `select("*")` count
+      // returns null and the pill wrongly read "Not connected".
+      const { count: shop } = await supabase.from("shopify_orders").select("shopify_created_at", { count: "exact", head: true });
       const { data: last } = await supabase.from("shopify_orders").select("shopify_created_at").order("shopify_created_at", { ascending: false }).limit(1);
       const lastAt = last?.[0]?.shopify_created_at ? new Date(last[0].shopify_created_at as string) : null;
       const days = lastAt ? Math.floor((Date.now() - lastAt.getTime()) / 86_400_000) : null;
