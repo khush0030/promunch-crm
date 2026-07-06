@@ -21,6 +21,7 @@ import { toWaId } from "../_shared/journeys.ts";
 import { handleOrderCreated } from "../_shared/order-confirmation.ts";
 import { addOrderTags, isCreatorOrder, isHypdOrder, linkOrderToCustomer, normalizeName, upsertShopifyCustomerFromOrder } from "../_shared/shopify-customer.ts";
 import { fetchOrderAttribution } from "../_shared/shopify-attribution.ts";
+import { syncContactFromOrder } from "../_shared/crm-contact.ts";
 
 const ok = (extra: Record<string, unknown> = {}) =>
   new Response(JSON.stringify({ ok: true, ...extra }), { headers: { "content-type": "application/json" } });
@@ -94,6 +95,24 @@ Deno.serve(async (req) => {
   if (error) {
     console.error("db upsert failed", error);
     return new Response("db-error", { status: 500 });
+  }
+
+  // ===== CRM contact sync (runs on create AND update) =====
+  // Keeps /dashboard/contacts current: upserts the buyer into `contacts` with
+  // refreshed order stats on every orders/* event. Idempotent (upsert on email,
+  // stats recomputed not incremented). Non-blocking: a failure here must never
+  // break order persistence, WhatsApp, or Slack.
+  try {
+    const r = await syncContactFromOrder(order);
+    if (!r.ok && r.reason !== "no-email") {
+      await logConnector({
+        connector: "shopify", level: "error", event: "contact_sync_failed",
+        message: `Order ${orderNumber}: CRM contact sync failed — ${r.reason}`,
+        ref: orderNumber,
+      }).catch(() => {});
+    }
+  } catch (e) {
+    console.error("[shopify-webhook] contact sync threw", e);
   }
 
   // ===== HYPD customer sync (runs on create AND update) =====

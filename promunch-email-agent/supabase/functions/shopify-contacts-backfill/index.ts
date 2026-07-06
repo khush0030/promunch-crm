@@ -14,13 +14,14 @@
 //
 // AUTH NOTES:
 //  - Gated on SHOPIFY_BACKFILL_TOKEN query param (no HMAC). verify_jwt=false.
-//  - Writes via the ANON client on purpose: the service_role grant is revoked on
-//    `contacts` (the app's webhook also writes it via anon), so service role 401s.
+//  - Writes via the SERVICE-ROLE client: migration 004_lock_anon_rls revoked
+//    all anon grants on `contacts` (the old anon-write workaround now 401s)
+//    and restored service_role.
 //
 // DEDUP: customers with an email upsert onConflict 'email' (merge onto existing
 // Klaviyo/contact rows); emailless customers key on 'shopify_customer_id'.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { db } from "../_shared/supabase.ts";
 import { adminGraphQL } from "../_shared/shopify-customer.ts";
 
 const PAGE_SIZE = 250;          // customers per GraphQL page (Admin max)
@@ -46,13 +47,6 @@ query CustomersPage($cursor: String) {
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-
-function anon() {
-  const url = Deno.env.get("SUPABASE_URL");
-  const key = Deno.env.get("SUPABASE_ANON_KEY");
-  if (!url || !key) throw new Error("Missing SUPABASE_URL / SUPABASE_ANON_KEY");
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-}
 
 type Row = {
   email: string | null;
@@ -84,7 +78,7 @@ Deno.serve(async (req) => {
   const expected = Deno.env.get("SHOPIFY_BACKFILL_TOKEN");
   if (!expected || token !== expected) return json({ ok: false, error: "unauthorized" }, 401);
 
-  const sb = anon();
+  const sb = db();
   const maxPages = Number(url.searchParams.get("pages") ?? DEFAULT_PAGES);
   let cursor: string | null = url.searchParams.get("after");
 

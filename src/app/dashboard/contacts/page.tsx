@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, ChevronLeft, ChevronRight, ChevronDown, Users } from "lucide-react";
+import { Upload, Download, ChevronLeft, ChevronRight, ChevronDown, Users, UserPlus, ShoppingBag, UserMinus, X } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
-import { PageHead, Toolbar, SearchBar, FilterChips, DataTable, StatusBadge, EmptyState } from "@/components/pm";
-import type { Column, BadgeTone } from "@/components/pm";
+import { useToast } from "@/components/ui/Toast";
+import { PageHead, Toolbar, SearchBar, FilterChips, DataTable, StatusBadge, EmptyState, KpiCard } from "@/components/pm";
+import type { Column, BadgeTone, KpiTone } from "@/components/pm";
 
 type ContactRow = {
   id: string;
@@ -43,6 +44,7 @@ const filterLabels: Record<string, string> = {
 
 export default function ContactsPage() {
   const router = useRouter();
+  const toast = useToast();
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
   const [contacts, setContacts] = useState<ContactRow[]>([]);
@@ -66,6 +68,10 @@ export default function ContactsPage() {
     lists: { name: string; count: number }[];
     segments: { name: string; count: number }[];
   }>({ lists: [], segments: [] });
+  const [stats, setStats] = useState<{ total: number; buyers: number; newThisMonth: number; unsubscribed: number } | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addBusy, setAddBusy] = useState(false);
+  const [addForm, setAddForm] = useState({ email: "", first_name: "", last_name: "", phone: "" });
 
   const fetchContacts = useCallback(async () => {
     setIsLoading(true);
@@ -138,7 +144,10 @@ export default function ContactsPage() {
   useEffect(() => {
     fetch("/api/contacts/facets")
       .then((r) => r.json())
-      .then((d) => setFacets({ lists: d.lists ?? [], segments: d.segments ?? [] }))
+      .then((d) => {
+        setFacets({ lists: d.lists ?? [], segments: d.segments ?? [] });
+        if (d.stats) setStats(d.stats);
+      })
       .catch(() => {});
   }, []);
 
@@ -149,7 +158,8 @@ export default function ContactsPage() {
       const res = await fetch(`/api/import/${source}`, { method: "POST" });
       const data = await res.json();
       if (data.ok) {
-        setImportMsg(`Imported ${data.imported} contacts (${data.scanned} scanned, ${data.skippedNoEmail || 0} skipped without email).`);
+        const updated = data.updated ? `, ${data.updated} refreshed` : "";
+        setImportMsg(`Imported ${data.imported} new contacts${updated} (${data.scanned} scanned, ${data.skippedNoEmail || 0} without email).`);
         fetchContacts();
       } else {
         setImportMsg(`Import failed: ${data.error || "unknown error"}`);
@@ -158,6 +168,50 @@ export default function ContactsPage() {
       setImportMsg(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setImporting(false);
+    }
+  }
+
+  function exportCsv() {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (activeFilter !== "All") params.set("status", activeFilter);
+    if (audience?.type === "list") params.set("list", audience.value);
+    if (audience?.type === "segment") params.set("segment", audience.value);
+    if (minOrders) params.set("minOrders", minOrders);
+    if (minLtv) params.set("minLtv", minLtv);
+    if (lastOrderDays) {
+      params.set("lastOrderDays", lastOrderDays);
+      params.set("lastOrderOp", lastOrderOp);
+    }
+    window.open(`/api/contacts/export?${params}`, "_blank");
+  }
+
+  async function submitAddContact(e: React.FormEvent) {
+    e.preventDefault();
+    if (!addForm.email.trim()) return;
+    setAddBusy(true);
+    try {
+      const res = await fetch("/api/contacts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: addForm.email.trim(),
+          first_name: addForm.first_name.trim() || undefined,
+          last_name: addForm.last_name.trim() || undefined,
+          phone: addForm.phone.trim() || undefined,
+          source: "manual",
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Failed to add contact");
+      toast.push({ kind: "success", text: `Added ${j.contact.email}.` });
+      setAddOpen(false);
+      setAddForm({ email: "", first_name: "", last_name: "", phone: "" });
+      fetchContacts();
+    } catch (err) {
+      toast.push({ kind: "error", text: err instanceof Error ? err.message : "Failed to add contact" });
+    } finally {
+      setAddBusy(false);
     }
   }
 
@@ -219,6 +273,12 @@ export default function ContactsPage() {
                 {importMsg}
               </span>
             )}
+            <button className="pm-btn ghost" onClick={() => setAddOpen(true)}>
+              <UserPlus size={15} /> Add contact
+            </button>
+            <button className="pm-btn ghost" onClick={exportCsv} title="Download the current filtered view as CSV">
+              <Download size={15} /> Export CSV
+            </button>
             <div style={{ position: "relative" }}>
               <button className="pm-btn primary" disabled={importing} onClick={() => setImportOpen((o) => !o)}>
                 <Upload size={15} /> {importing ? "Importing…" : "Import / Sync"} <ChevronDown size={13} />
@@ -243,6 +303,19 @@ export default function ContactsPage() {
           </>
         }
       />
+
+      {stats && (
+        <div className="pm-kpis" style={{ marginBottom: 16 }}>
+          {([
+            { label: "Total contacts", value: stats.total.toLocaleString("en-IN"), icon: <Users />, tone: "b" as KpiTone },
+            { label: "Buyers", value: stats.buyers.toLocaleString("en-IN"), icon: <ShoppingBag />, tone: "g" as KpiTone },
+            { label: "New this month", value: stats.newThisMonth.toLocaleString("en-IN"), icon: <UserPlus />, tone: "t" as KpiTone },
+            { label: "Unsubscribed", value: stats.unsubscribed.toLocaleString("en-IN"), icon: <UserMinus />, tone: "o" as KpiTone },
+          ]).map((k) => (
+            <KpiCard key={k.label} label={k.label} value={k.value} icon={k.icon} tone={k.tone} />
+          ))}
+        </div>
+      )}
 
       <Toolbar>
         <SearchBar value={search} placeholder="Search contacts…" onChange={(v) => { setSearch(v); setPage(1); }} />
@@ -342,6 +415,50 @@ export default function ContactsPage() {
         >
           {loaded ? "Import contacts from Shopify or Klaviyo to get started, or add them manually." : undefined}
         </EmptyState>
+      )}
+
+      {addOpen && (
+        <>
+          <div onClick={() => setAddOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(43,36,20,.32)", zIndex: 40 }} />
+          <div role="dialog" aria-label="Add contact" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(440px, calc(100vw - 32px))", background: "var(--pm-card)", border: "1px solid var(--pm-border)", borderRadius: 14, boxShadow: "0 18px 48px rgba(67,55,32,.22)", zIndex: 41, padding: 22 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: 16 }}>Add contact</h3>
+              <button type="button" className="pm-btn ghost sm" onClick={() => setAddOpen(false)} aria-label="Close">
+                <X size={15} />
+              </button>
+            </div>
+            <form onSubmit={submitAddContact}>
+              <div className="pm-field">
+                <label>Email *</label>
+                <input type="email" required autoFocus placeholder="customer@example.com" value={addForm.email}
+                  onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div className="pm-field">
+                  <label>First name</label>
+                  <input type="text" placeholder="First" value={addForm.first_name}
+                    onChange={(e) => setAddForm((f) => ({ ...f, first_name: e.target.value }))} />
+                </div>
+                <div className="pm-field">
+                  <label>Last name</label>
+                  <input type="text" placeholder="Last" value={addForm.last_name}
+                    onChange={(e) => setAddForm((f) => ({ ...f, last_name: e.target.value }))} />
+                </div>
+              </div>
+              <div className="pm-field">
+                <label>Phone</label>
+                <input type="tel" placeholder="+91…" value={addForm.phone}
+                  onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
+                <button type="button" className="pm-btn ghost" onClick={() => setAddOpen(false)} disabled={addBusy}>Cancel</button>
+                <button type="submit" className="pm-btn primary" disabled={addBusy || !addForm.email.trim()}>
+                  {addBusy ? "Adding…" : "Add contact"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
       )}
     </div>
   );

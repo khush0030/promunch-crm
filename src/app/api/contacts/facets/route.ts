@@ -3,15 +3,31 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // Distinct Klaviyo lists & segments across all contacts, with membership
 // counts — feeds the Contacts page filter chips. Ordered most-populated first.
+// Also returns headline stats for the Contacts page KPI row (one roundtrip).
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const { data, error } = await supabaseAdmin
-    .from("contacts")
-    .select("klaviyo_lists, klaviyo_segments")
-    .limit(50000);
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
 
-  if (error) return NextResponse.json({ lists: [], segments: [] });
+  const [facetsRes, totalRes, buyersRes, newMonthRes, unsubRes] = await Promise.all([
+    supabaseAdmin.from("contacts").select("klaviyo_lists, klaviyo_segments").limit(50000),
+    supabaseAdmin.from("contacts").select("id", { count: "exact", head: true }),
+    supabaseAdmin.from("contacts").select("id", { count: "exact", head: true }).gt("total_orders", 0),
+    supabaseAdmin.from("contacts").select("id", { count: "exact", head: true }).gte("created_at", monthStart.toISOString()),
+    supabaseAdmin.from("contacts").select("id", { count: "exact", head: true }).eq("status", "unsubscribed"),
+  ]);
+
+  const stats = {
+    total: totalRes.count ?? 0,
+    buyers: buyersRes.count ?? 0,
+    newThisMonth: newMonthRes.count ?? 0,
+    unsubscribed: unsubRes.count ?? 0,
+  };
+
+  const { data, error } = facetsRes;
+  if (error) return NextResponse.json({ lists: [], segments: [], stats });
 
   const lists = new Map<string, number>();
   const segments = new Map<string, number>();
@@ -28,5 +44,5 @@ export async function GET() {
       .sort((a, b) => b[1] - a[1])
       .map(([name, count]) => ({ name, count }));
 
-  return NextResponse.json({ lists: top(lists), segments: top(segments) });
+  return NextResponse.json({ lists: top(lists), segments: top(segments), stats });
 }

@@ -19,11 +19,40 @@ export async function GET(
     return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
   }
 
-  const { data: orders } = await supabase
-    .from('orders')
-    .select('*')
-    .eq('contact_id', id)
-    .order('placed_at', { ascending: false });
+  // Order history lives in shopify_orders (fed live by the shopify-webhook
+  // edge fn) — the legacy `orders` table stopped filling when the old Next.js
+  // webhook died. Match on email, plus normalized phone to catch guest /
+  // marketplace orders that arrived without an email.
+  const email = String(contact.email || '').trim().toLowerCase();
+  const digits = String(contact.phone || '').replace(/\D/g, '');
+  const waId = digits.length === 10 ? `91${digits}` : digits;
+
+  const ors = [`customer_email.eq.${email}`];
+  if (waId.length >= 10) ors.push(`customer_phone.eq.${waId}`);
+
+  const { data: shopOrders } = await supabase
+    .from('shopify_orders')
+    .select('id, order_number, total_price, currency, financial_status, line_items, shopify_created_at')
+    .or(ors.join(','))
+    .order('shopify_created_at', { ascending: false })
+    .limit(50);
+
+  type LineItem = { title?: string; quantity?: number };
+  const orders = (shopOrders || []).map((o) => {
+    const items = (Array.isArray(o.line_items) ? o.line_items : []) as LineItem[];
+    return {
+      id: o.id,
+      order_number: String(o.order_number || '').replace(/^#/, ''),
+      total_amount: Number(o.total_price) || 0,
+      currency: o.currency || 'INR',
+      status: o.financial_status || 'pending',
+      products: {
+        items: items.map((li) => li.title).filter(Boolean),
+        itemCount: items.reduce((n, li) => n + (Number(li.quantity) || 0), 0),
+      },
+      placed_at: o.shopify_created_at,
+    };
+  });
 
   const { data: emailHistory } = await supabase
     .from('email_events')
@@ -34,7 +63,7 @@ export async function GET(
 
   return NextResponse.json({
     contact,
-    orders: orders || [],
+    orders,
     emailHistory: emailHistory || [],
   });
 }
@@ -49,7 +78,7 @@ export async function PATCH(
   const allowedFields = [
     'email', 'first_name', 'last_name', 'phone',
     'tags', 'status', 'city', 'state', 'country',
-    'shopify_customer_id',
+    'shopify_customer_id', 'accepts_marketing',
   ];
 
   const updateData: Record<string, unknown> = {};

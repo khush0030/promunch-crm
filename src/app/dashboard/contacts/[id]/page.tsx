@@ -17,7 +17,6 @@ import {
   MessageSquare,
   History,
 } from "lucide-react";
-import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { useToast } from "@/components/ui/Toast";
 import { PageHead, KpiCard, Panel, StatusBadge, EmptyState } from "@/components/pm";
 import type { KpiTone, BadgeTone } from "@/components/pm";
@@ -86,7 +85,6 @@ function fmtMonth(d?: string | null) {
 }
 
 export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const supabase = createSupabaseBrowserClient();
   const { id } = use(params);
   const router = useRouter();
   const toast = useToast();
@@ -100,19 +98,19 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => {
     async function load() {
-      const [contactRes, ordersRes, eventsRes, waRes] = await Promise.all([
-        supabase.from("contacts").select("*").eq("id", id).maybeSingle(),
-        supabase.from("orders").select("*").eq("contact_id", id).order("placed_at", { ascending: false }).limit(20),
-        supabase.from("email_events").select("*").eq("contact_id", id).order("created_at", { ascending: false }).limit(15),
+      // Everything server-side via the API: contact + shopify_orders history +
+      // email events in one call, WhatsApp match in parallel.
+      const [detailRes, waRes] = await Promise.all([
+        fetch(`/api/contacts/${id}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
         fetch(`/api/contacts/${id}/whatsapp`).then((r) => r.json()).catch(() => null),
       ]);
 
-      if (contactRes.error || !contactRes.data) {
+      if (!detailRes?.contact) {
         setNotFound(true);
       } else {
-        setContact(contactRes.data as Contact);
-        setOrders((ordersRes.data || []) as Order[]);
-        setEvents((eventsRes.data || []) as EmailEvent[]);
+        setContact(detailRes.contact as Contact);
+        setOrders((detailRes.orders || []) as Order[]);
+        setEvents((detailRes.emailHistory || []) as EmailEvent[]);
         if (waRes && typeof waRes === "object") {
           setWaActivity({
             matched: !!waRes.matched,
@@ -133,14 +131,14 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     if (!confirm(`Unsubscribe ${contact.email} from all email marketing?`)) return;
     setBusy(true);
     try {
-      const { data, error } = await supabase
-        .from("contacts")
-        .update({ status: "unsubscribed", accepts_marketing: false })
-        .eq("id", contact.id)
-        .select()
-        .maybeSingle();
-      if (error) throw error;
-      if (data) setContact(data as Contact);
+      const r = await fetch(`/api/contacts/${contact.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: "unsubscribed", accepts_marketing: false }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Update failed");
+      if (j.contact) setContact(j.contact as Contact);
       toast.push({ kind: "success", text: "Contact unsubscribed." });
     } catch (e) {
       toast.push({ kind: "error", text: e instanceof Error ? e.message : "Update failed" });
@@ -174,12 +172,16 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   async function handleDelete() {
     if (!contact) return;
-    if (!confirm(`Delete ${contact.email}? This cannot be undone.`)) return;
+    // Soft delete via the API: marks the contact inactive + writes an audit
+    // record (admin-gated server-side). Order history is never destroyed —
+    // GDPR erasure is the separate Anonymize action.
+    if (!confirm(`Deactivate ${contact.email}? They drop out of active lists but their history is kept. Use Anonymize for GDPR erasure.`)) return;
     setBusy(true);
     try {
-      const { error } = await supabase.from("contacts").delete().eq("id", contact.id);
-      if (error) throw error;
-      toast.push({ kind: "success", text: "Contact deleted." });
+      const r = await fetch(`/api/contacts/${contact.id}`, { method: "DELETE" });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Delete failed");
+      toast.push({ kind: "success", text: "Contact deactivated." });
       router.push("/dashboard/contacts");
     } catch (e) {
       toast.push({ kind: "error", text: e instanceof Error ? e.message : "Delete failed" });
@@ -251,7 +253,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             {!contact.anonymized_at && (
               <button className="pm-btn ghost" onClick={handleAnonymize} disabled={busy} style={{ color: "var(--pm-terra)" }}>Anonymize</button>
             )}
-            <button className="pm-btn ghost" onClick={handleDelete} disabled={busy} style={{ color: "var(--pm-terra)" }} aria-label="Delete contact">
+            <button className="pm-btn ghost" onClick={handleDelete} disabled={busy} style={{ color: "var(--pm-terra)" }} aria-label="Deactivate contact" title="Deactivate contact">
               <Trash2 size={15} />
             </button>
           </>

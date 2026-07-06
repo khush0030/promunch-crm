@@ -39,7 +39,11 @@ export async function GET(request: NextRequest) {
     .range(offset, offset + limit - 1);
 
   if (search) {
-    query = query.or(`email.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%`);
+    // strip PostgREST or() syntax chars so user input can't break the filter
+    const safe = search.replace(/[,()."\\]/g, " ").trim();
+    if (safe) {
+      query = query.or(`email.ilike.%${safe}%,first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,phone.ilike.%${safe}%`);
+    }
   }
 
   if (status && status !== 'All') {
@@ -107,7 +111,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase
     .from('contacts')
     .insert({
-      email,
+      email: String(email).trim().toLowerCase(),
       first_name,
       last_name,
       phone,
@@ -123,6 +127,10 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
+    // 23505 = unique_violation (duplicate email) — a user mistake, not a server fault
+    if (error.code === '23505') {
+      return NextResponse.json({ error: 'A contact with this email already exists.' }, { status: 409 });
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
