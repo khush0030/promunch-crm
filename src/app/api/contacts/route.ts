@@ -104,14 +104,14 @@ export async function POST(request: NextRequest) {
     country,
   } = body;
 
-  if (!email) {
-    return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+  if (!email && !phone) {
+    return NextResponse.json({ error: 'An email or phone number is required' }, { status: 400 });
   }
 
   const { data, error } = await supabase
     .from('contacts')
     .insert({
-      email: String(email).trim().toLowerCase(),
+      email: email ? String(email).trim().toLowerCase() : null,
       first_name,
       last_name,
       phone,

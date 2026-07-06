@@ -27,15 +27,18 @@ export async function GET(
   const digits = String(contact.phone || '').replace(/\D/g, '');
   const waId = digits.length === 10 ? `91${digits}` : digits;
 
-  const ors = [`customer_email.eq.${email}`];
+  const ors: string[] = [];
+  if (email) ors.push(`customer_email.eq.${email}`);
   if (waId.length >= 10) ors.push(`customer_phone.eq.${waId}`);
 
-  const { data: shopOrders } = await supabase
-    .from('shopify_orders')
-    .select('id, order_number, total_price, currency, financial_status, line_items, shopify_created_at')
-    .or(ors.join(','))
-    .order('shopify_created_at', { ascending: false })
-    .limit(50);
+  const { data: shopOrders } = ors.length
+    ? await supabase
+        .from('shopify_orders')
+        .select('id, order_number, total_price, currency, financial_status, line_items, shopify_created_at')
+        .or(ors.join(','))
+        .order('shopify_created_at', { ascending: false })
+        .limit(50)
+    : { data: [] };
 
   type LineItem = { title?: string; quantity?: number };
   const orders = (shopOrders || []).map((o) => {

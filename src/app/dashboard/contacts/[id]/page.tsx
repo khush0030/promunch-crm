@@ -23,7 +23,7 @@ import type { KpiTone, BadgeTone } from "@/components/pm";
 
 type Contact = {
   id: string;
-  email: string;
+  email: string | null;
   first_name?: string | null;
   last_name?: string | null;
   phone?: string | null;
@@ -128,7 +128,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   async function handleUnsubscribe() {
     if (!contact) return;
-    if (!confirm(`Unsubscribe ${contact.email} from all email marketing?`)) return;
+    if (!confirm(`Unsubscribe ${contact.email || contact.phone || "this contact"} from all email marketing?`)) return;
     setBusy(true);
     try {
       const r = await fetch(`/api/contacts/${contact.id}`, {
@@ -155,7 +155,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   async function handleAnonymize() {
     if (!contact) return;
-    if (!confirm(`Anonymize ${contact.email}? This scrubs their personal data (name, email, phone, address) but keeps order records for accounting. This cannot be undone.`)) return;
+    if (!confirm(`Anonymize ${identity}? This scrubs their personal data (name, email, phone, address) but keeps order records for accounting. This cannot be undone.`)) return;
     setBusy(true);
     try {
       const r = await fetch(`/api/contacts/${contact.id}/anonymize`, { method: "POST" });
@@ -175,7 +175,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     // Soft delete via the API: marks the contact inactive + writes an audit
     // record (admin-gated server-side). Order history is never destroyed —
     // GDPR erasure is the separate Anonymize action.
-    if (!confirm(`Deactivate ${contact.email}? They drop out of active lists but their history is kept. Use Anonymize for GDPR erasure.`)) return;
+    if (!confirm(`Deactivate ${contact.email || contact.phone || "this contact"}? They drop out of active lists but their history is kept. Use Anonymize for GDPR erasure.`)) return;
     setBusy(true);
     try {
       const r = await fetch(`/api/contacts/${contact.id}`, { method: "DELETE" });
@@ -204,7 +204,9 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       </div>
     );
 
-  const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || contact.email.split("@")[0];
+  const identity = contact.email || contact.phone || "this contact";
+  const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(" ")
+    || (contact.email ? contact.email.split("@")[0] : contact.phone || "Contact");
   const location = [contact.city, contact.state, contact.country].filter(Boolean).join(", ") || "—";
   const ltv = contact.total_spent ? `₹${Number(contact.total_spent).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "₹0";
   const aov = contact.average_order_value ? `₹${Number(contact.average_order_value).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "—";
@@ -238,7 +240,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         }
         subtitle={
           <span style={{ display: "inline-flex", gap: 14, flexWrap: "wrap" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Mail size={13} /> {contact.email}</span>
+            {contact.email && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Mail size={13} /> {contact.email}</span>}
             {contact.phone && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Phone size={13} /> {contact.phone}</span>}
             {location !== "—" && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><MapPin size={13} /> {location}</span>}
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Calendar size={13} /> since {fmtMonth(contact.created_at)}</span>

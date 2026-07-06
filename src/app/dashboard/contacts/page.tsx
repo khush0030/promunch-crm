@@ -10,7 +10,8 @@ import type { Column, BadgeTone, KpiTone } from "@/components/pm";
 type ContactRow = {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
+  phone: string | null;
   orders: number;
   ltv: string;
   lastOrder: string;
@@ -98,7 +99,8 @@ export default function ContactsPage() {
         id: string;
         first_name?: string;
         last_name?: string;
-        email: string;
+        email: string | null;
+        phone?: string | null;
         total_orders?: number;
         total_spent?: number;
         last_purchase_date?: string;
@@ -108,8 +110,9 @@ export default function ContactsPage() {
         klaviyo_segments?: string[];
       }) => ({
         id: c.id,
-        name: [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email.split("@")[0],
-        email: c.email,
+        name: [c.first_name, c.last_name].filter(Boolean).join(" ") || (c.email ? c.email.split("@")[0] : c.phone || "Contact"),
+        email: c.email || null,
+        phone: c.phone || null,
         orders: c.total_orders || 0,
         ltv: c.total_spent
           ? `₹${parseFloat(String(c.total_spent)).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
@@ -227,7 +230,8 @@ export default function ContactsPage() {
         </div>
       ),
     },
-    { header: "Email", cell: (c) => <span className="pm-dim">{c.email}</span> },
+    // phone-only buyers (HYPD / guest checkout) have no email — show their phone
+    { header: "Email / phone", cell: (c) => <span className="pm-dim">{c.email || c.phone || "—"}</span> },
     ...(showOrderCols
       ? ([
           { header: "Orders", cell: (c: ContactRow) => c.orders },

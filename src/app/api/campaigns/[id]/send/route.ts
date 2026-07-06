@@ -33,11 +33,14 @@ export async function POST(
     .update({ status: 'sending' })
     .eq('id', id);
 
-  // Build contact query based on segment_filter
+  // Build contact query based on segment_filter. Phone-only contacts (HYPD /
+  // guest buyers, migration 007) have no email — they are WhatsApp-reachable
+  // only and must never enter an email send.
   let contactQuery = supabase
     .from('contacts')
     .select('id, email, first_name, last_name')
-    .eq('status', 'active');
+    .eq('status', 'active')
+    .not('email', 'is', null);
 
   if (campaign.segment_filter) {
     const filter = campaign.segment_filter as Record<string, unknown>;
