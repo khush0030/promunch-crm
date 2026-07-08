@@ -52,7 +52,7 @@ Columns: `confirmation_status text`, `confirmation_sent_at timestamptz`, `confir
 
 - `order_verify_v1` (utility): body with order ref/items/total/COD note, quick-reply buttons with payloads `CONFIRM_{order_id}` / `CANCEL_{order_id}`.
 - `order_verify_reminder_v1` (utility): shorter nudge, same buttons.
-- Utility category → no marketing cap (131049) exposure. Follow `docs/META_WHATSAPP_TEMPLATE_RULES.md`.
+- Utility category → no marketing cap (131049) exposure. Follow `docs/whatsapp/META_WHATSAPP_TEMPLATE_RULES.md`.
 
 ### 3. Order intake — `_shared/order-confirmation.ts` (`handleOrderCreated`)
 
