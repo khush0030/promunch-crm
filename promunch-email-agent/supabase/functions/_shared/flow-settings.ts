@@ -19,6 +19,10 @@ export interface FlowSettings {
   review_delay_days: number;
   replenishment_enabled: boolean;
   replenishment_delay_days: number;
+  // COD confirmation gate (RTO reduction) — see _shared/cod-gate.ts
+  cod_gate_enabled: boolean;
+  cod_reminder_delay_hours: number;
+  cod_needs_call_hours: number;
 }
 
 export const FLOW_DEFAULTS: FlowSettings = {
@@ -34,6 +38,9 @@ export const FLOW_DEFAULTS: FlowSettings = {
   review_delay_days: 7,
   replenishment_enabled: true,
   replenishment_delay_days: 30,
+  cod_gate_enabled: false,
+  cod_reminder_delay_hours: 6,
+  cod_needs_call_hours: 24,
 };
 
 export async function getFlowSettings(): Promise<FlowSettings> {

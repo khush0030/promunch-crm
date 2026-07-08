@@ -32,6 +32,9 @@ type FlowSettings = {
   review_delay_days: number;
   replenishment_enabled: boolean;
   replenishment_delay_days: number;
+  cod_gate_enabled: boolean;
+  cod_reminder_delay_hours: number;
+  cod_needs_call_hours: number;
 };
 type TplRow = { name: string; language: string; status: string };
 type Stats = Record<string, Record<string, number>>;
@@ -302,6 +305,36 @@ export default function FlowsView() {
           <Footnote>
             Utility message — no marketing cap, no coupon. If the first send fails, a sweep retries
             every 15 minutes for up to 24 hours. Duplicates are impossible by design (atomic per-order claim).
+          </Footnote>
+        </FlowCard>
+
+        {/* 1b — COD confirmation gate */}
+        <FlowCard title="COD confirmation gate" icon={PackageCheck}
+          enabled={draft.cod_gate_enabled} dimmed={!draft.cod_gate_enabled}
+          onToggle={(v) => set("cod_gate_enabled", v)}>
+          <Timeline>
+            <Node icon={PackageCheck} title="COD order placed" sub="held for confirmation" tone="brand" />
+            <Arrow />
+            <Wait>
+              after
+              <NumField value={draft.cod_reminder_delay_hours} min={0.5} max={48} step={0.5} unit="h"
+                onChange={(n) => set("cod_reminder_delay_hours", n)} />
+            </Wait>
+            <Arrow />
+            <Node icon={MessageSquareText} title="Confirm reminder" sub="ask the customer to confirm on WhatsApp" tone="green" />
+            <Arrow />
+            <Wait>
+              at
+              <NumField value={draft.cod_needs_call_hours} min={1} max={168} unit="h"
+                onChange={(n) => set("cod_needs_call_hours", n)} />
+              without a reply
+            </Wait>
+            <Arrow />
+            <Node icon={AlertTriangle} title="Needs a call" sub="escalated for manual confirmation" tone="neutral" />
+          </Timeline>
+          <Footnote>
+            COD orders are held until the customer confirms on WhatsApp — reduces RTO on unconfirmed
+            cash-on-delivery orders. The escalation hour must be after the reminder hour.
           </Footnote>
         </FlowCard>
 

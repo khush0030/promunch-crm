@@ -23,12 +23,15 @@ const DEFAULTS = {
   review_delay_days: 7,
   replenishment_enabled: true,
   replenishment_delay_days: 30,
+  cod_gate_enabled: false,
+  cod_reminder_delay_hours: 6,
+  cod_needs_call_hours: 24,
 };
 type Settings = typeof DEFAULTS;
 
 const BOOL_KEYS = [
   "order_confirmation_enabled", "shipping_update_enabled", "abandoned_cart_enabled",
-  "review_request_enabled", "replenishment_enabled",
+  "review_request_enabled", "replenishment_enabled", "cod_gate_enabled",
 ] as const;
 
 const NUM_LIMITS: Record<string, { min: number; max: number }> = {
@@ -38,6 +41,8 @@ const NUM_LIMITS: Record<string, { min: number; max: number }> = {
   cart_backoff_hours: { min: 1, max: 72 },
   review_delay_days: { min: 1, max: 90 },
   replenishment_delay_days: { min: 1, max: 365 },
+  cod_reminder_delay_hours: { min: 0.5, max: 48 },
+  cod_needs_call_hours: { min: 1, max: 168 },
 };
 
 async function currentSettings(): Promise<Settings> {
@@ -129,6 +134,11 @@ export async function PATCH(req: NextRequest) {
   if (merged.cart_deadline_hours <= merged.cart_step2_delay_hours) {
     return NextResponse.json(
       { error: "the give-up deadline must be after the coupon message (deadline > step 2 delay)" },
+      { status: 400 });
+  }
+  if (merged.cod_needs_call_hours <= merged.cod_reminder_delay_hours) {
+    return NextResponse.json(
+      { error: "needs-call escalation must come after the reminder (needs-call hours > reminder hours)" },
       { status: 400 });
   }
 
