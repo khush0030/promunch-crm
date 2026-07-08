@@ -24,7 +24,9 @@ No COD order leaves the warehouse without a positive confirmation signal: WhatsA
 - COD order placed → instead of today's plain confirmation, customer gets utility template `order_verify_v1`: order summary + "We ship COD orders only after confirmation" + buttons **[✅ Confirm order] [❌ Cancel order]**.
 - Silent after `cod_reminder_delay_hours` (default 6h) → one reminder template `order_verify_reminder_v1`.
 - Tap Confirm → free-text thank-you ("Great, packing it now 📦" — window is open after a tap).
-- Tap Cancel → existing explicit-cancel flow: urgent ticket + ops WhatsApp ping (`order_cancel_ops`).
+- Tap Cancel → fat-finger guard, free interactive message (window open): "Sure you want to cancel #2091?" **[Yes, cancel it] [Keep my order]**.
+  - **Yes, cancel it** → order is **auto-cancelled in Shopify** (reason: customer, restock, order note "Cancelled by customer via WhatsApp confirmation flow"), customer gets "Order #2091 cancelled ✅", ops gets an FYI WhatsApp ping (no ticket — nothing to action).
+  - **Keep my order** → counts as a confirm: hold released, ships.
 - Bare STOP unaffected: still plain unsubscribe, never routed to confirm/cancel logic.
 
 ## State machine
@@ -33,8 +35,8 @@ No COD order leaves the warehouse without a positive confirmation signal: WhatsA
 
 ```
 NULL (prepaid/creator/gate-off)
-pending ──✅ tap / manual──▶ confirmed          (hold released, ship)
-   │ ────❌ tap / manual──▶ cancelled           (hold kept, cancel flow)
+pending ──✅ tap / "Keep my order" / manual──▶ confirmed   (hold released, ship)
+   │ ──❌ tap ▶ "sure?" ▶ yes / manual──▶ cancelled        (auto-cancelled in Shopify + note)
    └─ silent past cod_needs_call_hours,
       or template send failed ──▶ needs_call ──manual──▶ confirmed | cancelled
 ```
@@ -71,7 +73,16 @@ Single entry point for all order-created trigger paths; existing two-layer dedup
 New branch BEFORE the AI-reply path: `msg.type === "button"` with payload matching `CONFIRM_(\d+)` / `CANCEL_(\d+)` (payload, not button text — text already parses at index.ts:219 and must keep flowing to AI for non-gate buttons).
 
 - `CONFIRM_{id}`: release hold (`fulfillmentOrderReleaseHold`), `confirmation_status='confirmed'`, `confirmed_via='button'`, tag order `WA-Confirmed` (existing tagging plumbing), free-text thank-you.
-- `CANCEL_{id}`: keep hold, `confirmation_status='cancelled'`, tag `WA-Cancelled`, route into existing explicit-cancel path (urgent ticket + `OPS_WA_ID` ping). Order cancellation itself stays manual/ops (existing policy).
+- `CANCEL_{id}`: fat-finger guard first — send free interactive message "Sure you want to cancel #N?" with buttons `CANCELCONF_{id}` (Yes, cancel it) / `KEEP_{id}` (Keep my order). No state change yet.
+- `KEEP_{id}`: treated exactly like `CONFIRM_{id}` (release hold, confirmed, `confirmed_via='button'`).
+- `CANCELCONF_{id}`: **auto-cancel in Shopify** — guards first: order still unfulfilled AND unpaid (`financial_status='pending'`). Guards pass →
+  1. GraphQL `orderCancel` (reason `CUSTOMER`, restock `true`, no refund needed — COD unpaid).
+  2. Order note set via `orderUpdate`: "Cancelled by customer via WhatsApp confirmation flow (button tap)".
+  3. Tag `WA-Cancelled`, `confirmation_status='cancelled'`, hold irrelevant post-cancel.
+  4. Customer gets free text "Order #N cancelled ✅".
+  5. Ops gets FYI WhatsApp ping (no ticket — nothing to action).
+  Guards fail (paid or fulfilled in the meantime) → NO auto-cancel; fall back to old manual path: keep hold, urgent ticket + `OPS_WA_ID` ping, customer told "Cancellation request flagged, team will confirm shortly."
+  This supersedes the manual-only cancel policy for this flow ONLY — a double-confirmed button tap is unambiguous explicit intent; free-text/AI cancel stays forbidden.
 - Idempotent: tap on non-`pending` order → polite "already handled" free text, no state change.
 - Gate-button messages are logged to `wa_messages`/thread like any inbound, but never reach the AI.
 
@@ -83,12 +94,13 @@ New branch BEFORE the AI-reply path: `msg.type === "button"` with payload matchi
 ### 6. Dashboard
 
 - Orders page: confirmation status chip + filter (Pending / Confirmed / Needs call / Cancelled).
-- "Needs call" queue view: one-click **Confirm** / **Cancel** buttons → API route that mirrors the button-tap logic exactly (release hold, tags, `confirmed_via='manual'`). RBAC'd, audited.
+- "Needs call" queue view: one-click **Confirm** / **Cancel** buttons → API route that mirrors the button-tap logic exactly (Confirm: release hold; Cancel: same Shopify auto-cancel + order note "Cancelled by ops via CRM after customer call"; `confirmed_via='manual'`). RBAC'd, audited.
 - Flows tab: COD gate toggle + the two timing fields (existing wa_flow_settings editor pattern).
 
 ## Edge cases
 
 - Order cancelled in Shopify before tap → intercept sees non-pending/cancelled order, no-ops.
+- Customer taps ❌ but never answers the "sure?" bounce → order stays `pending`; normal sweep continues (reminder → needs_call). No limbo state.
 - Customer taps Confirm after ops already manually confirmed → idempotent no-op.
 - Hold placed but template send fails → `needs_call`; hold stays until ops decides (fail-closed: never ship unconfirmed).
 - Template rejected by Meta → flag stays off, zero behavior change anywhere.
@@ -99,7 +111,7 @@ New branch BEFORE the AI-reply path: `msg.type === "button"` with payload matchi
 
 1. Deploy everything with `cod_gate_enabled = false` (default) — zero behavior change.
 2. Submit both templates → wait for Meta approval.
-3. Add fulfillment-hold scope to Shopify app, verify hold+release on a test order.
+3. Add scopes to Shopify app: `write_merchant_managed_fulfillment_orders` (hold/release) + verify `write_orders` present (cancel + note; likely already granted for tagging). Verify hold+release+cancel on a test order.
 4. Self-test: test order to Khush's number, tap both paths, verify hold lifecycle + tags + dashboard.
 5. Flip flag on from Flows tab.
 
