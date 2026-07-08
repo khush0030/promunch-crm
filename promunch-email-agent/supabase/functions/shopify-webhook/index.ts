@@ -83,6 +83,9 @@ Deno.serve(async (req) => {
     subtotal_price: subtotal,
     currency,
     financial_status: order.financial_status ?? null,
+    payment_gateway_names: Array.isArray(order.payment_gateway_names)
+      ? order.payment_gateway_names
+      : null,
     customer_email: customerEmail,
     customer_name: customerName,
     customer_phone: customerPhone,

@@ -20,6 +20,15 @@ import {
 import { REVIEW_URL, SITE_URL, firstName, toWaId } from "./journeys.ts";
 import { getFlowSettings, type FlowSettings } from "./flow-settings.ts";
 import { enrolCustomFlows } from "./custom-flows.ts";
+import {
+  buildVerifyComponents,
+  buildVerifyVars,
+  codTotalLabel,
+  GATE_TEMPLATE,
+  isCodOrder,
+} from "./cod-gate.ts";
+import { isCreatorOrder } from "./shopify-customer.ts";
+import { holdOrderFulfillments } from "./shopify-fulfillment.ts";
 
 export interface OrderConfirmationResult {
   orderRef: string;
@@ -59,6 +68,11 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
   //    and both send — the bug that messaged order #2050 twice.
   const flows = await getFlowSettings();
 
+  // COD confirmation gate — spec docs/superpowers/specs/2026-07-08-cod-confirmation-gate-design.md
+  // Gated orders get the buttoned verify template INSTEAD of the plain
+  // confirmation, plus a Shopify fulfillment hold. Inert while the flag is off.
+  const gated = flows.cod_gate_enabled && isCodOrder(order) && !isCreatorOrder(order);
+
   let sendStatus: OrderConfirmationResult["status"];
   let sendDetail: string | undefined;
   if (!flows.order_confirmation_enabled) {
@@ -82,11 +96,35 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
       ref: orderRef,
     }).catch(() => {});
   } else {
+    let template: Record<string, unknown>;
+    if (gated) {
+      // Hold BEFORE messaging: fail-closed for shipping. A hold failure is
+      // logged loudly but does not block the send — ops sees the pending
+      // status in the dashboard either way.
+      const hold = await holdOrderFulfillments(order.id, "Awaiting WhatsApp COD confirmation");
+      if (!hold.ok) {
+        await logConnector({
+          connector: "shopify_wa", level: "error", event: "cod_hold_failed",
+          message: `Order ${orderRef}: fulfillment hold failed — ${hold.reason}. Order is NOT hold-protected; rely on dashboard status.`,
+          ref: orderRef,
+        }).catch(() => {});
+      }
+      const vars = buildVerifyVars(
+        name, orderRef,
+        codTotalLabel(Number(order.total_price ?? order.current_total_price ?? 0), order.currency ?? "INR"),
+      );
+      template = {
+        name: GATE_TEMPLATE, language: "en",
+        vars, components: buildVerifyComponents(vars, order.id),
+      };
+    } else {
+      template = buildConfirmationTemplate(name, orderRef);
+    }
     const res = await callWaSend({
       to: waId,
       kind: "template",
-      template: buildConfirmationTemplate(name, orderRef),
-      sent_by: "journey:order_confirmation",
+      template,
+      sent_by: gated ? "journey:cod_gate" : "journey:order_confirmation",
     });
     sendStatus = res?.ok ? "sent" : "failed";
     sendDetail = res?.ok ? undefined : res?.error ?? "send failed";
@@ -102,6 +140,22 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
         : `Order ${orderRef}: confirmation failed — ${res?.error ?? "unknown"}.`,
       ref: orderRef,
     }).catch(() => {});
+    if (gated) {
+      // stamp the gate state on the order row (keyed by shopify_id)
+      const stamp = res?.ok
+        ? { confirmation_status: "pending", confirmation_sent_at: new Date().toISOString() }
+        : { confirmation_status: "needs_call" }; // send failed → human calls
+      await db().from("shopify_orders").update(stamp)
+        .eq("shopify_id", order.id).is("confirmation_status", null)
+        .then(() => {}, () => {});
+      if (!res?.ok) {
+        await logConnector({
+          connector: "shopify_wa", level: "error", event: "cod_gate_needs_call",
+          message: `Order ${orderRef}: COD verify send failed (${res?.error ?? "unknown"}) — marked needs_call.`,
+          ref: orderRef,
+        }).catch(() => {});
+      }
+    }
   }
 
   // enrol the timed post-purchase journeys (idempotent — checks for prior rows)

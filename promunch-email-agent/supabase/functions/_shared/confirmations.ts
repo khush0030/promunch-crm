@@ -28,7 +28,9 @@ export async function confirmedOrderRefs(sinceIso: string): Promise<Set<string>>
   const { data } = await db()
     .from("wa_messages")
     .select("template_vars")
-    .in("template_name", ["order_confirmation", "order_confirmation_v2"])
+    // order_verify_v1 (COD gate) IS the order confirmation for gated orders —
+    // without it here the sweep would see "missing" and double-message.
+    .in("template_name", ["order_confirmation", "order_confirmation_v2", "order_verify_v1"])
     .in("status", ["sent", "delivered", "read"])
     .gte("created_at", sinceIso);
   for (const m of data ?? []) {

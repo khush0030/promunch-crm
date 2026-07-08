@@ -46,7 +46,9 @@ export async function GET(req: NextRequest) {
     supabaseAdmin
       .from("wa_messages")
       .select("template_vars, status, created_at")
-      .in("template_name", ["order_confirmation", "order_confirmation_v2"])
+      // order_verify_v1 (COD gate) IS the order confirmation for gated orders —
+      // without it here the dashboard would show them as "missing".
+      .in("template_name", ["order_confirmation", "order_confirmation_v2", "order_verify_v1"])
       .gte("created_at", evSince),
   ]);
 
