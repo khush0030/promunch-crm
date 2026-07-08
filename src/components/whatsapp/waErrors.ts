@@ -1,7 +1,7 @@
 // Translate raw Meta WhatsApp send errors into plain English for staff.
 // Mirrors the classification in supabase/functions/_shared/connector-log.ts
 // (explainWaError there is Deno-side; this is the dashboard copy).
-// Codes: docs/META_WHATSAPP_TEMPLATE_RULES.md §4.
+// Codes: docs/whatsapp/META_WHATSAPP_TEMPLATE_RULES.md §4.
 
 const RULES: { re: RegExp; msg: string }[] = [
   {

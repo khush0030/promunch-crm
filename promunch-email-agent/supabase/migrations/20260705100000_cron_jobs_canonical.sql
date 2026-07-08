@@ -6,7 +6,7 @@
 -- fresh database could not be reproduced from migrations alone. This file is
 -- now the single source of truth for every pg_cron job. The full scheduling
 -- map (including the two Vercel crons and the self-continuation pattern) is
--- documented in docs/CRON_TOPOLOGY.md.
+-- documented in docs/runbooks/CRON_TOPOLOGY.md.
 --
 -- Idempotent: cron.schedule() upserts by jobname, so re-running is safe.
 --

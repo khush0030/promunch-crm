@@ -362,7 +362,7 @@ const SEGMENTS: { key: string; label: string; hint: string; tags: string[] }[] =
   { key: "lead", label: "Leads", hint: "B2B / scraped prospects", tags: ["lead"] },
 ];
 
-// Meta's daily marketing-message tier for our number (docs/WA_CAMPAIGN_HANDOFF.md).
+// Meta's daily marketing-message tier for our number (docs/whatsapp/WA_CAMPAIGN_HANDOFF.md).
 // Used only for the multi-day estimate shown to staff; the engine enforces the
 // real cap at send time via resume_at.
 // Stand-in customer name for previews and test sends — the real send replaces
@@ -431,7 +431,7 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
 
   // Pre-flight: catch the two mistakes that fail EVERY recipient (missing
   // media header → #132012, empty {{n}} values → #132000) before Meta does.
-  // See docs/META_WHATSAPP_TEMPLATE_RULES.md.
+  // See docs/whatsapp/META_WHATSAPP_TEMPLATE_RULES.md.
   const isMediaHeader = tpl?.header_type === "IMAGE" || tpl?.header_type === "VIDEO" || tpl?.header_type === "DOCUMENT";
   const missingVars = varNames.filter((n) => !(vars[n] ?? "").trim());
   const checks: { ok: boolean; text: string }[] = !tpl ? [] : [

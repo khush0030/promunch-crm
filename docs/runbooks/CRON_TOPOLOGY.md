@@ -68,6 +68,6 @@ re-reading the durable-engine design.
 `promunch-email-agent/scripts/*-cron.sql` and `scripts/m3-gate-cron-auth.sql`
 were the hand-applied originals. The canonical migration supersedes them all;
 they are kept for history. The m3 script is still referenced by
-`docs/SECURITY_CRITICALS_RUNBOOK.md` — running either yields the same jobs
+`docs/runbooks/SECURITY_CRITICALS_RUNBOOK.md` — running either yields the same jobs
 (the migration additionally covers `shopify-catalog-sync-nightly` and
 `wa-campaign-tick`, and moves `wa-campaign-tick`'s CRON_SECRET into Vault).

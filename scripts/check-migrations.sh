@@ -3,7 +3,7 @@
 # share a <14-digit>_ prefix have an ambiguous apply order. This catches new
 # collisions in CI/pre-commit. Pre-existing duplicates are grandfathered via the
 # ALLOWLIST below (they are already applied in prod; renaming them would desync
-# the hand-applied migration history — see docs/MIGRATIONS.md).
+# the hand-applied migration history — see docs/runbooks/MIGRATIONS.md).
 set -euo pipefail
 
 DIRS=(

@@ -123,4 +123,4 @@ Once it's switched on, someone will test it by sending a DM to our PROMUNCH Inst
 
 ---
 
-*Questions? Ask the dev team. Full technical spec lives in `docs/instagram-influencer-pipeline.md`.*
+*Questions? Ask the dev team. Full technical spec lives in `docs/instagram/instagram-influencer-pipeline.md`.*

@@ -44,9 +44,8 @@ supabase/.temp/
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
-edmame-wa-campaign.mp4
-wa-campaign-pgcron.sql
+# local media / data exports
+media/
 contacts_*.csv
 
 # Local credentials — never commit

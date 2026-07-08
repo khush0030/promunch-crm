@@ -3,9 +3,11 @@
 **Live:** https://promunch-crm.vercel.app
 **GitHub:** https://github.com/khush0030/promunch-crm
 
-A custom-built CRM, marketing, and customer-operations platform for **PROMUNCH** — India's high-protein roasted soya snack brand. Replaces Klaviyo (email), a WhatsApp BSP, and a chunk of manual ops with one owned system. Deeply integrated with Shopify and Amazon for real-time order data, an AI WhatsApp chatbot for support + ordering, email + WhatsApp marketing, and a B2B cold-outreach pipeline.
+A custom-built CRM, marketing, and customer-operations platform for **PROMUNCH** — India's high-protein roasted soya snack brand ("Your Munchy Pal"). Replaces Klaviyo (email), a WhatsApp BSP, and a chunk of manual ops with one owned system. Deeply integrated with Shopify and Amazon for real-time order data, an AI WhatsApp chatbot for support + ordering, email + WhatsApp marketing, a B2B cold-outreach pipeline, and an in-dashboard AI assistant (Maya) over all business data.
 
-> **Status (Jun 2026): live in production.** The original 4-phase "frontend → backend → flows" plan is complete and superseded. The platform now runs real customer traffic across WhatsApp, email, Shopify, and Amazon. See [Module Status](#-module-status) for the per-feature picture.
+> **Status (Jul 2026): live in production**, running real customer traffic across WhatsApp, email, Shopify, and Amazon. See [Module Status](#-module-status).
+
+**Working in this repo?** Start with [AGENTS.md](AGENTS.md) — deploy rules, hard product invariants, brand rules, data-model gotchas. AI agents also read [CLAUDE.md](CLAUDE.md). All documentation is indexed at [docs/README.md](docs/README.md).
 
 ---
 
@@ -16,7 +18,7 @@ Klaviyo and a managed WhatsApp BSP charge ₹5–6K+/month each and scale aggres
 - **Near-₹0 platform cost** — just hosting (Vercel) + per-message sending (Resend, Meta WhatsApp)
 - **Custom automations** purpose-built for a D2C snack brand
 - **Shopify- and Amazon-native** — orders, customers, catalog, and fulfillment synced in real time
-- **One AI brain** — a shared Master Knowledge Base grounds the WhatsApp chatbot, email drafts, and B2B outreach
+- **One AI brain** — a shared Master Knowledge Base (`kb_documents`) grounds the WhatsApp chatbot, email drafts, B2B outreach, and the Maya assistant
 
 ---
 
@@ -29,16 +31,17 @@ Klaviyo and a managed WhatsApp BSP charge ₹5–6K+/month each and scale aggres
 │                                                                │
 │  Dashboard │ Contacts │ WhatsApp │ Campaigns │ Leads │ Amazon  │
 │  Support Inbox │ Order Confirmations │ Attribution │ Analytics │
+│  Maya AI Assistant │ Flows │ Instagram │ Audit Log │ Settings  │
 └───────────────┬───────────────────────────────┬────────────────┘
                 │ Next.js API routes             │ reads/writes
                 ▼                                 ▼
 ┌───────────────────────────────┐   ┌────────────────────────────┐
 │  Supabase Edge Functions (Deno)│   │   PostgreSQL (Supabase)     │
-│  — promunch-email-agent/       │   │  contacts · orders · wa_*   │
-│                                │   │  campaigns · kb_documents   │
-│  WhatsApp  Shopify  Amazon     │   │  leads · embeddings (pgvec) │
-│  Gmail/KB  Slack(Maya)  B2B    │   └────────────────────────────┘
-└───┬──────────┬─────────┬───────┘
+│  — promunch-email-agent/       │   │  contacts · shopify_orders  │
+│                                │   │  wa_* · campaigns · leads   │
+│  WhatsApp  Shopify  Amazon     │   │  kb_documents · app_secrets │
+│  Gmail/KB  Slack(Maya)  B2B  IG│   │  embeddings (pgvector)      │
+└───┬──────────┬─────────┬───────┘   └────────────────────────────┘
     ▼          ▼         ▼
 ┌────────┐ ┌────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
 │ Meta   │ │Shopify │ │ Amazon   │ │  Resend  │ │  Slack   │
@@ -49,7 +52,7 @@ Klaviyo and a managed WhatsApp BSP charge ₹5–6K+/month each and scale aggres
 ```
 
 Two deployables live in this repo:
-- **`/` (Next.js app)** — dashboard + API routes, deployed on **Vercel**.
+- **`/` (Next.js app)** — dashboard + API routes, deployed on **Vercel** (manual `vercel --prod`; no git auto-deploy).
 - **`promunch-email-agent/`** — Supabase **edge functions** (Deno) + SQL migrations, deployed via the Supabase CLI. This holds all webhook handlers, cron ticks, the WhatsApp AI agent, and channel integrations.
 
 ---
@@ -59,15 +62,15 @@ Two deployables live in this repo:
 | Layer | Technology |
 |-------|-----------|
 | **Framework** | Next.js 16 (App Router), React 19, TypeScript |
-| **Styling** | Tailwind v4 + `pm-` warm-editorial design system, Lucide icons |
+| **Styling** | Tailwind v4 + `pm-` warm-editorial design system (`design/`), Lucide icons |
 | **Auth** | Supabase Auth — email-domain allowlist + branded team invites (Resend) |
-| **Database** | PostgreSQL (Supabase) + pgvector for KB embeddings |
+| **Database** | PostgreSQL (Supabase) + pgvector for KB embeddings; pg_cron for scheduling |
 | **Edge compute** | Supabase Edge Functions (Deno) |
 | **Email** | Resend (`trypromunch.in` verified) — marketing + transactional + B2B |
-| **WhatsApp** | Meta WhatsApp Cloud API (chatbot, templates, campaigns) |
+| **WhatsApp** | Meta WhatsApp Cloud API (chatbot, templates, campaigns, catalog ordering) |
 | **Commerce** | Shopify Admin API + webhooks; Amazon SP-API (India/EU) |
-| **AI** | OpenAI — chatbot replies, email/B2B drafts, KB semantic retrieval |
-| **Ops/alerts** | Slack app "Maya" (orders, finance, failures, inbound calls) |
+| **AI** | OpenAI — chatbot replies, Maya assistant, email/B2B drafts, KB retrieval |
+| **Ops/alerts** | Slack app "Maya" (orders, finance, failures, inbound calls); Sentry |
 | **Hosting** | Vercel (app) + Supabase (functions, DB, cron) |
 
 ---
@@ -77,50 +80,57 @@ Two deployables live in this repo:
 Legend: ✅ live · 🟡 partial / config pending · 🔲 not started
 
 ### WhatsApp — ✅ live (flagship channel)
-- ✅ **AI chatbot** (`wa-ai-reply`) — OpenAI-backed support + ordering, semantic KB retrieval (pgvector), business-hours awareness, robust JSON parsing, anti-spam per-turn reply claim
+- ✅ **AI chatbot** (`wa-ai-reply`) — OpenAI-backed support + ordering, semantic KB retrieval (pgvector), business-hours awareness, anti-spam per-turn reply claim
 - ✅ **In-chat ordering** — Meta catalog → cart → Shopify checkout link (catalog config pending live IDs)
-- ✅ **Order confirmations** — instant send + sweep cron + dashboard, deduped on `wa_messages`
-- ✅ **Journey templates** — 5 approved at Meta; review / restock / shipping asks sent as in-window personalized text to dodge marketing caps
-- ✅ **Campaigns + templates** — dashboard template builder, image headers, segment picker, send pipeline
+- ✅ **Order confirmations** — instant send + sweep cron + dashboard, deduped on `wa_messages` with atomic claims
+- ✅ **Journeys + Flows tab** — 5 Meta-approved templates; journey timings dashboard-editable (`wa_flow_settings`); review/restock asks sent as in-window free text to dodge marketing caps
+- ✅ **Campaigns + template builder** — guided builder with live preview, media headers, segment picker; durable send engine (atomic lock, pg_cron worker, circuit breaker)
+- ✅ **Analytics tab** — employee-readable funnel, campaign report cards, live feed, weekly Slack recap
 - ✅ **RFM segmentation** — Shopify order history → `rfm:*` tags via nightly `wa-rfm-tick`
-- ✅ **Failure alerting** — every send/delivery failure Slack-pinged with the Meta reason code
-- 🟡 Meta product catalog IDs + a few migrations need manual apply (see memory notes)
+- ✅ **Two-number escalation** — order issues → ops WhatsApp (Narendra), rest → owner; "done #N" closes
+- ✅ **Cart recovery** — at-least-once delivery guarantee, cap-aware template backoff, 72h deadline
+- ✅ **Failure alerting** — every send/delivery failure alerted with the Meta reason code
 
 ### Shopify — ✅ live
-- ✅ Real-time webhooks (orders, customers, checkouts, fulfillments)
-- ✅ Customer sync / upsert (guest-order customers backfilled into Shopify)
+- ✅ Real-time webhooks (orders, customers, checkouts, fulfillments) → CRM contacts (email **or phone-only** since migration 007)
+- ✅ Customer sync / upsert (guest orders backfilled into Shopify Customers, address-degrade on bad data)
 - ✅ Order attribution (UTM / customer-journey → `shopify_orders`) + dashboard
-- ✅ Catalog sync, daily summary, HYPD creator tagging, abandoned-cart recovery links
-- ✅ Shipping/tracking links resolve to the Shopify order-status page
+- ✅ Catalog sync, daily summary, HYPD creator tagging (₹0.01 seeds excluded from revenue), abandoned-cart recovery links
 
 ### Amazon — ✅ live
 - ✅ `amazon-poll` edge fn — orders, inventory, finances, settlement reconciliation (India = EU endpoint, no SigV4)
+- ✅ Per-SKU economics dashboard — margins, FBA stockout ₹/day, refund repair
 - ✅ `#amazon-orders` / `#amazon-finance` Slack channels; manual "Sync now" trigger
+
+### Maya AI Assistant — ✅ live
+- ✅ `/dashboard/assistant` — chat over all data sources (orders, contacts, WhatsApp, campaigns, leads) with live data cards
 
 ### Email Marketing — ✅ live
 - ✅ Campaign send via Resend (`hello@trypromunch.in`), free-tier 100/day cap
-- ✅ AI drafts grounded in the shared Master KB (`kb_documents`)
-- ✅ Resend delivery + bounce webhook handling
-- 🔲 Visual flows/automation engine for email not yet built (WhatsApp journeys cover the live automation needs)
+- ✅ AI drafts grounded in the shared Master KB; audiences filter `email IS NOT NULL`
+- 🔲 Visual email flows engine (WhatsApp journeys cover live automation needs)
 
-### B2B Lead-Gen — ✅ live
-- ✅ Pipeline: Google Places → scrape → MX-verify → AI cold-email draft → approval → send
-- ✅ Sends via Resend from a dedicated outreach domain; bounce suppression wired
-- ✅ Drafts grounded in Master KB (correct product facts)
-- 🟡 Replies inbox still TODO; needs `GOOGLE_PLACES_API_KEY` / `OPENAI_API_KEY` in prod
+### B2B Lead-Gen — ✅ live (v2)
+- ✅ Lists + sequences + templates + analytics; hourly follow-ups via cron
+- ✅ Pipeline: Google Places → scrape → MX-verify → AI KB-grounded draft → approval → send
+- ✅ Sends as Parth (founder, `parth@trypromunch.in`) via Resend; bounce suppression wired
+- 🟡 Replies inbox still TODO
+
+### Instagram — 🟡 built, not deployed
+- 🟡 DM/comment automation ports the WA stack (`ig-webhook` → `ig-ai-reply` → `ig-send`); gated on Meta app review + secrets
 
 ### Support Inbox — ✅ live
-- ✅ Gmail-polled support emails surfaced in dashboard with AI draft replies, reading the same Master KB
+- ✅ Gmail-polled support emails with AI draft replies from the same Master KB
 
 ### Contacts & Analytics — ✅ live
-- ✅ Unified customer profiles (orders, LTV, tags, WhatsApp thread, faceted search)
-- ✅ Dashboard: revenue, channel stats, needs-attention queue, Shopify attribution
+- ✅ Unified profiles (email or phone-only), orders, LTV, tags, WhatsApp thread, CSV export
+- ✅ Dashboard: revenue, channel health, needs-attention queue, Shopify attribution
 
 ### Platform / Team — ✅ live
-- ✅ Supabase Auth with email-domain allowlist (`trypromunch.in` etc.)
-- ✅ Branded PROMUNCH team-invite emails (Resend) + accept-invite flow
-- ✅ First-run onboarding tour (`Onboarding.tsx`) + in-app guides
+- ✅ Supabase Auth allowlist, branded invites, first-run onboarding tour
+- ✅ Owner-only API key management (`app_secrets` + live rotation)
 - ✅ API middleware gates all `/api/*`; webhooks/cron fail-closed on secrets
+- ✅ Audit log, Sentry, gitleaks CI
 
 ---
 
@@ -128,33 +138,24 @@ Legend: ✅ live · 🟡 partial / config pending · 🔲 not started
 
 ```
 promunch-crm/
-├── src/
-│   ├── app/
-│   │   ├── dashboard/                 # all authenticated screens
-│   │   │   ├── page.tsx               # home — revenue, channel stats, needs-attention
-│   │   │   ├── contacts/              # customer list + profile ([id])
-│   │   │   ├── whatsapp/              # inbox, campaigns, templates, KB
-│   │   │   ├── campaigns/             # email campaign list + builder
-│   │   │   ├── leads/                 # B2B outreach pipeline
-│   │   │   ├── amazon/                # Amazon orders/finance
-│   │   │   ├── support-emails/        # Gmail support inbox + AI drafts
-│   │   │   ├── order-confirmations/   # WA order-confirmation monitor
-│   │   │   ├── shopify-attribution/   # UTM / journey attribution
-│   │   │   ├── analytics/  integrations/  team/  settings/
-│   │   ├── api/                       # Next.js route handlers (see list below)
-│   │   └── auth/                      # callback, set-password, signout
-│   ├── components/                    # Sidebar, Onboarding, NeedsAttention, pm/, ui/
-│   └── lib/                           # supabase clients, shopify, resend, auth-domains, emails/, leads/
-├── promunch-email-agent/             # Supabase edge functions (Deno) + SQL migrations
-│   └── supabase/functions/           # wa-*, shopify-*, amazon-poll, kb-*, gmail-*, slack-*, b2b-*
-├── shopify-app/                      # Shopify app scaffolding
-├── public/  scripts/  supabase/
-├── vercel.json                       # cron: leads-tick
-└── package.json
+├── README.md · AGENTS.md · CLAUDE.md    # start here
+├── src/                                 # Next.js app
+│   ├── app/dashboard/                   # one folder per module (contacts, whatsapp, leads, amazon, assistant, …)
+│   ├── app/api/                         # route handlers (middleware-gated)
+│   ├── components/                      # Sidebar, pm/ design system, whatsapp/, ui/
+│   └── lib/                             # supabase clients, shopify, resend, rbac, secrets, gdpr
+├── promunch-email-agent/                # Supabase project — 39 edge functions + migrations
+│   ├── CLAUDE.md                        # deep handoff (no-duplicate-message invariant lives here)
+│   ├── supabase/functions/              # wa-* shopify-* amazon-poll ig-* kb-* gmail-* slack-* b2b-*
+│   └── scripts/                         # deploy.sh, verify.sh, cron SQL
+├── supabase/migrations/                 # app-side SQL migrations (001–007)
+├── docs/                                # ALL documentation → docs/README.md is the index
+│   ├── runbooks/  whatsapp/  instagram/  integrations/  plans/  audits/  archive/
+├── design/                              # active warm-editorial design source (tokens, prototype)
+├── scripts/                             # local ops scripts (check-migrations.sh, backfills)
+├── shopify-app/                         # Shopify app scaffolding
+└── vercel.json                          # Vercel crons (daily only — sub-daily runs on pg_cron)
 ```
-
-**Key edge functions** (`promunch-email-agent/supabase/functions/`):
-`wa-ai-reply` · `wa-send` · `wa-webhook` · `wa-campaign-send` · `wa-confirmation-sweep` · `wa-journey-tick` · `wa-rfm-tick` · `wa-template-create` · `wa-watchdog` · `shopify-webhook` · `shopify-catalog-sync` · `shopify-stats` · `amazon-poll` · `kb-ingest` · `kb-embed` · `gmail-poll` · `slack-events` · `slack-interactivity` · `b2b-send`
 
 ---
 
@@ -164,8 +165,9 @@ promunch-crm/
 ```bash
 npm install
 npm run dev          # http://localhost:3000
-npm run build
-npx vercel --prod    # deploy app
+npm run build        # must pass before shipping
+npm run test         # vitest
+npx vercel --prod    # deploy app (there is NO git auto-deploy)
 ```
 
 **Edge functions** (`promunch-email-agent/`):
@@ -173,7 +175,10 @@ npx vercel --prod    # deploy app
 supabase functions deploy <name>     # deploy a function
 # Migrations: apply via the Supabase dashboard SQL editor
 #   (CLI function deploys work; SQL migrations go through the dashboard)
+bash scripts/check-migrations.sh     # verify migration drift
 ```
+
+Full deploy sequence: [docs/runbooks/DEPLOY_GUIDE.md](docs/runbooks/DEPLOY_GUIDE.md) · Cron map: [docs/runbooks/CRON_TOPOLOGY.md](docs/runbooks/CRON_TOPOLOGY.md)
 
 ---
 
