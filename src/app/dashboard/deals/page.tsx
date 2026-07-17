@@ -25,6 +25,7 @@ import {
   DEFAULT_HIDDEN_KINDS,
   KIND_LABEL,
   KIND_TONE,
+  PRIORITY_KIND,
   STAGE_LABEL,
   STAGE_TONE,
 } from "@/components/deals/constants";
@@ -85,19 +86,33 @@ export default function DealsPage() {
   const kpis = useMemo(() => {
     const real = deals.filter((d) => !(DEFAULT_HIDDEN_KINDS as string[]).includes(d.kind));
     const active = real.filter((d) => ACTIVE.includes(d.stage));
+    const horeca = active.filter((d) => d.kind === PRIORITY_KIND);
     const followUps = real.filter((d) => d.follow_up_needed);
     const waitingOnUs = followUps.filter((d) => d.last_email_direction === "inbound");
     const inFlight = real.filter((d) => d.stage === "samples_sent");
     const oldest = Math.max(0, ...inFlight.map((d) => daysSince(d.samples_sent_at) ?? 0));
     const won = real.filter((d) => d.stage === "won");
-    return { active: active.length, followUps: followUps.length, waitingOnUs: waitingOnUs.length, inFlight: inFlight.length, oldest, won: won.length };
+    return {
+      active: active.length,
+      horeca: horeca.length,
+      followUps: followUps.length,
+      waitingOnUs: waitingOnUs.length,
+      inFlight: inFlight.length,
+      oldest,
+      won: won.length,
+    };
   }, [deals]);
 
   const attention = useMemo(
     () =>
       deals
         .filter((d) => d.follow_up_needed && !(DEFAULT_HIDDEN_KINDS as string[]).includes(d.kind))
-        .sort((a, b) => (a.last_email_at ?? "").localeCompare(b.last_email_at ?? ""))
+        .sort((a, b) => {
+          const pa = a.kind === PRIORITY_KIND ? 0 : 1;
+          const pb = b.kind === PRIORITY_KIND ? 0 : 1;
+          if (pa !== pb) return pa - pb;
+          return (a.last_email_at ?? "").localeCompare(b.last_email_at ?? "");
+        })
         .slice(0, 6),
     [deals],
   );
@@ -137,7 +152,7 @@ export default function DealsPage() {
     <div className="pm-page">
       <PageHead
         title="Deals"
-        subtitle="Every commercial conversation in hello@promunch.in, tracked by stage — B2B supply, influencer collabs, expos."
+        subtitle="Every commercial conversation in hello@promunch.in — HoReCa supply first, then retail, influencer collabs and expos."
         actions={
           <>
             <span style={{ fontSize: 11.5, color: "var(--pm-hint)" }}>
@@ -164,7 +179,13 @@ export default function DealsPage() {
       )}
 
       <div className="pm-kpis">
-        <KpiCard label="Active deals" value={kpis.active} icon={<Handshake />} tone="b" sub="excludes vendor pitches" />
+        <KpiCard
+          label="Active HoReCa deals"
+          value={kpis.horeca}
+          icon={<Handshake />}
+          tone="g"
+          sub={`${kpis.active} active overall`}
+        />
         <KpiCard
           label="Needs follow-up"
           value={kpis.followUps}

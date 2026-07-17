@@ -1,6 +1,11 @@
 # Deal pipeline — AI-scanned deal tracker over hello@promunch.in
 
-**Date:** 2026-07-17 · **Status:** built, pending deploy (see Ops checklist)
+**Date:** 2026-07-17 · **Status:** DEPLOYED (migrations applied via `supabase db query --linked`, deal-scan + gmail-webhook + gmail-poll deployed, `vercel --prod` shipped; backfill running)
+
+Post-launch amendments (same day):
+- **HoReCa is the priority segment**: kind `hotel_hospitality` = HoReCa (hotels, resorts, restaurants, cafes, caterers, cloud kitchens, institutional food service); UI label "HoReCa", first KPI, sorted to top of board columns and needs-action list. Influencers tracked, secondary.
+- **Event-driven sync**: gmail-webhook (Pub/Sub push) and gmail-poll nudge deal-scan via `_shared/deal-scan-trigger.ts` whenever new mail is processed, so the pipeline syncs on arrival; the 30-min cron remains as sweep + follow-up ager. deal-scan takes a 3-min soft lock (`deal_scan_state.running_since`, migration 20260717160000) so concurrent nudges cannot double-create deals.
+- **Prompt lesson**: gpt-4o-mini initially returned `is_deal=false` for real deals while filling every other field correctly — it read "deal" as "agreement reached". Fixed by defining is_deal bluntly at the top of the field list ("conversation worth tracking, NOT agreement reached"). If extraction quality regresses, look there first.
 
 ## What it is
 

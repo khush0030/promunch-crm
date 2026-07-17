@@ -19,6 +19,7 @@ import { db } from "../_shared/supabase.ts";
 import { listHistory } from "../_shared/gmail.ts";
 import { processIncomingMessage } from "../_shared/process-email.ts";
 import { logConnector, errStr } from "../_shared/connector-log.ts";
+import { nudgeDealScan } from "../_shared/deal-scan-trigger.ts";
 
 const MAILBOX = Deno.env.get("MAILBOX_EMAIL") ?? "hello@promunch.in";
 const PUBSUB_TOKEN = Deno.env.get("PUBSUB_VERIFICATION_TOKEN") ?? "";
@@ -133,6 +134,10 @@ Deno.serve(async (req) => {
       { email: MAILBOX, history_id: newestHistoryId, last_renewed_at: new Date().toISOString() },
       { onConflict: "email" },
     );
+
+  // New mail landed → sync the deal pipeline right away (soft-locked fn,
+  // runs past the response via waitUntil; §0 untouched — deal-scan never sends)
+  if (processed > 0) nudgeDealScan("gmail-webhook");
 
   return Response.json({ ok: true, processed, skipped, historyId: newestHistoryId });
 });

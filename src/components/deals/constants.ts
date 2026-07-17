@@ -37,7 +37,7 @@ export const STAGE_TONE: Record<DealStage, BadgeTone> = {
 };
 
 export const KIND_LABEL: Record<DealKind, string> = {
-  hotel_hospitality: "Hotel",
+  hotel_hospitality: "HoReCa",
   corporate_pantry_gifting: "Corporate",
   retail_qcommerce: "Retail / q-comm",
   distribution_wholesale: "Distribution",
@@ -65,3 +65,7 @@ export const ALL_KINDS = Object.keys(KIND_LABEL) as DealKind[];
 // Vendor pitches are excluded from the default pipeline view; they get
 // their own filter chip so the board stays about revenue.
 export const DEFAULT_HIDDEN_KINDS: DealKind[] = ["vendor_pitch"];
+
+// HoReCa is the priority segment: sorted to the top of board columns and
+// the needs-action list. Influencers and the rest rank after.
+export const PRIORITY_KIND: DealKind = "hotel_hospitality";

@@ -1,8 +1,17 @@
 "use client";
 
-import { BOARD_STAGES, STAGE_LABEL } from "./constants";
+import { BOARD_STAGES, PRIORITY_KIND, STAGE_LABEL } from "./constants";
 import { DealCard } from "./DealCard";
 import type { Deal } from "./types";
+
+// HoReCa first, then flagged follow-ups, then freshest activity.
+function rank(a: Deal, b: Deal): number {
+  const pa = a.kind === PRIORITY_KIND ? 0 : 1;
+  const pb = b.kind === PRIORITY_KIND ? 0 : 1;
+  if (pa !== pb) return pa - pb;
+  if (a.follow_up_needed !== b.follow_up_needed) return a.follow_up_needed ? -1 : 1;
+  return (b.last_email_at ?? "").localeCompare(a.last_email_at ?? "");
+}
 
 // Stage kanban. Lost/dormant deals live in the table view only.
 export function BoardView({ deals, onOpen }: { deals: Deal[]; onOpen: (id: string) => void }) {
@@ -18,7 +27,7 @@ export function BoardView({ deals, onOpen }: { deals: Deal[]; onOpen: (id: strin
       }}
     >
       {BOARD_STAGES.map((stage) => {
-        const col = deals.filter((d) => d.stage === stage);
+        const col = deals.filter((d) => d.stage === stage).sort(rank);
         return (
           <div
             key={stage}

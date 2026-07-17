@@ -14,6 +14,7 @@ import { listUnreadInbox } from "../_shared/gmail.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { processIncomingMessage } from "../_shared/process-email.ts";
 import { logConnector, errStr } from "../_shared/connector-log.ts";
+import { nudgeDealScan } from "../_shared/deal-scan-trigger.ts";
 
 Deno.serve(async (req) => {
   const gate = requireInternal(req);
@@ -69,6 +70,10 @@ Deno.serve(async (req) => {
     });
     return Response.json({ ok: false, error: msg }, { status: 500 });
   }
+
+  // New mail landed → sync the deal pipeline right away (soft-locked fn,
+  // runs past the response via waitUntil; §0 untouched — deal-scan never sends)
+  if (processed > 0) nudgeDealScan("gmail-poll");
 
   return Response.json({ ok: true, processed, skipped, errors });
 });

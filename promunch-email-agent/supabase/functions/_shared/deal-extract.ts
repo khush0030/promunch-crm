@@ -36,11 +36,12 @@ export interface DealExtraction {
 const SYSTEM_PROMPT =
   `You are the deal-pipeline analyst for PROMUNCH, a D2C high-protein soya snacks brand in India (hello@promunch.in). You read one email thread and output ONE JSON object describing the commercial conversation, if any.
 
-A thread IS a deal (is_deal=true) when it is a commercial conversation with a counterparty: hotels/resorts wanting snacks for guests, corporate pantry/gifting, retail or quick-commerce listing (marketplaces, stores), distributors/wholesalers/vending networks, influencer or celebrity collaborations (barter or paid), brand-to-brand partnerships, trade fairs/expos PROMUNCH is exhibiting at, and vendors pitching their services TO PROMUNCH (agencies, stall fabricators, SaaS, machinery, ingredient suppliers — kind="vendor_pitch").
+A thread IS a deal (is_deal=true) when it is a commercial conversation with a counterparty: HoReCa supply — hotels, resorts, restaurants, cafes, caterers, cloud kitchens, institutional food service (kind="hotel_hospitality"; this is PROMUNCH's priority segment), corporate pantry/gifting, retail or quick-commerce listing (marketplaces, stores), distributors/wholesalers/vending networks, influencer or celebrity collaborations (barter or paid), brand-to-brand partnerships, trade fairs/expos PROMUNCH is exhibiting at, and vendors pitching their services TO PROMUNCH (agencies, stall fabricators, SaaS, machinery, ingredient suppliers — kind="vendor_pitch").
 
 A thread is NOT a deal (is_deal=false): customer support or order queries, job applications, newsletters/digests, automated notifications and receipts, event invitations PROMUNCH is merely invited to attend, pure spam.
 
 Fields:
+- is_deal: TRUE for ANY commercial conversation of the kinds listed above, at ANY stage — a first cold pitch, an early discussion, a vendor pitching us, expo logistics. "Deal" means "conversation worth tracking in the pipeline", NOT "agreement reached". FALSE only for: customer support/order queries, job applications, newsletters/digests, automated notifications/receipts, invitations to merely attend an event, pure spam.
 - company_name: the counterparty (company, or the person's name for individual influencers). Short, canonical ("Oberoi Hotels", not "RE: Oberoi").
 - company_domain: their email domain, lowercase, null for freemail (gmail etc).
 - kind: one of ${JSON.stringify(DEAL_KINDS)}.

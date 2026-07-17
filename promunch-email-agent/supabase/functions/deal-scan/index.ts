@@ -57,6 +57,18 @@ Deno.serve(async (req) => {
   const gate = requireInternal(req);
   if (gate) return gate;
 
+  // Soft lock (3-min lease): webhook nudges + cron + dashboard can all fire
+  // this; only one run may process threads at a time or dedup breaks.
+  const cutoff = new Date(Date.now() - 3 * 60_000).toISOString();
+  const { data: claimed, error: claimErr } = await db()
+    .from("deal_scan_state")
+    .update({ running_since: new Date().toISOString() })
+    .eq("id", 1)
+    .or(`running_since.is.null,running_since.lt.${cutoff}`)
+    .select("id");
+  if (claimErr) return json({ ok: false, error: claimErr.message }, 500);
+  if (!claimed?.length) return json({ ok: true, locked: true });
+
   try {
     const stats = await run();
     return json({ ok: true, ...stats });
@@ -75,6 +87,8 @@ Deno.serve(async (req) => {
       throttleMinutes: 60,
     });
     return json({ ok: false, error: msg }, 500);
+  } finally {
+    await db().from("deal_scan_state").update({ running_since: null }).eq("id", 1);
   }
 });
 
