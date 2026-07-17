@@ -178,6 +178,25 @@ export async function cancelGate(
     const cur = await orderRow(shopifyId);
     return { ok: true, outcome: "already", already: cur?.confirmation_status ?? "unknown" };
   }
+
+  // Re-validate on the freshly-claimed row. claimTransition's RETURNING reflects
+  // the latest committed financial_status/raw, and shopify-webhook upserts those
+  // independently on every orders/* topic — so a paid/fulfilled update could have
+  // landed after the pre-claim read. Never auto-cancel money that has arrived:
+  // revert the claim to needs_call and hand off to the manual path.
+  const fresh = decideCancelGuards(row);
+  if (!fresh.allow) {
+    await db().from("shopify_orders")
+      .update({ confirmation_status: "needs_call", confirmed_via: null })
+      .eq("shopify_id", shopifyId).then(() => {}, () => {});
+    await logConnector({
+      connector: "shopify_wa", level: "warn", event: "cod_cancel_guard_flip",
+      message: `Order ${row.order_number}: cancel guard flipped to ${fresh.why} after claim — not auto-cancelled, moved to needs_call.`,
+      ref: row.order_number,
+    }).catch(() => {});
+    return { ok: true, outcome: "guard_failed", reason: fresh.why };
+  }
+
   const note = via === "button"
     ? "Cancelled by customer via WhatsApp confirmation flow (button tap)"
     : "Cancelled by ops via CRM after customer call";
