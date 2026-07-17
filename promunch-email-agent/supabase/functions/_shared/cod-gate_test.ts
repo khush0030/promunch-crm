@@ -3,6 +3,7 @@ import {
   buildVerifyComponents,
   buildVerifyVars,
   codTotalLabel,
+  decideCancelGuards,
   isCodOrder,
   parseGatePayload,
 } from "./cod-gate.ts";
@@ -53,4 +54,22 @@ Deno.test("buildVerifyComponents: body params + two payload buttons", () => {
 Deno.test("codTotalLabel: rounds and prefixes rupee for INR", () => {
   assertEquals(codTotalLabel(398.0, "INR"), "₹398");
   assertEquals(codTotalLabel(499.5, "USD"), "USD 500");
+});
+
+Deno.test("decideCancelGuards: unpaid + unfulfilled → auto-cancel allowed", () => {
+  assertEquals(decideCancelGuards({ financial_status: "pending", raw: {} }), { allow: true });
+});
+
+Deno.test("decideCancelGuards: paid order → manual path", () => {
+  assertEquals(
+    decideCancelGuards({ financial_status: "paid", raw: {} }),
+    { allow: false, why: "paid" },
+  );
+});
+
+Deno.test("decideCancelGuards: fulfilled order → manual path", () => {
+  assertEquals(
+    decideCancelGuards({ financial_status: "pending", raw: { fulfillment_status: "fulfilled" } }),
+    { allow: false, why: "fulfilled" },
+  );
 });

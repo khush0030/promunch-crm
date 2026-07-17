@@ -8,6 +8,7 @@ import { verifySignature, downloadMedia, markRead, buildCtaUrl } from "../_share
 import { logConnector, alertWaSendFailure, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
 import { buildCartPermalink, cartFromOrderItems } from "../_shared/shopify-cart.ts";
 import { getFlowSettings } from "../_shared/flow-settings.ts";
+import { handleGateButton, parseGatePayload } from "../_shared/cod-gate.ts";
 
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const WA_MEDIA_BUCKET = Deno.env.get("WA_MEDIA_BUCKET") ?? "wa-media";
@@ -286,6 +287,21 @@ async function handleInboundMessage(msg: any, profile: any) {
 
   // mark read on Meta side
   if (wamid) markRead(wamid).catch(() => {});
+
+  // COD confirmation gate — button taps carry machine payloads. Handle them
+  // deterministically and never let them reach the AI. Non-gate buttons
+  // (any payload not matching the gate pattern) fall through unchanged.
+  const gateRaw = msg.type === "button"
+    ? msg.button?.payload
+    : msg.type === "interactive"
+    ? msg.interactive?.button_reply?.id
+    : null;
+  const gate = parseGatePayload(gateRaw);
+  if (gate) {
+    await handleGateButton(gate.action, gate.shopifyId, waId, thread.id)
+      .catch((e) => console.error("[wa-webhook] gate button failed", e));
+    return;
+  }
 
   // honour opt-out keywords — stop marketing to this contact. A bare "STOP" is an
   // UNSUBSCRIBE, never a message: confirm it, then RETURN so the AI never sees it
