@@ -127,10 +127,17 @@ async function claimTransition(
 ): Promise<OrderRow | null> {
   const patch: Record<string, unknown> = { confirmation_status: to, confirmed_via: via };
   if (to === "confirmed") patch.confirmed_at = new Date().toISOString();
+  // Matches NULL as well as 'pending'/'needs_call' so a gated order that never
+  // got its post-send confirmation_status stamp (send succeeded, stamp write
+  // failed or hit 0 rows) is still claimable via the customer's Confirm/Cancel
+  // tap or an ops manual action — otherwise it's stuck forever with a live
+  // Shopify hold and no way back in. .eq("shopify_id", ...) above still ANDs
+  // with this .or(...), so the claim stays scoped to the one order, and rows
+  // already resolved to confirmed/cancelled are still excluded (idempotent).
   const { data } = await db().from("shopify_orders")
     .update(patch)
     .eq("shopify_id", shopifyId)
-    .in("confirmation_status", ["pending", "needs_call"])
+    .or("confirmation_status.is.null,confirmation_status.in.(pending,needs_call)")
     .select(ORDER_COLS)
     .maybeSingle();
   return (data as OrderRow) ?? null;
@@ -167,7 +174,11 @@ export async function cancelGate(
 ): Promise<{ ok: boolean; outcome: "cancelled" | "already" | "guard_failed"; already?: string; reason?: string }> {
   const pre = await orderRow(shopifyId);
   if (!pre) return { ok: false, outcome: "guard_failed", reason: "order-not-found" };
-  if (pre.confirmation_status !== "pending" && pre.confirmation_status !== "needs_call") {
+  // Only genuinely-resolved statuses short-circuit here. A NULL status means
+  // the post-send confirmation_status stamp never landed (see claimTransition
+  // above) — that order must still be recoverable via Cancel, not reported
+  // as "already" resolved.
+  if (pre.confirmation_status === "confirmed" || pre.confirmation_status === "cancelled") {
     return { ok: true, outcome: "already", already: pre.confirmation_status ?? "unknown" };
   }
   const guards = decideCancelGuards(pre);
@@ -265,7 +276,14 @@ const statusLabel: Record<string, string> = {
   cancelled: "cancelled",
   needs_call: "with our team, we will call you shortly",
   pending: "awaiting your confirmation",
+  unknown: "being processed",
 };
+
+// Never let a raw/unrecognized status string (e.g. "unknown", undefined) leak
+// into a customer-facing message — always fall back to a friendly phrase.
+function describeStatus(status: string | null | undefined): string {
+  return statusLabel[status ?? ""] ?? "being processed";
+}
 
 // Entry point for wa-webhook. All replies are free text: the customer just
 // tapped, so the 24h service window is open.
@@ -290,14 +308,17 @@ export async function handleGateButton(
     if (r.outcome === "confirmed") {
       await say(`Awesome! Order ${ref} is confirmed and heading to packing 📦 Your Munchy Pal 💚`);
     } else {
-      await say(`All sorted! Order ${ref} is already ${statusLabel[r.already ?? ""] ?? r.already}. Need anything else? Just ask 😊`);
+      await say(`All sorted! Order ${ref} is already ${describeStatus(r.already)}. Need anything else? Just ask 😊`);
     }
     return;
   }
 
   if (action === "cancel_ask") {
-    if (row.confirmation_status !== "pending" && row.confirmation_status !== "needs_call") {
-      await say(`Order ${ref} is already ${statusLabel[row.confirmation_status ?? ""] ?? row.confirmation_status}. Need anything else? Just ask 😊`);
+    // Only confirmed/cancelled are genuinely resolved. A NULL status (missed
+    // post-send stamp) must still show the "sure?" bounce, not a wrong
+    // "already ..." message — see claimTransition/cancelGate.
+    if (row.confirmation_status === "confirmed" || row.confirmation_status === "cancelled") {
+      await say(`Order ${ref} is already ${describeStatus(row.confirmation_status)}. Need anything else? Just ask 😊`);
       return;
     }
     // fat-finger guard — no state change until they confirm the cancel
@@ -326,7 +347,7 @@ export async function handleGateButton(
     await say(`Done. Order ${ref} is cancelled ✅ Nothing to pay for COD orders. Hope to see you again soon 💚`);
     await pingOps("COD auto-cancel (FYI)", row, `Order ${ref} cancelled by customer via WhatsApp. No action needed.`);
   } else if (r.outcome === "already") {
-    await say(`Order ${ref} is already ${statusLabel[r.already ?? ""] ?? r.already}. Need anything else? Just ask 😊`);
+    await say(`Order ${ref} is already ${describeStatus(r.already)}. Need anything else? Just ask 😊`);
   } else {
     // guards failed (paid/fulfilled/API error) — manual path, urgent ticket
     await say(`Got it! We have flagged your cancellation request for order ${ref}. Our team will confirm with you shortly 💚`);

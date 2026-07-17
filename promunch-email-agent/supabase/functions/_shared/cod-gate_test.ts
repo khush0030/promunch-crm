@@ -73,3 +73,22 @@ Deno.test("decideCancelGuards: fulfilled order → manual path", () => {
     { allow: false, why: "fulfilled" },
   );
 });
+
+// decideCancelGuards only looks at financial_status/raw — it has no notion of
+// confirmation_status, so the NULL-status recovery fix in claimTransition/
+// cancelGate/handleGateButton cannot change its behavior. These two cases
+// pin that: a NULL-status row (financial_status still "pending", untouched)
+// keeps being allowed, same as an explicit "pending" row would be.
+Deno.test("decideCancelGuards: unaffected by NULL confirmation_status (unpaid + unfulfilled → allowed)", () => {
+  assertEquals(
+    decideCancelGuards({ financial_status: "pending", raw: {} }),
+    { allow: true },
+  );
+});
+
+Deno.test("decideCancelGuards: unaffected by NULL confirmation_status (paid → still manual path)", () => {
+  assertEquals(
+    decideCancelGuards({ financial_status: "paid", raw: { fulfillment_status: null } }),
+    { allow: false, why: "paid" },
+  );
+});
