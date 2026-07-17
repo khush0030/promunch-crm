@@ -15,6 +15,14 @@
 import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { logConnector } from "../_shared/connector-log.ts";
+import { getFlowSettings } from "../_shared/flow-settings.ts";
+import { claimSend, markSendSent, releaseSend } from "../_shared/confirmations.ts";
+import {
+  buildVerifyComponents,
+  buildVerifyVars,
+  codTotalLabel,
+  GATE_REMINDER_TEMPLATE,
+} from "../_shared/cod-gate.ts";
 
 const JOB_BATCH = 50;
 const CAMPAIGN_STALE_MIN = 15;
@@ -25,7 +33,8 @@ Deno.serve(async (req) => {
   const jobs = await drainJobs().catch((e) => ({ error: String(e) }));
   const campaigns = await sweepCampaigns().catch((e) => ({ error: String(e) }));
   const reports = await sweepReports().catch((e) => ({ error: String(e) }));
-  return j({ ok: true, jobs, campaigns, reports });
+  const codGate = await sweepCodGate().catch((e) => ({ error: String(e) }));
+  return j({ ok: true, jobs, campaigns, reports, codGate });
 });
 
 // Fire the SETTLED analytics report exactly once, ~15 min after a campaign
@@ -253,6 +262,100 @@ async function sweepCampaigns() {
     });
   }
   return { stuck: stuck?.length ?? 0, resumed };
+}
+
+// ---- 3. COD confirmation gate sweep ----------------------------------------
+// Reminders + needs-call escalation for orders stuck in 'pending'. Every send
+// and every ops ping is behind an atomic claimSend key — the cron fires every
+// minute, so without the claims each tick would re-send (CLAUDE.md §0).
+const norm2 = (s: unknown) => String(s ?? "").trim().replace(/^#/, "");
+
+async function sweepCodGate() {
+  const flows = await getFlowSettings();
+  if (!flows.cod_gate_enabled) return { skipped: "flag off" };
+  const sb = db();
+  const now = Date.now();
+  const remBefore = new Date(now - flows.cod_reminder_delay_hours * 3600_000).toISOString();
+  const callBefore = new Date(now - flows.cod_needs_call_hours * 3600_000).toISOString();
+
+  const { data: due } = await sb.from("shopify_orders")
+    .select("shopify_id, order_number, customer_name, customer_phone, total_price, currency, confirmation_sent_at")
+    .eq("confirmation_status", "pending")
+    .lt("confirmation_sent_at", remBefore)
+    .limit(50);
+
+  let reminded = 0, escalated = 0;
+  for (const o of due ?? []) {
+    const ref = norm2(o.order_number);
+    if (!ref) continue;
+
+    if (o.confirmation_sent_at < callBefore) {
+      // ESCALATE — one ping ever, then park as needs_call
+      if (!(await claimSend(`cod_needs_call:${ref}`))) continue;
+      await sb.from("shopify_orders")
+        .update({ confirmation_status: "needs_call" })
+        .eq("shopify_id", o.shopify_id).eq("confirmation_status", "pending");
+      const to = (Deno.env.get("OPS_WA_ID") ?? "").replace(/^\+/, "").replace(/\D/g, "");
+      if (to) {
+        await callWaSendTick({
+          to,
+          kind: "template",
+          sent_by: "cod_gate_ops",
+          template: {
+            name: Deno.env.get("OPS_ALERT_TEMPLATE") ?? "ops_ticket_alert",
+            language: "en",
+            vars: {
+              "1": "COD confirm call",
+              "2": "—",
+              "3": o.customer_name ?? "—",
+              "4": o.customer_phone ? `+${o.customer_phone}` : "—",
+              "5": `Order ${o.order_number} (${codTotalLabel(o.total_price, o.currency)}) unconfirmed for ${flows.cod_needs_call_hours}h. Call to confirm, then flag it on the dashboard.`,
+            },
+          },
+        });
+      }
+      await markSendSent(`cod_needs_call:${ref}`);
+      escalated++;
+      continue;
+    }
+
+    // REMIND — once per order
+    if (!o.customer_phone) continue;
+    if (!(await claimSend(`cod_reminder:${ref}`))) continue;
+    const vars = buildVerifyVars(
+      (o.customer_name ?? "there").split(/\s+/)[0],
+      o.order_number,
+      codTotalLabel(o.total_price, o.currency),
+    );
+    const res = await callWaSendTick({
+      to: o.customer_phone,
+      kind: "template",
+      sent_by: `journey:cod_gate_reminder:${ref}`,
+      template: {
+        name: GATE_REMINDER_TEMPLATE, language: "en",
+        vars, components: buildVerifyComponents(vars, o.shopify_id),
+      },
+    });
+    if (res?.ok) { await markSendSent(`cod_reminder:${ref}`); reminded++; }
+    else await releaseSend(`cod_reminder:${ref}`);
+  }
+  return { candidates: due?.length ?? 0, reminded, escalated };
+}
+
+async function callWaSendTick(body: unknown): Promise<{ ok?: boolean; error?: string } | null> {
+  try {
+    const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-send`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    return await r.json().catch(() => ({ ok: false, error: `HTTP ${r.status}` }));
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
 }
 
 function j(o: unknown, s = 200) {
