@@ -1,5 +1,38 @@
 import type { BadgeTone } from "@/components/pm";
-import type { DealKind, DealStage } from "./types";
+import type { DealKind, DealStage, Temperature } from "./types";
+
+// ── Display buckets: the 8 DB stages collapse into 4 linear lanes + Closed ──
+export type Bucket = "inquiries" | "discussions" | "samples" | "orders" | "closed";
+
+export const BUCKET_OF: Record<DealStage, Bucket> = {
+  new_inquiry: "inquiries",
+  in_discussion: "discussions",
+  negotiation: "discussions",
+  samples_requested: "samples",
+  samples_sent: "samples",
+  won: "orders",
+  lost: "closed",
+  dormant: "closed",
+};
+
+export const BUCKETS: { key: Bucket; label: string }[] = [
+  { key: "inquiries", label: "New Inquiries" },
+  { key: "discussions", label: "Discussions" },
+  { key: "samples", label: "Samples" },
+  { key: "orders", label: "Orders" },
+];
+
+export const TEMP_TONE: Record<Temperature, BadgeTone> = {
+  hot: "terra",
+  warm: "gold",
+  cool: "blue",
+};
+
+export const TEMP_LABEL: Record<Temperature, string> = {
+  hot: "Hot",
+  warm: "Warm",
+  cool: "Cool",
+};
 
 export const STAGE_LABEL: Record<DealStage, string> = {
   new_inquiry: "New inquiry",

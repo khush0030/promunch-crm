@@ -16,7 +16,7 @@ import { requireInternal } from "../_shared/require-internal.ts";
 import { db } from "../_shared/supabase.ts";
 import { errStr, logConnector } from "../_shared/connector-log.ts";
 import { getThreadParsed, listThreads, type ThreadMessage } from "../_shared/gmail.ts";
-import { type DealExtraction, extractDeal } from "../_shared/deal-extract.ts";
+import { type DealExtraction, extractDeal, insightsOf } from "../_shared/deal-extract.ts";
 import {
   buildTranscript,
   companyDomainOf,
@@ -57,6 +57,13 @@ Deno.serve(async (req) => {
   const gate = requireInternal(req);
   if (gate) return gate;
 
+  let body: { mode?: string; max?: number } = {};
+  try {
+    body = await req.json();
+  } catch {
+    // empty body is fine
+  }
+
   // Soft lock (3-min lease): webhook nudges + cron + dashboard can all fire
   // this; only one run may process threads at a time or dedup breaks.
   const cutoff = new Date(Date.now() - 3 * 60_000).toISOString();
@@ -70,7 +77,10 @@ Deno.serve(async (req) => {
   if (!claimed?.length) return json({ ok: true, locked: true });
 
   try {
-    const stats = await run();
+    // mode=insights re-reads threads of deals that predate sentiment analysis
+    const stats = body.mode === "insights"
+      ? await refreshInsights(Math.min(50, body.max ?? 15))
+      : await run();
     return json({ ok: true, ...stats });
   } catch (e) {
     const msg = errStr(e);
@@ -277,6 +287,8 @@ async function processThread(tid: string): Promise<{ outcome: Outcome; maxMs: nu
       last_email_direction: lastDir,
       first_email_at: new Date(firstMs).toISOString(),
       ai_confidence: ex.confidence,
+      interest_temp: ex.temperature,
+      insights: insightsOf(ex),
     }).select("id").single();
     if (error) throw new Error(`deals insert failed: ${error.message}`);
     dealId = (data as { id: string }).id;
@@ -312,6 +324,8 @@ async function processThread(tid: string): Promise<{ outcome: Outcome; maxMs: nu
           ? existing.first_email_at
           : new Date(firstMs).toISOString(),
       ai_confidence: ex.confidence,
+      interest_temp: ex.temperature,
+      insights: insightsOf(ex),
     };
     if (stage !== existing.stage) patch.stage_updated_at = new Date().toISOString();
     const { error } = await db().from("deals").update(patch).eq("id", existing.id);
@@ -399,6 +413,64 @@ async function sweepFollowUps() {
       }).eq("id", d.id);
     }
   }
+}
+
+// Backfill sentiment/willingness for deals created before insights existed:
+// re-read one thread per deal and store the relationship read. No ledger or
+// stage changes beyond the normal merge rules.
+async function refreshInsights(max: number) {
+  const { data: pending, error } = await db()
+    .from("deals")
+    .select("id, company_name, stage, kind")
+    .is("insights", null)
+    .limit(max);
+  if (error) throw new Error(`insights query failed: ${error.message}`);
+
+  let refreshed = 0;
+  const errors: string[] = [];
+  for (const d of pending ?? []) {
+    try {
+      const { data: em } = await db()
+        .from("deal_emails")
+        .select("gmail_thread_id")
+        .eq("deal_id", d.id)
+        .order("sent_at", { ascending: false })
+        .limit(1);
+      const tid = em?.[0]?.gmail_thread_id;
+      if (!tid) continue;
+      const msgs = await getThreadParsed(tid);
+      if (!msgs.length) continue;
+      const transcript = buildTranscript(
+        msgs.map((m) => ({
+          from: m.email.from_email ?? "",
+          to: m.email.to_email ?? "",
+          subject: m.email.subject ?? "",
+          dateIso: m.internalDateMs ? new Date(m.internalDateMs).toISOString().slice(0, 10) : "",
+          body: m.email.body_plain || m.email.snippet || "",
+        })),
+        MAILBOX,
+      );
+      const ex = await extractDeal(transcript, {
+        company_name: d.company_name,
+        stage: d.stage,
+        kind: d.kind,
+      });
+      await db().from("deals").update({
+        interest_temp: ex.temperature,
+        insights: insightsOf(ex),
+        summary: ex.summary ?? undefined,
+        commercials: ex.commercials ?? undefined,
+      }).eq("id", d.id);
+      refreshed++;
+    } catch (e) {
+      errors.push(`${d.company_name}: ${errStr(e).slice(0, 120)}`);
+    }
+  }
+  await db().from("deal_scan_state").update({
+    last_run_at: new Date().toISOString(),
+    last_error: errors.length ? errors.join(" | ").slice(0, 500) : null,
+  }).eq("id", 1);
+  return { mode: "insights", pending: pending?.length ?? 0, refreshed, errors: errors.length };
 }
 
 function fallbackCompanyName(msgs: ThreadMessage[]): string {

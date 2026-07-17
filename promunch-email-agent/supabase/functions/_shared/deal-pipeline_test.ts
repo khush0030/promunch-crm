@@ -187,3 +187,21 @@ Deno.test("parseExtraction: clamps enums, tolerates fences, hard-fails garbage",
   }
   assertEquals(threw, true);
 });
+
+Deno.test("parseExtraction: relationship read clamps and derives temperature", () => {
+  const r = parseExtraction(
+    `{"is_deal": true, "willingness": 130, "emotions": ["eager", "curious", "warm", "fast", "extra"],
+      "drivers": ["price"], "risks": [], "sentiment": "Pushing hard", "recommended_move": "Send rates"}`,
+  );
+  assertEquals(r.willingness, 100);
+  assertEquals(r.temperature, "hot"); // derived from willingness when absent
+  assertEquals(r.emotions.length, 4); // capped
+  assertEquals(r.recommended_move, "Send rates");
+
+  const cool = parseExtraction(`{"is_deal": true, "willingness": 10}`);
+  assertEquals(cool.temperature, "cool");
+  assertEquals(cool.emotions, []);
+
+  const explicit = parseExtraction(`{"is_deal": true, "willingness": 20, "temperature": "warm"}`);
+  assertEquals(explicit.temperature, "warm"); // explicit wins over derivation
+});

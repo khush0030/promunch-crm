@@ -2,41 +2,42 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Handshake, PackageCheck, Trophy, AlertTriangle } from "lucide-react";
-import {
-  DataTable,
-  EmptyState,
-  FilterChips,
-  KpiCard,
-  PageHead,
-  Panel,
-  SearchBar,
-  SectionLabel,
-  StatusBadge,
-  Tabs,
-  Toolbar,
-  type Chip,
-  type Column,
-} from "@/components/pm";
-import { BoardView } from "@/components/deals/BoardView";
+import { Handshake } from "lucide-react";
+import { EmptyState, PageHead, SearchBar, StatusBadge } from "@/components/pm";
 import { DealDrawer } from "@/components/deals/DealDrawer";
 import {
   ALL_KINDS,
+  BUCKET_OF,
+  BUCKETS,
   DEFAULT_HIDDEN_KINDS,
   KIND_LABEL,
   KIND_TONE,
   PRIORITY_KIND,
-  STAGE_LABEL,
-  STAGE_TONE,
+  TEMP_LABEL,
+  type Bucket,
 } from "@/components/deals/constants";
-import { daysSince, timeAgo } from "@/components/deals/format";
+import { timeAgo } from "@/components/deals/format";
 import type { Deal, DealsResponse } from "@/components/deals/types";
 
-const ACTIVE = ["new_inquiry", "in_discussion", "samples_requested", "samples_sent", "negotiation"];
+// One row, one deal: temperature dot · company · kind · next step · flag · age.
+// HoReCa and flagged deals float to the top of each bucket.
+function rank(a: Deal, b: Deal): number {
+  if (a.follow_up_needed !== b.follow_up_needed) return a.follow_up_needed ? -1 : 1;
+  const pa = a.kind === PRIORITY_KIND ? 0 : 1;
+  const pb = b.kind === PRIORITY_KIND ? 0 : 1;
+  if (pa !== pb) return pa - pb;
+  return (b.last_email_at ?? "").localeCompare(a.last_email_at ?? "");
+}
+
+const TEMP_DOT: Record<string, string> = {
+  hot: "var(--pm-terra)",
+  warm: "var(--pm-gold)",
+  cool: "var(--pm-blue)",
+};
 
 export default function DealsPage() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState("pipeline");
+  const [bucket, setBucket] = useState<Bucket>("inquiries");
   const [kind, setKind] = useState("all");
   const [onlyFollowUp, setOnlyFollowUp] = useState(false);
   const [q, setQ] = useState("");
@@ -65,6 +66,8 @@ export default function DealsPage() {
 
   const deals = useMemo(() => data?.deals ?? [], [data?.deals]);
 
+  // Kind/search/follow-up filters apply across buckets so the segment counts
+  // always reflect what the list below would show.
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return deals.filter((d) => {
@@ -83,171 +86,116 @@ export default function DealsPage() {
     });
   }, [deals, kind, onlyFollowUp, q]);
 
-  const kpis = useMemo(() => {
-    const real = deals.filter((d) => !(DEFAULT_HIDDEN_KINDS as string[]).includes(d.kind));
-    const active = real.filter((d) => ACTIVE.includes(d.stage));
-    const horeca = active.filter((d) => d.kind === PRIORITY_KIND);
-    const followUps = real.filter((d) => d.follow_up_needed);
-    const waitingOnUs = followUps.filter((d) => d.last_email_direction === "inbound");
-    const inFlight = real.filter((d) => d.stage === "samples_sent");
-    const oldest = Math.max(0, ...inFlight.map((d) => daysSince(d.samples_sent_at) ?? 0));
-    const won = real.filter((d) => d.stage === "won");
-    return {
-      active: active.length,
-      horeca: horeca.length,
-      followUps: followUps.length,
-      waitingOnUs: waitingOnUs.length,
-      inFlight: inFlight.length,
-      oldest,
-      won: won.length,
-    };
-  }, [deals]);
+  const byBucket = useMemo(() => {
+    const m: Record<Bucket, Deal[]> = { inquiries: [], discussions: [], samples: [], orders: [], closed: [] };
+    for (const d of filtered) m[BUCKET_OF[d.stage]].push(d);
+    (Object.keys(m) as Bucket[]).forEach((k) => m[k].sort(rank));
+    return m;
+  }, [filtered]);
 
-  const attention = useMemo(
-    () =>
-      deals
-        .filter((d) => d.follow_up_needed && !(DEFAULT_HIDDEN_KINDS as string[]).includes(d.kind))
-        .sort((a, b) => {
-          const pa = a.kind === PRIORITY_KIND ? 0 : 1;
-          const pb = b.kind === PRIORITY_KIND ? 0 : 1;
-          if (pa !== pb) return pa - pb;
-          return (a.last_email_at ?? "").localeCompare(b.last_email_at ?? "");
-        })
-        .slice(0, 6),
+  const followUps = useMemo(
+    () => deals.filter((d) => d.follow_up_needed && !(DEFAULT_HIDDEN_KINDS as string[]).includes(d.kind)).length,
     [deals],
   );
 
-  const chips: Chip[] = [
-    { key: "all", label: "All kinds" },
-    ...ALL_KINDS.map((k) => ({ key: k, label: KIND_LABEL[k] })),
-  ];
-
-  const columns: Column<Deal>[] = [
-    { header: "Company", cell: (d) => <b>{d.company_name}</b> },
-    { header: "Kind", cell: (d) => <StatusBadge tone={KIND_TONE[d.kind]}>{KIND_LABEL[d.kind]}</StatusBadge> },
-    { header: "Stage", cell: (d) => <StatusBadge tone={STAGE_TONE[d.stage]}>{STAGE_LABEL[d.stage]}</StatusBadge> },
-    {
-      header: "Next step",
-      cell: (d) => <span style={{ color: "var(--pm-muted)" }}>{d.next_step || "—"}</span>,
-    },
-    {
-      header: "Follow-up",
-      cell: (d) =>
-        d.follow_up_needed ? (
-          <span style={{ color: "var(--pm-terra)", fontWeight: 600, fontSize: 12 }}>
-            {d.follow_up_reason || "needed"}
-          </span>
-        ) : (
-          <span style={{ color: "var(--pm-hint)" }}>—</span>
-        ),
-    },
-    { header: "Emails", align: "right", cell: (d) => d.email_count },
-    { header: "Last activity", align: "right", cell: (d) => timeAgo(d.last_email_at) },
-  ];
-
+  const rows = byBucket[bucket];
   const scan = data?.scan;
-  const lastScan = scan?.last_run_at ? timeAgo(scan.last_run_at) : "never";
+
+  const segBtn = (active: boolean): React.CSSProperties => ({
+    border: "none",
+    background: active ? "var(--pm-green)" : "transparent",
+    color: active ? "#fff" : "var(--pm-muted)",
+    borderRadius: 999,
+    padding: "6px 14px",
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: "pointer",
+    font: "inherit",
+    whiteSpace: "nowrap",
+  });
 
   return (
     <div className="pm-page">
       <PageHead
         title="Deals"
-        subtitle="Every commercial conversation in hello@promunch.in — HoReCa supply first, then retail, influencer collabs and expos."
-        actions={
+        subtitle={
           <>
-            <span style={{ fontSize: 11.5, color: "var(--pm-hint)" }}>
-              Last scan {lastScan}
-              {scan && !scan.backfill_done ? " · backfill in progress" : ""}
-            </span>
-            <button
-              type="button"
-              className="pm-btn primary"
-              disabled={scanNow.isPending}
-              onClick={() => scanNow.mutate()}
-            >
-              {scanNow.isPending ? "Scanning…" : "Scan inbox now"}
-            </button>
+            {followUps > 0 ? `${followUps} need your attention · ` : ""}
+            last scan {scan?.last_run_at ? timeAgo(scan.last_run_at) : "never"}
+            {scan && !scan.backfill_done ? " · still reading older mail" : ""}
           </>
+        }
+        actions={
+          <button
+            type="button"
+            className="pm-btn ghost sm"
+            disabled={scanNow.isPending}
+            onClick={() => scanNow.mutate()}
+          >
+            {scanNow.isPending ? "Scanning…" : "Scan now"}
+          </button>
         }
       />
 
-      {scanNow.error instanceof Error && (
-        <p style={{ color: "var(--pm-terra)", fontSize: 12.5 }}>{scanNow.error.message}</p>
-      )}
-      {scan?.last_error && (
-        <p style={{ color: "var(--pm-terra)", fontSize: 12.5 }}>Last scan error: {scan.last_error}</p>
-      )}
-
-      <div className="pm-kpis">
-        <KpiCard
-          label="Active HoReCa deals"
-          value={kpis.horeca}
-          icon={<Handshake />}
-          tone="g"
-          sub={`${kpis.active} active overall`}
-        />
-        <KpiCard
-          label="Needs follow-up"
-          value={kpis.followUps}
-          icon={<AlertTriangle />}
-          tone="t"
-          valueColor="var(--pm-terra)"
-          sub={`${kpis.waitingOnUs} waiting on our reply`}
-        />
-        <KpiCard
-          label="Samples in flight"
-          value={kpis.inFlight}
-          icon={<PackageCheck />}
-          tone="o"
-          sub={kpis.inFlight ? `oldest sent ${kpis.oldest}d ago` : "none right now"}
-        />
-        <KpiCard label="Won · live partners" value={kpis.won} icon={<Trophy />} tone="g" />
-      </div>
-
-      {attention.length > 0 && (
-        <>
-          <SectionLabel>Needs action</SectionLabel>
-          <Panel>
-            {attention.map((d, i) => (
-              <div
-                key={d.id}
-                onClick={() => setOpenId(d.id)}
-                style={{
-                  display: "flex",
-                  gap: 12,
-                  alignItems: "baseline",
-                  flexWrap: "wrap",
-                  padding: "9px 2px",
-                  borderTop: i === 0 ? "none" : "1px solid var(--pm-line)",
-                  cursor: "pointer",
-                }}
-              >
-                <span style={{ fontWeight: 600, minWidth: 200 }}>{d.company_name}</span>
-                <span style={{ color: "var(--pm-muted)", flex: 1, minWidth: 200 }}>
-                  {d.follow_up_reason || d.next_step || "Follow up"}
-                </span>
-                <span style={{ fontSize: 11.5, color: "var(--pm-terra)", fontWeight: 600, whiteSpace: "nowrap" }}>
-                  {timeAgo(d.last_email_at)}
-                </span>
-              </div>
-            ))}
-          </Panel>
-        </>
+      {(scanNow.error instanceof Error || scan?.last_error) && (
+        <p style={{ color: "var(--pm-terra)", fontSize: 12.5, marginTop: 0 }}>
+          {scanNow.error instanceof Error ? scanNow.error.message : `Last scan error: ${scan?.last_error}`}
+        </p>
       )}
 
-      <div style={{ marginTop: 22 }}>
-        <Tabs
-          tabs={[
-            { key: "pipeline", label: "Pipeline" },
-            { key: "all", label: `All deals (${deals.length})` },
-          ]}
-          active={tab}
-          onSelect={setTab}
-        />
-      </div>
-
-      <Toolbar>
-        <SearchBar value={q} onChange={setQ} placeholder="Search company, contact, summary…" />
+      {/* Segmented buckets + compact filters, one row */}
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 2,
+            background: "var(--pm-card)",
+            border: "1px solid var(--pm-border)",
+            borderRadius: 999,
+            padding: 3,
+          }}
+        >
+          {BUCKETS.map((b) => (
+            <button key={b.key} type="button" style={segBtn(bucket === b.key)} onClick={() => setBucket(b.key)}>
+              {b.label} {byBucket[b.key].length > 0 && <span style={{ opacity: 0.75 }}>{byBucket[b.key].length}</span>}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          style={{
+            ...segBtn(bucket === "closed"),
+            background: bucket === "closed" ? "var(--pm-card2)" : "transparent",
+            color: "var(--pm-hint)",
+            border: bucket === "closed" ? "1px solid var(--pm-border)" : "1px solid transparent",
+          }}
+          onClick={() => setBucket("closed")}
+        >
+          Closed {byBucket.closed.length}
+        </button>
+        <span style={{ flex: 1 }} />
+        <SearchBar value={q} onChange={setQ} placeholder="Search deals…" />
+        <select
+          value={kind}
+          aria-label="Filter by kind"
+          onChange={(e) => setKind(e.target.value)}
+          style={{
+            border: "1px solid var(--pm-border)",
+            borderRadius: "var(--pm-r3)",
+            background: "var(--pm-card)",
+            color: "inherit",
+            font: "inherit",
+            fontSize: 12.5,
+            padding: "7px 10px",
+          }}
+        >
+          <option value="all">All kinds</option>
+          {ALL_KINDS.map((k) => (
+            <option key={k} value={k}>
+              {KIND_LABEL[k]}
+            </option>
+          ))}
+        </select>
         <button
           type="button"
           className={`pm-btn sm${onlyFollowUp ? " primary" : " ghost"}`}
@@ -255,29 +203,87 @@ export default function DealsPage() {
         >
           Needs follow-up
         </button>
-      </Toolbar>
-      <FilterChips chips={chips} active={kind} onSelect={setKind} />
+      </div>
 
-      <div style={{ marginTop: 14 }}>
+      {/* The list */}
+      <div
+        style={{
+          marginTop: 14,
+          background: "var(--pm-card)",
+          border: "1px solid var(--pm-border)",
+          borderRadius: "var(--pm-r2)",
+          overflow: "hidden",
+        }}
+      >
         {isLoading ? (
-          <p style={{ color: "var(--pm-hint)" }}>Loading deals…</p>
+          <p style={{ color: "var(--pm-hint)", padding: 20, margin: 0 }}>Loading deals…</p>
         ) : error instanceof Error ? (
-          <p style={{ color: "var(--pm-terra)" }}>{error.message}</p>
-        ) : deals.length === 0 ? (
-          <EmptyState icon={<Handshake />} title="No deals yet">
-            Run “Scan inbox now” — the scanner reads hello@promunch.in, finds commercial
-            conversations, and builds the pipeline automatically.
+          <p style={{ color: "var(--pm-terra)", padding: 20, margin: 0 }}>{error.message}</p>
+        ) : rows.length === 0 ? (
+          <EmptyState icon={<Handshake />} title="Nothing here" style={{ border: "none" }}>
+            {deals.length === 0
+              ? "Hit “Scan now” — the pipeline builds itself from hello@promunch.in."
+              : "No deals in this lane with the current filters."}
           </EmptyState>
-        ) : tab === "pipeline" ? (
-          <BoardView deals={filtered} onOpen={setOpenId} />
         ) : (
-          <DataTable
-            columns={columns}
-            rows={filtered}
-            rowKey={(d) => d.id}
-            onRowClick={(d) => setOpenId(d.id)}
-            empty="No deals match the current filters"
-          />
+          rows.map((d, i) => (
+            <button
+              key={d.id}
+              type="button"
+              onClick={() => setOpenId(d.id)}
+              className="deal-row"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                width: "100%",
+                textAlign: "left",
+                background: "none",
+                border: "none",
+                borderTop: i === 0 ? "none" : "1px solid var(--pm-line)",
+                padding: "11px 16px",
+                cursor: "pointer",
+                font: "inherit",
+                color: "inherit",
+              }}
+            >
+              <span
+                title={d.interest_temp ? `${TEMP_LABEL[d.interest_temp]} lead` : "Not analysed yet"}
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 999,
+                  flexShrink: 0,
+                  background: d.interest_temp ? TEMP_DOT[d.interest_temp] : "var(--pm-line)",
+                }}
+              />
+              <span style={{ fontWeight: 600, fontSize: 13, minWidth: 160, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {d.company_name}
+              </span>
+              <StatusBadge tone={KIND_TONE[d.kind]}>{KIND_LABEL[d.kind]}</StatusBadge>
+              <span
+                style={{
+                  flex: 1,
+                  color: "var(--pm-muted)",
+                  fontSize: 12.5,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  minWidth: 0,
+                }}
+              >
+                {d.next_step || d.summary || "—"}
+              </span>
+              {d.follow_up_needed && (
+                <span style={{ color: "var(--pm-terra)", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+                  ● follow up
+                </span>
+              )}
+              <span style={{ fontSize: 11.5, color: "var(--pm-hint)", whiteSpace: "nowrap", width: 56, textAlign: "right" }}>
+                {timeAgo(d.last_email_at)}
+              </span>
+            </button>
+          ))
         )}
       </div>
 

@@ -24,6 +24,18 @@ export type DealKind =
 
 export type Direction = "inbound" | "outbound";
 
+export type Temperature = "hot" | "warm" | "cool";
+
+export type DealInsights = {
+  willingness: number; // 0-100
+  temperature: Temperature;
+  sentiment: string | null;
+  emotions: string[];
+  drivers: string[];
+  risks: string[];
+  recommended_move: string | null;
+};
+
 export type Deal = {
   id: string;
   company_name: string;
@@ -46,6 +58,8 @@ export type Deal = {
   first_email_at: string | null;
   email_count: number;
   ai_confidence: number | null;
+  interest_temp: Temperature | null;
+  insights: DealInsights | null;
   manual_stage_override: boolean;
   created_at: string;
   updated_at: string;

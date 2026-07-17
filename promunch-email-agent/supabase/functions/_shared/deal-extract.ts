@@ -14,6 +14,8 @@ function model(): string {
   return Deno.env.get("DEAL_SCAN_MODEL") ?? Deno.env.get("OPENAI_MODEL") ?? "gpt-4o-mini";
 }
 
+export type Temperature = "hot" | "warm" | "cool";
+
 export interface DealExtraction {
   is_deal: boolean;
   company_name: string | null;
@@ -31,6 +33,26 @@ export interface DealExtraction {
   commercials: string | null;
   summary: string | null;
   confidence: number;
+  willingness: number; // 0-100 read from their tone
+  temperature: Temperature;
+  sentiment: string | null;
+  emotions: string[];
+  drivers: string[];
+  risks: string[];
+  recommended_move: string | null;
+}
+
+// Shape stored in deals.insights (jsonb).
+export function insightsOf(ex: DealExtraction) {
+  return {
+    willingness: ex.willingness,
+    temperature: ex.temperature,
+    sentiment: ex.sentiment,
+    emotions: ex.emotions,
+    drivers: ex.drivers,
+    risks: ex.risks,
+    recommended_move: ex.recommended_move,
+  };
 }
 
 const SYSTEM_PROMPT =
@@ -61,6 +83,15 @@ Fields:
 - summary: 2-3 plain sentences of where the deal stands. No em dashes.
 - confidence: 0-1 for the overall judgement.
 
+Relationship read — study the counterparty's tone, word choice, response speed and effort:
+- willingness: 0-100. How willing/eager are THEY to do this deal? 80+ = actively pushing it forward (asking for rates, looping in decision makers, proposing dates). 50-79 = engaged but not driving. 20-49 = polite but passive. <20 = cold, going through motions, or ghosting.
+- temperature: "hot" (willingness >= 70), "warm" (40-69), "cool" (< 40).
+- sentiment: one sentence on how they come across ("Enthusiastic and fast to reply; procurement is engaged", "Formal and slow, deflecting to process").
+- emotions: 2-4 single words read from their messages (e.g. "curious", "enthusiastic", "hesitant", "impatient", "transactional").
+- drivers: up to 3 short phrases on what THEY care about (price, health angle, exclusivity, timelines, brand fit).
+- risks: up to 3 short phrases on what could kill this (silence, budget, competing vendor, single champion, deadline).
+- recommended_move: ONE concrete action PROMUNCH should take next, imperative, specific ("Send the rate card with hamper MOQs today and propose a tasting date"). No em dashes.
+
 Respond with ONLY the JSON object, no markdown fences, no commentary.`;
 
 export function parseExtraction(raw: string): DealExtraction {
@@ -81,6 +112,23 @@ export function parseExtraction(raw: string): DealExtraction {
     ? obj.next_step_owner
     : null;
   const conf = typeof obj.confidence === "number" ? Math.min(1, Math.max(0, obj.confidence)) : 0.5;
+  const strList = (v: unknown, maxItems: number, maxLen: number): string[] =>
+    Array.isArray(v)
+      ? v.filter((x): x is string => typeof x === "string" && !!x.trim())
+        .map((x) => x.trim().slice(0, maxLen))
+        .slice(0, maxItems)
+      : [];
+  const willingness = typeof obj.willingness === "number"
+    ? Math.min(100, Math.max(0, Math.round(obj.willingness)))
+    : 50;
+  const temperature: Temperature =
+    obj.temperature === "hot" || obj.temperature === "warm" || obj.temperature === "cool"
+      ? obj.temperature
+      : willingness >= 70
+      ? "hot"
+      : willingness >= 40
+      ? "warm"
+      : "cool";
   return {
     is_deal: obj.is_deal === true,
     company_name: str(obj.company_name, 200),
@@ -98,6 +146,13 @@ export function parseExtraction(raw: string): DealExtraction {
     commercials: str(obj.commercials, 600),
     summary: str(obj.summary, 1200),
     confidence: conf,
+    willingness,
+    temperature,
+    sentiment: str(obj.sentiment, 300),
+    emotions: strList(obj.emotions, 4, 40),
+    drivers: strList(obj.drivers, 3, 120),
+    risks: strList(obj.risks, 3, 120),
+    recommended_move: str(obj.recommended_move, 300),
   };
 }
 
