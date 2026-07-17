@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
   // 1. candidate orders
   let query = sb
     .from("shopify_orders")
-    .select("order_number, customer_phone, customer_name, total_price, financial_status, raw, shopify_created_at");
+    .select("order_number, customer_phone, customer_name, total_price, financial_status, raw, shopify_created_at, confirmation_status");
   if (force) {
     const variants = forced.flatMap((n) => [n, `#${n}`]);
     query = query.in("order_number", variants).limit(forced.length * 4);
@@ -123,6 +123,13 @@ Deno.serve(async (req) => {
     const orderRef = String(o.order_number ?? "");
     const ref = norm(orderRef);
     if (!ref) { skipped++; continue; }
+
+    // COD gate owns its orders end-to-end (verify template + fulfillment hold +
+    // its own reminder/needs_call sweep in wa-jobs-tick). This general sweep must
+    // NEVER send the plain buttonless confirmation for a gated order — that would
+    // tell the customer "confirmed" while the hold is never released. Any non-null
+    // confirmation_status means the gate is managing this order. Skip in every mode.
+    if (o.confirmation_status) { skipped++; report[orderRef] = "cod-gate managed — skipped"; continue; }
 
     // already confirmed — hard skip, every mode. This is the no-spam guard.
     if (confirmed.has(ref)) { skipped++; report[orderRef] = "already-confirmed — skipped"; continue; }
@@ -217,13 +224,16 @@ Deno.serve(async (req) => {
     const stuckOldest = new Date(now - 60 * 60_000).toISOString();
     const { data: stuckCandidates } = await sb
       .from("shopify_orders")
-      .select("order_number, financial_status, raw")
+      .select("order_number, financial_status, raw, confirmation_status")
       .gte("shopify_created_at", stuckOldest)
       .lte("shopify_created_at", stuckYoungest)
       .not("customer_phone", "is", null)
       .limit(100);
     const stuck = (stuckCandidates ?? [])
       .filter((o) => {
+        // COD-gate managed orders have their own needs_call/reminder sweep —
+        // never raise a false "confirmation_stuck" alert for them here.
+        if (o.confirmation_status) return false;
         const r = (o.raw ?? {}) as Record<string, unknown>;
         const fin = String(o.financial_status ?? r.financial_status ?? "").toLowerCase();
         if (fin === "voided" || fin === "refunded" || r.cancelled_at) return false;

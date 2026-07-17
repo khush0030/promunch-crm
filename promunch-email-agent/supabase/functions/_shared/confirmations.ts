@@ -21,10 +21,12 @@ export async function confirmedOrderRefs(sinceIso: string): Promise<Set<string>>
   // wa_messages.status lifecycle: "sent" → "delivered" → "read" (Meta status
   // webhooks update it). Any of these means the customer actually got the
   // message; only "failed" / "pending" mean they didn't.
-  // Match BOTH confirmation templates. Order confirmations now send via
+  // Match all THREE confirmation templates. Order confirmations now send via
   // order_confirmation_v2 (no total); the original order_confirmation is kept
-  // for historical sends. Deduping on only one name would let a customer who
-  // got a v2 confirmation be messaged again under the other name.
+  // for historical sends; order_verify_v1 is the COD gate's buttoned verify
+  // template, which IS the confirmation for gated orders. Deduping on fewer
+  // than all three would let a customer be messaged again under a name we
+  // didn't check.
   const { data } = await db()
     .from("wa_messages")
     .select("template_vars")

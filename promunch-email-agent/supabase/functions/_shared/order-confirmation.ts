@@ -102,7 +102,11 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
       // logged loudly but does not block the send — ops sees the pending
       // status in the dashboard either way.
       const hold = await holdOrderFulfillments(order.id, "Awaiting WhatsApp COD confirmation");
-      if (!hold.ok) {
+      // "no-holdable-fulfillment-orders" on a released-claim retry means the
+      // order is already held (nothing left to hold) — not a real failure.
+      // Only log cod_hold_failed for genuine failures, or ops gets a false
+      // alarm ("hold failed") for an order that IS still hold-protected.
+      if (!hold.ok && hold.reason !== "no-holdable-fulfillment-orders") {
         await logConnector({
           connector: "shopify_wa", level: "error", event: "cod_hold_failed",
           message: `Order ${orderRef}: fulfillment hold failed — ${hold.reason}. Order is NOT hold-protected; rely on dashboard status.`,
@@ -147,7 +151,24 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
         : { confirmation_status: "needs_call" }; // send failed → human calls
       await db().from("shopify_orders").update(stamp)
         .eq("shopify_id", order.id).is("confirmation_status", null)
-        .then(() => {}, () => {});
+        .then(
+          ({ error: stampError }) => {
+            if (stampError) {
+              logConnector({
+                connector: "shopify_wa", level: "error", event: "cod_stamp_failed",
+                message: `Order ${orderRef}: gated WhatsApp message was already sent, but the confirmation_status stamp failed — ${stampError.message}. Dashboard status may be stale; check shopify_orders directly.`,
+                ref: orderRef,
+              }).catch(() => {});
+            }
+          },
+          (e) => {
+            logConnector({
+              connector: "shopify_wa", level: "error", event: "cod_stamp_failed",
+              message: `Order ${orderRef}: gated WhatsApp message was already sent, but the confirmation_status stamp threw — ${String(e)}. Dashboard status may be stale; check shopify_orders directly.`,
+              ref: orderRef,
+            }).catch(() => {});
+          },
+        );
       if (!res?.ok) {
         await logConnector({
           connector: "shopify_wa", level: "error", event: "cod_gate_needs_call",
