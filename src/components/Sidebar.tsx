@@ -13,6 +13,7 @@ import {
   Store,
   Package,
   Briefcase,
+  Handshake,
   Users,
   Megaphone,
   Route as RouteIcon,
@@ -65,6 +66,7 @@ const groups: NavGroup[] = [
       { href: "/dashboard/shopify-attribution", label: "Shopify", icon: <Store /> },
       { href: "/dashboard/amazon", label: "Amazon", icon: <Package /> },
       { href: "/dashboard/leads", label: "B2B Leads", icon: <Briefcase /> },
+      { href: "/dashboard/deals", label: "Deals", icon: <Handshake /> },
     ],
   },
   {

@@ -1,0 +1,421 @@
+// deal-scan: sweeps hello@promunch.in, classifies commercial conversations
+// with OpenAI, and maintains the deals / deal_emails tables that power
+// /dashboard/deals.
+//
+// READ-ONLY on Gmail — this function never sends mail, so the §0
+// no-duplicate-message invariant is not in play. Idempotency: every scanned
+// message lands in deal_emails (unique gmail_message_id); rescans are no-ops.
+//
+// Modes (driven by deal_scan_state, one row):
+//   backfill    — first runs page through the last DEAL_SCAN_BACKFILL_DAYS of
+//                 threads, one small page per invocation (cron chews through it)
+//   incremental — after backfill, each run picks up threads newer than the
+//                 watermark (with a 6h overlap for safety)
+
+import { requireInternal } from "../_shared/require-internal.ts";
+import { db } from "../_shared/supabase.ts";
+import { errStr, logConnector } from "../_shared/connector-log.ts";
+import { getThreadParsed, listThreads, type ThreadMessage } from "../_shared/gmail.ts";
+import { type DealExtraction, extractDeal } from "../_shared/deal-extract.ts";
+import {
+  buildTranscript,
+  companyDomainOf,
+  computeFollowUp,
+  type DealStage,
+  extractAddress,
+  isNoiseSender,
+  mergeStage,
+  shouldGoDormant,
+} from "../_shared/deal-pipeline.ts";
+
+const MAILBOX = Deno.env.get("MAILBOX_EMAIL") ?? "hello@promunch.in";
+const BASE_Q = "-category:promotions -category:social -in:chats";
+const BACKFILL_DAYS = Number(Deno.env.get("DEAL_SCAN_BACKFILL_DAYS") ?? "365");
+const MAX_THREADS_PER_RUN = Number(Deno.env.get("DEAL_SCAN_MAX_THREADS") ?? "12");
+
+interface ScanState {
+  backfill_done: boolean;
+  backfill_page_token: string | null;
+  watermark_ms: number | null;
+  threads_scanned: number;
+}
+
+interface DealRow {
+  id: string;
+  company_name: string;
+  company_domain: string | null;
+  kind: string;
+  contact_name: string | null;
+  contact_email: string | null;
+  stage: DealStage;
+  samples_sent_at: string | null;
+  first_email_at: string | null;
+  manual_stage_override: boolean;
+}
+
+Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
+
+  try {
+    const stats = await run();
+    return json({ ok: true, ...stats });
+  } catch (e) {
+    const msg = errStr(e);
+    await db().from("deal_scan_state").update({
+      last_error: msg,
+      last_run_at: new Date().toISOString(),
+    })
+      .eq("id", 1);
+    await logConnector({
+      connector: "deal_scan",
+      level: "error",
+      event: "scan_failed",
+      message: msg,
+      throttleMinutes: 60,
+    });
+    return json({ ok: false, error: msg }, 500);
+  }
+});
+
+async function run() {
+  const state = await loadState();
+  const mode = state.backfill_done ? "incremental" : "backfill";
+
+  let threadIds: string[] = [];
+  let nextPageToken: string | undefined;
+
+  if (mode === "backfill") {
+    // page size == batch size so the saved pageToken is an exact cursor
+    const page = await listThreads(
+      `${BASE_Q} newer_than:${BACKFILL_DAYS}d`,
+      MAX_THREADS_PER_RUN,
+      state.backfill_page_token ?? undefined,
+    );
+    threadIds = page.threads.map((t) => t.id);
+    nextPageToken = page.nextPageToken;
+  } else {
+    const fallbackMs = Date.now() - 86_400_000;
+    const afterSec = Math.floor(((state.watermark_ms ?? fallbackMs) - 6 * 3_600_000) / 1000);
+    let token: string | undefined;
+    for (let i = 0; i < 3; i++) {
+      const page = await listThreads(`${BASE_Q} after:${afterSec}`, 100, token);
+      threadIds.push(...page.threads.map((t) => t.id));
+      token = page.nextPageToken;
+      if (!token) break;
+    }
+    threadIds = [...new Set(threadIds)];
+  }
+
+  const counts = {
+    threads_seen: threadIds.length,
+    processed: 0,
+    skipped: 0,
+    noise: 0,
+    non_deal: 0,
+    created: 0,
+    updated: 0,
+  };
+  let maxInternalMs = state.watermark_ms ?? 0;
+
+  for (const tid of threadIds) {
+    const r = await processThread(tid);
+    counts[r.outcome]++;
+    if (r.outcome !== "skipped") counts.processed++;
+    if (r.maxMs > maxInternalMs) maxInternalMs = r.maxMs;
+  }
+
+  await sweepFollowUps();
+
+  const patch: Record<string, unknown> = {
+    last_run_at: new Date().toISOString(),
+    last_error: null,
+    threads_scanned: state.threads_scanned + counts.processed,
+    watermark_ms: maxInternalMs || null,
+  };
+  if (mode === "backfill") {
+    patch.backfill_page_token = nextPageToken ?? null;
+    if (!nextPageToken) patch.backfill_done = true;
+  }
+  await db().from("deal_scan_state").update(patch).eq("id", 1);
+
+  return { mode, ...counts, backfill_done: mode === "incremental" || !nextPageToken };
+}
+
+async function loadState(): Promise<ScanState> {
+  const { data, error } = await db()
+    .from("deal_scan_state")
+    .select("backfill_done, backfill_page_token, watermark_ms, threads_scanned")
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) throw new Error(`deal_scan_state read failed: ${error.message}`);
+  if (data) return data as ScanState;
+  const { error: insErr } = await db().from("deal_scan_state").insert({ id: 1 });
+  if (insErr) throw new Error(`deal_scan_state init failed: ${insErr.message}`);
+  return {
+    backfill_done: false,
+    backfill_page_token: null,
+    watermark_ms: null,
+    threads_scanned: 0,
+  };
+}
+
+type Outcome = "skipped" | "noise" | "non_deal" | "created" | "updated";
+
+async function processThread(tid: string): Promise<{ outcome: Outcome; maxMs: number }> {
+  const msgs = await getThreadParsed(tid);
+  if (!msgs.length) return { outcome: "skipped", maxMs: 0 };
+  const maxMs = Math.max(...msgs.map((m) => m.internalDateMs));
+
+  const ids = msgs.map((m) => m.email.gmail_message_id);
+  const { data: knownRows, error: knownErr } = await db()
+    .from("deal_emails")
+    .select("gmail_message_id, deal_id")
+    .in("gmail_message_id", ids);
+  if (knownErr) throw new Error(`deal_emails lookup failed: ${knownErr.message}`);
+
+  const known = new Set((knownRows ?? []).map((r) => r.gmail_message_id));
+  const newMsgs = msgs.filter((m) => !known.has(m.email.gmail_message_id));
+  if (!newMsgs.length) return { outcome: "skipped", maxMs };
+
+  const existingDealId = (knownRows ?? []).find((r) => r.deal_id)?.deal_id ?? null;
+
+  // Cheap noise gate: purely-inbound machine mail never reaches OpenAI.
+  const hasOutbound = msgs.some((m) => (m.email.from_email ?? "").toLowerCase().includes(MAILBOX));
+  const inboundFroms = msgs
+    .filter((m) => !(m.email.from_email ?? "").toLowerCase().includes(MAILBOX))
+    .map((m) => m.email.from_email ?? "");
+  if (
+    !existingDealId && !hasOutbound && inboundFroms.length > 0 && inboundFroms.every(isNoiseSender)
+  ) {
+    await insertLedger(newMsgs, null);
+    return { outcome: "noise", maxMs };
+  }
+
+  let existing: DealRow | null = null;
+  if (existingDealId) {
+    const { data } = await db().from("deals").select(
+      "id, company_name, company_domain, kind, contact_name, contact_email, stage, samples_sent_at, first_email_at, manual_stage_override",
+    ).eq("id", existingDealId).maybeSingle();
+    existing = (data as DealRow | null) ?? null;
+  }
+
+  const transcript = buildTranscript(
+    msgs.map((m) => ({
+      from: m.email.from_email ?? "",
+      to: m.email.to_email ?? "",
+      subject: m.email.subject ?? "",
+      dateIso: m.internalDateMs ? new Date(m.internalDateMs).toISOString().slice(0, 10) : "",
+      body: m.email.body_plain || m.email.snippet || "",
+    })),
+    MAILBOX,
+  );
+
+  const ex = await extractDeal(
+    transcript,
+    existing
+      ? { company_name: existing.company_name, stage: existing.stage, kind: existing.kind }
+      : null,
+  );
+
+  if (!ex.is_deal && !existing) {
+    await insertLedger(newMsgs, null);
+    return { outcome: "non_deal", maxMs };
+  }
+
+  if (!existing) existing = await matchDeal(ex, msgs);
+
+  const timesMs = msgs.map((m) => m.internalDateMs).filter((t) => t > 0);
+  const firstMs = timesMs.length ? Math.min(...timesMs) : Date.now();
+  const lastMs = timesMs.length ? Math.max(...timesMs) : Date.now();
+  const lastMsg = msgs[msgs.length - 1];
+  const lastDir = (lastMsg.email.from_email ?? "").toLowerCase().includes(MAILBOX)
+    ? "outbound"
+    : "inbound";
+
+  let dealId: string;
+  let outcome: Outcome;
+
+  if (!existing) {
+    const fu = computeFollowUp({
+      stage: ex.stage,
+      lastEmailAtMs: lastMs,
+      lastDirection: lastDir,
+      samplesSentAtMs: ex.samples_sent ? lastMs : null,
+      aiFollowUp: ex.follow_up_needed,
+      aiReason: ex.follow_up_reason,
+    }, Date.now());
+    const { data, error } = await db().from("deals").insert({
+      company_name: ex.company_name ?? fallbackCompanyName(msgs),
+      company_domain: ex.company_domain ?? threadCompanyDomain(msgs),
+      kind: ex.kind,
+      contact_name: ex.contact_name,
+      contact_email: ex.contact_email ?? threadContactEmail(msgs),
+      stage: ex.stage,
+      samples_sent_at: ex.samples_sent ? new Date(lastMs).toISOString() : null,
+      next_step: ex.next_step,
+      next_step_owner: ex.next_step_owner,
+      follow_up_needed: fu.needed,
+      follow_up_reason: fu.reason,
+      commercials: ex.commercials,
+      summary: ex.summary,
+      last_email_at: new Date(lastMs).toISOString(),
+      last_email_direction: lastDir,
+      first_email_at: new Date(firstMs).toISOString(),
+      ai_confidence: ex.confidence,
+    }).select("id").single();
+    if (error) throw new Error(`deals insert failed: ${error.message}`);
+    dealId = (data as { id: string }).id;
+    outcome = "created";
+  } else {
+    const stage = mergeStage(existing.stage, ex.stage, existing.manual_stage_override);
+    const samplesSentAt = existing.samples_sent_at ??
+      (ex.samples_sent ? new Date(lastMs).toISOString() : null);
+    const fu = computeFollowUp({
+      stage,
+      lastEmailAtMs: lastMs,
+      lastDirection: lastDir,
+      samplesSentAtMs: samplesSentAt ? new Date(samplesSentAt).getTime() : null,
+      aiFollowUp: ex.follow_up_needed,
+      aiReason: ex.follow_up_reason,
+    }, Date.now());
+    const patch: Record<string, unknown> = {
+      stage,
+      kind: existing.kind === "other" ? ex.kind : existing.kind,
+      contact_name: existing.contact_name ?? ex.contact_name,
+      contact_email: existing.contact_email ?? ex.contact_email,
+      samples_sent_at: samplesSentAt,
+      next_step: ex.next_step,
+      next_step_owner: ex.next_step_owner,
+      follow_up_needed: fu.needed,
+      follow_up_reason: fu.reason,
+      commercials: ex.commercials ?? undefined,
+      summary: ex.summary ?? undefined,
+      last_email_at: new Date(lastMs).toISOString(),
+      last_email_direction: lastDir,
+      first_email_at:
+        existing.first_email_at && new Date(existing.first_email_at).getTime() < firstMs
+          ? existing.first_email_at
+          : new Date(firstMs).toISOString(),
+      ai_confidence: ex.confidence,
+    };
+    if (stage !== existing.stage) patch.stage_updated_at = new Date().toISOString();
+    const { error } = await db().from("deals").update(patch).eq("id", existing.id);
+    if (error) throw new Error(`deals update failed: ${error.message}`);
+    dealId = existing.id;
+    outcome = "updated";
+  }
+
+  await insertLedger(newMsgs, dealId);
+
+  // keep email_count exact from the ledger
+  const { count } = await db()
+    .from("deal_emails")
+    .select("id", { count: "exact", head: true })
+    .eq("deal_id", dealId);
+  await db().from("deals").update({ email_count: count ?? 0 }).eq("id", dealId);
+
+  return { outcome, maxMs };
+}
+
+// Attach a fresh thread to an existing deal by domain, then by name.
+async function matchDeal(ex: DealExtraction, msgs: ThreadMessage[]): Promise<DealRow | null> {
+  const sel =
+    "id, company_name, company_domain, kind, contact_name, contact_email, stage, samples_sent_at, first_email_at, manual_stage_override";
+  const domain = ex.company_domain ?? threadCompanyDomain(msgs);
+  if (domain) {
+    const { data } = await db().from("deals").select(sel).ilike("company_domain", domain)
+      .order("created_at", { ascending: false }).limit(1);
+    if (data?.length) return data[0] as DealRow;
+  }
+  if (ex.company_name) {
+    const { data } = await db().from("deals").select(sel).ilike("company_name", ex.company_name)
+      .order("created_at", { ascending: false }).limit(1);
+    if (data?.length) return data[0] as DealRow;
+  }
+  return null;
+}
+
+async function insertLedger(msgs: ThreadMessage[], dealId: string | null) {
+  if (!msgs.length) return;
+  const rows = msgs.map((m) => ({
+    deal_id: dealId,
+    gmail_message_id: m.email.gmail_message_id,
+    gmail_thread_id: m.email.gmail_thread_id,
+    direction: (m.email.from_email ?? "").toLowerCase().includes(MAILBOX) ? "outbound" : "inbound",
+    from_email: m.email.from_email ? extractAddress(m.email.from_email).slice(0, 300) : null,
+    to_email: m.email.to_email ? extractAddress(m.email.to_email).slice(0, 300) : null,
+    subject: m.email.subject?.slice(0, 500) ?? null,
+    snippet: m.email.snippet?.slice(0, 300) ?? null,
+    sent_at: m.internalDateMs ? new Date(m.internalDateMs).toISOString() : null,
+  }));
+  const { error } = await db().from("deal_emails").upsert(rows, {
+    onConflict: "gmail_message_id",
+    ignoreDuplicates: true,
+  });
+  if (error) throw new Error(`deal_emails insert failed: ${error.message}`);
+}
+
+// Refresh follow-up flags + auto-dormancy across the live pipeline, so flags
+// age correctly even when no new mail arrives.
+async function sweepFollowUps() {
+  const { data } = await db()
+    .from("deals")
+    .select(
+      "id, stage, last_email_at, last_email_direction, samples_sent_at, manual_stage_override, follow_up_needed, follow_up_reason",
+    )
+    .not("stage", "in", "(won,lost)");
+  const now = Date.now();
+  for (const d of data ?? []) {
+    const lastMs = d.last_email_at ? new Date(d.last_email_at).getTime() : null;
+    let stage = d.stage as DealStage;
+    if (shouldGoDormant(stage, lastMs, d.manual_stage_override, now)) stage = "dormant";
+    const fu = computeFollowUp({
+      stage,
+      lastEmailAtMs: lastMs,
+      lastDirection: (d.last_email_direction as "inbound" | "outbound" | null) ?? null,
+      samplesSentAtMs: d.samples_sent_at ? new Date(d.samples_sent_at).getTime() : null,
+    }, now);
+    if (stage !== d.stage || fu.needed !== d.follow_up_needed || fu.reason !== d.follow_up_reason) {
+      await db().from("deals").update({
+        stage,
+        ...(stage !== d.stage ? { stage_updated_at: new Date().toISOString() } : {}),
+        follow_up_needed: fu.needed,
+        follow_up_reason: fu.reason,
+      }).eq("id", d.id);
+    }
+  }
+}
+
+function fallbackCompanyName(msgs: ThreadMessage[]): string {
+  const firstInbound = msgs.find((m) =>
+    !(m.email.from_email ?? "").toLowerCase().includes(MAILBOX)
+  );
+  return firstInbound?.email.from_name || firstInbound?.email.from_email || "Unknown counterparty";
+}
+
+function threadCompanyDomain(msgs: ThreadMessage[]): string | null {
+  for (const m of msgs) {
+    const from = m.email.from_email ?? "";
+    if (from.toLowerCase().includes(MAILBOX)) continue;
+    const d = companyDomainOf(from);
+    if (d) return d;
+  }
+  return null;
+}
+
+function threadContactEmail(msgs: ThreadMessage[]): string | null {
+  const firstInbound = msgs.find((m) =>
+    !(m.email.from_email ?? "").toLowerCase().includes(MAILBOX)
+  );
+  return firstInbound?.email.from_email
+    ? extractAddress(firstInbound.email.from_email).toLowerCase()
+    : null;
+}
+
+function json(o: unknown, status = 200) {
+  return new Response(JSON.stringify(o), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}

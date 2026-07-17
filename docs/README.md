@@ -40,6 +40,7 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 |---|---|
 | [2026-07-05-b2b-leads-v2.md](plans/2026-07-05-b2b-leads-v2.md) | B2B leads v2 implementation plan (lists/sequences/templates/analytics) |
 | [2026-07-05-b2b-leads-v2-design.md](plans/2026-07-05-b2b-leads-v2-design.md) | B2B leads v2 design spec |
+| [2026-07-17-deal-pipeline.md](plans/2026-07-17-deal-pipeline.md) | Deal pipeline: AI scan of hello@promunch.in → /dashboard/deals stage tracker (architecture + ops checklist) |
 
 ## audits/ — point-in-time audit deliverables
 

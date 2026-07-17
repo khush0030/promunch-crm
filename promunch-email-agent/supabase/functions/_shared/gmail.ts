@@ -267,6 +267,36 @@ export async function listUnreadInbox(maxResults = 20): Promise<Array<{ id: stri
 }
 
 // ---------------------------------------------------------------------------
+// Thread search — used by deal-scan to sweep the mailbox with a Gmail query
+// ---------------------------------------------------------------------------
+export async function listThreads(
+  q: string,
+  maxResults = 100,
+  pageToken?: string,
+): Promise<{ threads: Array<{ id: string }>; nextPageToken?: string }> {
+  const params = new URLSearchParams({ q, maxResults: String(maxResults) });
+  if (pageToken) params.set("pageToken", pageToken);
+  const resp = await gmail<{ threads?: Array<{ id: string }>; nextPageToken?: string }>(
+    `/users/me/threads?${params}`,
+  );
+  return { threads: resp.threads ?? [], nextPageToken: resp.nextPageToken };
+}
+
+export interface ThreadMessage {
+  email: ParsedEmail;
+  internalDateMs: number;
+}
+
+// Full thread, every message parsed, oldest first (Gmail's native order).
+export async function getThreadParsed(threadId: string): Promise<ThreadMessage[]> {
+  const resp = await gmail<{ messages?: GmailMessage[] }>(`/users/me/threads/${threadId}?format=full`);
+  return (resp.messages ?? []).map((m) => ({
+    email: parseMessage(m),
+    internalDateMs: Number(m.internalDate ?? 0),
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // Fetch + parse a single message
 // ---------------------------------------------------------------------------
 export async function getMessage(messageId: string): Promise<ParsedEmail> {
@@ -287,6 +317,7 @@ interface GmailMessage {
   id: string;
   threadId: string;
   historyId?: string;
+  internalDate?: string;
   snippet?: string;
   payload: GmailMessagePart;
 }

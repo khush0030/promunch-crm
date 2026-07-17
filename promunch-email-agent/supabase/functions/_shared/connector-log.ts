@@ -18,7 +18,8 @@ export type ConnectorId =
   | "shopify_wa"       // Shopify → WhatsApp journeys
   | "shopify"          // Shopify webhook intake (Next.js + edge)
   | "b2b_outreach"     // B2B cold-email outreach sends
-  | "instagram";       // Instagram inbound DM / comment automation
+  | "instagram"        // Instagram inbound DM / comment automation
+  | "deal_scan";       // Gmail → deal-pipeline scanner
 
 export type ConnectorLevel = "info" | "warn" | "error";
 
