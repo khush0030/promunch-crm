@@ -118,6 +118,8 @@ verify_jwt = false                    # read-only Graph diagnostic (tier/quality
 [functions.wa-campaign-worker]
 verify_jwt = false                    # invoked by pg_cron every ~2 min; promotes scheduled + drives/heals sending campaigns
 
+[functions.cod-gate-action]
+verify_jwt = false                    # called by Next.js API with service role bearer; gated by requireInternal
 
 [functions.amazon-poll]
 verify_jwt = false                    # invoked by scheduled cron (SP-API sync)
