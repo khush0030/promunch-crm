@@ -166,8 +166,8 @@ const TEMPLATES: TemplateDef[] = [
     bodyExample: ["Priya", "#PM2091", "₹398"],
     footer: "Your Munchy Pal",
     buttons: [
-      { type: "QUICK_REPLY", text: "✅ Confirm order" },
-      { type: "QUICK_REPLY", text: "❌ Cancel order" },
+      { type: "QUICK_REPLY", text: "Confirm order" },
+      { type: "QUICK_REPLY", text: "Cancel order" },
     ],
   },
   {
@@ -183,8 +183,8 @@ const TEMPLATES: TemplateDef[] = [
     bodyExample: ["Priya", "#PM2091", "₹398"],
     footer: "Your Munchy Pal",
     buttons: [
-      { type: "QUICK_REPLY", text: "✅ Confirm order" },
-      { type: "QUICK_REPLY", text: "❌ Cancel order" },
+      { type: "QUICK_REPLY", text: "Confirm order" },
+      { type: "QUICK_REPLY", text: "Cancel order" },
     ],
   },
   {
