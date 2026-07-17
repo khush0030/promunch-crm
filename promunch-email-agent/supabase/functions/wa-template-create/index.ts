@@ -164,7 +164,7 @@ const TEMPLATES: TemplateDef[] = [
       "Total {{3}}, payable Cash on Delivery. We ship COD orders only after a quick confirmation.\n\n" +
       "Please tap below to confirm 👇",
     bodyExample: ["Priya", "#PM2091", "₹398"],
-    footer: "Your Munchy Pal 💚",
+    footer: "Your Munchy Pal",
     buttons: [
       { type: "QUICK_REPLY", text: "✅ Confirm order" },
       { type: "QUICK_REPLY", text: "❌ Cancel order" },
@@ -181,7 +181,7 @@ const TEMPLATES: TemplateDef[] = [
       "Hi {{1}}! Just a quick nudge about your PROMUNCH order {{2}} ({{3}}, Cash on Delivery).\n\n" +
       "We pack it the moment you confirm. Tap below 👇",
     bodyExample: ["Priya", "#PM2091", "₹398"],
-    footer: "Your Munchy Pal 💚",
+    footer: "Your Munchy Pal",
     buttons: [
       { type: "QUICK_REPLY", text: "✅ Confirm order" },
       { type: "QUICK_REPLY", text: "❌ Cancel order" },
