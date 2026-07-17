@@ -151,6 +151,43 @@ const TEMPLATES: TemplateDef[] = [
     footer: "Reply STOP to unsubscribe",
   },
   {
+    // COD confirmation gate (RTO reduction). Sent instead of order_confirmation
+    // for COD orders. Two quick-reply buttons; the CONFIRM_/CANCEL_ payload is
+    // injected per send (buildVerifyComponents), so the button text here is
+    // cosmetic and the payload carries the Shopify order id.
+    //   1=name 2=orderRef 3=total
+    name: "order_verify_v1",
+    language: "en",
+    category: "UTILITY",
+    body:
+      "Hi {{1}}! Your PROMUNCH order {{2}} is in 🎉\n\n" +
+      "Total {{3}}, payable Cash on Delivery. We ship COD orders only after a quick confirmation.\n\n" +
+      "Please tap below to confirm 👇",
+    bodyExample: ["Priya", "#PM2091", "₹398"],
+    footer: "Your Munchy Pal 💚",
+    buttons: [
+      { type: "QUICK_REPLY", text: "✅ Confirm order" },
+      { type: "QUICK_REPLY", text: "❌ Cancel order" },
+    ],
+  },
+  {
+    // COD gate reminder — one nudge if the customer hasn't tapped. Same buttons
+    // and same 3-var contract as order_verify_v1.
+    //   1=name 2=orderRef 3=total
+    name: "order_verify_reminder_v1",
+    language: "en",
+    category: "UTILITY",
+    body:
+      "Hi {{1}}! Just a quick nudge about your PROMUNCH order {{2}} ({{3}}, Cash on Delivery).\n\n" +
+      "We pack it the moment you confirm. Tap below 👇",
+    bodyExample: ["Priya", "#PM2091", "₹398"],
+    footer: "Your Munchy Pal 💚",
+    buttons: [
+      { type: "QUICK_REPLY", text: "✅ Confirm order" },
+      { type: "QUICK_REPLY", text: "❌ Cancel order" },
+    ],
+  },
+  {
     // INTERNAL ops alert — sent to OPS_WA_ID (not a customer) the instant a
     // customer explicitly cancels, so the order is pulled before dispatch.
     //   1=orderRef 2=customerName 3=customerPhone 4=reason
