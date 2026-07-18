@@ -25,7 +25,7 @@ Full-platform audit (6 parallel deep audits: frontend, API routes, edge function
 | H6 | Next.js 16.1.7 carried published middleware-bypass/DoS/cache-poisoning advisories — middleware is this app's entire auth | Upgraded to 16.2.10; `npm audit fix` cleared undici/svix; remaining: 1 moderate (postcss bundled inside Next — upstream) |
 | H7 | Frontend 401-crash class: 21 files fed error JSON into state; no route error boundaries; pages hung forever or masked errors as empty data | `error.tsx`/`loading.tsx` at the dashboard segment, shared `apiFetch()` (401→login redirect), 15 files retrofitted with real error/retry states |
 | H8 | Missing hot-path indexes (wa_messages template/status + sent_by, shopify_orders customer_email + order_number, COD scan) | Migration `20260718122000_hot_indexes.sql` |
-| H9 | `wa_threads.last_activity_at` never existed — inbox ordering silently regressed to creation order | Migration `20260718121000`: column + backfill + index + trigger on wa_messages (no edge code change needed) |
+| H9 | `wa_threads.last_activity_at` absent from every repo migration (the inbox API orders by it) | On apply, prod turned out to already have it as a hand-applied GENERATED column the repo never recorded — a live example of migration drift. Migration `20260718121000` now records that definition; the missing sort index was added |
 
 ### Medium (fixed)
 - Campaign audience read silently capped at 1000 contacts (`wa-campaign-send`) — paginated; >1000-contact campaigns would have marked completed with recipients unreached.
