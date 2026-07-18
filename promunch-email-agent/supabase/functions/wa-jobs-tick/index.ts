@@ -145,62 +145,12 @@ async function runJob(job: any): Promise<{ ok: boolean; error?: string }> {
     }
   }
 
-  if (job.kind === "order_confirmation") {
-    const p = job.payload ?? {};
-    if (!p.wa_id || !p.order_ref) return { ok: false, error: "order_confirmation job missing wa_id/order_ref" };
-    const sentBy = p.sent_by ?? `journey:order_confirmation:${p.order_ref}`;
-
-    // Dedup — if shopify-wa retried in parallel and succeeded, stop.
-    const sb = db();
-    const { data: already } = await sb.from("wa_messages").select("id")
-      .eq("sent_by", sentBy).in("status", ["sent", "delivered", "read"]).limit(1);
-    if (already && already.length) return { ok: true };
-
-    try {
-      const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-send`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          to: p.wa_id,
-          kind: "template",
-          template: { name: "order_confirmation", language: "en", vars: { "1": p.name ?? "there", "2": p.order_ref, "3": String(p.total ?? "") } },
-          sent_by: sentBy,
-        }),
-      });
-      const data = await r.json().catch(() => null);
-      if (!r.ok || data?.ok !== true) return { ok: false, error: data?.error ?? `wa-send HTTP ${r.status}` };
-
-      // Send succeeded — also do the side-effects shopify-wa skipped.
-      await sb.from("wa_journey_runs").update({ status: "converted" })
-        .eq("wa_id", p.wa_id).eq("journey_key", "abandoned_checkout").eq("status", "active")
-        .then(() => {}, () => {});
-
-      // Enrol post-purchase journeys (mirrors shopify-wa.handleOrderCreate
-      // step 3). Hard-coded delays to avoid a cross-function import.
-      const REVIEW_URL = Deno.env.get("PROMUNCH_REVIEW_URL") ?? "https://promunch.in/pages/reviews";
-      const SITE_URL = Deno.env.get("PROMUNCH_SITE_URL") ?? "https://promunch.in";
-      const now = Date.now();
-      await sb.from("wa_journey_runs").insert([
-        {
-          journey_key: "review_request", wa_id: p.wa_id, order_ref: p.order_ref,
-          next_action_at: new Date(now + 5 * 24 * 3600_000).toISOString(),
-          context: { vars: { "1": p.name ?? "there", "2": REVIEW_URL } },
-        },
-        {
-          journey_key: "replenishment_reminder", wa_id: p.wa_id, order_ref: p.order_ref,
-          next_action_at: new Date(now + 30 * 24 * 3600_000).toISOString(),
-          context: { vars: { "1": p.name ?? "there", "2": SITE_URL } },
-        },
-      ]).then(() => {}, () => {});
-
-      return { ok: true };
-    } catch (e) {
-      return { ok: false, error: String(e) };
-    }
-  }
+  // NOTE: the legacy "order_confirmation" job kind was removed (audit
+  // 2026-07-18). Nothing enqueues it, and its implementation violated §0: a
+  // read-then-act dedup instead of claimConfirmation, the retired 3-var
+  // order_confirmation template, and unclaimed hard-coded journey enrolment
+  // that bypassed wa_flow_settings. Order confirmations are owned exclusively
+  // by _shared/order-confirmation.ts + wa-confirmation-sweep.
 
   return { ok: false, error: `unknown job kind '${job.kind}'` };
 }
@@ -296,8 +246,9 @@ async function sweepCodGate() {
         .update({ confirmation_status: "needs_call" })
         .eq("shopify_id", o.shopify_id).eq("confirmation_status", "pending");
       const to = (Deno.env.get("OPS_WA_ID") ?? "").replace(/^\+/, "").replace(/\D/g, "");
+      let pinged = true;
       if (to) {
-        await callWaSendTick({
+        const res = await callWaSendTick({
           to,
           kind: "template",
           sent_by: "cod_gate_ops",
@@ -313,8 +264,13 @@ async function sweepCodGate() {
             },
           },
         });
+        pinged = res?.ok === true;
       }
-      await markSendSent(`cod_needs_call:${ref}`);
+      // Ops ping is an internal message: a duplicate is a minor annoyance but a
+      // miss parks the order with nobody told. Retry-bias: only lock the claim
+      // when the ping went out; otherwise release so the next tick retries.
+      if (pinged) await markSendSent(`cod_needs_call:${ref}`);
+      else await releaseSend(`cod_needs_call:${ref}`);
       escalated++;
       continue;
     }

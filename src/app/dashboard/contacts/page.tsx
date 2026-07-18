@@ -6,6 +6,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/Toast";
 import { PageHead, Toolbar, SearchBar, FilterChips, DataTable, StatusBadge, EmptyState, KpiCard } from "@/components/pm";
 import type { Column, BadgeTone, KpiTone } from "@/components/pm";
+import { apiFetch } from "@/lib/api-fetch";
 
 type ContactRow = {
   id: string;
@@ -54,6 +55,7 @@ export default function ContactsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [minOrders, setMinOrders] = useState("");
@@ -76,6 +78,7 @@ export default function ContactsPage() {
 
   const fetchContacts = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams({ page: String(page), limit: "15" });
       if (search) params.set("search", search);
@@ -91,24 +94,26 @@ export default function ContactsPage() {
       params.set("sort", sort);
       params.set("dir", dir);
 
-      const res = await fetch(`/api/contacts?${params}`);
-      if (!res.ok) throw new Error("API error");
-      const data = await res.json();
+      const data = await apiFetch<{
+        contacts?: {
+          id: string;
+          first_name?: string;
+          last_name?: string;
+          email: string | null;
+          phone?: string | null;
+          total_orders?: number;
+          total_spent?: number;
+          last_purchase_date?: string;
+          status?: string;
+          tags?: string[];
+          klaviyo_lists?: string[];
+          klaviyo_segments?: string[];
+        }[];
+        total?: number;
+        pages?: number;
+      }>(`/api/contacts?${params}`);
 
-      const mapped: ContactRow[] = (data.contacts || []).map((c: {
-        id: string;
-        first_name?: string;
-        last_name?: string;
-        email: string | null;
-        phone?: string | null;
-        total_orders?: number;
-        total_spent?: number;
-        last_purchase_date?: string;
-        status?: string;
-        tags?: string[];
-        klaviyo_lists?: string[];
-        klaviyo_segments?: string[];
-      }) => ({
+      const mapped: ContactRow[] = (data.contacts || []).map((c) => ({
         id: c.id,
         name: [c.first_name, c.last_name].filter(Boolean).join(" ") || (c.email ? c.email.split("@")[0] : c.phone || "Contact"),
         email: c.email || null,
@@ -129,10 +134,10 @@ export default function ContactsPage() {
       setContacts(mapped);
       setTotal(data.total || 0);
       setTotalPages(data.pages || 1);
-    } catch {
-      setContacts([]);
-      setTotal(0);
-      setTotalPages(1);
+    } catch (e) {
+      // Keep whatever is on screen and surface the failure — a fetch error must
+      // not masquerade as "No contacts" / total 0.
+      setLoadError(e instanceof Error ? e.message : "Couldn't load contacts");
     } finally {
       setIsLoading(false);
       setLoaded(true);
@@ -269,7 +274,11 @@ export default function ContactsPage() {
     <div className="pm-page">
       <PageHead
         title="Contacts"
-        subtitle={`${total.toLocaleString("en-IN")} total contacts · manage your subscriber base`}
+        subtitle={
+          loadError && contacts.length === 0
+            ? "Couldn’t load contacts"
+            : `${total.toLocaleString("en-IN")} total contacts · manage your subscriber base`
+        }
         actions={
           <>
             {importMsg && (
@@ -411,6 +420,14 @@ export default function ContactsPage() {
             </div>
           </div>
         </div>
+      ) : loadError ? (
+        <EmptyState
+          icon={<Users />}
+          title="Couldn’t load contacts"
+          cta={<button className="pm-btn primary" onClick={() => fetchContacts()}>Retry</button>}
+        >
+          {loadError}
+        </EmptyState>
       ) : (
         <EmptyState
           icon={<Users />}

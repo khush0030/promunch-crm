@@ -1,13 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { recordAudit } from "@/lib/audit";
+import { parseBody } from "@/lib/api-helpers";
+
+// Only fields the dashboard template editor edits — a raw passthrough would
+// let any caller flip Meta-owned columns. Meta owns the real template status
+// (the sync/submit flow mirrors it back), so `status` is deliberately absent.
+const PATCHABLE = new Set([
+  "name", "language", "category", "header_type", "header_text",
+  "header_media_url", "body", "footer", "buttons", "variables",
+]);
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const body = await req.json();
+  const body = await parseBody(req);
+  if (!body) return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
+  const patch = Object.fromEntries(
+    Object.entries(body).filter(([k]) => PATCHABLE.has(k)),
+  );
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json({ error: "no editable fields in body" }, { status: 400 });
+  }
   const { data, error } = await supabaseAdmin
     .from("wa_templates")
-    .update(body)
+    .update(patch)
     .eq("id", id)
     .select("*")
     .single();

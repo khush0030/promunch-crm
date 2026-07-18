@@ -118,18 +118,26 @@ function KbStatus({ s }: { s: KbDoc["status"] }) {
 }
 
 function ManualKbModal({ onClose }: { onClose: () => void }) {
+  const toast = useToast();
   const [name, setName] = useState("");
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
   async function save() {
     if (!text.trim()) return;
     setSaving(true);
-    await fetch("/api/whatsapp/kb", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name || "manual entry", text }),
-    });
-    setSaving(false);
-    onClose();
+    try {
+      const r = await fetch("/api/whatsapp/kb", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name || "manual entry", text }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || j?.error) throw new Error(j?.error || `Save failed (${r.status})`);
+      onClose(); // close only on success so the pasted text isn't lost
+    } catch (e) {
+      toast.push({ kind: "error", text: e instanceof Error ? e.message : "Save failed" });
+    } finally {
+      setSaving(false);
+    }
   }
   return (
     <Modal onClose={onClose} title="Paste knowledge">

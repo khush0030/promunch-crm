@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSession } from '@/lib/leads/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { sanitizeSearch } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +46,10 @@ export async function GET(req: NextRequest) {
   if (searchId) query = query.eq('search_id', searchId);
   if (city) query = query.eq('city', city);
   if (category) query = query.eq('category', category);
-  if (q) query = query.or(`name.ilike.%${q}%,domain.ilike.%${q}%`);
+  if (q) {
+    const safe = sanitizeSearch(q);
+    if (safe) query = query.or(`name.ilike.%${safe}%,domain.ilike.%${safe}%`);
+  }
 
   const [{ data: leads, count, error }, statusCounts, searches, sentToday, settings, activeEnrollments] =
     await Promise.all([

@@ -18,6 +18,7 @@
 // Master KB still owns nutrition, policies and brand voice.
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { adminGraphQL } from "../_shared/shopify-customer.ts";
 
 // Stable name for the generated KB doc — we upsert this single row each run.
@@ -59,6 +60,8 @@ function variantNumericId(gid: string): string {
 }
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   if (req.method !== "POST") return j({ ok: false, error: "method" }, 405);
 
   const sb = db();

@@ -5,13 +5,17 @@
 //
 // POST { to, subject, body, fromName? } → { ok, id, threadId }
 //
-// Auth: verify_jwt = true (default). Called by the Next.js send route with the
-// service-role bearer.
+// Auth: service-role bearer via requireInternal (verify_jwt alone is NOT
+// authorization — the public anon key passes it). Called with the service-role
+// bearer.
 
 import { sendNewEmail } from "../_shared/gmail.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   if (req.method !== "POST") {
     return Response.json({ error: "POST only" }, { status: 405 });
   }

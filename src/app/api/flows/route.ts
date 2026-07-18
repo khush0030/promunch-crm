@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabase-admin";
+import { parseBody } from "@/lib/api-helpers";
 
 export async function GET() {
   const { data, error } = await supabase
@@ -11,7 +12,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const body = await parseBody(req);
+  if (!body) return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
   const { name, trigger_type } = body;
   if (!name) return NextResponse.json({ error: "Flow name is required" }, { status: 400 });
 

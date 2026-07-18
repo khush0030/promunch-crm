@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { parseBody } from "@/lib/api-helpers";
 
 const TEMPLATE_JOIN = "*, template:wa_templates(id,name,language,category,status,body)";
 
@@ -13,7 +14,17 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const body = await parseBody<{
+    name?: string;
+    template_id?: string;
+    template_vars?: Record<string, unknown>;
+    audience_filter?: Record<string, unknown>;
+    scheduled_at?: string | null;
+    repeat_rule?: string;
+    repeat_until?: string | null;
+    created_by?: string | null;
+  }>(req);
+  if (!body) return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
   if (!body.name) return NextResponse.json({ error: "name required" }, { status: 400 });
   if (!body.template_id) return NextResponse.json({ error: "template_id required" }, { status: 400 });
 
@@ -24,7 +35,7 @@ export async function POST(req: NextRequest) {
   const isScheduled = scheduledAt && new Date(scheduledAt).getTime() > Date.now();
   // Recurring: a repeat_rule turns a scheduled campaign into an ongoing series.
   // The wa-campaign-tick cron spawns a child send each occurrence.
-  const repeatRule = ["daily", "weekly", "monthly"].includes(body.repeat_rule)
+  const repeatRule = ["daily", "weekly", "monthly"].includes(body.repeat_rule ?? "")
     ? body.repeat_rule : null;
   const row = {
     name: body.name,

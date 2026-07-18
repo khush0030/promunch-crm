@@ -3,9 +3,13 @@
 // Uses the WHATSAPP_ACCESS_TOKEN / WHATSAPP_PHONE_NUMBER_ID secrets so the
 // token never has to be handled by hand. Safe to delete after a successful run.
 
+import { requireInternal } from "../_shared/require-internal.ts";
+
 const GRAPH = `https://graph.facebook.com/${Deno.env.get("WHATSAPP_GRAPH_VERSION") ?? "v21.0"}`;
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   if (req.method !== "POST") return j({ error: "method" }, 405);
 
   const { pin } = await req.json().catch(() => ({}));

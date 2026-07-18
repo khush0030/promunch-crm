@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { sanitizeSearch } from "@/lib/api-helpers";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -20,7 +21,10 @@ export async function GET(req: NextRequest) {
 
   if (status) q = q.eq("status", status);
   if (leadCategory) q = q.eq("lead_category", leadCategory);
-  if (search) q = q.or(`from_email.ilike.%${search}%,from_name.ilike.%${search}%,subject.ilike.%${search}%`);
+  if (search) {
+    const safe = sanitizeSearch(search);
+    if (safe) q = q.or(`from_email.ilike.%${safe}%,from_name.ilike.%${safe}%,subject.ilike.%${safe}%`);
+  }
 
   const { data, count, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { parseBody } from "@/lib/api-helpers";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -21,7 +22,8 @@ export async function POST(req: NextRequest) {
   const ct = req.headers.get("content-type") ?? "";
 
   if (ct.includes("application/json")) {
-    const body = await req.json();
+    const body = await parseBody(req);
+    if (!body) return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
     if (!body.text) return NextResponse.json({ error: "text required" }, { status: 400 });
     const r = await fetch(`${SUPABASE_URL}/functions/v1/kb-ingest`, {
       method: "POST",
@@ -60,12 +62,16 @@ export async function POST(req: NextRequest) {
       .single();
     if (dErr) return NextResponse.json({ error: dErr.message }, { status: 500 });
 
-    // kick ingest (fire-and-forget — large PDFs may exceed Vercel timeout otherwise)
-    fetch(`${SUPABASE_URL}/functions/v1/kb-ingest`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ document_id: doc.id }),
-    }).catch(() => {});
+    // kick ingest (fire-and-forget — large PDFs may exceed Vercel timeout
+    // otherwise). after() keeps the function alive past the response so the
+    // kick isn't killed when Vercel freezes the invocation.
+    after(() =>
+      fetch(`${SUPABASE_URL}/functions/v1/kb-ingest`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ document_id: doc.id }),
+      }).catch(() => {}),
+    );
 
     return NextResponse.json({ document: doc });
   }

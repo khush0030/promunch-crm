@@ -151,12 +151,12 @@ export default function CampaignsView() {
     setBusy(c.id);
     try {
       const r = await fetch(`/api/whatsapp/campaigns/${c.id}/send`, { method: "POST" });
-      const j = await r.json();
-      if (j.error) toast.push({ kind: "error", text: "Send failed: " + j.error });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.error) toast.push({ kind: "error", text: "Send failed: " + (j.error || `HTTP ${r.status}`) });
       else
         toast.push({
           kind: "success",
-          text: `Done — ${j.sent} sent, ${j.failed} failed${j.remaining ? `, ${j.remaining} remaining (click Resume to continue)` : ""}.`,
+          text: `Done — ${j.sent ?? 0} sent, ${j.failed ?? 0} failed${j.remaining ? `, ${j.remaining} remaining (click Resume to continue)` : ""}.`,
         });
       load();
     } finally { setBusy(null); }
@@ -178,12 +178,12 @@ export default function CampaignsView() {
     setImporting(true);
     try {
       const r = await fetch("/api/whatsapp/import-contacts", { method: "POST" });
-      const j = await r.json();
-      if (j.error) toast.push({ kind: "error", text: "Import failed: " + j.error });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.error) toast.push({ kind: "error", text: "Import failed: " + (j.error || `HTTP ${r.status}`) });
       else
         toast.push({
           kind: "success",
-          text: `Imported ${j.imported} new contact(s) · scanned ${j.scanned}, skipped ${j.skipped} (no valid phone / duplicate) · ${j.total_wa_contacts} WhatsApp contacts total.`,
+          text: `Imported ${j.imported ?? 0} new contact(s) · scanned ${j.scanned ?? 0}, skipped ${j.skipped ?? 0} (no valid phone / duplicate) · ${j.total_wa_contacts ?? "?"} WhatsApp contacts total.`,
         });
     } finally { setImporting(false); }
   }

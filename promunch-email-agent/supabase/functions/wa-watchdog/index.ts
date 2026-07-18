@@ -13,12 +13,15 @@
 // pg_cron as a same-fate backstop. Either trigger reaches the same check.
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { postSlack, slackChannelFor, buildStructuredAlert } from "../_shared/connector-log.ts";
 
 const STALE_MINUTES = 20;   // alert if no health_ok within this window
 const DEDUPE_MINUTES = 20;  // don't re-ping more than once per window
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   const sb = db();
 
   const { data: last } = await sb

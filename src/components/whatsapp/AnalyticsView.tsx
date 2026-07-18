@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { KpiCard, Panel, AttentionItem, StatusBadge, DataTable } from "@/components/pm";
 import type { KpiTone, Column } from "@/components/pm";
+import { apiFetch } from "@/lib/api-fetch";
 
 // WhatsApp analytics, written for an employee, not an engineer. Every tile and
 // bar carries a plain-English meaning + a verdict, so nobody has to know what
@@ -59,19 +60,29 @@ export default function AnalyticsView() {
   const [conv, setConv] = useState<ConvData | null>(null);
   const [act, setAct] = useState<ActItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
-      const [r1, r2, r3] = await Promise.all([
-        fetch(`/api/whatsapp/analytics?days=${days}`),
-        fetch(`/api/whatsapp/analytics/campaigns?days=${days}`),
-        fetch(`/api/whatsapp/analytics/conversion?days=${days}`),
+      const [d1, c1, v1] = await Promise.all([
+        apiFetch<Data>(`/api/whatsapp/analytics?days=${days}`),
+        apiFetch<CampData>(`/api/whatsapp/analytics/campaigns?days=${days}`),
+        apiFetch<ConvData>(`/api/whatsapp/analytics/conversion?days=${days}`),
       ]);
-      setD(await r1.json());
-      setC(await r2.json());
-      setConv(await r3.json());
-    } catch { /* keep last good */ }
+      // Shape gates: never let an unexpected payload reach render
+      // (d.headline / d.funnel.map / conv.rows would throw).
+      if (!d1?.headline || !d1.today || !Array.isArray(d1.funnel) || !d1.failures || !d1.health) {
+        throw new Error("Unexpected analytics response");
+      }
+      setD(d1);
+      setC(c1 && Array.isArray(c1.campaigns) ? c1 : null);
+      setConv(v1 && Array.isArray(v1.rows) && v1.totals ? v1 : null);
+    } catch (e) {
+      // keep last good data; surface the failure instead of crashing
+      setLoadError(e instanceof Error ? e.message : "Couldn't load analytics");
+    }
     setLoading(false);
   }, [days]);
   useEffect(() => { load(); }, [load]);
@@ -81,9 +92,8 @@ export default function AnalyticsView() {
     let alive = true;
     const pull = async () => {
       try {
-        const r = await fetch("/api/whatsapp/analytics/activity");
-        const j = await r.json();
-        if (alive) setAct(j.items ?? []);
+        const j = await apiFetch<{ items?: ActItem[] }>("/api/whatsapp/analytics/activity");
+        if (alive) setAct(Array.isArray(j.items) ? j.items : []);
       } catch { /* keep last good */ }
     };
     pull();
@@ -114,10 +124,22 @@ export default function AnalyticsView() {
 
       {loading && !d ? (
         <div className="pm-csub" style={{ padding: "40px 0", textAlign: "center" }}>Loading analytics…</div>
+      ) : loadError && !d ? (
+        <div style={{ padding: "40px 0", textAlign: "center" }}>
+          <div className="pm-csub" style={{ marginBottom: 12 }}>Couldn’t load analytics: {loadError}</div>
+          <button type="button" className="pm-chip" onClick={load}>
+            <RefreshCw size={13} style={{ verticalAlign: "-2px" }} /> Retry
+          </button>
+        </div>
       ) : !d ? (
         <div className="pm-csub" style={{ padding: "40px 0", textAlign: "center" }}>No data yet.</div>
       ) : (
         <>
+          {loadError && (
+            <div className="pm-csub" style={{ marginBottom: 12 }}>
+              Couldn’t refresh — showing the last loaded numbers.
+            </div>
+          )}
           <Headline d={d} />
           {c?.hints && (c.hints.bestTime || c.hints.topSegment) && (
             <>

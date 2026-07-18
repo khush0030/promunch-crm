@@ -29,13 +29,25 @@ interface PubSubPush {
   subscription: string;
 }
 
+// Constant-time byte comparison (same pattern as _shared/require-internal.ts):
+// avoids leaking the mismatch position via an early-exit `===`.
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
+
 Deno.serve(async (req) => {
-  // Optional shared-secret check via query param
-  if (PUBSUB_TOKEN) {
-    const url = new URL(req.url);
-    if (url.searchParams.get("token") !== PUBSUB_TOKEN) {
-      return new Response("forbidden", { status: 403 });
-    }
+  // Shared-secret check via query param (set ?token=... on the Pub/Sub push
+  // endpoint URL). FAILS CLOSED: with PUBSUB_VERIFICATION_TOKEN unset, every
+  // request is rejected — otherwise anyone could POST forged notifications.
+  const url = new URL(req.url);
+  if (!PUBSUB_TOKEN || !timingSafeEqual(url.searchParams.get("token") ?? "", PUBSUB_TOKEN)) {
+    return new Response("unauthorized", { status: 401 });
   }
 
   if (req.method !== "POST") {
@@ -76,6 +88,7 @@ Deno.serve(async (req) => {
   let processed = 0;
   let skipped = 0;
   let newestHistoryId = startHistoryId;
+  let historyOk = true;
 
   try {
     const { history, historyId } = await listHistory(startHistoryId);
@@ -114,26 +127,32 @@ Deno.serve(async (req) => {
       }
     }
   } catch (e) {
-    // history.list can 404 if startHistoryId is too old. Fall back to
-    // using the notification's historyId so the next push starts fresh.
+    // history.list failed (e.g. 404 when startHistoryId is too old). Do NOT
+    // persist the caller-supplied notification.historyId here — a forged POST
+    // could push the cursor past real mail and silently skip emails. Keep the
+    // stored cursor and alert; gmail-poll (idempotent) still picks up any
+    // unread mail, so nothing is lost while a human looks at this.
     const msg = errStr(e);
-    console.error("listHistory failed, resetting cursor:", e);
-    newestHistoryId = notification.historyId;
+    console.error("listHistory failed — keeping stored cursor:", e);
+    historyOk = false;
     await logConnector({
       connector: "gmail_pipeline",
-      level: "warn",
-      event: "history_reset",
-      message: `Gmail history lookup failed (cursor reset, self-heals next push): ${msg.slice(0, 200)}`,
+      level: "error",
+      event: "history_lookup_failed",
+      message: `Gmail history lookup failed (cursor NOT advanced; gmail-poll covers the gap — investigate if this repeats): ${msg.slice(0, 200)}`,
     });
   }
 
-  // Advance the cursor
-  await db()
-    .from("gmail_watch")
-    .upsert(
-      { email: MAILBOX, history_id: newestHistoryId, last_renewed_at: new Date().toISOString() },
-      { onConflict: "email" },
-    );
+  // Advance the cursor — only with a historyId confirmed by the Gmail API,
+  // never a caller-supplied one after a failed lookup.
+  if (historyOk) {
+    await db()
+      .from("gmail_watch")
+      .upsert(
+        { email: MAILBOX, history_id: newestHistoryId, last_renewed_at: new Date().toISOString() },
+        { onConflict: "email" },
+      );
+  }
 
   // New mail landed → sync the deal pipeline right away (soft-locked fn,
   // runs past the response via waitUntil; §0 untouched — deal-scan never sends)

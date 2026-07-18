@@ -15,6 +15,7 @@ import {
   PackageCheck, Pencil, Plus, RefreshCw, ShoppingCart, Star, Trash2, Truck, X, Zap,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { apiFetch } from "@/lib/api-fetch";
 import type { Template } from "./types";
 import { cardStyle, inputStyle, primaryBtn, smallBtn } from "./styles";
 import { Modal, Field } from "./primitives";
@@ -200,14 +201,20 @@ export default function FlowsView() {
   const [saving, setSaving] = useState(false);
   const [custom, setCustom] = useState<CustomFlow[]>([]);
   const [builder, setBuilder] = useState<CustomFlow | "new" | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   function load() {
-    fetch("/api/whatsapp/flows").then((r) => r.json()).then((j) => {
-      if (j.settings) { setSettings(j.settings); setDraft((d) => (d ? d : j.settings)); }
-      setTemplates(j.templates ?? []);
-      setStats(j.stats ?? {});
-      setCustom(j.custom ?? []);
-    }).catch(() => {});
+    setLoadError(null);
+    apiFetch<{ settings?: FlowSettings; templates?: TplRow[]; stats?: Stats; custom?: CustomFlow[] }>("/api/whatsapp/flows")
+      .then((j) => {
+        const s = j.settings;
+        if (s) { setSettings(s); setDraft((d) => (d ? d : s)); }
+        else setLoadError("Unexpected response from the flows API");
+        setTemplates(j.templates ?? []);
+        setStats(j.stats ?? {});
+        setCustom(j.custom ?? []);
+      })
+      .catch((e) => setLoadError(e instanceof Error ? e.message : "Couldn't load flows"));
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
@@ -259,6 +266,14 @@ export default function FlowsView() {
   }
 
   if (!draft) {
+    if (loadError) {
+      return (
+        <div style={{ padding: 32, textAlign: "center" }}>
+          <div style={{ color: "var(--pm-terra)", fontSize: 13, marginBottom: 12 }}>Couldn’t load flows: {loadError}</div>
+          <button type="button" style={smallBtn} onClick={load}><RefreshCw size={14} /> Retry</button>
+        </div>
+      );
+    }
     return <div style={{ padding: 32, color: "var(--pm-hint)", fontSize: 13 }}>Loading flows…</div>;
   }
 

@@ -12,6 +12,7 @@ import {
   StatusBadge,
 } from "@/components/pm";
 import type { Column, BadgeTone } from "@/components/pm";
+import { apiFetch } from "@/lib/api-fetch";
 
 type Thread = {
   id: string;
@@ -104,6 +105,7 @@ export default function SupportEmailsPage() {
   const [category, setCategory] = useState("");
   const [search, setSearch] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [facets, setFacets] = useState<{
     pending: number;
@@ -115,12 +117,18 @@ export default function SupportEmailsPage() {
     if (status) params.set("status", status);
     if (category) params.set("lead_category", category);
     if (search) params.set("search", search);
-    const res = await fetch(`/api/support-emails?${params}`);
-    const data = await res.json();
-    setThreads(data.threads || []);
-    setTotal(data.total || 0);
-    setPages(data.pages || 1);
-    setLoaded(true);
+    try {
+      const data = await apiFetch<{ threads?: Thread[]; total?: number; pages?: number }>(`/api/support-emails?${params}`);
+      setThreads(data.threads || []);
+      setTotal(data.total || 0);
+      setPages(data.pages || 1);
+      setLoadError(null);
+    } catch (e) {
+      // keep whatever is on screen; the empty state below explains the failure
+      setLoadError(e instanceof Error ? e.message : "Couldn't load support emails");
+    } finally {
+      setLoaded(true);
+    }
   }, [page, status, category, search]);
 
   useEffect(() => {
@@ -280,7 +288,18 @@ export default function SupportEmailsPage() {
         rows={threads}
         rowKey={(t) => t.id}
         onRowClick={(t) => router.push(`/dashboard/support-emails/${t.id}`)}
-        empty={loaded ? "No support emails yet" : "Loading…"}
+        empty={
+          !loaded ? "Loading…"
+          : loadError ? (
+            <span>
+              Couldn’t load support emails: {loadError}{" "}
+              <button className="pm-btn ghost sm" style={{ marginLeft: 8 }} onClick={refresh}>
+                <RefreshCw size={13} /> Retry
+              </button>
+            </span>
+          )
+          : "No support emails yet"
+        }
       />
 
       {pages > 1 && (

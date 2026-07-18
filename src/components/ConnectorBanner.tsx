@@ -17,9 +17,11 @@ export default function ConnectorBanner() {
     let cancelled = false;
     const load = () =>
       fetch("/api/integrations")
-        .then((r) => r.json())
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
         .then((d) => {
-          if (!cancelled) setHealth(d);
+          // Shape gate: a 401/error payload has no connectors array; never let
+          // it into state (health.connectors.filter would throw on render).
+          if (!cancelled && d && Array.isArray(d.connectors)) setHealth(d);
         })
         .catch(() => {});
     load();
@@ -32,7 +34,7 @@ export default function ConnectorBanner() {
 
   if (!health || health.overall === "healthy" || health.overall === "unknown") return null;
 
-  const broken = health.connectors.filter(
+  const broken = (health.connectors ?? []).filter(
     (c) => c.status === "down" || c.status === "degraded",
   );
   if (broken.length === 0) return null;

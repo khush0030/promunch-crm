@@ -6,9 +6,11 @@
 // POST { customer_ids: string[], state?: "SUBSCRIBED" | "UNSUBSCRIBED",
 //        opt_in_level?: "SINGLE_OPT_IN" | "CONFIRMED_OPT_IN" }
 //
-// Auth: verify_jwt = true. Call with the service-role bearer.
+// Auth: service-role bearer via requireInternal (verify_jwt alone is NOT
+// authorization — the public anon key passes it).
 
 import { adminGraphQL } from "../_shared/shopify-customer.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 
 const MUTATION = `
 mutation setConsent($input: CustomerEmailMarketingConsentUpdateInput!) {
@@ -23,6 +25,8 @@ function j(o: unknown, s = 200) {
 }
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   if (req.method !== "POST") return j({ error: "POST only" }, 405);
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
   const ids = Array.isArray(body.customer_ids) ? body.customer_ids.map(String) : [];

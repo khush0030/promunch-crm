@@ -21,6 +21,7 @@
 // never messaged twice for the same order, no matter how this is triggered.
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 import { firstName, toWaId } from "../_shared/journeys.ts";
 import { getFlowSettings } from "../_shared/flow-settings.ts";
@@ -52,7 +53,13 @@ const EVT_GAVEUP = "confirmation_gave_up";
 
 const norm = (s: string | null | undefined) => String(s ?? "").trim().replace(/^#/, "");
 
+// Never echo a full customer phone number in the JSON response — mask to the
+// last 4 digits (the full wa_id stays in wa_messages / connector_events).
+const maskWaId = (id: string | null | undefined) => `…${String(id ?? "").slice(-4)}`;
+
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   const sb = db();
 
   // Dashboard kill-switch (Flows tab): with the flow off, the sweep must not
@@ -189,7 +196,7 @@ Deno.serve(async (req) => {
     if (res?.ok) {
       await markConfirmationSent(orderRef); // lock the claim — never re-send
       confirmed.add(ref); // in-batch guard against the same ref twice
-      resent++; report[orderRef] = `sent to ${waId}`;
+      resent++; report[orderRef] = `sent to ${maskWaId(waId)}`;
       await logConnector({
         connector: "shopify_wa", level: "info", event: EVT_SENT,
         message: force

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PageHead, DataTable, type Column } from "@/components/pm";
+import { apiFetch } from "@/lib/api-fetch";
 
 type AuditEntry = {
   id: string;
@@ -26,12 +27,11 @@ function fmtTime(iso: string): string {
 export default function AuditLogPage() {
   const [action, setAction] = useState("");
 
-  const { data: entries = [], isLoading } = useQuery({
+  const { data: entries = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["audit-log", action],
     queryFn: async (): Promise<AuditEntry[]> => {
       const qs = action ? `?action=${encodeURIComponent(action)}` : "";
-      const r = await fetch(`/api/audit${qs}`);
-      const j = await r.json();
+      const j = await apiFetch<{ entries?: AuditEntry[] }>(`/api/audit${qs}`);
       return j.entries ?? [];
     },
     refetchInterval: 30000,
@@ -77,7 +77,16 @@ export default function AuditLogPage() {
         columns={columns}
         rows={entries}
         rowKey={(e) => e.id}
-        empty={isLoading ? "Loading…" : "No audit entries yet."}
+        empty={
+          isLoading ? "Loading…"
+          : isError ? (
+            <span>
+              Couldn’t load the audit log.{" "}
+              <button className="pm-btn ghost sm" style={{ marginLeft: 8 }} onClick={() => refetch()}>Retry</button>
+            </span>
+          )
+          : "No audit entries yet."
+        }
       />
     </div>
   );

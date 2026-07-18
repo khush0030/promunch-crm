@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { PageHead, Panel, StatusBadge } from "@/components/pm";
 import type { BadgeTone } from "@/components/pm";
+import { apiFetch, ApiError } from "@/lib/api-fetch";
 
 type Thread = {
   id: string;
@@ -111,28 +112,55 @@ export default function SupportEmailDetail() {
   const [sent, setSent] = useState<Sent[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [tryKey, setTryKey] = useState(0);
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
     (async () => {
-      const res = await fetch(`/api/support-emails/${id}`);
-      if (res.status === 404) {
-        setNotFound(true);
-        setLoaded(true);
-        return;
+      setLoaded(false);
+      setLoadError(null);
+      setNotFound(false);
+      try {
+        const data = await apiFetch<{ thread?: Thread; drafts?: Draft[]; sent?: Sent[] }>(`/api/support-emails/${id}`);
+        if (cancelled) return;
+        if (!data?.thread) {
+          setNotFound(true);
+          return;
+        }
+        setThread(data.thread);
+        setDrafts(data.drafts || []);
+        setSent(data.sent || []);
+      } catch (e) {
+        if (cancelled) return;
+        if (e instanceof ApiError && e.status === 404) setNotFound(true);
+        else setLoadError(e instanceof Error ? e.message : "Couldn't load this email");
+      } finally {
+        if (!cancelled) setLoaded(true);
       }
-      const data = await res.json();
-      setThread(data.thread);
-      setDrafts(data.drafts || []);
-      setSent(data.sent || []);
-      setLoaded(true);
     })();
-  }, [id]);
+    return () => { cancelled = true; };
+  }, [id, tryKey]);
 
   if (!loaded)
     return (
       <div className="pm-page">
         <PageHead title="Support email" subtitle="Loading…" />
+      </div>
+    );
+  if (loadError)
+    return (
+      <div className="pm-page">
+        <PageHead
+          title="Couldn’t load this email"
+          subtitle={<>{loadError} · <Link href="/dashboard/support-emails" style={{ color: "var(--pm-green)" }}>Back to inbox</Link></>}
+          actions={
+            <button className="pm-btn primary" onClick={() => setTryKey((k) => k + 1)}>
+              <RefreshCw size={15} /> Retry
+            </button>
+          }
+        />
       </div>
     );
   if (notFound)

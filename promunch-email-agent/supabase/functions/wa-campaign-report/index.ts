@@ -9,11 +9,14 @@
 //              normal marketing-throttle, vs everything else which is worth a look).
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { logConnector, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
 
 interface Body { campaign_id?: string; settled?: boolean }
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   if (req.method !== "POST") return j({ error: "POST only" }, 405);
   const body = (await req.json().catch(() => ({}))) as Body;
   const campaignId = body.campaign_id;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
+import { parseBody, sanitizeSearch } from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
 
   if (search) {
     // strip PostgREST or() syntax chars so user input can't break the filter
-    const safe = search.replace(/[,()."\\]/g, " ").trim();
+    const safe = sanitizeSearch(search);
     if (safe) {
       query = query.or(`email.ilike.%${safe}%,first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,phone.ilike.%${safe}%`);
     }
@@ -88,7 +89,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
+  const body = await parseBody(request);
+  if (!body) {
+    return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 });
+  }
 
   const {
     email,

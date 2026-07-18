@@ -17,6 +17,7 @@ import { recordAudit } from "@/lib/audit";
 import { assistantTools } from "@/lib/assistant/tools";
 import { buildInstructions } from "@/lib/assistant/prompt";
 import { getSecret } from "@/lib/secrets";
+import { parseBody } from "@/lib/api-helpers";
 
 export const maxDuration = 120;
 
@@ -70,8 +71,11 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const { messages, conversationId }: { messages: UIMessage[]; conversationId?: string } =
-    await req.json();
+  const body = await parseBody<{ messages?: UIMessage[]; conversationId?: string }>(req);
+  if (!body) {
+    return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
+  }
+  const { messages, conversationId } = body;
   if (!Array.isArray(messages) || messages.length === 0) {
     return NextResponse.json({ error: "messages required" }, { status: 400 });
   }

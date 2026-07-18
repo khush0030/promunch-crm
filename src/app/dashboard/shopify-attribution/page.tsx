@@ -89,6 +89,8 @@ export default function ShopifyAttributionPage() {
   const [coverage, setCoverage] = useState<{ tracked: number; total: number } | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [tryKey, setTryKey] = useState(0);
 
   useEffect(() => {
     fetch("/api/shopify/stats")
@@ -100,6 +102,8 @@ export default function ShopifyAttributionPage() {
   useEffect(() => {
     async function load() {
       setLoaded(false);
+      setLoadError(null);
+      try {
       const days = rangeDays[activeRange];
       const cols =
         "total_price, first_utm_source, first_utm_medium, first_utm_campaign, first_source, first_source_type, first_referrer_url, source_name, customer_order_index, attribution_synced_at, shopify_created_at, is_creator";
@@ -111,7 +115,8 @@ export default function ShopifyAttributionPage() {
       for (let from = 0; ; from += 1000) {
         let q = supabase.from("shopify_orders").select(cols).range(from, from + 999);
         if (since) q = q.gte("shopify_created_at", since);
-        const { data } = await q;
+        const { data, error } = await q;
+        if (error) throw new Error(error.message);
         const batch = (data || []) as OrderRow[];
         allOrders.push(...batch);
         if (batch.length < 1000) break;
@@ -180,10 +185,15 @@ export default function ShopifyAttributionPage() {
       setCampaigns(campRows);
       setReferrers(refRows);
       setCoverage({ tracked, total: totalOrders });
-      setLoaded(true);
+      } catch (e) {
+        // Surface Supabase errors instead of silently rendering zeros.
+        setLoadError(e instanceof Error ? e.message : "Couldn't load attribution data");
+      } finally {
+        setLoaded(true);
+      }
     }
     load();
-  }, [activeRange, creatorSeg]);
+  }, [activeRange, creatorSeg, tryKey]);
 
   const snapshot: { label: string; rev?: number; ord?: number; tone: KpiTone }[] = [
     { label: "Today's revenue", rev: stats?.revenue.today, ord: stats?.orders.today, tone: "g" },
@@ -271,6 +281,13 @@ export default function ShopifyAttributionPage() {
         </div>
       )}
 
+      {loadError && (
+        <div style={{ marginBottom: 12, background: "var(--pm-card2)", border: "1px solid var(--pm-terra)", borderRadius: 10, padding: "11px 14px", fontSize: 12.5, color: "var(--pm-terra)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span>Couldn’t load attribution data: {loadError}</span>
+          <button className="pm-btn ghost sm" onClick={() => setTryKey((k) => k + 1)}>Retry</button>
+        </div>
+      )}
+
       <div className="pm-kpis" style={{ marginTop: 6 }}>
         <KpiCard label="Order revenue" value={inr(totals.revenue)} icon={<IndianRupee />} tone="g" sub={activeRange.toLowerCase()} />
         <KpiCard label="Orders" value={totals.orders.toLocaleString("en-IN")} icon={<ShoppingCart />} tone="o"
@@ -282,7 +299,7 @@ export default function ShopifyAttributionPage() {
       </div>
 
       <SectionLabel>Traffic by channel</SectionLabel>
-      <DataTable columns={sourceCols} rows={sources} rowKey={(_, i) => i} empty={loaded ? "No orders in this range" : "Loading…"} />
+      <DataTable columns={sourceCols} rows={sources} rowKey={(_, i) => i} empty={!loaded ? "Loading…" : loadError ? "Couldn’t load — see the error above" : "No orders in this range"} />
 
       <div className="pm-grid g-11" style={{ marginTop: 14 }}>
         <Panel title="Top campaigns" icon={<Tag className="tic" />} caption="Orders carrying a utm_campaign">
@@ -290,7 +307,7 @@ export default function ShopifyAttributionPage() {
             <div style={{ marginTop: 4 }}><DataTable columns={campaignCols} rows={campaigns} rowKey={(_, i) => i} /></div>
           ) : (
             <div className="pm-dim" style={{ textAlign: "center", fontSize: 12.5, padding: "32px 0" }}>
-              {loaded ? "No tagged campaigns yet — add utm_campaign to your ad/email links" : "Loading…"}
+              {!loaded ? "Loading…" : loadError ? "Couldn’t load" : "No tagged campaigns yet — add utm_campaign to your ad/email links"}
             </div>
           )}
         </Panel>
@@ -299,7 +316,7 @@ export default function ShopifyAttributionPage() {
             <div style={{ marginTop: 4 }}><DataTable columns={referrerCols} rows={referrers} rowKey={(_, i) => i} /></div>
           ) : (
             <div className="pm-dim" style={{ textAlign: "center", fontSize: 12.5, padding: "32px 0" }}>
-              {loaded ? "No external referrers in this range" : "Loading…"}
+              {!loaded ? "Loading…" : loadError ? "Couldn’t load" : "No external referrers in this range"}
             </div>
           )}
         </Panel>

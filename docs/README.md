@@ -2,6 +2,13 @@
 
 Rule: every doc lives in exactly one subfolder below. Superseded docs move to `archive/`. Update this index when adding or moving anything.
 
+## architecture/ — system map + how to change it (START HERE)
+
+| Doc | What it answers |
+|---|---|
+| [ARCHITECTURE.md](architecture/ARCHITECTURE.md) | The whole platform on one page: deployables, modules, routes, edge functions, tables, external services, cron topology, the three sacred data flows, where to look when something breaks |
+| [AI_CHANGE_PLAYBOOK.md](architecture/AI_CHANGE_PLAYBOOK.md) | How any AI agent (or human) safely changes the app: recipes per change type, verification gate, deploy sequence, production debugging order |
+
 ## runbooks/ — how to operate + deploy
 
 | Doc | What it answers |
@@ -46,6 +53,7 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 
 | Doc | What it answers |
 |---|---|
+| [2026-07-18-production-hardening-audit.md](audits/2026-07-18-production-hardening-audit.md) | Full-platform audit + same-day fix pass: criticals fixed, migrations to apply, known-open items, Interakt/Klaviyo roadmap |
 | [PROMUNCH_CRM_Architecture_Audit.html](audits/PROMUNCH_CRM_Architecture_Audit.html) | Jul 2026 full architecture + security audit report |
 
 ## archive/ — superseded, historical only

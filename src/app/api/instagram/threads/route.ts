@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSession } from '@/lib/leads/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { sanitizeSearch } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +42,10 @@ export async function GET(req: NextRequest) {
   query = (TAB_FILTER[tab] ?? TAB_FILTER.inbox)(query);
   if (classification && CLASSES.includes(classification)) query = query.eq('classification', classification);
   if (stage && STAGES.includes(stage)) query = query.eq('collab_stage', stage);
-  if (q) query = query.or(`handle.ilike.%${q}%,full_name.ilike.%${q}%,last_message_snippet.ilike.%${q}%`);
+  if (q) {
+    const safe = sanitizeSearch(q);
+    if (safe) query = query.or(`handle.ilike.%${safe}%,full_name.ilike.%${safe}%,last_message_snippet.ilike.%${safe}%`);
+  }
 
   const [{ data: threads, count, error }, classCounts, stageCounts, settings] = await Promise.all([
     query,

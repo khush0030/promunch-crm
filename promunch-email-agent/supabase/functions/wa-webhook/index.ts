@@ -264,8 +264,13 @@ async function handleInboundMessage(msg: any, profile: any) {
     body = JSON.stringify(msg).slice(0, 500);
   }
 
-  // insert message
-  await sb.from("wa_messages").insert({
+  // insert message. This is the ATOMIC dedup gate for concurrent duplicate
+  // deliveries of the same wamid: the select-based dedupe above only catches
+  // sequential retries, but Meta can deliver the same message twice at once.
+  // The unique index on wa_message_id makes exactly one insert win; the loser
+  // returns before ANY side effect (STOP/START confirms, COD gate, checkout
+  // links, AI enqueue) so nothing sends twice (§0).
+  const { error: insErr } = await sb.from("wa_messages").insert({
     thread_id: thread.id,
     contact_id: contact.id,
     direction: "inbound",
@@ -276,6 +281,10 @@ async function handleInboundMessage(msg: any, profile: any) {
     wa_message_id: wamid,
     status: "received",
   });
+  if (insErr) {
+    if (insErr.code === "23505") return; // concurrent duplicate delivery — the other one owns the side effects
+    throw new Error(`inbound wa_messages insert failed: ${insErr.message}`);
+  }
 
   // update thread snippet — a new inbound also un-archives the chat so it
   // resurfaces in the inbox (archiving only hides quiet conversations).
@@ -444,12 +453,22 @@ async function sendCheckout(
 //    the job done and the cron never has to touch it.
 async function enqueueAiReply(threadId: string, lastMessage: string, imageUrl: string | null = null) {
   const sb = db();
-  const { data: job } = await sb.from("wa_jobs").insert({
+  const { data: job, error: jobErr } = await sb.from("wa_jobs").insert({
     kind: "ai_reply",
     payload: { thread_id: threadId, last_message: lastMessage, image_url: imageUrl },
     // give the fast path a generous window before the cron may pick it up
     run_after: new Date(Date.now() + 120_000).toISOString(),
   }).select("id").single();
+  if (jobErr || !job) {
+    // The durable safety net failed — if the fast path below also fails, this
+    // inbound would be silently dropped. Alert loudly so a human notices.
+    logConnector({
+      connector: "whatsapp",
+      event: "ai_reply_enqueue_failed",
+      level: "error",
+      detail: { thread_id: threadId, error: jobErr?.message ?? "no job row" },
+    }).catch(() => {});
+  }
 
   const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-ai-reply`;
   const fastPath = fetch(url, {

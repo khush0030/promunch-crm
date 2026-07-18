@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { parseBody } from "@/lib/api-helpers";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -16,7 +17,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const body = await parseBody(req);
+  if (!body) return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
   const required = ["name", "category", "body"];
   for (const k of required) {
     if (!body[k]) return NextResponse.json({ error: `${k} required` }, { status: 400 });

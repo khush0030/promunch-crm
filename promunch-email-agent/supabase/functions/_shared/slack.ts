@@ -1,7 +1,10 @@
 // Slack Web API helpers + signature verification + block builder.
 
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN")!;
-const SLACK_SIGNING_SECRET = Deno.env.get("SLACK_SIGNING_SECRET")!;
+// No `!` here: with the env var unset the non-null assertion still yields
+// undefined at runtime, and the HMAC key silently degrades to a known/empty
+// value — i.e. forgeable signatures. verifySlackSignature() fails closed on "".
+const SLACK_SIGNING_SECRET = Deno.env.get("SLACK_SIGNING_SECRET") ?? "";
 const SLACK_CHANNEL_ID = Deno.env.get("SLACK_CHANNEL_ID")!;
 
 // ---------------------------------------------------------------------------
@@ -604,6 +607,10 @@ function escapeForCode(s: string): string {
 // Signature verification (Slack request authenticity check)
 // ---------------------------------------------------------------------------
 export async function verifySlackSignature(req: Request, rawBody: string): Promise<boolean> {
+  // FAIL CLOSED: no configured signing secret means no request can ever be
+  // authentic — never fall through to HMAC-ing with an empty/undefined key.
+  if (!SLACK_SIGNING_SECRET) return false;
+
   const ts = req.headers.get("x-slack-request-timestamp");
   const sig = req.headers.get("x-slack-signature");
   if (!ts || !sig) return false;

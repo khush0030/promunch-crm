@@ -16,10 +16,12 @@
 //
 // GET ?debug=1 — dump token + WABA discovery diagnostics.
 //
-// Auth: verify_jwt = true. Called by the Next.js API routes with the
-// service-role bearer.
+// Auth: service-role bearer via requireInternal (verify_jwt alone is NOT
+// authorization — the public anon key passes it). Called by the Next.js API
+// routes with the service-role bearer.
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { uploadResumable, fetchMediaBytes } from "../_shared/whatsapp.ts";
 
 type HeaderFormat = "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT";
@@ -223,6 +225,12 @@ const TEMPLATES: TemplateDef[] = [
 ];
 
 Deno.serve(async (req) => {
+  // Internal auth first — this covers GET ?debug=1 too (it dumps token/WABA
+  // diagnostics, which must never be publicly reachable). There is no Meta
+  // webhook verify path here; every caller sends the service-role bearer.
+  const gate = requireInternal(req);
+  if (gate) return gate;
+
   // GET ?debug=1 — diagnose WABA discovery.
   if (req.method === "GET" && new URL(req.url).searchParams.get("debug")) {
     return j(await diagnose());

@@ -2,6 +2,8 @@
 
 Canonical instructions for any AI agent (Claude Code, Codex, Cursor, etc.) working in this repo. `CLAUDE.md` imports this file. Read it fully before changing anything. For the edge-function subproject there is a second, deeper handoff: [promunch-email-agent/CLAUDE.md](promunch-email-agent/CLAUDE.md).
 
+**System map + change recipes:** [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) (what everything is) and [docs/architecture/AI_CHANGE_PLAYBOOK.md](docs/architecture/AI_CHANGE_PLAYBOOK.md) (how to add pages/routes/functions/migrations/crons, verification gate, debugging order). Read the playbook before your first change.
+
 ---
 
 ## 1. What this repo is

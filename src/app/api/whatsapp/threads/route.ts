@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { sanitizeSearch } from "@/lib/api-helpers";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -37,7 +38,10 @@ export async function GET(req: NextRequest) {
     if (ticket) q = q.eq("ticket_status", ticket);
     if (assignee === "unassigned") q = q.is("assigned_to", null);
     else if (assignee) q = q.eq("assigned_to", assignee);
-    if (search) q = q.or(`wa_id.ilike.%${search}%,last_message_snippet.ilike.%${search}%,ticket_subject.ilike.%${search}%`);
+    if (search) {
+      const safe = sanitizeSearch(search);
+      if (safe) q = q.or(`wa_id.ilike.%${safe}%,last_message_snippet.ilike.%${safe}%,ticket_subject.ilike.%${safe}%`);
+    }
     return q;
   };
 

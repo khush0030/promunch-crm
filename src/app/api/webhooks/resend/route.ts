@@ -68,12 +68,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true });
   }
 
-  // Find the campaign email by resend_id
+  // Find the campaign email by resend_id (0 rows is legitimate — B2B outreach
+  // sends share this webhook and have no campaign_emails row)
   const { data: campaignEmail } = await supabase
     .from('campaign_emails')
     .select('id, contact_id, campaign_id')
     .eq('resend_id', resendEmailId)
-    .single();
+    .maybeSingle();
 
   if (campaignEmail) {
     const updateFields: Record<string, unknown> = { status };

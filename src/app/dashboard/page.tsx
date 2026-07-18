@@ -117,11 +117,22 @@ type LiveStats = {
   aov_all: number;
 };
 type Confirmations = { sent: number; outstanding: number; noPhone: number; cancelled: number; total: number; coveragePct: number };
-type WaHealth = { status: string; uptime24h: number | null; failedOutbound24h: number; aiReplies24h: number };
+type WaHealth = { status: string; uptime24h: number | null; failedOutbound24h: number | null; aiReplies24h: number | null };
 type NeedsAttention = { failedWhatsApp: number; highPriorityWaTickets: number; urgentEmails: number };
 type SupportStat = { pending: number; sent: number; skipped: number };
 type ChannelSeg = { label: string; value: number; color: string };
 type ChannelRow = { label: string; status: HealthStatus; pill: string };
+
+// Small inline failure state for a widget panel: no eternal "Loading…", no
+// crashed page — just say it failed and offer a retry.
+function PanelRetry({ label, onRetry }: { label: string; onRetry: () => void }) {
+  return (
+    <div style={{ color: "var(--pm-hint)", fontSize: 12.5, padding: "20px 0", display: "flex", alignItems: "center", gap: 10 }}>
+      <span>{label}</span>
+      <button type="button" className="pm-btn ghost sm" onClick={onRetry}>Retry</button>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const [period, setPeriod] = useState<Period>("30d");
@@ -133,6 +144,8 @@ export default function DashboardPage() {
   const [waHealth, setWaHealth] = useState<WaHealth | null>(null);
   const [needs, setNeeds] = useState<NeedsAttention | null>(null);
   const [support, setSupport] = useState<SupportStat | null>(null);
+  const [feedErr, setFeedErr] = useState<{ needs?: boolean; wa?: boolean; support?: boolean }>({});
+  const [feedTry, setFeedTry] = useState(0);
 
   // Live Shopify snapshot (revenue/orders windows, customers, AOV).
   useEffect(() => {
@@ -163,12 +176,27 @@ export default function DashboardPage() {
       .catch(() => {});
   }, []);
 
-  // Operations + Action feeds — all existing endpoints.
+  // Operations + Action feeds — all existing endpoints. Each is shape-gated so
+  // a 401 {ok:false,error} payload can never enter state (it used to render as
+  // a false "All clear" / NaN bars); failures flip a per-panel error flag.
   useEffect(() => {
-    fetch("/api/needs-attention").then((r) => r.json()).then(setNeeds).catch(() => {});
-    fetch("/api/whatsapp/health").then((r) => r.json()).then(setWaHealth).catch(() => {});
-    fetch("/api/support-emails/facets")
+    setFeedErr({});
+    fetch("/api/needs-attention")
       .then((r) => r.json())
+      .then((d) => {
+        if (typeof d?.failedWhatsApp === "number") setNeeds(d);
+        else setFeedErr((e) => ({ ...e, needs: true }));
+      })
+      .catch(() => setFeedErr((e) => ({ ...e, needs: true })));
+    fetch("/api/whatsapp/health")
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d?.status === "string") setWaHealth(d);
+        else setFeedErr((e) => ({ ...e, wa: true }));
+      })
+      .catch(() => setFeedErr((e) => ({ ...e, wa: true })));
+    fetch("/api/support-emails/facets")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(async (f) => {
         // pending comes from facets; sent/skipped via head counts (best-effort).
         const counts = async (status: string) => {
@@ -178,13 +206,13 @@ export default function DashboardPage() {
         const [sent, skipped] = await Promise.all([counts("sent"), counts("skipped")]);
         setSupport({ pending: f?.pending ?? 0, sent, skipped });
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => setFeedErr((e) => ({ ...e, support: true })));
+  }, [feedTry]);
 
   // Period-scoped snapshot: orders-table revenue/count, confirmation coverage,
   // D2C channel mix and channel health. Replaces the old load() + [period] mount
   // effect + 30s setInterval + focus/visibility refresh.
-  const { data, refetch } = useQuery({
+  const { data, refetch, isError: snapshotError } = useQuery({
     queryKey: ["dashboard-snapshot", period],
     queryFn: async () => {
       const sinceIso = sinceForPeriod(period);
@@ -443,6 +471,8 @@ export default function DashboardPage() {
                 <div className="pm-kline"><span className="sw" style={{ background: "#B9AE99" }} /><b>{notEligible}</b> not eligible</div>
               </div>
             </div>
+          ) : data || snapshotError ? (
+            <PanelRetry label="Couldn’t load coverage." onRetry={() => refetch()} />
           ) : (
             <div style={{ color: "var(--pm-hint)", fontSize: 12.5, padding: "20px 0" }}>Loading…</div>
           )}
@@ -452,13 +482,15 @@ export default function DashboardPage() {
           {waHealth ? (
             <>
               <MiniBar label="Uptime" value={waHealth.uptime24h != null ? `${waHealth.uptime24h}%` : "—"} pct={waHealth.uptime24h ?? 0} color="var(--pm-green)" />
-              <MiniBar label="AI replies" value={waHealth.aiReplies24h} pct={Math.min(100, waHealth.aiReplies24h * 4)} color="var(--pm-blue)" />
-              <MiniBar label="Failed" value={waHealth.failedOutbound24h} pct={Math.min(100, waHealth.failedOutbound24h * 10)} color="var(--pm-terra)" valueColor="var(--pm-terra)" />
+              <MiniBar label="AI replies" value={waHealth.aiReplies24h ?? 0} pct={Math.min(100, (waHealth.aiReplies24h ?? 0) * 4)} color="var(--pm-blue)" />
+              <MiniBar label="Failed" value={waHealth.failedOutbound24h ?? 0} pct={Math.min(100, (waHealth.failedOutbound24h ?? 0) * 10)} color="var(--pm-terra)" valueColor="var(--pm-terra)" />
               <div style={{ fontSize: 12, color: "var(--pm-hint)", marginTop: 8 }}>
                 {waHealth.status === "up" ? "Operational" : "Degraded"}
                 {waHealth.uptime24h != null ? ` · ${waHealth.uptime24h}% uptime` : ""}
               </div>
             </>
+          ) : feedErr.wa ? (
+            <PanelRetry label="Couldn’t load WhatsApp health." onRetry={() => setFeedTry((k) => k + 1)} />
           ) : (
             <div style={{ color: "var(--pm-hint)", fontSize: 12.5, padding: "20px 0" }}>Loading…</div>
           )}
@@ -476,6 +508,8 @@ export default function DashboardPage() {
               />
               <MiniBar label="AI drafts ready" value="100%" pct={100} color="var(--pm-green)" style={{ marginTop: 14 }} />
             </>
+          ) : feedErr.support ? (
+            <PanelRetry label="Couldn’t load the support inbox." onRetry={() => setFeedTry((k) => k + 1)} />
           ) : (
             <div style={{ color: "var(--pm-hint)", fontSize: 12.5, padding: "20px 0" }}>Loading…</div>
           )}
@@ -521,6 +555,9 @@ export default function DashboardPage() {
               action={<Link className="go" href="/dashboard/support-emails">Open</Link>}
             />
           ) : null}
+          {!needs && feedErr.needs && (
+            <PanelRetry label="Couldn’t load what needs attention." onRetry={() => setFeedTry((k) => k + 1)} />
+          )}
           {needs && !needs.failedWhatsApp && !needs.highPriorityWaTickets && !needs.urgentEmails && (!conf || conf.outstanding === 0) && (
             <div style={{ color: "var(--pm-hint)", fontSize: 13, padding: "16px 0" }}>All clear — nothing needs a human right now.</div>
           )}

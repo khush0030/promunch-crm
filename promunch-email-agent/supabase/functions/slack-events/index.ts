@@ -74,6 +74,12 @@ async function handleMessage(ev: SlackMessageEvent, isRetry = false): Promise<vo
   if (ev.bot_id) return;                           // ignore bot replies (incl. ours)
   if (BOT_USER_ID && ev.user === BOT_USER_ID) return;
 
+  // Slack retries any event whose ACK took >3s, and this handler does Gmail +
+  // OpenAI work synchronously — so retries are routine, not exceptional. The
+  // first delivery owns ALL side effects (approve/send, feedback revisions);
+  // retries are dropped entirely (§0 bias: silence over duplicates).
+  if (isRetry) return;
+
   // Direct message to Maya → conversational ops assistant (sales / orders / KB).
   if (ev.channel_type === "im") {
     if (isRetry) return;                           // Slack retried a slow ACK; the first run already replies

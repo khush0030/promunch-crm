@@ -36,10 +36,11 @@ export async function buildExport(contactId: string) {
 // contact's email (pre-scrub) for the audit summary, or null if not found.
 export async function anonymizeContact(contactId: string): Promise<{ ok: boolean; wasEmail: string | null }> {
   const { data: existing } = await supabaseAdmin
-    .from("contacts").select("email, anonymized_at").eq("id", contactId).maybeSingle();
+    .from("contacts").select("email, phone, anonymized_at").eq("id", contactId).maybeSingle();
   if (!existing) return { ok: false, wasEmail: null };
 
   const wasEmail = (existing as { email: string | null }).email;
+  const phone = (existing as { phone: string | null }).phone;
   // email is NOT NULL UNIQUE — replace with a stable, unusable placeholder.
   const shortId = contactId.replace(/-/g, "").slice(0, 12);
   const scrub = {
@@ -49,10 +50,36 @@ export async function anonymizeContact(contactId: string): Promise<{ ok: boolean
     address1: null, address2: null, zip: null,
     locale: null, timezone: null, organization: null, title: null,
     klaviyo_id: null, external_id: null,
+    // shopify_customer_id must go too: the Shopify webhook upsert matches on it
+    // and would otherwise repopulate this row with fresh PII on the next order.
+    shopify_customer_id: null,
     tags: null,
     status: "unsubscribed",
     anonymized_at: new Date().toISOString(),
   };
   const { error } = await supabaseAdmin.from("contacts").update(scrub).eq("id", contactId);
+
+  // WhatsApp side: scrub the channel profile and message bodies keyed to this
+  // phone. The wa_contacts row and wa_messages ledger rows stay (send-dedup and
+  // STOP history must survive), but nothing identifying remains and the number
+  // is force-opted-out. Defensive: WA tables absent must never fail erasure.
+  if (phone) {
+    try {
+      const waId = phone.replace(/^\+/, "").replace(/\D/g, "");
+      const { data: waRows } = await supabaseAdmin
+        .from("wa_contacts").select("id")
+        .or(`wa_id.eq.${waId},phone.eq.${phone}`);
+      const waIds = (waRows ?? []).map((r: { id: string }) => r.id);
+      if (waIds.length) {
+        await supabaseAdmin.from("wa_contacts")
+          .update({ name: null, email: null, shopify_customer_id: null, tags: [], opted_in: false })
+          .in("id", waIds);
+        await supabaseAdmin.from("wa_messages")
+          .update({ body: null, media_url: null })
+          .in("contact_id", waIds);
+      }
+    } catch { /* WA scrub is best-effort; the contact row is already scrubbed */ }
+  }
+
   return { ok: !error, wasEmail };
 }

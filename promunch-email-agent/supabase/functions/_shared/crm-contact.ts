@@ -48,6 +48,7 @@ type ContactRow = {
   state: string | null;
   country: string | null;
   shopify_customer_id: string | null;
+  anonymized_at?: string | null;
   total_orders: number | null;
   total_spent: number | null;
   first_purchase_date: string | null;
@@ -57,7 +58,7 @@ type ContactRow = {
 
 const CONTACT_COLS = "id,email,first_name,last_name,phone,city,state,country," +
   "shopify_customer_id,total_orders,total_spent,first_purchase_date," +
-  "last_purchase_date,status";
+  "last_purchase_date,status,anonymized_at";
 
 // "+919876543210", "919876543210" and "9876543210" are the same person —
 // contacts hold Shopify's E.164 while shopify_orders holds bare wa_ids.
@@ -96,6 +97,12 @@ export async function syncContactFromOrder(order: any): Promise<SyncResult> {
     const { data } = await db().from("contacts")
       .select(CONTACT_COLS).in("phone", phoneVariants(waId)).limit(1);
     existing = ((data ?? [])[0] ?? null) as unknown as ContactRow | null;
+  }
+
+  // GDPR/DPDP: an anonymized row stays anonymized. A new order from an erased
+  // identity must never repopulate it with fresh PII (right-to-erasure).
+  if (existing?.anonymized_at) {
+    return { ok: true, created: false };
   }
 
   const { firstName, lastName } = normalizeName(

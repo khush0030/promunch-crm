@@ -198,7 +198,19 @@ Deno.serve(async (req) => {
   recorded.status = result.ok ? "sent" : "failed";
   recorded.error = result.ok ? null : result.error;
 
-  await sb.from("wa_messages").insert(recorded);
+  // The ledger row is what every dedup path reads (§0). A silent insert
+  // failure after a successful Meta send would make this message invisible to
+  // dedup — i.e. re-send exposure — so it must alert loudly.
+  const { error: ledgerErr } = await sb.from("wa_messages").insert(recorded);
+  if (ledgerErr) {
+    await alertWaSendFailure({
+      to: waId!,
+      kind: body.kind,
+      templateName: body.template?.name ?? null,
+      error: `LEDGER WRITE FAILED after send (dedup blind spot): ${ledgerErr.message}`,
+      errorDetail: JSON.stringify({ sent_ok: result.ok, wa_message_id: result.message_id ?? null }),
+    }).catch(() => {});
+  }
   if (result.ok) {
     await sb.from("wa_threads").update({
       last_outbound_at: new Date().toISOString(),

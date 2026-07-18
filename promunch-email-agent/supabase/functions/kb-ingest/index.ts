@@ -8,11 +8,14 @@
 // POST { name, text }   — direct text entry (manual paste)
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { extractText } from "https://esm.sh/unpdf@0.12.1";
 
 const STORAGE_BUCKET = Deno.env.get("KB_BUCKET") ?? "kb-docs";
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   if (req.method !== "POST") return new Response("method", { status: 405 });
 
   const body = await req.json().catch(() => ({}));

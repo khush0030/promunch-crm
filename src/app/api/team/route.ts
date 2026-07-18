@@ -6,6 +6,7 @@ import { sendEmail } from "@/lib/resend";
 import { inviteEmailHtml, inviteEmailSubject } from "@/lib/emails/invite";
 import { recordAudit } from "@/lib/audit";
 import { assertHuman } from "@/lib/botid-guard";
+import { isAdminUser } from "@/lib/rbac";
 
 function callerName(user: { email?: string | null; user_metadata?: Record<string, unknown> }): string {
   const meta = (user.user_metadata || {}) as Record<string, unknown>;
@@ -16,11 +17,10 @@ function callerName(user: { email?: string | null; user_metadata?: Record<string
   );
 }
 
-// Team management. Every member who can sign in gets full access — there are no
-// roles. This route only lets an already-authenticated, allowed-domain user
-// invite / list / remove other users. It uses the service-role admin client for
-// the privileged calls, so the caller's own session is verified first (the
-// middleware does NOT gate /api/*).
+// Team management. An authenticated, allowed-domain caller with the Admin tier
+// (app_metadata.role — see rbac.ts) can invite / list / remove users and change
+// roles. Uses the service-role admin client for the privileged calls; the
+// middleware additionally gates all /api/* with a session.
 export const dynamic = "force-dynamic";
 
 async function requireCaller() {
@@ -32,17 +32,21 @@ async function requireCaller() {
   return user;
 }
 
-// Roles live in user_metadata.role. Missing role = "admin" for back-compat
-// (the team was previously flat full-access). Only owner/admin may manage the
-// team (invite, remove, change roles); "agent" is a limited member.
+// Roles live in app_metadata.role (authoritative — users cannot edit their own
+// app_metadata; user_metadata is self-editable and therefore never trusted).
+// user_metadata.role is read as a DISPLAY fallback only until migration
+// 008_roles_app_metadata backfills existing users. Enforcement (canManage) goes
+// through isAdminUser, which is fail-closed.
 type Role = "owner" | "admin" | "agent";
-function roleOf(u: { user_metadata?: Record<string, unknown> }): Role {
-  const r = (u.user_metadata || {}).role;
+function roleOf(u: {
+  app_metadata?: Record<string, unknown>;
+  user_metadata?: Record<string, unknown>;
+}): Role {
+  const r = (u.app_metadata || {}).role ?? (u.user_metadata || {}).role;
   return r === "owner" || r === "agent" ? r : "admin";
 }
-function canManage(u: { user_metadata?: Record<string, unknown> }): boolean {
-  const r = roleOf(u);
-  return r === "owner" || r === "admin";
+function canManage(u: Parameters<typeof isAdminUser>[0]): boolean {
+  return isAdminUser(u);
 }
 
 type TeamUser = {
@@ -136,6 +140,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Could not generate an invite link." }, { status: 500 });
   }
 
+  // New members start at the Member tier (app_metadata is the authoritative
+  // role store); an admin can promote them from the Team screen.
+  if (data?.user?.id) {
+    await supabaseAdmin.auth.admin
+      .updateUserById(data.user.id, { app_metadata: { role: "agent" } })
+      .catch(() => {});
+  }
+
   try {
     const inviterName = callerName(caller);
     await sendEmail({
@@ -189,8 +201,11 @@ export async function PATCH(req: NextRequest) {
 
   const { data: target } = await supabaseAdmin.auth.admin.getUserById(id);
   const prevRole = roleOf(target.user ?? {});
-  const meta = { ...(target.user?.user_metadata ?? {}), role };
-  const { error } = await supabaseAdmin.auth.admin.updateUserById(id, { user_metadata: meta });
+  // app_metadata is authoritative; user_metadata mirrors it for legacy display.
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(id, {
+    app_metadata: { ...(target.user?.app_metadata ?? {}), role },
+    user_metadata: { ...(target.user?.user_metadata ?? {}), role },
+  });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   await recordAudit({

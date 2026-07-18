@@ -9,11 +9,14 @@
 // Schedule: supabase functions schedule create ig-jobs-tick "* * * * *"
 
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 
 const JOB_BATCH = 50;
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   const jobs = await drainJobs().catch((e) => ({ error: String(e) }));
   return j({ ok: true, jobs });
 });

@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, RefreshCw, Send, Trash2 } from "lucide-react";
 import DOMPurify from "isomorphic-dompurify";
 import { useToast } from "@/components/ui/Toast";
+import { apiFetch, ApiError } from "@/lib/api-fetch";
 import { PageHead, KpiCard, Panel, MiniBar, StatusBadge } from "@/components/pm";
 import type { BadgeTone } from "@/components/pm";
 
@@ -53,17 +54,30 @@ export default function CampaignDetailPage() {
   const toast = useToast();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [tryKey, setTryKey] = useState(0);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
     (async () => {
-      const res = await fetch(`/api/campaigns/${id}`);
-      const data = await res.json();
-      if (res.ok && data.campaign) setCampaign(data.campaign);
-      setLoaded(true);
+      setLoaded(false);
+      setLoadError(null);
+      try {
+        const data = await apiFetch<{ campaign?: Campaign }>(`/api/campaigns/${id}`);
+        if (!cancelled && data.campaign) setCampaign(data.campaign);
+      } catch (e) {
+        // a real 404 falls through to the "Not found" screen; anything else is a load failure
+        if (!cancelled && !(e instanceof ApiError && e.status === 404)) {
+          setLoadError(e instanceof Error ? e.message : "Couldn't load campaign");
+        }
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
     })();
-  }, [id]);
+    return () => { cancelled = true; };
+  }, [id, tryKey]);
 
   async function handleSend() {
     if (!campaign) return;
@@ -106,6 +120,21 @@ export default function CampaignDetailPage() {
   );
 
   if (!loaded) return <div className="pm-page"><PageHead title="Campaign" subtitle="Loading…" /></div>;
+  if (loadError && !campaign)
+    return (
+      <div className="pm-page">
+        <PageHead
+          back={backLink}
+          title="Couldn’t load this campaign"
+          subtitle={loadError}
+          actions={
+            <button className="pm-btn primary" onClick={() => setTryKey((k) => k + 1)}>
+              <RefreshCw size={15} /> Retry
+            </button>
+          }
+        />
+      </div>
+    );
   if (!campaign) return <div className="pm-page"><PageHead back={backLink} title="Not found" subtitle="This campaign doesn’t exist." /></div>;
 
   const sp = statusMeta[campaign.status] || statusMeta.draft;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from "@/lib/rbac-server";
 import { recordAudit } from "@/lib/audit";
 import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
+import { parseBody } from '@/lib/api-helpers';
 
 export async function GET(
   request: NextRequest,
@@ -76,7 +77,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const body = await request.json();
+  const body = await parseBody(request);
+  if (!body) {
+    return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 });
+  }
 
   const allowedFields = [
     'email', 'first_name', 'last_name', 'phone',

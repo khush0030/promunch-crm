@@ -32,6 +32,21 @@ export async function approveAndSend(opts: {
     return { ok: true };
   }
 
+  // ATOMIC CLAIM (§0: never message a customer twice). The Approve button, a
+  // typed "approve", and Slack event retries can all race into this function;
+  // exactly one caller may win the guarded UPDATE. Losers exit silently — a
+  // missed send is recoverable, a duplicate email is not.
+  const { data: claimed } = await supabase
+    .from("email_threads")
+    .update({ status: "sending" })
+    .eq("id", opts.emailThreadId)
+    .not("status", "in", '("sent","sending")')
+    .select("id");
+  if (!claimed || claimed.length === 0) {
+    await replyInThread(opts.slackChannel, opts.slackThreadTs, ":information_source: Already sent (or send in progress).");
+    return { ok: true };
+  }
+
   const { data: draft, error: dErr } = await supabase
     .from("draft_revisions")
     .select("id, body")
@@ -39,6 +54,8 @@ export async function approveAndSend(opts: {
     .eq("is_current", true)
     .single();
   if (dErr || !draft) {
+    // Release the claim so a draft added later can still be approved.
+    await supabase.from("email_threads").update({ status: thread.status }).eq("id", opts.emailThreadId);
     return { ok: false, error: "no current draft" };
   }
 

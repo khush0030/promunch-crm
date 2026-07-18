@@ -8,11 +8,14 @@
 // POST {}                  — (re)embed every ready document
 // POST { document_id: ".."} — just that one (used by kb-ingest after upload)
 //
-// Auth: verify_jwt = true — invoked by the Next.js API with the service role
-// bearer, or function-to-function by kb-ingest.
+// Auth: service-role bearer via requireInternal (verify_jwt alone is NOT
+// authorization — the public anon key passes it). Invoked by the Next.js API
+// with the service role bearer, or function-to-function by kb-ingest /
+// shopify-catalog-sync.
 
 import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
+import { requireInternal } from "../_shared/require-internal.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 // text-embedding-3-small outputs 1536 dims — matches kb_chunks.embedding vector(1536).
@@ -22,6 +25,8 @@ const CHUNK_OVERLAP = 150;   // carry context across the cut
 const EMBED_BATCH = 96;      // inputs per embeddings API call
 
 Deno.serve(async (req) => {
+  const gate = requireInternal(req);
+  if (gate) return gate;
   if (req.method !== "POST") return j({ error: "POST only" }, 405);
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
   const sb = db();

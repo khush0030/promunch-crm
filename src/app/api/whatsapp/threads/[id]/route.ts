@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { parseBody } from "@/lib/api-helpers";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -26,7 +27,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const body = await req.json();
+  const body = await parseBody(req);
+  if (!body) return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
   const allowed = [
     "status",
     "ticket_status",

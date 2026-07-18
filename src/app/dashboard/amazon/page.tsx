@@ -5,6 +5,7 @@ import { RefreshCw, DownloadCloud, IndianRupee, Minus, Wallet, Tag, CircleCheck,
 import { useToast } from "@/components/ui/Toast";
 import { PageHead, SectionLabel, KpiCard, Panel, DataTable, StatusBadge } from "@/components/pm";
 import type { Column } from "@/components/pm";
+import { apiFetch } from "@/lib/api-fetch";
 
 // Amazon financials dashboard. Reads /api/amazon (server-side SP-API mirror).
 // Shows sales/net with the Amazon-fee breakdown, settlement reconciliation
@@ -150,14 +151,21 @@ function CogsCell({ row, onSaved }: { row: SkuEcon; onSaved: () => void }) {
 export default function AmazonPage() {
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [range, setRange] = useState<RangeKey>("d30");
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
-      const res = await fetch("/api/amazon", { cache: "no-store" });
-      const d = await res.json();
+      const d = await apiFetch<Data>("/api/amazon", { cache: "no-store" });
+      // Shape gate: never let an error payload into state (data.financials[range]
+      // and data.orders.total are dereferenced in render).
+      if (!d?.financials || !d.orders || !d.inventory) throw new Error("Unexpected Amazon API response");
       setData(d);
+    } catch (e) {
+      // keep last good data; surface the failure below
+      setLoadError(e instanceof Error ? e.message : "Couldn't load Amazon data");
     } finally {
       setLoading(false);
     }
@@ -188,7 +196,7 @@ export default function AmazonPage() {
     return t && (!latest || t > latest) ? t : latest;
   }, null) ?? null;
 
-  const r = data?.financials[range];
+  const r = data?.financials?.[range];
 
   // Stockout economics: FBA is what actually sells (fast delivery); when FBA
   // stock hits 0 we assume the sale is lost, not recaptured by 7-8 day MFN.
@@ -329,7 +337,7 @@ export default function AmazonPage() {
         subtitle={
           <>
             Sales, fees, net &amp; settlement reconciliation from Seller Central
-            {data ? ` · ${data.orders.total} orders · ${data.inventory.skuCount} SKUs` : ""}
+            {data?.orders ? ` · ${data.orders.total} orders · ${data.inventory?.skuCount ?? 0} SKUs` : ""}
             {lastSync ? ` · synced ${fmtDate(lastSync)}` : ""}
           </>
         }
@@ -348,6 +356,11 @@ export default function AmazonPage() {
 
       {loading && !data ? (
         <div className="pm-panel pm-dim">Loading Amazon financials…</div>
+      ) : !data && loadError ? (
+        <div className="pm-panel" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span className="pm-dim">Couldn’t load Amazon data: {loadError}</span>
+          <button className="pm-btn ghost sm" onClick={load}><RefreshCw size={14} /> Retry</button>
+        </div>
       ) : !data || !r ? (
         <div className="pm-panel pm-dim">No Amazon data yet. Run the sync.</div>
       ) : (

@@ -53,7 +53,10 @@ verify_jwt = false                    # gated by SHOPIFY_BACKFILL_TOKEN query pa
 verify_jwt = false                    # gated by SHOPIFY_BACKFILL_TOKEN query param
 
 [functions.shopify-catalog-sync]
-verify_jwt = false                    # called server-side with the service key by /api/shopify/catalog
+verify_jwt = false                    # called server-side with the service key by /api/shopify/catalog; gated by requireInternal
+
+[functions.shopify-consent-set]
+verify_jwt = false                    # self-auths via requireInternal (service-role bearer)
 
 [functions.shopify-stats]
 verify_jwt = true                     # called server-side with the anon key by /api/shopify/stats
@@ -68,19 +71,19 @@ verify_jwt = false                    # called function-to-function; gateway JWT
 verify_jwt = false                    # invoked by wa-webhook / wa-jobs-tick function-to-function
 
 [functions.kb-ingest]
-verify_jwt = true                     # invoked by Next.js API with service role bearer
+verify_jwt = true                     # NOT authorization (the public anon key passes); real auth is requireInternal
 
 [functions.kb-embed]
-verify_jwt = true                     # invoked by Next.js API / kb-ingest with service role bearer
+verify_jwt = true                     # NOT authorization (the public anon key passes); real auth is requireInternal
 
 [functions.wa-campaign-send]
 verify_jwt = false                    # self-chains function-to-function; gateway JWT check broke post-upgrade
 
 [functions.wa-register]
-verify_jwt = true                     # one-shot Cloud API number registration
+verify_jwt = true                     # one-shot Cloud API number registration; gated by requireInternal
 
 [functions.wa-template-create]
-verify_jwt = true                     # one-shot admin: pushes templates to Meta
+verify_jwt = true                     # NOT authorization (the public anon key passes); real auth is requireInternal
 
 [functions.shopify-wa]
 verify_jwt = false                    # Shopify uses HMAC header
@@ -89,7 +92,7 @@ verify_jwt = false                    # Shopify uses HMAC header
 verify_jwt = false                    # invoked by scheduled cron
 
 [functions.wa-confirmation-sweep]
-verify_jwt = false                    # invoked by scheduled cron
+verify_jwt = false                    # invoked by scheduled cron with service-role bearer; gated by requireInternal
 
 [functions.wa-jobs-tick]
 verify_jwt = false                    # invoked by scheduled cron
@@ -98,13 +101,13 @@ verify_jwt = false                    # invoked by scheduled cron
 verify_jwt = false                    # invoked by scheduled cron
 
 [functions.wa-watchdog]
-verify_jwt = false                    # invoked by pg_cron + Vercel cron (dead-man's-switch)
+verify_jwt = false                    # invoked by pg_cron (dead-man's-switch) with service-role bearer; gated by requireInternal
 
 [functions.wa-rfm-tick]
 verify_jwt = false                    # invoked by scheduled cron (nightly RFM tag refresh)
 
 [functions.wa-campaign-report]
-verify_jwt = false                    # invoked by pg_cron after a campaign fires; posts analytics to Slack
+verify_jwt = false                    # invoked by wa-campaign-send / wa-jobs-tick with service-role bearer; gated by requireInternal
 
 [functions.wa-weekly-summary]
 verify_jwt = false                    # invoked by pg_cron (Mon 09:00 IST); posts WhatsApp recap to Slack
@@ -113,7 +116,7 @@ verify_jwt = false                    # invoked by pg_cron (Mon 09:00 IST); post
 verify_jwt = false                    # invoked by pg_cron: re-pings unowned tickets past SLA + daily digest
 
 [functions.wa-meta-info]
-verify_jwt = false                    # read-only Graph diagnostic (tier/quality), no secrets returned
+verify_jwt = false                    # read-only Graph diagnostic (tier/quality); gated by requireInternal
 
 [functions.wa-campaign-worker]
 verify_jwt = false                    # invoked by pg_cron every ~2 min; promotes scheduled + drives/heals sending campaigns
@@ -134,10 +137,13 @@ verify_jwt = false                    # called function-to-function with the ser
 verify_jwt = false                    # invoked by ig-webhook / ig-jobs-tick function-to-function
 
 [functions.ig-jobs-tick]
-verify_jwt = false                    # invoked by scheduled cron
+verify_jwt = false                    # invoked by scheduled cron with service-role bearer; gated by requireInternal
 
 [functions.ig-analyze]
 verify_jwt = false                    # called function-to-function by the Next dashboard route
 
 [functions.deal-scan]
 verify_jwt = false                    # pg_cron + dashboard invoke with service-role bearer; gated by requireInternal
+
+[functions.b2b-send]
+verify_jwt = false                    # self-auths via requireInternal (service-role bearer)

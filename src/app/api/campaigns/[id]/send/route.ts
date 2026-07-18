@@ -27,11 +27,24 @@ export async function POST(
     return NextResponse.json({ error: 'Campaign must have subject and body_html before sending' }, { status: 400 });
   }
 
-  // Update status to sending
-  await supabase
+  // Atomic claim: exactly one caller may move the campaign into 'sending'
+  // (AGENTS.md §4.1 — a double-click or concurrent POST must never double-
+  // blast the audience). 'paused' is claimable because this route parks
+  // failed runs as paused and re-POSTing is the resume path; the per-
+  // recipient dedupe below keeps a resume from emailing anyone twice.
+  const { data: claimed, error: claimError } = await supabase
     .from('campaigns')
     .update({ status: 'sending' })
-    .eq('id', id);
+    .eq('id', id)
+    .in('status', ['draft', 'scheduled', 'paused'])
+    .select('id');
+
+  if (claimError) {
+    return NextResponse.json({ error: claimError.message }, { status: 500 });
+  }
+  if (!claimed || claimed.length === 0) {
+    return NextResponse.json({ error: 'campaign already sending or sent' }, { status: 409 });
+  }
 
   // Build contact query based on segment_filter. Phone-only contacts (HYPD /
   // guest buyers, migration 007) have no email — they are WhatsApp-reachable
@@ -74,8 +87,35 @@ export async function POST(
     return NextResponse.json({ error: 'No contacts match the segment filter' }, { status: 400 });
   }
 
-  // Create campaign_email records
-  const campaignEmailRecords = contacts.map((contact) => ({
+  // Resume dedupe: a prior (paused/failed) attempt may already have created
+  // campaign_emails rows — and possibly delivered them. One row per recipient
+  // is the claim; never insert (or send) a second one (AGENTS.md §4.1: a
+  // missed email is recoverable, a duplicate reads as spam).
+  const { data: priorEmails, error: priorError } = await supabase
+    .from('campaign_emails')
+    .select('contact_id')
+    .eq('campaign_id', id);
+
+  if (priorError) {
+    await supabase.from('campaigns').update({ status: 'paused' }).eq('id', id);
+    return NextResponse.json({ error: priorError.message }, { status: 500 });
+  }
+
+  const alreadyClaimed = new Set((priorEmails ?? []).map((r) => r.contact_id));
+  const recipients = contacts.filter((c) => !alreadyClaimed.has(c.id));
+
+  if (recipients.length === 0) {
+    // Every matching contact was already claimed by a previous attempt.
+    // Re-sending would risk duplicates; park for manual review instead.
+    await supabase.from('campaigns').update({ status: 'paused' }).eq('id', id);
+    return NextResponse.json(
+      { error: 'all recipients were already claimed by a previous send attempt' },
+      { status: 409 },
+    );
+  }
+
+  // Create campaign_email records (new recipients only)
+  const campaignEmailRecords = recipients.map((contact) => ({
     campaign_id: id,
     contact_id: contact.id,
     status: 'queued',

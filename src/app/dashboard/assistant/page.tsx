@@ -76,20 +76,41 @@ export default function AssistantPage() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
+  // If a send fails (the error banner shows), put the draft back in the box.
+  const lastSentRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (error && lastSentRef.current) {
+      const draft = lastSentRef.current;
+      lastSentRef.current = null;
+      setInput((cur) => (cur ? cur : draft));
+    }
+  }, [error]);
+
   async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
-    setInput("");
     let id = activeId;
     if (!id) {
-      const res = await fetch("/api/assistant/conversations", { method: "POST" });
-      if (res.ok) {
-        id = (await res.json()).id as string;
-        setActiveId(id);
-        qc.invalidateQueries({ queryKey: ["assistant-convos"] });
+      try {
+        const res = await fetch("/api/assistant/conversations", { method: "POST" });
+        if (res.ok) {
+          id = (await res.json()).id as string;
+          setActiveId(id);
+          qc.invalidateQueries({ queryKey: ["assistant-convos"] });
+        }
+      } catch {
+        // proceed without a conversation id; the send below reports failures
       }
     }
-    sendMessage({ text: trimmed }, { body: { conversationId: id } });
+    // Clear only once the request is underway; if it fails, the effect below
+    // restores the draft so nothing typed is lost.
+    lastSentRef.current = trimmed;
+    setInput("");
+    try {
+      await sendMessage({ text: trimmed }, { body: { conversationId: id } });
+    } catch {
+      setInput((cur) => (cur ? cur : trimmed));
+    }
   }
 
   async function openConvo(id: string) {

@@ -115,11 +115,22 @@ Deno.serve(async (req) => {
     .lt("created_at", new Date(Date.now() - 5 * 60_000).toISOString());
 
   // ---- audience ----
-  let q = sb.from("wa_contacts").select("id, wa_id, name, email, tags").eq("opted_in", true);
+  // Page through the FULL audience: PostgREST caps a single response at 1000
+  // rows, and an unpaginated read silently truncates — contacts past the cap
+  // would never be messaged while the campaign still marked itself completed
+  // (same 1000-row class as the ledger read below, fixed after Edamame).
   const tags: string[] = Array.isArray(campaign.audience_filter?.tags) ? campaign.audience_filter.tags : [];
-  if (tags.length) q = q.overlaps("tags", tags);
-  const { data: contacts, error: cErr } = await q;
-  if (cErr) return j({ error: cErr.message }, 500);
+  const contacts: { id: string; wa_id: string; name: string | null; email: string | null; tags: string[] | null }[] = [];
+  for (let from = 0; ; from += 1000) {
+    let q = sb.from("wa_contacts").select("id, wa_id, name, email, tags")
+      .eq("opted_in", true).order("id").range(from, from + 999);
+    if (tags.length) q = q.overlaps("tags", tags);
+    const { data: page, error: cErr } = await q;
+    if (cErr) return j({ error: cErr.message }, 500);
+    if (!page || page.length === 0) break;
+    contacts.push(...(page as typeof contacts));
+    if (page.length < 1000) break;
+  }
   if (!contacts || contacts.length === 0) {
     await sb.from("wa_campaigns").update({
       status: "completed", completed_at: new Date().toISOString(), last_error: "no opted-in recipients matched",
