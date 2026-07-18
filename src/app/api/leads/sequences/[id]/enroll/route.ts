@@ -8,15 +8,22 @@ export const maxDuration = 60;
 
 // Enroll a list's eligible members into a sequence. Eligible = has a primary
 // mx_ok contact, not suppressed, not already enrolled in this sequence, and
-// the lead has not already replied/bounced/been suppressed.
+// the lead has not already replied/bounced/been suppressed. An optional
+// lead_ids array (campaign wizard selection) restricts enrolment to that
+// subset of the list.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const denied = await requireSession();
   if (denied) return denied;
   const { id: sequenceId } = await params;
 
-  const body = (await req.json().catch(() => null)) as { list_id?: string } | null;
+  const body = (await req.json().catch(() => null)) as
+    | { list_id?: string; lead_ids?: string[] }
+    | null;
   const listId = body?.list_id;
   if (!listId) return NextResponse.json({ error: 'list_id is required' }, { status: 400 });
+  const onlyLeadIds = Array.isArray(body?.lead_ids)
+    ? new Set(body.lead_ids.map(String).slice(0, 2000))
+    : null;
 
   const [{ data: sequence }, { data: settings }, { data: members }, { data: existing }] = await Promise.all([
     supabaseAdmin.from('email_sequences').select('id, status').eq('id', sequenceId).maybeSingle(),
@@ -38,6 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   for (const m of members ?? []) {
     const lead = m.leads as unknown as { id: string; status: string } | null;
     if (!lead) continue;
+    if (onlyLeadIds && !onlyLeadIds.has(lead.id)) continue; // not selected — not a "skip"
     if (already.has(lead.id)) { skip('already enrolled'); continue; }
     if (lead.status === 'replied') { skip('already replied'); continue; }
     if (lead.status === 'bounced') { skip('bounced earlier'); continue; }

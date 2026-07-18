@@ -67,7 +67,7 @@ export default function ListsView({
         <div className={styles.getStartedTitle}>No lists yet</div>
         <p className={styles.getStartedText}>
           Search for companies (for example “gifting companies in Mumbai”) and the results are saved
-          as a list here. Lists are what you send sequences to.
+          as a list here. Open a list and hit “Email this list” to send it a campaign.
         </p>
         <div className={styles.getStartedActions}>
           <button type="button" className="pm-btn primary" onClick={onFind}>Find companies</button>
@@ -99,6 +99,13 @@ export default function ListsView({
 
   return (
     <div>
+      <div className={styles.listsHowTo}>
+        <b>How to send a bulk campaign:</b> open any list below, then hit{" "}
+        <b>Email this list</b>. A short wizard lets you pick recipients, find missing verified
+        emails, choose the product angle, write or AI-draft the copy, and preview the exact email
+        per company before anything sends.
+      </div>
+
       <div className={styles.tplToolbar} style={{ marginBottom: 10 }}>
         <button type="button" className="pm-btn" onClick={createList} disabled={creating}>
           <Plus size={13} /> New empty list

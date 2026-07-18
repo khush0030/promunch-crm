@@ -42,13 +42,13 @@ export const GUIDE_STEPS: { icon: typeof MapPin; title: string; blurb: string }[
   },
   {
     icon: PenLine,
-    title: "3. Build templates & a sequence",
-    blurb: "Write email templates (or let AI draft three options), then chain them into a sequence: intro, wait a few days, follow-up. Variables like {company} fill in per lead.",
+    title: "3. Open a list → “Email this list”",
+    blurb: "A wizard walks you through it: tick recipients, choose the products to pitch, write the copy or let AI draft it, and preview the exact email each company gets.",
   },
   {
     icon: CheckCircle2,
-    title: "4. Enroll the list",
-    blurb: "Open a list and hit “Enroll in sequence”. Emails go out automatically inside the send window and daily cap; anyone who replies is stopped and lands in Replies.",
+    title: "4. Launch and relax",
+    blurb: "Emails go out automatically inside the send window and daily cap. Anyone who replies is stopped instantly and lands in Replies; results build up in Analytics.",
   },
 ];
 

@@ -869,3 +869,80 @@
   flex-wrap: wrap;
 }
 .noEmailCell { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ── campaign wizard ("Email this list") ─────────────────────────────────── */
+
+.wizSteps { display: flex; gap: 14px; margin-top: 8px; flex-wrap: wrap; }
+.wizStep {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--pm-hint);
+  font-weight: 550;
+}
+.wizStepOn { color: var(--pm-ink); font-weight: 650; }
+.wizStepDone { color: var(--pm-green, #2f7d5b); }
+.wizStepNum {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+.wizIntro { font-size: 12.5px; color: var(--pm-muted); line-height: 1.55; margin: 12px 0 12px; }
+.wizModeRow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wizAiBox {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px dashed var(--pm-border);
+  border-radius: 10px;
+  background: var(--hover, #f6f4ef);
+}
+.wizSummary {
+  border: 1px solid var(--pm-border);
+  border-radius: 10px;
+  padding: 4px 14px;
+}
+
+.recipScroll { max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.recipGroup { border: 1px solid var(--pm-border); border-radius: 10px; padding: 10px 12px; }
+.recipGroupHead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.recipGroupTitle { font-weight: 650; font-size: 13px; }
+.recipGroupHint { font-size: 11.5px; color: var(--pm-hint); line-height: 1.5; margin: 3px 0 6px; }
+.recipAll { font-size: 12px; color: var(--pm-muted); display: inline-flex; align-items: center; gap: 5px; }
+.recipRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 0;
+  border-top: 1px solid var(--pm-border);
+  font-size: 13px;
+  cursor: pointer;
+  flex-wrap: wrap;
+}
+.recipRowMuted { opacity: 0.55; cursor: default; }
+.recipName { font-weight: 570; }
+
+.previewNav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.listsHowTo {
+  font-size: 12.5px;
+  color: var(--pm-muted);
+  line-height: 1.55;
+  background: var(--pm-green-soft, rgba(47, 125, 91, 0.08));
+  border: 1px solid var(--pm-green-border, rgba(47, 125, 91, 0.2));
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.listDetailHint { font-size: 12.5px; color: var(--pm-hint); line-height: 1.55; margin: -6px 0 12px; }
+
+@media (max-width: 720px) {
+  .wizModeRow { grid-template-columns: 1fr; }
+  .recipScroll { max-height: none; }
+}
