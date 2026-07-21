@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/Toast";
 import styles from "@/app/dashboard/leads/leads.module.css";
 import type { Lead, ListLead, ListSummary } from "./types";
 import { CONFIDENCE_PILL } from "./styles";
-import { bestContact, fitPill, fmtTime } from "./format";
+import { bestContact, fitPill, fmtTime, verifiedContact } from "./format";
 import CampaignWizard from "./CampaignWizard";
 
 const ENROLL_PILL: Record<string, { cls: string; label: string }> = {
@@ -33,6 +33,9 @@ export default function ListDetail({
   const [leads, setLeads] = useState<ListLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [showWizard, setShowWizard] = useState(false);
+  // Selection handed to the wizard: undefined = whole list (header button),
+  // an id array = "Email selected" from the bulk bar.
+  const [wizardSeed, setWizardSeed] = useState<string[] | undefined>(undefined);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [revealing, setRevealing] = useState<string | null>(null); // lead id or "bulk"
   const [revealProgress, setRevealProgress] = useState("");
@@ -89,7 +92,8 @@ export default function ListDetail({
   }
 
   async function revealSelected() {
-    const targets = leads.filter((l) => checked.has(l.id));
+    // Only crawl leads that still lack a sendable (verified) email.
+    const targets = leads.filter((l) => checked.has(l.id) && !verifiedContact(l));
     if (!targets.length) return;
     setRevealing("bulk");
     let found = 0, none = 0, failed = 0;
@@ -102,12 +106,28 @@ export default function ListDetail({
     }
     setRevealing(null);
     setRevealProgress("");
-    setChecked(new Set());
     toast.push({
       kind: found ? "success" : "error",
       text: `Emails found for ${found} of ${targets.length} leads${none ? `, ${none} had none on their site` : ""}${failed ? `, ${failed} could not be crawled` : ""}.`,
     });
     load();
+  }
+
+  async function removeSelected() {
+    const ids = [...checked];
+    if (!ids.length) return;
+    if (!confirm(`Remove ${ids.length} lead${ids.length === 1 ? "" : "s"} from this list? The leads themselves are kept.`)) return;
+    const res = await fetch(`/api/leads/lists/${listId}/members`, {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ lead_ids: ids }),
+    });
+    if (res.ok) {
+      setChecked(new Set());
+      load();
+    } else {
+      toast.push({ kind: "error", text: (await res.json()).error || "remove failed" });
+    }
   }
 
   async function removeLead(leadId: string, name: string) {
@@ -136,7 +156,7 @@ export default function ListDetail({
         </div>
         <div className={styles.toolbar}>
           <button type="button" className="pm-btn" onClick={rename}><Pencil size={13} /> Rename</button>
-          <button type="button" className="pm-btn primary" onClick={() => setShowWizard(true)}>
+          <button type="button" className="pm-btn primary" onClick={() => { setWizardSeed(undefined); setShowWizard(true); }}>
             <Send size={13} /> Email this list
           </button>
         </div>
@@ -145,7 +165,8 @@ export default function ListDetail({
       <p className={styles.listDetailHint}>
         <b>Email this list</b> walks you through the whole campaign: pick who gets it, write or
         AI-draft the copy (with product targeting), preview the exact email per company, then
-        launch. Missing emails? Tick leads below and hit “Find emails”, or do it inside the wizard.
+        launch. Or tick any leads below to email just those, find their verified emails, or remove
+        them from the list.
       </p>
 
       {leads.length === 0 ? (
@@ -156,8 +177,8 @@ export default function ListDetail({
       ) : (
         <>
         {(() => {
-          const noEmailIds = leads.filter((l) => !bestContact(l)).map((l) => l.id);
-          const allChecked = noEmailIds.length > 0 && noEmailIds.every((id) => checked.has(id));
+          const unverifiedChecked = leads.filter((l) => checked.has(l.id) && !verifiedContact(l));
+          const allChecked = leads.length > 0 && leads.every((l) => checked.has(l.id));
           return (
             <>
             {checked.size > 0 && (
@@ -167,10 +188,22 @@ export default function ListDetail({
                   type="button"
                   className="pm-btn primary"
                   disabled={revealing !== null}
+                  onClick={() => { setWizardSeed([...checked]); setShowWizard(true); }}
+                >
+                  <Send size={13} /> Email selected ({checked.size})
+                </button>
+                <button
+                  type="button"
+                  className="pm-btn"
+                  disabled={revealing !== null || unverifiedChecked.length === 0}
+                  title={unverifiedChecked.length === 0 ? "Everyone selected already has a verified email" : undefined}
                   onClick={revealSelected}
                 >
                   <MailSearch size={13} />{" "}
-                  {revealing === "bulk" ? `Finding emails ${revealProgress}…` : `Find emails (${checked.size})`}
+                  {revealing === "bulk" ? `Finding emails ${revealProgress}…` : `Find emails (${unverifiedChecked.length})`}
+                </button>
+                <button type="button" className="pm-btn ghost" disabled={revealing !== null} onClick={removeSelected}>
+                  <Trash2 size={13} /> Remove
                 </button>
                 <button type="button" className="pm-btn ghost" onClick={() => setChecked(new Set())} disabled={revealing !== null}>
                   Clear
@@ -182,16 +215,14 @@ export default function ListDetail({
             <thead>
               <tr>
                 <th style={{ width: 34 }}>
-                  {noEmailIds.length > 0 && (
-                    <input
-                      type="checkbox"
-                      aria-label="Select all leads without a verified email"
-                      checked={allChecked}
-                      onChange={(e) =>
-                        setChecked(e.target.checked ? new Set(noEmailIds) : new Set())
-                      }
-                    />
-                  )}
+                  <input
+                    type="checkbox"
+                    aria-label="Select all leads"
+                    checked={allChecked}
+                    onChange={(e) =>
+                      setChecked(e.target.checked ? new Set(leads.map((l) => l.id)) : new Set())
+                    }
+                  />
                 </th>
                 <th style={{ width: 56 }}>Fit</th>
                 <th>Company</th>
@@ -205,26 +236,25 @@ export default function ListDetail({
               {leads.map((lead) => {
                 const fp = fitPill(lead.fit_score);
                 const best = bestContact(lead);
+                const verified = verifiedContact(lead);
                 const en = lead.enrollment;
                 const ep = en ? ENROLL_PILL[en.status] ?? { cls: "bg-gray", label: en.status } : null;
                 return (
                   <tr key={lead.id} className="clickable" onClick={() => onOpenLead(lead)}>
                     <td onClick={(e) => e.stopPropagation()}>
-                      {!best && (
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${lead.name}`}
-                          checked={checked.has(lead.id)}
-                          onChange={(e) =>
-                            setChecked((prev) => {
-                              const next = new Set(prev);
-                              if (e.target.checked) next.add(lead.id);
-                              else next.delete(lead.id);
-                              return next;
-                            })
-                          }
-                        />
-                      )}
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${lead.name}`}
+                        checked={checked.has(lead.id)}
+                        onChange={(e) =>
+                          setChecked((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(lead.id);
+                            else next.delete(lead.id);
+                            return next;
+                          })
+                        }
+                      />
                     </td>
                     <td><span className={`pm-badge2 ${fp.cls}`}>{fp.label}</span></td>
                     <td>
@@ -232,14 +262,21 @@ export default function ListDetail({
                       <div className="pm-dim">{[lead.category, lead.city].filter(Boolean).join(" · ") || "—"}</div>
                     </td>
                     <td>
-                      {best ? (
+                      {verified ? (
                         <span>
-                          <span className="mono" style={{ fontSize: 12.5 }}>{best.email}</span>{" "}
-                          <span className={`pm-badge2 ${CONFIDENCE_PILL[best.confidence] ?? "bg-gray"}`}>{best.confidence}</span>
+                          <span className="mono" style={{ fontSize: 12.5 }}>{verified.email}</span>{" "}
+                          <span className={`pm-badge2 ${CONFIDENCE_PILL[verified.confidence] ?? "bg-gray"}`}>{verified.confidence}</span>
                         </span>
                       ) : (
                         <span className={styles.noEmailCell} onClick={(e) => e.stopPropagation()}>
-                          <span className="pm-muted">no verified email</span>
+                          {best ? (
+                            <>
+                              <span className="mono pm-dim" style={{ fontSize: 12.5 }}>{best.email}</span>
+                              <span className="pm-badge2 bg-gold" title="Address found but its mail server did not verify — campaigns skip it">unverified</span>
+                            </>
+                          ) : (
+                            <span className="pm-muted">no verified email</span>
+                          )}
                           <button
                             type="button"
                             className="pm-btn"
@@ -267,10 +304,10 @@ export default function ListDetail({
                     <td>
                       {ep ? (
                         <span className={`pm-badge2 ${ep.cls}`} title={en?.sequence_name ?? undefined}>{ep.label}</span>
-                      ) : best ? (
+                      ) : verified ? (
                         <span className="pm-badge2 bg-gray">Not enrolled</span>
                       ) : (
-                        <span className="pm-badge2 bg-gray">Skipped</span>
+                        <span className="pm-badge2 bg-gray">No email yet</span>
                       )}
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
@@ -299,6 +336,7 @@ export default function ListDetail({
       {showWizard && (
         <CampaignWizard
           listId={listId}
+          initialLeadIds={wizardSeed}
           onClose={() => { setShowWizard(false); load(); }}
           onDone={load}
         />

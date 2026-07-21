@@ -14,8 +14,9 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "@/app/dashboard/leads/leads.module.css";
-import type { Contact, ListLead, ListSummary, SequenceRow, TemplateRow } from "./types";
+import type { ListLead, ListSummary, SequenceRow, TemplateRow } from "./types";
 import { PRODUCT_OPTIONS } from "./constants";
+import { verifiedContact } from "./format";
 import { renderTemplate } from "@/lib/leads/templates";
 import { useEscapeKey } from "./useEscapeKey";
 
@@ -31,15 +32,6 @@ type Settings = {
 };
 
 type Variant = { label: string; subject: string; body: string };
-
-function verifiedContact(lead: ListLead): Contact | null {
-  const contacts = lead.lead_contacts ?? [];
-  return (
-    contacts.find((c) => c.is_primary && c.verify_status === "mx_ok") ??
-    contacts.find((c) => c.verify_status === "mx_ok") ??
-    null
-  );
-}
 
 // "ready" = will actually be sent to; mirrors the enroll API's rules.
 function readiness(lead: ListLead): "ready" | "in_sequence" | "no_email" | "blocked" {
@@ -60,9 +52,11 @@ function leadVars(lead: ListLead) {
 }
 
 export default function CampaignWizard({
-  listId, onClose, onDone,
+  listId, initialLeadIds, onClose, onDone,
 }: {
   listId: string;
+  /** Preselect exactly these leads (table selection); default = everyone ready. */
+  initialLeadIds?: string[];
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -124,8 +118,20 @@ export default function CampaignWizard({
         setTemplates(tplRes.templates ?? []);
         setSequences(((seqRes.sequences ?? []) as SequenceRow[]).filter((s) => s.status !== "archived"));
         setSettings(setRes.settings ?? null);
-        // Everyone ready to receive an email starts selected.
-        setChecked(new Set(freshLeads.filter((l) => readiness(l) === "ready").map((l) => l.id)));
+        // Everyone ready to receive an email starts selected — or, when the
+        // wizard was opened from a table selection, exactly that selection
+        // (sendable leads only; in-another-sequence counts as deliberate).
+        const sendable = (l: ListLead) => {
+          const r = readiness(l);
+          return r === "ready" || r === "in_sequence";
+        };
+        setChecked(
+          new Set(
+            initialLeadIds?.length
+              ? freshLeads.filter((l) => initialLeadIds.includes(l.id) && sendable(l)).map((l) => l.id)
+              : freshLeads.filter((l) => readiness(l) === "ready").map((l) => l.id),
+          ),
+        );
         setInitialised(true);
       } catch (e) {
         toast.push({ kind: "error", text: `Campaign: ${e instanceof Error ? e.message : "unknown"}` });

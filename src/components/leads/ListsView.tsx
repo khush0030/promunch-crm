@@ -120,7 +120,7 @@ export default function ListsView({
           const running = items.filter((l) => l.active_sequence).length;
           return (
             <section key={group} className={styles.group}>
-              <button type="button" className={styles.groupHead} onClick={() => toggle(group)} aria-expanded={isCollapsed ? "false" : "true"}>
+              <button type="button" className={styles.groupHead} onClick={() => toggle(group)} aria-expanded={!isCollapsed}>
                 {isCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
                 <span className={styles.groupName}>{group}</span>
                 <span className={styles.groupMeta}>

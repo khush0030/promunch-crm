@@ -15,6 +15,17 @@ export function bestContact(lead: Lead): Contact | null {
   return contacts.find((c) => c.is_primary) ?? contacts[0] ?? null;
 }
 
+// The contact a campaign would actually send to — mirrors the enroll API's
+// primary + mx_ok rule. A lead can have contacts yet still not be sendable.
+export function verifiedContact(lead: Lead): Contact | null {
+  const contacts = lead.lead_contacts ?? [];
+  return (
+    contacts.find((c) => c.is_primary && c.verify_status === "mx_ok") ??
+    contacts.find((c) => c.verify_status === "mx_ok") ??
+    null
+  );
+}
+
 export function fmtTime(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString([], {

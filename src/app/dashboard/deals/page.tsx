@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Handshake } from "lucide-react";
+import { Handshake, LayoutGrid, List } from "lucide-react";
 import { EmptyState, PageHead, SearchBar, StatusBadge } from "@/components/pm";
 import { DealDrawer } from "@/components/deals/DealDrawer";
+import DealsBoard from "@/components/deals/DealsBoard";
 import {
   ALL_KINDS,
   BUCKET_OF,
@@ -17,7 +18,28 @@ import {
   type Bucket,
 } from "@/components/deals/constants";
 import { timeAgo } from "@/components/deals/format";
-import type { Deal, DealsResponse } from "@/components/deals/types";
+import type { Deal, DealsResponse, DealStage } from "@/components/deals/types";
+
+const VIEW_KEY = "deals_view_v1";
+
+// Board/list preference in localStorage, read via useSyncExternalStore so the
+// server render ("board") hydrates cleanly and then syncs to the stored value.
+function subscribeView(cb: () => void) {
+  window.addEventListener("deals-view-change", cb);
+  return () => window.removeEventListener("deals-view-change", cb);
+}
+function useStoredView(): ["board" | "list", (v: "board" | "list") => void] {
+  const view = useSyncExternalStore(
+    subscribeView,
+    () => (localStorage.getItem(VIEW_KEY) === "list" ? "list" : "board"),
+    () => "board" as const,
+  );
+  const set = (v: "board" | "list") => {
+    localStorage.setItem(VIEW_KEY, v);
+    window.dispatchEvent(new Event("deals-view-change"));
+  };
+  return [view, set];
+}
 
 // One row, one deal: temperature dot · company · kind · next step · flag · age.
 // HoReCa and flagged deals float to the top of each bucket.
@@ -37,6 +59,7 @@ const TEMP_DOT: Record<string, string> = {
 
 export default function DealsPage() {
   const qc = useQueryClient();
+  const [view, switchView] = useStoredView();
   const [bucket, setBucket] = useState<Bucket>("inquiries");
   const [kind, setKind] = useState("all");
   const [onlyFollowUp, setOnlyFollowUp] = useState(false);
@@ -52,6 +75,40 @@ export default function DealsPage() {
       return d;
     },
     refetchInterval: 120_000,
+  });
+
+  // Drag-and-drop stage moves: optimistic so the card lands instantly; the
+  // PATCH flips manual_stage_override server-side.
+  const moveStage = useMutation({
+    mutationFn: async ({ id, stage }: { id: string; stage: DealStage }) => {
+      const res = await fetch(`/api/deals/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ stage }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "failed to move deal");
+      return d;
+    },
+    onMutate: async ({ id, stage }) => {
+      await qc.cancelQueries({ queryKey: ["deals"] });
+      const prev = qc.getQueryData<DealsResponse>(["deals"]);
+      qc.setQueryData<DealsResponse>(["deals"], (old) =>
+        old
+          ? {
+              ...old,
+              deals: old.deals.map((d) =>
+                d.id === id ? { ...d, stage, manual_stage_override: true } : d,
+              ),
+            }
+          : old,
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["deals"], ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["deals"] }),
   });
 
   const scanNow = useMutation({
@@ -143,7 +200,7 @@ export default function DealsPage() {
         </p>
       )}
 
-      {/* Segmented buckets + compact filters, one row */}
+      {/* View toggle + segmented buckets (list only) + compact filters, one row */}
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
         <div
           style={{
@@ -155,24 +212,47 @@ export default function DealsPage() {
             padding: 3,
           }}
         >
-          {BUCKETS.map((b) => (
-            <button key={b.key} type="button" style={segBtn(bucket === b.key)} onClick={() => setBucket(b.key)}>
-              {b.label} {byBucket[b.key].length > 0 && <span style={{ opacity: 0.75 }}>{byBucket[b.key].length}</span>}
-            </button>
-          ))}
+          <button type="button" style={segBtn(view === "board")} onClick={() => switchView("board")}>
+            <LayoutGrid size={12} style={{ verticalAlign: -1, marginRight: 5 }} />
+            Board
+          </button>
+          <button type="button" style={segBtn(view === "list")} onClick={() => switchView("list")}>
+            <List size={12} style={{ verticalAlign: -1, marginRight: 5 }} />
+            List
+          </button>
         </div>
-        <button
-          type="button"
-          style={{
-            ...segBtn(bucket === "closed"),
-            background: bucket === "closed" ? "var(--pm-card2)" : "transparent",
-            color: "var(--pm-hint)",
-            border: bucket === "closed" ? "1px solid var(--pm-border)" : "1px solid transparent",
-          }}
-          onClick={() => setBucket("closed")}
-        >
-          Closed {byBucket.closed.length}
-        </button>
+        {view === "list" && (
+          <>
+            <div
+              style={{
+                display: "flex",
+                gap: 2,
+                background: "var(--pm-card)",
+                border: "1px solid var(--pm-border)",
+                borderRadius: 999,
+                padding: 3,
+              }}
+            >
+              {BUCKETS.map((b) => (
+                <button key={b.key} type="button" style={segBtn(bucket === b.key)} onClick={() => setBucket(b.key)}>
+                  {b.label} {byBucket[b.key].length > 0 && <span style={{ opacity: 0.75 }}>{byBucket[b.key].length}</span>}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              style={{
+                ...segBtn(bucket === "closed"),
+                background: bucket === "closed" ? "var(--pm-card2)" : "transparent",
+                color: "var(--pm-hint)",
+                border: bucket === "closed" ? "1px solid var(--pm-border)" : "1px solid transparent",
+              }}
+              onClick={() => setBucket("closed")}
+            >
+              Closed {byBucket.closed.length}
+            </button>
+          </>
+        )}
         <span style={{ flex: 1 }} />
         <SearchBar value={q} onChange={setQ} placeholder="Search deals…" />
         <select
@@ -205,7 +285,34 @@ export default function DealsPage() {
         </button>
       </div>
 
+      {/* Kanban board */}
+      {view === "board" &&
+        (isLoading ? (
+          <p style={{ color: "var(--pm-hint)", padding: 20 }}>Loading deals…</p>
+        ) : error instanceof Error ? (
+          <p style={{ color: "var(--pm-terra)", padding: 20 }}>{error.message}</p>
+        ) : filtered.length === 0 ? (
+          <EmptyState icon={<Handshake />} title="Nothing here" style={{ marginTop: 14 }}>
+            {deals.length === 0
+              ? "Hit “Scan now” — the pipeline builds itself from hello@promunch.in."
+              : "No deals match the current filters."}
+          </EmptyState>
+        ) : (
+          <>
+            <p style={{ fontSize: 11.5, color: "var(--pm-hint)", margin: "10px 0 0" }}>
+              Drag a card to move it between stages — the scanner respects manual moves. Drop on
+              Closed to mark a deal lost; click any card for the full story.
+            </p>
+            <DealsBoard
+              deals={[...filtered].sort(rank)}
+              onOpen={setOpenId}
+              onMove={(id, stage) => moveStage.mutate({ id, stage })}
+            />
+          </>
+        ))}
+
       {/* The list */}
+      {view === "list" && (
       <div
         style={{
           marginTop: 14,
@@ -286,6 +393,7 @@ export default function DealsPage() {
           ))
         )}
       </div>
+      )}
 
       {openId && <DealDrawer dealId={openId} onClose={() => setOpenId(null)} />}
     </div>
