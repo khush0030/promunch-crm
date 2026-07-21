@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle, Check, Clock, FileText, Megaphone, Phone, Plus, RefreshCw,
+  AlertTriangle, Check, ChevronDown, ChevronRight, Clock, FileText, Gauge, Megaphone, Phone, Plus, RefreshCw,
   Send, Sparkles, Trash2, Upload, User as UserIcon, X,
 } from "lucide-react";
 import { explainWaError } from "./waErrors";
@@ -107,6 +107,108 @@ function RecipientsModal({ campaign, onClose }: { campaign: Campaign; onClose: (
   );
 }
 
+// Live account standing + daily budget from /api/whatsapp/quota.
+type Quota = {
+  tier: string | null;
+  quality: string | null;
+  limit: number | null;
+  used24h: number;
+  remaining: number | null;
+  standing_error?: string | null;
+};
+
+// "How many people can we still reach today, and is Meta happy with us" — the
+// two numbers that decide whether a campaign goes out today or spreads over
+// days. Interakt-style visibility so nobody has to guess from failed counts.
+function QuotaBanner({ quota }: { quota: Quota | null }) {
+  if (!quota) return null;
+  const q = (quota.quality ?? "").toUpperCase();
+  const qColor = q === "GREEN" ? "var(--pm-green)" : q === "YELLOW" ? "var(--pm-gold)" : q === "RED" ? "var(--pm-terra)" : "var(--pm-muted)";
+  const qLabel = q === "GREEN" ? "Good" : q === "YELLOW" ? "At risk" : q === "RED" ? "Poor" : "Unknown";
+  const pct = quota.limit ? Math.min(100, Math.round((quota.used24h / quota.limit) * 100)) : 0;
+  return (
+    <div style={{ ...cardStyle, marginBottom: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+          <Gauge size={14} /> Account standing &amp; daily sending budget
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 700, color: qColor, background: "var(--pm-app)", border: `1px solid ${qColor}`, padding: "2px 8px", borderRadius: 999 }}>
+          Quality: {qLabel}
+        </span>
+      </div>
+      {quota.limit != null ? (
+        <>
+          <div style={{ marginTop: 10, height: 8, borderRadius: 999, background: "var(--pm-line)", overflow: "hidden" }}>
+            <div style={{ width: `${pct}%`, height: "100%", background: pct >= 100 ? "var(--pm-terra)" : "var(--pm-green)" }} />
+          </div>
+          <div style={{ fontSize: 12, color: "var(--pm-muted)", marginTop: 6 }}>
+            <strong>{(quota.remaining ?? 0).toLocaleString("en-IN")}</strong> of {quota.limit.toLocaleString("en-IN")} people still reachable
+            in the current 24h window ({quota.used24h.toLocaleString("en-IN")} used · Meta tier {quota.tier ?? "?"}).
+          </div>
+        </>
+      ) : (
+        <div style={{ fontSize: 12, color: "var(--pm-muted)", marginTop: 8 }}>
+          {quota.tier === "TIER_UNLIMITED"
+            ? "No daily tier limit on this number."
+            : "Couldn't read the daily tier from Meta right now — campaigns still pace themselves automatically."}
+        </div>
+      )}
+      <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 6, lineHeight: 1.4 }}>
+        Campaigns pace themselves to this budget and auto-resume every day until everyone is reached.
+        Meta may still skip individual contacts who hit their personal marketing cap — those retry on later days.
+      </div>
+    </div>
+  );
+}
+
+// Grouped "why did sends fail" panel for one campaign — plain English, with
+// whether the engine retries by itself. Loaded on first expand.
+type FailGroup = { key: string; title: string; msg: string; willRetry: boolean; action: string | null; count: number; sample: string | null };
+function FailureBreakdown({ campaign }: { campaign: Campaign }) {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState<{ total: number; groups: FailGroup[] } | null>(null);
+
+  useEffect(() => {
+    if (!open || data) return;
+    fetch(`/api/whatsapp/campaigns/${campaign.id}/failures`)
+      .then((r) => r.json()).then((j) => setData(j)).catch(() => {});
+  }, [open, data, campaign.id]);
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--pm-terra)", display: "flex", alignItems: "center", gap: 4 }}>
+        {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        Why did {campaign.failed_count.toLocaleString("en-IN")} fail?
+      </button>
+      {open && (
+        <div style={{ marginTop: 6, border: "1px solid var(--pm-border)", borderRadius: 8, padding: "8px 10px", background: "var(--pm-app)" }}>
+          {!data ? (
+            <div style={{ fontSize: 12, color: "var(--pm-hint)" }}>Loading…</div>
+          ) : data.groups.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--pm-hint)" }}>No failure details recorded.</div>
+          ) : data.groups.map((g) => (
+            <div key={g.key} style={{ padding: "6px 0", borderTop: "1px solid var(--pm-line)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12.5, fontWeight: 700 }}>{g.count.toLocaleString("en-IN")} × {g.title}</span>
+                {g.willRetry && (
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--pm-green)", border: "1px solid var(--pm-green)", padding: "1px 6px", borderRadius: 999 }}>
+                    retries automatically
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 11.5, color: "var(--pm-muted)", marginTop: 2, lineHeight: 1.4 }}>{g.msg}</div>
+              {g.action && (
+                <div style={{ fontSize: 11.5, color: "var(--pm-terra)", marginTop: 2, fontWeight: 600 }}>→ {g.action}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CampaignsView() {
   const toast = useToast();
   const [creating, setCreating] = useState(false);
@@ -128,6 +230,17 @@ export default function CampaignsView() {
     refetchInterval: 8000,
   });
   const load = () => refetch();
+
+  // Live Meta account standing + how much of today's budget is left.
+  const { data: quota = null } = useQuery({
+    queryKey: ["wa-quota"],
+    queryFn: async (): Promise<Quota | null> => {
+      const r = await fetch("/api/whatsapp/quota");
+      if (!r.ok) return null;
+      return r.json();
+    },
+    refetchInterval: 60000,
+  });
 
   useEffect(() => {
     fetch("/api/whatsapp/segments").then((r) => r.json()).then((j) => setSegs(j.segments ?? [])).catch(() => {});
@@ -204,6 +317,8 @@ export default function CampaignsView() {
           <button type="button" onClick={() => setCreating(true)} style={primaryBtn}><Plus size={14} /> New campaign</button>
         </div>
       </div>
+
+      <QuotaBanner quota={quota} />
 
       {recovery && recovery.enrolled > 0 && (
         <div style={{ marginBottom: 18 }}>
@@ -288,6 +403,7 @@ export default function CampaignsView() {
                 <span><strong>{c.read_count}</strong> read</span>
                 {c.failed_count > 0 && <span style={{ color: "var(--pm-terra)" }}><strong>{c.failed_count}</strong> failed</span>}
               </div>
+              {c.failed_count > 0 && <FailureBreakdown campaign={c} />}
               {c.last_error && (() => {
                 const friendly = explainWaError(c.last_error);
                 return (
@@ -340,8 +456,8 @@ export default function CampaignsView() {
         })}
       </div>
 
-      {creating && <CampaignModal onClose={() => { setCreating(false); load(); }} />}
-      {createSeg && <CampaignModal initialSegment={createSeg} onClose={() => { setCreateSeg(null); load(); }} />}
+      {creating && <CampaignModal quota={quota} onClose={() => { setCreating(false); load(); }} />}
+      {createSeg && <CampaignModal quota={quota} initialSegment={createSeg} onClose={() => { setCreateSeg(null); load(); }} />}
       {csvOpen && <CsvImportModal onClose={() => setCsvOpen(false)} />}
       {recipientsFor && <RecipientsModal campaign={recipientsFor} onClose={() => setRecipientsFor(null)} />}
     </div>
@@ -362,16 +478,16 @@ const SEGMENTS: { key: string; label: string; hint: string; tags: string[] }[] =
   { key: "lead", label: "Leads", hint: "B2B / scraped prospects", tags: ["lead"] },
 ];
 
-// Meta's daily marketing-message tier for our number (docs/whatsapp/WA_CAMPAIGN_HANDOFF.md).
-// Used only for the multi-day estimate shown to staff; the engine enforces the
-// real cap at send time via resume_at.
 // Stand-in customer name for previews and test sends — the real send replaces
 // the {name} token with each contact's saved name ("there" when unknown).
 const SAMPLE_NAME = "Priya";
 
-const DAILY_TIER = 380;
+// Fallback daily estimate when the live Meta tier isn't readable — used only
+// for the multi-day note shown to staff; the engine enforces the real budget
+// at send time (wa-quota.ts + resume_at).
+const DAILY_TIER_FALLBACK = 250;
 
-function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initialSegment?: string[] }) {
+function CampaignModal({ onClose, initialSegment, quota }: { onClose: () => void; initialSegment?: string[]; quota?: Quota | null }) {
   const toast = useToast();
   const [name, setName] = useState("");
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -683,8 +799,19 @@ function CampaignModal({ onClose, initialSegment }: { onClose: () => void; initi
       </Field>
       <div style={{ fontSize: 12, color: "var(--pm-muted)", marginBottom: 12 }}>
         ≈ <strong>{audienceCount ?? "…"}</strong> opted-in recipient(s) will receive this.
-        {audienceCount != null && audienceCount > DAILY_TIER &&
-          ` That's above Meta's ~${DAILY_TIER}/day tier for our number — the campaign auto-spreads over ≈${Math.ceil(audienceCount / DAILY_TIER)} days, resuming each day.`}
+        {(() => {
+          if (audienceCount == null) return null;
+          const daily = quota?.limit ?? DAILY_TIER_FALLBACK;
+          const tierNote = quota?.limit != null ? `${daily}/day limit (Meta tier ${quota.tier})` : `~${daily}/day estimate`;
+          const parts: string[] = [];
+          if (audienceCount > daily) {
+            parts.push(` That's above the ${tierNote} for our number — the campaign auto-spreads over ≈${Math.ceil(audienceCount / daily)} days, resuming each day.`);
+          }
+          if (quota?.remaining != null && audienceCount > quota.remaining) {
+            parts.push(` ${quota.remaining.toLocaleString("en-IN")} can go out in the current 24h window; the rest continue automatically.`);
+          }
+          return parts.join("");
+        })()}
       </div>
       <Field label="When to send">
         <div style={{ display: "flex", gap: 14, marginBottom: 8 }}>

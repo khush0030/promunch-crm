@@ -15,7 +15,8 @@ import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { sendTemplate, TemplateComponent } from "../_shared/whatsapp.ts";
 import { appendUtm, mintCode } from "../_shared/links.ts";
-import { alertWaSendFailure, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
+import { alertWaSendFailure, explainWaError, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
+import { countBusinessInitiated24h, fetchWaStanding } from "../_shared/wa-quota.ts";
 
 const THROTTLE_MS = 120;
 // Per-invocation caps — kept well under the edge-function wall-clock limit so
@@ -203,7 +204,30 @@ Deno.serve(async (req) => {
     return j({ ok: true, status: "sending", deferred: true, remaining: trulyRemaining.length, note: "daily cap reached — resuming next day" });
   }
   const ticketSkipped = contacts.filter((c) => !reached.has(c.id) && !permanentFail.has(c.id) && blockedSet.has(c.id)).length;
-  const queue = eligibleToday.slice(0, cap);
+
+  // ---- proactive daily budget (account standing) ----
+  // Meta's messaging tier caps UNIQUE recipients of business-initiated sends
+  // per rolling 24h. Stop at the budget instead of blasting into #131049
+  // rejections (which burn quality rating and read as "2,705 failed" to staff).
+  // Both lookups are defensive: if standing OR usage is unknown, skip the gate
+  // and fall back to the reactive cap-defer below — never block on a quota
+  // check, and never invent a budget from a partial count.
+  let dailyRemaining: number | null = null;
+  const standing = await fetchWaStanding();
+  if (standing?.limit != null) {
+    const used = await countBusinessInitiated24h(sb);
+    if (used != null) dailyRemaining = Math.max(0, standing.limit - used);
+  }
+  if (dailyRemaining !== null && dailyRemaining === 0) {
+    await sb.from("wa_campaigns").update({
+      status: "sending", send_lock_at: null, resume_at: nextSendSlotISO(),
+    }).eq("id", campaignId);
+    return j({
+      ok: true, status: "sending", deferred: true, remaining: trulyRemaining.length,
+      note: `daily limit reached (${standing?.tier ?? "?"} = ${standing?.limit}/24h unique recipients) — resuming next day`,
+    });
+  }
+  const queue = eligibleToday.slice(0, Math.min(cap, dailyRemaining ?? cap));
 
   await sb.from("wa_campaigns").update({
     status: "sending",
@@ -272,13 +296,26 @@ Deno.serve(async (req) => {
       res = { ok: false, message_id: null as string | null, raw: null, error: String(e), error_code: undefined as number | undefined, error_detail: undefined as string | undefined };
     }
 
-    // Finalize the claimed row IN PLACE (update, never a second insert).
+    // Finalize the claimed row IN PLACE (update, never a second insert). On
+    // failure, persist the classification into ai_meta — the Analytics
+    // "Delivery problems" panel groups by ai_meta.category, which nothing
+    // wrote before (every campaign failure showed as "unknown").
+    const explain = res.ok
+      ? null
+      : explainWaError((res as { error_code?: number }).error_code, res.error ?? undefined);
     await sb.from("wa_messages").update({
       body: `[campaign:${campaign.name}]`,
       template_vars: contactVars,
       wa_message_id: res.message_id,
       status: res.ok ? "sent" : "failed",
       error: res.ok ? null : res.error,
+      ...(explain ? {
+        ai_meta: {
+          category: explain.category,
+          cause: explain.cause,
+          code: (res as { error_code?: number }).error_code ?? null,
+        },
+      } : {}),
     }).eq("id", claim.id);
 
     // NOTE: we deliberately do NOT bump the thread's last_outbound_at or

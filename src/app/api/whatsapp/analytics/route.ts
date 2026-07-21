@@ -286,20 +286,43 @@ async function attributeRevenue(since: string): Promise<{ orders: number; revenu
   return { orders: matched.length, revenue: Math.round(revenue) };
 }
 
+// Fallback classification straight from the raw Meta error text, for rows the
+// send path didn't stamp with ai_meta.category (everything before Jul 2026 —
+// without this the whole panel collapsed into "unknown").
+function categoryFromErrorText(err: string | null): { category: string; cause: string } | null {
+  if (!err) return null;
+  const m = err.toLowerCase();
+  if (/131049|healthy ecosystem|131050|130472|experiment/.test(m))
+    return { category: "deliverability", cause: "Meta's per-user marketing frequency cap (or experiment holdout) — the contact retries on a later day where possible." };
+  if (/131026|undeliverable|media upload/.test(m))
+    return { category: "deliverability", cause: "Recipient can't receive — number not on WhatsApp, or Meta couldn't fetch the header media." };
+  if (/oauthexception|access token|\(#190\)/.test(m))
+    return { category: "auth", cause: "WhatsApp access token expired or invalid." };
+  if (/132\d{3}|template/.test(m))
+    return { category: "template", cause: "Template paused, missing, or sent with mismatched fields." };
+  if (/131048|130429|80007|131056|rate limit|too many/.test(m))
+    return { category: "rate", cause: "Meta rate-limited the number." };
+  if (/^http 5/.test(m))
+    return { category: "system", cause: "Meta API server error (5xx)." };
+  return null;
+}
+
 async function summariseFailures(since: string) {
   const { data: rows } = await supabaseAdmin
     .from("wa_messages")
-    .select("ai_meta")
+    .select("ai_meta,error")
     .eq("direction", "outbound")
     .eq("status", "failed")
     .gte("created_at", since)
     .limit(3000);
   const buckets = new Map<string, { count: number; cause: string }>();
-  (rows ?? []).forEach((r: { ai_meta: { category?: string; cause?: string } | null }) => {
-    const cat = r.ai_meta?.category || "unknown";
-    const b = buckets.get(cat) || { count: 0, cause: r.ai_meta?.cause || "" };
+  (rows ?? []).forEach((r: { ai_meta: { category?: string; cause?: string } | null; error: string | null }) => {
+    const fallback = r.ai_meta?.category ? null : categoryFromErrorText(r.error);
+    const cat = r.ai_meta?.category || fallback?.category || "unknown";
+    const cause = r.ai_meta?.cause || fallback?.cause || "";
+    const b = buckets.get(cat) || { count: 0, cause };
     b.count += 1;
-    if (!b.cause && r.ai_meta?.cause) b.cause = r.ai_meta.cause;
+    if (!b.cause && cause) b.cause = cause;
     buckets.set(cat, b);
   });
   const groups = [...buckets.entries()]
