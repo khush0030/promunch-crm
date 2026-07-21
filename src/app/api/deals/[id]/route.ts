@@ -49,6 +49,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
   if (typeof body.kind === "string" && (ALL_KINDS as string[]).includes(body.kind)) {
     patch.kind = body.kind;
+    patch.manual_kind_override = true;
   }
   if (typeof body.stage === "string" && (ALL_STAGES as string[]).includes(body.stage)) {
     patch.stage = body.stage;

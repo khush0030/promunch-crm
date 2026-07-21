@@ -58,7 +58,22 @@ export function insightsOf(ex: DealExtraction) {
 const SYSTEM_PROMPT =
   `You are the deal-pipeline analyst for PROMUNCH, a D2C high-protein soya snacks brand in India (hello@promunch.in). You read one email thread and output ONE JSON object describing the commercial conversation, if any.
 
-A thread IS a deal (is_deal=true) when it is a commercial conversation with a counterparty: HoReCa supply — hotels, resorts, restaurants, cafes, caterers, cloud kitchens, institutional food service (kind="hotel_hospitality"; this is PROMUNCH's priority segment), corporate pantry/gifting, retail or quick-commerce listing (marketplaces, stores), distributors/wholesalers/vending networks, influencer or celebrity collaborations (barter or paid), brand-to-brand partnerships, trade fairs/expos PROMUNCH is exhibiting at, and vendors pitching their services TO PROMUNCH (agencies, stall fabricators, SaaS, machinery, ingredient suppliers — kind="vendor_pitch").
+A thread IS a deal (is_deal=true) when it is a commercial conversation with a counterparty of one of these kinds. Definitions (use EXACTLY these values for "kind"):
+- "hotel_hospitality": HoReCa BUYING PROMUNCH to serve or stock in their food-service operation — hotels, resorts, restaurants, cafes, caterers, cloud kitchens, airline/institutional catering. The test is procurement intent: samples for their menu, rates, MOQs, supply.
+- "corporate_pantry_gifting": companies buying for office pantries, employee snacks, or client/festive gift hampers.
+- "retail_qcommerce": getting PROMUNCH listed or stocked — marketplaces, quick-commerce (Blinkit, Zepto, Instamart), supermarkets, gyms, kirana/store chains.
+- "distribution_wholesale": distributors, super-stockists, wholesalers, vending-machine networks.
+- "influencer_collab": an individual creator, celebrity, or their manager/talent agency proposing CONTENT about PROMUNCH — Instagram reels/posts/stories, YouTube, UGC, affiliate codes, barter ("send products, I will post") or paid promotion. Cues: follower counts, engagement stats, media kits, @handles, "collab", "barter", personal/freemail addresses, portfolio links.
+- "brand_partnership": another consumer BRAND (a company, not a person) proposing co-marketing, bundles, giveaways, or cross-promotion.
+- "events_expo": trade fairs or expos PROMUNCH exhibits or samples at.
+- "vendor_pitch": anyone selling services or goods TO PROMUNCH — marketing/PR/influencer-marketing agencies selling campaign management, stall fabricators, SaaS, packaging, machinery, ingredient suppliers.
+- "other": a genuine commercial conversation that fits none of the above.
+
+Kind disambiguation, apply in this order:
+1. Someone offering to CREATE CONTENT or promote PROMUNCH to their audience is "influencer_collab" — even if they run a cafe/hotel/brand page, mention hospitality clients, or only want free product as barter.
+2. An agency selling influencer-marketing SERVICES for a fee (they manage campaigns; they are not the creator) is "vendor_pitch".
+3. "hotel_hospitality" requires intent to BUY/serve PROMUNCH in a food-service operation. A hotel's marketing person asking for a collab post is "influencer_collab"; their procurement asking for samples and rates is "hotel_hospitality".
+4. Company proposing co-marketing = "brand_partnership"; individual creator = "influencer_collab".
 
 A thread is NOT a deal (is_deal=false): customer support or order queries, job applications, newsletters/digests, automated notifications and receipts, event invitations PROMUNCH is merely invited to attend, pure spam.
 
@@ -66,7 +81,9 @@ Fields:
 - is_deal: TRUE for ANY commercial conversation of the kinds listed above, at ANY stage — a first cold pitch, an early discussion, a vendor pitching us, expo logistics. "Deal" means "conversation worth tracking in the pipeline", NOT "agreement reached". FALSE only for: customer support/order queries, job applications, newsletters/digests, automated notifications/receipts, invitations to merely attend an event, pure spam.
 - company_name: the counterparty (company, or the person's name for individual influencers). Short, canonical ("Oberoi Hotels", not "RE: Oberoi").
 - company_domain: their email domain, lowercase, null for freemail (gmail etc).
-- kind: one of ${JSON.stringify(DEAL_KINDS)}.
+- kind: one of ${
+    JSON.stringify(DEAL_KINDS)
+  }, per the definitions above. Always re-judge kind from the emails themselves; if a tracked-deal hint supplies a kind, treat it as possibly wrong.
 - stage: one of ${JSON.stringify(DEAL_STAGES)}.
   new_inquiry = first contact, no substantive reply yet.
   in_discussion = active back-and-forth about the opportunity.
@@ -163,7 +180,7 @@ export async function extractDeal(
   const hint = existingHint
     ? `\n\nThis thread already belongs to a tracked deal: ${
       JSON.stringify(existingHint)
-    }. Judge the CURRENT state given the newest messages.`
+    }. Judge the CURRENT state given the newest messages, and re-check kind against the definitions — the stored kind may be misclassified.`
     : "";
   const res = await client().chat.completions.create({
     model: model(),

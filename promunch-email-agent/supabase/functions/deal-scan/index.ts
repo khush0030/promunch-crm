@@ -51,13 +51,14 @@ interface DealRow {
   samples_sent_at: string | null;
   first_email_at: string | null;
   manual_stage_override: boolean;
+  manual_kind_override: boolean;
 }
 
 Deno.serve(async (req) => {
   const gate = requireInternal(req);
   if (gate) return gate;
 
-  let body: { mode?: string; max?: number } = {};
+  let body: { mode?: string; max?: number; afterId?: string } = {};
   try {
     body = await req.json();
   } catch {
@@ -77,9 +78,12 @@ Deno.serve(async (req) => {
   if (!claimed?.length) return json({ ok: true, locked: true });
 
   try {
-    // mode=insights re-reads threads of deals that predate sentiment analysis
+    // mode=insights re-reads threads of deals that predate sentiment analysis;
+    // mode=reclassify re-judges `kind` for deals a human has not pinned
     const stats = body.mode === "insights"
       ? await refreshInsights(Math.min(50, body.max ?? 15))
+      : body.mode === "reclassify"
+      ? await reclassifyKinds(Math.min(25, body.max ?? 10), body.afterId ?? null)
       : await run();
     return json({ ok: true, ...stats });
   } catch (e) {
@@ -219,7 +223,7 @@ async function processThread(tid: string): Promise<{ outcome: Outcome; maxMs: nu
   let existing: DealRow | null = null;
   if (existingDealId) {
     const { data } = await db().from("deals").select(
-      "id, company_name, company_domain, kind, contact_name, contact_email, stage, samples_sent_at, first_email_at, manual_stage_override",
+      "id, company_name, company_domain, kind, contact_name, contact_email, stage, samples_sent_at, first_email_at, manual_stage_override, manual_kind_override",
     ).eq("id", existingDealId).maybeSingle();
     existing = (data as DealRow | null) ?? null;
   }
@@ -307,7 +311,11 @@ async function processThread(tid: string): Promise<{ outcome: Outcome; maxMs: nu
     }, Date.now());
     const patch: Record<string, unknown> = {
       stage,
-      kind: existing.kind === "other" ? ex.kind : existing.kind,
+      // The scanner may correct a misclassified kind (e.g. an influencer
+      // collab filed under HoReCa) unless a human set it from the dashboard.
+      kind: existing.manual_kind_override || !ex.is_deal || ex.kind === "other"
+        ? existing.kind
+        : ex.kind,
       contact_name: existing.contact_name ?? ex.contact_name,
       contact_email: existing.contact_email ?? ex.contact_email,
       samples_sent_at: samplesSentAt,
@@ -349,7 +357,7 @@ async function processThread(tid: string): Promise<{ outcome: Outcome; maxMs: nu
 // Attach a fresh thread to an existing deal by domain, then by name.
 async function matchDeal(ex: DealExtraction, msgs: ThreadMessage[]): Promise<DealRow | null> {
   const sel =
-    "id, company_name, company_domain, kind, contact_name, contact_email, stage, samples_sent_at, first_email_at, manual_stage_override";
+    "id, company_name, company_domain, kind, contact_name, contact_email, stage, samples_sent_at, first_email_at, manual_stage_override, manual_kind_override";
   const domain = ex.company_domain ?? threadCompanyDomain(msgs);
   if (domain) {
     const { data } = await db().from("deals").select(sel).ilike("company_domain", domain)
@@ -471,6 +479,82 @@ async function refreshInsights(max: number) {
     last_error: errors.length ? errors.join(" | ").slice(0, 500) : null,
   }).eq("id", 1);
   return { mode: "insights", pending: pending?.length ?? 0, refreshed, errors: errors.length };
+}
+
+// One-off repair pass after the classification prompt was tightened: re-read
+// each deal's latest thread and re-judge kind (plus refresh the insight read,
+// since the extraction is already paid for). Never touches deals whose kind a
+// human pinned, never touches stage. Page through with afterId until done.
+async function reclassifyKinds(max: number, afterId: string | null) {
+  let q = db()
+    .from("deals")
+    .select("id, company_name, stage, kind")
+    .eq("manual_kind_override", false)
+    .order("id", { ascending: true })
+    .limit(max);
+  if (afterId) q = q.gt("id", afterId);
+  const { data: pending, error } = await q;
+  if (error) throw new Error(`reclassify query failed: ${error.message}`);
+
+  let scanned = 0;
+  let changed = 0;
+  const changes: { company: string; from: string; to: string }[] = [];
+  const errors: string[] = [];
+  let lastId: string | null = afterId;
+
+  for (const d of pending ?? []) {
+    lastId = d.id;
+    try {
+      const { data: em } = await db()
+        .from("deal_emails")
+        .select("gmail_thread_id")
+        .eq("deal_id", d.id)
+        .order("sent_at", { ascending: false })
+        .limit(1);
+      const tid = em?.[0]?.gmail_thread_id;
+      if (!tid) continue;
+      const msgs = await getThreadParsed(tid);
+      if (!msgs.length) continue;
+      const transcript = buildTranscript(
+        msgs.map((m) => ({
+          from: m.email.from_email ?? "",
+          to: m.email.to_email ?? "",
+          subject: m.email.subject ?? "",
+          dateIso: m.internalDateMs ? new Date(m.internalDateMs).toISOString().slice(0, 10) : "",
+          body: m.email.body_plain || m.email.snippet || "",
+        })),
+        MAILBOX,
+      );
+      const ex = await extractDeal(transcript, {
+        company_name: d.company_name,
+        stage: d.stage,
+        kind: d.kind,
+      });
+      scanned++;
+      const patch: Record<string, unknown> = {
+        interest_temp: ex.temperature,
+        insights: insightsOf(ex),
+      };
+      if (ex.is_deal && ex.kind !== "other" && ex.kind !== d.kind) {
+        patch.kind = ex.kind;
+        changed++;
+        changes.push({ company: d.company_name, from: d.kind, to: ex.kind });
+      }
+      await db().from("deals").update(patch).eq("id", d.id);
+    } catch (e) {
+      errors.push(`${d.company_name}: ${errStr(e).slice(0, 120)}`);
+    }
+  }
+
+  return {
+    mode: "reclassify",
+    scanned,
+    changed,
+    changes,
+    errors,
+    lastId,
+    done: (pending?.length ?? 0) < max,
+  };
 }
 
 function fallbackCompanyName(msgs: ThreadMessage[]): string {
