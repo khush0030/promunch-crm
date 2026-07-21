@@ -33,7 +33,7 @@ follow-up engine the original spec never had:
   `awaiting_approval` in the **Tasks tab** (channels: ig_dm / ig_dm_human_agent / email /
   whatsapp / manual). Inbound replies cancel pending nudges (ig-webhook); stage PATCH re-arms
   the new cadence. Master switch `ig_settings.followups_enabled` ships **false**.
-  Migration `20260721140000_ig_followups.sql` + cron `20260721141000` (go-live only).
+  Migration `20260721140500_ig_followups.sql` + cron `20260721141000` (go-live only).
 - **Messaging-window guard** — `_shared/ig-window.ts` (open_24h | human_agent_7d | closed);
   `ig-send` now hard-refuses out-of-window sends (automated senders always; humans may use the
   HUMAN_AGENT 7-day lane once Meta approves it — flag `ig_settings.human_agent_enabled`,

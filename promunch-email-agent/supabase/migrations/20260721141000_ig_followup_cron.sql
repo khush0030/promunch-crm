@@ -6,7 +6,7 @@
 -- ⚠ Apply ONLY at Instagram go-live, AFTER
 --   `supabase functions deploy ig-jobs-tick ig-followup-tick`
 -- (the jobs 404 until the functions exist — harmless but noisy) and after
--- 20260721140000_ig_followups. Follow-ups still ship dark:
+-- 20260721140500_ig_followups. Follow-ups still ship dark:
 -- ig_settings.followups_enabled defaults to false.
 --
 -- Prereq: Vault secret `service_role_key` (see 20260705100000).
