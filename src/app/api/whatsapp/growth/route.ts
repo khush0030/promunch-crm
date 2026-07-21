@@ -145,7 +145,7 @@ export async function GET() {
 }
 
 type PostBody = {
-  kind?: "config" | "install" | "uninstall";
+  kind?: "config" | "install" | "uninstall" | "probe";
   config?: GrowthConfig;
 };
 
@@ -190,6 +190,21 @@ export async function POST(req: NextRequest) {
     const err = await saveSetting("WA_GROWTH_SCRIPT_TAG_ID", null);
     if (err) return NextResponse.json({ error: err }, { status: 500 });
     return NextResponse.json({ ok: true });
+  }
+
+  if (kind === "probe") {
+    // Real connection status for the "one-click Shopify" UI: is the token set,
+    // does it have the script-tags scope, is the store reachable.
+    const token = await getSecret("SHOPIFY_ACCESS_TOKEN");
+    if (!token || token === "placeholder_needs_real_token") {
+      return NextResponse.json({ state: "no_token", shop: SHOP_DOMAIN });
+    }
+    const probe = await shopifyScriptTags("GET", "/script_tags.json?limit=1");
+    if (probe.ok) return NextResponse.json({ state: "connected", shop: SHOP_DOMAIN });
+    if (probe.status === 401 || probe.status === 403) {
+      return NextResponse.json({ state: "no_scope", shop: SHOP_DOMAIN, reason: probe.error });
+    }
+    return NextResponse.json({ state: "error", shop: SHOP_DOMAIN, reason: probe.error });
   }
 
   return NextResponse.json({ error: `unknown kind "${kind}"` }, { status: 400 });

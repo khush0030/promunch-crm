@@ -1,133 +1,241 @@
 "use client";
 
-// Growth tab: a Klaviyo-style visual editor for the two storefront acquisition
-// tools — the opt-in popup and the WhatsApp chat button. Left pane = controls
-// (content, design, image, targeting); right pane = a LIVE preview rendered from
-// the exact same markup the storefront gets (src/lib/wa-embed.ts), so what staff
-// see is what a visitor sees. One "Install on store" button injects it on
-// Shopify; config edits go live within minutes — no theme editing.
+// Growth editor — a clean visual builder for the two storefront acquisition
+// tools (opt-in popup + WhatsApp chat button). Left = controls, right = a live
+// preview rendered from the SAME markup the storefront gets (src/lib/wa-embed.ts),
+// so what staff design is what a visitor sees. One "Publish to store" button
+// installs it on Shopify via a script tag; edits go live automatically — no
+// theme editing. Styling lives in GrowthView.module.css.
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Check, Image as ImageIcon, Monitor, Power, Smartphone, Trash2, Upload, Users, MessageCircle,
+  AlertTriangle, Check, Clock, ExternalLink, Image as ImageIcon, LogOut, MessageCircle,
+  Monitor, MousePointerClick, Power, RefreshCw, Smartphone, Store, Trash2, Upload, Users, Zap,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { cardStyle, inputStyle, primaryBtn, smallBtn } from "./styles";
-import { Field } from "./primitives";
 import {
   FONTS, GROWTH_DEFAULTS, fontHref, renderPopupInner, widgetBubbleInner, widgetButtonInner,
   type GrowthConfig, type PopupConfig, type PopupPosition, type WidgetConfig,
 } from "@/lib/wa-embed";
+import s from "./GrowthView.module.css";
 
 type GrowthData = {
   wa_number: string;
   config: GrowthConfig;
   installed: boolean;
   shop_domain: string;
-  loader_snippet: string;
   popup: { leads: number };
   widget: { code: string; clicks: number } | null;
 };
+type Probe = { state: "connected" | "no_scope" | "no_token" | "error"; shop: string; reason?: string };
 
 const THEMES: { name: string; t: PopupConfig["theme"] }[] = [
-  { name: "Warm (PROMUNCH)", t: { bg: "#FFF8F0", text: "#2B2118", accent: "#25D366", accentText: "#FFFFFF", font: "poppins", radius: 16 } },
-  { name: "Clean light", t: { bg: "#FFFFFF", text: "#1A1A1A", accent: "#1A1A1A", accentText: "#FFFFFF", font: "inter", radius: 12 } },
+  { name: "Warm", t: { bg: "#FFF8F0", text: "#2B2118", accent: "#25D366", accentText: "#FFFFFF", font: "poppins", radius: 16 } },
+  { name: "Clean", t: { bg: "#FFFFFF", text: "#1A1A1A", accent: "#1A1A1A", accentText: "#FFFFFF", font: "inter", radius: 12 } },
   { name: "Dark", t: { bg: "#1E1B18", text: "#F5EFE7", accent: "#25D366", accentText: "#0B140C", font: "montserrat", radius: 14 } },
   { name: "Elegant", t: { bg: "#F7F3EC", text: "#2B2118", accent: "#B4562A", accentText: "#FFFFFF", font: "playfair", radius: 8 } },
 ];
 
-/* ---- live preview: reuses the storefront markup for fidelity ---- */
+/* ============================ small components ============================ */
+
+function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <label className={s.switch} aria-label={label}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span className={s.track} /><span className={s.thumb} />
+    </label>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return <div className={s.section}><div className={s.sectionHead}>{title}</div>{children}</div>;
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className={s.field}><label className={s.label}>{label}</label>{children}</div>;
+}
+
+function Swatch({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className={s.swatch}>
+      <div className={s.swatchBtn} style={{ background: value }}>
+        <input type="color" value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} />
+      </div>
+      <span className={s.swatchLbl}>{label}</span>
+    </div>
+  );
+}
+
+function Stepper({ value, onChange, min = 0, max = 999 }: { value: number; onChange: (v: number) => void; min?: number; max?: number }) {
+  const set = (v: number) => onChange(Math.min(max, Math.max(min, v)));
+  return (
+    <div className={s.stepper}>
+      <button type="button" className={s.stepBtn} onClick={() => set(value - 1)} aria-label="Decrease">−</button>
+      <input className={s.stepVal} value={value} inputMode="numeric" onChange={(e) => set(Number(e.target.value.replace(/\D/g, "")) || 0)} aria-label="Value" />
+      <button type="button" className={s.stepBtn} onClick={() => set(value + 1)} aria-label="Increase">+</button>
+    </div>
+  );
+}
+
+function PositionPicker({ value, onChange }: { value: PopupPosition; onChange: (v: PopupPosition) => void }) {
+  const cells: { key: PopupPosition; name: string; mark: React.CSSProperties }[] = [
+    { key: "center", name: "Center", mark: { top: "35%", left: "30%", right: "30%", bottom: "35%" } },
+    { key: "bottom-right", name: "Corner", mark: { right: "14%", bottom: "16%", width: "40%", height: "34%" } },
+    { key: "bottom-left", name: "Corner L", mark: { left: "14%", bottom: "16%", width: "40%", height: "34%" } },
+    { key: "bottom-bar", name: "Bar", mark: { left: "8%", right: "8%", bottom: "12%", height: "24%" } },
+  ];
+  return (
+    <div>
+      <div className={s.posGrid}>
+        {cells.map((c) => (
+          <button key={c.key} type="button" onClick={() => onChange(c.key)} title={c.name}
+            className={`${s.posCell} ${value === c.key ? s.on : ""}`}>
+            <span className={s.posMark} style={c.mark} />
+          </button>
+        ))}
+      </div>
+      <div className={s.posGrid} style={{ marginTop: 4 }}>
+        {cells.map((c) => <div key={c.key} className={s.posName}>{c.name}</div>)}
+      </div>
+    </div>
+  );
+}
+
+function TriggerPresets({ value, onChange }: { value: PopupConfig["trigger"]; onChange: (t: PopupConfig["trigger"]) => void }) {
+  const items = [
+    { type: "delay", icon: <Clock size={15} />, name: "After a delay", desc: "Show a few seconds after the page loads" },
+    { type: "scroll", icon: <MousePointerClick size={15} />, name: "On scroll", desc: "Show once they scroll down the page" },
+    { type: "exit", icon: <LogOut size={15} />, name: "Exit intent", desc: "Show when they move to leave the tab" },
+    { type: "immediate", icon: <Zap size={15} />, name: "Immediately", desc: "Show the moment the page opens" },
+  ] as const;
+  return (
+    <div className={s.triggers}>
+      {items.map((it) => (
+        <button key={it.type} type="button" onClick={() => onChange(
+          it.type === "delay" ? { type: "delay", seconds: 6 } : it.type === "scroll" ? { type: "scroll", percent: 40 } : { type: it.type } as PopupConfig["trigger"],
+        )} className={`${s.trigCard} ${value.type === it.type ? s.on : ""}`}>
+          <span className={s.trigIcon}>{it.icon}</span>
+          <span><span className={s.trigName}>{it.name}</span><span className={s.trigDesc}>{it.desc}</span></span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ============================ preview ============================ */
 
 function Preview({ cfg, tab, device }: { cfg: GrowthConfig; tab: "popup" | "widget"; device: "desktop" | "mobile" }) {
-  // Load the chosen popup font so the preview matches the storefront.
   useEffect(() => {
     const href = fontHref(cfg.popup.theme.font);
-    if (!href) return;
-    if (document.querySelector(`link[data-pmfont="${href}"]`)) return;
+    if (!href || document.querySelector(`link[data-pmfont="${href}"]`)) return;
     const l = document.createElement("link");
     l.rel = "stylesheet"; l.href = href; l.setAttribute("data-pmfont", href);
     document.head.appendChild(l);
   }, [cfg.popup.theme.font]);
 
-  const frameW = device === "mobile" ? 340 : 720;
+  const frameW = device === "mobile" ? 320 : 640;
   const showPopup = tab === "popup" && cfg.popup.enabled;
   const showWidget = tab === "widget" && cfg.widget.enabled;
   const side = cfg.widget.side === "left" ? { left: 14 } : { right: 14 };
-
-  // Position the popup within the frame (absolute mimic of the fixed embed).
   const pos = cfg.popup.position;
   const wrap: React.CSSProperties =
     pos === "center" ? { inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(0,0,0,.45)" }
     : pos === "bottom-bar" ? { left: 0, right: 0, bottom: 0 }
-    : pos === "bottom-left" ? { left: 14, bottom: 14, maxWidth: 320 }
-    : { right: 14, bottom: 14, maxWidth: 320 };
-  const cardW = pos === "center" ? Math.min(360, frameW - 40) : pos === "bottom-bar" ? frameW : 300;
+    : pos === "bottom-left" ? { left: 14, bottom: 14, maxWidth: 300 }
+    : { right: 14, bottom: 14, maxWidth: 300 };
+  const cardW = pos === "center" ? Math.min(360, frameW - 40) : pos === "bottom-bar" ? frameW : 290;
 
   return (
-    <div style={{ position: "sticky", top: 12 }}>
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <div style={{ width: frameW, maxWidth: "100%", border: "1px solid var(--pm-border)", borderRadius: 12, overflow: "hidden", background: "#fff", boxShadow: "0 8px 30px rgba(0,0,0,.10)" }}>
-          {/* fake browser chrome */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "#EDE7DF", borderBottom: "1px solid var(--pm-border)" }}>
-            <span style={{ width: 10, height: 10, borderRadius: 999, background: "#E36B5C" }} />
-            <span style={{ width: 10, height: 10, borderRadius: 999, background: "#E5B94E" }} />
-            <span style={{ width: 10, height: 10, borderRadius: 999, background: "#5FB878" }} />
-            <span style={{ marginLeft: 10, fontSize: 11, color: "#8a7a66", background: "#fff", borderRadius: 6, padding: "3px 10px", flex: 1 }}>trypromunch.in</span>
+    <div className={s.stage}>
+      <div className={s.device} style={{ width: frameW, maxWidth: "100%" }}>
+        <div className={s.chrome}>
+          <span className={s.chromeDot} style={{ background: "#E36B5C" }} />
+          <span className={s.chromeDot} style={{ background: "#E5B94E" }} />
+          <span className={s.chromeDot} style={{ background: "#5FB878" }} />
+          <span className={s.chromeUrl}>trypromunch.in</span>
+        </div>
+        <div className={s.viewport} style={{ height: device === "mobile" ? 500 : 420 }}>
+          <div className={s.faux}>
+            <div className={s.fauxBlock} style={{ height: 26, width: "44%", marginBottom: 14 }} />
+            <div className={s.fauxBlock} style={{ height: 120, marginBottom: 14 }} />
+            <div className={s.fauxBlock} style={{ height: 12, width: "88%", marginBottom: 8 }} />
+            <div className={s.fauxBlock} style={{ height: 12, width: "70%" }} />
           </div>
-          {/* faux storefront body */}
-          <div style={{ position: "relative", height: device === "mobile" ? 520 : 440, overflow: "hidden", background: "linear-gradient(180deg,#FBF7F1,#F3ECE1)" }}>
-            <div style={{ padding: 18, opacity: 0.55 }}>
-              <div style={{ height: 26, width: "44%", background: "#E6DCCB", borderRadius: 6, marginBottom: 14 }} />
-              <div style={{ height: 120, background: "#E6DCCB", borderRadius: 10, marginBottom: 14 }} />
-              <div style={{ height: 12, width: "88%", background: "#E6DCCB", borderRadius: 6, marginBottom: 8 }} />
-              <div style={{ height: 12, width: "72%", background: "#E6DCCB", borderRadius: 6 }} />
+          {showPopup && (
+            <div style={{ position: "absolute", ...wrap, zIndex: 5 }}>
+              <div style={{ width: cardW, maxWidth: "100%" }} dangerouslySetInnerHTML={{ __html: renderPopupInner(cfg.popup) }} />
             </div>
-
-            {showPopup && (
-              <div style={{ position: "absolute", ...wrap, zIndex: 5 }}>
-                <div style={{ width: cardW, maxWidth: "100%" }} dangerouslySetInnerHTML={{ __html: renderPopupInner(cfg.popup) }} />
-              </div>
-            )}
-            {showWidget && (
-              <>
-                <div style={{ position: "absolute", bottom: 14, ...side, zIndex: 5 }} dangerouslySetInnerHTML={{ __html: widgetButtonInner(cfg.widget) }} />
-                {cfg.widget.greeting && (
-                  <div style={{ position: "absolute", bottom: 80, ...side, zIndex: 5 }} dangerouslySetInnerHTML={{ __html: widgetBubbleInner(cfg.widget) }} />
-                )}
-              </>
-            )}
-            {!showPopup && !showWidget && (
-              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--pm-hint)", fontSize: 13 }}>
-                This {tab === "popup" ? "popup" : "chat button"} is turned off.
-              </div>
-            )}
-          </div>
+          )}
+          {showWidget && (
+            <>
+              <div style={{ position: "absolute", bottom: 14, ...side, zIndex: 5 }} dangerouslySetInnerHTML={{ __html: widgetButtonInner(cfg.widget) }} />
+              {cfg.widget.greeting && <div style={{ position: "absolute", bottom: 80, ...side, zIndex: 5 }} dangerouslySetInnerHTML={{ __html: widgetBubbleInner(cfg.widget) }} />}
+            </>
+          )}
+          {!showPopup && !showWidget && <div className={s.stageOff}>This {tab === "popup" ? "popup" : "chat button"} is turned off.</div>}
         </div>
       </div>
-      <div style={{ textAlign: "center", fontSize: 11, color: "var(--pm-hint)", marginTop: 8 }}>
-        Live preview — exactly what visitors see on trypromunch.in.
+      <div className={s.stageBar} style={{ marginTop: 8, justifyContent: "center" }}>
+        <span className={s.stageHint}>Live preview — exactly what visitors see on trypromunch.in</span>
       </div>
     </div>
   );
 }
 
-/* ------------------------- small controls ------------------------- */
+/* ============================ connection card ============================ */
 
-function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function ConnectionCard({ data, probe, busy, onInstall, onRemove, onRecheck }: {
+  data: GrowthData | null; probe: Probe | null; busy: boolean;
+  onInstall: () => void; onRemove: () => void; onRecheck: () => void;
+}) {
+  const installed = !!data?.installed;
+  const shop = data?.shop_domain ?? probe?.shop ?? "your store";
+  let cls = s.conn, dot = "var(--pm-muted)", title = "Checking Shopify…", note = "", fix: React.ReactNode = null, actions: React.ReactNode = null;
+
+  if (probe?.state === "connected" && installed) {
+    cls = `${s.conn} ${s.live}`; dot = "var(--pm-green)";
+    title = "Live on your store"; note = `Running on ${shop}. Every change you publish appears automatically — no theme editing.`;
+    actions = (
+      <>
+        <a className={s.btn} href="https://trypromunch.in" target="_blank" rel="noopener noreferrer"><ExternalLink size={13} /> View live</a>
+        <button type="button" className={`${s.btn} ${s.danger}`} onClick={onRemove} disabled={busy}>{busy ? "…" : "Remove"}</button>
+      </>
+    );
+  } else if (probe?.state === "connected") {
+    dot = "var(--pm-green)";
+    title = "Connected to Shopify"; note = `Ready to go live on ${shop} with one click.`;
+    actions = <button type="button" className={`${s.btn} ${s.primary}`} onClick={onInstall} disabled={busy}><Power size={14} /> {busy ? "Publishing…" : "Publish to store"}</button>;
+  } else if (probe?.state === "no_scope") {
+    cls = `${s.conn} ${s.warn}`; dot = "var(--pm-gold)";
+    title = "Almost there — one permission needed"; note = "The Shopify app is connected but can't add scripts yet.";
+    fix = <div className={s.connFix}>In Shopify: <strong>Settings → Apps → Develop apps → your app → API scopes</strong>, enable <code>write_script_tags</code>, then reinstall the app and update the token in <strong>Settings → API keys</strong>.</div>;
+    actions = <button type="button" className={s.btn} onClick={onRecheck} disabled={busy}><RefreshCw size={13} /> Re-check</button>;
+  } else if (probe?.state === "no_token") {
+    cls = `${s.conn} ${s.warn}`; dot = "var(--pm-gold)";
+    title = "Shopify not connected"; note = "Add your Shopify Admin token to publish the popup with one click.";
+    fix = <div className={s.connFix}>Add <code>SHOPIFY_ACCESS_TOKEN</code> in <strong>Settings → API keys</strong> (needs the <code>write_script_tags</code> scope). You can still design here in the meantime.</div>;
+    actions = <button type="button" className={s.btn} onClick={onRecheck} disabled={busy}><RefreshCw size={13} /> Re-check</button>;
+  } else if (probe?.state === "error") {
+    cls = `${s.conn} ${s.warn}`; dot = "var(--pm-gold)";
+    title = "Couldn't reach Shopify"; note = probe.reason ?? "Try again in a moment.";
+    actions = <button type="button" className={s.btn} onClick={onRecheck} disabled={busy}><RefreshCw size={13} /> Re-check</button>;
+  }
+
   return (
-    <div>
-      <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--pm-muted)", marginBottom: 4 }}>{label}</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <input type="color" value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}
-          style={{ width: 34, height: 30, padding: 0, border: "1px solid var(--pm-border)", borderRadius: 6, background: "none", cursor: "pointer" }} />
-        <input value={value} onChange={(e) => onChange(e.target.value)} style={{ ...inputStyle, marginBottom: 0, width: 92, fontFamily: "ui-monospace, monospace", fontSize: 12 }} />
+    <div className={cls}>
+      <span className={s.connDot} style={{ background: dot, color: dot }} />
+      <div className={s.connBody}>
+        <div className={s.connTitle}><Store size={14} /> {title}</div>
+        {note && <div className={s.connNote}>{note}</div>}
+        {fix}
       </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{actions}</div>
     </div>
   );
 }
 
-/* ---------------------------- main view ---------------------------- */
+/* ============================ main ============================ */
 
 export default function GrowthView() {
   const toast = useToast();
@@ -135,8 +243,7 @@ export default function GrowthView() {
     queryKey: ["wa-growth"],
     queryFn: async (): Promise<GrowthData | null> => {
       const r = await fetch("/api/whatsapp/growth");
-      if (!r.ok) return null;
-      return r.json();
+      return r.ok ? r.json() : null;
     },
     refetchInterval: 30000,
   });
@@ -148,9 +255,19 @@ export default function GrowthView() {
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [installBusy, setInstallBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [probe, setProbe] = useState<Probe | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { if (data?.config && !dirty) setCfg(data.config); }, [data?.config, dirty]);
+
+  async function runProbe() {
+    try {
+      const r = await fetch("/api/whatsapp/growth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "probe" }) });
+      const j = await r.json().catch(() => null);
+      if (j?.state) setProbe(j);
+    } catch { /* leave as loading */ }
+  }
+  useEffect(() => { runProbe(); }, []);
 
   const setPopup = (fn: (p: PopupConfig) => PopupConfig) => { setCfg((c) => c ? { ...c, popup: fn(c.popup) } : c); setDirty(true); };
   const setWidget = (fn: (w: WidgetConfig) => WidgetConfig) => { setCfg((c) => c ? { ...c, widget: fn(c.widget) } : c); setDirty(true); };
@@ -159,14 +276,11 @@ export default function GrowthView() {
     if (!cfg) return;
     setSaving(true);
     try {
-      const r = await fetch("/api/whatsapp/growth", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "config", config: cfg }),
-      });
+      const r = await fetch("/api/whatsapp/growth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "config", config: cfg }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.error) { toast.push({ kind: "error", text: j.error ?? `HTTP ${r.status}` }); return; }
       setDirty(false);
-      toast.push({ kind: "success", text: data?.installed ? "Saved. Live on your store within ~5 minutes." : "Saved." });
+      toast.push({ kind: "success", text: data?.installed ? "Saved — live on your store within ~5 minutes." : "Saved." });
       refetch();
     } finally { setSaving(false); }
   }
@@ -175,23 +289,18 @@ export default function GrowthView() {
     if (!install && !confirm("Remove the WhatsApp popup and chat button from trypromunch.in?")) return;
     setInstallBusy(true);
     try {
-      const r = await fetch("/api/whatsapp/growth", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: install ? "install" : "uninstall" }),
-      });
+      const r = await fetch("/api/whatsapp/growth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: install ? "install" : "uninstall" }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.error) { toast.push({ kind: "error", text: j.error ?? `HTTP ${r.status}` }); return; }
-      toast.push({ kind: "success", text: install ? "Installed — it's live on your store now." : "Removed from your store." });
-      refetch();
+      toast.push({ kind: "success", text: install ? "Published — it's live on your store now." : "Removed from your store." });
+      refetch(); runProbe();
     } finally { setInstallBusy(false); }
   }
 
   async function uploadImage(file: File) {
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("format", "IMAGE");
+      const fd = new FormData(); fd.append("file", file); fd.append("format", "IMAGE");
       const r = await fetch("/api/whatsapp/media-upload", { method: "POST", body: fd });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.error) { toast.push({ kind: "error", text: j.error ?? "Upload failed" }); return; }
@@ -203,212 +312,188 @@ export default function GrowthView() {
   const p = cfg.popup, w = cfg.widget;
 
   return (
-    <div>
-      {/* stats + install */}
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-        <div style={{ ...cardStyle, flex: "1 1 150px" }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "var(--pm-green)" }}>{(data?.popup.leads ?? 0).toLocaleString("en-IN")}</div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-muted)", display: "flex", alignItems: "center", gap: 5 }}><Users size={13} /> Popup sign-ups</div>
-        </div>
-        <div style={{ ...cardStyle, flex: "1 1 150px" }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "var(--pm-green)" }}>{(data?.widget?.clicks ?? 0).toLocaleString("en-IN")}</div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-muted)", display: "flex", alignItems: "center", gap: 5 }}><MessageCircle size={13} /> Chat button clicks</div>
-        </div>
-        <div style={{ ...cardStyle, flex: "2 1 300px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
-              <Power size={14} color={data?.installed ? "var(--pm-green)" : "var(--pm-muted)"} />
-              {data?.installed ? "Live on your store" : "Not installed"}
-            </div>
-            <div style={{ fontSize: 11.5, color: "var(--pm-hint)", marginTop: 3 }}>
-              {data?.installed ? `Running on ${data?.shop_domain}. Edits go live automatically.` : `One click adds it to ${data?.shop_domain ?? "your store"} — no theme editing.`}
-            </div>
-          </div>
-          {data?.installed
-            ? <button type="button" onClick={() => toggleInstall(false)} disabled={installBusy} style={{ ...smallBtn, color: "var(--pm-terra)", flexShrink: 0 }}>{installBusy ? "…" : "Remove"}</button>
-            : <button type="button" onClick={() => toggleInstall(true)} disabled={installBusy} style={{ ...primaryBtn, flexShrink: 0 }}><Power size={13} /> {installBusy ? "Installing…" : "Install on store"}</button>}
+    <div className={s.wrap}>
+      {/* header */}
+      <div className={s.topbar}>
+        <div>
+          <div className={s.title}>Grow your WhatsApp list</div>
+          <div className={s.subtitle}>Design the popup and chat button, then publish to your store in one click.</div>
         </div>
       </div>
 
-      {/* editor: controls + preview */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(320px, 1fr) minmax(340px, 1.1fr)", gap: 16, alignItems: "start" }}>
-        {/* LEFT — controls */}
+      {/* stats */}
+      <div className={s.stats}>
+        <div className={s.stat}>
+          <div className={s.statNum}>{(data?.popup.leads ?? 0).toLocaleString("en-IN")}</div>
+          <div className={s.statLbl}><Users size={13} /> Popup sign-ups</div>
+        </div>
+        <div className={s.stat}>
+          <div className={s.statNum}>{(data?.widget?.clicks ?? 0).toLocaleString("en-IN")}</div>
+          <div className={s.statLbl}><MessageCircle size={13} /> Chat button clicks</div>
+        </div>
+      </div>
+
+      {/* Shopify connection */}
+      <ConnectionCard data={data ?? null} probe={probe} busy={installBusy}
+        onInstall={() => toggleInstall(true)} onRemove={() => toggleInstall(false)} onRecheck={runProbe} />
+
+      {/* editor */}
+      <div className={s.shell}>
+        {/* controls */}
         <div>
-          <div className="pm-chips" style={{ marginBottom: 12 }}>
-            <button type="button" className={`pm-chip${tab === "popup" ? " on" : ""}`} onClick={() => setTab("popup")}>Opt-in popup</button>
-            <button type="button" className={`pm-chip${tab === "widget" ? " on" : ""}`} onClick={() => setTab("widget")}>Chat button</button>
+          <div className={s.seg} style={{ marginBottom: 14, width: "100%" }}>
+            <button type="button" className={`${s.segBtn} ${tab === "popup" ? s.on : ""}`} style={{ flex: 1, justifyContent: "center" }} onClick={() => setTab("popup")}>Opt-in popup</button>
+            <button type="button" className={`${s.segBtn} ${tab === "widget" ? s.on : ""}`} style={{ flex: 1, justifyContent: "center" }} onClick={() => setTab("widget")}>Chat button</button>
           </div>
 
           {tab === "popup" ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <ToggleRow label="Show the opt-in popup" on={p.enabled} onChange={(v) => setPopup((x) => ({ ...x, enabled: v }))} />
+            <>
+              <div className={s.switchRow}>
+                <strong>Show the opt-in popup</strong>
+                <Switch checked={p.enabled} onChange={(v) => setPopup((x) => ({ ...x, enabled: v }))} label="Enable popup" />
+              </div>
 
-              <Group title="Content">
-                <Field label="Headline"><input value={p.headline} onChange={(e) => setPopup((x) => ({ ...x, headline: e.target.value }))} style={inputStyle} /></Field>
-                <Field label="Sub text"><textarea value={p.sub} onChange={(e) => setPopup((x) => ({ ...x, sub: e.target.value }))} rows={2} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} /></Field>
-                <Field label="Button label"><input value={p.cta} onChange={(e) => setPopup((x) => ({ ...x, cta: e.target.value }))} style={inputStyle} /></Field>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <Field label="After-signup title"><input value={p.successTitle} onChange={(e) => setPopup((x) => ({ ...x, successTitle: e.target.value }))} style={inputStyle} /></Field>
-                  <Field label="After-signup text"><input value={p.successBody} onChange={(e) => setPopup((x) => ({ ...x, successBody: e.target.value }))} style={inputStyle} /></Field>
+              <Section title="Content">
+                <Field label="Headline"><input className={s.input} value={p.headline} onChange={(e) => setPopup((x) => ({ ...x, headline: e.target.value }))} /></Field>
+                <Field label="Sub text"><textarea className={s.textarea} value={p.sub} onChange={(e) => setPopup((x) => ({ ...x, sub: e.target.value }))} /></Field>
+                <Field label="Button label"><input className={s.input} value={p.cta} onChange={(e) => setPopup((x) => ({ ...x, cta: e.target.value }))} /></Field>
+                <div className={s.row2}>
+                  <Field label="After-signup title"><input className={s.input} value={p.successTitle} onChange={(e) => setPopup((x) => ({ ...x, successTitle: e.target.value }))} /></Field>
+                  <Field label="After-signup text"><input className={s.input} value={p.successBody} onChange={(e) => setPopup((x) => ({ ...x, successBody: e.target.value }))} /></Field>
                 </div>
-              </Group>
+              </Section>
 
-              <Group title="Image">
-                <input ref={fileRef} type="file" accept="image/png,image/jpeg" hidden
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f); e.target.value = ""; }} />
+              <Section title="Image">
+                <input ref={fileRef} type="file" accept="image/png,image/jpeg" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f); e.target.value = ""; }} />
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} style={smallBtn}>
-                    {uploading ? <>Uploading…</> : <><Upload size={13} /> {p.imageUrl ? "Replace image" : "Upload image"}</>}
+                  <button type="button" className={s.btn} onClick={() => fileRef.current?.click()} disabled={uploading}>
+                    {uploading ? "Uploading…" : <><Upload size={13} /> {p.imageUrl ? "Replace image" : "Upload image"}</>}
                   </button>
+                  {p.imageUrl && <button type="button" className={`${s.btn} ${s.danger}`} onClick={() => setPopup((x) => ({ ...x, imageUrl: null, imageLayout: "none" }))}><Trash2 size={12} /> Remove</button>}
                   {p.imageUrl && (
-                    <button type="button" onClick={() => setPopup((x) => ({ ...x, imageUrl: null, imageLayout: "none" }))} style={{ ...smallBtn, color: "var(--pm-terra)" }}><Trash2 size={12} /> Remove</button>
-                  )}
-                  {p.imageUrl && (
-                    <select value={p.imageLayout} onChange={(e) => setPopup((x) => ({ ...x, imageLayout: e.target.value as PopupConfig["imageLayout"] }))} style={{ ...inputStyle, marginBottom: 0, width: "auto" }} aria-label="Image layout">
-                      <option value="top">Image on top</option>
-                      <option value="side">Image on side</option>
+                    <select className={s.select} style={{ width: "auto" }} value={p.imageLayout} onChange={(e) => setPopup((x) => ({ ...x, imageLayout: e.target.value as PopupConfig["imageLayout"] }))} aria-label="Image layout">
+                      <option value="top">On top</option><option value="side">On the side</option>
                     </select>
                   )}
                 </div>
-                <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
-                  <ImageIcon size={11} /> JPG or PNG, up to 5 MB. A product shot or logo works best.
-                </div>
-              </Group>
+                <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}><ImageIcon size={11} /> JPG or PNG, up to 5 MB.</div>
+              </Section>
 
-              <Group title="Design">
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+              <Section title="Design">
+                <div className={s.themes}>
                   {THEMES.map((th) => (
-                    <button key={th.name} type="button" onClick={() => setPopup((x) => ({ ...x, theme: { ...th.t } }))}
-                      style={{ ...smallBtn, fontSize: 11.5 }}>{th.name}</button>
+                    <button key={th.name} type="button" className={s.themeCard} onClick={() => setPopup((x) => ({ ...x, theme: { ...th.t } }))}>
+                      <div className={s.themeSwatch} style={{ background: th.t.bg, color: th.t.text }}><span style={{ color: th.t.accent }}>●</span>&nbsp;Aa</div>
+                      <div className={s.themeName}>{th.name}</div>
+                    </button>
                   ))}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 10 }}>
-                  <ColorField label="Background" value={p.theme.bg} onChange={(v) => setPopup((x) => ({ ...x, theme: { ...x.theme, bg: v } }))} />
-                  <ColorField label="Text" value={p.theme.text} onChange={(v) => setPopup((x) => ({ ...x, theme: { ...x.theme, text: v } }))} />
-                  <ColorField label="Button" value={p.theme.accent} onChange={(v) => setPopup((x) => ({ ...x, theme: { ...x.theme, accent: v } }))} />
-                  <ColorField label="Button text" value={p.theme.accentText} onChange={(v) => setPopup((x) => ({ ...x, theme: { ...x.theme, accentText: v } }))} />
+                <div className={s.swatches}>
+                  <Swatch label="Background" value={p.theme.bg} onChange={(v) => setPopup((x) => ({ ...x, theme: { ...x.theme, bg: v } }))} />
+                  <Swatch label="Text" value={p.theme.text} onChange={(v) => setPopup((x) => ({ ...x, theme: { ...x.theme, text: v } }))} />
+                  <Swatch label="Button" value={p.theme.accent} onChange={(v) => setPopup((x) => ({ ...x, theme: { ...x.theme, accent: v } }))} />
+                  <Swatch label="Button text" value={p.theme.accentText} onChange={(v) => setPopup((x) => ({ ...x, theme: { ...x.theme, accentText: v } }))} />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+                <div className={s.row2} style={{ marginTop: 12 }}>
                   <Field label="Font">
-                    <select value={p.theme.font} onChange={(e) => setPopup((x) => ({ ...x, theme: { ...x.theme, font: e.target.value } }))} style={inputStyle} aria-label="Font">
+                    <select className={s.select} value={p.theme.font} onChange={(e) => setPopup((x) => ({ ...x, theme: { ...x.theme, font: e.target.value } }))} aria-label="Font">
                       {Object.entries(FONTS).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}
                     </select>
                   </Field>
-                  <Field label="Position">
-                    <select value={p.position} onChange={(e) => setPopup((x) => ({ ...x, position: e.target.value as PopupPosition }))} style={inputStyle} aria-label="Position">
-                      <option value="center">Center of screen</option>
-                      <option value="bottom-right">Bottom right</option>
-                      <option value="bottom-left">Bottom left</option>
-                      <option value="bottom-bar">Bottom bar (full width)</option>
-                    </select>
+                  <Field label={`Corner roundness · ${p.theme.radius}px`}>
+                    <input type="range" className={s.range} min={0} max={32} value={p.theme.radius} onChange={(e) => setPopup((x) => ({ ...x, theme: { ...x.theme, radius: Number(e.target.value) } }))} aria-label="Corner radius" />
                   </Field>
                 </div>
-                <div style={{ marginTop: 10 }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--pm-muted)", marginBottom: 4 }}>Corner roundness: {p.theme.radius}px</div>
-                  <input type="range" min={0} max={32} value={p.theme.radius} onChange={(e) => setPopup((x) => ({ ...x, theme: { ...x.theme, radius: Number(e.target.value) } }))} style={{ width: "100%" }} aria-label="Corner radius" />
+                <div style={{ marginTop: 12 }}>
+                  <label className={s.label}>Position</label>
+                  <PositionPicker value={p.position} onChange={(v) => setPopup((x) => ({ ...x, position: v }))} />
                 </div>
-              </Group>
+              </Section>
 
-              <Group title="Who sees it, and when">
-                <Field label="Show the popup">
-                  <select value={p.trigger.type} onChange={(e) => {
-                    const type = e.target.value as PopupConfig["trigger"]["type"];
-                    setPopup((x) => ({ ...x, trigger: type === "delay" ? { type, seconds: 6 } : type === "scroll" ? { type, percent: 40 } : { type } as PopupConfig["trigger"] }));
-                  }} style={inputStyle} aria-label="Trigger">
-                    <option value="delay">After a few seconds</option>
-                    <option value="scroll">After scrolling down the page</option>
-                    <option value="exit">When they are about to leave (exit intent)</option>
-                    <option value="immediate">Immediately on page load</option>
-                  </select>
-                </Field>
+              <Section title="Who sees it, and when">
+                <TriggerPresets value={p.trigger} onChange={(t) => setPopup((x) => ({ ...x, trigger: t }))} />
                 {p.trigger.type === "delay" && (
-                  <Field label="Seconds to wait"><input type="number" min={0} max={120} value={p.trigger.seconds} onChange={(e) => setPopup((x) => ({ ...x, trigger: { type: "delay", seconds: Number(e.target.value) || 0 } }))} style={inputStyle} /></Field>
+                  <div className={s.field} style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}>
+                    <span className={s.label} style={{ margin: 0 }}>Wait</span>
+                    <Stepper value={p.trigger.seconds} onChange={(v) => setPopup((x) => ({ ...x, trigger: { type: "delay", seconds: v } }))} min={0} max={120} />
+                    <span className={s.label} style={{ margin: 0 }}>seconds</span>
+                  </div>
                 )}
                 {p.trigger.type === "scroll" && (
-                  <Field label="Scroll depth (%)"><input type="number" min={5} max={100} value={p.trigger.percent} onChange={(e) => setPopup((x) => ({ ...x, trigger: { type: "scroll", percent: Number(e.target.value) || 40 } }))} style={inputStyle} /></Field>
+                  <div className={s.field} style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}>
+                    <span className={s.label} style={{ margin: 0 }}>At</span>
+                    <Stepper value={p.trigger.percent} onChange={(v) => setPopup((x) => ({ ...x, trigger: { type: "scroll", percent: v } }))} min={5} max={100} />
+                    <span className={s.label} style={{ margin: 0 }}>% scrolled</span>
+                  </div>
                 )}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <Field label="Don't show again for (days)"><input type="number" min={0} max={365} value={p.frequencyDays} onChange={(e) => setPopup((x) => ({ ...x, frequencyDays: Number(e.target.value) || 0 }))} style={inputStyle} /></Field>
+                <div className={s.row2} style={{ marginTop: 12 }}>
+                  <Field label="Don't show again (days)">
+                    <Stepper value={p.frequencyDays} onChange={(v) => setPopup((x) => ({ ...x, frequencyDays: v }))} min={0} max={365} />
+                  </Field>
                   <Field label="On which pages">
-                    <select value={p.pages} onChange={(e) => setPopup((x) => ({ ...x, pages: e.target.value as PopupConfig["pages"] }))} style={inputStyle} aria-label="Pages">
-                      <option value="all">All pages</option>
-                      <option value="home">Home page only</option>
-                      <option value="product">Product pages</option>
-                      <option value="cart">Cart page</option>
+                    <select className={s.select} value={p.pages} onChange={(e) => setPopup((x) => ({ ...x, pages: e.target.value as PopupConfig["pages"] }))} aria-label="Pages">
+                      <option value="all">All pages</option><option value="home">Home only</option><option value="product">Product pages</option><option value="cart">Cart page</option>
                     </select>
                   </Field>
                 </div>
-              </Group>
-            </div>
+              </Section>
+            </>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <ToggleRow label="Show the chat button" on={w.enabled} onChange={(v) => setWidget((x) => ({ ...x, enabled: v }))} />
-              <Group title="Content">
-                <Field label="Greeting bubble (blank = none)"><input value={w.greeting} onChange={(e) => setWidget((x) => ({ ...x, greeting: e.target.value }))} style={inputStyle} /></Field>
-              </Group>
-              <Group title="Design">
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 10 }}>
-                  <ColorField label="Button" value={w.theme.button} onChange={(v) => setWidget((x) => ({ ...x, theme: { ...x.theme, button: v } }))} />
-                  <ColorField label="Bubble bg" value={w.theme.bubbleBg} onChange={(v) => setWidget((x) => ({ ...x, theme: { ...x.theme, bubbleBg: v } }))} />
-                  <ColorField label="Bubble text" value={w.theme.bubbleText} onChange={(v) => setWidget((x) => ({ ...x, theme: { ...x.theme, bubbleText: v } }))} />
+            <>
+              <div className={s.switchRow}>
+                <strong>Show the chat button</strong>
+                <Switch checked={w.enabled} onChange={(v) => setWidget((x) => ({ ...x, enabled: v }))} label="Enable chat button" />
+              </div>
+              <Section title="Content">
+                <Field label="Greeting bubble (leave blank for none)"><input className={s.input} value={w.greeting} onChange={(e) => setWidget((x) => ({ ...x, greeting: e.target.value }))} /></Field>
+              </Section>
+              <Section title="Design">
+                <div className={s.swatches}>
+                  <Swatch label="Button" value={w.theme.button} onChange={(v) => setWidget((x) => ({ ...x, theme: { ...x.theme, button: v } }))} />
+                  <Swatch label="Bubble" value={w.theme.bubbleBg} onChange={(v) => setWidget((x) => ({ ...x, theme: { ...x.theme, bubbleBg: v } }))} />
+                  <Swatch label="Bubble text" value={w.theme.bubbleText} onChange={(v) => setWidget((x) => ({ ...x, theme: { ...x.theme, bubbleText: v } }))} />
                 </div>
-              </Group>
-              <Group title="Placement">
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              </Section>
+              <Section title="Placement">
+                <div className={s.row2}>
                   <Field label="Position">
-                    <select value={w.side} onChange={(e) => setWidget((x) => ({ ...x, side: e.target.value as "right" | "left" }))} style={inputStyle} aria-label="Widget side">
-                      <option value="right">Bottom right</option>
-                      <option value="left">Bottom left</option>
+                    <select className={s.select} value={w.side} onChange={(e) => setWidget((x) => ({ ...x, side: e.target.value as "right" | "left" }))} aria-label="Widget side">
+                      <option value="right">Bottom right</option><option value="left">Bottom left</option>
                     </select>
                   </Field>
-                  <Field label="Greeting delay (seconds)"><input type="number" min={0} max={120} value={w.delaySec} onChange={(e) => setWidget((x) => ({ ...x, delaySec: Number(e.target.value) || 0 }))} style={inputStyle} /></Field>
+                  <Field label="Greeting delay (s)">
+                    <Stepper value={w.delaySec} onChange={(v) => setWidget((x) => ({ ...x, delaySec: v }))} min={0} max={120} />
+                  </Field>
                 </div>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", marginTop: 4 }}>
+                <label className={s.check} style={{ marginTop: 6 }}>
                   <input type="checkbox" checked={w.showOnMobile} onChange={(e) => setWidget((x) => ({ ...x, showOnMobile: e.target.checked }))} /> Show on mobile too
                 </label>
-              </Group>
-            </div>
+              </Section>
+            </>
           )}
         </div>
 
-        {/* RIGHT — preview */}
+        {/* preview */}
         <div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginBottom: 10 }}>
-            <button type="button" onClick={() => setDevice("desktop")} title="Desktop" aria-label="Desktop preview" style={{ ...smallBtn, background: device === "desktop" ? "var(--pm-app)" : undefined }}><Monitor size={14} /></button>
-            <button type="button" onClick={() => setDevice("mobile")} title="Mobile" aria-label="Mobile preview" style={{ ...smallBtn, background: device === "mobile" ? "var(--pm-app)" : undefined }}><Smartphone size={14} /></button>
+          <div className={s.stageBar}>
+            <span className={s.stageHint}>Preview</span>
+            <div className={s.seg}>
+              <button type="button" className={`${s.segBtn} ${device === "desktop" ? s.on : ""}`} onClick={() => setDevice("desktop")} aria-label="Desktop"><Monitor size={14} /></button>
+              <button type="button" className={`${s.segBtn} ${device === "mobile" ? s.on : ""}`} onClick={() => setDevice("mobile")} aria-label="Mobile"><Smartphone size={14} /></button>
+            </div>
           </div>
           <Preview cfg={cfg} tab={tab} device={device} />
         </div>
       </div>
 
-      {/* sticky save bar */}
-      <div style={{ position: "sticky", bottom: 0, marginTop: 18, padding: "12px 0", background: "linear-gradient(transparent, var(--pm-app) 40%)", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10 }}>
-        {dirty && <span style={{ fontSize: 12, color: "var(--pm-gold)", fontWeight: 600 }}>Unsaved changes</span>}
-        <button type="button" onClick={() => { setCfg(data?.config ?? GROWTH_DEFAULTS); setDirty(false); }} disabled={!dirty} style={smallBtn}>Discard</button>
-        <button type="button" onClick={saveConfig} disabled={saving || !dirty} style={primaryBtn}>
-          <Check size={13} /> {saving ? "Saving…" : data?.installed ? "Save & publish" : "Save"}
+      {/* save bar */}
+      <div className={s.saveBar}>
+        {dirty && <span className={s.dirty}><AlertTriangle size={13} /> Unsaved changes</span>}
+        <button type="button" className={s.btn} onClick={() => { setCfg(data?.config ?? GROWTH_DEFAULTS); setDirty(false); }} disabled={!dirty}>Discard</button>
+        <button type="button" className={`${s.btn} ${s.primary}`} onClick={saveConfig} disabled={saving || !dirty}>
+          <Check size={14} /> {saving ? "Saving…" : data?.installed ? "Save & publish" : "Save"}
         </button>
       </div>
-    </div>
-  );
-}
-
-function ToggleRow({ label, on, onChange }: { label: string; on: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", padding: "12px 14px" }}>
-      <span style={{ fontWeight: 700, fontSize: 13 }}>{label}</span>
-      <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: on ? "var(--pm-green)" : "var(--pm-muted)" }}>
-        <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} /> {on ? "On" : "Off"}
-      </span>
-    </label>
-  );
-}
-
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={cardStyle}>
-      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.4, textTransform: "uppercase", color: "var(--pm-muted)", marginBottom: 10 }}>{title}</div>
-      {children}
     </div>
   );
 }
