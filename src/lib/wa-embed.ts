@@ -1,135 +1,325 @@
-// WhatsApp growth embed: the popup + chat-widget JavaScript served to the
-// storefront by /api/public/wa-embed. Config is edited in the dashboard
-// (WhatsApp → Growth) and stored in app_secrets as WA_GROWTH_CONFIG, so copy
-// changes go live on trypromunch.in within minutes — no theme edit, ever.
+// WhatsApp growth embed: the opt-in popup + chat widget shown on the storefront.
+// Config is edited in the dashboard visual editor (WhatsApp → Growth) and served
+// live by /api/public/wa-embed, so copy/colour/targeting changes go live on
+// trypromunch.in within minutes — no theme edit, ever.
+//
+// The SAME markup functions (renderPopupInner / renderWidgetInner) power both
+// the storefront embed and the dashboard live preview, so what staff see is
+// exactly what a visitor sees. buildEmbedJs wraps that markup with behaviour
+// (targeting triggers, form submit, frequency cap).
 
-export type GrowthConfig = {
-  popup: {
-    enabled: boolean;
-    headline: string;
-    sub: string;
-    cta: string;
-    delaySec: number;
-    coolDays: number;
+/* ----------------------------- types ----------------------------- */
+
+export type PopupTrigger =
+  | { type: "immediate" }
+  | { type: "delay"; seconds: number }
+  | { type: "scroll"; percent: number }
+  | { type: "exit" };
+
+export type PageRule = "all" | "home" | "product" | "cart";
+export type PopupPosition = "center" | "bottom-right" | "bottom-left" | "bottom-bar";
+export type ImageLayout = "none" | "top" | "side";
+
+export type PopupConfig = {
+  enabled: boolean;
+  headline: string;
+  sub: string;
+  cta: string;
+  successTitle: string;
+  successBody: string;
+  imageUrl: string | null;
+  imageLayout: ImageLayout;
+  theme: {
+    bg: string;
+    text: string;
+    accent: string;
+    accentText: string;
+    font: string;
+    radius: number;
   };
-  widget: {
-    enabled: boolean;
-    greeting: string;
-    side: "right" | "left";
-    delaySec: number;
-  };
+  position: PopupPosition;
+  trigger: PopupTrigger;
+  frequencyDays: number;
+  pages: PageRule;
 };
+
+export type WidgetConfig = {
+  enabled: boolean;
+  greeting: string;
+  theme: { button: string; bubbleBg: string; bubbleText: string };
+  side: "right" | "left";
+  delaySec: number;
+  showOnMobile: boolean;
+};
+
+export type GrowthConfig = { popup: PopupConfig; widget: WidgetConfig };
+
+/* ----------------------------- fonts ----------------------------- */
+
+export const FONTS: Record<string, { label: string; stack: string; google: string | null }> = {
+  system: { label: "System (fast)", stack: `-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif`, google: null },
+  poppins: { label: "Poppins", stack: `"Poppins",sans-serif`, google: "Poppins:wght@400;600;700;800" },
+  inter: { label: "Inter", stack: `"Inter",sans-serif`, google: "Inter:wght@400;600;700;800" },
+  montserrat: { label: "Montserrat", stack: `"Montserrat",sans-serif`, google: "Montserrat:wght@400;600;700;800" },
+  nunito: { label: "Nunito (rounded)", stack: `"Nunito",sans-serif`, google: "Nunito:wght@400;700;800" },
+  playfair: { label: "Playfair (elegant serif)", stack: `"Playfair Display",Georgia,serif`, google: "Playfair+Display:wght@500;700;800" },
+  georgia: { label: "Georgia (serif)", stack: `Georgia,"Times New Roman",serif`, google: null },
+};
+
+export function fontStack(key: string): string {
+  return (FONTS[key] ?? FONTS.system).stack;
+}
+export function fontHref(key: string): string | null {
+  const g = FONTS[key]?.google;
+  return g ? `https://fonts.googleapis.com/css2?family=${g}&display=swap` : null;
+}
+
+/* --------------------------- defaults --------------------------- */
 
 export const GROWTH_DEFAULTS: GrowthConfig = {
   popup: {
     enabled: true,
-    headline: "Snacks with 50% protein. Offers on WhatsApp.",
-    sub: "Join PROMUNCH for launch drops and member-only deals. Your Munchy Pal is one text away.",
-    cta: "Join",
-    delaySec: 6,
-    coolDays: 15,
+    headline: "Get 50% protein snacks + WhatsApp-only offers",
+    sub: "Join PROMUNCH for launch drops and member deals. Your Munchy Pal is one text away.",
+    cta: "Join on WhatsApp",
+    successTitle: "You're in! 🎉",
+    successBody: "Offers and new launches, straight from Your Munchy Pal.",
+    imageUrl: null,
+    imageLayout: "none",
+    theme: { bg: "#FFF8F0", text: "#2B2118", accent: "#25D366", accentText: "#FFFFFF", font: "poppins", radius: 16 },
+    position: "center",
+    trigger: { type: "delay", seconds: 6 },
+    frequencyDays: 15,
+    pages: "all",
   },
   widget: {
     enabled: true,
     greeting: "Questions? Chat with Your Munchy Pal 🌱",
+    theme: { button: "#25D366", bubbleBg: "#FFFFFF", bubbleText: "#2B2118" },
     side: "right",
     delaySec: 4,
+    showOnMobile: true,
   },
 };
 
+/* --------------------------- normalize --------------------------- */
+
+const HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const clampNum = (v: unknown, lo: number, hi: number, d: number) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : d;
+};
+const color = (v: unknown, d: string) => (typeof v === "string" && HEX.test(v.trim()) ? v.trim() : d);
+const str = (v: unknown, d: string, max: number) => {
+  const s = typeof v === "string" ? v : d;
+  return s.slice(0, max);
+};
+
+function normTrigger(raw: unknown): PopupTrigger {
+  const t = (raw ?? {}) as { type?: string; seconds?: number; percent?: number };
+  if (t.type === "immediate") return { type: "immediate" };
+  if (t.type === "scroll") return { type: "scroll", percent: clampNum(t.percent, 5, 100, 40) };
+  if (t.type === "exit") return { type: "exit" };
+  return { type: "delay", seconds: clampNum(t.seconds, 0, 300, 6) };
+}
+
 export function normalizeGrowthConfig(raw: unknown): GrowthConfig {
   const r = (raw ?? {}) as Partial<GrowthConfig>;
-  const p = { ...GROWTH_DEFAULTS.popup, ...(r.popup ?? {}) };
-  const w = { ...GROWTH_DEFAULTS.widget, ...(r.widget ?? {}) };
+  const p = { ...GROWTH_DEFAULTS.popup, ...(r.popup ?? {}) } as PopupConfig;
+  const pt = { ...GROWTH_DEFAULTS.popup.theme, ...((r.popup?.theme ?? {}) as object) };
+  const w = { ...GROWTH_DEFAULTS.widget, ...(r.widget ?? {}) } as WidgetConfig;
+  const wt = { ...GROWTH_DEFAULTS.widget.theme, ...((r.widget?.theme ?? {}) as object) };
+
+  const pos: PopupPosition = ["center", "bottom-right", "bottom-left", "bottom-bar"].includes(p.position) ? p.position : "center";
+  const layout: ImageLayout = ["none", "top", "side"].includes(p.imageLayout) ? p.imageLayout : "none";
+  const pages: PageRule = ["all", "home", "product", "cart"].includes(p.pages) ? p.pages : "all";
+  const imageUrl = typeof p.imageUrl === "string" && /^https?:\/\//.test(p.imageUrl) ? p.imageUrl : null;
+
   return {
     popup: {
       enabled: !!p.enabled,
-      headline: String(p.headline).slice(0, 120),
-      sub: String(p.sub).slice(0, 240),
-      cta: String(p.cta).slice(0, 30) || "Join",
-      delaySec: Math.min(120, Math.max(1, Number(p.delaySec) || 6)),
-      coolDays: Math.min(365, Math.max(1, Number(p.coolDays) || 15)),
+      headline: str(p.headline, GROWTH_DEFAULTS.popup.headline, 120),
+      sub: str(p.sub, GROWTH_DEFAULTS.popup.sub, 240),
+      cta: str(p.cta, GROWTH_DEFAULTS.popup.cta, 40) || "Join",
+      successTitle: str(p.successTitle, GROWTH_DEFAULTS.popup.successTitle, 80),
+      successBody: str(p.successBody, GROWTH_DEFAULTS.popup.successBody, 200),
+      imageUrl: layout === "none" ? null : imageUrl,
+      imageLayout: imageUrl ? layout : "none",
+      theme: {
+        bg: color(pt.bg, "#FFF8F0"),
+        text: color(pt.text, "#2B2118"),
+        accent: color(pt.accent, "#25D366"),
+        accentText: color(pt.accentText, "#FFFFFF"),
+        font: FONTS[pt.font] ? pt.font : "poppins",
+        radius: clampNum(pt.radius, 0, 32, 16),
+      },
+      position: pos,
+      trigger: normTrigger(p.trigger),
+      frequencyDays: clampNum(p.frequencyDays, 0, 365, 15),
+      pages,
     },
     widget: {
       enabled: !!w.enabled,
-      greeting: String(w.greeting).slice(0, 120),
+      greeting: str(w.greeting, GROWTH_DEFAULTS.widget.greeting, 120),
+      theme: {
+        button: color(wt.button, "#25D366"),
+        bubbleBg: color(wt.bubbleBg, "#FFFFFF"),
+        bubbleText: color(wt.bubbleText, "#2B2118"),
+      },
       side: w.side === "left" ? "left" : "right",
-      delaySec: Math.min(120, Math.max(0, Number(w.delaySec) || 0)),
+      delaySec: clampNum(w.delaySec, 0, 120, 4),
+      showOnMobile: w.showOnMobile !== false,
     },
   };
 }
 
-// Build the storefront JS. `appOrigin` = this app (for the opt-in POST),
-// `widgetLink` = tracked /r/<code> URL, `waNumber` = digits for wa.me.
+/* ---------------------------- markup ---------------------------- */
+
+const esc = (s: string) =>
+  String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+const WA_ICON = `<svg viewBox="0 0 32 32" width="26" height="26" fill="currentColor"><path d="M16 3C9.4 3 4 8.3 4 14.9c0 2.1.6 4.1 1.6 5.9L4 29l8.4-1.6c1.7.9 3.6 1.4 5.6 1.4 6.6 0 12-5.3 12-11.9S22.6 3 16 3zm0 21.8c-1.8 0-3.5-.5-5-1.3l-.4-.2-5 1 1-4.8-.3-.4c-1-1.6-1.5-3.4-1.5-5.2 0-5.5 4.6-10 10.2-10s10.2 4.5 10.2 10-4.6 9.9-10.2 9.9zm5.6-7.4c-.3-.2-1.8-.9-2.1-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.2-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.2-.2.2-.3.3-.5.1-.2 0-.4 0-.6-.1-.2-.7-1.7-1-2.3-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1.1 1-1.1 2.5s1.1 2.9 1.3 3.1c.2.2 2.2 3.4 5.4 4.7.8.3 1.4.5 1.8.7.8.2 1.5.2 2 .1.6-.1 1.8-.7 2.1-1.5.3-.7.3-1.3.2-1.5-.1-.1-.3-.2-.6-.3z"/></svg>`;
+
+// The popup card, minus outer positioning (the wrapper positions it). Shared by
+// the storefront embed and the dashboard preview. `preview` disables autofocus.
+export function renderPopupInner(cfg: PopupConfig): string {
+  const t = cfg.theme;
+  const font = fontStack(t.font);
+  const side = cfg.imageLayout === "side" && cfg.imageUrl;
+  const barMode = cfg.position === "bottom-bar";
+
+  const img = cfg.imageUrl && cfg.imageLayout !== "none"
+    ? `<img src="${esc(cfg.imageUrl)}" alt="" style="${side
+        ? "width:38%;object-fit:cover;align-self:stretch;min-height:160px"
+        : "width:100%;height:120px;object-fit:cover"};display:block">`
+    : "";
+
+  const content = `<div style="padding:${side ? "20px 22px" : "20px"};flex:1;min-width:0">
+    <button data-pmwa="close" aria-label="Close" style="position:absolute;top:10px;right:12px;border:0;background:none;font-size:20px;line-height:1;cursor:pointer;color:${t.text};opacity:.5">&#215;</button>
+    <div style="font-weight:800;font-size:${barMode ? 16 : 19}px;line-height:1.22;color:${t.text};padding-right:18px">${esc(cfg.headline)}</div>
+    <div style="font-size:13px;color:${t.text};opacity:.72;margin:6px 0 14px">${esc(cfg.sub)}</div>
+    <form data-pmwa="form" style="display:flex;gap:8px;flex-wrap:wrap">
+      <input name="hp" tabindex="-1" autocomplete="off" style="display:none">
+      <div style="display:flex;flex:1;min-width:150px;align-items:center;background:#fff;border:1px solid rgba(0,0,0,.14);border-radius:10px;padding:0 10px">
+        <span style="font-size:14px;color:#8a7a66">+91</span>
+        <input data-pmwa="phone" type="tel" inputmode="numeric" maxlength="10" placeholder="98765 43210" style="border:0;outline:0;padding:12px 8px;font-size:15px;width:100%;background:none;color:#2B2118;font-family:inherit">
+      </div>
+      <button type="submit" style="background:${t.accent};color:${t.accentText};border:0;border-radius:10px;padding:0 18px;min-height:44px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;white-space:nowrap">${esc(cfg.cta)}</button>
+    </form>
+    <div style="font-size:10.5px;color:${t.text};opacity:.6;margin-top:9px">By joining you agree to receive WhatsApp updates from PROMUNCH. Reply STOP anytime to leave.</div>
+  </div>`;
+
+  const inner = cfg.imageLayout === "top" ? img + content : side ? img + content : content;
+  const flex = side ? "display:flex;align-items:stretch" : "";
+  return `<div data-pmwa="card" style="position:relative;background:${t.bg};border-radius:${barMode ? 0 : t.radius}px;overflow:hidden;font-family:${font};box-shadow:0 12px 40px rgba(0,0,0,.2);${flex}">${inner}</div>`;
+}
+
+export function popupSuccessInner(cfg: PopupConfig, waNumber: string): string {
+  const t = cfg.theme;
+  return `<div data-pmwa="card" style="position:relative;background:${t.bg};border-radius:${cfg.position === "bottom-bar" ? 0 : t.radius}px;padding:22px;font-family:${fontStack(t.font)};box-shadow:0 12px 40px rgba(0,0,0,.2)">
+    <div style="font-weight:800;font-size:18px;color:${t.text}">${esc(cfg.successTitle)}</div>
+    <div style="font-size:13px;color:${t.text};opacity:.72;margin:6px 0 12px">${esc(cfg.successBody)}</div>
+    <a href="https://wa.me/${waNumber}?text=${encodeURIComponent("Hi PROMUNCH! Just joined your list 🌱")}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:${t.accent};color:${t.accentText};border-radius:10px;padding:11px 16px;font-weight:700;font-size:14px;text-decoration:none">${WA_ICON}<span>Say hi on WhatsApp</span></a>
+  </div>`;
+}
+
+export function widgetButtonInner(cfg: WidgetConfig): string {
+  return `<span style="display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;background:${cfg.theme.button};color:#fff;box-shadow:0 6px 20px rgba(0,0,0,.25)">${WA_ICON}</span>`;
+}
+
+export function widgetBubbleInner(cfg: WidgetConfig): string {
+  return `<div style="max-width:230px;background:${cfg.theme.bubbleBg};color:${cfg.theme.bubbleText};border:1px solid rgba(0,0,0,.1);border-radius:12px;padding:10px 30px 10px 12px;font-size:13px;font-family:${fontStack("system")};box-shadow:0 8px 24px rgba(0,0,0,.15);position:relative">${esc(cfg.greeting)}</div>`;
+}
+
+/* --------------------- positioning helpers --------------------- */
+
+// Wrapper style for the popup at each position (used by embed + preview).
+export function popupWrapStyle(pos: PopupPosition): string {
+  if (pos === "center") return "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.45);z-index:99999";
+  if (pos === "bottom-bar") return "position:fixed;left:0;right:0;bottom:0;z-index:99999";
+  const side = pos === "bottom-left" ? "left:16px" : "right:16px";
+  return `position:fixed;bottom:16px;${side};max-width:360px;z-index:99999`;
+}
+export function popupCardMax(pos: PopupPosition): string {
+  return pos === "center" ? "width:min(400px,100%)" : pos === "bottom-bar" ? "max-width:100%" : "width:360px;max-width:calc(100vw - 32px)";
+}
+
+/* --------------------------- embed JS --------------------------- */
+
 export function buildEmbedJs(cfg: GrowthConfig, opts: { appOrigin: string; widgetLink: string | null; waNumber: string }): string {
-  const parts: string[] = ["/* PROMUNCH WhatsApp embed (auto-generated; configure in CRM → WhatsApp → Growth) */"];
+  const parts: string[] = ["/* PROMUNCH WhatsApp embed — configure in CRM → WhatsApp → Growth */"];
+  const fontLinks = new Set<string>();
+  const pf = fontHref(cfg.popup.theme.font);
+  if (cfg.popup.enabled && pf) fontLinks.add(pf);
+  if (fontLinks.size) {
+    parts.push(`(function(){var L=${JSON.stringify([...fontLinks])};L.forEach(function(h){var l=document.createElement("link");l.rel="stylesheet";l.href=h;document.head.appendChild(l)})})();`);
+  }
 
   if (cfg.popup.enabled) {
-    const conf = JSON.stringify({
+    const conf = {
       api: `${opts.appOrigin}/api/public/wa-optin`,
-      delay: cfg.popup.delaySec * 1000,
-      coolDays: cfg.popup.coolDays,
-      headline: cfg.popup.headline,
-      sub: cfg.popup.sub,
-      cta: cfg.popup.cta,
-      wa: opts.waNumber,
-    });
-    parts.push(`(function(){
-  var C=${conf};
-  try{var K="pm_wa_popup_at";if(Date.now()-(+localStorage.getItem(K)||0)<C.coolDays*864e5)return;}catch(e){}
-  function done(){try{localStorage.setItem("pm_wa_popup_at",String(Date.now()))}catch(e){}}
-  setTimeout(function(){
-    var w=document.createElement("div");
-    w.setAttribute("style","position:fixed;z-index:99999;right:16px;bottom:16px;left:16px;max-width:360px;margin-left:auto;background:#FFF8F0;color:#2B2118;border:1px solid #E8D9C5;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.18);padding:20px;font-family:system-ui,-apple-system,sans-serif");
-    w.innerHTML='<div style="display:flex;justify-content:space-between;gap:8px"><div style="font-weight:800;font-size:17px;line-height:1.25">'+C.headline+'</div><button id="pmwa-x" style="border:0;background:none;font-size:18px;cursor:pointer;color:#8a7a66;line-height:1">\\u00d7</button></div>'
-      +'<div style="font-size:13px;color:#6d5d4b;margin:6px 0 12px">'+C.sub+'</div>'
-      +'<form id="pmwa-f" style="display:flex;gap:8px"><input name="hp" style="display:none" tabindex="-1" autocomplete="off">'
-      +'<div style="display:flex;flex:1;align-items:center;background:#fff;border:1px solid #E8D9C5;border-radius:10px;padding:0 10px"><span style="font-size:14px;color:#8a7a66">+91</span>'
-      +'<input id="pmwa-p" type="tel" inputmode="numeric" maxlength="10" placeholder="98765 43210" style="border:0;outline:0;padding:11px 8px;font-size:15px;width:100%;background:none;color:#2B2118"></div>'
-      +'<button type="submit" style="background:#25D366;color:#fff;border:0;border-radius:10px;padding:0 16px;font-weight:700;font-size:14px;cursor:pointer">'+C.cta+'</button></form>'
-      +'<div style="font-size:10.5px;color:#8a7a66;margin-top:8px">By joining you agree to receive WhatsApp updates from PROMUNCH. Reply STOP anytime to leave.</div>';
-    document.body.appendChild(w);
-    document.getElementById("pmwa-x").onclick=function(){done();w.remove()};
-    document.getElementById("pmwa-f").onsubmit=function(ev){
-      ev.preventDefault();
-      var p=(document.getElementById("pmwa-p").value||"").replace(/\\D/g,"");
-      if(p.length!==10){document.getElementById("pmwa-p").style.color="#c0392b";return}
-      fetch(C.api,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:p,source:"website_popup",hp:ev.target.hp.value})})
-        .then(function(r){return r.json()}).catch(function(){return{ok:false}})
-        .then(function(j){
-          done();
-          w.innerHTML=j&&j.ok
-            ?'<div style="font-weight:800;font-size:17px">You are in! \\ud83c\\udf89</div><div style="font-size:13px;color:#6d5d4b;margin:6px 0 12px">Offers and new launches, straight from Your Munchy Pal.</div><a href="https://wa.me/'+C.wa+'?text='+encodeURIComponent("Hi PROMUNCH! Just joined your list \\ud83c\\udf31")+'" target="_blank" rel="noopener" style="display:inline-block;background:#25D366;color:#fff;border-radius:10px;padding:11px 16px;font-weight:700;font-size:14px;text-decoration:none">Say hi on WhatsApp</a>'
-            :'<div style="font-size:13px;color:#6d5d4b">Something went wrong. You can also message us directly on WhatsApp: +91 99813 10247</div>';
-          setTimeout(function(){w.remove()},15000);
-        });
+      wrap: popupWrapStyle(cfg.popup.position),
+      cardMax: popupCardMax(cfg.popup.position),
+      html: renderPopupInner(cfg.popup),
+      success: popupSuccessInner(cfg.popup, opts.waNumber),
+      trigger: cfg.popup.trigger,
+      freqMs: cfg.popup.frequencyDays * 864e5,
+      pages: cfg.popup.pages,
+      center: cfg.popup.position === "center",
     };
-  },C.delay);
+    parts.push(`(function(){
+  var C=${JSON.stringify(conf)};
+  function pageOk(){var p=location.pathname;if(C.pages==="all")return true;if(C.pages==="home")return p==="/"||p==="";if(C.pages==="product")return p.indexOf("/products/")>-1;if(C.pages==="cart")return p.indexOf("/cart")>-1;return true;}
+  if(!pageOk())return;
+  try{var K="pm_wa_popup_at";if(C.freqMs>0&&Date.now()-(+localStorage.getItem(K)||0)<C.freqMs)return;}catch(e){}
+  var shown=false;
+  function done(){try{localStorage.setItem("pm_wa_popup_at",String(Date.now()))}catch(e){}}
+  function show(){
+    if(shown)return;shown=true;
+    var wrap=document.createElement("div");wrap.setAttribute("style",C.wrap);
+    var box=document.createElement("div");box.setAttribute("style",C.cardMax);box.innerHTML=C.html;
+    wrap.appendChild(box);
+    if(C.center)wrap.addEventListener("click",function(e){if(e.target===wrap){done();wrap.remove()}});
+    document.body.appendChild(wrap);
+    var x=box.querySelector('[data-pmwa="close"]');if(x)x.onclick=function(){done();wrap.remove()};
+    var f=box.querySelector('[data-pmwa="form"]');
+    if(f)f.onsubmit=function(ev){ev.preventDefault();
+      var pn=box.querySelector('[data-pmwa="phone"]');var p=(pn.value||"").replace(/\\D/g,"");
+      if(p.length!==10){pn.style.color="#c0392b";return}
+      var hp=f.querySelector('input[name="hp"]');
+      fetch(C.api,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:p,source:"website_popup",hp:hp?hp.value:""})})
+        .then(function(r){return r.json()}).catch(function(){return{ok:false}})
+        .then(function(j){done();box.innerHTML=j&&j.ok?C.success:'<div style="background:#fff;border-radius:12px;padding:20px;font-family:sans-serif;font-size:13px;color:#6d5d4b">Something went wrong. Message us directly on WhatsApp: +91 99813 10247</div>';setTimeout(function(){wrap.remove()},15000)});
+    };
+  }
+  var T=C.trigger||{type:"delay",seconds:6};
+  if(T.type==="immediate"){show()}
+  else if(T.type==="scroll"){var onS=function(){var h=document.documentElement;var pct=(h.scrollTop||document.body.scrollTop)/((h.scrollHeight-h.clientHeight)||1)*100;if(pct>=(T.percent||40)){show();window.removeEventListener("scroll",onS)}};window.addEventListener("scroll",onS,{passive:true})}
+  else if(T.type==="exit"){var onE=function(e){if(e.clientY<=0){show();document.removeEventListener("mouseout",onE)}};document.addEventListener("mouseout",onE)}
+  else{setTimeout(show,(T.seconds||6)*1000)}
 })();`);
   }
 
   if (cfg.widget.enabled && opts.widgetLink) {
-    const conf = JSON.stringify({
+    const conf = {
       link: opts.widgetLink,
-      greeting: cfg.widget.greeting,
       side: cfg.widget.side,
       delay: cfg.widget.delaySec * 1000,
-    });
+      btn: widgetButtonInner(cfg.widget),
+      bubble: cfg.widget.greeting ? widgetBubbleInner(cfg.widget) : "",
+      mobile: cfg.widget.showOnMobile,
+    };
     parts.push(`(function(){
-  var C=${conf};var s=C.side==="left"?"left:16px":"right:16px";
-  var b=document.createElement("a");
-  b.href=C.link;b.target="_blank";b.rel="noopener";b.setAttribute("aria-label","Chat with PROMUNCH on WhatsApp");
-  b.setAttribute("style","position:fixed;z-index:99998;bottom:16px;"+s+";width:56px;height:56px;border-radius:50%;background:#25D366;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(0,0,0,.25)");
-  b.innerHTML='<svg viewBox="0 0 32 32" width="30" height="30" fill="#fff"><path d="M16 3C9.4 3 4 8.3 4 14.9c0 2.1.6 4.1 1.6 5.9L4 29l8.4-1.6c1.7.9 3.6 1.4 5.6 1.4 6.6 0 12-5.3 12-11.9S22.6 3 16 3zm0 21.8c-1.8 0-3.5-.5-5-1.3l-.4-.2-5 1 1-4.8-.3-.4c-1-1.6-1.5-3.4-1.5-5.2 0-5.5 4.6-10 10.2-10s10.2 4.5 10.2 10-4.6 9.9-10.2 9.9zm5.6-7.4c-.3-.2-1.8-.9-2.1-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.2-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.2-.2.2-.3.3-.5.1-.2 0-.4 0-.6-.1-.2-.7-1.7-1-2.3-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1.1 1-1.1 2.5s1.1 2.9 1.3 3.1c.2.2 2.2 3.4 5.4 4.7.8.3 1.4.5 1.8.7.8.2 1.5.2 2 .1.6-.1 1.8-.7 2.1-1.5.3-.7.3-1.3.2-1.5-.1-.1-.3-.2-.6-.3z"/></svg>';
-  document.body.appendChild(b);
-  if(C.greeting){setTimeout(function(){
+  var C=${JSON.stringify(conf)};
+  if(!C.mobile&&window.matchMedia&&window.matchMedia("(max-width:640px)").matches)return;
+  var s=C.side==="left"?"left:16px":"right:16px";
+  var a=document.createElement("a");a.href=C.link;a.target="_blank";a.rel="noopener";a.setAttribute("aria-label","Chat on WhatsApp");
+  a.setAttribute("style","position:fixed;z-index:99998;bottom:16px;"+s);a.innerHTML=C.btn;document.body.appendChild(a);
+  if(C.bubble){setTimeout(function(){
     try{if(localStorage.getItem("pm_wa_hi"))return}catch(e){}
-    var g=document.createElement("div");
-    g.setAttribute("style","position:fixed;z-index:99998;bottom:82px;"+s+";max-width:230px;background:#fff;color:#2B2118;border:1px solid #E8D9C5;border-radius:12px;padding:10px 30px 10px 12px;font-size:13px;font-family:system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.15);cursor:pointer");
-    g.innerHTML=C.greeting+'<button style="position:absolute;top:2px;right:6px;border:0;background:none;color:#8a7a66;font-size:14px;cursor:pointer">\\u00d7</button>';
+    var g=document.createElement("div");g.setAttribute("style","position:fixed;z-index:99998;bottom:82px;"+s+";cursor:pointer");g.innerHTML=C.bubble+'<button aria-label="Close" style="position:absolute;top:2px;right:6px;border:0;background:none;color:#8a7a66;font-size:14px;cursor:pointer">&#215;</button>';
     g.querySelector("button").onclick=function(ev){ev.stopPropagation();try{localStorage.setItem("pm_wa_hi","1")}catch(e){};g.remove()};
-    g.onclick=function(){window.open(C.link,"_blank")};
-    document.body.appendChild(g);
+    g.onclick=function(){window.open(C.link,"_blank")};document.body.appendChild(g);
   },C.delay)}
 })();`);
   }

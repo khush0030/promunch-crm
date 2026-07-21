@@ -1,73 +1,133 @@
 "use client";
 
-// Growth tab: grow the opted-in WhatsApp audience beyond the ~833 imported
-// contacts — entirely from the dashboard, no theme editing.
-//   1. Opt-in POPUP + chat WIDGET: configured here, served live to the
-//      storefront by /api/public/wa-embed. One "Install on store" button adds
-//      the Shopify script tag; copy edits go live within ~5 min, no re-paste.
-//   2. QR CODES: named, tracked (wa_link_clicks via /r/<code>), PNG download.
+// Growth tab: a Klaviyo-style visual editor for the two storefront acquisition
+// tools — the opt-in popup and the WhatsApp chat button. Left pane = controls
+// (content, design, image, targeting); right pane = a LIVE preview rendered from
+// the exact same markup the storefront gets (src/lib/wa-embed.ts), so what staff
+// see is what a visitor sees. One "Install on store" button injects it on
+// Shopify; config edits go live within minutes — no theme editing.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Check, Copy, Download, ExternalLink, MessageCircle, Plus, Power, QrCode, Users,
+  Check, Image as ImageIcon, Monitor, Power, Smartphone, Trash2, Upload, Users, MessageCircle,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { cardStyle, inputStyle, primaryBtn, smallBtn } from "./styles";
 import { Field } from "./primitives";
-
-type GrowthConfig = {
-  popup: { enabled: boolean; headline: string; sub: string; cta: string; delaySec: number; coolDays: number };
-  widget: { enabled: boolean; greeting: string; side: "right" | "left"; delaySec: number };
-};
+import {
+  FONTS, GROWTH_DEFAULTS, fontHref, renderPopupInner, widgetBubbleInner, widgetButtonInner,
+  type GrowthConfig, type PopupConfig, type PopupPosition, type WidgetConfig,
+} from "@/lib/wa-embed";
 
 type GrowthData = {
   wa_number: string;
   config: GrowthConfig;
   installed: boolean;
   shop_domain: string;
-  embed_url: string;
   loader_snippet: string;
   popup: { leads: number };
-  widget: { code: string; target: string; clicks: number } | null;
-  qrs: { code: string; name: string; target: string; scans: number; created_at: string }[];
+  widget: { code: string; clicks: number } | null;
 };
 
-const origin = () => (typeof window !== "undefined" ? window.location.origin : "");
+const THEMES: { name: string; t: PopupConfig["theme"] }[] = [
+  { name: "Warm (PROMUNCH)", t: { bg: "#FFF8F0", text: "#2B2118", accent: "#25D366", accentText: "#FFFFFF", font: "poppins", radius: 16 } },
+  { name: "Clean light", t: { bg: "#FFFFFF", text: "#1A1A1A", accent: "#1A1A1A", accentText: "#FFFFFF", font: "inter", radius: 12 } },
+  { name: "Dark", t: { bg: "#1E1B18", text: "#F5EFE7", accent: "#25D366", accentText: "#0B140C", font: "montserrat", radius: 14 } },
+  { name: "Elegant", t: { bg: "#F7F3EC", text: "#2B2118", accent: "#B4562A", accentText: "#FFFFFF", font: "playfair", radius: 8 } },
+];
 
-/* ------------------------- QR rendering ------------------------- */
+/* ---- live preview: reuses the storefront markup for fidelity ---- */
 
-function QrImage({ url, name }: { url: string; name: string }) {
-  const [src, setSrc] = useState<string | null>(null);
+function Preview({ cfg, tab, device }: { cfg: GrowthConfig; tab: "popup" | "widget"; device: "desktop" | "mobile" }) {
+  // Load the chosen popup font so the preview matches the storefront.
   useEffect(() => {
-    let live = true;
-    import("qrcode").then((QR) =>
-      QR.toDataURL(url, { width: 180, margin: 1, color: { dark: "#2B2118", light: "#FFFFFF" } })
-        .then((d: string) => { if (live) setSrc(d); }),
-    ).catch(() => {});
-    return () => { live = false; };
-  }, [url]);
-  async function download() {
-    const QR = await import("qrcode");
-    const big = await QR.toDataURL(url, { width: 1024, margin: 2, color: { dark: "#2B2118", light: "#FFFFFF" } });
-    const a = document.createElement("a");
-    a.href = big;
-    a.download = `promunch-wa-qr-${name}.png`;
-    a.click();
-  }
+    const href = fontHref(cfg.popup.theme.font);
+    if (!href) return;
+    if (document.querySelector(`link[data-pmfont="${href}"]`)) return;
+    const l = document.createElement("link");
+    l.rel = "stylesheet"; l.href = href; l.setAttribute("data-pmfont", href);
+    document.head.appendChild(l);
+  }, [cfg.popup.theme.font]);
+
+  const frameW = device === "mobile" ? 340 : 720;
+  const showPopup = tab === "popup" && cfg.popup.enabled;
+  const showWidget = tab === "widget" && cfg.widget.enabled;
+  const side = cfg.widget.side === "left" ? { left: 14 } : { right: 14 };
+
+  // Position the popup within the frame (absolute mimic of the fixed embed).
+  const pos = cfg.popup.position;
+  const wrap: React.CSSProperties =
+    pos === "center" ? { inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(0,0,0,.45)" }
+    : pos === "bottom-bar" ? { left: 0, right: 0, bottom: 0 }
+    : pos === "bottom-left" ? { left: 14, bottom: 14, maxWidth: 320 }
+    : { right: 14, bottom: 14, maxWidth: 320 };
+  const cardW = pos === "center" ? Math.min(360, frameW - 40) : pos === "bottom-bar" ? frameW : 300;
+
   return (
-    <div style={{ textAlign: "center" }}>
-      {src
-        ? <img src={src} alt={`QR code: ${name}`} width={120} height={120} style={{ borderRadius: 8, border: "1px solid var(--pm-border)" }} />
-        : <div style={{ width: 120, height: 120, borderRadius: 8, background: "var(--pm-line)" }} />}
-      <button type="button" onClick={download} style={{ ...smallBtn, marginTop: 6, width: "100%", justifyContent: "center" }}>
-        <Download size={12} /> PNG
-      </button>
+    <div style={{ position: "sticky", top: 12 }}>
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        <div style={{ width: frameW, maxWidth: "100%", border: "1px solid var(--pm-border)", borderRadius: 12, overflow: "hidden", background: "#fff", boxShadow: "0 8px 30px rgba(0,0,0,.10)" }}>
+          {/* fake browser chrome */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "#EDE7DF", borderBottom: "1px solid var(--pm-border)" }}>
+            <span style={{ width: 10, height: 10, borderRadius: 999, background: "#E36B5C" }} />
+            <span style={{ width: 10, height: 10, borderRadius: 999, background: "#E5B94E" }} />
+            <span style={{ width: 10, height: 10, borderRadius: 999, background: "#5FB878" }} />
+            <span style={{ marginLeft: 10, fontSize: 11, color: "#8a7a66", background: "#fff", borderRadius: 6, padding: "3px 10px", flex: 1 }}>trypromunch.in</span>
+          </div>
+          {/* faux storefront body */}
+          <div style={{ position: "relative", height: device === "mobile" ? 520 : 440, overflow: "hidden", background: "linear-gradient(180deg,#FBF7F1,#F3ECE1)" }}>
+            <div style={{ padding: 18, opacity: 0.55 }}>
+              <div style={{ height: 26, width: "44%", background: "#E6DCCB", borderRadius: 6, marginBottom: 14 }} />
+              <div style={{ height: 120, background: "#E6DCCB", borderRadius: 10, marginBottom: 14 }} />
+              <div style={{ height: 12, width: "88%", background: "#E6DCCB", borderRadius: 6, marginBottom: 8 }} />
+              <div style={{ height: 12, width: "72%", background: "#E6DCCB", borderRadius: 6 }} />
+            </div>
+
+            {showPopup && (
+              <div style={{ position: "absolute", ...wrap, zIndex: 5 }}>
+                <div style={{ width: cardW, maxWidth: "100%" }} dangerouslySetInnerHTML={{ __html: renderPopupInner(cfg.popup) }} />
+              </div>
+            )}
+            {showWidget && (
+              <>
+                <div style={{ position: "absolute", bottom: 14, ...side, zIndex: 5 }} dangerouslySetInnerHTML={{ __html: widgetButtonInner(cfg.widget) }} />
+                {cfg.widget.greeting && (
+                  <div style={{ position: "absolute", bottom: 80, ...side, zIndex: 5 }} dangerouslySetInnerHTML={{ __html: widgetBubbleInner(cfg.widget) }} />
+                )}
+              </>
+            )}
+            {!showPopup && !showWidget && (
+              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--pm-hint)", fontSize: 13 }}>
+                This {tab === "popup" ? "popup" : "chat button"} is turned off.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <div style={{ textAlign: "center", fontSize: 11, color: "var(--pm-hint)", marginTop: 8 }}>
+        Live preview — exactly what visitors see on trypromunch.in.
+      </div>
     </div>
   );
 }
 
-/* ------------------------- main view ------------------------- */
+/* ------------------------- small controls ------------------------- */
+
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--pm-muted)", marginBottom: 4 }}>{label}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <input type="color" value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}
+          style={{ width: 34, height: 30, padding: 0, border: "1px solid var(--pm-border)", borderRadius: 6, background: "none", cursor: "pointer" }} />
+        <input value={value} onChange={(e) => onChange(e.target.value)} style={{ ...inputStyle, marginBottom: 0, width: 92, fontFamily: "ui-monospace, monospace", fontSize: 12 }} />
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------- main view ---------------------------- */
 
 export default function GrowthView() {
   const toast = useToast();
@@ -81,18 +141,19 @@ export default function GrowthView() {
     refetchInterval: 30000,
   });
 
-  // Local editable copy of the config; seeded from the server, saved on demand.
   const [cfg, setCfg] = useState<GrowthConfig | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
-  useEffect(() => {
-    if (data?.config && !dirty) setCfg(data.config);
-  }, [data?.config, dirty]);
+  const [tab, setTab] = useState<"popup" | "widget">("popup");
+  const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
+  const [installBusy, setInstallBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const patch = (fn: (c: GrowthConfig) => GrowthConfig) => {
-    setCfg((c) => (c ? fn(c) : c));
-    setDirty(true);
-  };
+  useEffect(() => { if (data?.config && !dirty) setCfg(data.config); }, [data?.config, dirty]);
+
+  const setPopup = (fn: (p: PopupConfig) => PopupConfig) => { setCfg((c) => c ? { ...c, popup: fn(c.popup) } : c); setDirty(true); };
+  const setWidget = (fn: (w: WidgetConfig) => WidgetConfig) => { setCfg((c) => c ? { ...c, widget: fn(c.widget) } : c); setDirty(true); };
 
   async function saveConfig() {
     if (!cfg) return;
@@ -105,13 +166,11 @@ export default function GrowthView() {
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.error) { toast.push({ kind: "error", text: j.error ?? `HTTP ${r.status}` }); return; }
       setDirty(false);
-      toast.push({ kind: "success", text: data?.installed ? "Saved. Live on the store within ~5 minutes." : "Saved." });
+      toast.push({ kind: "success", text: data?.installed ? "Saved. Live on your store within ~5 minutes." : "Saved." });
       refetch();
     } finally { setSaving(false); }
   }
 
-  // Install / remove the storefront embed via Shopify script tag.
-  const [installBusy, setInstallBusy] = useState(false);
   async function toggleInstall(install: boolean) {
     if (!install && !confirm("Remove the WhatsApp popup and chat button from trypromunch.in?")) return;
     setInstallBusy(true);
@@ -122,213 +181,234 @@ export default function GrowthView() {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.error) { toast.push({ kind: "error", text: j.error ?? `HTTP ${r.status}` }); return; }
-      toast.push({ kind: "success", text: install ? "Installed on your store. It's live now." : "Removed from your store." });
+      toast.push({ kind: "success", text: install ? "Installed — it's live on your store now." : "Removed from your store." });
       refetch();
     } finally { setInstallBusy(false); }
   }
 
-  // QR create
-  const [qrName, setQrName] = useState("");
-  const [qrPrefill, setQrPrefill] = useState("");
-  const [qrBusy, setQrBusy] = useState(false);
-  async function createQr() {
-    if (!qrName.trim()) { toast.push({ kind: "error", text: "Give the QR a name (e.g. packaging, store-counter)." }); return; }
-    setQrBusy(true);
+  async function uploadImage(file: File) {
+    setUploading(true);
     try {
-      const r = await fetch("/api/whatsapp/growth", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "qr", name: qrName, prefill: qrPrefill }),
-      });
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("format", "IMAGE");
+      const r = await fetch("/api/whatsapp/media-upload", { method: "POST", body: fd });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok || j.error) toast.push({ kind: "error", text: j.error ?? `HTTP ${r.status}` });
-      else { setQrName(""); setQrPrefill(""); refetch(); }
-    } finally { setQrBusy(false); }
+      if (!r.ok || j.error) { toast.push({ kind: "error", text: j.error ?? "Upload failed" }); return; }
+      setPopup((p) => ({ ...p, imageUrl: j.url, imageLayout: p.imageLayout === "none" ? "top" : p.imageLayout }));
+    } finally { setUploading(false); }
   }
 
-  const totalScans = (data?.qrs ?? []).reduce((a, q) => a + q.scans, 0);
-  const [showManual, setShowManual] = useState(false);
+  if (!cfg) return <div style={{ padding: 40, textAlign: "center", color: "var(--pm-hint)" }}>Loading…</div>;
+  const p = cfg.popup, w = cfg.widget;
 
   return (
     <div>
-      <div style={{ fontSize: 13, color: "var(--pm-muted)", marginBottom: 14 }}>
-        Grow the opted-in audience — set it up here, no website code editing. Every tool writes a consent trail, so these contacts are safe to market to.
-      </div>
-
-      {/* stats strip */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(170px,1fr))", gap: 10, marginBottom: 18 }}>
-        {[
-          { n: data?.popup.leads ?? 0, l: "Popup sign-ups", icon: <Users size={13} /> },
-          { n: data?.widget?.clicks ?? 0, l: "Widget clicks", icon: <MessageCircle size={13} /> },
-          { n: totalScans, l: "QR scans", icon: <QrCode size={13} /> },
-        ].map((s) => (
-          <div key={s.l} style={cardStyle}>
-            <div style={{ fontSize: 24, fontWeight: 800, color: "var(--pm-green)" }}>{s.n.toLocaleString("en-IN")}</div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-muted)", display: "flex", alignItems: "center", gap: 5 }}>{s.icon} {s.l}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* install status banner */}
-      <div style={{ ...cardStyle, marginBottom: 14, borderColor: data?.installed ? "var(--pm-green)" : "var(--pm-border)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
-              <Power size={14} color={data?.installed ? "var(--pm-green)" : "var(--pm-muted)"} />
-              {data?.installed ? "Live on your store" : "Not installed yet"}
-            </div>
-            <div style={{ fontSize: 12, color: "var(--pm-hint)", marginTop: 3 }}>
-              {data?.installed
-                ? `The popup and chat button are running on ${data?.shop_domain}. Edits below go live automatically.`
-                : `One click adds the popup + chat button to ${data?.shop_domain ?? "your store"}. No theme editing.`}
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            {data?.installed ? (
-              <button type="button" onClick={() => toggleInstall(false)} disabled={installBusy}
-                style={{ ...smallBtn, color: "var(--pm-terra)" }}>
-                {installBusy ? "Working…" : "Remove from store"}
-              </button>
-            ) : (
-              <button type="button" onClick={() => toggleInstall(true)} disabled={installBusy} style={primaryBtn}>
-                <Power size={13} /> {installBusy ? "Installing…" : "Install on store"}
-              </button>
-            )}
-          </div>
+      {/* stats + install */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+        <div style={{ ...cardStyle, flex: "1 1 150px" }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "var(--pm-green)" }}>{(data?.popup.leads ?? 0).toLocaleString("en-IN")}</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-muted)", display: "flex", alignItems: "center", gap: 5 }}><Users size={13} /> Popup sign-ups</div>
         </div>
-        <button type="button" onClick={() => setShowManual((s) => !s)}
-          style={{ background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontSize: 11.5, color: "var(--pm-muted)", textDecoration: "underline" }}>
-          {showManual ? "Hide" : "Not on Shopify? Paste it manually instead"}
-        </button>
-        {showManual && data && (
-          <div style={{ marginTop: 8 }}>
-            <CopyBox label="Paste before </body> in any website's HTML" text={data.loader_snippet} />
+        <div style={{ ...cardStyle, flex: "1 1 150px" }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "var(--pm-green)" }}>{(data?.widget?.clicks ?? 0).toLocaleString("en-IN")}</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-muted)", display: "flex", alignItems: "center", gap: 5 }}><MessageCircle size={13} /> Chat button clicks</div>
+        </div>
+        <div style={{ ...cardStyle, flex: "2 1 300px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+              <Power size={14} color={data?.installed ? "var(--pm-green)" : "var(--pm-muted)"} />
+              {data?.installed ? "Live on your store" : "Not installed"}
+            </div>
+            <div style={{ fontSize: 11.5, color: "var(--pm-hint)", marginTop: 3 }}>
+              {data?.installed ? `Running on ${data?.shop_domain}. Edits go live automatically.` : `One click adds it to ${data?.shop_domain ?? "your store"} — no theme editing.`}
+            </div>
           </div>
-        )}
+          {data?.installed
+            ? <button type="button" onClick={() => toggleInstall(false)} disabled={installBusy} style={{ ...smallBtn, color: "var(--pm-terra)", flexShrink: 0 }}>{installBusy ? "…" : "Remove"}</button>
+            : <button type="button" onClick={() => toggleInstall(true)} disabled={installBusy} style={{ ...primaryBtn, flexShrink: 0 }}><Power size={13} /> {installBusy ? "Installing…" : "Install on store"}</button>}
+        </div>
       </div>
 
-      {/* config editor */}
-      {cfg && (
-        <>
-          {/* popup */}
-          <div style={{ ...cardStyle, marginBottom: 14 }}>
-            <SectionHead
-              title="Opt-in popup"
-              desc="Collects phone numbers into WhatsApp contacts (tagged website_popup, consent recorded). After joining, visitors get a one-tap Say hi that opens the free 24h window."
-              enabled={cfg.popup.enabled}
-              onToggle={(v) => patch((c) => ({ ...c, popup: { ...c.popup, enabled: v } }))}
-            />
-            {cfg.popup.enabled && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, marginTop: 12 }}>
-                <Field label="Headline"><input value={cfg.popup.headline} onChange={(e) => patch((c) => ({ ...c, popup: { ...c.popup, headline: e.target.value } }))} style={inputStyle} /></Field>
-                <Field label="Sub text"><input value={cfg.popup.sub} onChange={(e) => patch((c) => ({ ...c, popup: { ...c.popup, sub: e.target.value } }))} style={inputStyle} /></Field>
-                <Field label="Button label"><input value={cfg.popup.cta} onChange={(e) => patch((c) => ({ ...c, popup: { ...c.popup, cta: e.target.value } }))} style={inputStyle} /></Field>
-                <Field label="Show after (seconds)"><input type="number" min={1} value={cfg.popup.delaySec} onChange={(e) => patch((c) => ({ ...c, popup: { ...c.popup, delaySec: Number(e.target.value) || 6 } }))} style={inputStyle} aria-label="Popup delay" /></Field>
-                <Field label="Snooze after close (days)"><input type="number" min={1} value={cfg.popup.coolDays} onChange={(e) => patch((c) => ({ ...c, popup: { ...c.popup, coolDays: Number(e.target.value) || 15 } }))} style={inputStyle} aria-label="Popup cooldown" /></Field>
-              </div>
-            )}
+      {/* editor: controls + preview */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(320px, 1fr) minmax(340px, 1.1fr)", gap: 16, alignItems: "start" }}>
+        {/* LEFT — controls */}
+        <div>
+          <div className="pm-chips" style={{ marginBottom: 12 }}>
+            <button type="button" className={`pm-chip${tab === "popup" ? " on" : ""}`} onClick={() => setTab("popup")}>Opt-in popup</button>
+            <button type="button" className={`pm-chip${tab === "widget" ? " on" : ""}`} onClick={() => setTab("widget")}>Chat button</button>
           </div>
 
-          {/* widget */}
-          <div style={{ ...cardStyle, marginBottom: 14 }}>
-            <SectionHead
-              title="Website chat button"
-              desc="Floating WhatsApp button with an optional greeting bubble. Clicks route through a tracked link, then open a chat with us."
-              enabled={cfg.widget.enabled}
-              onToggle={(v) => patch((c) => ({ ...c, widget: { ...c.widget, enabled: v } }))}
-            />
-            {cfg.widget.enabled && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, marginTop: 12 }}>
-                <Field label="Greeting bubble (blank = none)"><input value={cfg.widget.greeting} onChange={(e) => patch((c) => ({ ...c, widget: { ...c.widget, greeting: e.target.value } }))} style={inputStyle} /></Field>
-                <Field label="Position">
-                  <select value={cfg.widget.side} onChange={(e) => patch((c) => ({ ...c, widget: { ...c.widget, side: e.target.value as "right" | "left" } }))} style={inputStyle} aria-label="Widget position">
-                    <option value="right">Bottom right</option>
-                    <option value="left">Bottom left</option>
+          {tab === "popup" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <ToggleRow label="Show the opt-in popup" on={p.enabled} onChange={(v) => setPopup((x) => ({ ...x, enabled: v }))} />
+
+              <Group title="Content">
+                <Field label="Headline"><input value={p.headline} onChange={(e) => setPopup((x) => ({ ...x, headline: e.target.value }))} style={inputStyle} /></Field>
+                <Field label="Sub text"><textarea value={p.sub} onChange={(e) => setPopup((x) => ({ ...x, sub: e.target.value }))} rows={2} style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} /></Field>
+                <Field label="Button label"><input value={p.cta} onChange={(e) => setPopup((x) => ({ ...x, cta: e.target.value }))} style={inputStyle} /></Field>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <Field label="After-signup title"><input value={p.successTitle} onChange={(e) => setPopup((x) => ({ ...x, successTitle: e.target.value }))} style={inputStyle} /></Field>
+                  <Field label="After-signup text"><input value={p.successBody} onChange={(e) => setPopup((x) => ({ ...x, successBody: e.target.value }))} style={inputStyle} /></Field>
+                </div>
+              </Group>
+
+              <Group title="Image">
+                <input ref={fileRef} type="file" accept="image/png,image/jpeg" hidden
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f); e.target.value = ""; }} />
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} style={smallBtn}>
+                    {uploading ? <>Uploading…</> : <><Upload size={13} /> {p.imageUrl ? "Replace image" : "Upload image"}</>}
+                  </button>
+                  {p.imageUrl && (
+                    <button type="button" onClick={() => setPopup((x) => ({ ...x, imageUrl: null, imageLayout: "none" }))} style={{ ...smallBtn, color: "var(--pm-terra)" }}><Trash2 size={12} /> Remove</button>
+                  )}
+                  {p.imageUrl && (
+                    <select value={p.imageLayout} onChange={(e) => setPopup((x) => ({ ...x, imageLayout: e.target.value as PopupConfig["imageLayout"] }))} style={{ ...inputStyle, marginBottom: 0, width: "auto" }} aria-label="Image layout">
+                      <option value="top">Image on top</option>
+                      <option value="side">Image on side</option>
+                    </select>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                  <ImageIcon size={11} /> JPG or PNG, up to 5 MB. A product shot or logo works best.
+                </div>
+              </Group>
+
+              <Group title="Design">
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                  {THEMES.map((th) => (
+                    <button key={th.name} type="button" onClick={() => setPopup((x) => ({ ...x, theme: { ...th.t } }))}
+                      style={{ ...smallBtn, fontSize: 11.5 }}>{th.name}</button>
+                  ))}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 10 }}>
+                  <ColorField label="Background" value={p.theme.bg} onChange={(v) => setPopup((x) => ({ ...x, theme: { ...x.theme, bg: v } }))} />
+                  <ColorField label="Text" value={p.theme.text} onChange={(v) => setPopup((x) => ({ ...x, theme: { ...x.theme, text: v } }))} />
+                  <ColorField label="Button" value={p.theme.accent} onChange={(v) => setPopup((x) => ({ ...x, theme: { ...x.theme, accent: v } }))} />
+                  <ColorField label="Button text" value={p.theme.accentText} onChange={(v) => setPopup((x) => ({ ...x, theme: { ...x.theme, accentText: v } }))} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+                  <Field label="Font">
+                    <select value={p.theme.font} onChange={(e) => setPopup((x) => ({ ...x, theme: { ...x.theme, font: e.target.value } }))} style={inputStyle} aria-label="Font">
+                      {Object.entries(FONTS).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Position">
+                    <select value={p.position} onChange={(e) => setPopup((x) => ({ ...x, position: e.target.value as PopupPosition }))} style={inputStyle} aria-label="Position">
+                      <option value="center">Center of screen</option>
+                      <option value="bottom-right">Bottom right</option>
+                      <option value="bottom-left">Bottom left</option>
+                      <option value="bottom-bar">Bottom bar (full width)</option>
+                    </select>
+                  </Field>
+                </div>
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: "var(--pm-muted)", marginBottom: 4 }}>Corner roundness: {p.theme.radius}px</div>
+                  <input type="range" min={0} max={32} value={p.theme.radius} onChange={(e) => setPopup((x) => ({ ...x, theme: { ...x.theme, radius: Number(e.target.value) } }))} style={{ width: "100%" }} aria-label="Corner radius" />
+                </div>
+              </Group>
+
+              <Group title="Who sees it, and when">
+                <Field label="Show the popup">
+                  <select value={p.trigger.type} onChange={(e) => {
+                    const type = e.target.value as PopupConfig["trigger"]["type"];
+                    setPopup((x) => ({ ...x, trigger: type === "delay" ? { type, seconds: 6 } : type === "scroll" ? { type, percent: 40 } : { type } as PopupConfig["trigger"] }));
+                  }} style={inputStyle} aria-label="Trigger">
+                    <option value="delay">After a few seconds</option>
+                    <option value="scroll">After scrolling down the page</option>
+                    <option value="exit">When they are about to leave (exit intent)</option>
+                    <option value="immediate">Immediately on page load</option>
                   </select>
                 </Field>
-                <Field label="Greeting delay (seconds)"><input type="number" min={0} value={cfg.widget.delaySec} onChange={(e) => patch((c) => ({ ...c, widget: { ...c.widget, delaySec: Number(e.target.value) || 0 } }))} style={inputStyle} aria-label="Greeting delay" /></Field>
-              </div>
-            )}
-          </div>
-
-          {/* save bar */}
-          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 22 }}>
-            {dirty && <span style={{ fontSize: 12, color: "var(--pm-gold)" }}>Unsaved changes</span>}
-            <button type="button" onClick={saveConfig} disabled={saving || !dirty} style={primaryBtn}>
-              <Check size={13} /> {saving ? "Saving…" : "Save changes"}
-            </button>
-          </div>
-        </>
-      )}
-
-      {/* QR codes */}
-      <div style={cardStyle}>
-        <div style={{ fontWeight: 700, marginBottom: 4 }}>QR codes</div>
-        <div style={{ fontSize: 12, color: "var(--pm-hint)", marginBottom: 10 }}>
-          One per placement (packaging, store counter, Instagram bio). Each opens WhatsApp with its own first message, so you can tell where a customer scanned from. Scans are counted here.
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-          <input value={qrName} onChange={(e) => setQrName(e.target.value)} placeholder="Name, e.g. packaging"
-            style={{ ...inputStyle, marginBottom: 0, flex: "1 1 160px" }} aria-label="QR name" />
-          <input value={qrPrefill} onChange={(e) => setQrPrefill(e.target.value)} placeholder="First message (optional)"
-            style={{ ...inputStyle, marginBottom: 0, flex: "2 1 220px" }} aria-label="QR prefill message" />
-          <button type="button" onClick={createQr} disabled={qrBusy} style={primaryBtn}><Plus size={13} /> {qrBusy ? "Creating…" : "Create QR"}</button>
-        </div>
-        {(data?.qrs ?? []).length === 0 ? (
-          <div style={{ fontSize: 13, color: "var(--pm-hint)", padding: 12, textAlign: "center" }}>No QR codes yet.</div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 12 }}>
-            {(data?.qrs ?? []).map((q) => (
-              <div key={q.code} style={{ border: "1px solid var(--pm-border)", borderRadius: 10, padding: 10 }}>
-                <QrImage url={`${origin()}/r/${q.code}`} name={q.name} />
-                <div style={{ fontWeight: 700, fontSize: 13, marginTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  {q.name}
-                  <a href={`${origin()}/r/${q.code}`} target="_blank" rel="noopener noreferrer" title="Test link" style={{ color: "var(--pm-muted)" }}><ExternalLink size={12} /></a>
+                {p.trigger.type === "delay" && (
+                  <Field label="Seconds to wait"><input type="number" min={0} max={120} value={p.trigger.seconds} onChange={(e) => setPopup((x) => ({ ...x, trigger: { type: "delay", seconds: Number(e.target.value) || 0 } }))} style={inputStyle} /></Field>
+                )}
+                {p.trigger.type === "scroll" && (
+                  <Field label="Scroll depth (%)"><input type="number" min={5} max={100} value={p.trigger.percent} onChange={(e) => setPopup((x) => ({ ...x, trigger: { type: "scroll", percent: Number(e.target.value) || 40 } }))} style={inputStyle} /></Field>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <Field label="Don't show again for (days)"><input type="number" min={0} max={365} value={p.frequencyDays} onChange={(e) => setPopup((x) => ({ ...x, frequencyDays: Number(e.target.value) || 0 }))} style={inputStyle} /></Field>
+                  <Field label="On which pages">
+                    <select value={p.pages} onChange={(e) => setPopup((x) => ({ ...x, pages: e.target.value as PopupConfig["pages"] }))} style={inputStyle} aria-label="Pages">
+                      <option value="all">All pages</option>
+                      <option value="home">Home page only</option>
+                      <option value="product">Product pages</option>
+                      <option value="cart">Cart page</option>
+                    </select>
+                  </Field>
                 </div>
-                <div style={{ fontSize: 11.5, color: "var(--pm-muted)" }}>{q.scans.toLocaleString("en-IN")} scan{q.scans === 1 ? "" : "s"}</div>
-              </div>
-            ))}
+              </Group>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <ToggleRow label="Show the chat button" on={w.enabled} onChange={(v) => setWidget((x) => ({ ...x, enabled: v }))} />
+              <Group title="Content">
+                <Field label="Greeting bubble (blank = none)"><input value={w.greeting} onChange={(e) => setWidget((x) => ({ ...x, greeting: e.target.value }))} style={inputStyle} /></Field>
+              </Group>
+              <Group title="Design">
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 10 }}>
+                  <ColorField label="Button" value={w.theme.button} onChange={(v) => setWidget((x) => ({ ...x, theme: { ...x.theme, button: v } }))} />
+                  <ColorField label="Bubble bg" value={w.theme.bubbleBg} onChange={(v) => setWidget((x) => ({ ...x, theme: { ...x.theme, bubbleBg: v } }))} />
+                  <ColorField label="Bubble text" value={w.theme.bubbleText} onChange={(v) => setWidget((x) => ({ ...x, theme: { ...x.theme, bubbleText: v } }))} />
+                </div>
+              </Group>
+              <Group title="Placement">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <Field label="Position">
+                    <select value={w.side} onChange={(e) => setWidget((x) => ({ ...x, side: e.target.value as "right" | "left" }))} style={inputStyle} aria-label="Widget side">
+                      <option value="right">Bottom right</option>
+                      <option value="left">Bottom left</option>
+                    </select>
+                  </Field>
+                  <Field label="Greeting delay (seconds)"><input type="number" min={0} max={120} value={w.delaySec} onChange={(e) => setWidget((x) => ({ ...x, delaySec: Number(e.target.value) || 0 }))} style={inputStyle} /></Field>
+                </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", marginTop: 4 }}>
+                  <input type="checkbox" checked={w.showOnMobile} onChange={(e) => setWidget((x) => ({ ...x, showOnMobile: e.target.checked }))} /> Show on mobile too
+                </label>
+              </Group>
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT — preview */}
+        <div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginBottom: 10 }}>
+            <button type="button" onClick={() => setDevice("desktop")} title="Desktop" aria-label="Desktop preview" style={{ ...smallBtn, background: device === "desktop" ? "var(--pm-app)" : undefined }}><Monitor size={14} /></button>
+            <button type="button" onClick={() => setDevice("mobile")} title="Mobile" aria-label="Mobile preview" style={{ ...smallBtn, background: device === "mobile" ? "var(--pm-app)" : undefined }}><Smartphone size={14} /></button>
           </div>
-        )}
+          <Preview cfg={cfg} tab={tab} device={device} />
+        </div>
       </div>
-    </div>
-  );
-}
 
-function SectionHead({ title, desc, enabled, onToggle }: { title: string; desc: string; enabled: boolean; onToggle: (v: boolean) => void }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 700 }}>{title}</div>
-        <div style={{ fontSize: 12, color: "var(--pm-hint)", marginTop: 3 }}>{desc}</div>
-      </div>
-      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
-        <input type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
-        {enabled ? "On" : "Off"}
-      </label>
-    </div>
-  );
-}
-
-function CopyBox({ label, text }: { label: string; text: string }) {
-  const toast = useToast();
-  const [copied, setCopied] = useState(false);
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-muted)" }}>{label}</span>
-        <button type="button" style={smallBtn}
-          onClick={() => {
-            navigator.clipboard.writeText(text).then(() => {
-              setCopied(true);
-              toast.push({ kind: "success", text: "Copied." });
-              setTimeout(() => setCopied(false), 2500);
-            });
-          }}>
-          {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? "Copied" : "Copy"}
+      {/* sticky save bar */}
+      <div style={{ position: "sticky", bottom: 0, marginTop: 18, padding: "12px 0", background: "linear-gradient(transparent, var(--pm-app) 40%)", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10 }}>
+        {dirty && <span style={{ fontSize: 12, color: "var(--pm-gold)", fontWeight: 600 }}>Unsaved changes</span>}
+        <button type="button" onClick={() => { setCfg(data?.config ?? GROWTH_DEFAULTS); setDirty(false); }} disabled={!dirty} style={smallBtn}>Discard</button>
+        <button type="button" onClick={saveConfig} disabled={saving || !dirty} style={primaryBtn}>
+          <Check size={13} /> {saving ? "Saving…" : data?.installed ? "Save & publish" : "Save"}
         </button>
       </div>
-      <textarea readOnly value={text} rows={2}
-        style={{ ...inputStyle, fontFamily: "ui-monospace, monospace", fontSize: 11, marginBottom: 0, resize: "vertical" }} />
+    </div>
+  );
+}
+
+function ToggleRow({ label, on, onChange }: { label: string; on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", padding: "12px 14px" }}>
+      <span style={{ fontWeight: 700, fontSize: 13 }}>{label}</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: on ? "var(--pm-green)" : "var(--pm-muted)" }}>
+        <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} /> {on ? "On" : "Off"}
+      </span>
+    </label>
+  );
+}
+
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={cardStyle}>
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.4, textTransform: "uppercase", color: "var(--pm-muted)", marginBottom: 10 }}>{title}</div>
+      {children}
     </div>
   );
 }

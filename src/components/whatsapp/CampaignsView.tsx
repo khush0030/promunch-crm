@@ -5,7 +5,7 @@
 // the CSV contact importer. Extracted from dashboard/whatsapp/page.tsx (audit R5).
 
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle, Check, ChevronDown, ChevronRight, Clock, FileText, Gauge, Megaphone, Phone, Plus, RefreshCw,
   Send, Sparkles, Trash2, Upload, User as UserIcon, X,
@@ -121,12 +121,33 @@ type Quota = {
 // "How many people can we still reach today, and is Meta happy with us" — the
 // two numbers that decide whether a campaign goes out today or spreads over
 // days. Interakt-style visibility so nobody has to guess from failed counts.
-function QuotaBanner({ quota }: { quota: Quota | null }) {
+function QuotaBanner({ quota, onSaved }: { quota: Quota | null; onSaved: () => void }) {
+  const toast = useToast();
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState("");
+  const [saving, setSaving] = useState(false);
+
   if (!quota) return null;
   const q = (quota.quality ?? "").toUpperCase();
   const qColor = q === "GREEN" ? "var(--pm-green)" : q === "YELLOW" ? "var(--pm-gold)" : q === "RED" ? "var(--pm-terra)" : "var(--pm-muted)";
   const qLabel = q === "GREEN" ? "Good" : q === "YELLOW" ? "At risk" : q === "RED" ? "Poor" : "Unknown";
   const pct = quota.limit ? Math.min(100, Math.round((quota.used24h / quota.limit) * 100)) : 0;
+
+  async function saveBudget(next: number | null) {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/whatsapp/quota", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: next }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.error) { toast.push({ kind: "error", text: j.error ?? `HTTP ${r.status}` }); return; }
+      toast.push({ kind: "success", text: next === null ? "Budget cleared — back to Meta's tier." : `Daily budget set to ${next}. Live within a minute.` });
+      setEditing(false);
+      onSaved();
+    } finally { setSaving(false); }
+  }
+
   return (
     <div style={{ ...cardStyle, marginBottom: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
@@ -145,18 +166,45 @@ function QuotaBanner({ quota }: { quota: Quota | null }) {
           <div style={{ fontSize: 12, color: "var(--pm-muted)", marginTop: 6 }}>
             <strong>{(quota.remaining ?? 0).toLocaleString("en-IN")}</strong> of {quota.limit.toLocaleString("en-IN")} people still reachable
             in the current 24h window ({quota.used24h.toLocaleString("en-IN")} used ·{" "}
-            {quota.limit_source === "meta" ? `Meta tier ${quota.tier ?? "?"}` : "daily budget set in Supabase secrets, WA_DAILY_SEND_LIMIT"}).
+            {quota.limit_source === "meta" ? `Meta tier ${quota.tier ?? "?"}` : "your daily budget"}).
           </div>
         </>
       ) : (
         <div style={{ fontSize: 12, color: "var(--pm-muted)", marginTop: 8 }}>
           {quota.tier === "TIER_UNLIMITED"
             ? "No daily tier limit on this number."
-            : "Couldn't read the daily tier from Meta right now — campaigns still pace themselves automatically."}
+            : "Couldn't read the daily tier from Meta right now — set a daily budget below so campaigns pace safely."}
         </div>
       )}
-      <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 6, lineHeight: 1.4 }}>
-        Campaigns pace themselves to this budget and auto-resume every day until everyone is reached.
+
+      {/* editable daily budget */}
+      <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {editing ? (
+          <>
+            <span style={{ fontSize: 12, color: "var(--pm-muted)" }}>Send at most</span>
+            <input type="number" min={1} max={100000} value={val} onChange={(e) => setVal(e.target.value)}
+              placeholder={String(quota.limit ?? 250)} aria-label="Daily send budget"
+              style={{ ...inputStyle, marginBottom: 0, width: 100 }} />
+            <span style={{ fontSize: 12, color: "var(--pm-muted)" }}>people/day</span>
+            <button type="button" disabled={saving} onClick={() => { const n = Math.floor(Number(val)); if (n >= 1) saveBudget(n); else toast.push({ kind: "error", text: "Enter a number of 1 or more." }); }} style={primaryBtn}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+            <button type="button" onClick={() => setEditing(false)} style={smallBtn}>Cancel</button>
+            {quota.limit_source === "manual" && (
+              <button type="button" disabled={saving} onClick={() => saveBudget(null)} style={{ ...smallBtn, color: "var(--pm-terra)" }}>
+                Clear (use Meta tier)
+              </button>
+            )}
+          </>
+        ) : (
+          <button type="button" onClick={() => { setVal(String(quota.limit ?? "")); setEditing(true); }} style={smallBtn}>
+            Change daily budget
+          </button>
+        )}
+      </div>
+
+      <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 8, lineHeight: 1.4 }}>
+        Campaigns pace themselves to this budget and auto-resume every day until everyone is reached. Raise it gradually as your quality rating stays green.
         Meta may still skip individual contacts who hit their personal marketing cap — those retry on later days.
       </div>
     </div>
@@ -220,6 +268,7 @@ export default function CampaignsView() {
   const [importing, setImporting] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
   const [recipientsFor, setRecipientsFor] = useState<Campaign | null>(null);
+  const qc = useQueryClient();
 
   // Replaces the old load() + mount effect + 8s setInterval poll.
   const { data: list = [], refetch } = useQuery({
@@ -320,7 +369,7 @@ export default function CampaignsView() {
         </div>
       </div>
 
-      <QuotaBanner quota={quota} />
+      <QuotaBanner quota={quota} onSaved={() => qc.invalidateQueries({ queryKey: ["wa-quota"] })} />
 
       {recovery && recovery.enrolled > 0 && (
         <div style={{ marginBottom: 18 }}>
@@ -847,7 +896,7 @@ function CampaignModal({ onClose, initialSegment, quota }: { onClose: () => void
               )}
             </div>
             <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 4 }}>
-              Your local time. Fires within ~15 min of this slot. If the template isn't Meta-approved yet, it waits and auto-sends once it is.
+              Your local time. Fires within ~15 min of this slot. If the template is not Meta-approved yet, it waits and auto-sends once it is.
               {repeatRule && " Each occurrence is a fresh send, so opted-in contacts get it every cycle."}
             </div>
           </>
