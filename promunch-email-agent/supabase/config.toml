@@ -142,6 +142,15 @@ verify_jwt = false                    # invoked by scheduled cron with service-r
 [functions.ig-analyze]
 verify_jwt = false                    # called function-to-function by the Next dashboard route
 
+[functions.ig-discovery]
+verify_jwt = false                    # called by the Next dashboard route + ig-discovery-tick; gated by requireInternal
+
+[functions.ig-discovery-tick]
+verify_jwt = false                    # invoked by pg_cron (*/5) with service-role bearer; gated by requireInternal
+
+[functions.ig-followup-tick]
+verify_jwt = false                    # invoked by pg_cron (*/15) with service-role bearer; gated by requireInternal
+
 [functions.deal-scan]
 verify_jwt = false                    # pg_cron + dashboard invoke with service-role bearer; gated by requireInternal
 

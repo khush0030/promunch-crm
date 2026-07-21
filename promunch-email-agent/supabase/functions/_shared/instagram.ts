@@ -58,11 +58,14 @@ async function postMessages(body: Record<string, unknown>): Promise<SendResult> 
 }
 
 // Send a direct message to a user by IGSID (only valid inside the 24h window,
-// or as the first reply to a comment via privateReply()).
-export function sendDM(igsid: string, text: string): Promise<SendResult> {
+// or as the first reply to a comment via privateReply()). The HUMAN_AGENT tag
+// extends the window to 7 days but needs its own Meta approval AND a human in
+// the loop — ig-send only sets it for human-approved sends.
+export function sendDM(igsid: string, text: string, opts?: { tag?: "HUMAN_AGENT" }): Promise<SendResult> {
   return postMessages({
     recipient: { id: igsid },
     message: { text },
+    ...(opts?.tag ? { messaging_type: "MESSAGE_TAG", tag: opts.tag } : {}),
   });
 }
 

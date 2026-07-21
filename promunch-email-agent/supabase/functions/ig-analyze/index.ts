@@ -11,6 +11,9 @@ import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { businessDiscovery } from "../_shared/instagram.ts";
+import { clamp, scoreBand, scoreEr } from "../_shared/ig-scoring.ts";
+
+const BIO_EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/;
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const MODEL = Deno.env.get("IG_AI_MODEL") ?? "gpt-4o-mini";
@@ -69,6 +72,7 @@ Deno.serve(async (req) => {
     followers,
     engagement_rate: er,
     biography: bd?.biography ?? null,
+    bio_email: bd?.biography ? (bd.biography.match(BIO_EMAIL_RE)?.[0]?.toLowerCase() ?? null) : null,
     band_fit: bandFit,
     niche_score: nicheScore,
     fit_score: fitScore,
@@ -90,20 +94,6 @@ Deno.serve(async (req) => {
     discovery_ok: !!bd && followers != null,
   });
 });
-
-// follower-band fit: full inside the band, partial within half/double, low else.
-function scoreBand(followers: number | null, min: number, max: number): number {
-  if (followers == null) return 0;
-  if (followers >= min && followers <= max) return 40;
-  if (followers >= min / 2 && followers <= max * 2) return 20;
-  return 5;
-}
-
-// engagement: ~8%+ ER (strong for micro) maxes out the 35 points.
-function scoreEr(er: number | null): number {
-  if (er == null) return 0;
-  return clamp(Math.round((er * 100 / 8) * 35), 0, 35);
-}
 
 async function analyze(
   handle: string,
@@ -186,7 +176,6 @@ function parseJson(s: string): any {
   try { return JSON.parse(res.replace(/,\s*([}\]])/g, "$1")); } catch { return null; }
 }
 
-const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(n)));
 const k = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
 
 function j(o: unknown, s = 200) {

@@ -34,6 +34,7 @@ export const EDITABLE_KEYS: SecretDef[] = [
   // shopify_orders mirror synced by edge functions). Re-add when a route uses
   // src/lib/shopify.ts, which already reads getSecret().
   { name: "KLAVIYO_API_KEY", label: "Klaviyo", group: "Email", hint: "Legacy profile enrichment imports", testable: true },
+  { name: "APIFY_TOKEN", label: "Apify", group: "Instagram", hint: "Influencer discovery scrapers", testable: true },
 ];
 
 export const KEY_NAME_RE = /^[A-Z][A-Z0-9_]{2,63}$/;
@@ -111,6 +112,10 @@ export async function testSecret(name: string, value: string): Promise<TestResul
         if (!store) return { ok: false, detail: "SHOPIFY_STORE_URL env is not set, cannot test" };
         const r = await t(fetch(`${store.replace(/\/$/, "")}/admin/api/2024-10/shop.json`, { headers: { "X-Shopify-Access-Token": value } }));
         return r?.ok ? { ok: true, detail: "Shopify accepted the token" } : { ok: false, detail: `Shopify rejected the token (${r?.status ?? "network error"})` };
+      }
+      case "APIFY_TOKEN": {
+        const r = await t(fetch(`https://api.apify.com/v2/users/me?token=${encodeURIComponent(value)}`));
+        return r?.ok ? { ok: true, detail: "Apify accepted the token" } : { ok: false, detail: `Apify rejected the token (${r?.status ?? "network error"})` };
       }
       case "KLAVIYO_API_KEY": {
         const r = await t(fetch("https://a.klaviyo.com/api/accounts/", { headers: { Authorization: `Klaviyo-API-Key ${value}`, revision: "2024-10-15" } }));

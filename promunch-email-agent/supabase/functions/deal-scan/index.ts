@@ -84,6 +84,8 @@ Deno.serve(async (req) => {
       ? await refreshInsights(Math.min(50, body.max ?? 15))
       : body.mode === "reclassify"
       ? await reclassifyKinds(Math.min(25, body.max ?? 10), body.afterId ?? null)
+      : body.mode === "split"
+      ? await splitFrankenDeals(Math.min(8, body.max ?? 3), body.afterId ?? null)
       : await run();
     return json({ ok: true, ...stats });
   } catch (e) {
@@ -354,7 +356,12 @@ async function processThread(tid: string): Promise<{ outcome: Outcome; maxMs: nu
   return { outcome, maxMs };
 }
 
-// Attach a fresh thread to an existing deal by domain, then by name.
+// Attach a fresh thread to an existing deal by domain, then by name. A name
+// match alone is NOT enough: two different people (an SEO pitcher and an
+// influencer, say) can both get extracted under the same company label, and
+// gluing their threads into one deal makes kind/stage meaningless. So a name
+// match must be corroborated by the same contact email, or the candidate must
+// have no contact identity at all to contradict.
 async function matchDeal(ex: DealExtraction, msgs: ThreadMessage[]): Promise<DealRow | null> {
   const sel =
     "id, company_name, company_domain, kind, contact_name, contact_email, stage, samples_sent_at, first_email_at, manual_stage_override, manual_kind_override";
@@ -367,7 +374,14 @@ async function matchDeal(ex: DealExtraction, msgs: ThreadMessage[]): Promise<Dea
   if (ex.company_name) {
     const { data } = await db().from("deals").select(sel).ilike("company_name", ex.company_name)
       .order("created_at", { ascending: false }).limit(1);
-    if (data?.length) return data[0] as DealRow;
+    if (data?.length) {
+      const cand = data[0] as DealRow;
+      const email = (ex.contact_email ?? threadContactEmail(msgs))?.toLowerCase() ?? null;
+      const sameContact = !!email && !!cand.contact_email &&
+        cand.contact_email.toLowerCase() === email;
+      const nothingToContradict = !cand.contact_email && !cand.company_domain;
+      if (sameContact || nothingToContradict) return cand;
+    }
   }
   return null;
 }
@@ -555,6 +569,208 @@ async function reclassifyKinds(max: number, afterId: string | null) {
     lastId,
     done: (pending?.length ?? 0) < max,
   };
+}
+
+// Repair pass for "franken-deals": deals whose ledger holds threads from more
+// than one real counterparty (a name-only match used to glue them together).
+// Each gmail thread is re-judged on its own; threads that belong to a
+// different counterparty are moved to their own (or a matching) deal, spam
+// threads are detached, and every touched deal's counters are recomputed.
+async function splitFrankenDeals(max: number, afterId: string | null) {
+  const { data: emailRows, error: emErr } = await db()
+    .from("deal_emails")
+    .select("deal_id, from_email, direction")
+    .not("deal_id", "is", null)
+    .limit(10000);
+  if (emErr) throw new Error(`split query failed: ${emErr.message}`);
+
+  const sendersByDeal = new Map<string, Set<string>>();
+  for (const r of emailRows ?? []) {
+    if (r.direction !== "inbound" || !r.from_email) continue;
+    const addr = extractAddress(r.from_email).toLowerCase();
+    if (isNoiseSender(addr)) continue;
+    const set = sendersByDeal.get(r.deal_id as string) ?? new Set<string>();
+    set.add(addr);
+    sendersByDeal.set(r.deal_id as string, set);
+  }
+  const candidateIds = [...sendersByDeal.entries()]
+    .filter(([, s]) => s.size > 1)
+    .map(([id]) => id)
+    .sort()
+    .filter((id) => !afterId || id > afterId)
+    .slice(0, max);
+
+  let processed = 0;
+  let created = 0;
+  let detached = 0;
+  const changes: string[] = [];
+  const errors: string[] = [];
+  let lastId: string | null = afterId;
+
+  for (const dealId of candidateIds) {
+    lastId = dealId;
+    try {
+      const { data: deal } = await db().from("deals").select("*").eq("id", dealId).maybeSingle();
+      if (!deal) continue;
+      const { data: rows } = await db()
+        .from("deal_emails")
+        .select("id, gmail_thread_id, sent_at")
+        .eq("deal_id", dealId)
+        .order("sent_at", { ascending: true });
+      const threadOrder: string[] = [];
+      for (const r of rows ?? []) {
+        if (!threadOrder.includes(r.gmail_thread_id)) threadOrder.push(r.gmail_thread_id);
+      }
+      if (threadOrder.length < 2) {
+        processed++;
+        continue;
+      }
+
+      const touched = new Set<string>([dealId]);
+      for (let i = 0; i < threadOrder.length; i++) {
+        const tid = threadOrder[i];
+        const msgs = await getThreadParsed(tid);
+        if (!msgs.length) continue;
+        const transcript = buildTranscript(
+          msgs.map((m) => ({
+            from: m.email.from_email ?? "",
+            to: m.email.to_email ?? "",
+            subject: m.email.subject ?? "",
+            dateIso: m.internalDateMs ? new Date(m.internalDateMs).toISOString().slice(0, 10) : "",
+            body: m.email.body_plain || m.email.snippet || "",
+          })),
+          MAILBOX,
+        );
+        const ex = await extractDeal(transcript, null); // fresh judgement, no anchor
+
+        if (i === 0) {
+          // Primary thread re-describes the original deal.
+          await db().from("deals").update({
+            company_name: ex.company_name ?? deal.company_name,
+            company_domain: ex.company_domain ?? deal.company_domain,
+            kind: deal.manual_kind_override || !ex.is_deal || ex.kind === "other"
+              ? deal.kind
+              : ex.kind,
+            stage: deal.manual_stage_override ? deal.stage : ex.stage,
+            contact_name: ex.contact_name ?? deal.contact_name,
+            contact_email: ex.contact_email ?? deal.contact_email,
+            next_step: ex.next_step,
+            next_step_owner: ex.next_step_owner,
+            commercials: ex.commercials,
+            summary: ex.summary,
+            ai_confidence: ex.confidence,
+            interest_temp: ex.temperature,
+            insights: insightsOf(ex),
+          }).eq("id", dealId);
+          continue;
+        }
+
+        // Does this thread belong to the (re-described) primary counterparty?
+        const primaryDomain = (ex.company_domain ?? null) &&
+          deal.company_domain &&
+          ex.company_domain!.toLowerCase() === (deal.company_domain as string).toLowerCase();
+        const primaryName = ex.company_name && deal.company_name &&
+          ex.company_name.toLowerCase() === (deal.company_name as string).toLowerCase();
+        const threadEmail = msgs
+          .map((m) => m.email.from_email ?? "")
+          .filter((f) => f && !f.toLowerCase().includes(MAILBOX))
+          .map((f) => extractAddress(f).toLowerCase())[0] ?? null;
+        const primaryContact = threadEmail && deal.contact_email &&
+          threadEmail === (deal.contact_email as string).toLowerCase();
+        if (primaryDomain || primaryName || primaryContact) continue;
+
+        const threadRowIds = (rows ?? []).filter((r) => r.gmail_thread_id === tid).map((r) => r.id);
+
+        if (!ex.is_deal) {
+          await db().from("deal_emails").update({ deal_id: null }).in("id", threadRowIds);
+          detached++;
+          changes.push(`${deal.company_name}: detached non-deal thread`);
+          continue;
+        }
+
+        const times = msgs.map((m) => m.internalDateMs).filter((t) => t > 0);
+        const tFirst = times.length ? Math.min(...times) : Date.now();
+        const tLast = times.length ? Math.max(...times) : Date.now();
+        const lastDir = (msgs[msgs.length - 1].email.from_email ?? "").toLowerCase()
+            .includes(MAILBOX)
+          ? "outbound"
+          : "inbound";
+        const fu = computeFollowUp({
+          stage: ex.stage,
+          lastEmailAtMs: tLast,
+          lastDirection: lastDir,
+          samplesSentAtMs: ex.samples_sent ? tLast : null,
+          aiFollowUp: ex.follow_up_needed,
+          aiReason: ex.follow_up_reason,
+        }, Date.now());
+        const { data: newDeal, error: insErr } = await db().from("deals").insert({
+          company_name: ex.company_name ?? fallbackCompanyName(msgs),
+          company_domain: ex.company_domain ?? threadCompanyDomain(msgs),
+          kind: ex.kind,
+          contact_name: ex.contact_name,
+          contact_email: ex.contact_email ?? threadContactEmail(msgs),
+          stage: ex.stage,
+          samples_sent_at: ex.samples_sent ? new Date(tLast).toISOString() : null,
+          next_step: ex.next_step,
+          next_step_owner: ex.next_step_owner,
+          follow_up_needed: fu.needed,
+          follow_up_reason: fu.reason,
+          commercials: ex.commercials,
+          summary: ex.summary,
+          last_email_at: new Date(tLast).toISOString(),
+          last_email_direction: lastDir,
+          first_email_at: new Date(tFirst).toISOString(),
+          ai_confidence: ex.confidence,
+          interest_temp: ex.temperature,
+          insights: insightsOf(ex),
+        }).select("id").single();
+        if (insErr || !newDeal) throw new Error(`split insert failed: ${insErr?.message}`);
+        await db().from("deal_emails").update({ deal_id: newDeal.id }).in("id", threadRowIds);
+        touched.add(newDeal.id as string);
+        created++;
+        changes.push(
+          `${deal.company_name}: split out "${ex.company_name ?? "?"}" as ${ex.kind}`,
+        );
+      }
+
+      for (const id of touched) await recountDeal(id);
+      processed++;
+    } catch (e) {
+      errors.push(`${dealId}: ${errStr(e).slice(0, 140)}`);
+    }
+  }
+
+  return {
+    mode: "split",
+    candidates: candidateIds.length,
+    processed,
+    created,
+    detached,
+    changes,
+    errors,
+    lastId,
+    done: candidateIds.length < max,
+  };
+}
+
+// Recompute a deal's ledger-derived counters; delete the deal if the split
+// left it with no emails at all.
+async function recountDeal(dealId: string) {
+  const { data } = await db()
+    .from("deal_emails")
+    .select("direction, sent_at")
+    .eq("deal_id", dealId)
+    .order("sent_at", { ascending: true });
+  if (!data?.length) {
+    await db().from("deals").delete().eq("id", dealId);
+    return;
+  }
+  await db().from("deals").update({
+    email_count: data.length,
+    first_email_at: data[0].sent_at,
+    last_email_at: data[data.length - 1].sent_at,
+    last_email_direction: data[data.length - 1].direction,
+  }).eq("id", dealId);
 }
 
 function fallbackCompanyName(msgs: ThreadMessage[]): string {
