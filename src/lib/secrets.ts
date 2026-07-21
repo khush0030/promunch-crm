@@ -29,10 +29,10 @@ export const EDITABLE_KEYS: SecretDef[] = [
   { name: "OPENAI_API_KEY", label: "OpenAI", group: "AI", hint: "Maya assistant, B2B drafts, lead scoring", testable: true },
   { name: "RESEND_API_KEY", label: "Resend", group: "Email", hint: "Campaign, outreach and invite email sending", testable: true },
   { name: "GOOGLE_PLACES_API_KEY", label: "Google Places", group: "B2B leads", hint: "Lead discovery search", testable: true },
-  // SHOPIFY_ACCESS_TOKEN is intentionally not listed: no dashboard route calls
-  // the Admin API client today (order/customer data flows through the
-  // shopify_orders mirror synced by edge functions). Re-add when a route uses
-  // src/lib/shopify.ts, which already reads getSecret().
+  // Admin API token for the WhatsApp Growth one-click install (creates the
+  // storefront script tag). Needs the write_script_tags scope. Read via
+  // getSecret() by src/app/api/whatsapp/growth/route.ts.
+  { name: "SHOPIFY_ACCESS_TOKEN", label: "Shopify Admin", group: "Store", hint: "Publish the WhatsApp popup + chat button to your store (needs write_script_tags scope)", testable: true },
   { name: "KLAVIYO_API_KEY", label: "Klaviyo", group: "Email", hint: "Legacy profile enrichment imports", testable: true },
   { name: "APIFY_TOKEN", label: "Apify", group: "Instagram", hint: "Influencer discovery scrapers", testable: true },
 ];
@@ -108,9 +108,9 @@ export async function testSecret(name: string, value: string): Promise<TestResul
         return r?.ok ? { ok: true, detail: "Google Places accepted the key" } : { ok: false, detail: `Google Places rejected the key (${r?.status ?? "network error"})` };
       }
       case "SHOPIFY_ACCESS_TOKEN": {
-        const store = process.env.SHOPIFY_STORE_URL;
-        if (!store) return { ok: false, detail: "SHOPIFY_STORE_URL env is not set, cannot test" };
-        const r = await t(fetch(`${store.replace(/\/$/, "")}/admin/api/2024-10/shop.json`, { headers: { "X-Shopify-Access-Token": value } }));
+        const raw = process.env.SHOPIFY_STORE_URL || "a1e4f4-2.myshopify.com";
+        const base = raw.startsWith("http") ? raw.replace(/\/$/, "") : `https://${raw.replace(/\/$/, "")}`;
+        const r = await t(fetch(`${base}/admin/api/2024-10/shop.json`, { headers: { "X-Shopify-Access-Token": value } }));
         return r?.ok ? { ok: true, detail: "Shopify accepted the token" } : { ok: false, detail: `Shopify rejected the token (${r?.status ?? "network error"})` };
       }
       case "APIFY_TOKEN": {
