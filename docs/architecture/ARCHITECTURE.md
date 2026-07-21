@@ -16,10 +16,10 @@ PROMUNCH CRM is **two deployables sharing one Supabase database**:
                     └───────▲──────────────────────────▲──────────┘
                             │                          │
         ┌───────────────────┴────────┐   ┌─────────────┴──────────────────┐
-        │  Next.js 16 dashboard      │   │  48 Supabase Edge Functions    │
+        │  Next.js 16 dashboard      │   │  51 Supabase Edge Functions    │
         │  src/  (Vercel)            │──▶│  promunch-email-agent/ (Deno)  │
-        │  18 dashboard modules      │   │  all customer-facing sends,    │
-        │  102 API route files       │   │  webhooks, cron workers        │
+        │  17 dashboard modules      │   │  all customer-facing sends,    │
+        │  114 API route files       │   │  webhooks, cron workers        │
         │  deploy: vercel --prod     │   │  deploy: supabase functions    │
         └────────────────────────────┘   │          deploy <name>         │
                                          └───────▲────────────────────────┘
@@ -85,7 +85,7 @@ Route groups: `whatsapp/` (~30 routes), `leads/` (~25), `contacts/`, `campaigns/
 
 Pattern to preserve: dashboard **triggers** heavy work by invoking an edge function (e.g. `/api/whatsapp/campaigns/[id]/send` → edge `wa-campaign-send`); it does not do the work inline.
 
-## 5. Edge functions (`promunch-email-agent/supabase/functions/`) — 48 + `_shared/`
+## 5. Edge functions (`promunch-email-agent/supabase/functions/`) — 51 + `_shared/`
 
 Grouped by role (full per-function table in the audit doc):
 

@@ -10,7 +10,7 @@ Production CRM + marketing + customer-ops platform for **PROMUNCH** (high-protei
 
 | Deployable | Path | Deploy |
 |---|---|---|
-| Next.js 16 dashboard + ~100 API routes | `src/` | `vercel --prod` (manual — git push ships NOTHING) |
+| Next.js 16 dashboard + 114 API routes | `src/` | `vercel --prod` (manual — git push ships NOTHING) |
 | 51 Supabase Edge Functions (Deno) + `_shared/` | `promunch-email-agent/supabase/functions/` | `supabase functions deploy <name>` from `promunch-email-agent/` |
 
 SQL migrations (both `supabase/migrations/` app-side and `promunch-email-agent/supabase/migrations/` edge-side) are pasted by hand into the Supabase dashboard SQL editor — the CLI path does not work. Always report "committed" and "deployed" separately.
