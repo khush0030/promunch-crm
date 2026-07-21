@@ -16,6 +16,7 @@ import {
   Trash2,
   MessageSquare,
   History,
+  ExternalLink,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { PageHead, KpiCard, Panel, StatusBadge, EmptyState } from "@/components/pm";
@@ -56,8 +57,11 @@ type Order = {
   total_amount?: number | null;
   currency?: string;
   status?: string | null;
+  fulfillment_status?: string | null;
   products?: { items?: string[]; itemCount?: number } | null;
   placed_at?: string | null;
+  order_status_url?: string | null;
+  admin_url?: string | null;
 };
 
 type EmailEvent = { id: string; event_type: string; created_at: string };
@@ -73,6 +77,23 @@ const statusMeta: Record<string, { tone: BadgeTone; label: string }> = {
   inactive: { tone: "gold", label: "Inactive" },
   unsubscribed: { tone: "gray", label: "Unsubscribed" },
   bounced: { tone: "terra", label: "Bounced" },
+};
+
+const finMeta: Record<string, { tone: BadgeTone; label: string }> = {
+  paid: { tone: "green", label: "Paid" },
+  partially_paid: { tone: "gold", label: "Partially paid" },
+  pending: { tone: "gold", label: "Pending" },
+  authorized: { tone: "gold", label: "Authorized" },
+  refunded: { tone: "terra", label: "Refunded" },
+  partially_refunded: { tone: "terra", label: "Partially refunded" },
+  voided: { tone: "gray", label: "Voided" },
+};
+
+const fulfillMeta: Record<string, { tone: BadgeTone; label: string }> = {
+  fulfilled: { tone: "green", label: "Fulfilled" },
+  partial: { tone: "gold", label: "Partial" },
+  unfulfilled: { tone: "gold", label: "Unfulfilled" },
+  restocked: { tone: "gray", label: "Restocked" },
 };
 
 function fmtDate(d?: string | null) {
@@ -267,6 +288,87 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           <KpiCard key={k.label} label={k.label} value={k.value} icon={k.icon} tone={k.tone} />
         ))}
       </div>
+
+      <Panel
+        title="Orders"
+        icon={<ShoppingBag className="tic" />}
+        caption={`${orders.length} Shopify order${orders.length === 1 ? "" : "s"} — newest first`}
+        style={{ marginBottom: 16 }}
+      >
+        {orders.length === 0 ? (
+          <EmptyState icon={<ShoppingBag />} title="No orders yet" style={{ border: 0, padding: "30px 0" }} />
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="pm-tbl">
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Date</th>
+                  <th>Items</th>
+                  <th>Total</th>
+                  <th>Payment</th>
+                  <th>Fulfillment</th>
+                  <th aria-label="Open in Shopify" />
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((o) => {
+                  const num = o.order_number ? `#${o.order_number}` : o.id.substring(0, 8);
+                  const href = o.admin_url || o.order_status_url || null;
+                  const items = o.products?.items || [];
+                  const itemText = items.join(", ") || "—";
+                  const amt = o.total_amount
+                    ? `₹${Number(o.total_amount).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
+                    : "—";
+                  const fin = finMeta[o.status || ""] || { tone: "gray" as BadgeTone, label: o.status || "—" };
+                  const ful = fulfillMeta[o.fulfillment_status || ""] || { tone: "gray" as BadgeTone, label: o.fulfillment_status || "—" };
+                  return (
+                    <tr key={o.id}>
+                      <td className="pm-b7">
+                        {href ? (
+                          <a href={href} target="_blank" rel="noreferrer" style={{ color: "var(--pm-green)" }}>
+                            {num}
+                          </a>
+                        ) : (
+                          num
+                        )}
+                      </td>
+                      <td className="pm-muted">{fmtDate(o.placed_at)}</td>
+                      <td title={itemText} style={{ maxWidth: 280 }}>
+                        <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {itemText}
+                        </span>
+                        {(o.products?.itemCount ?? 0) > 0 && (
+                          <span className="pm-dim" style={{ fontSize: 11 }}>
+                            {o.products!.itemCount} item{o.products!.itemCount === 1 ? "" : "s"}
+                          </span>
+                        )}
+                      </td>
+                      <td className="pm-b7">{amt}</td>
+                      <td><StatusBadge tone={fin.tone}>{fin.label}</StatusBadge></td>
+                      <td><StatusBadge tone={ful.tone}>{ful.label}</StatusBadge></td>
+                      <td style={{ textAlign: "right" }}>
+                        {href && (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Open order in Shopify"
+                            aria-label={`Open order ${num} in Shopify`}
+                            style={{ color: "var(--pm-muted)", display: "inline-flex" }}
+                          >
+                            <ExternalLink size={14} />
+                          </a>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
 
       <div className="pm-grid g-2-1">
         <Panel

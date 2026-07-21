@@ -4,6 +4,10 @@ import { recordAudit } from "@/lib/audit";
 import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
 import { parseBody } from '@/lib/api-helpers';
 
+// "promunch.myshopify.com" -> "promunch" (the admin URL store handle), same
+// convention as the WhatsApp customer-360 route.
+const STORE_HANDLE = (process.env.SHOPIFY_STORE_URL || '').replace(/\.myshopify\.com$/i, '');
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -35,7 +39,7 @@ export async function GET(
   const { data: shopOrders } = ors.length
     ? await supabase
         .from('shopify_orders')
-        .select('id, order_number, total_price, currency, financial_status, line_items, shopify_created_at')
+        .select('id, shopify_id, order_number, total_price, currency, financial_status, line_items, shopify_created_at, raw')
         .or(ors.join(','))
         .order('shopify_created_at', { ascending: false })
         .limit(50)
@@ -44,17 +48,24 @@ export async function GET(
   type LineItem = { title?: string; quantity?: number };
   const orders = (shopOrders || []).map((o) => {
     const items = (Array.isArray(o.line_items) ? o.line_items : []) as LineItem[];
+    const raw = (o.raw ?? {}) as Record<string, unknown>;
+    const fulfillments = Array.isArray(raw.fulfillments) ? (raw.fulfillments as Record<string, unknown>[]) : [];
     return {
       id: o.id,
       order_number: String(o.order_number || '').replace(/^#/, ''),
       total_amount: Number(o.total_price) || 0,
       currency: o.currency || 'INR',
       status: o.financial_status || 'pending',
+      fulfillment_status: (raw.fulfillment_status as string | null) ?? (fulfillments[0]?.status as string | undefined) ?? 'unfulfilled',
       products: {
         items: items.map((li) => li.title).filter(Boolean),
         itemCount: items.reduce((n, li) => n + (Number(li.quantity) || 0), 0),
       },
       placed_at: o.shopify_created_at,
+      order_status_url: (raw.order_status_url as string | null) || null,
+      admin_url: STORE_HANDLE && o.shopify_id
+        ? `https://admin.shopify.com/store/${STORE_HANDLE}/orders/${o.shopify_id}`
+        : null,
     };
   });
 
