@@ -7,12 +7,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Search, RefreshCw, Sparkles, ExternalLink, Copy, Mail, Star, X, UserPlus, Ban,
+  Search, RefreshCw, Sparkles, ExternalLink, Copy, Mail, Star, X, UserPlus, Ban, Send,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import PitchQueue from "./PitchQueue";
 import styles from "@/app/dashboard/instagram/instagram.module.css";
 
-type Prospect = {
+export type Prospect = {
   id: string;
   handle: string;
   full_name: string | null;
@@ -63,6 +64,11 @@ export default function DiscoveryTab() {
   const [active, setActive] = useState<Prospect | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [emailing, setEmailing] = useState(false);
+
+  // batch pitch queue
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [queue, setQueue] = useState<Prospect[] | null>(null);
+  const [batchProgress, setBatchProgress] = useState<string | null>(null);
 
   // search form
   const [kind, setKind] = useState<"search" | "hashtag">("search");
@@ -206,6 +212,56 @@ export default function DiscoveryTab() {
     push({ kind: "success", text: "Copied. Paste it in the Instagram app." });
   }, [push]);
 
+  const toggleSelect = useCallback((id: string) => {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelected((s) => {
+      const selectable = prospects.filter((p) => p.status !== "rejected" && p.status !== "in_convo");
+      return s.size >= selectable.length ? new Set<string>() : new Set(selectable.map((p) => p.id));
+    });
+  }, [prospects]);
+
+  // Draft any missing pitches (3 at a time), then open the tap-through queue.
+  const openQueue = useCallback(async () => {
+    const picked = prospects.filter((p) => selected.has(p.id));
+    if (!picked.length) return;
+    const missing = picked.filter((p) => !p.pitch_dm);
+    const drafted = new Map<string, Prospect>();
+    let failed = 0;
+    for (let i = 0; i < missing.length; i += 3) {
+      const chunk = missing.slice(i, i + 3);
+      setBatchProgress(`Drafting pitches ${Math.min(i + chunk.length, missing.length)}/${missing.length}…`);
+      await Promise.all(chunk.map(async (p) => {
+        try {
+          const r = await fetch(`/api/instagram/prospects/${p.id}/draft`, { method: "POST" });
+          const d = await r.json();
+          if (!r.ok || d.ok === false) throw new Error(d.error || "draft failed");
+          drafted.set(p.id, d.prospect);
+        } catch {
+          failed++;
+        }
+      }));
+    }
+    setBatchProgress(null);
+    if (failed) push({ kind: "error", text: `${failed} pitch draft(s) failed — those prospects are skipped.` });
+    const ready = picked
+      .map((p) => drafted.get(p.id) ?? p)
+      .filter((p) => p.pitch_dm);
+    if (!ready.length) {
+      push({ kind: "error", text: "No pitches to queue." });
+      return;
+    }
+    setProspects((prev) => prev.map((p) => drafted.get(p.id) ?? p));
+    setQueue(ready);
+  }, [prospects, selected, push]);
+
   const activeRuns = runs.filter((r) => r.status === "running" || r.status === "queued");
 
   return (
@@ -287,6 +343,17 @@ export default function DiscoveryTab() {
         </button>
       </div>
 
+      {/* bulk pitch bar */}
+      {selected.size > 0 && (
+        <div className={styles.bulkBar}>
+          <span>{selected.size} selected</span>
+          <button className="pm-btn primary" onClick={openQueue} disabled={!!batchProgress}>
+            <Send size={14} /> {batchProgress ?? "Draft & queue pitches"}
+          </button>
+          <button className="pm-btn" onClick={() => setSelected(new Set())} disabled={!!batchProgress}>Clear</button>
+        </div>
+      )}
+
       {/* table + drawer */}
       <div className={styles.discBody}>
         <div className={styles.discTableWrap}>
@@ -298,12 +365,23 @@ export default function DiscoveryTab() {
             <table className={styles.discTable}>
               <thead>
                 <tr>
+                  <th className={styles.checkCell}>
+                    <input type="checkbox" checked={selected.size > 0 && selected.size >= prospects.filter((p) => p.status !== "rejected" && p.status !== "in_convo").length} onChange={toggleSelectAll} title="Select all" />
+                  </th>
                   <th>Creator</th><th>Followers</th><th>ER</th><th>Avg likes</th><th>Fit</th><th>Niche</th><th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {prospects.map((p) => (
                   <tr key={p.id} className={active?.id === p.id ? styles.discRowOn : ""} onClick={() => setActive(p)}>
+                    <td className={styles.checkCell} onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(p.id)}
+                        disabled={p.status === "rejected" || p.status === "in_convo"}
+                        onChange={() => toggleSelect(p.id)}
+                      />
+                    </td>
                     <td>
                       <span className={styles.handle}>@{p.handle}</span>
                       {p.bio_email && <Mail size={11} className={styles.discEmailIcon} />}
@@ -397,6 +475,17 @@ export default function DiscoveryTab() {
           </div>
         )}
       </div>
+
+      {queue && (
+        <PitchQueue
+          prospects={queue}
+          onUpdate={(updated) => {
+            setProspects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+            setActive((a) => (a && a.id === updated.id ? updated : a));
+          }}
+          onClose={() => { setQueue(null); setSelected(new Set()); load(); }}
+        />
+      )}
     </div>
   );
 }

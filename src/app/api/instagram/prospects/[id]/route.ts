@@ -24,6 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
   if (typeof body.phone === 'string') patch.phone = body.phone.trim() || null;
+  if (typeof body.pitch_dm === 'string' && body.pitch_dm.trim()) patch.pitch_dm = body.pitch_dm.trim();
 
   if (Object.keys(patch).length === 1) {
     return NextResponse.json({ error: 'nothing to update' }, { status: 400 });
