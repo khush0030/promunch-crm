@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { bustSecretCache } from "@/lib/secrets";
 
 export const dynamic = "force-dynamic";
 
@@ -90,4 +91,38 @@ export async function GET() {
     standing_error: standingError,
     checked_at: new Date().toISOString(),
   });
+}
+
+// Set the operator daily send budget from the dashboard. Stored in app_secrets
+// (WA_DAILY_SEND_LIMIT), which both this route and the edge engine read first —
+// so a change here paces every future campaign within a minute, no CLI, no
+// redeploy. Guardrailed to a sane range so a fat-finger can't uncap a blast.
+export async function PATCH(req: NextRequest) {
+  const body = (await req.json().catch(() => null)) as { limit?: number | null } | null;
+  if (!body || !("limit" in body)) {
+    return NextResponse.json({ error: "limit required" }, { status: 400 });
+  }
+  // null clears the override (fall back to Meta tier / env).
+  if (body.limit === null) {
+    const { error } = await supabaseAdmin.from("app_secrets").delete().eq("name", "WA_DAILY_SEND_LIMIT");
+    bustSecretCache("WA_DAILY_SEND_LIMIT");
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, limit: null });
+  }
+  const n = Math.floor(Number(body.limit));
+  if (!Number.isFinite(n) || n < 1 || n > 100000) {
+    return NextResponse.json({ error: "limit must be between 1 and 100000" }, { status: 400 });
+  }
+  const { error } = await supabaseAdmin
+    .from("app_secrets")
+    .upsert({ name: "WA_DAILY_SEND_LIMIT", value: String(n), updated_at: new Date().toISOString() });
+  bustSecretCache("WA_DAILY_SEND_LIMIT");
+  if (error) {
+    const pending = /app_secrets/.test(error.message) || error.code === "42P01";
+    return NextResponse.json(
+      { error: pending ? "app_secrets migration not applied yet" : error.message },
+      { status: 500 },
+    );
+  }
+  return NextResponse.json({ ok: true, limit: n });
 }

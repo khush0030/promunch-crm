@@ -5,6 +5,7 @@
 // GET (no body). Auth: service-role bearer via requireInternal.
 
 import { requireInternal } from "../_shared/require-internal.ts";
+import { getAppSecret } from "../_shared/app-secrets.ts";
 
 const GRAPH = `https://graph.facebook.com/${Deno.env.get("WHATSAPP_GRAPH_VERSION") ?? "v21.0"}`;
 
@@ -40,10 +41,11 @@ Deno.serve(async (req) => {
     phoneNumbers = await pnRes.json();
   }
 
-  // Operator-set daily budget (WA_DAILY_SEND_LIMIT secret) — the dashboard
-  // quota view combines it with the Meta tier the same way the campaign
-  // engine does (lower of the two wins; see _shared/wa-quota.ts).
-  const override = Number(Deno.env.get("WA_DAILY_SEND_LIMIT") ?? "");
+  // Operator-set daily budget — app_secrets (dashboard-editable, no redeploy)
+  // then Deno.env fallback. The dashboard quota view combines it with the Meta
+  // tier the same way the campaign engine does (lower wins; _shared/wa-quota.ts).
+  const rawOverride = (await getAppSecret("WA_DAILY_SEND_LIMIT")) ?? Deno.env.get("WA_DAILY_SEND_LIMIT") ?? "";
+  const override = Number(rawOverride);
   const daily_limit_override = Number.isFinite(override) && override > 0 ? Math.floor(override) : null;
 
   return j({ ok: phoneRes.ok, phone, account, phoneNumbers, daily_limit_override });

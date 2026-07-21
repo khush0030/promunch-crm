@@ -10,6 +10,7 @@
 // must never be the reason a campaign can't send at all.
 
 import { db } from "./supabase.ts";
+import { getAppSecret } from "./app-secrets.ts";
 
 const GRAPH = `https://graph.facebook.com/${Deno.env.get("WHATSAPP_GRAPH_VERSION") ?? "v21.0"}`;
 
@@ -32,14 +33,18 @@ export function tierDailyLimit(tier: string | null | undefined): number | null {
   return TIER_LIMIT[tier.toUpperCase()] ?? null;
 }
 
-// Operator-set daily budget (Supabase secret WA_DAILY_SEND_LIMIT). Meta omits
-// messaging_limit_tier for numbers without an established tier (ours, as of
-// Jul 2026: business verified, GREEN quality, no tier reported), and the
-// observed ceiling (~250 marketing sends/day) bites before any tier anyway.
-// When both exist the LOWER wins — the secret is "my daily budget", never
-// permission to exceed the tier.
-export function manualDailyLimit(): number | null {
-  const n = Number(Deno.env.get("WA_DAILY_SEND_LIMIT") ?? "");
+// Operator-set daily budget. Meta omits messaging_limit_tier for numbers
+// without an established tier (ours, as of Jul 2026: business verified, GREEN
+// quality, no tier reported), and the observed ceiling (~250 marketing
+// sends/day) bites before any tier anyway. When both exist the LOWER wins —
+// this is "my daily budget", never permission to exceed the tier.
+//
+// Source order: app_secrets.WA_DAILY_SEND_LIMIT (editable in the dashboard,
+// takes effect within a minute) → Deno.env fallback. So staff can change the
+// budget from the Campaigns tab with no CLI and no redeploy.
+export async function manualDailyLimit(): Promise<number | null> {
+  const raw = (await getAppSecret("WA_DAILY_SEND_LIMIT")) ?? Deno.env.get("WA_DAILY_SEND_LIMIT") ?? "";
+  const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
 }
 
@@ -79,7 +84,7 @@ export async function fetchWaStanding(): Promise<WaStanding | null> {
     }
   }
   const metaLimit = tierDailyLimit(tier);
-  const manual = manualDailyLimit();
+  const manual = await manualDailyLimit();
   const limit = metaLimit != null && manual != null
     ? Math.min(metaLimit, manual)
     : metaLimit ?? manual;
