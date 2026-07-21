@@ -106,6 +106,26 @@
 .themeSwatch { height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; font-weight: 800; font-size: 12px; }
 .themeName { font-size: 11px; font-weight: 600; color: var(--pm-muted); }
 
+/* ---- layout gallery ---- */
+.layoutGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.layoutCard {
+  border: 1px solid var(--pm-border); border-radius: 11px; background: var(--pm-app);
+  cursor: pointer; padding: 8px; transition: border-color .12s, transform .08s; text-align: center;
+}
+.layoutCard:hover { border-color: var(--pm-green); transform: translateY(-1px); }
+.layoutCard.on { border-color: var(--pm-green); box-shadow: 0 0 0 2px color-mix(in srgb, var(--pm-green) 22%, transparent); }
+.layoutName { font-size: 10.5px; font-weight: 600; color: var(--pm-muted); margin-top: 6px; }
+/* schematic thumbnail */
+.lt { height: 48px; background: #fff; border: 1px solid var(--pm-line); border-radius: 6px; overflow: hidden; display: flex; padding: 5px; gap: 4px; }
+.lt.col { flex-direction: column; }
+.ltImg { background: linear-gradient(135deg, #E4D9C7, #D8C7AC); border-radius: 3px; flex-shrink: 0; }
+.ltBody { flex: 1; display: flex; flex-direction: column; gap: 3px; justify-content: center; }
+.ltLine { height: 4px; background: #DDD3C4; border-radius: 2px; }
+.ltBtn { height: 8px; width: 60%; background: var(--pm-green); border-radius: 2px; margin-top: 2px; }
+.lt.center .ltBody { align-items: center; }
+.lt.center .ltLine { width: 80%; }
+.ltBgLines { position: relative; width: 100%; display: flex; flex-direction: column; gap: 3px; justify-content: center; align-items: center; }
+
 /* ---- position picker ---- */
 .posGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .posCell {
@@ -177,4 +197,4 @@
   background: linear-gradient(transparent, var(--pm-app) 45%);
 }
 .dirty { font-size: 12px; font-weight: 600; color: var(--pm-gold); display: flex; align-items: center; gap: 5px; }
-.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; user-select: none; }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; -webkit-user-select: none; user-select: none; }

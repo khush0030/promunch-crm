@@ -15,8 +15,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import {
-  FONTS, GROWTH_DEFAULTS, fontHref, renderPopupInner, widgetBubbleInner, widgetButtonInner,
-  type GrowthConfig, type PopupConfig, type PopupPosition, type WidgetConfig,
+  FONTS, GROWTH_DEFAULTS, LAYOUTS_NEEDING_IMAGE, fontHref, renderPopupInner, widgetBubbleInner, widgetButtonInner,
+  type GrowthConfig, type PopupConfig, type PopupLayout, type PopupPosition, type WidgetConfig,
 } from "@/lib/wa-embed";
 import s from "./GrowthView.module.css";
 
@@ -74,6 +74,33 @@ function Stepper({ value, onChange, min = 0, max = 999 }: { value: number; onCha
       <button type="button" className={s.stepBtn} onClick={() => set(value - 1)} aria-label="Decrease">−</button>
       <input className={s.stepVal} value={value} inputMode="numeric" onChange={(e) => set(Number(e.target.value.replace(/\D/g, "")) || 0)} aria-label="Value" />
       <button type="button" className={s.stepBtn} onClick={() => set(value + 1)} aria-label="Increase">+</button>
+    </div>
+  );
+}
+
+function LayoutGallery({ value, onChange }: { value: PopupLayout; onChange: (v: PopupLayout) => void }) {
+  // Schematic thumbnails (not the real render) so the gallery reads instantly.
+  const thumbs: Record<PopupLayout, React.ReactNode> = {
+    text: <div className={`${s.lt} ${s.center}`}><div className={s.ltBody}><span className={s.ltLine} /><span className={s.ltLine} /><span className={s.ltBtn} style={{ alignSelf: "center" }} /></div></div>,
+    "image-top": <div className={`${s.lt} ${s.col}`}><span className={s.ltImg} style={{ height: 16 }} /><div className={s.ltBody}><span className={s.ltLine} /><span className={s.ltBtn} /></div></div>,
+    "image-left": <div className={s.lt}><span className={s.ltImg} style={{ width: 20 }} /><div className={s.ltBody}><span className={s.ltLine} /><span className={s.ltLine} /><span className={s.ltBtn} /></div></div>,
+    "image-right": <div className={s.lt}><div className={s.ltBody}><span className={s.ltLine} /><span className={s.ltLine} /><span className={s.ltBtn} /></div><span className={s.ltImg} style={{ width: 20 }} /></div>,
+    background: <div className={s.lt} style={{ padding: 0 }}><span className={s.ltImg} style={{ width: "100%", borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center" }}><span className={s.ltBgLines}><span className={s.ltLine} style={{ width: 34, background: "rgba(255,255,255,.85)" }} /><span className={s.ltBtn} style={{ marginTop: 3 }} /></span></span></div>,
+    compact: <div className={s.lt} style={{ alignItems: "center" }}><span className={s.ltLine} style={{ flex: 1 }} /><span className={s.ltBtn} style={{ width: 24, marginTop: 0 }} /></div>,
+  };
+  const names: Record<PopupLayout, string> = {
+    text: "Text only", "image-top": "Image on top", "image-left": "Image left",
+    "image-right": "Image right", background: "Full background", compact: "Compact bar",
+  };
+  const order: PopupLayout[] = ["text", "image-top", "image-left", "image-right", "background", "compact"];
+  return (
+    <div className={s.layoutGrid}>
+      {order.map((k) => (
+        <button key={k} type="button" onClick={() => onChange(k)} className={`${s.layoutCard} ${value === k ? s.on : ""}`}>
+          {thumbs[k]}
+          <div className={s.layoutName}>{names[k]}</div>
+        </button>
+      ))}
     </div>
   );
 }
@@ -144,7 +171,10 @@ function Preview({ cfg, tab, device }: { cfg: GrowthConfig; tab: "popup" | "widg
     : pos === "bottom-bar" ? { left: 0, right: 0, bottom: 0 }
     : pos === "bottom-left" ? { left: 14, bottom: 14, maxWidth: 300 }
     : { right: 14, bottom: 14, maxWidth: 300 };
-  const cardW = pos === "center" ? Math.min(360, frameW - 40) : pos === "bottom-bar" ? frameW : 290;
+  const wide = cfg.popup.layout === "image-left" || cfg.popup.layout === "image-right";
+  const cardW = pos === "bottom-bar" ? frameW
+    : pos === "center" ? Math.min(wide ? 440 : 360, frameW - 32)
+    : wide ? Math.min(400, frameW - 24) : 290;
 
   return (
     <div className={s.stage}>
@@ -164,7 +194,7 @@ function Preview({ cfg, tab, device }: { cfg: GrowthConfig; tab: "popup" | "widg
           </div>
           {showPopup && (
             <div style={{ position: "absolute", ...wrap, zIndex: 5 }}>
-              <div style={{ width: cardW, maxWidth: "100%" }} dangerouslySetInnerHTML={{ __html: renderPopupInner(cfg.popup) }} />
+              <div style={{ width: cardW, maxWidth: "100%" }} dangerouslySetInnerHTML={{ __html: renderPopupInner(cfg.popup, { placeholderImage: true }) }} />
             </div>
           )}
           {showWidget && (
@@ -304,12 +334,15 @@ export default function GrowthView() {
       const r = await fetch("/api/whatsapp/media-upload", { method: "POST", body: fd });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.error) { toast.push({ kind: "error", text: j.error ?? "Upload failed" }); return; }
-      setPopup((p) => ({ ...p, imageUrl: j.url, imageLayout: p.imageLayout === "none" ? "top" : p.imageLayout }));
+      // If they upload while on a text layout, switch to an image layout so the
+      // photo actually appears; otherwise keep their chosen layout.
+      setPopup((p) => ({ ...p, imageUrl: j.url, layout: LAYOUTS_NEEDING_IMAGE.includes(p.layout) ? p.layout : "image-top" }));
     } finally { setUploading(false); }
   }
 
   if (!cfg) return <div style={{ padding: 40, textAlign: "center", color: "var(--pm-hint)" }}>Loading…</div>;
   const p = cfg.popup, w = cfg.widget;
+  const needsImage = LAYOUTS_NEEDING_IMAGE.includes(p.layout);
 
   return (
     <div className={s.wrap}>
@@ -363,20 +396,26 @@ export default function GrowthView() {
                 </div>
               </Section>
 
+              <Section title="Layout">
+                <LayoutGallery value={p.layout} onChange={(v) => setPopup((x) => ({ ...x, layout: v }))} />
+                <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 10 }}>Pick a ready-made layout, then edit the text, colours and image below.</div>
+              </Section>
+
               <Section title="Image">
                 <input ref={fileRef} type="file" accept="image/png,image/jpeg" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f); e.target.value = ""; }} />
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <button type="button" className={s.btn} onClick={() => fileRef.current?.click()} disabled={uploading}>
                     {uploading ? "Uploading…" : <><Upload size={13} /> {p.imageUrl ? "Replace image" : "Upload image"}</>}
                   </button>
-                  {p.imageUrl && <button type="button" className={`${s.btn} ${s.danger}`} onClick={() => setPopup((x) => ({ ...x, imageUrl: null, imageLayout: "none" }))}><Trash2 size={12} /> Remove</button>}
-                  {p.imageUrl && (
-                    <select className={s.select} style={{ width: "auto" }} value={p.imageLayout} onChange={(e) => setPopup((x) => ({ ...x, imageLayout: e.target.value as PopupConfig["imageLayout"] }))} aria-label="Image layout">
-                      <option value="top">On top</option><option value="side">On the side</option>
-                    </select>
-                  )}
+                  {p.imageUrl && <button type="button" className={`${s.btn} ${s.danger}`} onClick={() => setPopup((x) => ({ ...x, imageUrl: null }))}><Trash2 size={12} /> Remove</button>}
                 </div>
-                <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}><ImageIcon size={11} /> JPG or PNG, up to 5 MB.</div>
+                {needsImage && !p.imageUrl ? (
+                  <div style={{ fontSize: 11.5, color: "var(--pm-terra)", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                    <ImageIcon size={12} /> This layout needs an image — upload one, or it shows as text-only on your site.
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}><ImageIcon size={11} /> JPG or PNG, up to 5 MB. Used by image and background layouts.</div>
+                )}
               </Section>
 
               <Section title="Design">
