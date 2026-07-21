@@ -1,26 +1,43 @@
 # Instagram Inbound DM Automation + Collab CRM — Plan
 
-Status: **Phase 1 + Phase 2 BUILT (2026-06-24) — not yet deployed (Meta app + secrets pending)**
-Phase 3: **NOT started (deferred by owner 2026-06-24).**
+Status: **Phase 1 + Phase 2 BUILT (2026-06-24), Phase 3 (Discovery + Follow-up engine) BUILT
+(2026-07-21) — not yet deployed (Meta app review + secrets pending).**
+Meta app setup guide: [META_APP_SETUP.md](META_APP_SETUP.md).
 
-## ▶ NEXT TIME — Phase 3 pickup checklist
+## ⚠ 2026-07-21 owner decision — Apify rule REVERSED for discovery
 
-Phase 3 = manual-send assist + email fallback for any *cold* scored creator (someone we found /
-scored who has NOT messaged us, so the official API can't DM them). Start here:
+The "No Apify / no scraping" rule below (§1) was reversed by the owner for **discovery only**:
+Apify actors (search / hashtag / profile / reel scrapers) now power filter-based influencer
+discovery (`ig_prospects`, Discovery tab). Scraped data feeds search + scoring ONLY — it never
+feeds an automated send, and cold DMs via the API remain forbidden (first contact is always
+human-touched: manual DM assist or bio-email via Resend).
 
-1. **Manual-send assist UI** — on a collab thread the bot can't legally DM (no inbound), show a
-   "copy pitch + open profile" panel: the `collab_draft` text with a copy button + a link to
-   `instagram.com/<handle>`. Ops sends it by hand from the IG app. (No new send path — official
-   API still can't cold-DM.)
-2. **Email fallback** — if a creator's bio exposes an email (parse it in `ig-analyze` from
-   `biography`, store on a new `ig_threads.bio_email` column), offer "send via email" reusing the
-   existing Resend outreach path (see [[email-marketing-sender]] / leads `drafts/[id]/send`).
-3. **(Optional) seed-list intake** — let ops paste handles to score in bulk via `ig-analyze`
-   without waiting for an inbound DM. New table `ig_prospects` or reuse `ig_threads` with a
-   `source='seed'` flag. Only if outbound prospecting is wanted later.
+## Phase 3 — what shipped (2026-07-21)
 
-Everything Phase 3 needs already exists: `ig-analyze` produces the draft + score, `businessDiscovery`
-returns the biography. No Meta-app changes — Phase 3 is pure dashboard/email code.
+Superseded the old "Phase 3 pickup checklist" that stood here; all three items shipped, plus a
+follow-up engine the original spec never had:
+
+- **Discovery (Apify)** — `ig-discovery` (start actor runs; budget-capped via
+  `ig_settings.discovery_daily_budget_usd`) + `ig-discovery-tick` (pg_cron */5: poll runs,
+  import datasets, last-3-post metrics + ER + bio-email regex, batched AI niche scoring with
+  the SHARED `_shared/ig-scoring.ts` formula, link to existing threads by handle).
+  Tables: `ig_discovery_runs`, `ig_prospects`, `ig_outreach_log`
+  (migration `20260721130000_ig_discovery.sql` + cron `20260721131000`).
+  Dashboard: **Discovery tab** (search/hashtag start, paste-handles intake, server-side filters,
+  prospect drawer with AI pitch draft + copy-DM assist + bio-email send via Resend).
+  `APIFY_TOKEN` lives in Settings → API keys (`app_secrets`, read by `_shared/app-secrets.ts`).
+- **Follow-up engine** — `ig_followups` (one row = one scheduled nudge; partial unique index =
+  max one live per thread) + `ig-followup-tick` (pg_cron */15): per-stage cadences from
+  `ig_settings.followup_cadences`, auto-send inside the 24h window via ig-send
+  (`sent_by='followup_bot'`, ledger marker `ai_meta.followup_id`), everything else →
+  `awaiting_approval` in the **Tasks tab** (channels: ig_dm / ig_dm_human_agent / email /
+  whatsapp / manual). Inbound replies cancel pending nudges (ig-webhook); stage PATCH re-arms
+  the new cadence. Master switch `ig_settings.followups_enabled` ships **false**.
+  Migration `20260721140000_ig_followups.sql` + cron `20260721141000` (go-live only).
+- **Messaging-window guard** — `_shared/ig-window.ts` (open_24h | human_agent_7d | closed);
+  `ig-send` now hard-refuses out-of-window sends (automated senders always; humans may use the
+  HUMAN_AGENT 7-day lane once Meta approves it — flag `ig_settings.human_agent_enabled`,
+  ships **false**).
 
 Before deploy, also: give the two `20260624170000_*` migrations distinct timestamps if using
 `supabase db push` (collab_scoring shares a prefix with an unrelated outreach_replies migration).
@@ -100,6 +117,7 @@ Instagram. Reuse that architecture; do not reinvent.
 
 - **Inbound only.** No outbound cold DM (official API forbids it; unofficial = ban risk).
 - **No Apify / no scraping.** Discovery via Apify is dropped.
+  *(REVERSED for discovery on 2026-07-21 — see the header note. Cold-DM ban still absolute.)*
 - **Bot behavior = full hybrid:**
   - AI auto-replies to routine inbound DMs (product/order Qs) from the Master KB — same brain
     as the WhatsApp chatbot.

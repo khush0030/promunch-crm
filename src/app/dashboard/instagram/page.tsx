@@ -6,6 +6,8 @@ import {
   ShoppingBag, Ban, HelpCircle, Settings as SettingsIcon, ChevronLeft, ExternalLink, Sparkles,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import DiscoveryTab from "@/components/instagram/DiscoveryTab";
+import TasksTab from "@/components/instagram/TasksTab";
 import styles from "./instagram.module.css";
 
 type Classification = "collab" | "order" | "spam" | "unknown";
@@ -54,7 +56,7 @@ type Settings = {
   barter_terms: string | null;
 };
 
-type Tab = "inbox" | "collab" | "needs_human" | "spam" | "settings";
+type Tab = "inbox" | "collab" | "discovery" | "tasks" | "needs_human" | "spam" | "settings";
 
 const STAGES: Stage[] = ["new", "in_convo", "terms_sent", "agreed", "shipped", "posted", "declined"];
 const STAGE_LABEL: Record<Stage, string> = {
@@ -72,6 +74,7 @@ export default function InstagramPage() {
   const { push } = useToast();
   const notifyErr = useCallback((label: string, e: unknown) => push({ kind: "error", text: `${label}: ${String(e)}` }), [push]);
   const [tab, setTab] = useState<Tab>("inbox");
+  const [tasksCount, setTasksCount] = useState(0);
   const [threads, setThreads] = useState<Thread[]>([]);
   const [classCounts, setClassCounts] = useState<Record<string, number>>({});
   const [needsHuman, setNeedsHuman] = useState(0);
@@ -88,6 +91,7 @@ export default function InstagramPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadThreads = useCallback(async () => {
+    if (tab === "discovery" || tab === "tasks") return; // those tabs load their own data
     setLoading(true);
     try {
       const params = new URLSearchParams({ tab: tab === "settings" ? "inbox" : tab });
@@ -107,6 +111,14 @@ export default function InstagramPage() {
   }, [tab, q, notifyErr]);
 
   useEffect(() => { loadThreads(); }, [loadThreads]);
+
+  // badge for the Tasks tab — follow-ups waiting on a human
+  useEffect(() => {
+    fetch(`/api/instagram/followups`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setTasksCount(d.counts?.awaiting ?? 0); })
+      .catch(() => {});
+  }, []);
 
   const openThread = useCallback(async (id: string) => {
     setActiveId(id);
@@ -195,10 +207,12 @@ export default function InstagramPage() {
   const tabs: { key: Tab; label: string; count?: number }[] = useMemo(() => [
     { key: "inbox", label: "Inbox" },
     { key: "collab", label: "Collabs", count: classCounts.collab },
+    { key: "discovery", label: "Discovery" },
+    { key: "tasks", label: "Tasks", count: tasksCount },
     { key: "needs_human", label: "Needs human", count: needsHuman },
     { key: "spam", label: "Spam", count: classCounts.spam },
     { key: "settings", label: "Settings" },
-  ], [classCounts, needsHuman]);
+  ], [classCounts, needsHuman, tasksCount]);
 
   return (
     <div className={styles.wrap}>
@@ -240,6 +254,10 @@ export default function InstagramPage() {
 
       {tab === "settings" ? (
         <SettingsPanel key={settings ? "ready" : "loading"} settings={settings} onSave={saveSettings} />
+      ) : tab === "discovery" ? (
+        <DiscoveryTab />
+      ) : tab === "tasks" ? (
+        <TasksTab onCount={setTasksCount} />
       ) : (
         <div className={styles.body}>
           <div className={`${styles.list} ${activeId ? styles.listHiddenMobile : ""}`}>
@@ -361,6 +379,8 @@ export default function InstagramPage() {
                         {m.direction === "outbound" && (m.ai_generated ? <Bot size={11} /> : <UserIcon size={11} />)}
                         {m.kind === "comment" && "comment · "}
                         {m.kind === "private_reply" && "private reply · "}
+                        {m.kind === "email" && "email · "}
+                        {m.kind === "whatsapp" && "whatsapp · "}
                         {new Date(m.created_at).toLocaleString("en-IN", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}
                         {m.status === "failed" && <span className={styles.failed}> · failed</span>}
                       </div>

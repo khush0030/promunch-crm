@@ -34,5 +34,37 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { data, error } = await supabaseAdmin.from('ig_threads').update(patch).eq('id', id).select('*').maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Stage moved → the old cadence is obsolete: cancel the live follow-up and
+  // arm step 1 of the new stage's cadence (if it has one). The partial unique
+  // index on ig_followups makes a racing arm a harmless 23505.
+  if (typeof patch.collab_stage === 'string' && data) {
+    await supabaseAdmin
+      .from('ig_followups')
+      .update({ status: 'cancelled', claimed_at: null, meta: { cancelled_reason: 'stage_changed' }, updated_at: new Date().toISOString() })
+      .eq('thread_id', id)
+      .in('status', ['scheduled', 'awaiting_approval']);
+
+    const { data: settings } = await supabaseAdmin
+      .from('ig_settings')
+      .select('followups_enabled, followup_cadences')
+      .eq('id', 1)
+      .maybeSingle();
+    const cadence = (settings?.followup_cadences as Record<string, { days?: number[] }> | null)?.[patch.collab_stage];
+    const firstDelay = Array.isArray(cadence?.days) ? Number(cadence.days[0]) : NaN;
+    if (settings?.followups_enabled && Number.isFinite(firstDelay) && firstDelay > 0) {
+      const { error: armErr } = await supabaseAdmin.from('ig_followups').insert({
+        thread_id: id,
+        stage: patch.collab_stage,
+        step: 1,
+        status: 'scheduled',
+        next_action_at: new Date(Date.now() + firstDelay * 86_400_000).toISOString(),
+      });
+      if (armErr && armErr.code !== '23505') {
+        console.error('[ig stage] follow-up arm failed', armErr.message);
+      }
+    }
+  }
+
   return NextResponse.json({ thread: data });
 }

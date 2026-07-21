@@ -269,8 +269,7 @@ async function armSweep(cadences: Record<string, CadenceCfg>) {
         } else if (last.status === "cancelled") {
           const reason = (last.meta as { cancelled_reason?: string } | null)?.cancelled_reason;
           if (reason !== "replied") continue;                    // skipped / terminal / stage_changed = opt-out
-          if (new Date(last.updated_at).getTime() > lastTouch) continue; // cancel is newer than the quiet clock — wait
-          nextStep = 1;                                          // they replied then went quiet again — restart
+          nextStep = 1;   // they replied then went quiet again (quietMs check above) — restart the cadence
         }
       }
       // stage differs from the cancelled/sent row → new stage, start at step 1

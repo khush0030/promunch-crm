@@ -188,6 +188,25 @@ async function upsertThread(igUserId: string, handle?: string | null) {
     .select("*")
     .single();
   if (error) { console.error("[ig-webhook] upsert thread failed", error); return null; }
+
+  // A reply cancels any pending follow-up nudge (the tick's arm sweep re-arms
+  // if they go quiet again). Best-effort — inbound processing must never fail
+  // on this.
+  await sb.from("ig_followups")
+    .update({ status: "cancelled", claimed_at: null, meta: { cancelled_reason: "replied" }, updated_at: new Date().toISOString() })
+    .eq("thread_id", data.id)
+    .in("status", ["scheduled", "awaiting_approval"])
+    .then(() => {}, (e: unknown) => console.error("[ig-webhook] followup cancel failed", e));
+
+  // Link a discovered prospect to this thread by handle — the creator we
+  // pitched has now DM'd us, so the collab pipeline owns the relationship.
+  if (data.handle) {
+    await sb.from("ig_prospects")
+      .update({ thread_id: data.id, status: "in_convo", updated_at: new Date().toISOString() })
+      .eq("handle", data.handle)
+      .is("thread_id", null)
+      .then(() => {}, (e: unknown) => console.error("[ig-webhook] prospect link failed", e));
+  }
   return data;
 }
 

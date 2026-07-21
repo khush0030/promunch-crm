@@ -33,7 +33,8 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 | Doc | What it answers |
 |---|---|
 | [instagram-guide-for-team.md](instagram/instagram-guide-for-team.md) | Non-technical team guide to the Instagram inbox + collab pipeline |
-| [instagram-influencer-pipeline.md](instagram/instagram-influencer-pipeline.md) | Full technical spec of the ig-* function stack |
+| [instagram-influencer-pipeline.md](instagram/instagram-influencer-pipeline.md) | Full technical spec of the ig-* function stack (incl. Discovery + follow-up engine, 2026-07-21) |
+| [META_APP_SETUP.md](instagram/META_APP_SETUP.md) | Step-by-step Meta Developers app setup: webhooks, system-user token, app review incl. Human Agent |
 
 ## integrations/
 
