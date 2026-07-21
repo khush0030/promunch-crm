@@ -56,14 +56,17 @@ export type GrowthConfig = { popup: PopupConfig; widget: WidgetConfig };
 
 /* ----------------------------- fonts ----------------------------- */
 
+// Font stacks use SINGLE quotes on purpose: the markup renders inside a
+// double-quoted style="…" attribute, so a double-quoted family name would
+// terminate the attribute early and break the whole card's styling.
 export const FONTS: Record<string, { label: string; stack: string; google: string | null }> = {
-  system: { label: "System (fast)", stack: `-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif`, google: null },
-  poppins: { label: "Poppins", stack: `"Poppins",sans-serif`, google: "Poppins:wght@400;600;700;800" },
-  inter: { label: "Inter", stack: `"Inter",sans-serif`, google: "Inter:wght@400;600;700;800" },
-  montserrat: { label: "Montserrat", stack: `"Montserrat",sans-serif`, google: "Montserrat:wght@400;600;700;800" },
-  nunito: { label: "Nunito (rounded)", stack: `"Nunito",sans-serif`, google: "Nunito:wght@400;700;800" },
-  playfair: { label: "Playfair (elegant serif)", stack: `"Playfair Display",Georgia,serif`, google: "Playfair+Display:wght@500;700;800" },
-  georgia: { label: "Georgia (serif)", stack: `Georgia,"Times New Roman",serif`, google: null },
+  system: { label: "System (fast)", stack: `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif`, google: null },
+  poppins: { label: "Poppins", stack: `'Poppins',sans-serif`, google: "Poppins:wght@400;600;700;800" },
+  inter: { label: "Inter", stack: `'Inter',sans-serif`, google: "Inter:wght@400;600;700;800" },
+  montserrat: { label: "Montserrat", stack: `'Montserrat',sans-serif`, google: "Montserrat:wght@400;600;700;800" },
+  nunito: { label: "Nunito (rounded)", stack: `'Nunito',sans-serif`, google: "Nunito:wght@400;700;800" },
+  playfair: { label: "Playfair (elegant serif)", stack: `'Playfair Display',Georgia,serif`, google: "Playfair+Display:wght@500;700;800" },
+  georgia: { label: "Georgia (serif)", stack: `Georgia,'Times New Roman',serif`, google: null },
 };
 
 export function fontStack(key: string): string {
