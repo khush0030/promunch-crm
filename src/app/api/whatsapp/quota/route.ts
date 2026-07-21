@@ -28,6 +28,7 @@ export async function GET() {
   // "standing unavailable" and the engine still paces reactively via #131049.
   let tier: string | null = null;
   let quality: string | null = null;
+  let override: number | null = null;
   let standingError: string | null = null;
   try {
     const r = await fetch(`${SUPABASE_URL}/functions/v1/wa-meta-info`, {
@@ -39,13 +40,24 @@ export async function GET() {
     const edge = Array.isArray(j?.phoneNumbers?.data) ? j.phoneNumbers.data[0] : null;
     tier = phone.messaging_limit_tier ?? edge?.messaging_limit_tier ?? null;
     quality = phone.quality_rating ?? edge?.quality_rating ?? null;
+    override = typeof j?.daily_limit_override === "number" ? j.daily_limit_override : null;
     if (!r.ok) standingError = phone?.error?.message ?? `wa-meta-info HTTP ${r.status}`;
   } catch (e) {
     standingError = String(e);
   }
-  const limit = !tier || tier === "TIER_UNLIMITED"
+  // Same rule as the engine (_shared/wa-quota.ts): Meta tier and the operator
+  // budget (WA_DAILY_SEND_LIMIT secret) — the LOWER of the two wins. Meta
+  // omits the tier for numbers without an established one (ours), so the
+  // secret is usually what drives pacing.
+  const metaLimit = !tier || tier === "TIER_UNLIMITED"
     ? null
     : TIER_LIMIT[tier.toUpperCase()] ?? null;
+  const limit = metaLimit != null && override != null
+    ? Math.min(metaLimit, override)
+    : metaLimit ?? override;
+  const limitSource = limit == null
+    ? null
+    : metaLimit != null && (override == null || metaLimit <= override) ? "meta" : "manual";
 
   // Unique contacts who got a business-initiated (template) send in the
   // rolling 24h — Meta counts unique users, not messages. queued rows are
@@ -72,6 +84,7 @@ export async function GET() {
     tier,
     quality,
     limit,
+    limit_source: limitSource,
     used24h: used,
     remaining: limit != null ? Math.max(0, limit - used) : null,
     standing_error: standingError,

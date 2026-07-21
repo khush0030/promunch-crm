@@ -40,7 +40,13 @@ Deno.serve(async (req) => {
     phoneNumbers = await pnRes.json();
   }
 
-  return j({ ok: phoneRes.ok, phone, account, phoneNumbers });
+  // Operator-set daily budget (WA_DAILY_SEND_LIMIT secret) — the dashboard
+  // quota view combines it with the Meta tier the same way the campaign
+  // engine does (lower of the two wins; see _shared/wa-quota.ts).
+  const override = Number(Deno.env.get("WA_DAILY_SEND_LIMIT") ?? "");
+  const daily_limit_override = Number.isFinite(override) && override > 0 ? Math.floor(override) : null;
+
+  return j({ ok: phoneRes.ok, phone, account, phoneNumbers, daily_limit_override });
 });
 
 function j(o: unknown, s = 200) {

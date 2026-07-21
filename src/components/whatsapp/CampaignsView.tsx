@@ -112,6 +112,7 @@ type Quota = {
   tier: string | null;
   quality: string | null;
   limit: number | null;
+  limit_source?: "meta" | "manual" | null;
   used24h: number;
   remaining: number | null;
   standing_error?: string | null;
@@ -143,7 +144,8 @@ function QuotaBanner({ quota }: { quota: Quota | null }) {
           </div>
           <div style={{ fontSize: 12, color: "var(--pm-muted)", marginTop: 6 }}>
             <strong>{(quota.remaining ?? 0).toLocaleString("en-IN")}</strong> of {quota.limit.toLocaleString("en-IN")} people still reachable
-            in the current 24h window ({quota.used24h.toLocaleString("en-IN")} used · Meta tier {quota.tier ?? "?"}).
+            in the current 24h window ({quota.used24h.toLocaleString("en-IN")} used ·{" "}
+            {quota.limit_source === "meta" ? `Meta tier ${quota.tier ?? "?"}` : "daily budget set in Supabase secrets, WA_DAILY_SEND_LIMIT"}).
           </div>
         </>
       ) : (
@@ -802,7 +804,9 @@ function CampaignModal({ onClose, initialSegment, quota }: { onClose: () => void
         {(() => {
           if (audienceCount == null) return null;
           const daily = quota?.limit ?? DAILY_TIER_FALLBACK;
-          const tierNote = quota?.limit != null ? `${daily}/day limit (Meta tier ${quota.tier})` : `~${daily}/day estimate`;
+          const tierNote = quota?.limit == null ? `~${daily}/day estimate`
+            : quota.limit_source === "meta" ? `${daily}/day limit (Meta tier ${quota.tier})`
+            : `${daily}/day configured budget`;
           const parts: string[] = [];
           if (audienceCount > daily) {
             parts.push(` That's above the ${tierNote} for our number — the campaign auto-spreads over ≈${Math.ceil(audienceCount / daily)} days, resuming each day.`);
