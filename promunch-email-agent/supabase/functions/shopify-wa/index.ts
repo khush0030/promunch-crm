@@ -18,6 +18,7 @@ import { getFlowSettings } from "../_shared/flow-settings.ts";
 import { handleOrderCreated } from "../_shared/order-confirmation.ts";
 import { claimSend, markSendSent, releaseSend } from "../_shared/confirmations.ts";
 import { enrolCustomFlows } from "../_shared/custom-flows.ts";
+import { enrolEmailFlow } from "../_shared/email-flows.ts";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
@@ -162,6 +163,26 @@ async function handleCheckout(checkout: any) {
   const sb = db();
   const token: string = String(checkout.token ?? checkout.id ?? "");
   if (!token) return;
+
+  // Email abandoned-cart flow. Enrols on the checkout's EMAIL, so it works even
+  // when there is no phone (the WhatsApp path below requires a phone). DB-only:
+  // the app-side email-flow-tick sends. No-op unless an Active checkout_abandoned
+  // flow exists; idempotent per (flow, token). Reuses the Super Money Breeze
+  // recovery link from noteCheckoutUrl.
+  try {
+    const email = checkout.email ?? checkout.customer?.email ?? null;
+    const nm = firstName(checkout.customer?.first_name, checkout.shipping_address?.first_name);
+    const rUrl = noteCheckoutUrl(checkout) || checkout.abandoned_checkout_url || `${SITE_URL}/cart`;
+    await enrolEmailFlow("checkout_abandoned", {
+      email,
+      entityRef: token,
+      dedupPrefix: "abandoned",
+      firstName: nm,
+      context: { checkout_url: rUrl },
+    });
+  } catch (e) {
+    console.warn("[shopify-wa] email cart enrol:", e);
+  }
 
   const waId = toWaId(
     checkout.phone ?? checkout.customer?.phone ?? checkout.shipping_address?.phone ?? checkout.billing_address?.phone,

@@ -1,11 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Plus, Route as RouteIcon, ShoppingCart, PartyPopper, Gift } from "lucide-react";
+import { Plus, Route as RouteIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { useToast } from "@/components/ui/Toast";
-import { PageHead, SectionLabel, StatusBadge, EmptyState } from "@/components/pm";
+import { PageHead, StatusBadge, EmptyState } from "@/components/pm";
 import type { BadgeTone } from "@/components/pm";
 
 const statusMeta: Record<string, { tone: BadgeTone; label: string }> = {
@@ -27,7 +25,6 @@ type FlowRow = {
   name: string;
   status: string;
   trigger: string;
-  triggerType: string;
   emails: number;
   revenue: number;
   totalEntered: number;
@@ -35,39 +32,9 @@ type FlowRow = {
   conversion: string;
 };
 
-const templates = [
-  { icon: <ShoppingCart size={16} />, title: "Abandoned cart", copy: "Recover checkouts left behind, on WhatsApp + email. Recommended first flow." },
-  { icon: <PartyPopper size={16} />, title: "Welcome series", copy: "Greet new subscribers and introduce PROMUNCH." },
-  { icon: <Gift size={16} />, title: "Post-purchase", copy: "Thank buyers and drive the second order." },
-];
-
 export default function FlowsPage() {
-  const router = useRouter();
-  const toast = useToast();
   const [flows, setFlows] = useState<FlowRow[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [creating, setCreating] = useState(false);
-
-  async function handleCreate() {
-    const name = prompt("Name your new flow:");
-    if (!name) return;
-    setCreating(true);
-    try {
-      const res = await fetch("/api/flows", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.flow) throw new Error(data.error || "Failed to create");
-      toast.push({ kind: "success", text: `Flow "${name}" created.` });
-      router.push(`/dashboard/flows/${data.flow.id}`);
-    } catch (e) {
-      toast.push({ kind: "error", text: `Create failed: ${e instanceof Error ? e.message : "unknown"}` });
-    } finally {
-      setCreating(false);
-    }
-  }
 
   useEffect(() => {
     async function load() {
@@ -81,7 +48,6 @@ export default function FlowsPage() {
           name: f.name,
           status: f.status || "draft",
           trigger: triggerLabels[f.trigger_type] || f.trigger_type || "",
-          triggerType: f.trigger_type || "",
           emails: stepCount,
           revenue: Number(f.revenue_attributed) || 0,
           totalEntered: f.total_entered || 0,
@@ -105,8 +71,8 @@ export default function FlowsPage() {
     <div className="pm-page">
       <PageHead
         title="Flows"
-        subtitle="Automated email & WhatsApp sequences triggered by customer behaviour"
-        actions={<button className="pm-btn primary" onClick={handleCreate} disabled={creating}><Plus size={15} /> {creating ? "Creating…" : "Create flow"}</button>}
+        subtitle="Automated email sequences triggered by customer behaviour"
+        actions={<Link className="pm-btn primary" href="/dashboard/flows/new"><Plus size={15} /> Create flow</Link>}
       />
 
       {flows.length > 0 && (
@@ -145,32 +111,13 @@ export default function FlowsPage() {
           })}
         </div>
       ) : (
-        <>
-          <EmptyState
-            icon={<RouteIcon />}
-            title={loaded ? "No flows yet" : "Loading…"}
-            cta={loaded ? <button className="pm-btn primary" onClick={handleCreate} disabled={creating}><Plus size={15} /> Create flow</button> : undefined}
-            style={{ marginBottom: 16 }}
-          >
-            {loaded ? "Create automated flows like abandoned-cart recovery, welcome series, or post-purchase upsells." : undefined}
-          </EmptyState>
-          {loaded && (
-            <>
-              <SectionLabel>Start from a template</SectionLabel>
-              <div className="pm-cards3">
-                {templates.map((t) => (
-                  <div className="pm-minicard" key={t.title}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span className="ic2 a" style={{ width: 30, height: 30, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--pm-gold-soft)", color: "var(--pm-gold)" }}>{t.icon}</span>
-                      <b>{t.title}</b>
-                    </div>
-                    <p>{t.copy}</p>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </>
+        <EmptyState
+          icon={<RouteIcon />}
+          title={loaded ? "No flows yet" : "Loading…"}
+          cta={loaded ? <Link className="pm-btn primary" href="/dashboard/flows/new"><Plus size={15} /> Create flow</Link> : undefined}
+        >
+          {loaded ? "Start from a template like abandoned-cart recovery, welcome series, or win-back, or build your own." : undefined}
+        </EmptyState>
       )}
     </div>
   );

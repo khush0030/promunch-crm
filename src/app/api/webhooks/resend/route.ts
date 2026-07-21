@@ -129,26 +129,85 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Handle unsubscribe — update contact status
-    if (type === 'email.complained') {
+    // Complaints and bounces must land in the suppressions table (the list the
+    // campaign + flow senders check), not just flip the contact's status — a
+    // status flip alone would still let a differently-filtered send reach them.
+    if (type === 'email.complained' || type === 'email.bounced') {
+      const reason = type === 'email.complained' ? 'complaint' : 'bounce';
+      const { data: c } = await supabase
+        .from('contacts')
+        .select('email')
+        .eq('id', campaignEmail.contact_id)
+        .maybeSingle();
+      const email = (c?.email as string | undefined)?.toLowerCase();
+      if (email) {
+        await supabase
+          .from('suppressions')
+          .upsert({ email, reason }, { onConflict: 'email', ignoreDuplicates: true });
+      }
       await supabase
         .from('contacts')
-        .update({ status: 'unsubscribed' })
-        .eq('id', campaignEmail.contact_id);
-    } else if (type === 'email.bounced') {
-      await supabase
-        .from('contacts')
-        .update({ status: 'bounced' })
+        .update(
+          type === 'email.complained'
+            ? { status: 'unsubscribed', accepts_marketing: false }
+            : { status: 'bounced' },
+        )
         .eq('id', campaignEmail.contact_id);
     }
 
     return NextResponse.json({ received: true });
   }
 
-  // Not a campaign email — check the B2B outreach pipeline.
+  // Flow email? (email_sends ledger written by the flow engine)
+  if (await handleFlowSendEvent(type, resendEmailId)) {
+    return NextResponse.json({ received: true });
+  }
+
+  // Not a campaign or flow email — check the B2B outreach pipeline.
   await handleOutreachEvent(type, resendEmailId, data);
 
   return NextResponse.json({ received: true });
+}
+
+// Flow (automation) emails: attribute opens/clicks, and — like campaigns —
+// suppress the address on a bounce/complaint so no future send reaches it.
+async function handleFlowSendEvent(type: string, resendEmailId: string): Promise<boolean> {
+  const { data: es } = await supabaseAdmin
+    .from('email_sends')
+    .select('id, contact_id')
+    .eq('resend_id', resendEmailId)
+    .maybeSingle();
+  if (!es) return false;
+
+  if (type === 'email.opened') {
+    await supabaseAdmin.from('email_sends').update({ opened_at: new Date().toISOString() }).eq('id', es.id);
+  } else if (type === 'email.clicked') {
+    await supabaseAdmin.from('email_sends').update({ clicked_at: new Date().toISOString() }).eq('id', es.id);
+  }
+
+  if (type === 'email.bounced' || type === 'email.complained') {
+    const reason = type === 'email.complained' ? 'complaint' : 'bounce';
+    const { data: c } = await supabaseAdmin
+      .from('contacts')
+      .select('email')
+      .eq('id', es.contact_id)
+      .maybeSingle();
+    const email = (c?.email as string | undefined)?.toLowerCase();
+    if (email) {
+      await supabaseAdmin
+        .from('suppressions')
+        .upsert({ email, reason }, { onConflict: 'email', ignoreDuplicates: true });
+    }
+    await supabaseAdmin
+      .from('contacts')
+      .update(
+        type === 'email.complained'
+          ? { status: 'unsubscribed', accepts_marketing: false }
+          : { status: 'bounced' },
+      )
+      .eq('id', es.contact_id);
+  }
+  return true;
 }
 
 // B2B lead-gen outreach: record the event; bounces/complaints auto-suppress the

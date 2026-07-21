@@ -4,7 +4,8 @@ import { isAllowedEmail } from "@/lib/auth-domains";
 
 // /r/* = public click-tracking redirects (WhatsApp short links) — must be
 // reachable without a dashboard session.
-const PUBLIC_PATHS = ["/login", "/auth", "/r"];
+// /u/* = the email unsubscribe confirmation page (HMAC token is the auth).
+const PUBLIC_PATHS = ["/login", "/auth", "/r", "/u"];
 // API routes reachable WITHOUT a browser session. Everything else under /api/*
 // requires an allowed, logged-in user. These self-authenticate instead:
 //   /api/cron/*     → CRON_SECRET (Vercel sends it as a Bearer token)

@@ -20,6 +20,7 @@ import {
 import { REVIEW_URL, SITE_URL, firstName, toWaId } from "./journeys.ts";
 import { getFlowSettings, type FlowSettings } from "./flow-settings.ts";
 import { enrolCustomFlows } from "./custom-flows.ts";
+import { enrolEmailFlow, convertAbandonedEmailFlows } from "./email-flows.ts";
 import {
   buildVerifyComponents,
   buildVerifyVars,
@@ -45,6 +46,19 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
   if (order?.cancelled_at) return { orderRef, status: "not_active", detail: "cancelled" };
   const fin = String(order?.financial_status ?? "").toLowerCase();
   if (fin === "voided" || fin === "refunded") return { orderRef, status: "not_active", detail: fin };
+
+  // Email flows (independent of WhatsApp; enrol on the order's EMAIL even when
+  // there is no phone). DB-only: post-purchase enrols, and this buyer's active
+  // abandoned-cart email flows stop (they converted). No-op unless a matching
+  // Active flow exists; idempotent per order.
+  try {
+    const email = order.email ?? order.customer?.email ?? null;
+    const nm = firstName(order.customer?.first_name, order.shipping_address?.first_name, order.billing_address?.first_name);
+    await convertAbandonedEmailFlows(email);
+    await enrolEmailFlow("order_placed", { email, entityRef: orderRef, dedupPrefix: "postpurchase", firstName: nm });
+  } catch (e) {
+    console.warn(`[order-confirmation] email flow enrol failed for ${orderRef}:`, e);
+  }
 
   const waId = toWaId(
     order.customer?.phone ?? order.phone ?? order.shipping_address?.phone ?? order.billing_address?.phone,

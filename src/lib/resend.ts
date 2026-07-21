@@ -30,15 +30,19 @@ export interface SendEmailOptions {
   html: string;
   from?: string;
   replyTo?: string;
+  // Per-message headers, e.g. List-Unsubscribe / List-Unsubscribe-Post for
+  // one-click unsubscribe on marketing sends.
+  headers?: Record<string, string>;
 }
 
-export async function sendEmail({ to, subject, html, from, replyTo }: SendEmailOptions) {
+export async function sendEmail({ to, subject, html, from, replyTo, headers }: SendEmailOptions) {
   const result = await (await getClient()).emails.send({
     from: from || DEFAULT_FROM,
     to: Array.isArray(to) ? to : [to],
     subject,
     html,
     ...(replyTo ? { replyTo } : {}),
+    ...(headers ? { headers } : {}),
   });
   return result;
 }
@@ -48,6 +52,7 @@ export interface BatchEmailItem {
   subject: string;
   html: string;
   from?: string;
+  headers?: Record<string, string>;
 }
 
 export async function sendBatchEmails(emails: BatchEmailItem[]) {
@@ -56,6 +61,7 @@ export async function sendBatchEmails(emails: BatchEmailItem[]) {
     to: [e.to],
     subject: e.subject,
     html: e.html,
+    ...(e.headers ? { headers: e.headers } : {}),
   }));
 
   const client = await getClient();
