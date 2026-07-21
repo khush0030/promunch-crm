@@ -267,35 +267,41 @@ export default function DiscoveryTab() {
   return (
     <div className={styles.discWrap}>
       {/* search + intake */}
-      <div className={styles.discSearchRow}>
-        <select className={styles.field} value={kind} onChange={(e) => setKind(e.target.value as "search" | "hashtag")}>
-          <option value="search">By niche keyword</option>
-          <option value="hashtag">By hashtag</option>
-        </select>
-        <input
-          className={styles.field}
-          placeholder={kind === "hashtag" ? "#healthysnacksindia" : "healthy snacks india"}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && startSearch()}
-        />
-        <input
-          className={styles.field}
-          type="number"
-          min={5}
-          max={200}
-          value={maxItems}
-          title="Max profiles this run"
-          onChange={(e) => setMaxItems(+e.target.value || 30)}
-          style={{ width: 80 }}
-        />
-        <button className="pm-btn primary" onClick={startSearch} disabled={starting || !query.trim()}>
-          <Search size={15} /> {starting ? "Starting…" : "Find influencers"}
-        </button>
-        <div className={styles.discIntake}>
+      <div className={styles.discCard}>
+        <div className={styles.discCardLabel}>Find new influencers</div>
+        <div className={styles.discSearchRow}>
+          <select className={styles.field} value={kind} onChange={(e) => setKind(e.target.value as "search" | "hashtag")}>
+            <option value="search">By niche keyword</option>
+            <option value="hashtag">By hashtag</option>
+          </select>
           <input
             className={styles.field}
-            placeholder="…or paste handles (comma/space separated)"
+            placeholder={kind === "hashtag" ? "#healthysnacksindia" : "healthy snacks india"}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && startSearch()}
+          />
+          <label className={styles.discMax}>
+            up to
+            <input
+              className={styles.field}
+              type="number"
+              min={5}
+              max={200}
+              value={maxItems}
+              onChange={(e) => setMaxItems(+e.target.value || 30)}
+            />
+            profiles
+          </label>
+          <button className="pm-btn primary" onClick={startSearch} disabled={starting || !query.trim()}>
+            <Search size={15} /> {starting ? "Starting…" : "Find influencers"}
+          </button>
+        </div>
+        <div className={styles.discAltRow}>
+          <span>or score specific accounts:</span>
+          <input
+            className={styles.field}
+            placeholder="Paste handles, comma or space separated"
             value={handlesInput}
             onChange={(e) => setHandlesInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addHandles()}
@@ -324,6 +330,7 @@ export default function DiscoveryTab() {
 
       {/* filters */}
       <div className={styles.discFilters}>
+        <span className={styles.filterLabel}>Filter</span>
         <select className={styles.field} value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">All statuses</option>
           {Object.entries(STATUS_LABEL).map(([k, v]) => (

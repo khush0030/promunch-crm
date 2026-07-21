@@ -215,13 +215,16 @@ export default function InstagramPage() {
   ], [classCounts, needsHuman, tasksCount]);
 
   return (
-    <div className={styles.wrap}>
-      <header className={styles.head}>
-        <div className={styles.title}>
-          <Instagram size={22} /> <span>Instagram</span>
-          {settings?.paused && <span className={styles.pausedPill}>Bot paused</span>}
+    <div className={`pm-page ${styles.wrap}`}>
+      <div className="pm-head">
+        <div>
+          <h1 className={styles.h1row}>
+            <Instagram size={22} /> Instagram
+            {settings?.paused && <span className={styles.pausedPill}>Bot paused</span>}
+          </h1>
+          <p>Inbox, influencer discovery, follow-ups &amp; collab pipeline</p>
         </div>
-        <div className={styles.toolbar}>
+        <div className="pm-acts">
           <div className={styles.searchBox}>
             <Search size={15} />
             <input
@@ -236,16 +239,16 @@ export default function InstagramPage() {
             <RefreshCw size={15} className={loading ? styles.spin : ""} /> Refresh
           </button>
         </div>
-      </header>
+      </div>
 
-      <nav className={styles.tabs}>
+      <nav className="pm-tabs">
         {tabs.map((t) => (
           <button
             key={t.key}
-            className={`${styles.tab} ${tab === t.key ? styles.tabOn : ""}`}
+            className={`pm-tab${tab === t.key ? " on" : ""}`}
             onClick={() => { setTab(t.key); setActiveId(null); }}
           >
-            {t.key === "settings" && <SettingsIcon size={14} />}
+            {t.key === "settings" && <SettingsIcon size={14} style={{ verticalAlign: "-2px", marginRight: 5 }} />}
             {t.label}
             {typeof t.count === "number" && t.count > 0 && <span className={styles.tabCount}>{t.count}</span>}
           </button>
