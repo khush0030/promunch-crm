@@ -470,25 +470,8 @@ async function handleContinuation(
   if (error) throw error;
 
   if (draft.ok) {
-    const revision = await nextRevision(threadRowId);
-    const { data: rev, error: revErr } = await supabase
-      .from("draft_revisions")
-      .insert({
-        email_thread_id: threadRowId,
-        revision,
-        body: draft.body,
-        model: draft.model,
-        is_current: true,
-      })
-      .select("id, revision")
-      .single();
-    if (revErr) throw revErr;
-
-    await supabase
-      .from("draft_revisions")
-      .update({ is_current: false })
-      .eq("email_thread_id", threadRowId)
-      .neq("id", rev.id);
+    const rev = await insertRevision(threadRowId, draft.body, draft.model);
+    if (!rev) return; // lost a concurrent race — the winner posts; never double-post
 
     try {
       if (slackThreadTs) {
@@ -605,25 +588,8 @@ async function retryFailedDraft(
     return { status: "skipped", reason: "draft-retry-failed" };
   }
 
-  const revision = await nextRevision(row.id);
-  const { data: rev, error: revErr } = await supabase
-    .from("draft_revisions")
-    .insert({
-      email_thread_id: row.id,
-      revision,
-      body: draft.body,
-      model: draft.model,
-      is_current: true,
-    })
-    .select("id, revision")
-    .single();
-  if (revErr) throw revErr;
-
-  await supabase
-    .from("draft_revisions")
-    .update({ is_current: false })
-    .eq("email_thread_id", row.id)
-    .neq("id", rev.id);
+  const rev = await insertRevision(row.id, draft.body, draft.model);
+  if (!rev) return { status: "skipped", reason: "duplicate-concurrent-delivery" };
 
   try {
     if (row.slack_thread_ts) {
@@ -719,4 +685,41 @@ async function nextRevision(emailThreadId: string): Promise<number> {
     .limit(1)
     .maybeSingle();
   return (data?.revision ?? 0) + 1;
+}
+
+// Insert the next draft revision, race-safe. `nextRevision` + insert is
+// read-then-act: under at-least-once/concurrent delivery two invocations of the
+// SAME message both compute the same revision number and race the INSERT. The
+// loser hits the (email_thread_id, revision) unique constraint (23505) — which
+// means a concurrent twin already created this revision and is posting it to
+// Slack. So we back off silently and return null: the caller must stop, never
+// double-post (§0 never-message-twice). Mirrors the new-thread race handling.
+// Returns the created row, or null if we lost the race.
+async function insertRevision(
+  emailThreadId: string,
+  body: string,
+  model: string,
+): Promise<{ id: string; revision: number } | null> {
+  const supabase = db();
+  const revision = await nextRevision(emailThreadId);
+  const { data: rev, error } = await supabase
+    .from("draft_revisions")
+    .insert({ email_thread_id: emailThreadId, revision, body, model, is_current: true })
+    .select("id, revision")
+    .single();
+  if (error) {
+    if (error.code === PG_UNIQUE_VIOLATION) {
+      console.warn(
+        `Duplicate concurrent revision ${revision} for thread ${emailThreadId}; backing off — the winning invocation posts it.`,
+      );
+      return null;
+    }
+    throw error;
+  }
+  await supabase
+    .from("draft_revisions")
+    .update({ is_current: false })
+    .eq("email_thread_id", emailThreadId)
+    .neq("id", rev.id);
+  return rev;
 }
