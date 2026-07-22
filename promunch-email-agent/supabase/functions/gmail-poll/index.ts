@@ -61,12 +61,18 @@ Deno.serve(async (req) => {
   } catch (e) {
     const msg = errStr(e);
     console.error("Poll run failed:", e);
+    // Transient Google-side auth blips (429/5xx from the token endpoint, already
+    // retried in gmail.ts) are not actionable — demote to a throttled warn so we
+    // don't fire a CRITICAL "re-auth now" card every 2 minutes. Genuine failures
+    // (expired token, code bugs) stay loud.
+    const transient = !!(e as { transient?: boolean })?.transient;
     await logConnector({
       connector: "gmail_pipeline",
-      level: "error",
+      level: transient ? "warn" : "error",
       event: "poll_failed",
       message: `Inbox poll could not run: ${msg.slice(0, 300)}`,
-      detail: { error: msg.slice(0, 1000) },
+      detail: { error: msg.slice(0, 1000), transient },
+      ...(transient ? { throttleMinutes: 30 } : {}),
     });
     return Response.json({ ok: false, error: msg }, { status: 500 });
   }

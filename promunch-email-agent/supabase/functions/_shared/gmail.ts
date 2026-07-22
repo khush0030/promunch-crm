@@ -32,6 +32,28 @@ const REAUTH_URL = SUPABASE_URL && SETUP_TOKEN
 // ---------------------------------------------------------------------------
 let _accessToken: { token: string; expiresAt: number } | null = null;
 
+// Google's token endpoint (oauth2.googleapis.com/token) intermittently answers
+// with HTTP 429 or 5xx `{"error":"internal_failure"}`. These are TRANSIENT
+// Google-side blips, not a bad/expired token — the correct handling is a short
+// backoff-retry, never a re-auth. Expiry/revocation is a deterministic 400
+// `invalid_grant`, which we do NOT retry (retrying can't fix it). Without this,
+// one Google hiccup fails the whole 2-minute poll and fires a CRITICAL
+// "re-auth now" alert that is a false alarm.
+async function tokenFetch(body: string): Promise<Response> {
+  let resp!: Response;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    resp = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body,
+    });
+    // 2xx = done; any 4xx other than 429 is deterministic → return immediately.
+    if (resp.ok || (resp.status !== 429 && resp.status < 500)) return resp;
+    if (attempt < 2) await new Promise((r) => setTimeout(r, 400 * 2 ** attempt));
+  }
+  return resp; // exhausted retries — caller logs + throws
+}
+
 export async function getAccessToken(): Promise<string> {
   if (_accessToken && _accessToken.expiresAt > Date.now() + 30_000) {
     return _accessToken.token;
@@ -89,14 +111,23 @@ export async function getAccessToken(): Promise<string> {
     grant_type: "refresh_token",
   });
 
-  const resp = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: params.toString(),
-  });
+  const resp = await tokenFetch(params.toString());
   if (!resp.ok) {
     const text = await resp.text();
     const expired = /invalid_grant|Token has been expired or revoked/i.test(text);
+    const transient = resp.status === 429 || resp.status >= 500;
+    if (transient) {
+      // A Google-side blip that survived retries. NOT a re-auth situation —
+      // log it quiet + throttled so the next poll just retries, no CRITICAL card.
+      await logConnector({
+        connector: "gmail_pipeline",
+        level: "warn",
+        event: "auth_transient",
+        message: `Gmail token endpoint transient ${resp.status} (Google-side), retried and still failing — next poll will retry, no action needed.`,
+        detail: { http_status: resp.status, response: text.slice(0, 300) },
+        throttleMinutes: 30,
+      });
+    }
     if (expired) {
       // Distinct event so the alert message tells the operator what to do
       // instead of dumping a raw OAuth 400 in Slack.
@@ -108,7 +139,9 @@ export async function getAccessToken(): Promise<string> {
         detail: { reauth_url: REAUTH_URL, http_status: resp.status, response: text.slice(0, 500) },
       });
     }
-    throw new Error(`OAuth token refresh failed: ${resp.status} ${text}`);
+    const err = new Error(`OAuth token refresh failed: ${resp.status} ${text}`);
+    (err as { transient?: boolean }).transient = transient;
+    throw err;
   }
   const json = await resp.json();
   _accessToken = {
@@ -163,14 +196,10 @@ async function getAccessTokenViaServiceAccount(): Promise<string> {
   );
   const jwt = `${signingInput}.${b64url(sig)}`;
 
-  const resp = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: jwt,
-    }).toString(),
-  });
+  const resp = await tokenFetch(new URLSearchParams({
+    grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    assertion: jwt,
+  }).toString());
   if (!resp.ok) {
     const text = await resp.text();
     // Most common cause: DWD not authorized for this client ID + scopes in the
