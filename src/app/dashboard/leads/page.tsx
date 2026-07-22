@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Search, Play, RefreshCw, Settings2, X, BookOpen, ChevronRight,
+  Search, Play, RefreshCw, Settings2, X, BookOpen, ChevronRight, Send,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "./leads.module.css";
@@ -24,6 +24,8 @@ import SearchModal from "@/components/leads/SearchModal";
 import SettingsModal from "@/components/leads/SettingsModal";
 import GuideModal from "@/components/leads/GuideModal";
 import LeadModal from "@/components/leads/LeadModal";
+import CampaignWizard from "@/components/leads/CampaignWizard";
+import ListPickerModal from "@/components/leads/ListPickerModal";
 
 export default function LeadsPage() {
   const toast = useToast();
@@ -41,6 +43,8 @@ export default function LeadsPage() {
   const [showStrip, setShowStrip] = useState(true);
   const [running, setRunning] = useState(false);
   const [runProgress, setRunProgress] = useState("");
+  const [showPicker, setShowPicker] = useState(false);
+  const [campaignListId, setCampaignListId] = useState<string | null>(null);
 
   useEffect(() => {
     setShowStrip(localStorage.getItem(GUIDE_DISMISS_KEY) !== "1");
@@ -121,11 +125,14 @@ export default function LeadsPage() {
               ? `Working… discovering companies and sending due emails ${runProgress}`
               : processing > 0
                 ? `${processing} leads still processing — hit “Keep going” to push them along.`
-                : "Find companies, save them as lists, run email sequences."}
+                : "Find companies, save them as lists, send them email campaigns."}
           </p>
         </div>
         <div className={styles.toolbar}>
-          <button type="button" className="pm-btn primary" onClick={() => setShowSearch(true)}>
+          <button type="button" className="pm-btn primary" onClick={() => setShowPicker(true)}>
+            <Send size={14} /> New email campaign
+          </button>
+          <button type="button" className="pm-btn" onClick={() => setShowSearch(true)}>
             <Search size={14} /> Find companies
           </button>
           <button type="button" className="pm-btn" onClick={() => runPipeline(10)} disabled={running}>
@@ -198,6 +205,7 @@ export default function LeadsPage() {
           lists={lists}
           loading={listsLoading}
           onOpen={setOpenListId}
+          onEmail={setCampaignListId}
           onChanged={loadLists}
           onFind={() => setShowSearch(true)}
         />
@@ -258,6 +266,23 @@ export default function LeadsPage() {
 
       {selected && (
         <LeadModal lead={selected} onClose={() => setSelected(null)} onChanged={reloadAll} />
+      )}
+
+      {showPicker && (
+        <ListPickerModal
+          lists={lists}
+          onClose={() => setShowPicker(false)}
+          onFind={() => setShowSearch(true)}
+          onPick={(id) => { setShowPicker(false); setCampaignListId(id); }}
+        />
+      )}
+
+      {campaignListId && (
+        <CampaignWizard
+          listId={campaignListId}
+          onClose={() => setCampaignListId(null)}
+          onDone={() => { setCampaignListId(null); reloadAll(); }}
+        />
       )}
     </div>
   );

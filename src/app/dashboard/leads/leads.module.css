@@ -870,6 +870,92 @@
 }
 .noEmailCell { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
+/* ── list multi-select (pick lists to merge / delete) ────────────────────── */
+.listCheck {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  cursor: pointer;
+  accent-color: var(--pm-green, #3f6b4f);
+}
+
+.groupHeadRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--pm-card2);
+  border-bottom: 1px solid var(--pm-line);
+  padding-left: 15px;
+}
+.groupHeadRow:has(.groupHead[aria-expanded="false"]) { border-bottom: none; }
+.groupHeadRow .groupHead {
+  background: transparent;
+  border-bottom: none;
+  padding-left: 0;
+  flex: 1;
+}
+
+.listSelRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 15px;
+  border-bottom: 1px solid var(--pm-line);
+}
+.listSelRow:last-child { border-bottom: none; }
+.listSelRow[data-sel="true"] { background: var(--pm-green-soft); }
+.listSelRow .listRow {
+  flex: 1;
+  border-bottom: none;
+  padding-left: 12px;
+}
+
+/* ── "which list?" picker (header New email campaign) ────────────────────── */
+.pickList {
+  display: flex;
+  flex-direction: column;
+  max-height: 46vh;
+  overflow-y: auto;
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-r2);
+}
+.pickRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 13px;
+  border: none;
+  border-bottom: 1px solid var(--pm-line);
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+}
+.pickRow:last-child { border-bottom: none; }
+.pickRow:hover { background: var(--pm-card2); }
+.pickName {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pickStat { color: var(--pm-muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pickEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 22px;
+  color: var(--pm-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
 /* ── campaign wizard ("Email this list") ─────────────────────────────────── */
 
 .wizSteps { display: flex; gap: 14px; margin-top: 8px; flex-wrap: wrap; }

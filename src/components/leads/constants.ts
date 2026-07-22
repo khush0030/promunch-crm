@@ -6,8 +6,8 @@ import { CheckCircle2, MailSearch, MapPin, PenLine } from "lucide-react";
 // v2 tabs: Lists are the primary object; sending happens through sequences.
 export const TABS: { key: string; label: string }[] = [
   { key: "lists", label: "Lists" },
-  { key: "sequences", label: "Sequences" },
-  { key: "templates", label: "Templates" },
+  { key: "sequences", label: "Campaigns" },
+  { key: "templates", label: "Saved emails" },
   { key: "replies", label: "Replies" },
   { key: "analytics", label: "Analytics" },
 ];

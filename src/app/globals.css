@@ -473,8 +473,12 @@ textarea.input { resize: vertical; min-height: 80px; }
 .pm-btn{font-family:var(--pm-font);display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;border-radius:var(--pm-r2);padding:10px 15px;cursor:pointer;border:1px solid var(--pm-border);background:var(--pm-card);color:var(--pm-ink);text-decoration:none}
 .pm-btn svg{width:15px;height:15px}
 .pm-btn.primary{background:var(--pm-green);color:#fff;border-color:var(--pm-green)}
+.pm-btn.danger{background:var(--pm-terra);color:#fff;border-color:var(--pm-terra)}
+.pm-btn.danger.soft{background:var(--pm-terra-soft);color:var(--pm-terra);border-color:transparent}
 .pm-btn.ghost{background:transparent}
 .pm-btn:disabled{opacity:.55;cursor:not-allowed}
+.pm-linkbtn{font-family:var(--pm-font);background:none;border:0;padding:0;color:var(--pm-green);font-weight:600;cursor:pointer;text-decoration:underline;font-size:inherit}
+.pm-linkbtn:hover{color:var(--pm-ink)}
 .pm-btn.sm{padding:5px 11px;font-size:12px}
 .pm-sectlab{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--pm-hint);font-weight:600;margin:22px 2px 11px}
 
