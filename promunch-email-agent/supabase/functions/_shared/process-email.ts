@@ -108,6 +108,17 @@ export async function processIncomingMessage(messageId: string): Promise<{
     return { status: "skipped", reason: "already-processed" };
   }
 
+  // NEW message. Take an atomic claim BEFORE the expensive fetch + OpenAI draft.
+  // Pub/Sub is at-least-once and a push can race the 2-min poll, so several
+  // invocations reach here for the same id; the claim lets exactly one proceed
+  // and the rest skip — no double OpenAI spend, no duplicate Slack draft, no
+  // 23505 revision race. Steal-able after the claim window so a crashed run is
+  // retried by the poll. (The downstream insertRevision backoff stays as a
+  // second line of defence.)
+  if (!(await claimEmailMessage(messageId))) {
+    return { status: "skipped", reason: "concurrent-claim" };
+  }
+
   // Fetch + parse the email
   const email = await getMessage(messageId);
 
@@ -674,6 +685,27 @@ async function retryFailedDraft(
   }
 
   return { status: "processed" };
+}
+
+// Atomic, windowed claim on a Gmail message id (Postgres claim_email_message).
+// Serialises concurrent / at-least-once deliveries of the SAME message so only
+// ONE invocation does the fetch + OpenAI draft; duplicates skip. Same claim
+// family as claim_order_confirmation (§0). FAILS OPEN — if the RPC/table isn't
+// present yet (code deployed before the migration is applied) it returns true
+// so we never silently drop mail; the insertRevision backoff still prevents a
+// duplicate revision in that interim window.
+async function claimEmailMessage(messageId: string): Promise<boolean> {
+  const { data, error } = await db().rpc("claim_email_message", {
+    p_message_id: messageId,
+  });
+  if (error) {
+    console.warn(
+      `[claim] claim_email_message unavailable for ${messageId}, proceeding fail-open:`,
+      error.message,
+    );
+    return true;
+  }
+  return data === true;
 }
 
 async function nextRevision(emailThreadId: string): Promise<number> {
