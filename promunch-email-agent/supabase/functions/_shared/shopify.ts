@@ -1,7 +1,6 @@
 // Shopify webhook HMAC verification + Slack block builder for orders.
 
-export async function verifyShopifyHmac(rawBody: string, headerHmac: string | null, secret: string): Promise<boolean> {
-  if (!headerHmac) return false;
+async function hmacMatches(rawBody: string, headerHmac: string, secret: string): Promise<boolean> {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -16,6 +15,33 @@ export async function verifyShopifyHmac(rawBody: string, headerHmac: string | nu
   let diff = 0;
   for (let i = 0; i < computed.length; i++) diff |= computed.charCodeAt(i) ^ headerHmac.charCodeAt(i);
   return diff === 0;
+}
+
+// Shopify signs a webhook with the API secret of the APP THAT REGISTERED IT, not
+// with one store-wide secret. This store has webhooks from more than one source:
+// the long-standing orders/* subscriptions (signed with SHOPIFY_WEBHOOK_SECRET)
+// and the checkouts/* subscriptions registered through the client-credentials
+// app by shopify-webhooks-ensure (signed with SHOPIFY_CLIENT_SECRET).
+//
+// Verifying against only one of those silently 401s the other — and a rejected
+// webhook leaves no trace anywhere, which is the failure mode that hid the
+// broken cart pipeline for weeks. So accept a match against ANY configured
+// secret. This does not weaken the check: each candidate is still a full
+// constant-time HMAC verification, and an attacker must forge one of them.
+export async function verifyShopifyHmac(
+  rawBody: string,
+  headerHmac: string | null,
+  secret: string,
+  extraSecrets: (string | undefined | null)[] = [],
+): Promise<boolean> {
+  if (!headerHmac) return false;
+  const candidates = [secret, ...extraSecrets].filter(
+    (s): s is string => typeof s === "string" && s.length > 0,
+  );
+  for (const c of candidates) {
+    if (await hmacMatches(rawBody, headerHmac, c)) return true;
+  }
+  return false;
 }
 
 export function fmtMoney(amount: number, currency = "INR"): string {

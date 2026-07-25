@@ -27,7 +27,13 @@ Deno.serve(async (req) => {
   const hmac = req.headers.get("x-shopify-hmac-sha256");
   const secret = Deno.env.get("SHOPIFY_WEBHOOK_SECRET");
   if (!secret) return new Response("server-misconfig", { status: 500 });
-  if (!(await verifyShopifyHmac(raw, hmac, secret))) {
+  // checkouts/* is signed with the client-credentials app's secret (see
+  // verifyShopifyHmac) — accept either, or every cart webhook 401s in silence.
+  if (!(await verifyShopifyHmac(raw, hmac, secret, [Deno.env.get("SHOPIFY_CLIENT_SECRET")]))) {
+    await logConnector({
+      connector: "shopify_wa", level: "error", event: "webhook_bad_hmac",
+      message: `Rejected ${req.headers.get("x-shopify-topic") ?? "unknown"} webhook: HMAC matched no configured secret.`,
+    }).catch(() => {});
     return new Response("bad-hmac", { status: 401 });
   }
 
