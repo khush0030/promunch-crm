@@ -18,6 +18,16 @@ export const maxDuration = 60;
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
+// The pg_cron job for this route calls it with net.http_POST, but only GET was
+// exported — so every firing since it was scheduled came back 405 Method Not
+// Allowed (24 of them in the last 2 days alone, visible in net._http_response).
+// Scheduled/recurring campaigns were never actually being fired by this tick.
+// Accept both verbs rather than rewrite the cron command, so an existing GET
+// caller (Vercel's own cron) keeps working too.
+export async function POST(req: NextRequest) {
+  return GET(req);
+}
+
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret) return NextResponse.json({ ok: false, error: "CRON_SECRET not configured" }, { status: 401 });
