@@ -181,6 +181,36 @@ Deno.serve(async (req) => {
     .not("contact_id", "is", null);
   const blockedSet = new Set((ticketed ?? []).map((t) => t.contact_id));
 
+  // CART PRIORITY. Meta throttles MARKETING templates per recipient (#131049),
+  // so every broadcast we send to someone burns the delivery slot their
+  // abandoned-cart nudge needs. Measured over 60 days: campaigns spent 4,487
+  // sends and lost 2,564 of them (57%) to that cap, while cart recovery — a
+  // customer who put items in a basket minutes ago — failed 77% of the time and
+  // recovered exactly one cart. The broadcast is worth a fraction of the cart.
+  //
+  // So anyone with an in-flight cart run is HELD OUT of the broadcast until
+  // their cart sequence finishes (delivered, converted, or expired at the 72h
+  // deadline). They are deferred, not dropped: they fall into trulyRemaining
+  // again on a later batch, exactly like the open-ticket hold above.
+  const cartHeld = new Set<string>();
+  {
+    const activeCartWaIds = new Set<string>();
+    for (let from = 0; ; from += 1000) {
+      const { data: page } = await sb.from("wa_journey_runs")
+        .select("wa_id")
+        .eq("journey_key", "abandoned_checkout")
+        .eq("status", "active")
+        .range(from, from + 999);
+      if (!page || page.length === 0) break;
+      for (const r of page) if (r.wa_id) activeCartWaIds.add(String(r.wa_id));
+      if (page.length < 1000) break;
+    }
+    if (activeCartWaIds.size) {
+      for (const c of contacts) if (activeCartWaIds.has(c.wa_id)) cartHeld.add(c.id);
+    }
+  }
+  for (const id of cartHeld) blockedSet.add(id);
+
   const baseVars: Record<string, string> = campaign.template_vars ?? {};
   const aiBrief = typeof baseVars._ai_brief === "string" ? baseVars._ai_brief.trim() : "";
   const personalized = aiBrief.length > 0;
@@ -203,7 +233,9 @@ Deno.serve(async (req) => {
     }).eq("id", campaignId);
     return j({ ok: true, status: "sending", deferred: true, remaining: trulyRemaining.length, note: "daily cap reached — resuming next day" });
   }
-  const ticketSkipped = contacts.filter((c) => !reached.has(c.id) && !permanentFail.has(c.id) && blockedSet.has(c.id)).length;
+  const held = contacts.filter((c) => !reached.has(c.id) && !permanentFail.has(c.id) && blockedSet.has(c.id));
+  const cartSkipped = held.filter((c) => cartHeld.has(c.id)).length;
+  const ticketSkipped = held.length - cartSkipped;
 
   // ---- proactive daily budget (account standing) ----
   // Meta's messaging tier caps UNIQUE recipients of business-initiated sends
@@ -398,7 +430,7 @@ Deno.serve(async (req) => {
   }).catch(() => {});
   try { (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil?.(chain); } catch { /* not on edge runtime */ }
 
-  return j({ ok: true, sent, failed, claim_skipped: skipped, processed: queue.length, personalized, ticket_skipped: ticketSkipped, status: "sending" });
+  return j({ ok: true, sent, failed, claim_skipped: skipped, processed: queue.length, personalized, ticket_skipped: ticketSkipped, cart_skipped: cartSkipped, status: "sending" });
 });
 
 function extractVarKeys(body: string): string[] {

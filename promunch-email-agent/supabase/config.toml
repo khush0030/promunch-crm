@@ -58,6 +58,9 @@ verify_jwt = false                    # called server-side with the service key 
 [functions.shopify-consent-set]
 verify_jwt = false                    # self-auths via requireInternal (service-role bearer)
 
+[functions.shopify-webhooks-ensure]
+verify_jwt = false                    # self-auths via requireInternal (service-role bearer)
+
 [functions.shopify-stats]
 verify_jwt = true                     # called server-side with the anon key by /api/shopify/stats
 

@@ -301,7 +301,11 @@ export default function CampaignsView() {
   const { data: recovery = null } = useQuery({
     queryKey: ["wa-cart-recovery"],
     queryFn: async (): Promise<
-      { enrolled: number; recovered: number; delivered: number; retrying: number; missed: number; reached: number; reachRate: number } | null
+      {
+        enrolled: number; recovered: number; selfReturned: number; delivered: number;
+        retrying: number; missed: number; reached: number; reachRate: number; recoveryRate: number;
+        email: { enrolled: number; recovered: number; sending: number };
+      } | null
     > => {
       const r = await fetch("/api/whatsapp/cart-recovery");
       const j = await r.json();
@@ -371,7 +375,7 @@ export default function CampaignsView() {
 
       <QuotaBanner quota={quota} onSaved={() => qc.invalidateQueries({ queryKey: ["wa-quota"] })} />
 
-      {recovery && recovery.enrolled > 0 && (
+      {recovery && (recovery.enrolled > 0 || recovery.email.enrolled > 0) && (
         <div style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 }}>
             Abandoned-cart recovery · last 30 days
@@ -379,9 +383,11 @@ export default function CampaignsView() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 10 }}>
             {[
               { n: recovery.reached, l: "Reached", hint: `${recovery.reachRate}% of ${recovery.enrolled} carts got a message`, color: "var(--pm-green)" },
-              { n: recovery.recovered, l: "Recovered", hint: "checked out after the nudge", color: "var(--pm-green)" },
+              { n: recovery.recovered, l: "Recovered", hint: `${recovery.recoveryRate}% of reached bought after the nudge`, color: "var(--pm-green)" },
+              { n: recovery.selfReturned, l: "Came back alone", hint: "bought without us reaching them", color: "var(--pm-hint)" },
               { n: recovery.retrying, l: "Retrying", hint: "in-flight, not yet delivered", color: "var(--pm-gold)" },
               { n: recovery.missed, l: "Missed", hint: "deadline passed, never delivered", color: recovery.missed > 0 ? "var(--pm-terra)" : "var(--pm-hint)" },
+              { n: recovery.email.enrolled, l: "Email carts", hint: `${recovery.email.recovered} recovered, ${recovery.email.sending} sending`, color: "var(--pm-green)" },
             ].map((s) => (
               <div key={s.l} style={cardStyle}>
                 <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: -0.6, color: s.color }}>{s.n.toLocaleString("en-IN")}</div>

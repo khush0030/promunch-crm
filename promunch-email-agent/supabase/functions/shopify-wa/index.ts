@@ -143,16 +143,67 @@ async function handleOrderCancelled(order: any) {
 // safety net in case it ever moves there. Returns the first http(s) URL found,
 // or null if the note has none.
 function noteCheckoutUrl(checkout: any): string | null {
-  const URL_RE = /https?:\/\/\S+/;
+  // Trailing ) . , " ' are note punctuation, not part of the link.
+  const URL_RE = /https?:\/\/[^\s"'<>]+[^\s"'<>.,;:)\]]/g;
+  // Super Money Breeze stamps its recovery links with these markers. Prefer a
+  // marked link over "first URL in the note": a note can also carry an unrelated
+  // link (support page, invoice, tracking), and sending that instead of the
+  // recovery URL silently costs the whole cart.
+  const SMB_RE = /(atomsSt=|bzCartRec=)/;
+
+  const candidates: string[] = [];
   const note = String(checkout?.note ?? "");
-  const m = note.match(URL_RE);
-  if (m) return m[0];
+  candidates.push(...(note.match(URL_RE) ?? []));
   const attrs = Array.isArray(checkout?.note_attributes) ? checkout.note_attributes : [];
   for (const a of attrs) {
-    const mm = String(a?.value ?? "").match(URL_RE);
-    if (mm) return mm[0];
+    candidates.push(...(String(a?.value ?? "").match(URL_RE) ?? []));
   }
-  return null;
+  if (candidates.length === 0) return null;
+  return candidates.find((u) => SMB_RE.test(u)) ?? candidates[0];
+}
+
+// Rebase a storefront link onto the brand domain. The Super Money Breeze
+// recovery link arrives on the raw myshopify host; promunch.in is the store's
+// primary domain and serves the same storefront paths, so the cart rehydrates
+// identically. Scoped to the myshopify host on purpose — any other host (a
+// partner-owned domain, say) is left exactly as the partner wrote it.
+function brandUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    if (!/\.myshopify\.com$/i.test(u.hostname)) return url;
+    const site = new URL(SITE_URL);
+    u.protocol = site.protocol;
+    u.host = site.host;
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+/** Path + query + hash of a URL (what the template's {{1}} suffix needs). */
+function pathOf(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.pathname}${u.search}${u.hash}` || "/cart";
+  } catch {
+    return url.replace(/^https?:\/\/[^/]+/, "") || "/cart";
+  }
+}
+
+/** Stamp a recovery link with UTMs so recovered orders are attributable. */
+function withUtm(url: string, content: string): string {
+  try {
+    const u = new URL(url);
+    // Never clobber params the checkout partner put there (atomsSt/bzCartRec
+    // are what actually rehydrate the cart).
+    u.searchParams.set("utm_source", "whatsapp");
+    u.searchParams.set("utm_medium", "cart_recovery");
+    u.searchParams.set("utm_campaign", "abandoned_cart");
+    u.searchParams.set("utm_content", content);
+    return u.toString();
+  } catch {
+    return url;
+  }
 }
 
 // --- checkouts/create + checkouts/update: abandoned-checkout enrolment ------
@@ -200,7 +251,14 @@ async function handleCheckout(checkout: any) {
   // that note URL; the token rehydrates the partner cart on tap. Only fall back
   // to Shopify's native URL (then /cart) when the note carries no link.
   const noteUrl = noteCheckoutUrl(checkout);
-  const recoverUrl: string = noteUrl || checkout.abandoned_checkout_url || `${SITE_URL}/cart`;
+  // Normalise onto the brand domain. The note URL arrives on the raw
+  // a1e4f4-2.myshopify.com host, which we then sent verbatim in the free-text
+  // recovery path — the customer saw a myshopify.com link while the template
+  // path (base https://promunch.in/{{1}}) showed promunch.in for the same cart.
+  // Same store, same path, so rebasing is safe and makes both paths identical.
+  const recoverUrl: string = brandUrl(
+    noteUrl || checkout.abandoned_checkout_url || `${SITE_URL}/cart`,
+  );
 
   // User-created flows on this trigger (own atomic claim per flow+checkout;
   // independent of the built-in cart flow's toggle and enrol gate).
@@ -229,13 +287,22 @@ async function handleCheckout(checkout: any) {
 
   // Both templates carry a dynamic URL button: base https://promunch.in/{{1}}.
   // We fill {{1}} with a path suffix that gets appended to that base.
-  const recoverPath = recoverUrl.replace(/^https?:\/\/[^/]+/, "") || "/cart";
+  //
+  // Each step's landing URL is UTM-stamped so recovered revenue is measurable.
+  // Until now cart links carried no tracking at all: the dashboard could not
+  // tell "message never delivered" from "delivered and ignored", and a customer
+  // who tapped through and bought was indistinguishable from one who wandered
+  // back on their own. shopify-orders-backfill already reads UTM tags off
+  // customerJourneySummary into shopify_orders, so stamping here is enough to
+  // attribute the order end to end.
+  const reminderTarget = withUtm(recoverUrl, "cart_reminder");
+  const couponTarget = withUtm(recoverUrl, "cart_coupon");
 
   // Step 1 (reminder, NO coupon): {{1}} is the bare recovery-checkout path, so
   // tapping "Complete Order" drops the customer straight back on their cart —
   // full price, no discount given away yet. Strip the leading slash to avoid a
   // double slash against the template's base URL.
-  const reminderSuffix = recoverPath.replace(/^\//, "");
+  const reminderSuffix = pathOf(reminderTarget).replace(/^\//, "");
   const reminderComponents = [
     { type: "body", parameters: [{ type: "text", text: name }] },
     { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: reminderSuffix }] },
@@ -244,7 +311,7 @@ async function handleCheckout(checkout: any) {
   // Step 2 (recovery, WITH coupon): {{1}} is a Shopify discount link —
   // /discount/<code>?redirect=<recovery checkout> — so tapping it applies the
   // coupon AND drops the customer on their own cart, discount already on.
-  const discountSuffix = `discount/${code}?redirect=${encodeURIComponent(recoverPath)}`;
+  const discountSuffix = `discount/${code}?redirect=${encodeURIComponent(pathOf(couponTarget))}`;
   const discountComponents = [
     { type: "body", parameters: [{ type: "text", text: name }] },
     { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: discountSuffix }] },
@@ -264,7 +331,7 @@ async function handleCheckout(checkout: any) {
   // delivers these when the customer's 24h window is open, dodging #131049). The
   // template path uses the path-suffix components above; the free-text path needs
   // the whole https URL. vars["1"]=name, vars["2"]=link, matching callProactiveAsk.
-  const reminderUrl = recoverUrl;
+  const reminderUrl = reminderTarget;
   const discountUrl = `${SITE_URL}/${discountSuffix}`;
 
   // All cart runs share one retry deadline: keep trying (free text in-window, or
