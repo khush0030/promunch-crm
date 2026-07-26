@@ -20,7 +20,7 @@ import {
 import { REVIEW_URL, SITE_URL, firstName, toWaId } from "./journeys.ts";
 import { getFlowSettings, type FlowSettings } from "./flow-settings.ts";
 import { enrolCustomFlows } from "./custom-flows.ts";
-import { enrolEmailFlow, convertAbandonedEmailFlows } from "./email-flows.ts";
+import { enrolEmailFlow, convertAbandonedEmailFlows, convertAbandonedEmailFlowsByCheckout } from "./email-flows.ts";
 import {
   buildVerifyComponents,
   buildVerifyVars,
@@ -54,6 +54,10 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
   try {
     const email = order.email ?? order.customer?.email ?? null;
     const nm = firstName(order.customer?.first_name, order.shipping_address?.first_name, order.billing_address?.first_name);
+    // Stop by checkout token FIRST: it works even when the order has no email
+    // (most PROMUNCH orders are phone-only), where the email-keyed stop below
+    // silently no-ops and would leave the cart sequence running post-purchase.
+    await convertAbandonedEmailFlowsByCheckout(order.checkout_token ?? order.cart_token ?? null);
     await convertAbandonedEmailFlows(email);
     await enrolEmailFlow("order_placed", { email, entityRef: orderRef, dedupPrefix: "postpurchase", firstName: nm });
   } catch (e) {

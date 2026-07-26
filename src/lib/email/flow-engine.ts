@@ -41,12 +41,86 @@ function hoursFromNow(h: number): string {
   return new Date(Date.now() + h * 3_600_000).toISOString();
 }
 
-function personalize(html: string, ctx: Record<string, unknown> | null, first: string | null): string {
+function esc(s: string): string {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function money(n: number): string {
+  return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+}
+
+/**
+ * Render the customer's actual cart as a table. Showing the real items is the
+ * single biggest lift in a recovery email: "your cart is waiting" is generic,
+ * "your 2 Cream & Onion Crunchies are waiting" is theirs. Item titles come from
+ * Shopify, so they are escaped.
+ */
+function cartItemsHtml(ctx: Record<string, unknown>): string {
+  const raw = Array.isArray(ctx.items) ? (ctx.items as Array<Record<string, unknown>>) : [];
+  if (raw.length === 0) return "";
+  const rows = raw.slice(0, 8).map((it) => {
+    const title = esc(String(it.title ?? it.name ?? "Item"));
+    const qty = Number(it.quantity ?? 1);
+    const line = Number(it.price ?? 0) * qty;
+    return `<tr>
+      <td style="padding:10px 0;border-bottom:1px solid #EFE8DB;font-size:15px;color:#1A1714;">${title}${qty > 1 ? ` <span style="color:#6E665A;">x${qty}</span>` : ""}</td>
+      <td style="padding:10px 0;border-bottom:1px solid #EFE8DB;font-size:15px;color:#1A1714;text-align:right;white-space:nowrap;">${money(line)}</td>
+    </tr>`;
+  }).join("");
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;">${rows}</table>`;
+}
+
+/**
+ * Stamp the recovery link so a recovered order is attributable to the exact
+ * email that won it. utm_content carries the step number, which is what tells
+ * us whether the coupon step is actually earning its margin give-away.
+ */
+function trackedCheckoutUrl(url: string, stepIndex: number): string {
+  try {
+    const u = new URL(url);
+    u.searchParams.set("utm_source", "email");
+    u.searchParams.set("utm_medium", "cart_recovery");
+    u.searchParams.set("utm_campaign", "abandoned_cart");
+    u.searchParams.set("utm_content", `email_${stepIndex + 1}`);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+function personalize(
+  html: string,
+  ctx: Record<string, unknown> | null,
+  first: string | null,
+  stepIndex = 0,
+  coupon = "",
+): string {
   const c = ctx ?? {};
-  const checkout = String(c.checkout_url ?? c.url ?? "https://promunch.in");
+  const checkout = trackedCheckoutUrl(
+    String(c.checkout_url ?? c.url ?? "https://promunch.in"),
+    stepIndex,
+  );
+  const totalNum = Number(c.total ?? 0);
   return html
+    .replace(/\{\{\s*first_name\s*\}\}/g, esc(first || "there"))
+    .replace(/\{\{\s*checkout_url\s*\}\}/g, checkout)
+    .replace(/\{\{\s*cart_items\s*\}\}/g, cartItemsHtml(c))
+    .replace(/\{\{\s*cart_total\s*\}\}/g, totalNum > 0 ? money(totalNum) : "your cart")
+    .replace(/\{\{\s*coupon_code\s*\}\}/g, esc(coupon));
+}
+
+/** Subjects support the same tokens; a name in the subject lifts opens. */
+function personalizeSubject(
+  subject: string,
+  ctx: Record<string, unknown> | null,
+  first: string | null,
+  coupon = "",
+): string {
+  const totalNum = Number((ctx ?? {}).total ?? 0);
+  return subject
     .replace(/\{\{\s*first_name\s*\}\}/g, first || "there")
-    .replace(/\{\{\s*checkout_url\s*\}\}/g, checkout);
+    .replace(/\{\{\s*cart_total\s*\}\}/g, totalNum > 0 ? money(totalNum) : "your cart")
+    .replace(/\{\{\s*coupon_code\s*\}\}/g, coupon);
 }
 
 async function fetchSuppressedSet(): Promise<Set<string>> {
@@ -173,13 +247,18 @@ export async function tick(): Promise<FlowTickResult> {
     }
 
     try {
+      const first = (contact?.first_name as string | null) ?? null;
+      const coupon = step.coupon_code ?? "";
       const html = renderMarketingEmail({
         contactId: e.contact_id,
-        bodyHtml: personalize(step.body_html, e.context, (contact?.first_name as string | null) ?? null),
+        bodyHtml: personalize(step.body_html, e.context, first, e.current_step, coupon),
+        previewText: step.preview_text
+          ? personalizeSubject(step.preview_text, e.context, first, coupon)
+          : undefined,
       });
       const r = await sendEmail({
         to: contact!.email as string,
-        subject: step.subject,
+        subject: personalizeSubject(step.subject, e.context, first, coupon),
         html,
         from: DEFAULT_FROM,
         headers: marketingHeaders(e.contact_id),

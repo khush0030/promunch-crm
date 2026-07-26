@@ -229,13 +229,30 @@ async function handleCheckout(checkout: any) {
   try {
     const email = checkout.email ?? checkout.customer?.email ?? null;
     const nm = firstName(checkout.customer?.first_name, checkout.shipping_address?.first_name);
-    const rUrl = noteCheckoutUrl(checkout) || checkout.abandoned_checkout_url || `${SITE_URL}/cart`;
+    const rUrl = brandUrl(
+      noteCheckoutUrl(checkout) || checkout.abandoned_checkout_url || `${SITE_URL}/cart`,
+    );
+    // Carry the actual cart so the recovery emails can name what they left
+    // behind ("your 2 Cream & Onion Crunchies") instead of "your cart". Kept to
+    // the fields the templates render, so we are not parking customer PII in
+    // enrolment context we do not need.
+    const items = (Array.isArray(checkout.line_items) ? checkout.line_items : [])
+      .slice(0, 8)
+      .map((li: any) => ({
+        title: String(li?.title ?? li?.name ?? "Item"),
+        quantity: Number(li?.quantity ?? 1),
+        price: Number(li?.price ?? 0),
+      }));
     await enrolEmailFlow("checkout_abandoned", {
       email,
       entityRef: token,
       dedupPrefix: "abandoned",
       firstName: nm,
-      context: { checkout_url: rUrl },
+      context: {
+        checkout_url: rUrl,
+        items,
+        total: Number(checkout.total_price ?? 0),
+      },
     });
   } catch (e) {
     console.warn("[shopify-wa] email cart enrol:", e);

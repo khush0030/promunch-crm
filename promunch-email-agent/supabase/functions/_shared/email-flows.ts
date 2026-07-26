@@ -83,6 +83,31 @@ export async function enrolEmailFlow(
     );
 }
 
+// Stop an abandoned-cart email flow by the CHECKOUT TOKEN the order came from.
+//
+// This exists because the email-keyed stop below is not sufficient: it returns
+// early when the order carries no email, and most PROMUNCH orders are
+// phone-only. Without this, a customer who abandoned with an email and then
+// completed a phone-only order would keep receiving "your cart is still saved"
+// for the next 22 hours, after having already bought. That is the exact
+// post-purchase spam the no-duplicate invariant exists to prevent.
+//
+// The enrolment's dedup_key is `abandoned:<checkout token>` (see enrolEmailFlow
+// callers in shopify-wa), and Shopify stamps the originating checkout on the
+// order as checkout_token, so this is an exact match and needs no identity
+// resolution at all.
+export async function convertAbandonedEmailFlowsByCheckout(
+  checkoutToken?: string | null,
+): Promise<void> {
+  const t = String(checkoutToken ?? "").trim();
+  if (!t) return;
+  await db()
+    .from("flow_enrollments")
+    .update({ status: "converted", updated_at: new Date().toISOString() })
+    .eq("dedup_key", `abandoned:${t}`)
+    .eq("status", "active");
+}
+
 // When a customer places an order, stop their ACTIVE abandoned-cart email flows
 // (they converted). Post-purchase / welcome flows are left running.
 export async function convertAbandonedEmailFlows(email?: string | null): Promise<void> {

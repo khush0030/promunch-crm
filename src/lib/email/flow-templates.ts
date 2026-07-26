@@ -20,12 +20,19 @@ export type FlowTrigger =
 
 export type FlowStep = {
   type: "email";
-  /** Wait before THIS email, relative to the previous step (or enrolment). */
+  /** Wait before THIS email, relative to the previous step (or enrolment).
+   *  Fractional values are allowed: 0.25 = 15 minutes. */
   delay_hours: number;
   subject: string;
   body_html: string;
   /** Optional coupon surfaced in the builder; copy references it by name. */
   coupon_code?: string;
+  /**
+   * Inbox preview line (the grey text after the subject). Email clients fall
+   * back to scraping the first words of the body when this is absent, which
+   * reads as noise and measurably costs opens. Worth setting on every step.
+   */
+  preview_text?: string;
 };
 
 export type FlowCategory =

@@ -159,3 +159,6 @@ verify_jwt = false                    # pg_cron + dashboard invoke with service-
 
 [functions.b2b-send]
 verify_jwt = false                    # self-auths via requireInternal (service-role bearer)
+
+[functions.shopify-carts-audit]
+verify_jwt = false                    # self-auths via requireInternal (service-role bearer)
