@@ -9,7 +9,7 @@
 import { db } from "./supabase.ts";
 import { logConnector } from "./connector-log.ts";
 import {
-  buildConfirmationTemplate,
+  chooseConfirmationTemplate,
   claimConfirmation,
   confirmationAlreadySent,
   markConfirmationSent,
@@ -140,7 +140,10 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
         vars, components: buildVerifyComponents(vars, order.id),
       };
     } else {
-      template = buildConfirmationTemplate(name, orderRef);
+      // First-order vs returning-customer template is Flows-tab config.
+      template = await chooseConfirmationTemplate({
+        waId, customerName: name, orderRef, excludeShopifyId: order.id ?? null, flows,
+      });
     }
     const res = await callWaSend({
       to: waId,

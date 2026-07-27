@@ -23,6 +23,21 @@ export interface FlowSettings {
   cod_gate_enabled: boolean;
   cod_reminder_delay_hours: number;
   cod_needs_call_hours: number;
+  // Confirmation template variants (Flows tab). first = every customer's
+  // default; repeat = used instead when the order phone has an earlier
+  // shopify_orders row AND the template is approved at Meta. Empty repeat
+  // (or unapproved) falls back to first. Both templates MUST take vars
+  // 1=name 2=orderRef — same contract as order_confirmation_v2.
+  confirmation_template_first: string;
+  confirmation_template_repeat: string;
+  // Brand voice — the sign-off appended to system-written free-text messages,
+  // with a per-surface switch each. Template copy is NOT affected (edit that
+  // in the Templates tab; Meta re-approves edits).
+  tagline_text: string;
+  tagline_bot_replies: boolean;
+  tagline_proactive_asks: boolean;
+  tagline_cod_gate: boolean;
+  tagline_checkout_footer: boolean;
 }
 
 export const FLOW_DEFAULTS: FlowSettings = {
@@ -41,6 +56,13 @@ export const FLOW_DEFAULTS: FlowSettings = {
   cod_gate_enabled: false,
   cod_reminder_delay_hours: 6,
   cod_needs_call_hours: 24,
+  confirmation_template_first: "order_confirmation_v2",
+  confirmation_template_repeat: "",
+  tagline_text: "Your Munchy Pal 💚",
+  tagline_bot_replies: true,
+  tagline_proactive_asks: true,
+  tagline_cod_gate: true,
+  tagline_checkout_footer: true,
 };
 
 export async function getFlowSettings(): Promise<FlowSettings> {

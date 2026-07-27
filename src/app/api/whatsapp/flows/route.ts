@@ -26,13 +26,26 @@ const DEFAULTS = {
   cod_gate_enabled: false,
   cod_reminder_delay_hours: 6,
   cod_needs_call_hours: 24,
+  confirmation_template_first: "order_confirmation_v2",
+  confirmation_template_repeat: "",
+  tagline_text: "Your Munchy Pal 💚",
+  tagline_bot_replies: true,
+  tagline_proactive_asks: true,
+  tagline_cod_gate: true,
+  tagline_checkout_footer: true,
 };
 type Settings = typeof DEFAULTS;
 
 const BOOL_KEYS = [
   "order_confirmation_enabled", "shipping_update_enabled", "abandoned_cart_enabled",
   "review_request_enabled", "replenishment_enabled", "cod_gate_enabled",
+  "tagline_bot_replies", "tagline_proactive_asks", "tagline_cod_gate", "tagline_checkout_footer",
 ] as const;
+
+// Meta template names: lowercase letters, digits, underscores. first may not
+// be blank (it is THE confirmation); repeat may be "" = "same as first".
+const TEMPLATE_KEYS = ["confirmation_template_first", "confirmation_template_repeat"] as const;
+const TEMPLATE_NAME_RE = /^[a-z0-9_]{1,512}$/;
 
 const NUM_LIMITS: Record<string, { min: number; max: number }> = {
   cart_step1_delay_hours: { min: 0.25, max: 168 },
@@ -111,6 +124,26 @@ export async function PATCH(req: NextRequest) {
         { error: `${k} must be between ${lim.min} and ${lim.max}` }, { status: 400 });
     }
     patch[k] = n;
+  }
+  for (const k of TEMPLATE_KEYS) {
+    if (body[k] === undefined) continue;
+    const name = String(body[k]).trim();
+    if (name === "" && k === "confirmation_template_first") {
+      return NextResponse.json({ error: "first-order template cannot be empty" }, { status: 400 });
+    }
+    if (name !== "" && !TEMPLATE_NAME_RE.test(name)) {
+      return NextResponse.json(
+        { error: `${k} must be a Meta template name (lowercase letters, digits, underscores)` },
+        { status: 400 });
+    }
+    patch[k] = name;
+  }
+  if (body.tagline_text !== undefined) {
+    const tagline = String(body.tagline_text).trim();
+    if (tagline.length > 60) {
+      return NextResponse.json({ error: "tagline must be 60 characters or fewer" }, { status: 400 });
+    }
+    patch.tagline_text = tagline;
   }
   if (body.cart_coupon_code !== undefined) {
     const code = String(body.cart_coupon_code).trim().toUpperCase();

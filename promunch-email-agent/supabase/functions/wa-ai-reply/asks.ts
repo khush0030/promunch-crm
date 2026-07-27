@@ -8,6 +8,7 @@ import { lookupOrders, type OrderSummary } from "../_shared/orders.ts";
 import { MODEL, OPENAI_API_KEY } from "./config.ts";
 import { chatCreate } from "./openai-util.ts";
 import { callSend, j } from "./send.ts";
+import { getFlowSettings } from "../_shared/flow-settings.ts";
 
 // Prompt fragment appended to the support reply when an in-window ask is due.
 export function askInstruction(due: DueAsk): string {
@@ -70,6 +71,10 @@ async function composeProactiveMessage(
     ? "a gentle restock / reorder reminder"
     : "a quick request to leave a product review";
   const isCart = journeyKey === "abandoned_checkout";
+  // Brand sign-off is Flows-tab config (brand voice card) — surface toggle
+  // plus editable text. Empty/off means no tagline on proactive nudges.
+  const askFlows = await getFlowSettings();
+  const askTagline = askFlows.tagline_proactive_asks ? (askFlows.tagline_text || "").trim() : "";
   const sys =
     `You write short, warm WhatsApp messages for PROMUNCH ("Your Munchy Pal"), an Indian healthy-snack brand. ` +
     `India-English, friendly, never corporate. Output ONLY the message text — no preamble, no quotes, no JSON.`;
@@ -84,7 +89,9 @@ async function composeProactiveMessage(
     url
       ? (isCart ? `Include this checkout link exactly once: ${url}` : `Include this link exactly once: ${url}`)
       : `Do not include any link.`,
-    `End with the tagline "Your Munchy Pal 💚".`,
+    askTagline
+      ? `End with the tagline "${askTagline}".`
+      : `Do not add any sign-off or tagline.`,
     `Keep it to 1–3 short sentences.`,
   ].join("\n");
   const client = new OpenAI({ apiKey: OPENAI_API_KEY });

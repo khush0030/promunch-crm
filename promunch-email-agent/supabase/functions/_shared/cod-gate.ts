@@ -76,7 +76,16 @@ export function buildVerifyComponents(
 // ---- Stateful half: confirm/cancel transitions + wa-webhook button intercept ----
 
 import { db } from "./supabase.ts";
+
+// Brand sign-off on COD-gate free-text/footers — Flows-tab brand voice config.
+// Empty string = toggle off or no tagline set.
+async function codTagline(): Promise<string> {
+  const f = await getFlowSettings();
+  return f.tagline_cod_gate ? (f.tagline_text || "").trim() : "";
+}
+
 import { logConnector } from "./connector-log.ts";
+import { getFlowSettings } from "./flow-settings.ts";
 import { addOrderTags } from "./shopify-customer.ts";
 import {
   cancelOrderByCustomer,
@@ -306,7 +315,8 @@ export async function handleGateButton(
   if (action === "confirm" || action === "keep") {
     const r = await confirmGate(shopifyId, "button");
     if (r.outcome === "confirmed") {
-      await say(`Awesome! Order ${ref} is confirmed and heading to packing 📦 Your Munchy Pal 💚`);
+      const tag = await codTagline();
+      await say(`Awesome! Order ${ref} is confirmed and heading to packing 📦${tag ? ` ${tag}` : ""}`);
     } else {
       await say(`All sorted! Order ${ref} is already ${describeStatus(r.already)}. Need anything else? Just ask 😊`);
     }
@@ -329,7 +339,7 @@ export async function handleGateButton(
       interactive: {
         type: "button",
         body: { text: `You sure you want to cancel order ${ref}? 🥺` },
-        footer: { text: "Your Munchy Pal 💚" },
+        ...(await codTagline().then((t) => (t ? { footer: { text: t } } : {}))),
         action: {
           buttons: [
             { type: "reply", reply: { id: `CANCELCONF_${shopifyId}`, title: "Yes, cancel it" } },

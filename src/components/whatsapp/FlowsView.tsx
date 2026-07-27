@@ -36,6 +36,13 @@ type FlowSettings = {
   cod_gate_enabled: boolean;
   cod_reminder_delay_hours: number;
   cod_needs_call_hours: number;
+  confirmation_template_first: string;
+  confirmation_template_repeat: string;
+  tagline_text: string;
+  tagline_bot_replies: boolean;
+  tagline_proactive_asks: boolean;
+  tagline_cod_gate: boolean;
+  tagline_checkout_footer: boolean;
 };
 type TplRow = { name: string; language: string; status: string };
 type Stats = Record<string, Record<string, number>>;
@@ -142,6 +149,25 @@ function TplBadge({ name, templates }: { name: string; templates: TplRow[] }) {
       <span style={{ width: 7, height: 7, borderRadius: 999, background: color, display: "inline-block" }} />
       {name}
     </span>
+  );
+}
+
+function TplPicker({ label, value, templates, onChange, allowNone, noneLabel }: {
+  label: string; value: string; templates: TplRow[];
+  onChange: (v: string) => void; allowNone?: boolean; noneLabel?: string;
+}) {
+  const names = [...new Set(templates.map((t) => t.name))].sort();
+  return (
+    <label style={{ display: "grid", gap: 4, fontSize: 11.5, color: "var(--pm-muted)", fontWeight: 600 }}>
+      {label}
+      <select value={value} aria-label={label} onChange={(e) => onChange(e.target.value)}
+        style={{ ...inputStyle, width: 250, fontSize: 12.5, fontWeight: 600 }}>
+        {allowNone && <option value="">{noneLabel ?? "None"}</option>}
+        {names.map((n) => <option key={n} value={n}>{n}</option>)}
+        {value !== "" && !names.includes(value) && <option value={value}>{value}</option>}
+      </select>
+      {value !== "" && <TplBadge name={value} templates={templates} />}
+    </label>
   );
 }
 
@@ -315,11 +341,29 @@ export default function FlowsView() {
             <Node icon={Zap} title="Instantly" sub="a few seconds after checkout" tone="green" />
             <Arrow />
             <Node icon={MessageSquareText} title="Confirmation message"
-              sub={<TplBadge name="order_confirmation_v2" templates={templates} />} tone="green" />
+              sub={<>
+                <TplBadge name={draft.confirmation_template_first} templates={templates} />
+                {draft.confirmation_template_repeat !== "" &&
+                  draft.confirmation_template_repeat !== draft.confirmation_template_first && (
+                  <div style={{ marginTop: 2 }}>
+                    returning: <TplBadge name={draft.confirmation_template_repeat} templates={templates} />
+                  </div>
+                )}
+              </>} tone="green" />
           </Timeline>
+          <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 12 }}>
+            <TplPicker label="First order template" value={draft.confirmation_template_first}
+              templates={templates} onChange={(v) => set("confirmation_template_first", v)} />
+            <TplPicker label="Returning customer template" value={draft.confirmation_template_repeat}
+              templates={templates} allowNone noneLabel="Same as first order"
+              onChange={(v) => set("confirmation_template_repeat", v)} />
+          </div>
           <Footnote>
             Utility message — no marketing cap, no coupon. If the first send fails, a sweep retries
             every 15 minutes for up to 24 hours. Duplicates are impossible by design (atomic per-order claim).
+            A customer whose phone number has an earlier order counts as returning; if the returning
+            template is unset or not yet approved at Meta, everyone gets the first-order template.
+            Both templates must use variables {"{{1}}"} = name and {"{{2}}"} = order number.
           </Footnote>
         </FlowCard>
 
@@ -481,6 +525,44 @@ export default function FlowsView() {
             { label: "skipped (cancelled)", value: restock.cancelled ?? 0 },
           ]} />
         </FlowCard>
+
+        {/* 6 — brand voice */}
+        <div style={cardStyle}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 14.5, marginBottom: 4 }}>
+            <MessageSquareText size={16} style={{ color: "var(--pm-green)" }} /> Brand voice
+          </div>
+          <div style={{ fontSize: 12, color: "var(--pm-hint)", marginBottom: 12 }}>
+            The sign-off added to messages the system writes itself. Pick where it appears — or clear
+            the text to drop it everywhere.
+          </div>
+          <label style={{ display: "grid", gap: 4, fontSize: 11.5, color: "var(--pm-muted)", fontWeight: 600, maxWidth: 280 }}>
+            Sign-off tagline
+            <input value={draft.tagline_text} maxLength={60} aria-label="Sign-off tagline"
+              placeholder="e.g. Your Munchy Pal 💚"
+              onChange={(e) => set("tagline_text", e.target.value)}
+              style={{ ...inputStyle, fontSize: 12.5 }} />
+          </label>
+          <div style={{ display: "grid", gap: 10, marginTop: 14, maxWidth: 560 }}>
+            {([
+              ["tagline_bot_replies", "Chat assistant replies", "opening greeting and closing message only, never mid-conversation"],
+              ["tagline_proactive_asks", "Review, restock and cart nudges", "the personalised free-text asks sent inside an open 24h window"],
+              ["tagline_cod_gate", "COD confirmation chat", "the confirm / cancel conversation on cash-on-delivery orders"],
+              ["tagline_checkout_footer", "In-chat checkout message", "the small footer under the secure checkout-link message"],
+            ] as const).map(([key, label, sub]) => (
+              <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--pm-ink)" }}>{label}</div>
+                  <div style={{ fontSize: 11, color: "var(--pm-hint)" }}>{sub}</div>
+                </div>
+                <Toggle on={draft[key]} onChange={(v) => set(key, v)} label={`${label} sign-off`} />
+              </div>
+            ))}
+          </div>
+          <Footnote>
+            Applies to free-text messages only. Copy inside Meta-approved templates (order confirmation,
+            cart reminders) is edited in the Templates tab — edits there go back through Meta review.
+          </Footnote>
+        </div>
       </div>
 
       {/* user-created flows */}

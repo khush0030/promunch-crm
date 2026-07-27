@@ -436,11 +436,13 @@ async function sendCheckout(
 
   const totalLine = cart?.total ? ` Your total is ${cart.currency} ${cart.total.toFixed(0)}.` : "";
   const bodyText = `Yay, your cart's ready! 🛒${totalLine}\nTap below to checkout securely. Pay by UPI, card or COD. Free shipping on orders ₹599+ 💚`;
+  const ctaFlows = await getFlowSettings();
+  const ctaFooter = ctaFlows.tagline_checkout_footer ? ((ctaFlows.tagline_text || "").trim() || undefined) : undefined;
   await post({
     thread_id: threadId,
     kind: "interactive",
     sent_by: "checkout",
-    interactive: buildCtaUrl(bodyText, "Checkout now", checkoutUrl, "Your Munchy Pal 💚"),
+    interactive: buildCtaUrl(bodyText, "Checkout now", checkoutUrl, ctaFooter),
   });
 }
 

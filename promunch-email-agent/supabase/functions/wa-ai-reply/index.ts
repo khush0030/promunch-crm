@@ -13,6 +13,7 @@ import { requireInternal } from "../_shared/require-internal.ts";
 import { lookupOrders, orderForAI } from "../_shared/orders.ts";
 import { stripEmDashes, type CatalogSection } from "../_shared/whatsapp.ts";
 import { type DueAsk, claimAsk, findDueAsk, releaseAsk } from "../_shared/window-asks.ts";
+import { getFlowSettings } from "../_shared/flow-settings.ts";
 import { CATALOG_ID, MAX_TOOL_TURNS, MODEL, OPENAI_API_KEY } from "./config.ts";
 import { SYSTEM_PROMPT, TOOLS } from "./prompt.ts";
 import { retrieveKb } from "./kb.ts";
@@ -268,16 +269,22 @@ Deno.serve(async (req) => {
   // greeting (no prior bot reply in this thread) and on a closing/sign-off
   // message (customer thanked us / said bye). Never on every turn — that reads
   // robotic and spammy. First strip any tagline the model added on its own.
-  const TAGLINE = "Your Munchy Pal 💚";
+  const voice = await getFlowSettings();
+  const TAGLINE = (voice.tagline_text || "").trim();
   let replyText = (decision?.reply?.trim() ||
     "Thanks for messaging PROMUNCH! 🥜 I've noted this — our team will follow up with you shortly.")
     .replace(/\s*[—–-]\s*your munchy pal\s*💚?\s*\.?\s*$/i, "")
     .trim();
+  // Also strip a CONFIGURED tagline the model may have echoed, so the
+  // deterministic append below stays the only source of the sign-off.
+  if (TAGLINE && replyText.toLowerCase().endsWith(TAGLINE.toLowerCase())) {
+    replyText = replyText.slice(0, replyText.length - TAGLINE.length).replace(/[\s—–-]+$/g, "").trim();
+  }
 
   const priorBotReply = ordered.some((m) => m.direction === "outbound" && m.sent_by === "bot");
   const isOpening = !priorBotReply;
   const isClosing = /\b(thanks|thank you|thank u|thx|tysm|bye|goodbye|see you|that'?s all|that'?s it|nothing else|all good|no that'?s all|cheers)\b/i.test(latest ?? "");
-  if (isOpening || isClosing) replyText = `${replyText}\n\n${TAGLINE}`;
+  if ((isOpening || isClosing) && voice.tagline_bot_replies && TAGLINE) replyText = `${replyText}\n\n${TAGLINE}`;
 
   // ---- NO-SPAM: claim this turn before sending ----------------------------
   // A missed reply is recoverable (a later run or the cron picks it up); a

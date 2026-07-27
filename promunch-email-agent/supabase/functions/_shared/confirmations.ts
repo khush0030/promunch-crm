@@ -11,8 +11,34 @@
 // ->> '2' tells us exactly which order a confirmation belonged to.
 
 import { db } from "./supabase.ts";
+import { FLOW_DEFAULTS, type FlowSettings, getFlowSettings } from "./flow-settings.ts";
 
 const norm = (s: unknown) => String(s ?? "").trim().replace(/^#/, "");
+
+// Every template name that counts as "this order's confirmation was sent".
+// The base set is fixed history: order_confirmation (legacy 3-var),
+// order_confirmation_v2 (current default), order_verify_v1 (the COD gate's
+// buttoned verify IS the confirmation for gated orders), and
+// order_confirmation_repeat_v1 (returning-customer copy). On top of that the
+// Flows tab can point first/repeat at ANY template, so the configured names
+// are unioned in — deduping on fewer names would let a customer be messaged
+// again under a name we didn't check.
+const BASE_CONFIRMATION_TEMPLATES = [
+  "order_confirmation",
+  "order_confirmation_v2",
+  "order_verify_v1",
+  "order_confirmation_repeat_v1",
+];
+
+export async function confirmationTemplateNames(flows?: FlowSettings): Promise<string[]> {
+  // Settings failure must never shrink the dedup set — fall back to defaults.
+  const f = flows ?? await getFlowSettings().catch(() => FLOW_DEFAULTS);
+  return [...new Set([
+    ...BASE_CONFIRMATION_TEMPLATES,
+    ...[f.confirmation_template_first, f.confirmation_template_repeat]
+      .map((n) => String(n ?? "").trim()).filter(Boolean),
+  ])];
+}
 
 // Set of order refs (normalised, no leading #) that have a DELIVERED
 // order-confirmation since `sinceIso`. Cheap bulk lookup for the sweep.
@@ -21,18 +47,10 @@ export async function confirmedOrderRefs(sinceIso: string): Promise<Set<string>>
   // wa_messages.status lifecycle: "sent" → "delivered" → "read" (Meta status
   // webhooks update it). Any of these means the customer actually got the
   // message; only "failed" / "pending" mean they didn't.
-  // Match all THREE confirmation templates. Order confirmations now send via
-  // order_confirmation_v2 (no total); the original order_confirmation is kept
-  // for historical sends; order_verify_v1 is the COD gate's buttoned verify
-  // template, which IS the confirmation for gated orders. Deduping on fewer
-  // than all three would let a customer be messaged again under a name we
-  // didn't check.
   const { data } = await db()
     .from("wa_messages")
     .select("template_vars")
-    // order_verify_v1 (COD gate) IS the order confirmation for gated orders —
-    // without it here the sweep would see "missing" and double-message.
-    .in("template_name", ["order_confirmation", "order_confirmation_v2", "order_verify_v1"])
+    .in("template_name", await confirmationTemplateNames())
     .in("status", ["sent", "delivered", "read"])
     .gte("created_at", sinceIso);
   for (const m of data ?? []) {
@@ -117,14 +135,56 @@ export async function releaseSend(key: string): Promise<void> {
   await db().rpc("release_order_confirmation", { p_ref: key }).then(() => {}, () => {});
 }
 
-// Order confirmation always uses order_confirmation_v2 — the welcoming
-// "join the PROMUNCH family" copy with NO order total (name + order ref only).
-// v2 is approved at Meta. We deliberately no longer fall back to the original
-// three-var `order_confirmation` template: that one prints "Order total: {{3}}",
-// which we never want to send. Two vars only.
+// Default (first-order) confirmation — the welcoming "join the PROMUNCH
+// family" copy with NO order total (name + order ref only). We deliberately
+// no longer fall back to the original three-var `order_confirmation`
+// template: that one prints "Order total: {{3}}", which we never want to
+// send. Two vars only — every configurable confirmation template shares this
+// 1=name 2=orderRef contract.
 export function buildConfirmationTemplate(
   customerName: string,
   orderRef: string,
 ): { name: string; language: string; vars: Record<string, string> } {
   return { name: "order_confirmation_v2", language: "en", vars: { "1": customerName, "2": orderRef } };
+}
+
+// Pick the confirmation template for THIS order (Flows tab config):
+//   - repeat template configured AND approved at Meta AND the order phone has
+//     an earlier shopify_orders row → returning-customer copy
+//   - anything else (no repeat set, template unapproved, lookup error, first
+//     order) → the first-order template
+// Fail-open to the first-order template on every uncertainty: a wrong-variant
+// confirmation is harmless, a missing confirmation is not. excludeShopifyId
+// keeps the order being confirmed from counting as its own "earlier order"
+// (the shopify_orders upsert lands before the confirmation sends).
+export async function chooseConfirmationTemplate(opts: {
+  waId: string;
+  customerName: string;
+  orderRef: string;
+  excludeShopifyId: string | number | null;
+  flows?: FlowSettings;
+}): Promise<{ name: string; language: string; vars: Record<string, string> }> {
+  const { waId, customerName, orderRef } = opts;
+  const flows = opts.flows ?? await getFlowSettings().catch(() => FLOW_DEFAULTS);
+  const vars = { "1": customerName, "2": norm(orderRef) ? `#${norm(orderRef)}` : orderRef };
+  const first = String(flows.confirmation_template_first ?? "").trim() || "order_confirmation_v2";
+  const repeat = String(flows.confirmation_template_repeat ?? "").trim();
+  const firstTpl = { name: first, language: "en", vars };
+  if (!repeat || repeat === first || !waId) return firstTpl;
+  try {
+    // Repeat template must actually be approved at Meta — an unapproved name
+    // would make wa-send fail (Meta 132001) and cost the customer their
+    // confirmation entirely.
+    const { data: tpl } = await db()
+      .from("wa_templates").select("status").eq("name", repeat).maybeSingle();
+    if (tpl?.status !== "approved") return firstTpl;
+    let query = db()
+      .from("shopify_orders").select("shopify_id").eq("customer_phone", waId).limit(2);
+    if (opts.excludeShopifyId != null) query = query.neq("shopify_id", String(opts.excludeShopifyId));
+    const { data: prior, error } = await query;
+    if (error || !prior?.length) return firstTpl;
+    return { name: repeat, language: "en", vars };
+  } catch {
+    return firstTpl;
+  }
 }

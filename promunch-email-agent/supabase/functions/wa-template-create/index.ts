@@ -80,6 +80,21 @@ const TEMPLATES: TemplateDef[] = [
     footer: "PROMUNCH — snack smart",
   },
   {
+    // Returning-customer order confirmation — same 2-var contract as
+    // order_confirmation_v2 (1=name 2=orderRef). The Flows tab "Returning
+    // customer template" setting points at this; the send path falls back to
+    // the first-order template until Meta approves it.
+    name: "order_confirmation_repeat_v1",
+    language: "en",
+    category: "UTILITY",
+    body:
+      "Welcome back, {{1}}! 🎉\n\n" +
+      "Order {{2}} is confirmed. Your protein is already being packed and we'll ping you the second it ships.\n\n" +
+      "Happy munching!",
+    bodyExample: ["Aarav", "#PM1042"],
+    footer: "PROMUNCH",
+  },
+  {
     name: "shipping_update",
     language: "en",
     category: "UTILITY",

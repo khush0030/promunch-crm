@@ -26,7 +26,7 @@ import { logConnector } from "../_shared/connector-log.ts";
 import { firstName, toWaId } from "../_shared/journeys.ts";
 import { getFlowSettings } from "../_shared/flow-settings.ts";
 import {
-  buildConfirmationTemplate,
+  chooseConfirmationTemplate,
   claimConfirmation,
   confirmedOrderRefs,
   markConfirmationSent,
@@ -63,8 +63,10 @@ Deno.serve(async (req) => {
   const sb = db();
 
   // Dashboard kill-switch (Flows tab): with the flow off, the sweep must not
-  // resend confirmations or raise stuck-order alerts.
-  if (!(await getFlowSettings()).order_confirmation_enabled) {
+  // resend confirmations or raise stuck-order alerts. Settings are also the
+  // first/returning template config, so keep them for the send loop below.
+  const flows = await getFlowSettings();
+  if (!flows.order_confirmation_enabled) {
     return j({ ok: true, skipped: "order confirmation disabled in flow settings" });
   }
 
@@ -82,7 +84,7 @@ Deno.serve(async (req) => {
   // 1. candidate orders
   let query = sb
     .from("shopify_orders")
-    .select("order_number, customer_phone, customer_name, total_price, financial_status, raw, shopify_created_at, confirmation_status");
+    .select("shopify_id, order_number, customer_phone, customer_name, total_price, financial_status, raw, shopify_created_at, confirmation_status");
   if (force) {
     const variants = forced.flatMap((n) => [n, `#${n}`]);
     query = query.in("order_number", variants).limit(forced.length * 4);
@@ -189,7 +191,10 @@ Deno.serve(async (req) => {
     const res = await callWaSend({
       to: waId,
       kind: "template",
-      template: buildConfirmationTemplate(name, orderRef),
+      template: await chooseConfirmationTemplate({
+        waId, customerName: name, orderRef,
+        excludeShopifyId: o.shopify_id ?? raw.id ?? null, flows,
+      }),
       sent_by: force ? "sweep:force" : "sweep:order_confirmation",
     });
 

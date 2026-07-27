@@ -19,6 +19,30 @@ type OrderStatus = "sent" | "missing" | "failed" | "gave_up" | "no_phone" | "can
 
 const norm = (s: unknown) => String(s ?? "").trim().replace(/^#/, "");
 
+// Every template name that counts as a delivered order confirmation. Mirrors
+// confirmationTemplateNames() in supabase/functions/_shared/confirmations.ts:
+// the fixed history set plus whatever the Flows tab currently points
+// first/returning at — the UI must never disagree with the send-path dedup.
+async function confirmationTemplateNames(): Promise<string[]> {
+  const base = [
+    "order_confirmation", "order_confirmation_v2", "order_verify_v1",
+    "order_confirmation_repeat_v1",
+  ];
+  try {
+    const { data } = await supabaseAdmin
+      .from("wa_flow_settings")
+      .select("confirmation_template_first, confirmation_template_repeat")
+      .eq("id", 1).maybeSingle();
+    return [...new Set([
+      ...base,
+      ...[data?.confirmation_template_first, data?.confirmation_template_repeat]
+        .map((n) => String(n ?? "").trim()).filter(Boolean),
+    ])];
+  } catch {
+    return base;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const raw = Number(new URL(req.url).searchParams.get("hours"));
   const hours = Math.min(Math.max(Number.isFinite(raw) ? raw : 24, 1), 720);
@@ -48,7 +72,7 @@ export async function GET(req: NextRequest) {
       .select("template_vars, status, created_at")
       // order_verify_v1 (COD gate) IS the order confirmation for gated orders —
       // without it here the dashboard would show them as "missing".
-      .in("template_name", ["order_confirmation", "order_confirmation_v2", "order_verify_v1"])
+      .in("template_name", await confirmationTemplateNames())
       .gte("created_at", evSince),
   ]);
 
