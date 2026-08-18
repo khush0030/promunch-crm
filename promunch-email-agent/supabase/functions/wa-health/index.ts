@@ -25,16 +25,36 @@ Deno.serve(async (req) => {
   if (!token || !phoneId) {
     detail = { error: "WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID not set" };
   } else {
-    try {
-      const r = await fetch(
-        `${GRAPH}/${phoneId}?fields=verified_name,quality_rating,name_status,code_verification_status,platform_type`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      const j = await r.json().catch(() => ({}));
-      ok = r.ok;
-      detail = ok ? j : (j?.error ?? { http_status: r.status });
-    } catch (e) {
-      detail = { error: String(e) };
+    // Meta's graph endpoint throws the odd 5xx / network blip. One of those is
+    // not an outage, but logging it as health_down fires a CRITICAL "verify
+    // WHATSAPP_ACCESS_TOKEN" alert at whatever hour it happens. Retry transient
+    // failures (5xx, 429, network) with backoff and only report down when the
+    // probe fails every time. Auth/permission errors (4xx other than 429) are
+    // real and reported on the first attempt with no retry.
+    const url =
+      `${GRAPH}/${phoneId}?fields=verified_name,quality_rating,name_status,code_verification_status,platform_type`;
+    const ATTEMPTS = 3;
+    const BACKOFF_MS = [2000, 5000];
+    for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+      let transient = true;
+      try {
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        const j = await r.json().catch(() => ({}));
+        ok = r.ok;
+        detail = ok ? j : (j?.error ?? { http_status: r.status });
+        if (ok) break;
+        transient = r.status >= 500 || r.status === 429;
+        if (!transient) break; // real auth/permission failure — alert now
+      } catch (e) {
+        detail = { error: String(e) };
+      }
+      if (attempt < ATTEMPTS - 1) {
+        detail = { ...detail, attempts: attempt + 1 };
+        await new Promise((res) => setTimeout(res, BACKOFF_MS[attempt]));
+      } else {
+        detail = { ...detail, attempts: ATTEMPTS, retried: true };
+      }
+      if (!transient) break;
     }
   }
 

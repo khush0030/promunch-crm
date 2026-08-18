@@ -13,6 +13,20 @@ import { handleGateButton, parseGatePayload } from "../_shared/cod-gate.ts";
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const WA_MEDIA_BUCKET = Deno.env.get("WA_MEDIA_BUCKET") ?? "wa-media";
 
+// Every value wa_messages.type_check accepts (migration 20260818200000).
+// Meta keeps adding inbound message types; anything outside this set is stored
+// as 'unsupported' so an unknown type can never fail the insert and drop the
+// whole inbound turn (that is exactly how COD gate button taps were lost).
+const WA_MESSAGE_TYPES = new Set([
+  "text", "template", "image", "document", "audio", "video",
+  "interactive", "reaction", "system", "button", "order",
+  "sticker", "location", "contacts", "unsupported", "unknown",
+]);
+
+function safeMessageType(t: string): string {
+  return WA_MESSAGE_TYPES.has(t) ? t : "unsupported";
+}
+
 Deno.serve(async (req) => {
   const url = new URL(req.url);
 
@@ -270,6 +284,7 @@ async function handleInboundMessage(msg: any, profile: any) {
   // The unique index on wa_message_id makes exactly one insert win; the loser
   // returns before ANY side effect (STOP/START confirms, COD gate, checkout
   // links, AI enqueue) so nothing sends twice (§0).
+  type = safeMessageType(type);
   const { error: insErr } = await sb.from("wa_messages").insert({
     thread_id: thread.id,
     contact_id: contact.id,
