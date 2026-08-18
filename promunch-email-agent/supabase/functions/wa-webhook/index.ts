@@ -9,23 +9,11 @@ import { logConnector, alertWaSendFailure, postSlack, slackChannelFor } from "..
 import { buildCartPermalink, cartFromOrderItems } from "../_shared/shopify-cart.ts";
 import { getFlowSettings } from "../_shared/flow-settings.ts";
 import { handleGateButton, parseGatePayload } from "../_shared/cod-gate.ts";
+import { safeMessageType } from "../_shared/wa-message-types.ts";
 
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const WA_MEDIA_BUCKET = Deno.env.get("WA_MEDIA_BUCKET") ?? "wa-media";
 
-// Every value wa_messages.type_check accepts (migration 20260818200000).
-// Meta keeps adding inbound message types; anything outside this set is stored
-// as 'unsupported' so an unknown type can never fail the insert and drop the
-// whole inbound turn (that is exactly how COD gate button taps were lost).
-const WA_MESSAGE_TYPES = new Set([
-  "text", "template", "image", "document", "audio", "video",
-  "interactive", "reaction", "system", "button", "order",
-  "sticker", "location", "contacts", "unsupported", "unknown",
-]);
-
-function safeMessageType(t: string): string {
-  return WA_MESSAGE_TYPES.has(t) ? t : "unsupported";
-}
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
@@ -298,7 +286,30 @@ async function handleInboundMessage(msg: any, profile: any) {
   });
   if (insErr) {
     if (insErr.code === "23505") return; // concurrent duplicate delivery — the other one owns the side effects
-    throw new Error(`inbound wa_messages insert failed: ${insErr.message}`);
+    // Last-ditch retry with a minimal, always-valid row. Losing the insert
+    // means losing the WHOLE turn — no AI reply, no opt-out, no COD gate tap —
+    // so we would rather store a stripped-down record and carry on than drop a
+    // customer's message. (A narrow type constraint silently ate 92 COD button
+    // taps this way; the clamp above closes that specific hole, this closes the
+    // class.) The wa_message_id unique index still guarantees exactly-once.
+    const { error: retryErr } = await sb.from("wa_messages").insert({
+      thread_id: thread.id,
+      contact_id: contact.id,
+      direction: "inbound",
+      type: "unsupported",
+      body: (body ?? "").slice(0, 4000),
+      wa_message_id: wamid,
+      status: "received",
+    });
+    if (retryErr) {
+      if (retryErr.code === "23505") return;
+      throw new Error(`inbound wa_messages insert failed: ${insErr.message}`);
+    }
+    await logConnector({
+      connector: "whatsapp", level: "warn", event: "inbound_degraded_insert",
+      message: `Inbound message stored in degraded form after insert error: ${insErr.message}`,
+      detail: { type, wamid },
+    }).catch(() => {});
   }
 
   // update thread snippet — a new inbound also un-archives the chat so it
