@@ -213,6 +213,19 @@ export function classifyConnectorEvent(connector: string, event: string, message
       action: "Check the provider's billing/usage. WhatsApp: slow the send rate; AI: top up credits.",
     };
 
+  // A customer's inbound message was DROPPED. This is the worst failure class we
+  // have: the customer is sitting there waiting, their reply/opt-out/button tap
+  // never reached the bot, and nothing retries it. It must never read as
+  // "unusual — worth a look" again. A narrow wa_messages check constraint hid a
+  // 3.5-week COD gate outage behind exactly that wording (2026-07-25 → 08-18,
+  // 92 dropped taps): the alert fired every day and looked routine.
+  if (e.includes("processing_failed") || e.includes("inbound_failed") || e.includes("inbound_drop"))
+    return {
+      severity: "critical", expected: false,
+      cause: "An inbound customer message was dropped before it could be handled — a reply, opt-out, or button tap never reached the bot, and nothing will retry it.",
+      action: "The raw Meta payload is in this event's `detail`. Find the message type/shape it choked on, fix the ingress, then check how many customers are waiting: select count(*) from connector_events where event='processing_failed'.",
+    };
+
   // A handler threw / a job didn't complete.
   if (e.includes("fail") || e.includes("error") || e.includes("stuck") || e.includes("gave_up"))
     return {
@@ -229,15 +242,53 @@ export function classifyConnectorEvent(connector: string, event: string, message
 }
 
 
-// First ping fires immediately; if the same connector+event keeps erroring,
-// re-ping every RE_ALERT_HOURS so a multi-day outage cannot stay silent.
+// Re-alert cadence for a connector+event that keeps erroring. The first error
+// pings immediately, then we re-ping only once per window so a multi-day outage
+// cannot stay silent WITHOUT drip-feeding the channel forever:
+//
+//   fresh issue (< 24h old)  → re-ping every 6h
+//   known issue (> 24h old)  → re-ping once a day, tagged "ongoing"
+//
+// A problem nobody has fixed in a day is not news four times a day; it is one
+// standing item. Downgrading it (instead of muting it) keeps it visible while
+// making a genuinely NEW alert stand out again.
 const RE_ALERT_HOURS = 6;
+const ONGOING_RE_ALERT_HOURS = 24;
+const ONGOING_AFTER_HOURS = 24;
+const HISTORY_DAYS = 7;
 
 async function pingSlackOnError(input: ConnectorEventInput): Promise<void> {
   const channel = slackChannelFor(input.connector);
   if (!channel) return;
   try {
-    const since = new Date(Date.now() - RE_ALERT_HOURS * 3600_000).toISOString();
+    const now = Date.now();
+    const historySince = new Date(now - HISTORY_DAYS * 86400_000).toISOString();
+    const base = () =>
+      db()
+        .from("connector_events")
+        .select("created_at")
+        .eq("connector", input.connector)
+        .eq("event", input.event)
+        .eq("level", "error");
+
+    // How long has this exact event been failing, and how often?
+    const { data: firstRow } = await base()
+      .gte("created_at", historySince)
+      .order("created_at", { ascending: true })
+      .limit(1);
+    const { count: historyCount } = await db()
+      .from("connector_events")
+      .select("id", { count: "exact", head: true })
+      .eq("connector", input.connector)
+      .eq("event", input.event)
+      .eq("level", "error")
+      .gte("created_at", historySince);
+    const firstSeen = firstRow?.[0]?.created_at ? Date.parse(firstRow[0].created_at) : now;
+    const ongoingHours = Math.max(0, (now - firstSeen) / 3600_000);
+    const ongoing = ongoingHours >= ONGOING_AFTER_HOURS;
+    const windowHours = ongoing ? ONGOING_RE_ALERT_HOURS : RE_ALERT_HOURS;
+
+    const since = new Date(now - windowHours * 3600_000).toISOString();
     const { count } = await db()
       .from("connector_events")
       .select("id", { count: "exact", head: true })
@@ -250,12 +301,18 @@ async function pingSlackOnError(input: ConnectorEventInput): Promise<void> {
     if ((count ?? 0) > 1) return;
 
     const cls = classifyConnectorEvent(input.connector, input.event, input.message ?? undefined);
+    const extra = ongoing
+      ? [
+        `*Ongoing:* known issue, first seen ${Math.round(ongoingHours / 24)}d ago · ${historyCount ?? 0} occurrences in ${HISTORY_DAYS}d. Not a new fault — this is the daily reminder until it is fixed.`,
+      ]
+      : undefined;
     const text = buildStructuredAlert({
       connector: input.connector,
       event: input.event,
       ref: input.ref ?? null,
       issue: input.message ?? "(no message)",
       cls,
+      extra,
     });
     await postSlack(channel, text);
   } catch (e) {

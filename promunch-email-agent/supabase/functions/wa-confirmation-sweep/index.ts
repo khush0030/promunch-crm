@@ -26,9 +26,11 @@ import { logConnector } from "../_shared/connector-log.ts";
 import { firstName, toWaId } from "../_shared/journeys.ts";
 import { getFlowSettings } from "../_shared/flow-settings.ts";
 import {
+  attemptedOrderRefs,
   chooseConfirmationTemplate,
   claimConfirmation,
   confirmedOrderRefs,
+  lockedOrderRefs,
   markConfirmationSent,
   releaseConfirmation,
 } from "../_shared/confirmations.ts";
@@ -227,10 +229,18 @@ Deno.serve(async (req) => {
   }
 
   // Proactive Slack alert: anything still missing after this sweep, eligible
-  // to confirm, and older than 5 min. Pings the team via Slack (10-min
-  // throttled inside logConnector) so a real miss is noticed before any
-  // customer complains. Cron mode only.
+  // to confirm, and older than 5 min. Cron mode only.
+  //
+  // "Stuck" means WE NEVER GOT THE MESSAGE OUT — that is the only actionable
+  // state. An order Meta accepted and then rejected asynchronously ("Message
+  // undeliverable" #131026 — the number simply isn't on WhatsApp) is NOT stuck:
+  // the claim is locked 'sent', no sweep will ever retry it, and wa-webhook has
+  // already recorded the delivery failure. Alerting on those re-fired
+  // confirmation_stuck every single sweep for orders nothing could fix, which
+  // is what turned this alert into daily Slack noise. They are logged as an
+  // info-level rollup instead, so the dashboard still sees them.
   let stuckCount = 0;
+  let undeliverableCount = 0;
   if (!force) {
     const stuckYoungest = new Date(now - 5 * 60_000).toISOString();
     const stuckOldest = new Date(now - 60 * 60_000).toISOString();
@@ -241,7 +251,13 @@ Deno.serve(async (req) => {
       .lte("shopify_created_at", stuckYoungest)
       .not("customer_phone", "is", null)
       .limit(100);
-    const stuck = (stuckCandidates ?? [])
+    // Terminal outcomes: an attempt exists in wa_messages (any status, incl.
+    // 'failed'), or the claim is locked 'sent'. Either way the pipeline is done.
+    const [attempted, locked] = await Promise.all([
+      attemptedOrderRefs(dedupSince),
+      lockedOrderRefs(dedupSince),
+    ]);
+    const missing = (stuckCandidates ?? [])
       .filter((o) => {
         // COD-gate managed orders have their own needs_call/reminder sweep —
         // never raise a false "confirmation_stuck" alert for them here.
@@ -250,19 +266,36 @@ Deno.serve(async (req) => {
         const fin = String(o.financial_status ?? r.financial_status ?? "").toLowerCase();
         if (fin === "voided" || fin === "refunded" || r.cancelled_at) return false;
         return !confirmed.has(norm(o.order_number));
-      })
-      .map((o) => String(o.order_number));
+      });
+    const stuck: string[] = [];
+    const undeliverable: string[] = [];
+    for (const o of missing) {
+      const ref = norm(o.order_number);
+      (attempted.has(ref) || locked.has(ref) ? undeliverable : stuck).push(String(o.order_number));
+    }
     stuckCount = stuck.length;
+    undeliverableCount = undeliverable.length;
     if (stuckCount > 0) {
       await logConnector({
         connector: "shopify_wa", level: "error", event: "confirmation_stuck",
-        message: `${stuckCount} order(s) older than 5 min still without a WhatsApp confirmation: ${stuck.slice(0, 10).join(", ")}${stuckCount > 10 ? ` …+${stuckCount - 10} more` : ""}. Sweep will keep retrying; open /dashboard/order-confirmations.`,
+        message: `${stuckCount} order(s) older than 5 min with NO WhatsApp confirmation attempt at all: ${stuck.slice(0, 10).join(", ")}${stuckCount > 10 ? ` …+${stuckCount - 10} more` : ""}. Sweep will keep retrying; open /dashboard/order-confirmations.`,
         detail: { orders: stuck },
+        // The sweep runs every 15 min over a 55-min window, so the same order
+        // would otherwise log (and re-ping) four times. One row per hour is enough.
+        throttleMinutes: 60,
+      }).catch(() => {});
+    }
+    if (undeliverableCount > 0) {
+      await logConnector({
+        connector: "shopify_wa", level: "info", event: "confirmation_undeliverable",
+        message: `${undeliverableCount} order(s) had a confirmation sent but Meta could not deliver it (number not on WhatsApp): ${undeliverable.slice(0, 10).join(", ")}${undeliverableCount > 10 ? ` …+${undeliverableCount - 10} more` : ""}. No retry possible; reach these customers by phone or email.`,
+        detail: { orders: undeliverable },
+        throttleMinutes: 12 * 60,
       }).catch(() => {});
     }
   }
 
-  return j({ ok: true, mode: force ? "force" : "cron", scanned: orders?.length ?? 0, resent, failed, skipped, stuck: stuckCount, report });
+  return j({ ok: true, mode: force ? "force" : "cron", scanned: orders?.length ?? 0, resent, failed, skipped, stuck: stuckCount, undeliverable: undeliverableCount, report });
 });
 
 // Send via the wa-send edge function (records the message + thread).

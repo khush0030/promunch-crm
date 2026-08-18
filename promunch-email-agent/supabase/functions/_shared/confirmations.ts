@@ -60,6 +60,48 @@ export async function confirmedOrderRefs(sinceIso: string): Promise<Set<string>>
   return out;
 }
 
+// Set of order refs that had a confirmation ATTEMPT since `sinceIso`, in ANY
+// wa_messages status — including "failed". Distinct from confirmedOrderRefs()
+// on purpose:
+//   - dedup must NOT count a failed attempt (a failed send may be retried),
+//   - the "stuck" ALARM must, because "we tried and Meta refused" is a known,
+//     already-alerted outcome, not a silently missed order.
+// Meta accepts a send synchronously and can then report "Message undeliverable"
+// (#131026, number not on WhatsApp) minutes later via the status webhook. That
+// flips wa_messages.status to 'failed' AFTER the claim was locked 'sent', so the
+// order sits forever in "claim locked, no delivered confirmation" — which used
+// to re-raise confirmation_stuck on every sweep for an order nothing can fix.
+export async function attemptedOrderRefs(sinceIso: string): Promise<Set<string>> {
+  const out = new Set<string>();
+  const { data } = await db()
+    .from("wa_messages")
+    .select("template_vars")
+    .in("template_name", await confirmationTemplateNames())
+    .gte("created_at", sinceIso);
+  for (const m of data ?? []) {
+    const ref = norm((m.template_vars as Record<string, unknown> | null)?.["2"]);
+    if (ref) out.add(ref);
+  }
+  return out;
+}
+
+// Order refs whose confirmation claim is locked 'sent' — the send path is done
+// with them and no sweep will ever re-send. Belt-and-braces companion to
+// attemptedOrderRefs() for the stuck alarm.
+export async function lockedOrderRefs(sinceIso: string): Promise<Set<string>> {
+  const out = new Set<string>();
+  const { data } = await db()
+    .from("wa_confirmation_claims")
+    .select("order_ref")
+    .eq("status", "sent")
+    .gte("claimed_at", sinceIso);
+  for (const c of data ?? []) {
+    const ref = norm(c.order_ref);
+    if (ref) out.add(ref);
+  }
+  return out;
+}
+
 // True when this one order already received its confirmation message.
 // Used by the instant path before sending — 30-day lookback comfortably
 // covers any order still inside a sane confirmation window.
