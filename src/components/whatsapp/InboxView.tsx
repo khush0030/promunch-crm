@@ -393,6 +393,8 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
       const j = await r.json();
       if (j.ok === false || j.error)
         toast.push({ kind: "error", text: "Send failed: " + (j.error ?? "unknown") });
+      else if (j.skipped)
+        toast.push({ kind: "info", text: "Already sent — duplicate skipped." });
       setText("");
       setPickingTemplate(false);
       load();
@@ -530,6 +532,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
       {pickingTemplate ? (
         <TemplatePicker
           templates={templates}
+          busy={sending}
           onCancel={() => setPickingTemplate(false)}
           onSend={(tpl, vars) => send("template", { name: tpl.name, language: tpl.language, vars })}
         />
@@ -557,7 +560,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
           </button>
           <input
             value={text} onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && text.trim()) send("text"); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && text.trim() && !sending) send("text"); }}
             placeholder="Type a message…"
             enterKeyHint="send"
             style={{
@@ -901,8 +904,8 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose, memb
   );
 }
 
-function TemplatePicker({ templates, onCancel, onSend }: {
-  templates: Template[]; onCancel: () => void; onSend: (t: Template, vars: Record<string, string>) => void;
+function TemplatePicker({ templates, onCancel, onSend, busy }: {
+  templates: Template[]; onCancel: () => void; onSend: (t: Template, vars: Record<string, string>) => void; busy?: boolean;
 }) {
   const isMobile = useIsMobile();
   const [pick, setPick] = useState<Template | null>(null);
@@ -953,7 +956,7 @@ function TemplatePicker({ templates, onCancel, onSend }: {
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button" onClick={() => setPick(null)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--pm-border)", background: "var(--pm-card)", cursor: "pointer", fontSize: 13 }}>Back</button>
-            <button type="button" onClick={() => onSend(pick, vars)} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: BRAND, color: "var(--pm-card)", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Send</button>
+            <button type="button" disabled={busy} onClick={() => onSend(pick, vars)} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: BRAND, color: "var(--pm-card)", cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1, fontWeight: 600, fontSize: 13 }}>{busy ? "Sending…" : "Send"}</button>
           </div>
         </div>
       )}
