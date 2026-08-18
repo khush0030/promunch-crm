@@ -29,10 +29,13 @@ import {
   attemptedOrderRefs,
   chooseConfirmationTemplate,
   claimConfirmation,
+  claimSend,
   confirmedOrderRefs,
   lockedOrderRefs,
   markConfirmationSent,
+  markSendSent,
   releaseConfirmation,
+  releaseSend,
 } from "../_shared/confirmations.ts";
 
 // Orders younger than this are left to the instant path. With the
@@ -46,6 +49,10 @@ const RESEND_WINDOW_HOURS = 24;
 // genuinely undeliverable number must not loop forever). Cron mode only.
 const MAX_ATTEMPTS = 5;
 const BATCH = 200;
+// Ops gets ONE "call this customer" WhatsApp per undeliverable order, ever.
+// The cap is a blast guard: if a data problem ever marks a hundred orders
+// undeliverable at once, ops gets a handful, not a hundred pings.
+const OPS_CALL_PINGS_PER_RUN = 10;
 
 // connector_events keyed by order number (retry-cap bookkeeping only —
 // the no-spam dedup uses wa_messages, see confirmations.ts).
@@ -241,12 +248,13 @@ Deno.serve(async (req) => {
   // info-level rollup instead, so the dashboard still sees them.
   let stuckCount = 0;
   let undeliverableCount = 0;
+  let opsPinged = 0;
   if (!force) {
     const stuckYoungest = new Date(now - 5 * 60_000).toISOString();
     const stuckOldest = new Date(now - 60 * 60_000).toISOString();
     const { data: stuckCandidates } = await sb
       .from("shopify_orders")
-      .select("order_number, financial_status, raw, confirmation_status")
+      .select("order_number, financial_status, raw, confirmation_status, customer_name, customer_phone")
       .gte("shopify_created_at", stuckOldest)
       .lte("shopify_created_at", stuckYoungest)
       .not("customer_phone", "is", null)
@@ -269,9 +277,15 @@ Deno.serve(async (req) => {
       });
     const stuck: string[] = [];
     const undeliverable: string[] = [];
+    const needsCall: typeof missing = [];
     for (const o of missing) {
       const ref = norm(o.order_number);
-      (attempted.has(ref) || locked.has(ref) ? undeliverable : stuck).push(String(o.order_number));
+      if (attempted.has(ref) || locked.has(ref)) {
+        undeliverable.push(String(o.order_number));
+        needsCall.push(o);
+      } else {
+        stuck.push(String(o.order_number));
+      }
     }
     stuckCount = stuck.length;
     undeliverableCount = undeliverable.length;
@@ -288,15 +302,79 @@ Deno.serve(async (req) => {
     if (undeliverableCount > 0) {
       await logConnector({
         connector: "shopify_wa", level: "info", event: "confirmation_undeliverable",
-        message: `${undeliverableCount} order(s) had a confirmation sent but Meta could not deliver it (number not on WhatsApp): ${undeliverable.slice(0, 10).join(", ")}${undeliverableCount > 10 ? ` …+${undeliverableCount - 10} more` : ""}. No retry possible; reach these customers by phone or email.`,
+        message: `${undeliverableCount} order(s) had a confirmation sent but Meta could not deliver it (number not on WhatsApp): ${undeliverable.slice(0, 10).join(", ")}${undeliverableCount > 10 ? ` …+${undeliverableCount - 10} more` : ""}. No retry possible; ops is pinged to call them.`,
         detail: { orders: undeliverable },
         throttleMinutes: 12 * 60,
       }).catch(() => {});
     }
+    // These customers are unreachable on WhatsApp entirely, so the order is
+    // sitting there unconfirmed with no way for us to message them. Ping ops on
+    // WhatsApp to CALL them. One ping per order ever (atomic claim), capped per
+    // run so a bad batch can never turn into a burst.
+    for (const o of needsCall.slice(0, OPS_CALL_PINGS_PER_RUN)) {
+      opsPinged += await pingOpsToCall(o) ? 1 : 0;
+    }
   }
 
-  return j({ ok: true, mode: force ? "force" : "cron", scanned: orders?.length ?? 0, resent, failed, skipped, stuck: stuckCount, undeliverable: undeliverableCount, report });
+  return j({ ok: true, mode: force ? "force" : "cron", scanned: orders?.length ?? 0, resent, failed, skipped, stuck: stuckCount, undeliverable: undeliverableCount, ops_call_pings: opsPinged, report });
 });
+
+// Ops ping: "this customer is not on WhatsApp, call them."
+//
+// Goes to UNDELIVERABLE_CALL_WA_ID (falls back to OPS_WA_ID) on the approved
+// ops_ticket_alert utility template, so it lands even with no open 24h window.
+// This is an INTERNAL message, not a customer one — but it still takes the same
+// atomic claim, so a re-run or an overlapping sweep can never double-ping.
+// Retry bias matches wa-jobs-tick: lock the claim only when the ping actually
+// went out, otherwise release it so the next run tries again.
+async function pingOpsToCall(o: {
+  order_number: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+}): Promise<boolean> {
+  const ref = norm(o.order_number);
+  if (!ref) return false;
+  const to = (Deno.env.get("UNDELIVERABLE_CALL_WA_ID") ?? Deno.env.get("OPS_WA_ID") ?? "")
+    .replace(/^\+/, "").replace(/\D/g, "");
+  if (!to) return false;
+  const key = `undeliverable_call:${ref}`;
+  if (!(await claimSend(key))) return false;
+
+  const phone = o.customer_phone ? `+${o.customer_phone}` : "—";
+  const res = await callWaSend({
+    to,
+    kind: "template",
+    sent_by: "sweep:undeliverable_call",
+    template: {
+      name: Deno.env.get("OPS_ALERT_TEMPLATE") ?? "ops_ticket_alert",
+      language: "en",
+      vars: {
+        "1": "URGENT: not on WhatsApp, call now",
+        "2": "—",
+        "3": o.customer_name ?? "—",
+        "4": phone,
+        "5": `Order ${o.order_number}: WhatsApp confirmation could NOT be delivered, this number is not on WhatsApp. They have had no confirmation at all. Call ${phone} to confirm the order.`.slice(0, 300),
+      },
+    },
+  });
+  const ok = res?.ok === true;
+  if (ok) {
+    await markSendSent(key);
+    await logConnector({
+      connector: "shopify_wa", level: "info", event: "undeliverable_call_ping",
+      message: `Order ${o.order_number}: ops pinged to phone-call the customer (not on WhatsApp).`,
+      ref: String(o.order_number ?? ""),
+    }).catch(() => {});
+  } else {
+    await releaseSend(key);
+    await logConnector({
+      connector: "shopify_wa", level: "error", event: "undeliverable_call_ping_failed",
+      message: `Order ${o.order_number}: could not ping ops to call the customer — ${res?.error ?? "unknown"}. Nobody has been told; call them manually.`,
+      ref: String(o.order_number ?? ""),
+    }).catch(() => {});
+  }
+  return ok;
+}
 
 // Send via the wa-send edge function (records the message + thread).
 async function callWaSend(body: unknown): Promise<{ ok?: boolean; error?: string } | null> {
