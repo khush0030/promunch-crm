@@ -254,7 +254,7 @@ Deno.serve(async (req) => {
     const stuckOldest = new Date(now - 60 * 60_000).toISOString();
     const { data: stuckCandidates } = await sb
       .from("shopify_orders")
-      .select("order_number, financial_status, raw, confirmation_status, customer_name, customer_phone")
+      .select("order_number, financial_status, fulfillment_status, raw, confirmation_status, customer_name, customer_phone")
       .gte("shopify_created_at", stuckOldest)
       .lte("shopify_created_at", stuckYoungest)
       .not("customer_phone", "is", null)
@@ -282,7 +282,11 @@ Deno.serve(async (req) => {
       const ref = norm(o.order_number);
       if (attempted.has(ref) || locked.has(ref)) {
         undeliverable.push(String(o.order_number));
-        needsCall.push(o);
+        // Only worth a phone call while the order can still be acted on. Once
+        // it is fulfilled it has shipped, so "call them to confirm" is stale
+        // busywork — the tracking message is the customer's touchpoint by then.
+        const fulfilled = String(o.fulfillment_status ?? "").toLowerCase() === "fulfilled";
+        if (!fulfilled) needsCall.push(o);
       } else {
         stuck.push(String(o.order_number));
       }
