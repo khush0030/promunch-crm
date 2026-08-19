@@ -17,6 +17,7 @@ import { db } from "../_shared/supabase.ts";
 import { errStr, logConnector } from "../_shared/connector-log.ts";
 import { getThreadParsed, listThreads, type ThreadMessage } from "../_shared/gmail.ts";
 import { type DealExtraction, extractDeal, insightsOf } from "../_shared/deal-extract.ts";
+import { DEAL_KIND_LABEL, LEAD_DEAL_KINDS, pingLeadDesk } from "../_shared/lead-alert.ts";
 import {
   buildTranscript,
   companyDomainOf,
@@ -32,6 +33,8 @@ const MAILBOX = Deno.env.get("MAILBOX_EMAIL") ?? "hello@promunch.in";
 const BASE_Q = "-category:promotions -category:social -in:chats";
 const BACKFILL_DAYS = Number(Deno.env.get("DEAL_SCAN_BACKFILL_DAYS") ?? "365");
 const MAX_THREADS_PER_RUN = Number(Deno.env.get("DEAL_SCAN_MAX_THREADS") ?? "12");
+// A lead older than this is history, not news — scan it, never ping about it.
+const LEAD_ALERT_MAX_AGE_MS = Number(Deno.env.get("LEAD_ALERT_MAX_AGE_DAYS") ?? "14") * 86_400_000;
 
 interface ScanState {
   backfill_done: boolean;
@@ -148,8 +151,12 @@ async function run() {
   };
   let maxInternalMs = state.watermark_ms ?? 0;
 
+  // Only the incremental lane pings the lead desk. The 365-day backfill walks
+  // historic threads — alerting on those would blast months of old leads.
+  const notifyLeads = mode === "incremental";
+
   for (const tid of threadIds) {
-    const r = await processThread(tid);
+    const r = await processThread(tid, notifyLeads);
     counts[r.outcome]++;
     if (r.outcome !== "skipped") counts.processed++;
     if (r.maxMs > maxInternalMs) maxInternalMs = r.maxMs;
@@ -192,7 +199,10 @@ async function loadState(): Promise<ScanState> {
 
 type Outcome = "skipped" | "noise" | "non_deal" | "created" | "updated";
 
-async function processThread(tid: string): Promise<{ outcome: Outcome; maxMs: number }> {
+async function processThread(
+  tid: string,
+  notifyLeads = false,
+): Promise<{ outcome: Outcome; maxMs: number }> {
   const msgs = await getThreadParsed(tid);
   if (!msgs.length) return { outcome: "skipped", maxMs: 0 };
   const maxMs = Math.max(...msgs.map((m) => m.internalDateMs));
@@ -299,6 +309,23 @@ async function processThread(tid: string): Promise<{ outcome: Outcome; maxMs: nu
     if (error) throw new Error(`deals insert failed: ${error.message}`);
     dealId = (data as { id: string }).id;
     outcome = "created";
+
+    // Fresh wholesale / partnership lead → WhatsApp the lead desk once.
+    // Claim-guarded on the deal id, so a rescan can never re-ping. Recency
+    // guard keeps an old thread that only just got scanned from firing.
+    if (
+      notifyLeads && LEAD_DEAL_KINDS.has(ex.kind) &&
+      Date.now() - lastMs < LEAD_ALERT_MAX_AGE_MS
+    ) {
+      await pingLeadDesk({
+        claimKey: `lead_alert:deal:${dealId}`,
+        label: DEAL_KIND_LABEL[ex.kind] ?? "New lead",
+        ref: "—",
+        name: ex.company_name ?? fallbackCompanyName(msgs),
+        contact: ex.contact_email ?? threadContactEmail(msgs),
+        details: ex.summary || ex.next_step || "New inbound lead on hello@ — see /dashboard/deals",
+      }).catch((e) => console.error("[deal-scan] lead desk ping failed", e));
+    }
   } else {
     const stage = mergeStage(existing.stage, ex.stage, existing.manual_stage_override);
     const samplesSentAt = existing.samples_sent_at ??

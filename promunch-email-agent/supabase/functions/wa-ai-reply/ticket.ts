@@ -4,6 +4,7 @@
 import { db } from "../_shared/supabase.ts";
 import { lookupOrders, type OrderSummary } from "../_shared/orders.ts";
 import { callSend } from "./send.ts";
+import { LEAD_TICKET_CATEGORIES, pingLeadDesk } from "../_shared/lead-alert.ts";
 
 export interface TicketInput {
   category?: string;
@@ -73,8 +74,9 @@ export async function openTicket(
   // don't reset the opened-at clock (or the watchdog's alert counters) on a
   // ticket that is already open — only on a fresh one.
   const fresh = thread?.ticket_status !== "open";
+  const openedAt = new Date().toISOString();
   if (fresh) {
-    upd.ticket_opened_at = new Date().toISOString();
+    upd.ticket_opened_at = openedAt;
     upd.ticket_last_alert_at = null;
     upd.ticket_alert_count = 0;
   }
@@ -100,6 +102,7 @@ export async function openTicket(
     waId,
     handoff,
     category,
+    leadKey: `lead_alert:ticket:${threadId}:${openedAt}`,
     ticketNumber: thread?.ticket_number ?? null,
     reason,
     order,
@@ -133,6 +136,7 @@ async function notifyOps(o: {
   ticketNumber: number | string | null;
   reason: string;
   order: OrderSummary | null;
+  leadKey: string;
 }) {
   const clean = (v: string | undefined) => (v ?? "").replace(/^\+/, "").replace(/\D/g, "");
   const orderLane = !o.handoff && ORDER_LANE.has(o.category);
@@ -155,6 +159,21 @@ async function notifyOps(o: {
     sent_by: "ops_ticket_alert",
     template: { name: tpl, language: "en", vars },
   });
+
+  // Commercial leads (wholesale / partnership) additionally copy the lead desk
+  // (LEADS_WA_ID) so a distributor enquiry never sits unseen. Best-effort and
+  // claim-guarded — it never blocks or duplicates the ping above.
+  if (!o.handoff && LEAD_TICKET_CATEGORIES.has(o.category)) {
+    await pingLeadDesk({
+      claimKey: o.leadKey,
+      label,
+      ref: o.ticketNumber,
+      name: o.order?.customer_name ?? null,
+      contact: o.waId ? `+${o.waId}` : null,
+      details: o.reason || "See chat",
+      skipIfSameAs: to,
+    }).catch((e) => console.error("[wa-ai-reply] lead desk ping failed", e));
+  }
 }
 
 // ---- retired ---------------------------------------------------------------
