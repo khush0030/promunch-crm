@@ -96,3 +96,46 @@ instead of never.
 authorize every pg_cron job. Rotating either key without
 `vault.update_secret(...)` turns the whole schedule into silent 401s — the
 Vercel watchdog is what catches that now.
+
+## 2026-08-20 update (Disk IO budget rescue)
+
+Supabase flagged the project for depleting its **Disk IO budget**. It was not a
+code bug — three log tables had grown unbounded since May and one dashboard RPC
+read the worst of them 24 times per call.
+
+| Table | Before | After |
+|---|---|---|
+| `cron.job_run_details` | 293,454 rows / 132 MB, never vacuumed, never analyzed (planner thought 1,786 rows) | 7-day retention, 12 MB |
+| `public.email_logs` | 174,627 rows / 132 MB (116k of them `received`/`skipped`) | 30-day retention on the noise events, 32 MB |
+| `public.connector_events` | 76,988 rows / 45 MB (66k `level='info'`) | 30-day retention on info, 16 MB |
+| `net._http_response` | 257 MB of bloat holding 967 live rows | 1.1 MB |
+
+Total 566 MB → 61 MB; whole database now 160 MB.
+
+`assistant_cron_status()` was the biggest single reader: a lateral
+`order by start_time desc limit 1` per cron job meant 24 scans of the 132 MB
+`cron.job_run_details` per call (~3.7 GB of reads across five calls). It is now
+one bounded `distinct on (jobid)` pass over a 2-day window —
+**1,490 ms / 95k buffers → 51 ms / 2,067 buffers**. A job that has not run in
+2 days now reports `last_status = null`, which reads as stale on the dashboard
+exactly like a failure. `cron.job_run_details` cannot be indexed (owned by
+`supabase_admin`), which is why the fix is on the query side.
+
+Two new pg_cron jobs keep it from coming back (migration
+`promunch-email-agent/supabase/migrations/20260820070000_io_retention.sql`):
+
+| Job | Schedule | What |
+|---|---|---|
+| `purge-operational-logs` | `10 3 * * *` | `public.purge_operational_logs()` — 7d cron history, 30d `received`/`skipped` email logs, 30d info connector events. Per-table exception handling: a failing purge never takes the job down |
+| `vacuum-hot-log-tables` | `40 3 * * 0` | Weekly plain `VACUUM (ANALYZE)` (never FULL, no exclusive lock) over those tables plus `net._http_response` |
+
+Kept forever on purpose: `email_logs` `drafted`/`sent`/`failed`/`feedback` (the
+audit trail) and `connector_events` `warn`/`error` (what the alerting reads).
+
+Cron cadence was deliberately NOT reduced — `wa-jobs-tick` at 1 min and friends
+guard customer replies and order confirmations. The log growth was the problem,
+not the heartbeat.
+
+If the IO warning returns, check in this order: `pg_stat_statements` ordered by
+`shared_blks_dirtied`, then table sizes vs live rows (bloat), then
+`cron.job_run_details` row count — do not start by reading application code.

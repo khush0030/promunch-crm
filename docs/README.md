@@ -15,7 +15,7 @@ Rule: every doc lives in exactly one subfolder below. Superseded docs move to `a
 |---|---|
 | [DEPLOY_GUIDE.md](runbooks/DEPLOY_GUIDE.md) | Full production deploy sequence: key rotation, Vercel env, Vault secrets, edge functions, app, migrations, rollback |
 | [MIGRATIONS.md](runbooks/MIGRATIONS.md) | Where SQL migrations live, naming conventions, hand-apply process (dashboard SQL editor), known duplicate timestamps |
-| [CRON_TOPOLOGY.md](runbooks/CRON_TOPOLOGY.md) | Single map of everything scheduled: Vercel daily crons, 18 pg_cron jobs, self-chaining functions, campaign-firing split-brain notes |
+| [CRON_TOPOLOGY.md](runbooks/CRON_TOPOLOGY.md) | Single map of everything scheduled: Vercel daily crons, 26 pg_cron jobs, self-chaining functions, campaign-firing split-brain notes, log retention + Disk IO rescue |
 | [SECURITY_CRITICALS_RUNBOOK.md](runbooks/SECURITY_CRITICALS_RUNBOOK.md) | The 4 security criticals, fixes, and the service_role key rotation procedure |
 
 ## whatsapp/ — flagship channel
