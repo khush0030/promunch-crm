@@ -162,3 +162,6 @@ verify_jwt = false                    # self-auths via requireInternal (service-
 
 [functions.shopify-carts-audit]
 verify_jwt = false                    # self-auths via requireInternal (service-role bearer)
+
+[functions.voice-call-start]
+verify_jwt = false                    # function-to-function from wa-journey-tick; real auth is requireInternal
