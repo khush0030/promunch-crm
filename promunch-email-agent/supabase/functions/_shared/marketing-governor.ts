@@ -157,6 +157,26 @@ export function isMarketingOptOutError(code?: number | string | null, text?: str
   return /131050|stop receiving marketing messages/i.test(String(text ?? ""));
 }
 
+// #131026 "Message undeliverable" — Meta could not hand the message to this
+// number AT ALL: not on WhatsApp, never accepted the terms, or the number is
+// wrong. This is a property of the NUMBER, not of our marketing standing, and
+// no amount of waiting fixes it.
+//
+// It is deliberately NOT a cap:
+//   #131049 = "this person has no marketing slot right now"  -> throttle, retry later
+//   #131026 = "this person cannot receive WhatsApp at all"   -> stop, retry never
+//
+// Conflating them is how a dead number ended up on a 6h retry loop and absorbed
+// 13 sends in 24h (wa_id 919925024668, Aug 25-26 2026). wa-campaign-send has
+// always classified this correctly via its permanentFail set; journeys did not.
+export function isUndeliverableError(code?: number | string | null, text?: string | null): boolean {
+  if (code !== null && code !== undefined && code !== "") {
+    const n = typeof code === "number" ? code : Number(code);
+    if (Number.isFinite(n)) return n === 131026;
+  }
+  return /131026|message undeliverable/i.test(String(text ?? ""));
+}
+
 function envInt(name: string, fallback: number): number {
   const raw = Deno.env.get(name);
   const n = raw == null ? NaN : Number(raw);

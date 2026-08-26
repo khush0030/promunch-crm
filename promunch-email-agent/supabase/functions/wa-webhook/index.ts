@@ -22,6 +22,7 @@ import {
   recordMarketingCap,
   recordMarketingDelivered,
   recordMarketingOptOut,
+  isUndeliverableError,
 } from "../_shared/marketing-governor.ts";
 
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
@@ -161,9 +162,29 @@ async function handleStatus(status: any) {
         .eq("id", updated.journey_run_id).maybeSingle();
       const nowIso = new Date().toISOString();
       const errCode = typeof status?.errors?.[0]?.code === "number" ? status.errors[0].code : undefined;
-      const capped = isCapError(errCode, status?.errors?.[0]?.title ?? errTitle);
+      const errText = status?.errors?.[0]?.title ?? errTitle;
+      const capped = isCapError(errCode, errText);
+      const dead = isUndeliverableError(errCode, errText);
       if (run && !run.delivered_at) {
-        if (run.deadline_at && run.deadline_at < nowIso) {
+        // #131026: the number cannot receive WhatsApp at all. Retiring the run
+        // outright is the ONLY correct move - reopening it just schedules
+        // another guaranteed failure, and neither the template path nor the
+        // free-text window path can ever reach this person. Terminal, before
+        // the deadline check, because there is nothing left to wait for.
+        if (dead) {
+          await sb.from("wa_journey_runs")
+            .update({
+              status: "failed",
+              last_error: `recipient undeliverable (#${errCode ?? 131026}) — number cannot receive WhatsApp, run retired`,
+            })
+            .eq("id", updated.journey_run_id).neq("status", "failed")
+            .then(() => {}, () => {});
+          logConnector({
+            connector: "whatsapp", level: "warn", event: "recipient_undeliverable",
+            message: `${status?.recipient_id ?? "?"}: #${errCode ?? 131026} undeliverable — journey run retired (number cannot receive WhatsApp).`,
+            ref: String(status?.recipient_id ?? updated.journey_run_id),
+          }).catch(() => {});
+        } else if (run.deadline_at && run.deadline_at < nowIso) {
           await sb.from("wa_journey_runs")
             .update({ status: "expired", last_error: "recovery deadline passed (async cap)" })
             .eq("id", updated.journey_run_id).neq("status", "expired")

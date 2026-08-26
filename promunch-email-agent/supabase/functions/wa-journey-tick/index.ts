@@ -15,7 +15,7 @@ import { CUSTOM_KEY_PREFIX, loadCustomFlows } from "../_shared/custom-flows.ts";
 import { isOrderCancelled } from "../_shared/orders.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 import { WINDOW_DELIVER_JOURNEYS, claimAsk, releaseAsk, sessionOpen } from "../_shared/window-asks.ts";
-import { isCapError, isMarketingTemplate, marketingAllowed } from "../_shared/marketing-governor.ts";
+import { isCapError, isMarketingTemplate, isUndeliverableError, marketingAllowed } from "../_shared/marketing-governor.ts";
 
 const BATCH = 200;
 // Max times to retry the (per-recipient-capped) template fallback for a
@@ -335,6 +335,20 @@ Deno.serve(async (req) => {
       // webhook, which reopens the run (see wa-webhook handleStatus).
       if (!windowEligible) await mark(run.id, "completed", null);
       sent++;
+    } else if (isUndeliverableError(res?.error_code, res?.error)) {
+      // #131026 — this number cannot receive WhatsApp at all. Not a cap, not
+      // transient: retrying schedules another guaranteed failure, and the
+      // free-text window path cannot reach them either (a window can only open
+      // if they message us, which a dead number never will). Retire the run.
+      // Checked BEFORE the cart branch on purpose: a cart is normally worth
+      // retrying, but not to a number that does not exist.
+      await mark(run.id, "failed", `recipient undeliverable (#${res?.error_code ?? 131026}) — number cannot receive WhatsApp, run retired`);
+      logConnector({
+        connector: "whatsapp", level: "warn", event: "recipient_undeliverable",
+        message: `${run.wa_id}: #${res?.error_code ?? 131026} undeliverable — ${run.journey_key} run retired (number cannot receive WhatsApp).`,
+        ref: String(run.wa_id),
+      }).catch(() => {});
+      failed++;
     } else if (isCart) {
       // Cart template send was rejected at call time. Don't drop it — hand the
       // claim back. WHERE it goes next depends on WHY it failed:
@@ -348,7 +362,7 @@ Deno.serve(async (req) => {
       //   • anything else (transient/API): the original spaced backoff.
       // The 72h deadline (checked at the top) is still the hard stop either way.
       await releaseAsk(sb, run.id);
-      const capped = isCapError(undefined, res?.error);
+      const capped = isCapError(res?.error_code, res?.error);
       const nextCapAttempts = capped ? capAttempts + 1 : capAttempts;
       const standDown = capped && nextCapAttempts >= TPL_CAP_ATTEMPTS_MAX;
       // Stood down: re-check hourly (not every tick) — often enough to catch any
@@ -439,7 +453,13 @@ async function callProactiveAsk(
   }
 }
 
-async function callWaSend(body: unknown): Promise<{ ok?: boolean; error?: string } | null> {
+// error_code is Meta's numeric verdict, forwarded by wa-send. Classify on it
+// rather than on the prose wherever it is present: the text is English-only and
+// Meta rewords it, while the code is stable (#131049 cap vs #131026 dead number
+// vs #131050 opt-out are three different decisions).
+async function callWaSend(
+  body: unknown,
+): Promise<{ ok?: boolean; error?: string; error_code?: number | null } | null> {
   const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-send`;
   try {
     const r = await fetch(url, {
