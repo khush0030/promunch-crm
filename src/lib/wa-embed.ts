@@ -8,6 +8,8 @@
 // exactly what a visitor sees. buildEmbedJs wraps that markup with behaviour
 // (targeting triggers, form submit, frequency cap).
 
+import { POPUP_CONSENT_TEXT } from "./wa-engagement";
+
 /* ----------------------------- types ----------------------------- */
 
 export type PopupTrigger =
@@ -216,7 +218,11 @@ export function renderPopupInner(cfg: PopupConfig, opts?: { placeholderImage?: b
     <button type="submit" style="background:${t.accent};color:${t.accentText};border:0;border-radius:10px;padding:0 18px;min-height:44px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;white-space:nowrap">${esc(cfg.cta)}</button>
   </form>`;
 
-  const consent = `<div style="font-size:10.5px;color:${t.text};opacity:.6;margin-top:9px">By joining you agree to receive WhatsApp updates from PROMUNCH. Reply STOP anytime to leave.</div>`;
+  // The wording a shopper agrees to. It is ALSO posted to /api/public/wa-optin
+  // and stored verbatim on the contact, so the consent record and what they read
+  // can never drift apart. Every layout must show it — a captured opt-in with no
+  // visible consent line is not an opt-in.
+  const consent = `<div data-pmwa="consent" style="font-size:10.5px;color:${t.text};opacity:.6;margin-top:9px">${esc(POPUP_CONSENT_TEXT)}</div>`;
 
   const headline = (size: number, center = false) => `<div style="font-weight:800;font-size:${size}px;line-height:1.2;color:${t.text}${center ? ";text-align:center" : ""}">${esc(cfg.headline)}</div>`;
   const sub = (center = false) => cfg.sub ? `<div style="font-size:13px;color:${t.text};opacity:.72;margin:6px 0 14px${center ? ";text-align:center" : ""}">${esc(cfg.sub)}</div>` : `<div style="height:10px"></div>`;
@@ -233,7 +239,7 @@ export function renderPopupInner(cfg: PopupConfig, opts?: { placeholderImage?: b
   if (layout === "compact") {
     return shell(`<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 18px">
       <div style="flex:1 1 200px;min-width:180px"><div style="font-weight:800;font-size:15px;color:${t.text}">${esc(cfg.headline)}</div>${cfg.sub ? `<div style="font-size:12px;color:${t.text};opacity:.7">${esc(cfg.sub)}</div>` : ""}</div>
-      <div style="flex:1 1 240px;min-width:220px">${form(true)}</div>
+      <div style="flex:1 1 240px;min-width:220px">${form(true)}${consent}</div>
     </div>`);
   }
 
@@ -308,6 +314,9 @@ export function buildEmbedJs(cfg: GrowthConfig, opts: { appOrigin: string; widge
   if (cfg.popup.enabled) {
     const conf = {
       api: `${opts.appOrigin}/api/public/wa-optin`,
+      // Posted back with every opt-in so the stored consent record is the exact
+      // sentence this visitor saw, not whatever the copy says months later.
+      consentText: POPUP_CONSENT_TEXT,
       wrap: popupWrapStyle(cfg.popup.position),
       cardMax: popupCardMax(cfg.popup.position, cfg.popup.layout),
       html: renderPopupInner(cfg.popup),
@@ -337,7 +346,7 @@ export function buildEmbedJs(cfg: GrowthConfig, opts: { appOrigin: string; widge
       var pn=box.querySelector('[data-pmwa="phone"]');var p=(pn.value||"").replace(/\\D/g,"");
       if(p.length!==10){pn.style.color="#c0392b";return}
       var hp=f.querySelector('input[name="hp"]');
-      fetch(C.api,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:p,source:"website_popup",hp:hp?hp.value:""})})
+      fetch(C.api,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:p,source:"website_popup",consent_text:C.consentText,page_url:location.href,hp:hp?hp.value:""})})
         .then(function(r){return r.json()}).catch(function(){return{ok:false}})
         .then(function(j){done();box.innerHTML=j&&j.ok?C.success:'<div style="background:#fff;border-radius:12px;padding:20px;font-family:sans-serif;font-size:13px;color:#6d5d4b">Something went wrong. Message us directly on WhatsApp: +91 99813 10247</div>';setTimeout(function(){wrap.remove()},15000)});
     };

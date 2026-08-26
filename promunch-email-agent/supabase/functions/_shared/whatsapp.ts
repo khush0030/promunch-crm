@@ -8,6 +8,8 @@
 //   WHATSAPP_APP_SECRET           — app secret, for X-Hub-Signature-256 check
 //   WHATSAPP_GRAPH_VERSION        — optional, defaults to v21.0
 
+import { isMarketingTemplate as classifyTemplate } from "./template-category.ts";
+
 const GRAPH = `https://graph.facebook.com/${Deno.env.get("WHATSAPP_GRAPH_VERSION") ?? "v21.0"}`;
 
 function token(): string {
@@ -22,6 +24,10 @@ function phoneId(): string {
   return p;
 }
 
+// Which Meta endpoint actually carried the message. Purely observational — it
+// is logged, never persisted as a column, so the ledger schema is untouched.
+export type WaSendPath = "cloud_api" | "mm_lite";
+
 export interface SendResult {
   message_id: string | null;
   raw: unknown;
@@ -29,10 +35,22 @@ export interface SendResult {
   error?: string;
   error_code?: number;   // Meta error.code — drives the failure-alert explainer
   error_detail?: string; // Meta error_data.details / error_user_msg, if present
+  // ---- MM Lite observability (all optional; absent on every non-template send
+  // and on every send made while WA_MM_LITE_ENABLED is unset) ----------------
+  send_path?: WaSendPath;      // "mm_lite" when /marketing_messages carried it
+  mm_lite_fallback?: boolean;  // true = MM Lite refused, Cloud API delivered it
+  mm_lite_error?: string;      // what MM Lite said before we fell back
 }
 
-async function postMessage(body: Record<string, unknown>): Promise<SendResult> {
-  const res = await fetch(`${GRAPH}/${phoneId()}/messages`, {
+// One low-level Graph POST. Returns the HTTP status alongside the parsed body
+// because the MM Lite fallback decision needs to distinguish "Meta structurally
+// rejected the request" (safe to retry elsewhere) from "we never got an answer"
+// (NOT safe — the message may already be on its way to the customer).
+async function postToGraph(
+  url: string,
+  body: Record<string, unknown>,
+): Promise<{ status: number; ok: boolean; json: any }> {
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${token()}`,
@@ -41,19 +59,30 @@ async function postMessage(body: Record<string, unknown>): Promise<SendResult> {
     body: JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const e = json?.error ?? {};
+  return { status: res.status, ok: res.ok, json };
+}
+
+function toSendResult(r: { status: number; ok: boolean; json: any }): SendResult {
+  if (!r.ok) {
+    const e = r.json?.error ?? {};
     return {
       ok: false,
       message_id: null,
-      raw: json,
-      error: e?.message ?? `HTTP ${res.status}`,
+      raw: r.json,
+      error: e?.message ?? `HTTP ${r.status}`,
       error_code: typeof e?.code === "number" ? e.code : undefined,
       error_detail: e?.error_data?.details ?? e?.error_user_msg ?? undefined,
     };
   }
-  const id = json?.messages?.[0]?.id ?? null;
-  return { ok: true, message_id: id, raw: json };
+  // Both /messages and /marketing_messages return the wamid in the same place:
+  // messages[0].id. That is what wa_messages.wa_message_id stores and what the
+  // delivery-status webhook keys on, so the ledger is path-agnostic.
+  const id = r.json?.messages?.[0]?.id ?? null;
+  return { ok: true, message_id: id, raw: r.json };
+}
+
+async function postMessage(body: Record<string, unknown>): Promise<SendResult> {
+  return toSendResult(await postToGraph(`${GRAPH}/${phoneId()}/messages`, body));
 }
 
 // Brand copy rule: PROMUNCH never sends an em/en dash to a customer (it reads as
@@ -96,13 +125,140 @@ export interface TemplateComponent {
   >;
 }
 
-export function sendTemplate(
+// ---- Marketing Messages (MM Lite) API -----------------------------------
+// Meta's separate send path for MARKETING-category templates. Same approved
+// templates, same body schema, same wamid, same status webhooks — different
+// endpoint, and Meta applies send-time delivery optimization on its side.
+// Meta has signalled Cloud API marketing sends are being phased out in favour
+// of it, and 84% of our marketing sends currently die on #131049.
+//
+// Docs (verified Aug 2026):
+//   https://developers.facebook.com/documentation/business-messaging/whatsapp/reference/whatsapp-business-phone-number/marketing-messages-lite-api
+//   https://developers.facebook.com/documentation/business-messaging/whatsapp/marketing-messages/get-started
+//
+// Endpoint:  POST {GRAPH}/{PHONE_NUMBER_ID}/marketing_messages
+// Body:      identical to /messages for a template send. Two MM-Lite-only
+//            optional fields exist (product_policy, message_activity_sharing);
+//            we omit both unless explicitly configured, so the default payload
+//            is byte-identical to what Cloud API already accepts.
+//
+// ROLLOUT SAFETY: this whole path is inert until WA_MM_LITE_ENABLED is set.
+// With the secret unset, sendTemplate() does exactly what it did before —
+// one postMessage() to /messages — and every MM Lite field stays undefined.
+
+function mmLiteEnabled(): boolean {
+  const v = (Deno.env.get("WA_MM_LITE_ENABLED") ?? "").trim().toLowerCase();
+  return v === "true" || v === "1";
+}
+
+// MM Lite is newer than our default v21.0 pin. Meta's docs use a placeholder
+// <API_VERSION> rather than naming a floor, so this is separately overridable:
+// if MM Lite rejects v21.0, set WA_MM_LITE_GRAPH_VERSION=v24.0 without touching
+// the version every other Cloud API call uses.
+function mmLiteGraph(): string {
+  const v = Deno.env.get("WA_MM_LITE_GRAPH_VERSION");
+  return v ? `https://graph.facebook.com/${v}` : GRAPH;
+}
+
+async function postMarketingMessage(body: Record<string, unknown>): Promise<{
+  result: SendResult;
+  status: number;
+}> {
+  // Optional MM-Lite-only fields. Both are omitted unless explicitly set, so a
+  // wrong guess about their semantics can never break a live send by default.
+  //   product_policy: "CLOUD_API_FALLBACK" | "STRICT" — asks Meta to fall back
+  //     to Cloud API delivery itself. Ours is the outer, observable fallback.
+  //   message_activity_sharing: boolean — opts into Meta's optimization signals.
+  const policy = Deno.env.get("WA_MM_LITE_PRODUCT_POLICY");
+  const sharing = (Deno.env.get("WA_MM_LITE_ACTIVITY_SHARING") ?? "").trim().toLowerCase();
+  const payload: Record<string, unknown> = {
+    recipient_type: "individual", // MM Lite's reference lists this as required
+    ...body,
+  };
+  if (policy) payload.product_policy = policy;
+  if (sharing === "true" || sharing === "1") payload.message_activity_sharing = true;
+
+  const r = await postToGraph(`${mmLiteGraph()}/${phoneId()}/marketing_messages`, payload);
+  return { result: toSendResult(r), status: r.status };
+}
+
+// Meta error codes that mean "MM Lite structurally refused this request and no
+// message was created" — i.e. it is provably safe to send the same template via
+// Cloud API without risking a duplicate (§0: never message a customer twice).
+//
+// Deliberately NOT in this list: #131049 / #131050 (per-user marketing cap),
+// #132xxx (template param mismatch), rate limits, and any 5xx or thrown fetch.
+// Those either fail identically on Cloud API or leave the outcome ambiguous, and
+// an ambiguous outcome must never trigger a second send.
+const MM_LITE_FALLBACK_CODES = new Set<number>([
+  10,       // permission not granted / removed
+  200,      // permissions error
+  131055,   // MM Lite: only marketing templates supported
+  134100,   // MM Lite: non-marketing template type unsupported
+  134101,   // MM Lite: template still syncing (retry later) — Cloud API can send it now
+  134102,   // MM Lite: template unavailable, or this user is ineligible for MM Lite
+  1752041,  // MM Lite: onboarding request already submitted / not onboarded
+]);
+
+// Graph's generic "this node does not expose that edge" shape, which is exactly
+// what an un-onboarded WABA gets when it POSTs to /marketing_messages:
+//   code 100 — "Unsupported post request. Object with ID '<id>' does not exist,
+//   cannot be loaded due to missing permissions, or does not support this
+//   operation." Code 100 alone is too broad (it is also "invalid parameter" and
+//   MM Lite's "message must be a template message"), so we require the message
+//   text to name the endpoint/permission problem.
+function isEndpointUnavailable(res: SendResult, status: number): boolean {
+  if (status === 404) return true;
+  const m = (res.error ?? "").toLowerCase();
+  if (res.error_code === 100 || status === 400) {
+    return m.includes("does not support this operation") ||
+      m.includes("missing permissions") ||
+      m.includes("unsupported post request") ||
+      m.includes("does not exist");
+  }
+  return false;
+}
+
+function shouldFallBackToCloudApi(res: SendResult, status: number): boolean {
+  if (res.ok) return false;
+  // 5xx / gateway errors are ambiguous: Meta may have accepted and queued the
+  // message before failing to answer us. Never re-send into that uncertainty.
+  if (status >= 500) return false;
+  if (status === 401 || status === 403) return true;
+  if (res.error_code !== undefined && MM_LITE_FALLBACK_CODES.has(res.error_code)) return true;
+  return isEndpointUnavailable(res, status);
+}
+
+// ---- Template category lookup (marketing vs utility) ---------------------
+// A template is a marketing send when wa_templates.category === 'marketing'.
+// The lookup and its cache now live in _shared/template-category.ts, shared with
+// the marketing frequency governor, so there is ONE cache and one place that can
+// be wrong about a category.
+//
+// MM Lite's safety direction is passed in explicitly and is the OPPOSITE of the
+// governor's, deliberately:
+//
+//   fallback: false  → an unresolvable category means "not marketing", so the
+//                      send stays on the Cloud API path it has always used.
+//                      Routing a message onto a newer endpoint on a GUESS is the
+//                      dangerous direction; staying put is free.
+//
+// Note the omitted `marketingAllowlist`: even a template we hardcode as
+// marketing elsewhere will NOT be routed to MM Lite unless the live
+// wa_templates row says so. Only authoritative data may move a send off the
+// proven path. (The governor, whose wrong guess merely throttles, does pass its
+// allowlists.)
+async function isMarketingCategory(name: string, language: string): Promise<boolean> {
+  return await classifyTemplate({ name, language, fallback: false });
+}
+
+export async function sendTemplate(
   to: string,
   name: string,
   language: string,
   components: TemplateComponent[] = [],
 ): Promise<SendResult> {
-  return postMessage({
+  const body = {
     messaging_product: "whatsapp",
     to,
     type: "template",
@@ -111,7 +267,33 @@ export function sendTemplate(
       language: { code: language },
       components,
     },
-  });
+  };
+
+  // Flag off (the default) → the exact call this function has always made.
+  if (!mmLiteEnabled()) return postMessage(body);
+
+  // MM Lite only accepts MARKETING-category templates; utility/authentication
+  // sends (order confirmations, shipping updates) stay on Cloud API forever.
+  if (!(await isMarketingCategory(name, language))) return postMessage(body);
+
+  const { result: lite, status } = await postMarketingMessage(body);
+  if (lite.ok) return { ...lite, send_path: "mm_lite" };
+
+  // Not an enablement/permission-class refusal → this is a real send failure.
+  // Report it as-is; retrying on Cloud API here could double-deliver.
+  if (!shouldFallBackToCloudApi(lite, status)) return { ...lite, send_path: "mm_lite" };
+
+  // MM Lite is not enabled / not permitted / refused this template outright and
+  // provably created no message. Deliver via Cloud API so a misconfigured MM
+  // Lite rollout can never mean zero marketing messages go out.
+  console.warn(`mm-lite: falling back to Cloud API for "${name}" (#${lite.error_code ?? status}): ${lite.error}`);
+  const cloud = await postMessage(body);
+  return {
+    ...cloud,
+    send_path: "cloud_api",
+    mm_lite_fallback: true,
+    mm_lite_error: `#${lite.error_code ?? status} ${lite.error ?? "unknown"}`,
+  };
 }
 
 export function sendImage(to: string, link: string, caption?: string): Promise<SendResult> {

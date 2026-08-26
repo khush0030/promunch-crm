@@ -29,6 +29,7 @@ import {
   isCodOrder,
 } from "./cod-gate.ts";
 import { isCreatorOrder } from "./shopify-customer.ts";
+import { buildSupportComponents } from "./quick-replies.ts";
 import { holdOrderFulfillments } from "./shopify-fulfillment.ts";
 
 export interface OrderConfirmationResult {
@@ -141,9 +142,24 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
       };
     } else {
       // First-order vs returning-customer template is Flows-tab config.
-      template = await chooseConfirmationTemplate({
+      const chosen = await chooseConfirmationTemplate({
         waId, customerName: name, orderRef, excludeShopifyId: order.id ?? null, flows,
       });
+      // The Flows tab lets anyone point the first-order template at ANY name,
+      // and chooseConfirmationTemplate only verifies the REPEAT one. Pointing
+      // "first" at a template Meta has not approved yet (exactly what happens
+      // while rolling the buttoned order_confirmation_v3 out) would make every
+      // send fail with Meta 132001 and cost customers their confirmation
+      // entirely. Verify before sending, and fall back to the known-good
+      // default rather than sending nothing.
+      const safe = await approvedConfirmationTemplate(chosen, orderRef);
+      // Buttoned utility templates (order_confirmation_v3 and friends) need an
+      // explicit quick_reply component per button so the payload carries the
+      // order ref back to us on the tap. Templates with no service buttons get
+      // null here and keep wa-send's default body-only build: sending a button
+      // component for a buttonless template is a #132012 on every recipient.
+      const comps = buildSupportComponents(safe.name, safe.vars, orderRef);
+      template = comps ? { ...safe, components: comps } : safe;
     }
     const res = await callWaSend({
       to: waId,
@@ -257,6 +273,37 @@ async function enrolPostPurchaseJourneys(orderRef: string, waId: string, name: s
     });
   }
   await markSendSent(enrolKey); // lock — never enrol this order's journeys again
+}
+
+// The confirmation template that is actually safe to send right now.
+//
+// FAIL OPEN, not closed: only an explicit non-approved status downgrades to the
+// default. A missing row or a DB error keeps the caller's choice, because a
+// lookup blip must never rewrite which template a customer receives.
+const DEFAULT_CONFIRMATION_TEMPLATE = "order_confirmation_v2";
+
+async function approvedConfirmationTemplate(
+  chosen: { name: string; language: string; vars: Record<string, string> },
+  orderRef: string,
+): Promise<{ name: string; language: string; vars: Record<string, string> }> {
+  if (chosen.name === DEFAULT_CONFIRMATION_TEMPLATE) return chosen;
+  try {
+    const { data: row, error } = await db()
+      .from("wa_templates").select("status")
+      .eq("name", chosen.name).eq("language", chosen.language ?? "en")
+      .maybeSingle();
+    if (error || !row) return chosen;              // unknown to us — trust the caller
+    if (row.status === "approved") return chosen;
+    await logConnector({
+      connector: "shopify_wa", level: "error", event: "confirmation_template_not_approved",
+      message: `Order ${orderRef}: configured confirmation template '${chosen.name}' is '${row.status}', ` +
+        `not approved at Meta. Sent '${DEFAULT_CONFIRMATION_TEMPLATE}' instead. Fix the Flows tab template picker.`,
+      ref: orderRef, throttleMinutes: 60,
+    }).catch(() => {});
+    return { ...chosen, name: DEFAULT_CONFIRMATION_TEMPLATE };
+  } catch {
+    return chosen;
+  }
 }
 
 // Inline 3× retry — multiple trigger paths reduce the need for this, but a

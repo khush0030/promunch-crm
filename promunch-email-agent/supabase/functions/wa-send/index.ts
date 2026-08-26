@@ -25,7 +25,7 @@ import {
   TemplateComponent,
   CatalogSection,
 } from "../_shared/whatsapp.ts";
-import { alertWaSendFailure } from "../_shared/connector-log.ts";
+import { alertWaSendFailure, logConnector } from "../_shared/connector-log.ts";
 import { appendUtm } from "../_shared/links.ts";
 
 interface SendBody {
@@ -198,6 +198,48 @@ Deno.serve(async (req) => {
   recorded.status = result.ok ? "sent" : "failed";
   recorded.error = result.ok ? null : result.error;
 
+  // ---- MM Lite path observability ----------------------------------------
+  // sendTemplate() sets send_path ONLY when WA_MM_LITE_ENABLED is on and the
+  // template is marketing-category, so with the flag unset none of this runs
+  // and not a single extra log line or row is produced.
+  //
+  // Deliberately NOT written to wa_messages: no new column, and no per-send
+  // connector_events row either (unbounded per-send logging is what caused the
+  // Aug 2026 Disk IO incident). The wamid is in the console line, so a later
+  // "MM Lite vs Cloud API delivery rate" query joins these function logs to
+  // wa_messages.wa_message_id / .status.
+  if (result.send_path) {
+    console.log(JSON.stringify({
+      evt: "wa_send_path",
+      path: result.send_path,
+      template: body.template?.name ?? null,
+      ok: result.ok,
+      wa_message_id: result.message_id,
+      mm_lite_fallback: result.mm_lite_fallback ?? false,
+      mm_lite_error: result.mm_lite_error ?? null,
+      sent_by: recorded.sent_by ?? null,
+    }));
+  }
+
+  // A fallback means MM Lite refused the send (not enabled, not permitted, or
+  // template ineligible) and Cloud API carried it instead. Customers were not
+  // affected, but the rollout is misconfigured, so surface it once an hour
+  // rather than once per recipient.
+  if (result.mm_lite_fallback) {
+    await logConnector({
+      connector: "whatsapp",
+      level: "warn",
+      event: "mm_lite_fallback",
+      message: `MM Lite refused "${body.template?.name ?? "?"}" and Cloud API delivered it instead: ${result.mm_lite_error ?? "unknown"}`,
+      detail: {
+        template: body.template?.name ?? null,
+        mm_lite_error: result.mm_lite_error ?? null,
+        cloud_api_ok: result.ok,
+      },
+      throttleMinutes: 60,
+    }).catch(() => {});
+  }
+
   // The ledger row is what every dedup path reads (§0). A silent insert
   // failure after a successful Meta send would make this message invisible to
   // dedup — i.e. re-send exposure — so it must alert loudly.
@@ -224,12 +266,35 @@ Deno.serve(async (req) => {
       templateName: body.template?.name ?? null,
       error: result.error,
       errorCode: result.error_code,
-      errorDetail: result.error_detail,
+      // Tag which endpoint failed so a bad MM Lite rollout is obvious in Slack
+      // instead of looking like a generic Cloud API failure.
+      errorDetail: result.send_path
+        ? [result.error_detail, `via ${result.send_path}`, result.mm_lite_error ? `mm_lite: ${result.mm_lite_error}` : null]
+          .filter(Boolean).join(" | ")
+        : result.error_detail,
       sentBy: typeof recorded.sent_by === "string" ? recorded.sent_by : undefined,
     }).catch(() => {});
   }
 
-  return j({ ok: result.ok, message_id: result.message_id, error: result.error ?? null });
+  // Meta's NUMERIC error code is part of the contract, not just the prose.
+  // Callers (wa-journey-tick, wa-jobs-tick, shopify-wa, the COD gate) have to
+  // tell the per-recipient marketing cap #131049 apart from a real failure, and
+  // until now the only signal they got back was the English error STRING — so
+  // they regex-matched "healthy ecosystem". Meta owns that string: it has been
+  // reworded before and is localised for some accounts, and the day it changes
+  // every cap-aware backoff in this codebase silently starts treating a terminal
+  // cap verdict as a transient error and retrying into it (which is precisely
+  // what makes marketing fatigue worse). The code is stable; hand it over.
+  //
+  // Additive only: every existing caller reads { ok, message_id, error } and is
+  // unaffected. `error_detail` rides along for the same reason.
+  return j({
+    ok: result.ok,
+    message_id: result.message_id,
+    error: result.error ?? null,
+    error_code: result.error_code ?? null,
+    error_detail: result.error_detail ?? null,
+  });
 });
 
 // Render a template's text with its variables filled in, so wa_messages.body

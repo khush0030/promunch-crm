@@ -10,6 +10,19 @@ import { buildCartPermalink, cartFromOrderItems } from "../_shared/shopify-cart.
 import { getFlowSettings } from "../_shared/flow-settings.ts";
 import { handleGateButton, parseGatePayload } from "../_shared/cod-gate.ts";
 import { safeMessageType } from "../_shared/wa-message-types.ts";
+import {
+  logWindowOpenedByTap,
+  parseSupportPayload,
+  supportTapPrompt,
+} from "../_shared/quick-replies.ts";
+import { sessionOpen } from "../_shared/window-asks.ts";
+import {
+  isCapError,
+  isMarketingTemplate,
+  recordMarketingCap,
+  recordMarketingDelivered,
+  recordMarketingOptOut,
+} from "../_shared/marketing-governor.ts";
 
 const VERIFY_TOKEN = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "";
 const WA_MEDIA_BUCKET = Deno.env.get("WA_MEDIA_BUCKET") ?? "wa-media";
@@ -130,15 +143,25 @@ async function handleStatus(status: any) {
         .eq("id", updated.journey_run_id).is("delivered_at", null)
         .then(() => {}, () => {});
     } else if (next === "failed") {
-      // ASYNC FAILURE (usually #131049 cap) — the send did NOT land. Reopen the
-      // run for another attempt UNLESS it already delivered or passed its
-      // deadline. Reopening only from a confirmed non-delivery keeps at-least-once
-      // from ever becoming twice. Guarded on the current status so a duplicate
-      // 'failed' callback can't double-reopen.
+      // ASYNC FAILURE — the send did NOT land. Reopen the run for another attempt
+      // UNLESS it already delivered or passed its deadline. Reopening only from a
+      // confirmed non-delivery keeps at-least-once from ever becoming twice.
+      // Guarded on the current status so a duplicate 'failed' callback can't
+      // double-reopen.
+      //
+      // #131049 IS DIFFERENT. It is not a transient failure, it is Meta telling
+      // us this recipient has no marketing slot left. Reopening on the 6h cart
+      // backoff and firing the template again is precisely the loop that put 80
+      // marketing attempts on one customer in August. So a capped run gets AT
+      // MOST ONE reopen; past that it is marked tpl_stood_down, which retires the
+      // TEMPLATE path in wa-journey-tick while leaving the run 'active' so the
+      // cap-immune free-text in-window path can still deliver it.
       const { data: run } = await sb.from("wa_journey_runs")
-        .select("deadline_at, delivered_at, attempts")
+        .select("deadline_at, delivered_at, attempts, context")
         .eq("id", updated.journey_run_id).maybeSingle();
       const nowIso = new Date().toISOString();
+      const errCode = typeof status?.errors?.[0]?.code === "number" ? status.errors[0].code : undefined;
+      const capped = isCapError(errCode, status?.errors?.[0]?.title ?? errTitle);
       if (run && !run.delivered_at) {
         if (run.deadline_at && run.deadline_at < nowIso) {
           await sb.from("wa_journey_runs")
@@ -146,16 +169,59 @@ async function handleStatus(status: any) {
             .eq("id", updated.journey_run_id).neq("status", "expired")
             .then(() => {}, () => {});
         } else {
+          const ctx = (run.context ?? {}) as Record<string, unknown>;
+          const capAttempts = capped ? Number(ctx.tpl_cap_attempts ?? 0) + 1 : Number(ctx.tpl_cap_attempts ?? 0);
+          // ONE reopen on a cap verdict; the second one retires the template.
+          const standDown = capped && capAttempts >= 2;
           const backoffH = (await getFlowSettings()).cart_backoff_hours;
-          const nextAt = new Date(Date.now() + backoffH * 3600_000).toISOString();
+          // A stood-down run re-checks hourly for an open window instead of
+          // waiting out the (now pointless) template backoff.
+          const nextAt = new Date(Date.now() + (standDown ? 1 : backoffH) * 3600_000).toISOString();
           await sb.from("wa_journey_runs").update({
             status: "active",
             next_action_at: nextAt,
             attempts: (run.attempts ?? 0) + 1,
-            last_error: `async cap (#${status?.errors?.[0]?.code ?? "?"}) — reopened, retry in ${backoffH}h`,
+            last_error: standDown
+              ? `async cap (#${errCode ?? "131049"}) x${capAttempts} — template retired, waiting for an open 24h window to deliver free-form`
+              : `async cap (#${errCode ?? "?"}) — reopened, retry in ${backoffH}h`,
+            context: {
+              ...ctx,
+              ...(capped ? { tpl_cap_attempts: capAttempts } : {}),
+              ...(standDown ? { tpl_stood_down: true } : {}),
+            },
           }).eq("id", updated.journey_run_id).eq("status", "completed")
             .then(() => {}, () => {});
         }
+      }
+    }
+  }
+
+  // ---- MARKETING FREQUENCY GOVERNOR bookkeeping ----
+  // This webhook is where the REAL verdict on a marketing template arrives (the
+  // send call returning ok only means Meta accepted it). Feed both outcomes back
+  // into the per-recipient governor:
+  //   #131049 failure  -> a strike; three in a row suppresses marketing to this
+  //                       number for 30 days.
+  //   delivered/read   -> clear the strikes; the customer just proved they still
+  //                       have a marketing slot for us.
+  // MARKETING ONLY: utility templates (order confirmation, shipping update,
+  // order verify, ops alerts) and free-form in-window messages never reach here,
+  // and suppression never applies to them.
+  if (updated?.type === "template" && updated.template_name) {
+    const recipient = String(status?.recipient_id ?? "");
+    if (recipient && await isMarketingTemplate(updated.template_name)) {
+      if (next === "failed") {
+        const e = status?.errors?.[0] ?? {};
+        const code = typeof e.code === "number" ? e.code : undefined;
+        const text = e.title ?? errTitle;
+        // #131050 is an UNSUBSCRIBE, not a cap. Handle it first and separately:
+        // recordMarketingCap ignores it (it only counts #131049), so without
+        // this branch a customer who switched our marketing off at the WhatsApp
+        // level would keep being enrolled and retried forever.
+        await recordMarketingOptOut(sb, recipient, code, text).catch(() => {});
+        await recordMarketingCap(sb, recipient, code, text).catch(() => {});
+      } else if (next === "delivered" || next === "read") {
+        await recordMarketingDelivered(sb, recipient).catch(() => {});
       }
     }
   }
@@ -190,6 +256,21 @@ async function handleInboundMessage(msg: any, profile: any) {
   if (wamid) {
     const { data: existing } = await sb.from("wa_messages").select("id").eq("wa_message_id", wamid).maybeSingle();
     if (existing) return;
+  }
+
+  // WINDOW MANUFACTURING (P1 #5) — a quick-reply tap is an INBOUND message, so
+  // it opens (or refreshes) the 24h customer-service window, which is the only
+  // channel that is not throttled by Meta's per-recipient marketing cap. Read
+  // the window state NOW, before the thread upsert below stamps last_inbound_at
+  // with this very tap: afterwards it is impossible to tell a tap that OPENED a
+  // window from one that merely extended an already-open one, and that
+  // distinction is the whole metric. One extra read, only on taps.
+  const isTap = msg.type === "button" || msg.type === "interactive";
+  let windowWasOpen = false;
+  if (isTap) {
+    const { data: prevThread } = await sb
+      .from("wa_threads").select("last_inbound_at").eq("wa_id", waId).maybeSingle();
+    windowWasOpen = sessionOpen(prevThread?.last_inbound_at, Date.now());
   }
 
   // upsert contact
@@ -331,6 +412,27 @@ async function handleInboundMessage(msg: any, profile: any) {
     : msg.type === "interactive"
     ? msg.interactive?.button_reply?.id
     : null;
+  // Our service quick replies (Track my order / Change my address / I have a
+  // question / Report a problem) carry a HELP_<INTENT>_<orderRef> payload. The
+  // COD gate's CONFIRM_/CANCEL_ payloads and any dashboard-made button do not
+  // match, so they fall through to their own handlers untouched.
+  const support = parseSupportPayload(gateRaw);
+
+  // Count the window this tap opened. Logged for EVERY tap — including the COD
+  // gate's, which returns early below — because every tap opens a window and
+  // the point of the metric is how many we are manufacturing in total.
+  if (isTap) {
+    logWindowOpenedByTap({
+      waId,
+      threadId: thread.id,
+      buttonText: body,
+      payload: typeof gateRaw === "string" ? gateRaw : null,
+      intent: support?.intent ?? null,
+      orderRef: support?.orderRef ?? null,
+      wasOpen: windowWasOpen,
+    }).catch(() => {});
+  }
+
   const gate = parseGatePayload(gateRaw);
   if (gate) {
     await handleGateButton(gate.action, gate.shopifyId, waId, thread.id)
@@ -419,8 +521,20 @@ async function handleInboundMessage(msg: any, profile: any) {
   // or an image (Claude reads the image directly)
   const hasRealText = !!body && !/^\[(image|video|document|audio|sticker)\]$/i.test(body);
   const isImage = type === "image" && !!mediaUrl;
+  // A tap carries an INTENT, not words. Hand the AI a bracketed system note
+  // saying which button was tapped and on which order, so it acts on the real
+  // request (and can call lookup_order for the right order) instead of trying
+  // to interpret a three-word label. The wa_messages ledger still stores the
+  // label itself, so the dashboard transcript reads exactly as the customer
+  // sees it. Answers stay KB-grounded: the note tells the model WHAT to do,
+  // never WHAT IS TRUE about PROMUNCH.
+  const aiMessage = support ? supportTapPrompt(support.intent, support.orderRef) : body;
+  // "Report a problem" is a complaint opening. No follow-up ask (review /
+  // restock / cart) may ride along with that reply, so do not even offer one
+  // to the model.
+  const suppressAsk = support?.intent === "problem";
   if (thread.status === "bot" && type !== "reaction" && (hasRealText || isImage)) {
-    await enqueueAiReply(thread.id, body, isImage ? mediaUrl : null)
+    await enqueueAiReply(thread.id, aiMessage, isImage ? mediaUrl : null, suppressAsk)
       .catch((e) => console.error("[wa-webhook] ai enqueue failed", e));
   }
 }
@@ -479,11 +593,18 @@ async function sendCheckout(
 // 2. Fire a best-effort fast-path call to wa-ai-reply so the customer normally
 //    gets an instant reply. It carries the job_id so a successful run marks
 //    the job done and the cron never has to touch it.
-async function enqueueAiReply(threadId: string, lastMessage: string, imageUrl: string | null = null) {
+async function enqueueAiReply(
+  threadId: string,
+  lastMessage: string,
+  imageUrl: string | null = null,
+  suppressAsk = false,
+) {
   const sb = db();
   const { data: job, error: jobErr } = await sb.from("wa_jobs").insert({
     kind: "ai_reply",
-    payload: { thread_id: threadId, last_message: lastMessage, image_url: imageUrl },
+    // suppress_ask rides in the payload too, so a wa-jobs-tick retry of this
+    // turn keeps the same no-follow-up-ask decision the live call made.
+    payload: { thread_id: threadId, last_message: lastMessage, image_url: imageUrl, suppress_ask: suppressAsk },
     // give the fast path a generous window before the cron may pick it up
     run_after: new Date(Date.now() + 120_000).toISOString(),
   }).select("id").single();
@@ -505,7 +626,13 @@ async function enqueueAiReply(threadId: string, lastMessage: string, imageUrl: s
       "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ thread_id: threadId, last_message: lastMessage, image_url: imageUrl, job_id: job?.id ?? null }),
+    body: JSON.stringify({
+      thread_id: threadId,
+      last_message: lastMessage,
+      image_url: imageUrl,
+      job_id: job?.id ?? null,
+      suppress_ask: suppressAsk,
+    }),
   }).catch((e) => console.error("[wa-webhook] fast-path ai invoke failed", e));
 
   // Keep the fast-path request alive after the webhook returns its 200 —

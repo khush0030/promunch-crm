@@ -15,13 +15,33 @@ import { CUSTOM_KEY_PREFIX, loadCustomFlows } from "../_shared/custom-flows.ts";
 import { isOrderCancelled } from "../_shared/orders.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 import { WINDOW_DELIVER_JOURNEYS, claimAsk, releaseAsk, sessionOpen } from "../_shared/window-asks.ts";
+import { isCapError, isMarketingTemplate, marketingAllowed } from "../_shared/marketing-governor.ts";
 
 const BATCH = 200;
 // Max times to retry the (per-recipient-capped) template fallback for a
 // post-purchase ask before standing down and waiting for an open 24h window.
-// (abandoned_checkout does NOT stand down — it retries on a spaced backoff until
-// its deadline, because every missed cart is lost revenue.)
+// (abandoned_checkout gets a longer leash here because a live cart is real
+// revenue — but it is no longer unlimited: TPL_CAP_ATTEMPTS_MAX below retires
+// the template path for carts too once Meta has capped that recipient.)
 const TPL_FALLBACK_MAX = 3;
+// Meta error #131049 is a per-recipient MARKETING FATIGUE verdict, not a
+// transient error: the recipient has no marketing slot for us right now, and
+// retrying into it is what deepens the fatigue. So a capped template attempt is
+// TERMINAL for that recipient + template after one retry — including for carts,
+// which used to probe every cart_backoff_hours until the 72h deadline (up to 12
+// attempts on one person, and 80 across one customer's runs in August).
+//
+// Standing down does NOT drop the run: it stays 'active' with the template path
+// retired (context.tpl_stood_down), so an open-window inbound piggyback can
+// still deliver the same message as FREE TEXT — cap-immune, free, 99% delivered.
+const TPL_CAP_ATTEMPTS_MAX = 2;   // first capped attempt + at most ONE retry
+// How far to push a run whose marketing send the governor denied. Capped low for
+// window-eligible journeys because next_action_at also gates the cap-immune
+// free-text paths (the tick's in-window delivery and wa-ai-reply's inbound
+// weave) — deferring those for a day would throw away the delivery route we
+// actually want. Re-checking the governor a few times a day costs one query.
+const GOVERNOR_DEFER_MAX_MS_WINDOW = 6 * 3600_000;
+const GOVERNOR_DEFER_MAX_MS_OTHER = 24 * 3600_000;
 
 Deno.serve(async (req) => {
   const gate = requireInternal(req);
@@ -57,6 +77,30 @@ Deno.serve(async (req) => {
     .select("wa_id")
     .in("ticket_status", ["open", "pending"]);
   const blockedWa = new Set((ticketed ?? []).map((t) => t.wa_id));
+
+  // UNSUBSCRIBED CUSTOMERS. wa_contacts.opted_in = false means either a bare
+  // STOP (AGENTS.md §4.3) or a Meta #131050 verdict, which is the customer
+  // switching our marketing off at the WhatsApp level. Until now only
+  // wa-campaign-send honoured this flag, so an unsubscribed customer stopped
+  // getting broadcasts but KEPT getting review asks, restock nudges and cart
+  // recovery from this tick. That is the same promise broken by a different
+  // door. Pull the opted-out numbers once, up front, and retire their MARKETING
+  // runs below.
+  //
+  // Scope note: this gates MARKETING journeys only. Order confirmations,
+  // shipping updates, COD verify and ops alerts do not run through journeys and
+  // are untouched - an unsubscribe is from marketing, never from the
+  // transactional messages a customer needs about an order they placed.
+  const optedOutWa = new Set<string>();
+  for (let from = 0; ; from += 1000) {
+    const { data: page } = await sb.from("wa_contacts")
+      .select("wa_id")
+      .eq("opted_in", false)
+      .range(from, from + 999);
+    if (!page || page.length === 0) break;
+    for (const c of page) if (c.wa_id) optedOutWa.add(String(c.wa_id));
+    if (page.length < 1000) break;
+  }
 
   let sent = 0, failed = 0, skipped = 0;
 
@@ -138,6 +182,22 @@ Deno.serve(async (req) => {
       continue;
     }
 
+    // UNSUBSCRIBED: retire the run rather than deferring it. A STOP / #131050 is
+    // not a "come back later" like an open ticket is, so there is nothing to
+    // resume: cancel it and stop spending ticks on it. Checked BEFORE the
+    // free-text window path on purpose - being inside an open 24h window makes a
+    // message cap-immune, not consented, and weaving a review ask into a reply
+    // to someone who unsubscribed is exactly the promise this guard exists to
+    // keep. START re-opts them in, and any journey enrolled after that is new.
+    if (optedOutWa.has(run.wa_id)) {
+      const runTpl = run.context?.template ?? cfg.template;
+      if (await isMarketingTemplate(runTpl)) {
+        await mark(run.id, "cancelled", "customer unsubscribed from marketing (STOP or Meta #131050)");
+        skipped++;
+        continue;
+      }
+    }
+
     const windowEligible = (WINDOW_DELIVER_JOURNEYS as readonly string[]).includes(run.journey_key);
     const isCart = run.journey_key === "abandoned_checkout";
 
@@ -189,11 +249,51 @@ Deno.serve(async (req) => {
     // attempts, leave the run 'active' (so an inbound piggyback can still deliver
     // it in an open window) but stop re-sending the capped template every tick.
     const tplAttempts = Number(run.context?.tpl_attempts ?? 0);
+    const capAttempts = Number(run.context?.tpl_cap_attempts ?? 0);
+    const stoodDown = run.context?.tpl_stood_down === true;
+
+    // TEMPLATE PATH RETIRED for this run: Meta has already told us (via #131049,
+    // synchronously here or asynchronously in wa-webhook) that this recipient has
+    // no marketing slot. Every further template attempt is a guaranteed failure
+    // that makes the fatigue worse. Leave the run ACTIVE and skip: the in-window
+    // free-text path above still runs on every tick, and an inbound message from
+    // the customer can still deliver this ask for free.
+    if (stoodDown || capAttempts >= TPL_CAP_ATTEMPTS_MAX) {
+      // Push an hour out so a pile of retired runs cannot hot-loop the tick
+      // every 15 min; hourly is still frequent enough to catch any 24h window.
+      await sb.from("wa_journey_runs").update({
+        next_action_at: new Date(Date.now() + 3600_000).toISOString(),
+      }).eq("id", run.id).then(() => {}, () => {});
+      skipped++;
+      continue;
+    }
+
+    // ---- MARKETING FREQUENCY GOVERNOR ----
+    // Marketing templates are capped PER RECIPIENT by Meta. Before spending an
+    // attempt (and the recipient's fatigue budget) on one, ask the governor
+    // whether this customer has room. Utility templates and the free-text path
+    // above are never governed. The governor fails open on any lookup error, so
+    // a governor bug can slow sends but can never stop them entirely.
+    if (await isMarketingTemplate(tplName)) {
+      const verdict = await marketingAllowed(sb, run.wa_id, tplName);
+      if (!verdict.allowed) {
+        const capMs = windowEligible ? GOVERNOR_DEFER_MAX_MS_WINDOW : GOVERNOR_DEFER_MAX_MS_OTHER;
+        const waitMs = Math.min(verdict.retryAfterMs ?? capMs, capMs);
+        await sb.from("wa_journey_runs").update({
+          next_action_at: new Date(Date.now() + waitMs).toISOString(),
+          last_error: `marketing governor: deferred — ${verdict.reason ?? "recent marketing activity"}`,
+        }).eq("id", run.id).then(() => {}, () => {});
+        skipped++;
+        continue;
+      }
+    }
+
     if (windowEligible) {
       // Post-purchase asks stand down after a few capped attempts and wait for an
-      // open window. A CART never stands down — every missed cart is lost revenue,
-      // so it keeps probing the template on a spaced backoff until its deadline
-      // (the backoff is applied in the failure branch below).
+      // open window. Carts get more template attempts than post-purchase asks
+      // (a cart is live revenue), but they are NOT unlimited any more: the
+      // TPL_CAP_ATTEMPTS_MAX gate above retires the template path for both once
+      // Meta has capped this recipient.
       if (!isCart && tplAttempts >= TPL_FALLBACK_MAX) { skipped++; continue; }
       // claim atomically before the send so an inbound piggyback can't also send.
       if (!(await claimAsk(sb, run.id))) { skipped++; continue; }
@@ -236,26 +336,61 @@ Deno.serve(async (req) => {
       if (!windowEligible) await mark(run.id, "completed", null);
       sent++;
     } else if (isCart) {
-      // Cart template send was rejected at call time (often the cap). Don't drop
-      // it — hand the claim back and push the next attempt out by the backoff so
-      // we probe across cap windows without hammering the number's quality
-      // rating. The 72h deadline (checked at the top) is the hard stop.
+      // Cart template send was rejected at call time. Don't drop it — hand the
+      // claim back. WHERE it goes next depends on WHY it failed:
+      //   • #131049 (per-recipient marketing cap): a terminal verdict for this
+      //     recipient. Count the strike; after TPL_CAP_ATTEMPTS_MAX we retire
+      //     the template path entirely (tpl_stood_down) and leave the run active
+      //     and immediately due, so every tick keeps checking for an open 24h
+      //     window and delivers the recovery as free text the moment there is
+      //     one. This replaces the old "probe every 6h until the 72h deadline"
+      //     loop, which spent up to 12 doomed attempts per cart.
+      //   • anything else (transient/API): the original spaced backoff.
+      // The 72h deadline (checked at the top) is still the hard stop either way.
       await releaseAsk(sb, run.id);
-      const nextAt = new Date(Date.now() + flows.cart_backoff_hours * 3600_000).toISOString();
+      const capped = isCapError(undefined, res?.error);
+      const nextCapAttempts = capped ? capAttempts + 1 : capAttempts;
+      const standDown = capped && nextCapAttempts >= TPL_CAP_ATTEMPTS_MAX;
+      // Stood down: re-check hourly (not every tick) — often enough to catch any
+      // open 24h window well inside it, cheap enough that a pile of retired carts
+      // can't crowd the BATCH limit out from under live runs.
+      const nextAt = standDown
+        ? new Date(Date.now() + 3600_000).toISOString()
+        : new Date(Date.now() + flows.cart_backoff_hours * 3600_000).toISOString();
       await sb.from("wa_journey_runs").update({
         next_action_at: nextAt,
         attempts: (run.attempts ?? 0) + 1,
-        last_error: `cart template attempt ${(run.attempts ?? 0) + 1} failed: ${res?.error ?? "send failed"}`,
-        context: { ...(run.context ?? {}), tpl_attempts: tplAttempts + 1 },
+        last_error: standDown
+          ? `cart template retired after ${nextCapAttempts} #131049 verdict(s) — waiting for an open 24h window to deliver free-form`
+          : `cart template attempt ${(run.attempts ?? 0) + 1} failed: ${res?.error ?? "send failed"}`,
+        context: {
+          ...(run.context ?? {}),
+          tpl_attempts: tplAttempts + 1,
+          tpl_cap_attempts: nextCapAttempts,
+          ...(standDown ? { tpl_stood_down: true } : {}),
+        },
       }).eq("id", run.id).then(() => {}, () => {});
       failed++;
     } else if (windowEligible) {
       // Hand the claim back (status -> active) AND record the attempt, so the
       // template fallback is bounded but the run stays alive for the window path.
+      // A #131049 rejection also books a cap strike, which retires the template
+      // path after TPL_CAP_ATTEMPTS_MAX — the ask then waits for an open window
+      // instead of burning the recipient's marketing budget on doomed retries.
       await releaseAsk(sb, run.id);
+      const capped = isCapError(undefined, res?.error);
+      const nextCapAttempts = capped ? capAttempts + 1 : capAttempts;
+      const standDown = capped && nextCapAttempts >= TPL_CAP_ATTEMPTS_MAX;
       await sb.from("wa_journey_runs").update({
-        last_error: `template fallback attempt ${tplAttempts + 1} failed: ${res?.error ?? "send failed"}`,
-        context: { ...(run.context ?? {}), tpl_attempts: tplAttempts + 1 },
+        last_error: standDown
+          ? `template retired after ${nextCapAttempts} #131049 verdict(s) — waiting for an open 24h window`
+          : `template fallback attempt ${tplAttempts + 1} failed: ${res?.error ?? "send failed"}`,
+        context: {
+          ...(run.context ?? {}),
+          tpl_attempts: tplAttempts + 1,
+          tpl_cap_attempts: nextCapAttempts,
+          ...(standDown ? { tpl_stood_down: true } : {}),
+        },
       }).eq("id", run.id).then(() => {}, () => {});
       failed++;
     } else {

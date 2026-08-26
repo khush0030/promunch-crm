@@ -25,6 +25,8 @@ Rule: every doc lives in exactly one subfolder below. Superseded docs move to `a
 | [META_WHATSAPP_TEMPLATE_RULES.md](whatsapp/META_WHATSAPP_TEMPLATE_RULES.md) | Meta template/component rules, media headers, error codes (#132012, #131049) |
 | [WA_CAMPAIGN_HANDOFF.md](whatsapp/WA_CAMPAIGN_HANDOFF.md) | Campaign engine: send lock, worker cron, Meta daily tier, failure handling |
 | [whatsapp-customer-flow.md](whatsapp/whatsapp-customer-flow.md) | Customer journey design across the WhatsApp lifecycle |
+| [AUDIENCE_QUALITY.md](whatsapp/AUDIENCE_QUALITY.md) | Engagement tiers (`tier:*` tags), why 1,410 "opted-in" contacts are really 73 engaged, the campaign audience default, and the storefront consent trail |
+| [MM_LITE_MIGRATION.md](whatsapp/MM_LITE_MIGRATION.md) | Marketing Messages (MM Lite) API: what was verified from Meta's docs, the `WA_MM_LITE_ENABLED` flag + Cloud API fallback, Meta onboarding steps, rollout and rollback |
 
 Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHATSAPP_SETUP.md`, `promunch-email-agent/docs/WHATSAPP_ORDERING.md`.
 

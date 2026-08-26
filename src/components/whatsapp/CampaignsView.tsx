@@ -19,6 +19,10 @@ import {
 } from "./styles";
 import { Modal, Field } from "./primitives";
 import { WhatsAppPreview } from "./WhatsAppPreview";
+import AudienceHealthPanel, { useEngagementHealth } from "./AudienceHealthPanel";
+import {
+  AUDIENCE_PRESETS, DEFAULT_AUDIENCE_PRESET, TIER_META, audienceWarning, presetTags, type Tier,
+} from "@/lib/wa-engagement";
 
 // Per-campaign "who did this actually go to" view. Groups by contact, shows each
 // person's final status + flags anyone messaged more than once (duplicate).
@@ -373,6 +377,8 @@ export default function CampaignsView() {
         </div>
       </div>
 
+      <AudienceHealthPanel />
+
       <QuotaBanner quota={quota} onSaved={() => qc.invalidateQueries({ queryKey: ["wa-quota"] })} />
 
       {recovery && (recovery.enrolled > 0 || recovery.email.enrolled > 0) && (
@@ -550,10 +556,16 @@ function CampaignModal({ onClose, initialSegment, quota }: { onClose: () => void
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateId, setTemplateId] = useState("");
   const [vars, setVars] = useState<Record<string, string>>({});
-  const [audienceMode, setAudienceMode] = useState<"all" | "segment" | "tags">(initialSegment?.length ? "segment" : "all");
+  // Engagement quality is the DEFAULT audience for a new marketing campaign, not
+  // an advanced option: 1,410 of 1,413 contacts carry opted_in = true but only a
+  // few dozen have ever messaged us, and Meta only reliably delivers to the
+  // latter. Segment/tag targeting stays available as a deliberate override.
+  const [audienceMode, setAudienceMode] = useState<"tier" | "all" | "segment" | "tags">(
+    initialSegment?.length ? "segment" : "tier",
+  );
+  const [tierPreset, setTierPreset] = useState<string>(DEFAULT_AUDIENCE_PRESET);
   const [segSel, setSegSel] = useState<string[]>(initialSegment ?? []);
   const [tags, setTags] = useState("");
-  const [audienceCount, setAudienceCount] = useState<number | null>(null);
   const [personalize, setPersonalize] = useState(false);
   const [brief, setBrief] = useState("");
   const [sendMode, setSendMode] = useState<"now" | "schedule">("now");
@@ -577,8 +589,14 @@ function CampaignModal({ onClose, initialSegment, quota }: { onClose: () => void
   }, [tpl]);
 
   // Resolve the active audience to a flat tag list. Segments are stored as
-  // rfm:* tags on wa_contacts; "all" = no filter (every opted-in contact).
+  // rfm:* tags on wa_contacts, engagement tiers as tier:* tags; "all" = no filter
+  // (every opted-in contact). The send engine ORs the tags together, which is
+  // exactly what a tier ladder wants ("engaged OR ever-replied").
   const effectiveTags = useMemo(() => {
+    if (audienceMode === "tier") {
+      const preset = AUDIENCE_PRESETS.find((p) => p.key === tierPreset) ?? AUDIENCE_PRESETS[0];
+      return presetTags(preset);
+    }
     if (audienceMode === "segment") {
       const out = new Set<string>();
       for (const key of segSel) {
@@ -589,12 +607,31 @@ function CampaignModal({ onClose, initialSegment, quota }: { onClose: () => void
     }
     if (audienceMode === "tags") return tags.split(",").map((t) => t.trim()).filter(Boolean);
     return [];
-  }, [audienceMode, segSel, tags]);
+  }, [audienceMode, tierPreset, segSel, tags]);
 
-  useEffect(() => {
-    const qs = effectiveTags.length ? `?tags=${encodeURIComponent(effectiveTags.join(","))}` : "";
-    fetch(`/api/whatsapp/audience${qs}`).then((r) => r.json()).then((j) => setAudienceCount(j.count ?? 0));
-  }, [effectiveTags]);
+  // Size + engagement makeup of whatever is currently selected. byTier is null
+  // until migration 014 is applied; the warning then simply stays hidden rather
+  // than showing a made-up number.
+  const tagKey = effectiveTags.join(",");
+  const { data: audience } = useQuery({
+    queryKey: ["wa-audience", tagKey],
+    queryFn: async (): Promise<{ count: number; byTier: Record<Tier, number> | null }> => {
+      const qs = tagKey ? `?tags=${encodeURIComponent(tagKey)}` : "";
+      const r = await fetch(`/api/whatsapp/audience${qs}`);
+      const j = await r.json();
+      return { count: j.count ?? 0, byTier: j.byTier ?? null };
+    },
+    staleTime: 30_000,
+  });
+  const audienceCount = audience?.count ?? null;
+
+  // Real 30-day block rate for contacts who have never messaged us — the number
+  // behind the warning, measured, never assumed.
+  const { data: health } = useEngagementHealth();
+  const coldBlockRate = health && !("needsMigration" in health) ? health.cold30d.blockRate : null;
+  const warning = audience?.byTier
+    ? audienceWarning(audience.count, audience.byTier, coldBlockRate)
+    : null;
 
   const preview = useMemo(() => {
     if (!tpl) return "";
@@ -812,9 +849,9 @@ function CampaignModal({ onClose, initialSegment, quota }: { onClose: () => void
         </Field>
       )}
       <Field label="Audience">
-        <div style={{ display: "flex", gap: 14, marginBottom: 8 }}>
+        <div style={{ display: "flex", gap: 14, marginBottom: 8, flexWrap: "wrap" }}>
           <label style={{ fontSize: 13, display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
-            <input type="radio" checked={audienceMode === "all"} onChange={() => setAudienceMode("all")} /> Everyone
+            <input type="radio" checked={audienceMode === "tier"} onChange={() => setAudienceMode("tier")} /> By engagement
           </label>
           <label style={{ fontSize: 13, display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
             <input type="radio" checked={audienceMode === "segment"} onChange={() => setAudienceMode("segment")} /> By segment
@@ -822,7 +859,35 @@ function CampaignModal({ onClose, initialSegment, quota }: { onClose: () => void
           <label style={{ fontSize: 13, display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
             <input type="radio" checked={audienceMode === "tags"} onChange={() => setAudienceMode("tags")} /> By tags
           </label>
+          <label style={{ fontSize: 13, display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
+            <input type="radio" checked={audienceMode === "all"} onChange={() => setAudienceMode("all")} /> Everyone
+          </label>
         </div>
+        {audienceMode === "tier" && (
+          <div>
+            {AUDIENCE_PRESETS.map((p) => {
+              const on = tierPreset === p.key;
+              return (
+                <label key={p.key} style={{
+                  display: "flex", gap: 8, alignItems: "flex-start", cursor: "pointer",
+                  border: `1px solid ${on ? WA_GREEN : "var(--pm-border)"}`,
+                  background: on ? "rgba(37,211,102,0.06)" : "transparent",
+                  borderRadius: 9, padding: "8px 10px", marginBottom: 6,
+                }}>
+                  <input type="radio" checked={on} onChange={() => setTierPreset(p.key)} style={{ marginTop: 3 }} />
+                  <span>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{p.label}</span>
+                    <span style={{ display: "block", fontSize: 11.5, color: "var(--pm-hint)", lineHeight: 1.4 }}>{p.hint}</span>
+                  </span>
+                </label>
+              );
+            })}
+            <div style={{ fontSize: 11, color: "var(--pm-hint)" }}>
+              Tiers refresh daily from who has actually messaged us. Engaged is the default because Meta
+              hands every WhatsApp user a personal marketing cap and spends it on people who reply.
+            </div>
+          </div>
+        )}
         {audienceMode === "segment" && (
           <div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -854,6 +919,37 @@ function CampaignModal({ onClose, initialSegment, quota }: { onClose: () => void
             placeholder="vip, repeat_buyer (comma-separated)" />
         )}
       </Field>
+      {warning && (
+        <div style={{
+          display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 10,
+          border: `1px solid ${warning.severity === "danger" ? "var(--pm-terra)" : "var(--pm-gold)"}`,
+          background: warning.severity === "danger" ? "rgba(239,68,68,0.07)" : "rgba(245,183,49,0.10)",
+          borderRadius: 9, padding: "10px 12px",
+        }}>
+          <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1, color: warning.severity === "danger" ? "var(--pm-terra)" : "#92400e" }} />
+          <div style={{ fontSize: 12, lineHeight: 1.5, color: warning.severity === "danger" ? "var(--pm-terra)" : "#92400e" }}>
+            {warning.text}
+            <div style={{ color: "var(--pm-muted)", marginTop: 3 }}>
+              Blocked sends still count against our number&apos;s quality rating. Switch the audience to
+              &ldquo;By engagement&rdquo; to reach the people who actually hear from us.
+            </div>
+          </div>
+        </div>
+      )}
+      {audience?.byTier && audienceCount ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", marginBottom: 8 }}>
+          {(Object.keys(TIER_META) as Tier[]).map((t) => {
+            const n = audience.byTier?.[t] ?? 0;
+            if (!n) return null;
+            return (
+              <span key={t} title={TIER_META[t].hint} style={{ fontSize: 11.5, color: "var(--pm-muted)", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 7, height: 7, borderRadius: 2, background: TIER_META[t].color, display: "inline-block" }} />
+                <strong style={{ color: "var(--pm-ink)" }}>{n.toLocaleString("en-IN")}</strong> {TIER_META[t].label.toLowerCase()}
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
       <div style={{ fontSize: 12, color: "var(--pm-muted)", marginBottom: 12 }}>
         ≈ <strong>{audienceCount ?? "…"}</strong> opted-in recipient(s) will receive this.
         {(() => {

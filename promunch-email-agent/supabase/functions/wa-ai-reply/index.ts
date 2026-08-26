@@ -12,7 +12,14 @@ import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { lookupOrders, orderForAI } from "../_shared/orders.ts";
 import { stripEmDashes, type CatalogSection } from "../_shared/whatsapp.ts";
-import { type DueAsk, claimAsk, findDueAsk, releaseAsk } from "../_shared/window-asks.ts";
+import {
+  type DueAsk,
+  claimAsk,
+  findDueAsk,
+  logAskDelivery,
+  markAskDelivered,
+  releaseAsk,
+} from "../_shared/window-asks.ts";
 import { getFlowSettings } from "../_shared/flow-settings.ts";
 import { CATALOG_ID, MAX_TOOL_TURNS, MODEL, OPENAI_API_KEY } from "./config.ts";
 import { SYSTEM_PROMPT, TOOLS } from "./prompt.ts";
@@ -35,13 +42,17 @@ interface InvokeBody {
   // Proactive in-window ask (driven by wa-journey-tick when the 24h service
   // window is open): generate ONE personalized free-text review/restock message.
   proactive_ask?: { run_id: string; journey_key: string; url?: string; name?: string };
+  // Set by wa-webhook when the inbound turn is a "Report a problem" quick-reply
+  // tap. The customer is opening a complaint, so no follow-up ask may ride
+  // along with the reply — not even one the model would have judged neutral.
+  suppress_ask?: boolean;
 }
 
 Deno.serve(async (req) => {
   const gate = requireInternal(req);
   if (gate) return gate;
   if (req.method !== "POST") return new Response("method", { status: 405 });
-  const { thread_id, last_message, draft, job_id, image_url, proactive_ask } =
+  const { thread_id, last_message, draft, job_id, image_url, proactive_ask, suppress_ask } =
     (await req.json()) as InvokeBody;
   if (!thread_id) return j({ error: "thread_id required" }, 400);
 
@@ -110,7 +121,12 @@ Deno.serve(async (req) => {
   // THE ticket at the end (takes precedence over decision.ticket so we never
   // raise two escalations for the same turn).
   let pendingChange: { changeType: string; orderNumber: string | null; details: string } | null = null;
-  if (!draft && waId) {
+  // findDueAsk now also considers abandoned_checkout (the highest-value ask we
+  // have): a customer with a live cart who just messaged us has an OPEN window,
+  // and the free-text path delivers at ~99% where the cart's marketing template
+  // is 84% blocked. It returns at most ONE ask, priority cart > review > restock,
+  // and never a cart run without its checkout link.
+  if (!draft && waId && !suppress_ask) {
     const due = await findDueAsk(sb, waId, new Date().toISOString());
     if (due && (await claimAsk(sb, due.runId))) claimedAsk = due;
   }
@@ -309,10 +325,31 @@ Deno.serve(async (req) => {
   if (sent?.ok === false) {
     // release the claim so a retry can re-send, and surface the failure so
     // wa-jobs-tick retries this turn rather than dropping the customer.
+    // The woven ask went out INSIDE that reply, so a failed reply means the ask
+    // was not delivered either — hand its claim back too, or a due cart/review
+    // would be marked completed having reached nobody. Releasing only on a
+    // CONFIRMED non-send keeps this from ever becoming a second delivery.
     await releaseReplyTurn(sb, thread_id, answerInbound);
+    if (claimedAsk) { await releaseAsk(sb, claimedAsk.runId); claimedAsk = null; }
     return j({ ok: false, error: sent.error ?? "send failed" }, 502);
   }
   await markReplyTurnSent(sb, thread_id, answerInbound);
+
+  // The reply (ask included) is confirmed away. Stamp the ask's terminal
+  // delivered flag and count it: this is an ask that reached the customer as
+  // cap-immune free text on the back of an inbound message, instead of burning
+  // an 84%-blocked marketing template attempt.
+  if (claimedAsk) {
+    await markAskDelivered(sb, claimedAsk.runId);
+    await logAskDelivery({
+      journeyKey: claimedAsk.journeyKey,
+      mode: "free_text",
+      path: "inbound_weave",
+      runId: claimedAsk.runId,
+      waId,
+      orderRef: claimedAsk.orderRef,
+    });
+  }
 
   // If the bot chose to show products, deliver the catalog cards now — AFTER the
   // text intro and gated by the per-turn claim we just won, so a concurrent run

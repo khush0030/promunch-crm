@@ -85,6 +85,15 @@ truth = it PLUS these later additions (verify live with
 | `wa-confirmation-sweep` | `*/15 * * * *` → edge (order-confirmation safety net; customer-visible — see migration header) | `20260718123000_cron_additions.sql` |
 | `wa-watchdog` | `*/10 * * * *` → edge (Slack alert when wa-health heartbeats stop) | `20260718123000_cron_additions.sql` |
 
+**Vercel cron added (2026-08-26):** `/api/cron/wa-engagement-tiers` at
+`30 20 * * *` — re-derives the `tier:*` engagement tag on every `wa_contacts`
+row via `recompute_wa_engagement_tags()` (migration
+`supabase/migrations/014_wa_engagement_tiers_and_consent.sql`). Tiers move
+slowly, so daily fits the Hobby limit; see
+[docs/whatsapp/AUDIENCE_QUALITY.md](../whatsapp/AUDIENCE_QUALITY.md). Moving it
+next to `wa-rfm-tick` on pg_cron would be tidier if a sub-daily cadence is ever
+wanted.
+
 **Vercel crons changed:** both Hobby slots now run `/api/cron/wa-watchdog`
 (03:00 + 15:00 UTC) — the INDEPENDENT dead-man's switch that catches pg_cron
 dying entirely. The previous Vercel jobs (`leads-tick` daily, `wa-campaign-tick`

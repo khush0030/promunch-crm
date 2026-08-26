@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabase-admin";
+import { TIER_TAGS } from "@/lib/wa-engagement";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // Bulk-import CRM contacts (Shopify-synced) into wa_contacts so they can be
@@ -52,7 +53,9 @@ export async function POST() {
           name: [c.first_name, c.last_name].filter(Boolean).join(" ") || null,
           email: c.email ?? null,
           shopify_customer_id: c.shopify_customer_id ? String(c.shopify_customer_id) : null,
-          tags: ["shopify_import"],
+          // Honest from the first row: an imported phone is not an opt-in.
+          // recompute_wa_engagement_tags() keeps this current afterwards.
+          tags: ["shopify_import", TIER_TAGS.imported],
           opted_in: true,
         });
       }

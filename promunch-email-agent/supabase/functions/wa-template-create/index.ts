@@ -23,6 +23,7 @@
 import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { uploadResumable, fetchMediaBytes } from "../_shared/whatsapp.ts";
+import { intentLabel, quickRepliesFor } from "../_shared/quick-replies.ts";
 
 type HeaderFormat = "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT";
 
@@ -64,9 +65,18 @@ interface TemplateDef {
 // wa-journey-tick actually send.
 //   order_confirmation     : 1=name 2=orderRef 3=total
 //   shipping_update        : 1=name 2=orderRef 3=tracking
+//   order_confirmation_v3        : 1=name 2=orderRef   (buttoned successor)
+//   order_confirmation_repeat_v2 : 1=name 2=orderRef   (buttoned successor)
+//   shipping_update_v2           : 1=name 2=orderRef 3=tracking (buttoned successor)
 //   abandoned_checkout     : 1=name 2=coupon   3=cartUrl
 //   review_request         : 1=name 2=reviewUrl
 //   replenishment_reminder : 1=name 2=siteUrl
+// Button text for the service quick replies comes from _shared/quick-replies.ts,
+// which is also what builds the per-send payloads. One source of truth: a label
+// can never drift between what Meta approved and what we send a payload for.
+const serviceButtons = (tplName: string): TplButton[] =>
+  quickRepliesFor(tplName).map((i) => ({ type: "QUICK_REPLY" as const, text: intentLabel(i) }));
+
 const TEMPLATES: TemplateDef[] = [
   {
     name: "order_confirmation",
@@ -104,6 +114,61 @@ const TEMPLATES: TemplateDef[] = [
       "Get the bowls ready — munch time soon!",
     bodyExample: ["Aarav", "#PM1042", "https://track.promunch.in/PM1042"],
     footer: "PROMUNCH — snack smart",
+  },
+  // ---- WINDOW-MANUFACTURING UTILITY SET -----------------------------------
+  // These three are the buttoned successors to order_confirmation_v2,
+  // order_confirmation_repeat_v1 and shipping_update. They are NEW names, not
+  // edits: an edit re-submits an approved template for review and the old copy
+  // keeps sending until Meta re-approves, so live-editing the order
+  // confirmation would put the business's 99%-delivered lifeline through Meta
+  // review for a button. Same variable contracts as their predecessors, so
+  // switching over is a Flows-tab / template-name change with no code contract
+  // change and an instant rollback (point the name back).
+  //
+  // The buttons are SERVICE intents only (see _shared/quick-replies.ts for the
+  // Meta category reasoning). Each tap is an inbound message, which opens the
+  // 24h service window where free-form delivery is ~99% instead of ~16%.
+  {
+    // Buttoned first-order confirmation. 1=name 2=orderRef
+    name: "order_confirmation_v3",
+    language: "en",
+    category: "UTILITY",
+    body:
+      "You're in, {{1}}! 🎉\n\n" +
+      "Order {{2}} is confirmed. We're packing your protein right now and we'll message you the moment it ships.\n\n" +
+      "Need anything before it goes out? Tap below and we'll sort it.",
+    bodyExample: ["Aarav", "#PM1042"],
+    footer: "Your Munchy Pal",
+    buttons: serviceButtons("order_confirmation_v3"),
+  },
+  {
+    // Buttoned returning-customer confirmation. 1=name 2=orderRef
+    name: "order_confirmation_repeat_v2",
+    language: "en",
+    category: "UTILITY",
+    body:
+      "Welcome back, {{1}}! 🎉\n\n" +
+      "Order {{2}} is confirmed. Your protein is already being packed and we'll ping you the second it ships.\n\n" +
+      "Need anything before it goes out? Tap below and we'll sort it.",
+    bodyExample: ["Aarav", "#PM1042"],
+    footer: "Your Munchy Pal",
+    buttons: serviceButtons("order_confirmation_repeat_v2"),
+  },
+  {
+    // Buttoned shipping notification. 1=name 2=orderRef 3=tracking
+    // The tracking link stays in the body (it is the Shopify order-status page,
+    // never a guessed carrier deep link) and the buttons cover what a customer
+    // actually needs once a parcel is moving.
+    name: "shipping_update_v2",
+    language: "en",
+    category: "UTILITY",
+    body:
+      "It's on the way, {{1}}! 🚚\n\n" +
+      "Order {{2}} is packed, sealed and moving. Track it live:\n{{3}}\n\n" +
+      "Anything not right? Tap below and we'll help.",
+    bodyExample: ["Aarav", "#PM1042", "https://track.promunch.in/PM1042"],
+    footer: "Your Munchy Pal",
+    buttons: serviceButtons("shipping_update_v2"),
   },
   {
     // Abandoned-cart reminder (step 1) — NO discount. Just a nudge back to the

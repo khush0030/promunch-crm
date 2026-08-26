@@ -133,7 +133,15 @@ async function runJob(job: any): Promise<{ ok: boolean; error?: string }> {
           Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ thread_id: p.thread_id, last_message: p.last_message, image_url: p.image_url ?? null }),
+        // suppress_ask is carried through so a retry of a "Report a problem"
+        // quick-reply tap keeps the same decision the live call made: no
+        // review / restock / cart follow-up rides along with a complaint.
+        body: JSON.stringify({
+          thread_id: p.thread_id,
+          last_message: p.last_message,
+          image_url: p.image_url ?? null,
+          suppress_ask: p.suppress_ask === true,
+        }),
       });
       const data = await r.json().catch(() => null);
       if (!r.ok) return { ok: false, error: `wa-ai-reply HTTP ${r.status}` };

@@ -213,9 +213,13 @@ function withUtm(url: string, content: string): string {
 }
 
 // --- checkouts/create + checkouts/update: abandoned-checkout enrolment ------
-// Routed for both topics. The per-token dedup means a cart enrols exactly
-// once — the first time a usable phone number appears on it (often only on
-// a later checkouts/update, not at creation).
+// Routed for both topics. TWO independent guards keep this from spamming:
+//   1. per CHECKOUT TOKEN  — a given cart enrols exactly once, the first time a
+//      usable phone number appears on it (often only on a later
+//      checkouts/update, not at creation).
+//   2. per CUSTOMER (wa_id) — a person can only ever have ONE live recovery
+//      sequence. A second cart refreshes the running one instead of stacking a
+//      parallel sequence on top of it. See the long note further down.
 async function handleCheckout(checkout: any) {
   const sb = db();
   const token: string = String(checkout.token ?? checkout.id ?? "");
@@ -290,9 +294,11 @@ async function handleCheckout(checkout: any) {
 
   if (!flows.abandoned_cart_enabled) return;
 
-  // ATOMIC gate — two checkouts/create+update webhooks for the same token could
-  // both pass the select-based dedup below and enrol the 3-step sequence twice
-  // (6 abandoned-cart messages). claimSend makes enrolment happen exactly once.
+  // ATOMIC gate #1, per CART — two checkouts/create+update webhooks for the same
+  // token could both pass the select-based dedup below and enrol the sequence
+  // twice. claimSend makes enrolment for a given cart happen exactly once.
+  // (Gate #2, per CUSTOMER, is further down — this one alone is not enough,
+  // because Shopify mints a new token for every fresh abandonment.)
   const enrolKey = `abandoned_enrol:${token}`;
   if (!(await claimSend(enrolKey))) return;
   // secondary guard — already enrolled before this gate existed? lock and stop.
@@ -367,16 +373,145 @@ async function handleCheckout(checkout: any) {
     { h: flows.cart_step1_delay_hours, template: "abandoned_cart_reminder", components: reminderComponents, url: reminderUrl },
     { h: flows.cart_step2_delay_hours, template: "abandoned_cart_recovery", components: discountComponents, url: discountUrl },
   ];
-  const rows = steps.map((s) => ({
-    journey_key: "abandoned_checkout",
-    wa_id: waId,
-    next_action_at: new Date(Date.now() + s.h * 3600_000).toISOString(),
-    deadline_at: deadlineAt,
-    context: { template: s.template, language: "en", components: s.components, vars: { "1": name, "2": s.url } },
-    order_ref: token,
-  }));
-  await sb.from("wa_journey_runs").insert(rows);
-  await markSendSent(enrolKey); // lock — never re-enrol this cart
+
+  // === ONE LIVE CART SEQUENCE PER CUSTOMER ==================================
+  // enrolKey above is keyed on the Shopify CHECKOUT TOKEN, and Shopify mints a
+  // BRAND-NEW token every time the same human comes back and abandons again. So
+  // it correctly stopped one cart enrolling twice from duplicate webhooks, and
+  // did nothing at all about one person being enrolled 2, 3, 4 times over, each
+  // sequence nudging on its own independent schedule.
+  //
+  // Production proof (Aug 2026): a single contact held FOUR parallel
+  // abandoned_checkout sequences and received four IDENTICAL marketing templates
+  // in the same minute, repeating every 6h for 72h — 80 marketing sends in one
+  // month. Across August: 537 cart marketing attempts to 35 distinct people.
+  // That is a straight CLAUDE.md §0 never-message-twice violation, and it is
+  // precisely what Meta's #131049 per-recipient marketing-fatigue cap punishes.
+  //
+  // The rule from here: at most ONE live abandoned_checkout sequence per wa_id.
+  // A returning abandoner does NOT get a second sequence — the one they already
+  // have is re-pointed at their newest cart, because the newest cart is the one
+  // worth recovering.
+  //
+  // RACE SAFETY: "select active runs → none found → insert" is a read-then-write,
+  // and two concurrent checkout webhooks for the same person both read "none"
+  // and both insert. Exactly the class of race that double-confirmed order #2050.
+  // So take an ATOMIC per-CUSTOMER claim first (claim_order_confirmation is a
+  // single INSERT .. ON CONFLICT statement, so Postgres serialises contenders)
+  // and hold it as a short mutex across the whole check-and-write. Unlike a send
+  // claim this one is RELEASED, never marked 'sent': it is a critical section,
+  // not a permanent lock — a customer is allowed a fresh sequence later, once
+  // the current one has finished. A crashed holder frees itself after the claim
+  // table's 10-minute stale window, so one crash cannot mute a customer forever.
+  const customerKey = `abandoned_customer:${waId}`;
+  if (!(await claimSend(customerKey))) {
+    // Another webhook is enrolling/refreshing this same person right now. Bias
+    // to silence (§0.5) and release the CART claim so a later checkouts/update
+    // for this token can pick the work up cleanly instead of losing the cart.
+    await releaseSend(enrolKey);
+    await logConnector({
+      connector: "shopify_wa", level: "info", event: "abandoned_enrol_busy",
+      message: `Cart ${token}: another cart enrolment for ${waId} is in flight — standing down.`,
+      ref: token,
+    }).catch(() => {});
+    return;
+  }
+
+  try {
+    // Any live cart step for this HUMAN, regardless of which cart it came from.
+    const { data: live, error: liveErr } = await sb.from("wa_journey_runs")
+      .select("id, order_ref, context")
+      .eq("wa_id", waId)
+      .eq("journey_key", "abandoned_checkout")
+      .eq("status", "active");
+    if (liveErr) {
+      // Unknown DB state — never guess in the direction of MORE messages.
+      // Release the cart claim so a later checkouts/update retries cleanly.
+      await releaseSend(enrolKey);
+      console.warn("[shopify-wa] cart live-run lookup failed:", liveErr.message);
+      return;
+    }
+
+    if (live && live.length) {
+      // REFRESH IN PLACE — zero new rows, therefore zero extra messages. Re-point
+      // the running steps at the newest cart's links (and its first name), matched
+      // per step by context.template. Runs enrolled before per-step templates
+      // existed carry no context.template; wa-journey-tick reads those as the
+      // journey default (abandoned_cart_recovery), so match that here.
+      const byTemplate = new Map(steps.map((s) => [s.template, s]));
+      let refreshed = 0;
+      for (const run of live) {
+        const ctx = { ...((run.context ?? {}) as Record<string, unknown>) };
+        const step = byTemplate.get(String(ctx.template ?? "abandoned_cart_recovery"));
+        // Hand-edited or unrecognised step: leave it exactly as it is rather than
+        // push a link into a template whose component shape we do not know.
+        if (!step) continue;
+        const oldVars = (ctx.vars ?? {}) as Record<string, string>;
+        // firstName() falls back to "there" — don't downgrade a real name we
+        // already captured just because the newest checkout carries no name.
+        const displayName = name === "there" ? (oldVars["1"] || name) : name;
+        ctx.components = step.components;
+        ctx.vars = { ...oldVars, "1": displayName, "2": step.url };
+        // DELIBERATELY NOT TOUCHED: next_action_at, deadline_at, attempts,
+        // status, delivered_at. Refreshing the CONTENT must never re-arm the
+        // SCHEDULE. Pulling next_action_at backwards would fire an extra nudge,
+        // and extending deadline_at would let a serial abandoner be chased
+        // indefinitely — abandon five carts, get chased five deadlines. The
+        // ORIGINAL deadline stands: one sequence, one finite window, per person.
+        const { error: upErr } = await sb.from("wa_journey_runs")
+          .update({ context: ctx, order_ref: token })
+          .eq("id", run.id).eq("status", "active");
+        if (!upErr) refreshed++;
+      }
+      // This cart is fully accounted for — its links now live on the running
+      // sequence, so it must never enrol a sequence of its own.
+      await markSendSent(enrolKey);
+      await logConnector({
+        connector: "shopify_wa", level: "info", event: "abandoned_enrol_refreshed",
+        message:
+          `Cart ${token}: ${waId} already has a live recovery sequence — re-pointed ${refreshed} step(s) ` +
+          `at the new cart instead of enrolling a second one (original deadline kept).`,
+        ref: token,
+      }).catch(() => {});
+      return;
+    }
+
+    const rows = steps.map((s) => ({
+      journey_key: "abandoned_checkout",
+      wa_id: waId,
+      next_action_at: new Date(Date.now() + s.h * 3600_000).toISOString(),
+      deadline_at: deadlineAt,
+      context: { template: s.template, language: "en", components: s.components, vars: { "1": name, "2": s.url } },
+      order_ref: token,
+    }));
+    const { error: insErr } = await sb.from("wa_journey_runs").insert(rows);
+    if (insErr) {
+      // 23505 = the per-customer partial unique index from migration
+      // 20260826101000 caught a live sequence this call could not see. The
+      // insert is a single statement, so nothing was half-written and the
+      // customer is already covered: lock the cart claim and move on. Any other
+      // error is a real failure — release the claim so a later checkouts/update
+      // can retry rather than losing the cart entirely.
+      const dup = String((insErr as { code?: string }).code ?? "") === "23505";
+      if (dup) await markSendSent(enrolKey); else await releaseSend(enrolKey);
+      await logConnector({
+        connector: "shopify_wa",
+        level: dup ? "info" : "error",
+        event: dup ? "abandoned_enrol_dup" : "abandoned_enrol_failed",
+        message: dup
+          ? `Cart ${token}: ${waId} already has a live recovery sequence (unique index) — not enrolling a second.`
+          : `Cart ${token}: cart enrolment insert failed — ${insErr.message}.`,
+        ref: token,
+      }).catch(() => {});
+      return;
+    }
+    await markSendSent(enrolKey); // lock — never re-enrol this cart
+  } finally {
+    // Always hand the per-customer mutex back: critical section, not a lock.
+    // (releaseSend only deletes claims that are not 'sent', so it can never
+    // unlock a genuine send claim that happens to share the key space.)
+    await releaseSend(customerKey);
+  }
 }
 
 // --- tracking link resolution ----------------------------------------------

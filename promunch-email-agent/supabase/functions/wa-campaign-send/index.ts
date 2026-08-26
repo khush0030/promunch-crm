@@ -13,10 +13,17 @@
 import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
-import { sendTemplate, TemplateComponent } from "../_shared/whatsapp.ts";
+import { SendResult, sendTemplate, TemplateComponent } from "../_shared/whatsapp.ts";
 import { appendUtm, mintCode } from "../_shared/links.ts";
-import { alertWaSendFailure, explainWaError, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
+import { alertWaSendFailure, explainWaError, logConnector, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
 import { countBusinessInitiated24h, fetchWaStanding } from "../_shared/wa-quota.ts";
+import {
+  MARKETING_PER_24H,
+  MARKETING_PER_7D,
+  isCapError,
+  marketingHoldSet,
+  recordMarketingCap,
+} from "../_shared/marketing-governor.ts";
 
 const THROTTLE_MS = 120;
 // Per-invocation caps — kept well under the edge-function wall-clock limit so
@@ -29,9 +36,11 @@ const MAX_STATIC = 50;         // per-invocation cap, static send — kept small
 const MAX_PERSONALIZED = 20;   // per-invocation cap, AI send (a Claude call each)
 const STALE_MS = 10 * 60_000;
 
-// Meta's per-user marketing cap (#131049). A contact who fails with this is NOT
-// permanently lost — their cap resets, so we retry them on a later day.
-const CAP_RE = /healthy ecosystem|131049/i;
+// Meta's per-user marketing cap (#131049 / #131050). A contact who fails with
+// this is NOT permanently lost — their cap resets, so we retry them on a later
+// day. Detection lives in the governor (isCapError): it prefers Meta's numeric
+// error code and only falls back to matching the English error text, which is
+// all we have when re-reading a stored wa_messages.error row.
 
 // Next daily send slot = next 12:00 IST (06:30 UTC) strictly in the future.
 function nextSendSlotISO(): string {
@@ -124,7 +133,25 @@ Deno.serve(async (req) => {
   const contacts: { id: string; wa_id: string; name: string | null; email: string | null; tags: string[] | null }[] = [];
   for (let from = 0; ; from += 1000) {
     let q = sb.from("wa_contacts").select("id, wa_id, name, email, tags")
-      .eq("opted_in", true).order("id").range(from, from + 999);
+      .eq("opted_in", true)
+      // NEVER broadcast to a suppressed contact, whatever audience was picked.
+      // 'tier:suppressed' is stamped by the engagement tiering job on contacts
+      // who opted out or who Meta has blocked 3+ times in 90 days (336 of 1,413
+      // today). Without this the tag was advisory only: those contacts are still
+      // opted_in = true, so an "everyone opted-in" campaign reached all of them
+      // and burned a marketing slot per person on a send Meta was always going
+      // to refuse. Applied as an exclusion rather than a tag filter so it holds
+      // no matter which audience the campaign selected.
+      //
+      // NULL-SAFE ON PURPOSE. A bare .not("tags","cs",…) compiles to
+      // NOT (tags @> '{...}'), and in SQL that is NULL - not true - when tags
+      // itself is NULL, so every contact with no tags would be silently dropped
+      // from every campaign. Zero contacts have NULL tags today, but a future
+      // insert path that forgets to stamp one would quietly stop being
+      // messaged, which is the same silent-truncation class as the 1000-row cap
+      // above. The or() makes "no tags" explicitly mean "not suppressed".
+      .or('tags.is.null,tags.not.cs.{"tier:suppressed"}')
+      .order("id").range(from, from + 999);
     if (tags.length) q = q.overlaps("tags", tags);
     const { data: page, error: cErr } = await q;
     if (cErr) return j({ error: cErr.message }, 500);
@@ -168,7 +195,7 @@ Deno.serve(async (req) => {
   for (const r of (done ?? []) as { contact_id: string | null; status: string; error: string | null; created_at: string }[]) {
     if (!r.contact_id) continue;
     if (["sent", "delivered", "read"].includes(r.status)) reached.add(r.contact_id);
-    else if (r.status === "failed" && !CAP_RE.test(r.error ?? "")) permanentFail.add(r.contact_id);
+    else if (r.status === "failed" && !isCapError(null, r.error)) permanentFail.add(r.contact_id);
     if (new Date(r.created_at).getTime() >= todayStartUTC) triedToday.add(r.contact_id);
   }
 
@@ -211,6 +238,22 @@ Deno.serve(async (req) => {
   }
   for (const id of cartHeld) blockedSet.add(id);
 
+  // ---- MARKETING FREQUENCY GOVERNOR ----
+  // Meta's #131049 is a PER-RECIPIENT marketing fatigue cap, and it is terminal
+  // for that recipient — not a transient error to retry into. Measured over 60
+  // days: 84% of marketing template attempts were rejected this way, while
+  // utility templates and in-window free text delivered at 98-99%. Blasting a
+  // contact who already took a marketing message today simply converts their
+  // remaining goodwill into another rejection.
+  //
+  // So hold out anyone who is suppressed, or who has already had
+  // MARKETING_PER_24H attempts in the last 24h / MARKETING_PER_7D in the last 7
+  // days. They are DEFERRED exactly like the cart and open-ticket holds above:
+  // not marked reached, not marked permanently failed, and they fall back into
+  // the eligible pool on a later batch once their window rolls forward.
+  const governorHeld = await marketingHoldSet(sb, contacts);
+  for (const id of governorHeld) blockedSet.add(id);
+
   const baseVars: Record<string, string> = campaign.template_vars ?? {};
   const aiBrief = typeof baseVars._ai_brief === "string" ? baseVars._ai_brief.trim() : "";
   const personalized = aiBrief.length > 0;
@@ -235,7 +278,8 @@ Deno.serve(async (req) => {
   }
   const held = contacts.filter((c) => !reached.has(c.id) && !permanentFail.has(c.id) && blockedSet.has(c.id));
   const cartSkipped = held.filter((c) => cartHeld.has(c.id)).length;
-  const ticketSkipped = held.length - cartSkipped;
+  const governorSkipped = held.filter((c) => !cartHeld.has(c.id) && governorHeld.has(c.id)).length;
+  const ticketSkipped = held.length - cartSkipped - governorSkipped;
 
   // ---- proactive daily budget (account standing) ----
   // Meta's messaging tier caps UNIQUE recipients of business-initiated sends
@@ -272,6 +316,27 @@ Deno.serve(async (req) => {
 
   let sent = 0, failed = 0, capFails = 0, skipped = 0;
   let firstError: string | null = null;
+
+  // ---- MM Lite path observability (batch-aggregated) ----------------------
+  // Campaigns call sendTemplate() directly instead of going through wa-send, so
+  // they inherit MM Lite routing (which is exactly where #131049 hurts most:
+  // 57% of campaign sends died on it) but NOT wa-send's send-path logging. With
+  // no visibility we could switch MM Lite on and never learn whether it helped.
+  //
+  // Aggregated PER BATCH, not per recipient, on purpose. A wave is up to 50
+  // sends; one connector_events row per send is exactly the unbounded per-send
+  // logging that caused the Aug 2026 Disk IO incident. Counters cost nothing and
+  // answer the only question that matters ("did MM Lite deliver better than
+  // Cloud API?"). All of this stays zero while WA_MM_LITE_ENABLED is unset,
+  // because sendTemplate() only sets send_path when the flag is on.
+  const pathStats = {
+    mm_lite_sent: 0,
+    mm_lite_failed: 0,
+    cloud_api_sent: 0,
+    cloud_api_failed: 0,
+    fallbacks: 0,
+  };
+  let firstMmLiteError: string | null = null;
   for (const c of queue) {
     let contactVars = baseVars;
     if (personalized && openai && varKeys.length) {
@@ -321,11 +386,23 @@ Deno.serve(async (req) => {
       : (typeof baseVars._track_url === "string" ? baseVars._track_url : null);
     const btn = await buildTrackedButton(sb, tpl, trackUrl, { contact_id: c.id, campaign_id: campaignId });
     if (btn) components.push(btn);
-    let res;
+    let res: SendResult;
     try {
       res = await sendTemplate(c.wa_id, tpl.name, tpl.language, components);
     } catch (e) {
-      res = { ok: false, message_id: null as string | null, raw: null, error: String(e), error_code: undefined as number | undefined, error_detail: undefined as string | undefined };
+      res = { ok: false, message_id: null, raw: null, error: String(e) };
+    }
+
+    // Tally which Meta endpoint carried this one. send_path is undefined on
+    // every send made with the MM Lite flag off, so this block is inert today.
+    if (res.send_path === "mm_lite") {
+      res.ok ? pathStats.mm_lite_sent++ : pathStats.mm_lite_failed++;
+    } else if (res.send_path === "cloud_api") {
+      res.ok ? pathStats.cloud_api_sent++ : pathStats.cloud_api_failed++;
+    }
+    if (res.mm_lite_fallback) {
+      pathStats.fallbacks++;
+      if (!firstMmLiteError) firstMmLiteError = res.mm_lite_error ?? "unknown";
     }
 
     // Finalize the claimed row IN PLACE (update, never a second insert). On
@@ -334,7 +411,7 @@ Deno.serve(async (req) => {
     // wrote before (every campaign failure showed as "unknown").
     const explain = res.ok
       ? null
-      : explainWaError((res as { error_code?: number }).error_code, res.error ?? undefined);
+      : explainWaError(res.error_code, res.error ?? undefined);
     await sb.from("wa_messages").update({
       body: `[campaign:${campaign.name}]`,
       template_vars: contactVars,
@@ -345,7 +422,7 @@ Deno.serve(async (req) => {
         ai_meta: {
           category: explain.category,
           cause: explain.cause,
-          code: (res as { error_code?: number }).error_code ?? null,
+          code: res.error_code ?? null,
         },
       } : {}),
     }).eq("id", claim.id);
@@ -360,7 +437,14 @@ Deno.serve(async (req) => {
     // customer REPLIES, their inbound bumps the thread and it surfaces normally.
 
     if (!res.ok) {
-      if (CAP_RE.test(res.error ?? "")) capFails++;
+      const capHit = isCapError(res.error_code, res.error);
+      if (capHit) capFails++;
+      // Feed the per-recipient governor: three consecutive #131049 verdicts and
+      // we stop marketing to this number for 30 days. Delivery (reported later
+      // by wa-webhook) clears the strikes again.
+      if (capHit) {
+        await recordMarketingCap(sb, c.wa_id, res.error_code, res.error).catch(() => {});
+      }
       if (!firstError) firstError = res.error ?? "unknown";
       // Per-recipient alert (throttled to one Slack ping per error-code per 5 min,
       // so a wholesale-failing blast pings once — not once per recipient).
@@ -369,14 +453,58 @@ Deno.serve(async (req) => {
         kind: "template",
         templateName: tpl.name,
         error: res.error,
-        errorCode: (res as { error_code?: number }).error_code,
-        errorDetail: (res as { error_detail?: string }).error_detail,
+        errorCode: res.error_code,
+        errorDetail: res.error_detail,
         sentBy: personalized ? "campaign-ai" : "campaign",
       }).catch(() => {});
     }
 
     res.ok ? sent++ : failed++;
     if (THROTTLE_MS) await sleep(THROTTLE_MS);
+  }
+
+  // ---- emit the batch's MM Lite summary ----------------------------------
+  // Mirrors wa-send's observability block, one level up: a single structured
+  // console line per BATCH (joinable to wa_messages by campaign_id + template),
+  // plus at most one throttled connector event when MM Lite refused sends and
+  // Cloud API carried them instead. Nothing is written when the flag is off.
+  const touchedAnyPath = pathStats.mm_lite_sent + pathStats.mm_lite_failed +
+    pathStats.cloud_api_sent + pathStats.cloud_api_failed > 0;
+  if (touchedAnyPath) {
+    console.log(JSON.stringify({
+      evt: "wa_send_path",
+      scope: "campaign_batch",
+      campaign_id: campaignId,
+      campaign: campaign.name,
+      template: tpl.name,
+      batch_size: queue.length,
+      ...pathStats,
+      sent_by: personalized ? "campaign-ai" : "campaign",
+    }));
+  }
+
+  // A fallback means MM Lite refused the send (not enabled, not permitted, or
+  // template ineligible) and Cloud API carried it instead. Customers were not
+  // affected, but the rollout is misconfigured. One warn per batch, throttled to
+  // one row per hour, so a 2,700-recipient blast cannot flood connector_events.
+  if (pathStats.fallbacks > 0) {
+    await logConnector({
+      connector: "whatsapp",
+      level: "warn",
+      event: "mm_lite_fallback",
+      message:
+        `MM Lite refused ${pathStats.fallbacks}/${queue.length} campaign send(s) of "${tpl.name}" ` +
+        `and Cloud API delivered them instead: ${firstMmLiteError ?? "unknown"}`,
+      detail: {
+        scope: "campaign_batch",
+        campaign_id: campaignId,
+        campaign: campaign.name,
+        template: tpl.name,
+        mm_lite_error: firstMmLiteError,
+        ...pathStats,
+      },
+      throttleMinutes: 60,
+    }).catch(() => {});
   }
 
   await sb.rpc("wa_campaign_recount", { p_campaign: campaignId });
@@ -430,7 +558,16 @@ Deno.serve(async (req) => {
   }).catch(() => {});
   try { (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil?.(chain); } catch { /* not on edge runtime */ }
 
-  return j({ ok: true, sent, failed, claim_skipped: skipped, processed: queue.length, personalized, ticket_skipped: ticketSkipped, cart_skipped: cartSkipped, status: "sending" });
+  return j({
+    ok: true, sent, failed, claim_skipped: skipped, processed: queue.length, personalized,
+    ticket_skipped: ticketSkipped, cart_skipped: cartSkipped,
+    governor_skipped: governorSkipped,
+    governor_limits: `${MARKETING_PER_24H}/24h, ${MARKETING_PER_7D}/7d`,
+    // Omitted entirely (not zero-filled) while WA_MM_LITE_ENABLED is unset, so
+    // the response shape is unchanged for every caller reading it today.
+    ...(touchedAnyPath ? { send_paths: pathStats } : {}),
+    status: "sending",
+  });
 });
 
 function extractVarKeys(body: string): string[] {

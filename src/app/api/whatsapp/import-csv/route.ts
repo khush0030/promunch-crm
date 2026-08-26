@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { TIER_TAGS } from "@/lib/wa-engagement";
 
 // Import a parsed CSV contact list into wa_contacts. The browser parses the
 // CSV and posts { rows: [{ phone, name?, email? }] }. Existing contacts are
@@ -47,7 +48,9 @@ export async function POST(req: NextRequest) {
       phone: "+" + waId,
       name: (r.name || "").trim() || null,
       email: (r.email || "").trim() || null,
-      tags: [tag],
+      // An uploaded phone list is not a marketing opt-in — tier it as imported
+      // so the campaign builder never mistakes it for an engaged audience.
+      tags: [tag, TIER_TAGS.imported],
       opted_in: true,
     });
   }
