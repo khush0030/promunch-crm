@@ -4,7 +4,7 @@
 // Always returns 200 once verified so Sarvam does not retry a processed call.
 
 import { db } from "../_shared/supabase.ts";
-import { logConnector } from "../_shared/connector-log.ts";
+import { errStr, logConnector } from "../_shared/connector-log.ts";
 import { verifyVoiceWebhook } from "../_shared/voice-webhook-verify.ts";
 import { addToDndList } from "../_shared/sarvam.ts";
 
@@ -25,6 +25,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("ok", { status: 200 });
   const p = await req.json().catch(() => null) as SarvamWebhook | null;
   if (!p) return j({ error: "bad json" }, 400);
+  try {
   const meta = p.webhook_config?.metadata ?? {};
   const sb = db();
 
@@ -38,14 +39,23 @@ Deno.serve(async (req) => {
     return v.reason === "already_finished" ? j({ ok: true, dup: true }) : j({ error: v.reason }, 401);
   }
   const call = row!;
-  const status = p.status ?? "failed";
+  // Sarvam's status is unauthenticated JSON; voice_calls.status has a CHECK
+  // constraint, so an unmapped spelling must never reach the UPDATE (it would
+  // throw, strand the row on 'dialing' forever, and 500 on every redelivery).
+  const STATUSES = new Set(["connected", "no_answer", "busy", "failed"]);
+  const rawStatus = p.status !== undefined ? String(p.status) : null;
+  const status = rawStatus && STATUSES.has(rawStatus) ? (rawStatus as "connected" | "no_answer" | "busy" | "failed") : "failed";
+  const unmappedStatus = rawStatus && !STATUSES.has(rawStatus) ? rawStatus : null;
   const rawOutcome = String(p.final_agent_variables?.outcome ?? "unknown").toLowerCase();
   const outcome = OUTCOMES.has(rawOutcome) ? rawOutcome : "unknown";
   const now = new Date().toISOString();
+  const failureReason = unmappedStatus
+    ? `unmapped status '${unmappedStatus}'; ${p.failure_reason ?? ""}`
+    : (p.failure_reason ?? null);
 
   // Idempotent finalise: only the dialing row transitions.
   const { data: finalised } = await sb.from("voice_calls").update({
-    status, outcome, duration_s: p.duration ?? null, failure_reason: p.failure_reason ?? null,
+    status, outcome, duration_s: p.duration ?? null, failure_reason: failureReason,
     interaction_id: p.interaction_id ?? null, transcript: p.interaction_transcript ?? null,
     agent_vars: p.final_agent_variables ?? null, updated_at: now,
   }).eq("id", call.id).eq("status", "dialing").select("id");
@@ -59,7 +69,12 @@ Deno.serve(async (req) => {
   }
   if (outcome === "do_not_call") {
     await sb.from("wa_contacts").update({ voice_dnd: true, updated_at: now }).eq("wa_id", call.wa_id).then(() => {}, () => {});
-    await addToDndList(`+${call.wa_id}`);
+    // Local voice_dnd is the real dialing gate; the Sarvam-side push is
+    // best-effort only, but must never silently vanish on a throw.
+    const pushed = await addToDndList(`+${call.wa_id}`).catch(() => false);
+    if (!pushed) {
+      await logConnector({ connector: "shopify_wa", level: "warn", event: "voice_dnd_push_failed", message: `${call.wa_id}: voice_dnd set locally but Sarvam DND list push failed - add manually in indus.sarvam.ai.`, ref: call.order_ref ?? call.id }).catch(() => {});
+    }
   }
   if ((status === "no_answer" || status === "busy") && call.run_id) {
     // ONE retry, 2h later, inside the window (the tick re-checks the window).
@@ -85,6 +100,12 @@ Deno.serve(async (req) => {
   }
   await logConnector({ connector: "shopify_wa", level: "info", event: "voice_call_result", message: `Cart ${call.order_ref}: ${status}${p.duration ? ` ${p.duration}s` : ""}, outcome ${outcome}.`, ref: call.order_ref ?? call.id }).catch(() => {});
   return j({ ok: true });
+  } catch (e) {
+    // No future throw in the body above may strand a call silently; always
+    // trace it and give Sarvam a definite (retryable) response.
+    await logConnector({ connector: "shopify_wa", level: "warn", event: "voice_webhook_error", message: `voice-webhook threw: ${errStr(e)}`, ref: null }).catch(() => {});
+    return j({ error: "internal" }, 500);
+  }
 });
 
 function j(o: unknown, s = 200) {
