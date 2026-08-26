@@ -43,6 +43,12 @@ type FlowSettings = {
   tagline_proactive_asks: boolean;
   tagline_cod_gate: boolean;
   tagline_checkout_footer: boolean;
+  voice_call_enabled: boolean;
+  cart_voice_delay_hours: number;
+  voice_min_cart_value: number;
+  voice_call_start_hour: number;
+  voice_call_end_hour: number;
+  voice_language: string;
 };
 type TplRow = { name: string; language: string; status: string };
 type Stats = Record<string, Record<string, number>>;

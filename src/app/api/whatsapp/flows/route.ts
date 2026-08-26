@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireAdmin } from "@/lib/rbac-server";
 import { recordAudit } from "@/lib/audit";
+import { validateVoiceHours, VOICE_LANGUAGES } from "./validate";
 
 // Settings for the automated WhatsApp journeys (Flows tab).
 // Backed by the wa_flow_settings singleton (id=1, migration 20260705190000).
@@ -33,6 +34,12 @@ const DEFAULTS = {
   tagline_proactive_asks: true,
   tagline_cod_gate: true,
   tagline_checkout_footer: true,
+  voice_call_enabled: false,
+  cart_voice_delay_hours: 6,
+  voice_min_cart_value: 0,
+  voice_call_start_hour: 10,
+  voice_call_end_hour: 20,
+  voice_language: "Hindi",
 };
 type Settings = typeof DEFAULTS;
 
@@ -40,6 +47,7 @@ const BOOL_KEYS = [
   "order_confirmation_enabled", "shipping_update_enabled", "abandoned_cart_enabled",
   "review_request_enabled", "replenishment_enabled", "cod_gate_enabled",
   "tagline_bot_replies", "tagline_proactive_asks", "tagline_cod_gate", "tagline_checkout_footer",
+  "voice_call_enabled",
 ] as const;
 
 // Meta template names: lowercase letters, digits, underscores. first may not
@@ -56,6 +64,10 @@ const NUM_LIMITS: Record<string, { min: number; max: number }> = {
   replenishment_delay_days: { min: 1, max: 365 },
   cod_reminder_delay_hours: { min: 0.5, max: 48 },
   cod_needs_call_hours: { min: 1, max: 168 },
+  cart_voice_delay_hours: { min: 1, max: 72 },
+  voice_min_cart_value: { min: 0, max: 100000 },
+  voice_call_start_hour: { min: 0, max: 23 },
+  voice_call_end_hour: { min: 1, max: 24 },
 };
 
 async function currentSettings(): Promise<Settings> {
@@ -153,6 +165,13 @@ export async function PATCH(req: NextRequest) {
     }
     patch.cart_coupon_code = code;
   }
+  if (body.voice_language !== undefined) {
+    const lang = String(body.voice_language);
+    if (!(VOICE_LANGUAGES as readonly string[]).includes(lang)) {
+      return NextResponse.json({ error: "voice_language must be a Sarvam language" }, { status: 400 });
+    }
+    patch.voice_language = lang;
+  }
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "no editable fields in body" }, { status: 400 });
   }
@@ -174,6 +193,8 @@ export async function PATCH(req: NextRequest) {
       { error: "needs-call escalation must come after the reminder (needs-call hours > reminder hours)" },
       { status: 400 });
   }
+  const hoursErr = validateVoiceHours(merged.voice_call_start_hour, merged.voice_call_end_hour);
+  if (hoursErr) return NextResponse.json({ error: hoursErr }, { status: 400 });
 
   const changed = Object.keys(patch);
   patch.updated_at = new Date().toISOString();

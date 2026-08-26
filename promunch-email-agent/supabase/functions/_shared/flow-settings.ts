@@ -38,6 +38,13 @@ export interface FlowSettings {
   tagline_proactive_asks: boolean;
   tagline_cod_gate: boolean;
   tagline_checkout_footer: boolean;
+  // Sarvam voice rescue call (fires only after WhatsApp cart recovery fails).
+  voice_call_enabled: boolean;
+  cart_voice_delay_hours: number;   // hours after cart step 2 before the call is due
+  voice_min_cart_value: number;     // INR; 0 = call every cart
+  voice_call_start_hour: number;    // IST, inclusive
+  voice_call_end_hour: number;      // IST, exclusive
+  voice_language: string;           // Sarvam initial_language_name enum
 }
 
 export const FLOW_DEFAULTS: FlowSettings = {
@@ -63,6 +70,12 @@ export const FLOW_DEFAULTS: FlowSettings = {
   tagline_proactive_asks: true,
   tagline_cod_gate: true,
   tagline_checkout_footer: true,
+  voice_call_enabled: false,
+  cart_voice_delay_hours: 6,
+  voice_min_cart_value: 0,
+  voice_call_start_hour: 10,
+  voice_call_end_hour: 20,
+  voice_language: "Hindi",
 };
 
 export async function getFlowSettings(): Promise<FlowSettings> {
