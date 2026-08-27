@@ -62,7 +62,7 @@ Create the voice agent ("app") in indus.sarvam.ai, then define its variables.
 
 **Inputs** (type string, default empty): `customer_name`, `cart_items`, `cart_value`, `discount_code`, `checkout_url`, `call_id`, `phone`, `gender`.
 
-These names must match the agent EXACTLY. A variable we send that the agent does not declare is dropped silently, so a rename on either side reads as an empty cart value on the call, never as an error. `call_id` is load-bearing: the `send_whatsapp_link` tool passes it back to `voice-tool-wa-link`, which is how that endpoint identifies the live call. `gender` is declared by the agent but always sent empty (we hold no gender data and never guess).
+These names must match the agent EXACTLY. Sending a variable the agent has not declared is a HARD FAILURE: Sarvam returns `422 Invalid Parameter -- Agent variables {...} not found in agent variables of app <id>` and does not dial (verified live, Aug 27 2026). The `voice_calls` row is recorded `start_failed` with that message in `failure_reason`, and the tick retries up to 3 times before retiring the run. The reverse is harmless: the agent may declare variables we never send. `call_id` is load-bearing: the `send_whatsapp_link` tool passes it back to `voice-tool-wa-link`, which is how that endpoint identifies the live call. `gender` is declared by the agent but always sent empty (we hold no gender data and never guess).
 
 These are populated per call by `voice-call-start` from the journey run's context (`_shared/... `: `customer_name` from the enrolment name, `cart_items` as `"2x Peri Peri Crunchies, 1x Masala Sticks"`, `cart_value` as `"Rs 748"`, `checkout_url` from the Shopify checkout NOTE URL, `call_id`/`phone` for the WhatsApp-link tool).
 

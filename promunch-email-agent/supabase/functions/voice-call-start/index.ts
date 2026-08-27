@@ -30,9 +30,12 @@ Deno.serve(async (req) => {
   const language = (await getFlowSettings()).voice_language || "Hindi";
 
   // Names MUST match the variables declared on the Sarvam agent (Build -> Variables).
-  // A variable we send that the agent does not declare is silently dropped, so a
-  // rename on either side is a silent content regression, not an error: the agent
-  // simply reads an empty cart value. Current agent contract (Aug 27, 2026):
+  // Sending a variable the agent does not declare is a HARD FAILURE, not a silent
+  // drop: Sarvam answers 422 "Agent variables {...} not found in agent variables
+  // of app <id>" and never dials (verified against the live agent, Aug 27 2026).
+  // So adding a key here without adding it in the dashboard takes the whole voice
+  // leg down, and the reverse (agent declares more than we send) is harmless.
+  // Current agent contract (Aug 27, 2026):
   //   inputs  customer_name, cart_items, cart_value, discount_code, gender,
   //           call_id, checkout_url, phone
   //   outputs call_disposition (our outcome enum), call_summary
