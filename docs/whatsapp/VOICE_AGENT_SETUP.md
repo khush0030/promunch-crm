@@ -60,26 +60,28 @@ Use that same value as the bearer token in the HTTPS tool config in §5.
 
 Create the voice agent ("app") in indus.sarvam.ai, then define its variables.
 
-**Inputs** (type string, default empty): `customer_name`, `cart_items`, `cart_total`, `coupon_code`, `checkout_url`, `call_id`, `phone`.
+**Inputs** (type string, default empty): `customer_name`, `cart_items`, `cart_value`, `discount_code`, `checkout_url`, `call_id`, `phone`, `gender`.
 
-These are populated per call by `voice-call-start` from the journey run's context (`_shared/... `: `customer_name` from the enrolment name, `cart_items` as `"2x Peri Peri Crunchies, 1x Masala Sticks"`, `cart_total` as `"Rs 748"`, `checkout_url` from the Shopify checkout NOTE URL, `call_id`/`phone` for the WhatsApp-link tool).
+These names must match the agent EXACTLY. A variable we send that the agent does not declare is dropped silently, so a rename on either side reads as an empty cart value on the call, never as an error. `call_id` is load-bearing: the `send_whatsapp_link` tool passes it back to `voice-tool-wa-link`, which is how that endpoint identifies the live call. `gender` is declared by the agent but always sent empty (we hold no gender data and never guess).
 
-**Output**: `outcome` — Enum `will_buy, asked_link, not_interested, do_not_call, callback_later, unknown`.
+These are populated per call by `voice-call-start` from the journey run's context (`_shared/... `: `customer_name` from the enrolment name, `cart_items` as `"2x Peri Peri Crunchies, 1x Masala Sticks"`, `cart_value` as `"Rs 748"`, `checkout_url` from the Shopify checkout NOTE URL, `call_id`/`phone` for the WhatsApp-link tool).
+
+**Output**: `call_disposition` — Enum `will_buy, asked_link, not_interested, do_not_call, callback_later, unknown`. The extraction prompt MUST emit exactly these six values.
 
 Extraction prompt:
 ```
 Classify the customer's final intent. do_not_call if they asked not to be called again. asked_link if they asked for the link on WhatsApp. will_buy if they said they will complete the order. callback_later if they asked to be called another time. not_interested if they declined. Otherwise unknown.
 ```
 
-`voice-webhook` reads this back as `final_agent_variables.outcome`; any value outside the enum above is coerced to `unknown` before it reaches the `voice_calls.outcome` column (which has no CHECK constraint on outcome, but the webhook still normalizes defensively).
+`voice-webhook` reads this back as `final_agent_variables.call_disposition` (falling back to `outcome` for older agents); any value outside the enum above is coerced to `unknown` before it reaches the `voice_calls.outcome` column (which has no CHECK constraint on outcome, but the webhook still normalizes defensively).
 
 ## 4. System prompt
 
 Paste this verbatim into the agent's system prompt field. It already encodes every PROMUNCH copy rule (all-caps brand name, "Your Munchy Pal" sign-off, no em dashes, never say "Oltaflock") and the same shipping/payment facts WhatsApp and email use — do not paraphrase it.
 
 ```
-You are Maya from PROMUNCH, a friendly Indian snack brand making high-protein roasted soya snacks. You are calling @customer_name because they left @cart_items (total @cart_total) in their cart on promunch.in. Speak naturally in the customer's language (start in Hindi with easy English words, switch fully to English if they do). Keep the call under 3 minutes.
-Goal: help them finish the order. Offer to send the checkout link on WhatsApp; if they say yes, call the send_whatsapp_link tool and confirm "sent, please check WhatsApp". Mention coupon @coupon_code only if they hesitate on price.
+You are Maya from PROMUNCH, a friendly Indian snack brand making high-protein roasted soya snacks. You are calling @customer_name because they left @cart_items (total @cart_value) in their cart on promunch.in. Speak naturally in the customer's language (start in Hindi with easy English words, switch fully to English if they do). Keep the call under 3 minutes.
+Goal: help them finish the order. Offer to send the checkout link on WhatsApp; if they say yes, call the send_whatsapp_link tool and confirm "sent, please check WhatsApp". Mention coupon @discount_code only if they hesitate on price.
 Facts you may state: PROMUNCH Crunchies are roasted soya; chips and sticks are fried; free shipping on orders of Rs 599 or more, otherwise Rs 99; cash on delivery adds Rs 50; prepaid orders get 5 percent off. If asked anything else, say you will have the team message them on WhatsApp.
 If the customer says not to call again, apologise, promise no more calls, and end the call. If they are busy, offer to call later and end politely. Never argue, never mention being an AI unless asked, never use the word Oltaflock. Sign off with "Your Munchy Pal".
 ```
@@ -138,7 +140,7 @@ Before the first real rollout to the full audience, `VOICE_TEST_WA_IDS` (an edge
 
 ## 8. DND / TRAI note
 
-This feature only respects two suppression lists: our own `wa_contacts.voice_dnd` flag (set the moment a customer says "don't call again," `outcome=do_not_call`) and Sarvam's own org-wide DND list (best-effort push from `voice-webhook`; if the push fails it's logged, not silently dropped, but the local `voice_dnd` flag is what actually gates dialing either way). Neither is a substitute for **India's DLT/TRAI regime**: promotional outbound calling formally requires DLT registration and (depending on classification) a 140-series number, which this setup does not implement. Treat `voice_call_enabled` as a controlled, low-volume pilot, not a compliant bulk-calling channel:
+This feature only respects two suppression lists: our own `wa_contacts.voice_dnd` flag (set the moment a customer says "don't call again," `call_disposition=do_not_call`) and Sarvam's own org-wide DND list (best-effort push from `voice-webhook`; if the push fails it's logged, not silently dropped, but the local `voice_dnd` flag is what actually gates dialing either way). Neither is a substitute for **India's DLT/TRAI regime**: promotional outbound calling formally requires DLT registration and (depending on classification) a 140-series number, which this setup does not implement. Treat `voice_call_enabled` as a controlled, low-volume pilot, not a compliant bulk-calling channel:
 
 - Keep `voice_min_cart_value` conservative (only call for carts worth the compliance exposure).
 - Keep the call window narrow and IST-appropriate (default 10:00–20:00).

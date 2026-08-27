@@ -46,7 +46,15 @@ Deno.serve(async (req) => {
   const rawStatus = p.status !== undefined ? String(p.status) : null;
   const status = rawStatus && STATUSES.has(rawStatus) ? (rawStatus as "connected" | "no_answer" | "busy" | "failed") : "failed";
   const unmappedStatus = rawStatus && !STATUSES.has(rawStatus) ? rawStatus : null;
-  const rawOutcome = String(p.final_agent_variables?.outcome ?? "unknown").toLowerCase();
+  // The agent's outcome variable is named call_disposition (Sarvam Build ->
+  // Variables); `outcome` is accepted as a fallback so renaming the variable on
+  // either side degrades to "unknown" rather than throwing. Values outside
+  // OUTCOMES are clamped, and do_not_call is what flips voice_dnd below, so a
+  // drift here silently costs us a customer's do-not-call request: if the
+  // clamp starts firing, fix the agent's extraction prompt, not this line.
+  const rawOutcome = String(
+    p.final_agent_variables?.call_disposition ?? p.final_agent_variables?.outcome ?? "unknown",
+  ).toLowerCase();
   const outcome = OUTCOMES.has(rawOutcome) ? rawOutcome : "unknown";
   const now = new Date().toISOString();
   const failureReason = unmappedStatus

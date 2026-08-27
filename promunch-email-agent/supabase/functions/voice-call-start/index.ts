@@ -29,14 +29,26 @@ Deno.serve(async (req) => {
   const items = Array.isArray(ctx.items) ? ctx.items as Array<{ title: string; qty: number }> : [];
   const language = (await getFlowSettings()).voice_language || "Hindi";
 
+  // Names MUST match the variables declared on the Sarvam agent (Build -> Variables).
+  // A variable we send that the agent does not declare is silently dropped, so a
+  // rename on either side is a silent content regression, not an error: the agent
+  // simply reads an empty cart value. Current agent contract (Aug 27, 2026):
+  //   inputs  customer_name, cart_items, cart_value, discount_code, gender,
+  //           call_id, checkout_url, phone
+  //   outputs call_disposition (our outcome enum), call_summary
+  // call_id is load-bearing: the mid-call send_whatsapp_link tool passes it back
+  // to voice-tool-wa-link, which is how that endpoint identifies the live call.
   const agentVariables: Record<string, string> = {
     customer_name: vars["1"] || "there",
     cart_items: items.length ? items.map((i) => `${i.qty}x ${i.title}`).join(", ") : "your PROMUNCH snacks",
-    cart_total: ctx.total ? `Rs ${Number(ctx.total).toFixed(0)}` : "",
-    coupon_code: String(ctx.coupon ?? ""),
+    // Zero is a real total, so test for a finite number rather than truthiness.
+    cart_value: Number.isFinite(Number(ctx.total)) ? `Rs ${Number(ctx.total).toFixed(0)}` : "",
+    discount_code: String(ctx.coupon ?? ""),
     checkout_url: vars["2"] ?? "",
     call_id: call.id,
     phone: `+${call.wa_id}`,
+    // Declared by the agent; we hold no gender data and never guess one.
+    gender: "",
   };
 
   const res = await startOutboundCall({
