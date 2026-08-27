@@ -16,7 +16,7 @@ import { isOrderCancelled } from "../_shared/orders.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 import { WINDOW_DELIVER_JOURNEYS, claimAsk, releaseAsk, sessionOpen } from "../_shared/window-asks.ts";
 import { isCapError, isMarketingTemplate, isUndeliverableError, marketingAllowed } from "../_shared/marketing-governor.ts";
-import { VOICE_TEMPLATE, inCallWindow, nextWindowOpen, voiceEligibility } from "../_shared/voice-eligibility.ts";
+import { inCallWindow, nextWindowOpen, voiceEligibility } from "../_shared/voice-eligibility.ts";
 
 const BATCH = 200;
 // Max times to retry the (per-recipient-capped) template fallback for a
@@ -105,9 +105,13 @@ Deno.serve(async (req) => {
 
   // A dial whose webhook never came back (Sarvam outage, crash between insert
   // and start) must not sit 'dialing' forever: it would block the per-cart and
-  // 7-day guards. Mark unknown after 2h; never redial from here (§0).
+  // 7-day guards. Mark unknown after 6h; never redial from here (§0). A row
+  // swept to 'unknown' is NOT abandoned: verifyVoiceWebhook still accepts a
+  // late webhook against it (dialing OR unknown), so the real Sarvam outcome
+  // (including a do_not_call -> voice_dnd flag) can still land and finalise
+  // the row once the webhook eventually arrives.
   await sb.from("voice_calls").update({ status: "unknown", updated_at: now })
-    .eq("status", "dialing").lt("created_at", new Date(Date.now() - 2 * 3600_000).toISOString())
+    .eq("status", "dialing").lt("created_at", new Date(Date.now() - 6 * 3600_000).toISOString())
     .then(() => {}, () => {});
 
   let sent = 0, failed = 0, skipped = 0;

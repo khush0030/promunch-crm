@@ -3,6 +3,12 @@
 // webhook_config.metadata AND name the attempt_id we stored, and the row must
 // still be waiting. Constant-time compare so the token cannot be guessed byte
 // by byte.
+//
+// "Waiting" means status 'dialing' (never touched) OR 'unknown' (the tick's
+// stuck-dial sweep flipped it after the webhook was late) — a swept row means
+// "no webhook arrived yet", so a late arrival is exactly the case this exists
+// to accept. Any OTHER status already carries a real verdict from an earlier
+// webhook delivery, so it is a replay/duplicate, not a late arrival.
 
 function timingSafeEqual(a: string, b: string): boolean {
   const enc = new TextEncoder();
@@ -22,6 +28,6 @@ export function verifyVoiceWebhook(
   if (!row) return { ok: false, reason: "no_such_call" };
   if (!p.token || !timingSafeEqual(p.token, row.webhook_token)) return { ok: false, reason: "bad_token" };
   if (!p.attempt_id || !row.attempt_id || p.attempt_id !== row.attempt_id) return { ok: false, reason: "attempt_mismatch" };
-  if (row.status !== "dialing") return { ok: false, reason: "already_finished" };
+  if (row.status !== "dialing" && row.status !== "unknown") return { ok: false, reason: "already_finished" };
   return { ok: true };
 }

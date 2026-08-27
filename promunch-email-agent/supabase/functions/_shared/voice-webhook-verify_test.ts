@@ -15,6 +15,9 @@ Deno.test("rejects wrong attempt", () => {
 Deno.test("rejects replay on finished row", () => {
   assertEquals(verifyVoiceWebhook({ attempt_id: "att_1", token: "tok_abc" }, { ...row, status: "connected" }), { ok: false, reason: "already_finished" });
 });
+Deno.test("accepts a late webhook on a row the sweep marked unknown", () => {
+  assertEquals(verifyVoiceWebhook({ attempt_id: "att_1", token: "tok_abc" }, { ...row, status: "unknown" }), { ok: true });
+});
 Deno.test("rejects missing row", () => {
   assertEquals(verifyVoiceWebhook({ attempt_id: "att_1", token: "tok_abc" }, null).ok, false);
 });

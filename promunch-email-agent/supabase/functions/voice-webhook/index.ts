@@ -53,12 +53,16 @@ Deno.serve(async (req) => {
     ? `unmapped status '${unmappedStatus}'; ${p.failure_reason ?? ""}`
     : (p.failure_reason ?? null);
 
-  // Idempotent finalise: only the dialing row transitions.
+  // Idempotent finalise: a 'dialing' row transitions normally; an 'unknown' row
+  // is one the tick's stuck-dial sweep flipped after 6h with no webhook — this
+  // late arrival is exactly the case that status exists to still accept. Either
+  // way the compare-and-swap (WHERE status IN (...)) means only the first
+  // webhook to arrive can finalise the row; a second delivery is a no-op dup.
   const { data: finalised } = await sb.from("voice_calls").update({
     status, outcome, duration_s: p.duration ?? null, failure_reason: failureReason,
     interaction_id: p.interaction_id ?? null, transcript: p.interaction_transcript ?? null,
     agent_vars: p.final_agent_variables ?? null, updated_at: now,
-  }).eq("id", call.id).eq("status", "dialing").select("id");
+  }).eq("id", call.id).in("status", ["dialing", "unknown"]).select("id");
   if (!finalised?.length) return j({ ok: true, dup: true });
 
   if (status === "connected" && call.run_id) {
