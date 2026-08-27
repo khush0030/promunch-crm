@@ -7,6 +7,7 @@ import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { claimSend, markSendSent, releaseSend } from "../_shared/confirmations.ts";
 import { sessionOpen } from "../_shared/window-asks.ts";
+import { logConnector } from "../_shared/connector-log.ts";
 
 Deno.serve(async (req) => {
   const gate = requireInternal(req);
@@ -17,7 +18,7 @@ Deno.serve(async (req) => {
   const sb = db();
 
   const { data: call } = await sb.from("voice_calls")
-    .select("id, run_id, wa_id, status, link_sent_at, created_at").eq("id", body.call_id).maybeSingle();
+    .select("id, run_id, wa_id, order_ref, status, link_sent_at, created_at").eq("id", body.call_id).maybeSingle();
   if (!call || call.status !== "dialing") return j({ ok: false, message: "Could not send the link." }, 400);
   const phoneDigits = String(body.phone ?? "").replace(/\D/g, "");
   if (phoneDigits && phoneDigits !== call.wa_id) return j({ ok: false, message: "Could not send the link." }, 400);
@@ -38,20 +39,47 @@ Deno.serve(async (req) => {
     ? { to: call.wa_id, kind: "text", text: `Hi ${name}, here is your PROMUNCH checkout link from our call:\n${url}\n\nYour cart is saved, just tap to finish. Your Munchy Pal`, sent_by: "voice:cart_link", journey_run_id: call.run_id }
     : { to: call.wa_id, kind: "template", template: { name: "cart_link_requested", language: "en", vars: { "1": name, "2": url } }, sent_by: "voice:cart_link", journey_run_id: call.run_id };
 
-  const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-send`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const res = await r.json().catch(() => ({ ok: false, error: `HTTP ${r.status}` })) as { ok?: boolean; error?: string };
+  const res = await callWaSendOnce(payload);
   if (!res.ok) {
     await releaseSend(key);
+    logConnector({
+      connector: "shopify_wa",
+      level: "warn",
+      event: "voice_link_failed",
+      message: `${call.wa_id}: cart link send failed during voice call (${res.error ?? "unknown error"}).`,
+      ref: call.order_ref ?? call.id,
+    }).catch(() => {});
     return j({ ok: false, message: "Could not send the link right now. You can also find it in your WhatsApp chat with PROMUNCH." }, 502);
   }
   await markSendSent(key);
   await sb.from("voice_calls").update({ link_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", call.id);
+  logConnector({
+    connector: "shopify_wa",
+    level: "info",
+    event: "voice_link_sent",
+    message: `${call.wa_id}: cart link sent on WhatsApp during voice call (${free ? "free text" : "template"}).`,
+    ref: call.order_ref ?? call.id,
+  }).catch(() => {});
   return j({ ok: true, message: "Done, the checkout link is on your WhatsApp now." });
 });
+
+// Network-level throws (DNS/connection failures) must resolve to the same
+// {ok:false, error} shape as an HTTP error response, never propagate — a
+// thrown fetch here would skip releaseSend(key), stranding the claim for the
+// full stale window (the agent could not retry within the live call) and
+// breaking the {ok, message} contract the voice agent speaks from.
+async function callWaSendOnce(payload: unknown): Promise<{ ok?: boolean; error?: string }> {
+  try {
+    const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-send`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return await r.json().catch(() => ({ ok: false, error: `HTTP ${r.status}` }));
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
 
 function j(o: unknown, s = 200) {
   return new Response(JSON.stringify(o), { status: s, headers: { "content-type": "application/json" } });
