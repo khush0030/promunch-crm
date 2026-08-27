@@ -148,3 +148,18 @@ not the heartbeat.
 If the IO warning returns, check in this order: `pg_stat_statements` ordered by
 `shared_blks_dirtied`, then table sizes vs live rows (bloat), then
 `cron.job_run_details` row count — do not start by reading application code.
+
+## 2026-08-26 update (Sarvam voice cart-recovery)
+
+One new job, scheduled directly inside the feature migration rather than the
+canonical one (same pattern as the `deal-scan`/`wa-confirmation-sweep`
+additions above — verify live state the same way):
+
+| Job | Schedule | Target |
+|---|---|---|
+| `voice-transcript-purge` | `20 3 * * *` | `public.purge_voice_transcripts()` — nulls out `voice_calls.transcript` (not the row) for calls older than 180 days, same retention shape as the other log-table purges above |
+
+Added by `promunch-email-agent/supabase/migrations/20260826200000_voice_cart_recovery.sql`.
+Ships with `wa_flow_settings.voice_call_enabled=false`, so this job runs
+against an empty or near-empty table until the feature is turned on — see
+[docs/whatsapp/VOICE_AGENT_SETUP.md](../whatsapp/VOICE_AGENT_SETUP.md).

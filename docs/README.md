@@ -27,6 +27,7 @@ Rule: every doc lives in exactly one subfolder below. Superseded docs move to `a
 | [whatsapp-customer-flow.md](whatsapp/whatsapp-customer-flow.md) | Customer journey design across the WhatsApp lifecycle |
 | [AUDIENCE_QUALITY.md](whatsapp/AUDIENCE_QUALITY.md) | Engagement tiers (`tier:*` tags), why 1,410 "opted-in" contacts are really 73 engaged, the campaign audience default, and the storefront consent trail |
 | [MM_LITE_MIGRATION.md](whatsapp/MM_LITE_MIGRATION.md) | Marketing Messages (MM Lite) API: what was verified from Meta's docs, the `WA_MM_LITE_ENABLED` flag + Cloud API fallback, Meta onboarding steps, rollout and rollback |
+| [VOICE_AGENT_SETUP.md](whatsapp/VOICE_AGENT_SETUP.md) | Sarvam AI voice agent for abandoned-cart rescue calls: number rental + KYC, function secrets, agent variables/prompt/tool config, template submission, deploy order, DND/TRAI caveats |
 
 Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHATSAPP_SETUP.md`, `promunch-email-agent/docs/WHATSAPP_ORDERING.md`.
 

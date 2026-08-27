@@ -27,7 +27,7 @@ promunch-crm/
 │   ├── app/api/            # route handlers (gated by middleware, see §7)
 │   ├── components/         # Sidebar, pm/ (design system), whatsapp/, ui/
 │   └── lib/                # supabase clients, shopify, resend, rbac, secrets, gdpr
-├── promunch-email-agent/   # Supabase project: config.toml, 51 edge functions, migrations
+├── promunch-email-agent/   # Supabase project: config.toml, 56 edge functions, migrations
 │   ├── CLAUDE.md           # deep handoff incl. the no-duplicate-message invariant
 │   ├── supabase/functions/ # wa-*, shopify-*, amazon-poll, ig-*, kb-*, gmail-*, slack-*, b2b-*
 │   ├── supabase/migrations/# edge-fn-side SQL (incl. 20260705100000 canonical pg_cron)

@@ -16,7 +16,7 @@ PROMUNCH CRM is **two deployables sharing one Supabase database**:
                     └───────▲──────────────────────────▲──────────┘
                             │                          │
         ┌───────────────────┴────────┐   ┌─────────────┴──────────────────┐
-        │  Next.js 16 dashboard      │   │  51 Supabase Edge Functions    │
+        │  Next.js 16 dashboard      │   │  56 Supabase Edge Functions    │
         │  src/  (Vercel)            │──▶│  promunch-email-agent/ (Deno)  │
         │  17 dashboard modules      │   │  all customer-facing sends,    │
         │  114 API route files       │   │  webhooks, cron workers        │
@@ -85,12 +85,12 @@ Route groups: `whatsapp/` (~30 routes), `leads/` (~25), `contacts/`, `campaigns/
 
 Pattern to preserve: dashboard **triggers** heavy work by invoking an edge function (e.g. `/api/whatsapp/campaigns/[id]/send` → edge `wa-campaign-send`); it does not do the work inline.
 
-## 5. Edge functions (`promunch-email-agent/supabase/functions/`) — 51 + `_shared/`
+## 5. Edge functions (`promunch-email-agent/supabase/functions/`) — 56 + `_shared/`
 
 Grouped by role (full per-function table in the audit doc):
 
-- **Webhook receivers** (public, signature-verified): `wa-webhook` (Meta sig), `shopify-webhook` / `shopify-wa` / `shopify-status` (Shopify HMAC), `gmail-webhook` (Pub/Sub), `ig-webhook` (Meta sig), `slack-events` / `slack-interactivity` / `shopify-slash` (Slack sig), `oauth-callback`.
-- **Send chokepoints** (internal-only via `_shared/require-internal.ts`): `wa-send` (ALL WhatsApp sends), `ig-send`, `b2b-send`. Every send takes an atomic claim + writes the durable ledger (`wa_messages`, `ig_messages`).
+- **Webhook receivers** (public, signature-verified): `wa-webhook` (Meta sig), `shopify-webhook` / `shopify-wa` / `shopify-status` (Shopify HMAC), `gmail-webhook` (Pub/Sub), `ig-webhook` (Meta sig), `slack-events` / `slack-interactivity` / `shopify-slash` (Slack sig), `oauth-callback`, `voice-webhook` (Sarvam post-call callback; no provider signature exists, so authenticity is a per-call random token + attempt id checked against `voice_calls`, see `_shared/voice-webhook-verify.ts`).
+- **Send chokepoints** (internal-only via `_shared/require-internal.ts`): `wa-send` (ALL WhatsApp sends), `ig-send`, `b2b-send`, `voice-call-start` (places the Sarvam outbound call), `voice-tool-wa-link` (Sarvam HTTPS tool target; sends the cart link mid-call). Every send takes an atomic claim + writes the durable ledger (`wa_messages`, `ig_messages`, `voice_calls`).
 - **AI workers**: `wa-ai-reply` (KB-grounded WA support bot), `ig-ai-reply`, `ig-analyze`, `deal-scan`, `kb-embed` / `kb-ingest`.
 - **Cron workers** (see §8): `wa-jobs-tick`, `wa-journey-tick`, `wa-campaign-worker`, `wa-campaign-send` (self-chaining), `gmail-poll`, `nudge-pending`, `amazon-poll`, `wa-rfm-tick`, `wa-health`, `wa-ticket-watchdog`, `shopify-daily-summary`, `shopify-catalog-sync`, `wa-weekly-summary`, `gmail-watch-renew`, `ig-jobs-tick`.
 - **Manual/backfill**: `shopify-orders-backfill`, `shopify-contacts-backfill`, `shopify-creator-backfill`, `shopify-relink`, `shopify-consent-set`, `backfill-brand`, `wa-register`, `wa-meta-info`.
