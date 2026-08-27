@@ -24,7 +24,7 @@ Feature shape, one paragraph: when a WhatsApp cart-recovery run fails to land (n
 | `connection_id` | Deploy → Phone Numbers → the connection you just rented |
 | `agent_phone_number` | The rented number itself, E.164 (`+91...`) |
 
-**Placeholders used below** (never invented — fill in from your own dashboard): `<SARVAM_ORG_ID>`, `<SARVAM_WORKSPACE_ID>`, `<SARVAM_APP_ID>`, `<SARVAM_CONNECTION_ID>`, `<SARVAM_AGENT_PHONE>` (e.g. `+9198XXXXXXXX`), `<PROJECT_REF>` (this project's Supabase ref, `hlykspakpewuilttnydm`), `<INTERNAL_FN_SECRET>` (a shared secret you generate — see §5).
+**Placeholders used below** (never invented — fill in from your own dashboard): `<SARVAM_ORG_ID>`, `<SARVAM_WORKSPACE_ID>`, `<SARVAM_APP_ID>`, `<SARVAM_CONNECTION_ID>`, `<SARVAM_AGENT_PHONE>` (e.g. `+9198XXXXXXXX`), `<PROJECT_REF>` (this project's Supabase ref, `hlykspakpewuilttnydm`), `<VOICE_TOOL_SECRET>` (a shared secret you generate for the mid-call tool — see §5).
 
 ## 2. Function secrets
 
@@ -48,11 +48,13 @@ supabase secrets set SARVAM_API_KEY=<your Sarvam API key>
 
 Wiring it into the owner-editable Settings UI is optional follow-up work, not required for this feature to run.
 
-`INTERNAL_FN_SECRET` gates `voice-call-start` and `voice-tool-wa-link` (`requireInternal`, `_shared/require-internal.ts`). If it is unset, `requireInternal` falls back to accepting `SUPABASE_SERVICE_ROLE_KEY` as the bearer — but that key is also the master key to the database, so do not paste it into a third-party dashboard (Sarvam's tool config, §5). Generate and set a dedicated value instead:
+`voice-tool-wa-link` is the ONLY endpoint Sarvam calls, and it has its own dedicated secret, `VOICE_TOOL_SECRET`. Generate and set it:
 
 ```bash
-supabase secrets set INTERNAL_FN_SECRET=$(openssl rand -hex 32)
+supabase secrets set VOICE_TOOL_SECRET=$(openssl rand -hex 24)
 ```
+
+> **Never set `INTERNAL_FN_SECRET` on this project.** `requireInternal` prefers it over the injected `SUPABASE_SERVICE_ROLE_KEY`, but every function-to-function caller (`wa-journey-tick` -> `wa-send`, `voice-call-start`, the confirmation sweep, the campaign sender) authenticates with that injected key. Setting `INTERNAL_FN_SECRET` would 401 all of them at once and silently stop every outbound message. `voice-tool-wa-link` deliberately does NOT use `requireInternal` for this reason: a third-party tool runner should never hold a credential that opens the rest of the internal surface.
 
 Use that same value as the bearer token in the HTTPS tool config in §5.
 
@@ -100,7 +102,7 @@ Configure one HTTPS tool on the agent:
 | Method | `POST` |
 | URL | `https://<PROJECT_REF>.supabase.co/functions/v1/voice-tool-wa-link` |
 | Auth type | Bearer |
-| Auth value | `<INTERNAL_FN_SECRET>` (the value you set in §2 — never the service-role key) |
+| Auth value | `<VOICE_TOOL_SECRET>` (the value you set in §2 — never the service-role key) |
 | Body | `{"call_id":"@call_id"}` |
 | Timeout | 20 s |
 | Fallback message | "I could not send it right now, our team will message you on WhatsApp" |
@@ -129,7 +131,7 @@ No STOP footer — utility templates carry no marketing opt-out language. Wait f
 Full order (spec §9):
 
 1. Paste `20260826200000_voice_cart_recovery.sql` in the Supabase SQL editor. Verify with `bash scripts/check-migrations.sh`.
-2. Set the `SARVAM_*` and `INTERNAL_FN_SECRET` function secrets (§2).
+2. Set the `SARVAM_*` and `VOICE_TOOL_SECRET` function secrets (§2).
 3. `supabase functions deploy voice-call-start voice-webhook voice-tool-wa-link wa-journey-tick shopify-wa wa-template-create` — **in that order**, or at minimum `wa-journey-tick` before `shopify-wa`.
 4. Submit `cart_link_requested` to Meta (§6); wait for approval.
 5. `vercel --prod`.

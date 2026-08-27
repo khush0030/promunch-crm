@@ -1,17 +1,42 @@
-// HTTPS tool target for the Sarvam agent ("send_whatsapp_link"). Configured in
-// indus.sarvam.ai with bearer auth = INTERNAL_FN_SECRET, so requireInternal
-// gates it exactly like wa-send. One link per call, ever (claimSend), and the
-// call must still be live so a stale/replayed tool call cannot message anyone.
+// HTTPS tool target for the Sarvam agent ("send_whatsapp_link").
+//
+// AUTH: a DEDICATED secret, VOICE_TOOL_SECRET, not requireInternal. Two reasons.
+// (1) The caller is a third party (Sarvam's tool runner), not one of our own
+// functions, so it must never hold a credential that opens the rest of the
+// internal surface. (2) requireInternal's shared secret is the platform-injected
+// SUPABASE_SERVICE_ROLE_KEY, whose value has drifted from every key the dashboard
+// or CLI reports here — so it cannot be pasted into Sarvam's tool config at all,
+// and setting INTERNAL_FN_SECRET to work around that would 401 every legitimate
+// function-to-function call (wa-journey-tick -> wa-send and friends) at once.
+//
+// Fails closed: no secret configured means reject everything. The rest of the
+// guarantees are unchanged - one link per call ever (claimSend), and the call
+// must still be live so a stale or replayed tool call cannot message anyone.
 
 import { db } from "../_shared/supabase.ts";
-import { requireInternal } from "../_shared/require-internal.ts";
 import { claimSend, markSendSent, releaseSend } from "../_shared/confirmations.ts";
 import { sessionOpen } from "../_shared/window-asks.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 
+// Constant-time compare so the secret cannot be recovered one byte at a time.
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a), bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
+
 Deno.serve(async (req) => {
-  const gate = requireInternal(req);
-  if (gate) return gate;
+  const secret = Deno.env.get("VOICE_TOOL_SECRET") ?? "";
+  const got = req.headers.get("Authorization") ?? "";
+  if (!secret || !timingSafeEqual(got, `Bearer ${secret}`)) {
+    return new Response(JSON.stringify({ ok: false, message: "unauthorized" }), {
+      status: 401,
+      headers: { "content-type": "application/json" },
+    });
+  }
   if (req.method !== "POST") return j({ ok: false, message: "POST only" }, 405);
   const body = await req.json().catch(() => null) as { call_id?: string; phone?: string } | null;
   if (!body?.call_id) return j({ ok: false, message: "Could not send the link." }, 400);
