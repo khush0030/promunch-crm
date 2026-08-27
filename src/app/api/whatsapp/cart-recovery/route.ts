@@ -85,16 +85,55 @@ export async function GET() {
   }
 
   // Voice rescue arm.
-  const voice = { placed: 0, connected: 0, linkSent: 0, recovered: 0 };
+  //
+  // ATTRIBUTION, again (see the block comment above — same disease, new organ).
+  // A redial can leave TWO+ voice_calls rows for the same cart, so counting rows
+  // directly would double-count exactly like counting wa_journey_runs rows would.
+  // We looked for a "when did this cart convert" timestamp to require the call
+  // strictly precede the order (the honest way to claim causation) and came up
+  // empty: wa_journey_runs.updated_at is a generic touch-trigger column bumped by
+  // every write to the row (backoff reschedules, context patches, the delivery
+  // stamp, the conversion flip, all of it) — not a dedicated conversion moment,
+  // and nothing else in this codebase treats it as one. Faking a timestamp out of
+  // a column that means something adjacent is how the WA number got inflated 7x
+  // in the first place, so we don't do it here either.
+  //
+  // Instead we report the honest split:
+  //   recovered         : cart converted, voice connected, and NO WA message was
+  //                        ever delivered for it — the call is the only thing
+  //                        that reached this customer. A clean, defensible win.
+  //   assistedRecovered : cart converted, voice connected, AND a WA message also
+  //                        delivered — we cannot tell which channel gets credit,
+  //                        so it is labeled assisted, never folded into recovered.
+  const voiceCarts = new Map<string, { placed: boolean; connected: boolean }>();
+  let linkSent = 0;
   const { data: calls } = await supabaseAdmin
     .from("voice_calls").select("order_ref, status, link_sent_at").gte("created_at", since);
-  const recoveredCarts = new Set([...carts.entries()].filter(([, c]) => c.converted && c.delivered).map(([k]) => k));
-  for (const c of calls ?? []) {
-    if (c.status !== "start_failed") voice.placed++;
-    if (c.status === "connected") voice.connected++;
-    if (c.link_sent_at) voice.linkSent++;
-    if (c.status === "connected" && c.order_ref && recoveredCarts.has(c.order_ref)) voice.recovered++;
+  (calls ?? []).forEach((c, i) => {
+    // A link send is a real one-off WhatsApp send that happened during a specific
+    // call, not a per-cart outcome — count every occurrence, not one per cart.
+    if (c.link_sent_at) linkSent++;
+    const key = c.order_ref ?? `call:${i}`;
+    const v = voiceCarts.get(key) ?? { placed: false, connected: false };
+    if (c.status !== "start_failed") v.placed = true;
+    if (c.status === "connected") v.connected = true;
+    voiceCarts.set(key, v);
+  });
+
+  let voicePlaced = 0, voiceConnected = 0, voiceRecovered = 0, voiceAssistedRecovered = 0;
+  for (const [key, v] of voiceCarts) {
+    if (v.placed) voicePlaced++;
+    if (v.connected) voiceConnected++;
+    if (!v.connected) continue;
+    const cart = carts.get(key); // only matches when `key` is a real order_ref
+    if (!cart?.converted) continue;
+    if (cart.delivered) voiceAssistedRecovered++;
+    else voiceRecovered++;
   }
+  const voice = {
+    placed: voicePlaced, connected: voiceConnected, linkSent,
+    recovered: voiceRecovered, assistedRecovered: voiceAssistedRecovered,
+  };
 
   return NextResponse.json({
     stats: {

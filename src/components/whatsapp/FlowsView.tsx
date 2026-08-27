@@ -278,7 +278,7 @@ export default function FlowsView() {
   const { data: cartRecovery } = useQuery({
     queryKey: ["cart-recovery"],
     queryFn: () =>
-      apiFetch<{ stats?: { voice?: { placed: number; connected: number; linkSent: number; recovered: number } } }>(
+      apiFetch<{ stats?: { voice?: { placed: number; connected: number; linkSent: number; recovered: number; assistedRecovered: number } } }>(
         "/api/whatsapp/cart-recovery",
       ).then((r) => r.stats),
   });
@@ -321,7 +321,7 @@ export default function FlowsView() {
   const cart = stats.abandoned_checkout ?? {};
   const review = stats.review_request ?? {};
   const restock = stats.replenishment_reminder ?? {};
-  const voice = cartRecovery?.voice ?? { placed: 0, connected: 0, linkSent: 0, recovered: 0 };
+  const voice = cartRecovery?.voice ?? { placed: 0, connected: 0, linkSent: 0, recovered: 0, assistedRecovered: 0 };
 
   return (
     <div>
@@ -522,7 +522,8 @@ export default function FlowsView() {
             { label: "calls placed", value: voice.placed ?? 0, color: "var(--pm-green)" },
             { label: "connected", value: voice.connected ?? 0, color: "var(--pm-green)" },
             { label: "link sent", value: voice.linkSent ?? 0, color: "var(--pm-gold)" },
-            { label: "recovered after call", value: voice.recovered ?? 0, color: "var(--pm-green)" },
+            { label: "recovered, call only", value: voice.recovered ?? 0, color: "var(--pm-green)" },
+            { label: "assisted (WA + call, can't tell which)", value: voice.assistedRecovered ?? 0, color: "var(--pm-gold)" },
           ]} />
         </FlowCard>
 
