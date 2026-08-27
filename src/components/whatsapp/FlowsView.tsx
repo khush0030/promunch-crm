@@ -10,8 +10,9 @@
 // at enrolment). Turning a flow off holds pending sends without deleting them.
 
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle, ArrowRight, CheckCircle2, Clock, MessageSquareText,
+  AlertTriangle, ArrowRight, CheckCircle2, Clock, MessageSquareText, Phone,
   PackageCheck, Pencil, Plus, RefreshCw, ShoppingCart, Star, Trash2, Truck, X, Zap,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
@@ -274,6 +275,14 @@ export default function FlowsView() {
     [settings, draft],
   );
 
+  const { data: cartRecovery } = useQuery({
+    queryKey: ["cart-recovery"],
+    queryFn: () =>
+      apiFetch<{ stats?: { voice?: { placed: number; connected: number; linkSent: number; recovered: number } } }>(
+        "/api/whatsapp/cart-recovery",
+      ).then((r) => r.stats),
+  });
+
   function set<K extends keyof FlowSettings>(k: K, v: FlowSettings[K]) {
     setDraft((d) => (d ? { ...d, [k]: v } : d));
   }
@@ -312,6 +321,7 @@ export default function FlowsView() {
   const cart = stats.abandoned_checkout ?? {};
   const review = stats.review_request ?? {};
   const restock = stats.replenishment_reminder ?? {};
+  const voice = cartRecovery?.voice ?? { placed: 0, connected: 0, linkSent: 0, recovered: 0 };
 
   return (
     <div>
@@ -471,6 +481,48 @@ export default function FlowsView() {
             { label: "recovered (ordered)", value: cart.converted ?? 0, color: "var(--pm-green)" },
             { label: "still trying", value: cart.active ?? 0, color: "var(--pm-gold)" },
             { label: "missed (deadline passed)", value: cart.expired ?? 0, color: (cart.expired ?? 0) > 0 ? "var(--pm-terra)" : "var(--pm-hint)" },
+          ]} />
+        </FlowCard>
+
+        {/* 3b — voice rescue call */}
+        <FlowCard title="Voice rescue call (Sarvam)" icon={Phone}
+          enabled={draft.voice_call_enabled} dimmed={!draft.voice_call_enabled}
+          onToggle={(v) => set("voice_call_enabled", v)}>
+          <Timeline>
+            <Node icon={MessageSquareText} title="WhatsApp recovery failed" sub="no reply, or Meta marketing cap" tone="neutral" />
+            <Arrow />
+            <Wait>
+              after
+              <NumField value={draft.cart_voice_delay_hours} min={1} max={72} unit="h"
+                onChange={(n) => set("cart_voice_delay_hours", n)} />
+              past the coupon message
+            </Wait>
+            <Arrow />
+            <Node icon={Phone} title="AI voice call" sub={<>
+              {draft.voice_language} first · {String(draft.voice_call_start_hour).padStart(2, "0")}:00 to {String(draft.voice_call_end_hour).padStart(2, "0")}:00 IST
+            </>} tone="green" />
+          </Timeline>
+          <Footnote>
+            Calls only carts worth at least ₹
+            <NumField value={draft.voice_min_cart_value} min={0} max={100000} step={50} unit="" width={70}
+              onChange={(n) => set("voice_min_cart_value", n)} />, between{" "}
+            <NumField value={draft.voice_call_start_hour} min={0} max={23} unit="h" width={48}
+              onChange={(n) => set("voice_call_start_hour", n)} /> and{" "}
+            <NumField value={draft.voice_call_end_hour} min={1} max={24} unit="h" width={48}
+              onChange={(n) => set("voice_call_end_hour", n)} /> IST. Language:{" "}
+            <select value={draft.voice_language} aria-label="Voice language"
+              onChange={(e) => set("voice_language", e.target.value)}
+              style={{ ...inputStyle, width: 120, padding: "3px 6px", fontSize: 12 }}>
+              {["Hindi", "English", "Gujarati", "Marathi", "Tamil", "Telugu", "Kannada", "Malayalam", "Bengali", "Punjabi", "Odia"].map((l) => <option key={l}>{l}</option>)}
+            </select>.
+            One call per cart, at most one per customer per week, never to anyone who said do not call.
+            If they ask, the agent sends the checkout link on WhatsApp during the call.
+          </Footnote>
+          <StatChips rows={[
+            { label: "calls placed", value: voice.placed ?? 0, color: "var(--pm-green)" },
+            { label: "connected", value: voice.connected ?? 0, color: "var(--pm-green)" },
+            { label: "link sent", value: voice.linkSent ?? 0, color: "var(--pm-gold)" },
+            { label: "recovered after call", value: voice.recovered ?? 0, color: "var(--pm-green)" },
           ]} />
         </FlowCard>
 

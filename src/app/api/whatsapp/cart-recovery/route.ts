@@ -84,6 +84,18 @@ export async function GET() {
     }
   }
 
+  // Voice rescue arm.
+  const voice = { placed: 0, connected: 0, linkSent: 0, recovered: 0 };
+  const { data: calls } = await supabaseAdmin
+    .from("voice_calls").select("order_ref, status, link_sent_at").gte("created_at", since);
+  const recoveredCarts = new Set([...carts.entries()].filter(([, c]) => c.converted && c.delivered).map(([k]) => k));
+  for (const c of calls ?? []) {
+    if (c.status !== "start_failed") voice.placed++;
+    if (c.status === "connected") voice.connected++;
+    if (c.link_sent_at) voice.linkSent++;
+    if (c.status === "connected" && c.order_ref && recoveredCarts.has(c.order_ref)) voice.recovered++;
+  }
+
   return NextResponse.json({
     stats: {
       enrolled,
@@ -96,6 +108,7 @@ export async function GET() {
       reachRate,
       recoveryRate,
       email,
+      voice,
     },
   });
 }

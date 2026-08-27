@@ -8,10 +8,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   AlertTriangle, Archive, ArchiveRestore, Bot, Check, CheckCheck, CheckCircle2,
-  ChevronLeft, ExternalLink, MapPin, Megaphone, Search, Send, ShoppingBag,
+  ChevronLeft, ExternalLink, MapPin, Megaphone, Phone, Search, Send, ShoppingBag,
   Sparkles, Tag, Ticket as TicketIcon, User as UserIcon, X,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { apiFetch } from "@/lib/api-fetch";
 import { msgTime, mostRecent, timeAgo } from "@/app/dashboard/whatsapp/format";
 import type { Thread, Message, Template, TeamMember } from "./types";
 import { BRAND, WA_GREEN, priorityStyle, ticketStatusStyle, chip } from "./styles";
@@ -621,6 +622,11 @@ type CustomerData = {
   orders: CustomerOrder[];
   order_count: number;
 };
+type VoiceCall = {
+  id: string; status: string; outcome: string | null; duration_s: number | null;
+  link_sent_at: string | null; created_at: string;
+  transcript: Array<{ role: string; en_text: string }> | null;
+};
 
 /* Right-rail customer 360: the WhatsApp chat stitched to Shopify orders and
    the CRM contact record, matched by the customer's WhatsApp number. */
@@ -657,6 +663,13 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose, memb
     const j = await r.json();
     if (j.thread) onChange?.({ ...thread, ...j.thread, contact: thread.contact });
   }
+
+  const { data: callData } = useQuery({
+    queryKey: ["voice-calls", thread?.wa_id],
+    queryFn: () => apiFetch<{ calls: VoiceCall[] }>(`/api/whatsapp/voice-calls?wa_id=${thread?.wa_id}`),
+    enabled: visible && !!thread?.wa_id,
+  });
+  const calls = callData?.calls ?? [];
 
   if (!visible) return null;
 
@@ -899,6 +912,29 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose, memb
             );
           })}
         </div>
+      )}
+
+      {calls.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--pm-hint)", textTransform: "uppercase", letterSpacing: 0.4, margin: "14px 0 6px", display: "flex", alignItems: "center", gap: 5 }}>
+            <Phone size={12} /> Voice calls ({calls.length})
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {calls.map((c) => (
+              <details key={c.id} style={{ border: "1px solid var(--pm-border)", borderRadius: 8, padding: 10 }}>
+                <summary style={{ fontSize: 12, cursor: "pointer" }}>
+                  <strong>{c.status}</strong>{c.outcome ? ` · ${c.outcome.replace(/_/g, " ")}` : ""}{c.duration_s ? ` · ${c.duration_s}s` : ""}{c.link_sent_at ? " · link sent" : ""}
+                  <span style={{ color: "var(--pm-hint)", marginLeft: 6 }}>{new Date(c.created_at).toLocaleString("en-IN")}</span>
+                </summary>
+                {c.transcript?.length ? (
+                  <div style={{ fontSize: 11.5, marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                    {c.transcript.map((t, i) => <div key={i}><strong>{t.role === "agent" ? "PROMUNCH" : "Customer"}:</strong> {t.en_text}</div>)}
+                  </div>
+                ) : <div style={{ fontSize: 11.5, color: "var(--pm-hint)", marginTop: 6 }}>No transcript.</div>}
+              </details>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
