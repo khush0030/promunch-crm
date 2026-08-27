@@ -171,6 +171,20 @@ const TEMPLATES: TemplateDef[] = [
     buttons: serviceButtons("shipping_update_v2"),
   },
   {
+    // Sent mid-call by the Sarvam voice agent when the customer asks for their
+    // cart link. UTILITY: the customer requested it seconds ago on the phone.
+    // 1=name 2=full https checkout URL (body param, not a button, so the
+    // partner recovery URL survives untouched).
+    name: "cart_link_requested",
+    language: "en",
+    category: "UTILITY",
+    body:
+      "Hi {{1}}, here is the PROMUNCH checkout link you asked for on our call:\n{{2}}\n\n" +
+      "Your cart is saved, just tap to finish.",
+    bodyExample: ["Aarav", "https://promunch.in/12345/checkouts/abc123/recover"],
+    footer: "Your Munchy Pal",
+  },
+  {
     // Abandoned-cart reminder (step 1) — NO discount. Just a nudge back to the
     // customer's own recovery checkout. The "Complete Order" URL button is a
     // dynamic link: base https://promunch.in/{{1}}, filled with the recovery

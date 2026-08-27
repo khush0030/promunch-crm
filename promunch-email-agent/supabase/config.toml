@@ -168,3 +168,6 @@ verify_jwt = false                    # function-to-function from wa-journey-tic
 
 [functions.voice-webhook]
 verify_jwt = false                    # Sarvam post-call webhook; auth = per-call token in metadata (voice-webhook-verify.ts)
+
+[functions.voice-tool-wa-link]
+verify_jwt = false                    # Sarvam HTTPS tool; auth = bearer INTERNAL_FN_SECRET via requireInternal
