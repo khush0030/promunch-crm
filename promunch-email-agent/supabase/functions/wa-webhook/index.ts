@@ -16,6 +16,7 @@ import {
   supportTapPrompt,
 } from "../_shared/quick-replies.ts";
 import { sessionOpen } from "../_shared/window-asks.ts";
+import { releaseSend } from "../_shared/confirmations.ts";
 import {
   isCapError,
   isMarketingTemplate,
@@ -135,6 +136,34 @@ async function handleStatus(status: any) {
   // CART DELIVERY GUARANTEE — confirm or reopen the journey run that sent this.
   // A send returning ok only means Meta ACCEPTED it; the real verdict arrives
   // here. Only abandoned_checkout runs carry the at-least-once guarantee.
+  // MID-CALL CART LINK: the voice agent told the customer "it's on your
+  // WhatsApp" the moment wa-send accepted it, but acceptance is not delivery.
+  // If Meta later fails the send (e.g. #131049 per-recipient throttling, which
+  // hits even an approved UTILITY template for a disengaged recipient), the
+  // customer is left waiting for a link that will never arrive and we would
+  // never retry, because link_sent_at and the claim both say "done". Undo both
+  // so a later attempt can send it, and log it loudly: a promise made on a live
+  // call and silently broken is worse than a send we never attempted.
+  if (next === "failed" && updated?.sent_by === "voice:cart_link" && updated.journey_run_id) {
+    const { data: vc } = await sb.from("voice_calls")
+      .select("id, wa_id, order_ref")
+      .eq("run_id", updated.journey_run_id)
+      .not("link_sent_at", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (vc?.id) {
+      await sb.from("voice_calls").update({ link_sent_at: null, updated_at: new Date().toISOString() })
+        .eq("id", vc.id).then(() => {}, () => {});
+      await releaseSend(`voice_link:${vc.id}`);
+      await logConnector({
+        connector: "shopify_wa", level: "warn", event: "voice_link_undelivered",
+        message: `${vc.wa_id}: the cart link promised on the voice call was rejected by Meta (${errTitle ?? "unknown"}). Claim released so it can be retried.`,
+        ref: vc.order_ref ?? vc.id,
+      }).catch(() => {});
+    }
+  }
+
   if (updated?.journey_run_id && updated.sent_by === "journey:abandoned_checkout") {
     if (next === "delivered" || next === "read") {
       // SUCCESS — one message landed. Set the terminal delivered flag so no tick

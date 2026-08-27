@@ -32,6 +32,18 @@ Deno.serve(async (req) => {
   const secret = Deno.env.get("VOICE_TOOL_SECRET") ?? "";
   const got = req.headers.get("Authorization") ?? "";
   if (!secret || !timingSafeEqual(got, `Bearer ${secret}`)) {
+    // Log the REJECTION (never the credential). Without this, "Sarvam never
+    // called the tool" and "Sarvam called it with the wrong bearer" look
+    // identical from our side - which cost a live test call to work out once.
+    // Shape only: whether a header arrived and what scheme it used.
+    const scheme = got ? got.split(" ")[0] : "none";
+    await logConnector({
+      connector: "shopify_wa",
+      level: "warn",
+      event: "voice_tool_unauthorized",
+      message: `voice-tool-wa-link rejected a call: ${!secret ? "VOICE_TOOL_SECRET is not set" : `bad bearer (auth scheme: ${scheme})`}.`,
+      throttleMinutes: 5,
+    }).catch(() => {});
     return new Response(JSON.stringify({ ok: false, message: "unauthorized" }), {
       status: 401,
       headers: { "content-type": "application/json" },
