@@ -16,7 +16,14 @@ const MAX_HOURS = 168;
 const DEFAULT_HOURS = 24;
 const FETCH_LIMIT = 500;
 
-type SyncResult = { scanned: number; matched: number; updated: number; dndFlagged: number; unmatched: number };
+type SyncResult = {
+  scanned: number;
+  matched: number;
+  updated: number;
+  dndFlagged: number;
+  dndFailed: number;
+  unmatched: number;
+};
 
 type CallRow = {
   id: string;
@@ -26,6 +33,18 @@ type CallRow = {
   interaction_id: string | null;
   transcript: TranscriptTurn[] | null;
 };
+
+// Best-effort audit trail. Logging must never break the sync itself — every
+// failure here is swallowed, matching the edge-side logConnector convention
+// (see promunch-email-agent/supabase/functions/_shared/connector-log.ts),
+// which this mirrors by hand since that helper is Deno-only.
+async function logConnectorEvent(level: "warn" | "error", event: string, message: string, ref: string | null): Promise<void> {
+  try {
+    await supabaseAdmin.from("connector_events").insert({ connector: "shopify_wa", level, event, message, ref });
+  } catch {
+    // never throw from logging
+  }
+}
 
 export async function POST(req: NextRequest) {
   if (!sarvamVoiceConfigured()) {
@@ -42,7 +61,7 @@ export async function POST(req: NextRequest) {
 
   const attempts = await listAttempts(since.toISOString(), until.toISOString(), FETCH_LIMIT);
 
-  const result: SyncResult = { scanned: attempts.length, matched: 0, updated: 0, dndFlagged: 0, unmatched: 0 };
+  const result: SyncResult = { scanned: attempts.length, matched: 0, updated: 0, dndFlagged: 0, dndFailed: 0, unmatched: 0 };
   if (attempts.length === 0) return NextResponse.json(result);
 
   const attemptIds = attempts.map((a) => a.attemptId).filter(Boolean);
@@ -58,7 +77,6 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date().toISOString();
-  const dndWaIds = new Set<string>();
 
   for (const a of attempts) {
     const row = byAttempt.get(a.attemptId);
@@ -74,6 +92,35 @@ export async function POST(req: NextRequest) {
     if (row.status !== "dialing" && row.status !== "unknown") continue;
 
     const outcome = clampOutcome(a.agentVariables?.call_disposition);
+
+    // Ordering is safety-critical: the do-not-call flag is written to
+    // wa_contacts BEFORE this call row is allowed to move off dialing/unknown.
+    // With the Sarvam webhook not currently delivering, this sync is the ONLY
+    // path a do-not-call request can reach us through. If we advanced the
+    // row's status first and the wa_contacts write then failed (or we never
+    // checked its error), the row would fall outside the guard above on every
+    // future sync — the customer's do-not-call request would be silently and
+    // permanently lost, with no error surfaced anywhere. So: check the error,
+    // and on failure leave the row exactly where it is (dialing/unknown) so
+    // the next sync retries both writes together.
+    if (outcome === "do_not_call") {
+      const { error: dndError } = await supabaseAdmin
+        .from("wa_contacts")
+        .update({ voice_dnd: true, updated_at: now })
+        .eq("wa_id", row.wa_id);
+      if (dndError) {
+        result.dndFailed++;
+        console.warn(`[voice-calls/sync] failed to set voice_dnd for wa_id=${row.wa_id} (call ${row.id}): ${dndError.message}. Row left on '${row.status}' for retry.`);
+        await logConnectorEvent(
+          "error",
+          "voice_dnd_sync_failed",
+          `Could not set voice_dnd for ${row.wa_id} from Sarvam sync: ${dndError.message}. Call row left on '${row.status}' so the next sync retries it.`,
+          row.id,
+        );
+        continue; // do not advance this call row — it must stay retryable
+      }
+      result.dndFlagged++;
+    }
 
     let transcript = row.transcript;
     if (!transcript && a.interactionId) {
@@ -101,20 +148,7 @@ export async function POST(req: NextRequest) {
       .in("status", ["dialing", "unknown"])
       .select("id");
 
-    if (updated?.length) {
-      result.updated++;
-      // With webhooks down, this sync is currently the ONLY path a
-      // do-not-call request can reach us through — never skip this.
-      if (outcome === "do_not_call") dndWaIds.add(row.wa_id);
-    }
-  }
-
-  if (dndWaIds.size) {
-    await supabaseAdmin
-      .from("wa_contacts")
-      .update({ voice_dnd: true, updated_at: now })
-      .in("wa_id", Array.from(dndWaIds));
-    result.dndFlagged = dndWaIds.size;
+    if (updated?.length) result.updated++;
   }
 
   return NextResponse.json(result);

@@ -48,7 +48,7 @@ type VoiceCall = {
 
 type Stats = { placed: number; connected: number; linkSent: number; doNotCall: number; dialing: number };
 
-type SyncResult = { scanned: number; matched: number; updated: number; dndFlagged: number; unmatched: number };
+type SyncResult = { scanned: number; matched: number; updated: number; dndFlagged: number; dndFailed: number; unmatched: number };
 
 const STATUS_OPTIONS = ["dialing", "connected", "no_answer", "busy", "failed", "start_failed", "unknown"];
 const OUTCOME_OPTIONS = ["will_buy", "asked_link", "not_interested", "do_not_call", "callback_later", "unknown"];
@@ -140,11 +140,14 @@ export default function VoiceView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ hours: 24 }),
       });
+      // dndFailed means a do-not-call disposition could not be written to
+      // wa_contacts - the sync route deliberately left that call row
+      // retryable, but an operator must not read this as a clean success.
       toast.push({
-        kind: "success",
+        kind: res.dndFailed ? "error" : "success",
         text: `Synced from Sarvam. Scanned ${res.scanned}, matched ${res.matched}, updated ${res.updated}${
           res.dndFlagged ? `, ${res.dndFlagged} marked do-not-call` : ""
-        }.`,
+        }${res.dndFailed ? `, ${res.dndFailed} FAILED to mark do-not-call (will retry on next sync)` : ""}.`,
       });
       qc.invalidateQueries({ queryKey: ["voice-calls"] });
     } catch (e) {

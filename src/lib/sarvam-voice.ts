@@ -1,16 +1,21 @@
 // Server-only client for Sarvam's voice-agent ANALYTICS API (read-only).
 //
-// Why this exists in src/lib (Next.js control plane) instead of an edge
-// function: the architecture rule is "Next.js never talks to a provider
-// directly for a SEND" (see AGENTS.md rule 1) — voice-call-start already
-// owns the outbound-dial leg from the edge side, and this file never dials
-// anyone. Sarvam's post-call webhook is not currently being delivered to us
-// (six live test calls, zero webhooks — see .superpowers/sdd/voice-tab-brief.md),
-// so the only way to learn how a call actually went is to pull it back out of
-// Sarvam's analytics API. That is a read, not a send, so it is safe to do
-// from the dashboard's own API routes via the sync endpoint. It still never
-// reaches the browser: every function here is called from route handlers
-// only, and the API key is read from server env, never returned to a client.
+// RULING (do not "fix" this by routing it through an edge function): the
+// repo rule is that Next.js must not talk to a provider directly FOR A SEND
+// - the edge chokepoints (wa-send, ig-send, b2b-send, and here
+// voice-call-start) own the atomic claim + durable ledger that invariant
+// depends on. This file places no calls and sends no messages; it only
+// reads Sarvam's analytics API to reconcile call outcomes after the fact.
+// That makes it a read-only backfill, not a send, so calling Sarvam
+// directly from here does not violate the invariant and is intentional.
+//
+// Why it needs to exist at all: Sarvam's post-call webhook is not currently
+// being delivered to us (six live test calls, zero webhooks — see
+// .superpowers/sdd/voice-tab-brief.md), so the only way to learn how a call
+// actually went is to pull it back out of Sarvam's analytics API via the
+// sync endpoint. It still never reaches the browser: every function here is
+// called from route handlers only, and the API key is read from server env,
+// never returned to a client.
 //
 // Base + auth: https://apps.sarvam.ai/api, header X-API-Key: <key>.
 

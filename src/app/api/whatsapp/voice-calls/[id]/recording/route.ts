@@ -30,7 +30,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   return new NextResponse(recording.body, {
     status: 200,
     headers: {
-      "content-type": "audio/wav",
+      "content-type": recording.contentType || "audio/wav",
       "cache-control": "private, max-age=3600",
     },
   });
