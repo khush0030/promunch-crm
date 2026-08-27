@@ -1,7 +1,7 @@
 // Shared domain types for the WhatsApp dashboard. Extracted from
 // dashboard/whatsapp/page.tsx (audit R5) so the split-out views can share them.
 
-export type Tab = "inbox" | "templates" | "campaigns" | "flows" | "growth" | "analytics" | "kb" | "tickets";
+export type Tab = "inbox" | "templates" | "campaigns" | "flows" | "voice" | "growth" | "analytics" | "kb" | "tickets";
 
 export type Contact = { id: string; wa_id: string; phone: string; name: string | null; tags?: string[] | null };
 

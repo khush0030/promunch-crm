@@ -10,6 +10,7 @@ import TemplatesView from "@/components/whatsapp/TemplatesView";
 import KbView from "@/components/whatsapp/KbView";
 import CampaignsView from "@/components/whatsapp/CampaignsView";
 import FlowsView from "@/components/whatsapp/FlowsView";
+import VoiceView from "@/components/whatsapp/VoiceView";
 import GrowthView from "@/components/whatsapp/GrowthView";
 import InboxView from "@/components/whatsapp/InboxView";
 
@@ -29,6 +30,7 @@ export default function WhatsAppPage() {
         {tab === "templates" && <TemplatesView />}
         {tab === "campaigns" && <CampaignsView />}
         {tab === "flows" && <FlowsView />}
+        {tab === "voice" && <VoiceView />}
         {tab === "growth" && <GrowthView />}
         {tab === "analytics" && <AnalyticsView />}
         {tab === "kb" && <KbView />}
@@ -137,6 +139,7 @@ function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
     { key: "templates", label: "Templates" },
     { key: "campaigns", label: "Campaigns" },
     { key: "flows", label: "Flows" },
+    { key: "voice", label: "Voice" },
     { key: "growth", label: "Growth" },
     { key: "analytics", label: "Analytics" },
     { key: "kb", label: "Knowledge Base" },
