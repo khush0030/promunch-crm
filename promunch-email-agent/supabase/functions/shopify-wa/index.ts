@@ -19,6 +19,7 @@ import { handleOrderCreated } from "../_shared/order-confirmation.ts";
 import { claimSend, markSendSent, releaseSend } from "../_shared/confirmations.ts";
 import { enrolCustomFlows } from "../_shared/custom-flows.ts";
 import { enrolEmailFlow } from "../_shared/email-flows.ts";
+import { VOICE_TEMPLATE } from "../_shared/voice-eligibility.ts";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
@@ -374,6 +375,15 @@ async function handleCheckout(checkout: any) {
     { h: flows.cart_step2_delay_hours, template: "abandoned_cart_recovery", components: discountComponents, url: discountUrl },
   ];
 
+  // Cart contents for the voice agent's spoken summary — title + qty only, no
+  // price breakdown, nothing beyond what a courier already knows. Computed
+  // fresh here (not reused from the email-flow `items` local above, which is
+  // scoped to that try block and shaped differently for the email template).
+  const voiceItems = (Array.isArray(checkout.line_items) ? checkout.line_items : [])
+    .slice(0, 8)
+    .map((li: any) => ({ title: String(li?.title ?? li?.name ?? "item"), qty: Number(li?.quantity ?? 1) }));
+  const voiceTotal = Number(checkout.total_price ?? 0);
+
   // === ONE LIVE CART SEQUENCE PER CUSTOMER ==================================
   // enrolKey above is keyed on the Shopify CHECKOUT TOKEN, and Shopify mints a
   // BRAND-NEW token every time the same human comes back and abandons again. So
@@ -442,6 +452,24 @@ async function handleCheckout(checkout: any) {
       let refreshed = 0;
       for (const run of live) {
         const ctx = { ...((run.context ?? {}) as Record<string, unknown>) };
+        // Voice row: re-point its spoken content at the newest cart, same as
+        // the WA steps below, but keyed on its own template rather than
+        // byTemplate (that map only knows the two WA steps). Schedule fields
+        // stay untouched for the identical reason given below — refreshing
+        // CONTENT must never re-arm the call's timing.
+        if (ctx.template === VOICE_TEMPLATE) {
+          const oldVars = (ctx.vars ?? {}) as Record<string, string>;
+          const displayName = name === "there" ? (oldVars["1"] || name) : name;
+          ctx.vars = { ...oldVars, "1": displayName, "2": reminderUrl };
+          ctx.items = voiceItems;
+          ctx.total = voiceTotal;
+          ctx.coupon = code;
+          const { error: vErr } = await sb.from("wa_journey_runs")
+            .update({ context: ctx, order_ref: token })
+            .eq("id", run.id).eq("status", "active");
+          if (!vErr) refreshed++;
+          continue;
+        }
         const step = byTemplate.get(String(ctx.template ?? "abandoned_cart_recovery"));
         // Hand-edited or unrecognised step: leave it exactly as it is rather than
         // push a link into a template whose component shape we do not know.
@@ -476,7 +504,27 @@ async function handleCheckout(checkout: any) {
       return;
     }
 
-    const rows = steps.map((s) => ({
+    // Explicit context shape (rather than letting it fall out of the WA steps'
+    // .map()) so the voice row below — which carries fields the WA steps don't
+    // (channel, items, total, coupon) — type-checks without a cast.
+    type CartJourneyContext = {
+      template: string;
+      channel?: string;
+      language: string;
+      components?: unknown;
+      vars: Record<string, string>;
+      items?: Array<{ title: string; qty: number }>;
+      total?: number;
+      coupon?: string;
+    };
+    const rows: Array<{
+      journey_key: string;
+      wa_id: string;
+      next_action_at: string;
+      deadline_at: string;
+      context: CartJourneyContext;
+      order_ref: string;
+    }> = steps.map((s) => ({
       journey_key: "abandoned_checkout",
       wa_id: waId,
       next_action_at: new Date(Date.now() + s.h * 3600_000).toISOString(),
@@ -484,6 +532,32 @@ async function handleCheckout(checkout: any) {
       context: { template: s.template, language: "en", components: s.components, vars: { "1": name, "2": s.url } },
       order_ref: token,
     }));
+    // Voice rescue step: due after WA step 2 + its own delay. wa-journey-tick
+    // only dials it once WA has demonstrably failed (see
+    // _shared/voice-eligibility.ts) — enrolling it here just reserves its slot
+    // on the schedule, gated on the dashboard kill-switch like everything else
+    // in this sequence. Ships OFF (voice_call_enabled defaults false), so this
+    // is a no-op for everyone until the flag is turned on.
+    if (flows.voice_call_enabled) {
+      rows.push({
+        journey_key: "abandoned_checkout",
+        wa_id: waId,
+        next_action_at: new Date(
+          Date.now() + (flows.cart_step2_delay_hours + flows.cart_voice_delay_hours) * 3600_000,
+        ).toISOString(),
+        deadline_at: deadlineAt,
+        context: {
+          template: VOICE_TEMPLATE,
+          channel: "voice",
+          language: "en",
+          vars: { "1": name, "2": reminderUrl },
+          items: voiceItems,
+          total: voiceTotal,
+          coupon: code,
+        },
+        order_ref: token,
+      });
+    }
     const { error: insErr } = await sb.from("wa_journey_runs").insert(rows);
     if (insErr) {
       // 23505 = the per-customer partial unique index from migration
