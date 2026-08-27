@@ -26,7 +26,12 @@ export function verifyVoiceWebhook(
   row: VoiceCallRowLite | null,
 ): { ok: true } | { ok: false; reason: string } {
   if (!row) return { ok: false, reason: "no_such_call" };
-  if (!p.token || !timingSafeEqual(p.token, row.webhook_token)) return { ok: false, reason: "bad_token" };
+  // The per-call token is the strong proof, but a delivery that drops our
+  // metadata carries none. In that case the caller has already matched the row
+  // by attempt_id - a server-issued UUID nobody outside Sarvam can guess - which
+  // is accepted on its own. A token that is PRESENT must still be correct: a
+  // wrong one means someone is guessing, not that metadata went missing.
+  if (p.token && !timingSafeEqual(p.token, row.webhook_token)) return { ok: false, reason: "bad_token" };
   if (!p.attempt_id || !row.attempt_id || p.attempt_id !== row.attempt_id) return { ok: false, reason: "attempt_mismatch" };
   if (row.status !== "dialing" && row.status !== "unknown") return { ok: false, reason: "already_finished" };
   return { ok: true };

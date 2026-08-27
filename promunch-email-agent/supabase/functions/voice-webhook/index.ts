@@ -17,6 +17,17 @@ interface SarvamWebhook {
   final_agent_variables?: Record<string, unknown>;
   interaction_transcript?: Array<{ role: string; en_text: string }>;
   webhook_config?: { url?: string; metadata?: Record<string, string> };
+  metadata?: Record<string, string>;
+}
+
+interface VoiceCallRow {
+  id: string;
+  run_id: string | null;
+  wa_id: string;
+  order_ref: string | null;
+  status: string;
+  attempt_id: string | null;
+  webhook_token: string;
 }
 
 const OUTCOMES = new Set(["will_buy", "asked_link", "not_interested", "do_not_call", "callback_later", "unknown"]);
@@ -26,15 +37,35 @@ Deno.serve(async (req) => {
   const p = await req.json().catch(() => null) as SarvamWebhook | null;
   if (!p) return j({ error: "bad json" }, 400);
   try {
-  const meta = p.webhook_config?.metadata ?? {};
+  // WHERE THE METADATA ACTUALLY IS. The docs show our metadata echoed at
+  // webhook_config.metadata, but a live delivery (Aug 27 2026) did not match on
+  // that path, so read every place it could plausibly sit rather than trusting
+  // one. Providers move this around and a miss here strands the call row on
+  // 'dialing' with no outcome, no transcript, and no do_not_call flag.
+  const meta = (p.webhook_config?.metadata ?? p.metadata ?? {}) as Record<string, string>;
   const sb = db();
 
-  const { data: row } = await sb.from("voice_calls")
-    .select("id, run_id, wa_id, order_ref, status, attempt_id, webhook_token")
-    .eq("id", meta.call_id ?? "00000000-0000-0000-0000-000000000000").maybeSingle();
+  // attempt_id is our second, independent handle on the row: voice-call-start
+  // stores it the moment Sarvam accepts the call, and it is an unguessable
+  // server-issued UUID. Matching on it means a delivery that drops our metadata
+  // entirely still finalises the right call instead of being rejected.
+  const SELECT = "id, run_id, wa_id, order_ref, status, attempt_id, webhook_token";
+  let row: VoiceCallRow | null = null;
+  if (meta.call_id) {
+    const { data } = await sb.from("voice_calls").select(SELECT).eq("id", meta.call_id).maybeSingle();
+    row = (data as VoiceCallRow | null) ?? null;
+  }
+  if (!row && p.attempt_id) {
+    const { data } = await sb.from("voice_calls").select(SELECT).eq("attempt_id", p.attempt_id).maybeSingle();
+    row = (data as VoiceCallRow | null) ?? null;
+  }
   const v = verifyVoiceWebhook({ attempt_id: p.attempt_id, token: meta.token }, row);
   if (!v.ok) {
-    await logConnector({ connector: "shopify_wa", level: "warn", event: "voice_webhook_rejected", message: `voice-webhook rejected: ${v.reason}`, ref: meta.call_id ?? null, throttleMinutes: 10 }).catch(() => {});
+    // Log the payload's SHAPE (keys only, never values) so a provider that moves
+    // or drops our metadata is diagnosable from the dashboard instead of needing
+    // another live call to reproduce.
+    const shape = `keys=[${Object.keys(p ?? {}).join(",")}] meta=[${Object.keys(meta).join(",")}] attempt=${p.attempt_id ? "yes" : "no"}`;
+    await logConnector({ connector: "shopify_wa", level: "warn", event: "voice_webhook_rejected", message: `voice-webhook rejected: ${v.reason} (${shape})`, ref: meta.call_id ?? p.attempt_id ?? null, throttleMinutes: 10 }).catch(() => {});
     // already_finished is a benign duplicate delivery: acknowledge it.
     return v.reason === "already_finished" ? j({ ok: true, dup: true }) : j({ error: v.reason }, 401);
   }
