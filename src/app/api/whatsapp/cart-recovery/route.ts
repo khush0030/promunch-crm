@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { reduceCartRuns } from "./reduce";
 
 // Cart-recovery funnel for the WhatsApp dashboard tile.
 //
@@ -23,28 +24,23 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 //   missed         : all runs terminal, nothing ever delivered  <- the real loss
 export const dynamic = "force-dynamic";
 
-type Cart = { converted: boolean; delivered: boolean; active: boolean };
-
 export async function GET() {
   const since = new Date(Date.now() - 30 * 24 * 3600_000).toISOString();
 
+  // context is selected (not just for filtering server-side — PostgREST has
+  // no clean operator for "->>'channel' is distinct from 'voice'" that also
+  // tolerates a null context, so the voice row is excluded client-side in
+  // reduceCartRuns instead; see that file's header comment) so the voice
+  // rescue-call row (same journey_key + order_ref as the WA rows for the
+  // same cart, see shopify-wa) never gets folded into this WA-only funnel.
   const { data, error } = await supabaseAdmin
     .from("wa_journey_runs")
-    .select("order_ref, status, delivered_at")
+    .select("order_ref, status, delivered_at, context")
     .eq("journey_key", "abandoned_checkout")
     .gte("created_at", since);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // reduce runs -> one outcome per cart
-  const carts = new Map<string, Cart>();
-  for (const r of data ?? []) {
-    const key = r.order_ref ?? `run:${r.status}:${r.delivered_at ?? ""}`;
-    const c = carts.get(key) ?? { converted: false, delivered: false, active: false };
-    if (r.status === "converted") c.converted = true;
-    if (r.delivered_at) c.delivered = true;
-    if (r.status === "active") c.active = true;
-    carts.set(key, c);
-  }
+  const carts = reduceCartRuns(data ?? []);
 
   let recovered = 0, selfReturned = 0, delivered = 0, retrying = 0, missed = 0;
   for (const c of carts.values()) {

@@ -486,20 +486,33 @@ async function handleVoiceRun(
   };
 
   // Gather inputs (all reads; nothing is written until the claim below).
+  // `calls` is NOT time-bounded: the per-cart attempt cap and cartConnected
+  // check are lifetime, not 7-day (see voice-eligibility.ts's module comment).
   const [{ data: contact }, { data: waRows }, { data: th }, { data: calls }] = await Promise.all([
     sb.from("wa_contacts").select("opted_in, voice_dnd").eq("wa_id", run.wa_id).maybeSingle(),
     sb.from("wa_journey_runs").select("status, delivered_at, context, created_at")
       .eq("wa_id", run.wa_id).eq("journey_key", "abandoned_checkout").neq("id", run.id)
       .gte("created_at", new Date(Date.parse(run.created_at) - 60_000).toISOString()),
     sb.from("wa_threads").select("last_inbound_at").eq("wa_id", run.wa_id).maybeSingle(),
-    sb.from("voice_calls").select("order_ref, created_at, status").eq("wa_id", run.wa_id)
-      .gte("created_at", new Date(nowMs - 7 * 86400_000).toISOString()),
+    sb.from("voice_calls").select("order_ref, created_at, status, attempt_id").eq("wa_id", run.wa_id),
   ]);
   const rows = (waRows ?? []).filter((r) => (r.context as Record<string, unknown> | null)?.channel !== "voice");
   const stood = (r: { context: unknown }) => {
     const c = (r.context ?? {}) as Record<string, unknown>;
     return c.tpl_stood_down === true || Number(c.tpl_cap_attempts ?? 0) >= TPL_CAP_ATTEMPTS_MAX;
   };
+  // A REAL dial attempt is one Sarvam actually placed: connected/no_answer/
+  // busy/failed, or an 'unknown' row that has an attempt_id (Sarvam accepted
+  // it but the webhook never confirmed the outcome). 'start_failed' and a
+  // 'dialing'/'unknown' row with no attempt_id never rang the customer's
+  // phone at all (our own fetch to voice-call-start failed before Sarvam was
+  // ever reached) so they don't consume the 2-attempt cart budget — that
+  // failure mode is bounded separately by the voice_start_failures strikes
+  // counter below.
+  const isRealAttempt = (c: { status: string; attempt_id: string | null }) =>
+    c.status === "connected" || c.status === "no_answer" || c.status === "busy" || c.status === "failed" ||
+    (c.status === "unknown" && !!c.attempt_id);
+  const cartCalls = (calls ?? []).filter((c) => c.order_ref === run.order_ref);
   const verdict = voiceEligibility({
     enabled: flows.voice_call_enabled,
     cartTotal: Number(run.context?.total ?? 0),
@@ -510,8 +523,11 @@ async function handleVoiceRun(
     waDelivered: rows.some((r) => !!r.delivered_at),
     waStoodDown: rows.some(stood),
     waPending: rows.some((r) => r.status === "active"),
-    recentCallWithin7d: (calls ?? []).some((c) => c.status !== "start_failed"),
-    callForThisCart: (calls ?? []).some((c) => c.order_ref === run.order_ref && c.status !== "start_failed"),
+    cartConnected: cartCalls.some((c) => c.status === "connected"),
+    cartAttempts: cartCalls.filter(isRealAttempt).length,
+    cartInFlight: cartCalls.some((c) => c.status === "dialing"),
+    connectedWithin7d: (calls ?? []).some((c) =>
+      c.status === "connected" && Date.parse(c.created_at) >= nowMs - 7 * 86400_000),
   });
   if (verdict.action === "cancel") {
     await mark(run.id, "cancelled", `voice: ${verdict.reason}`);
