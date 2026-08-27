@@ -36,20 +36,28 @@ Deno.serve(async (req) => {
   // So adding a key here without adding it in the dashboard takes the whole voice
   // leg down, and the reverse (agent declares more than we send) is harmless.
   // Current agent contract (Aug 27, 2026):
-  //   inputs  customer_name, cart_items, cart_value, discount_code, gender,
-  //           call_id, checkout_url, phone
+  //   inputs  customer_name, cart_items, cart_value, discount_code, gender, call_id
   //   outputs call_disposition (our outcome enum), call_summary
-  // call_id is load-bearing: the mid-call send_whatsapp_link tool passes it back
-  // to voice-tool-wa-link, which is how that endpoint identifies the live call.
+  //
+  // call_id is the ONE variable the agent must declare beyond its own content
+  // set: the mid-call send_whatsapp_link tool passes it back to
+  // voice-tool-wa-link, which is how that endpoint identifies the live call and
+  // enforces one-link-per-call.
+  //
+  // We deliberately do NOT send checkout_url or phone. voice-tool-wa-link reads
+  // both off the voice_calls row it just looked up (the link from the journey
+  // context, the number from wa_id), so passing them through the agent would add
+  // two required dashboard variables, two more things to keep in sync, and a
+  // second copy of the customer's number in a third-party transcript. The agent
+  // never needs to say the URL out loud either: a link read over the phone is
+  // useless, which is what the WhatsApp tool exists for.
   const agentVariables: Record<string, string> = {
     customer_name: vars["1"] || "there",
     cart_items: items.length ? items.map((i) => `${i.qty}x ${i.title}`).join(", ") : "your PROMUNCH snacks",
     // Zero is a real total, so test for a finite number rather than truthiness.
     cart_value: Number.isFinite(Number(ctx.total)) ? `Rs ${Number(ctx.total).toFixed(0)}` : "",
     discount_code: String(ctx.coupon ?? ""),
-    checkout_url: vars["2"] ?? "",
     call_id: call.id,
-    phone: `+${call.wa_id}`,
     // Declared by the agent; we hold no gender data and never guess one.
     gender: "",
   };

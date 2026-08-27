@@ -60,11 +60,13 @@ Use that same value as the bearer token in the HTTPS tool config in §5.
 
 Create the voice agent ("app") in indus.sarvam.ai, then define its variables.
 
-**Inputs** (type string, default empty): `customer_name`, `cart_items`, `cart_value`, `discount_code`, `checkout_url`, `call_id`, `phone`, `gender`.
+**Inputs** (type string, default empty): `customer_name`, `cart_items`, `cart_value`, `discount_code`, `gender`, `call_id`.
+
+`call_id` is the only one you must add beyond the agent's own content variables. We deliberately do NOT pass `checkout_url` or `phone`: `voice-tool-wa-link` reads the link and the number straight off the `voice_calls` row, so passing them through the agent would mean two more dashboard variables to keep in sync and a second copy of the customer's number sitting in a third-party transcript. The agent never reads the URL aloud either, since a link spoken over a phone is useless.
 
 These names must match the agent EXACTLY. Sending a variable the agent has not declared is a HARD FAILURE: Sarvam returns `422 Invalid Parameter -- Agent variables {...} not found in agent variables of app <id>` and does not dial (verified live, Aug 27 2026). The `voice_calls` row is recorded `start_failed` with that message in `failure_reason`, and the tick retries up to 3 times before retiring the run. The reverse is harmless: the agent may declare variables we never send. `call_id` is load-bearing: the `send_whatsapp_link` tool passes it back to `voice-tool-wa-link`, which is how that endpoint identifies the live call. `gender` is declared by the agent but always sent empty (we hold no gender data and never guess).
 
-These are populated per call by `voice-call-start` from the journey run's context (`_shared/... `: `customer_name` from the enrolment name, `cart_items` as `"2x Peri Peri Crunchies, 1x Masala Sticks"`, `cart_value` as `"Rs 748"`, `checkout_url` from the Shopify checkout NOTE URL, `call_id`/`phone` for the WhatsApp-link tool).
+These are populated per call by `voice-call-start` from the journey run's context (`_shared/... `: `customer_name` from the enrolment name, `cart_items` as `"2x Peri Peri Crunchies, 1x Masala Sticks"`, `cart_value` as `"Rs 748"`, `discount_code` from the Flows tab coupon, `call_id` so the WhatsApp-link tool can identify the live call. The checkout link itself comes from the Shopify checkout NOTE and stays server-side, on the `voice_calls` row).
 
 **Output**: `call_disposition` — Enum `will_buy, asked_link, not_interested, do_not_call, callback_later, unknown`. The extraction prompt MUST emit exactly these six values.
 
@@ -99,7 +101,7 @@ Configure one HTTPS tool on the agent:
 | URL | `https://<PROJECT_REF>.supabase.co/functions/v1/voice-tool-wa-link` |
 | Auth type | Bearer |
 | Auth value | `<INTERNAL_FN_SECRET>` (the value you set in §2 — never the service-role key) |
-| Body | `{"call_id":"@call_id","phone":"@phone"}` |
+| Body | `{"call_id":"@call_id"}` |
 | Timeout | 20 s |
 | Fallback message | "I could not send it right now, our team will message you on WhatsApp" |
 | Description | "Send the customer their saved cart checkout link on WhatsApp. Use when the customer agrees to receive the link." |
