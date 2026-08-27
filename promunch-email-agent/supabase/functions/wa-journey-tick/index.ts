@@ -16,6 +16,7 @@ import { isOrderCancelled } from "../_shared/orders.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 import { WINDOW_DELIVER_JOURNEYS, claimAsk, releaseAsk, sessionOpen } from "../_shared/window-asks.ts";
 import { isCapError, isMarketingTemplate, isUndeliverableError, marketingAllowed } from "../_shared/marketing-governor.ts";
+import { VOICE_TEMPLATE, inCallWindow, nextWindowOpen, voiceEligibility } from "../_shared/voice-eligibility.ts";
 
 const BATCH = 200;
 // Max times to retry the (per-recipient-capped) template fallback for a
@@ -101,6 +102,13 @@ Deno.serve(async (req) => {
     for (const c of page) if (c.wa_id) optedOutWa.add(String(c.wa_id));
     if (page.length < 1000) break;
   }
+
+  // A dial whose webhook never came back (Sarvam outage, crash between insert
+  // and start) must not sit 'dialing' forever: it would block the per-cart and
+  // 7-day guards. Mark unknown after 2h; never redial from here (§0).
+  await sb.from("voice_calls").update({ status: "unknown", updated_at: now })
+    .eq("status", "dialing").lt("created_at", new Date(Date.now() - 2 * 3600_000).toISOString())
+    .then(() => {}, () => {});
 
   let sent = 0, failed = 0, skipped = 0;
 
@@ -196,6 +204,13 @@ Deno.serve(async (req) => {
         skipped++;
         continue;
       }
+    }
+
+    // ---- VOICE RESCUE CALL ----
+    if (run.context?.channel === "voice") {
+      const r = await handleVoiceRun(sb, run, flows, now);
+      if (r === "sent") sent++; else if (r === "failed") failed++; else skipped++;
+      continue;
     }
 
     const windowEligible = (WINDOW_DELIVER_JOURNEYS as readonly string[]).includes(run.journey_key);
@@ -451,6 +466,101 @@ async function callProactiveAsk(
   } catch (e) {
     return { ok: false, error: String(e) };
   }
+}
+
+// Decide, claim, dial. Returns "sent" (call placed), "failed", or "skipped".
+async function handleVoiceRun(
+  sb: ReturnType<typeof db>,
+  run: { id: string; wa_id: string; order_ref: string | null; created_at: string; context?: Record<string, unknown> },
+  flows: Awaited<ReturnType<typeof getFlowSettings>>,
+  now: string,
+): Promise<"sent" | "failed" | "skipped"> {
+  const nowMs = Date.parse(now);
+  const defer = async (ms: number, why: string) => {
+    await sb.from("wa_journey_runs").update({ next_action_at: new Date(nowMs + ms).toISOString(), last_error: why }).eq("id", run.id).then(() => {}, () => {});
+    return "skipped" as const;
+  };
+
+  // Gather inputs (all reads; nothing is written until the claim below).
+  const [{ data: contact }, { data: waRows }, { data: th }, { data: calls }] = await Promise.all([
+    sb.from("wa_contacts").select("opted_in, voice_dnd").eq("wa_id", run.wa_id).maybeSingle(),
+    sb.from("wa_journey_runs").select("status, delivered_at, context, created_at")
+      .eq("wa_id", run.wa_id).eq("journey_key", "abandoned_checkout").neq("id", run.id)
+      .gte("created_at", new Date(Date.parse(run.created_at) - 60_000).toISOString()),
+    sb.from("wa_threads").select("last_inbound_at").eq("wa_id", run.wa_id).maybeSingle(),
+    sb.from("voice_calls").select("order_ref, created_at, status").eq("wa_id", run.wa_id)
+      .gte("created_at", new Date(nowMs - 7 * 86400_000).toISOString()),
+  ]);
+  const rows = (waRows ?? []).filter((r) => (r.context as Record<string, unknown> | null)?.channel !== "voice");
+  const stood = (r: { context: unknown }) => {
+    const c = (r.context ?? {}) as Record<string, unknown>;
+    return c.tpl_stood_down === true || Number(c.tpl_cap_attempts ?? 0) >= TPL_CAP_ATTEMPTS_MAX;
+  };
+  const verdict = voiceEligibility({
+    enabled: flows.voice_call_enabled,
+    cartTotal: Number(run.context?.total ?? 0),
+    minCartValue: flows.voice_min_cart_value,
+    voiceDnd: contact?.voice_dnd === true,
+    optedIn: contact?.opted_in !== false,
+    inboundSinceEnrol: !!th?.last_inbound_at && Date.parse(th.last_inbound_at) > Date.parse(run.created_at),
+    waDelivered: rows.some((r) => !!r.delivered_at),
+    waStoodDown: rows.some(stood),
+    waPending: rows.some((r) => r.status === "active"),
+    recentCallWithin7d: (calls ?? []).some((c) => c.status !== "start_failed"),
+    callForThisCart: (calls ?? []).some((c) => c.order_ref === run.order_ref && c.status !== "start_failed"),
+  });
+  if (verdict.action === "cancel") {
+    await mark(run.id, "cancelled", `voice: ${verdict.reason}`);
+    return "skipped";
+  }
+  if (verdict.action === "defer") return defer(verdict.hours * 3600_000, `voice: ${verdict.reason}`);
+  if (!inCallWindow(nowMs, flows.voice_call_start_hour, flows.voice_call_end_hour)) {
+    const open = nextWindowOpen(nowMs, flows.voice_call_start_hour).getTime();
+    return defer(open - nowMs, "voice: outside call window");
+  }
+
+  // Sarvam not configured: hold rather than burn the run.
+  if (!Deno.env.get("SARVAM_APP_ID")) return defer(6 * 3600_000, "voice: SARVAM_* secrets not set");
+  // Rollout allowlist (spec §9): while VOICE_TEST_WA_IDS is set, only those
+  // numbers are dialled; everyone else waits. Unset it after the live test.
+  const allow = (Deno.env.get("VOICE_TEST_WA_IDS") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (allow.length && !allow.includes(run.wa_id)) return defer(6 * 3600_000, "voice: not in VOICE_TEST_WA_IDS allowlist");
+
+  // ATOMIC CLAIM: active -> completed, exactly one tick wins. Crash after this
+  // point loses the call, never duplicates it.
+  const { data: claimed } = await sb.from("wa_journey_runs")
+    .update({ status: "completed", last_error: null }).eq("id", run.id).eq("status", "active").select("id");
+  if (!claimed?.length) return "skipped";
+
+  const token = crypto.randomUUID().replace(/-/g, "");
+  const { data: call, error: insErr } = await sb.from("voice_calls")
+    .insert({ run_id: run.id, wa_id: run.wa_id, order_ref: run.order_ref, webhook_token: token, status: "dialing" })
+    .select("id").single();
+  if (insErr || !call) {
+    await sb.from("wa_journey_runs").update({ status: "active", next_action_at: new Date(nowMs + 3600_000).toISOString(), last_error: `voice: ledger insert failed ${insErr?.message ?? ""}` }).eq("id", run.id);
+    return "failed";
+  }
+
+  const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/voice-call-start`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ call_id: call.id }),
+  }).catch(() => null);
+  const res = r ? await r.json().catch(() => ({ ok: false })) as { ok?: boolean; error?: string } : { ok: false, error: "fetch failed" };
+  if (res.ok) return "sent";
+
+  // Start failed: hand the run back with a bounded retry (3 strikes).
+  const strikes = Number(run.context?.voice_start_failures ?? 0) + 1;
+  if (strikes >= 3) {
+    await mark(run.id, "failed", `voice: start failed ${strikes}x — ${res.error ?? "unknown"}`);
+  } else {
+    await sb.from("wa_journey_runs").update({
+      status: "active", next_action_at: new Date(nowMs + 3600_000).toISOString(),
+      last_error: `voice: start failed (${strikes}/3) — ${res.error ?? "unknown"}`,
+      context: { ...(run.context ?? {}), voice_start_failures: strikes },
+    }).eq("id", run.id);
+  }
+  return "failed";
 }
 
 // error_code is Meta's numeric verdict, forwarded by wa-send. Classify on it
