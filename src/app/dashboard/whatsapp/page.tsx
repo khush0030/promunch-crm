@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import AnalyticsView from "@/components/whatsapp/AnalyticsView";
 import { timeAgo } from "./format";
@@ -13,11 +14,44 @@ import FlowsView from "@/components/whatsapp/FlowsView";
 import VoiceView from "@/components/whatsapp/VoiceView";
 import GrowthView from "@/components/whatsapp/GrowthView";
 import InboxView from "@/components/whatsapp/InboxView";
+import { AlertsToggle } from "@/components/whatsapp/InboxNotifier";
 
 
 
+const TABS: Tab[] = ["inbox", "tickets", "templates", "campaigns", "flows", "voice", "growth", "analytics", "kb"];
+
+// useSearchParams needs a Suspense boundary in the App Router.
 export default function WhatsAppPage() {
-  const [tab, setTab] = useState<Tab>("inbox");
+  return (
+    <Suspense fallback={<div className="pm-page" />}>
+      <WhatsAppPageInner />
+    </Suspense>
+  );
+}
+
+// Tab + selected thread live in the URL (?tab=inbox&thread=<id>) so a chat
+// can be shared with a teammate as a plain link.
+function WhatsAppPageInner() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const urlTab = params.get("tab") as Tab | null;
+  const tab: Tab = urlTab && TABS.includes(urlTab) ? urlTab : "inbox";
+  const threadParam = params.get("thread");
+
+  const setTab = useCallback((t: Tab) => {
+    const q = new URLSearchParams();
+    if (t !== "inbox") q.set("tab", t);
+    // Keep the selected thread when hopping between Inbox and Tickets.
+    if ((t === "inbox" || t === "tickets") && threadParam) q.set("thread", threadParam);
+    router.replace(`/dashboard/whatsapp${q.toString() ? `?${q}` : ""}`);
+  }, [router, threadParam]);
+
+  const setThread = useCallback((id: string | null) => {
+    const q = new URLSearchParams();
+    if (tab !== "inbox") q.set("tab", tab);
+    if (id) q.set("thread", id);
+    router.replace(`/dashboard/whatsapp${q.toString() ? `?${q}` : ""}`);
+  }, [router, tab]);
 
   return (
     <div className="pm-page">
@@ -25,8 +59,8 @@ export default function WhatsAppPage() {
       <StatusMeter />
       <Tabs tab={tab} onChange={setTab} />
       <div>
-        {tab === "inbox" && <InboxView ticketsOnly={false} />}
-        {tab === "tickets" && <InboxView ticketsOnly={true} />}
+        {tab === "inbox" && <InboxView ticketsOnly={false} threadId={threadParam} onThreadChange={setThread} />}
+        {tab === "tickets" && <InboxView ticketsOnly={true} threadId={threadParam} onThreadChange={setThread} />}
         {tab === "templates" && <TemplatesView />}
         {tab === "campaigns" && <CampaignsView />}
         {tab === "flows" && <FlowsView />}
@@ -46,6 +80,7 @@ function Header() {
         <h1>WhatsApp</h1>
         <p>Inbox, AI agent, templates &amp; tickets</p>
       </div>
+      <AlertsToggle />
     </div>
   );
 }

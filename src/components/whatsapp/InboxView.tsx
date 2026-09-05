@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   AlertTriangle, Archive, ArchiveRestore, Bot, Check, CheckCheck, CheckCircle2,
-  ChevronLeft, ExternalLink, MapPin, Megaphone, Phone, Search, Send, ShoppingBag,
+  ChevronLeft, ExternalLink, Link2, MapPin, Megaphone, Phone, Search, Send, ShoppingBag,
   Sparkles, Tag, Ticket as TicketIcon, User as UserIcon, X,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
@@ -18,6 +18,7 @@ import type { Thread, Message, Template, TeamMember } from "./types";
 import { BRAND, WA_GREEN, priorityStyle, ticketStatusStyle, chip } from "./styles";
 import { Pill } from "./primitives";
 import { WindowTimer, WindowChip } from "./WindowTimer";
+import { threadLink } from "./InboxNotifier";
 
 // WhatsApp-style delivery ticks for an outbound message.
 //   sent      → single grey check
@@ -85,8 +86,19 @@ function MediaView({ url, type }: { url: string; type: string }) {
   );
 }
 
-export default function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
-  const [selected, setSelected] = useState<Thread | null>(null);
+export default function InboxView({ ticketsOnly, threadId = null, onThreadChange }: {
+  ticketsOnly: boolean;
+  /** Thread id from the URL (?thread=). Selected on load, fetched by id if it is not in the current list. */
+  threadId?: string | null;
+  /** Called when the user picks / closes a thread so the page can mirror it into the URL. */
+  onThreadChange?: (id: string | null) => void;
+}) {
+  const [selected, setSelectedRaw] = useState<Thread | null>(null);
+  // Every user-driven selection change is mirrored into the URL.
+  const setSelected = useCallback((v: Thread | null) => {
+    setSelectedRaw(v);
+    onThreadChange?.(v?.id ?? null);
+  }, [onThreadChange]);
   const [status, setStatus] = useState<string>("");
   const [ticket, setTicket] = useState<string>(ticketsOnly ? "open" : "");
   const [search, setSearch] = useState("");
@@ -122,6 +134,24 @@ export default function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
   });
   const load = () => refetch();
 
+  // Deep link: select the thread named in the URL once. If the current filter
+  // hides it, fetch it by id so a shared link always opens the right chat.
+  const linkedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!threadId || linkedRef.current === threadId || selected?.id === threadId) return;
+    linkedRef.current = threadId;
+    let cancelled = false;
+    fetch(`/api/whatsapp/threads/${threadId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled || !j?.thread) return;
+        setSelectedRaw(j.thread);
+        if (isMobile) setMobileView("conv");
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [threadId, selected?.id, isMobile]);
+
   // Archive (hide) or unarchive a thread — never deletes messages.
   const archiveThread = useCallback(async (id: string, archived: boolean) => {
     await fetch(`/api/whatsapp/threads/${id}`, {
@@ -129,9 +159,9 @@ export default function InboxView({ ticketsOnly }: { ticketsOnly: boolean }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ archived }),
     });
-    setSelected((s) => (s?.id === id ? null : s));
+    if (selected?.id === id) setSelected(null);
     refetch();
-  }, [refetch]);
+  }, [refetch, selected?.id, setSelected]);
 
   return (
     <div style={{
@@ -380,6 +410,18 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
     );
   }
 
+  async function shareLink() {
+    const url = threadLink(thread!.id);
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.push({ kind: "success", text: "Chat link copied. Paste it to a teammate; they open it in their inbox." });
+    } catch {
+      // Clipboard blocked (http, permissions): fall back to a prompt.
+      // eslint-disable-next-line no-alert
+      window.prompt("Copy this chat link", url);
+    }
+  }
+
   async function send(kind: "text" | "template", payload?: any) {
     setSending(true);
     try {
@@ -484,6 +526,16 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
           )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <button type="button" onClick={shareLink}
+            title="Copy a link to this chat for a teammate"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+              border: "1px solid var(--pm-border)", background: "var(--pm-card)", color: "var(--pm-ink)",
+              cursor: "pointer", whiteSpace: "nowrap",
+            }}>
+            <Link2 size={13} /> Share
+          </button>
           {(thread.ticket_status === "open" || thread.ticket_status === "pending") && (
             <button type="button" onClick={() => patch({ ticket_status: "resolved" })}
               title="Mark this ticket resolved"

@@ -4,6 +4,7 @@ import Sidebar, { MobileHeader } from "@/components/Sidebar";
 import Onboarding from "@/components/Onboarding";
 import { ToastProvider } from "@/components/ui/Toast";
 import QueryProvider from "@/components/QueryProvider";
+import InboxNotifier from "@/components/whatsapp/InboxNotifier";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -84,6 +85,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         />
         <main className="main">{children}</main>
         <Onboarding />
+        <InboxNotifier />
       </div>
     </ToastProvider>
     </QueryProvider>
