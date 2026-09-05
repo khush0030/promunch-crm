@@ -1,22 +1,28 @@
-// Shopify cart permalink builder — the heart of WhatsApp "Path A" ordering.
+// Cart handoff builder for WhatsApp in-chat ordering.
 //
 // CONVENTION (must hold for this to work): every Meta Commerce catalog item's
 // `retailer_id` is set to the item's Shopify *variant* numeric id. When a
 // customer builds a cart inside WhatsApp, Meta sends us an `order` webhook whose
-// product_items[].product_retailer_id is therefore already the variant id — so
+// product_items[].product_retailer_id is therefore already the variant id, so
 // we can drop them straight into a Shopify cart permalink with ZERO Shopify
 // product API calls.
 //
-// Permalink shape: https://<store>/cart/<variantId>:<qty>,<variantId>:<qty>...
-// This lands the customer in Shopify's hosted checkout with the cart prefilled;
-// they pay via COD / UPI / cards and the order flows back through the existing
-// Shopify webhook → shopify_orders. Docs:
-//   https://shopify.dev/docs/api/liquid/objects/cart#cart-permalinks
+// WHY ?storefront=true (2026-09-05): PROMUNCH does not use Shopify's native
+// checkout. Juspay Breeze (merchant id "promunch") replaces it with a
+// client-side SDK loaded on the STOREFRONT that intercepts the checkout button.
+// A bare permalink (/cart/<id>:<qty>) redirects straight to /checkouts/cn/...,
+// which is native Shopify checkout and skips Breeze entirely. Appending
+// ?storefront=true lands the customer on /cart with the items prefilled, where
+// the Breeze SDK is loaded and owns the checkout button. Breeze's own
+// abandoned-cart recovery links point at /cart for the same reason.
+// Verified against the live store on 2026-09-05.
+//
+// Permalink shape: https://<store>/cart/<variantId>:<qty>,...?storefront=true
+// Docs: https://shopify.dev/docs/api/liquid/objects/cart#cart-permalinks
 
-// The storefront domain that serves the Shopify cart/checkout. PROMUNCH_SITE_URL
-// (promunch.in) is the Shopify primary domain — the abandoned-cart recovery flow
-// already treats `${SITE_URL}/cart` as a Shopify cart URL — so reuse it. Falls
-// back to the raw myshopify domain if the site URL isn't set.
+// The storefront domain that serves the cart page. PROMUNCH_SITE_URL
+// (promunch.in) is the Shopify primary domain. Falls back to the raw myshopify
+// domain if the site URL isn't set.
 function storeBase(): string {
   const site = Deno.env.get("PROMUNCH_SITE_URL");
   if (site) return site.replace(/\/+$/, "");
@@ -30,8 +36,11 @@ export interface CartLine {
   quantity: number;
 }
 
-// Build a Shopify cart permalink from cart lines. Sanitises ids to digits and
+// Build the cart handoff link from cart lines. Sanitises ids to digits and
 // clamps quantities to >= 1. Returns null if no valid lines remain.
+//
+// Lands on the CART PAGE (not native checkout) so Juspay Breeze owns the
+// checkout, and carries UTMs so WhatsApp-sourced orders are attributable.
 export function buildCartPermalink(lines: CartLine[]): string | null {
   const path = lines
     .map((l) => ({ id: String(l.variantId ?? "").replace(/\D/g, ""), qty: Math.max(1, Math.floor(Number(l.quantity) || 1)) }))
@@ -39,7 +48,14 @@ export function buildCartPermalink(lines: CartLine[]): string | null {
     .map((l) => `${l.id}:${l.qty}`)
     .join(",");
   if (!path) return null;
-  return `${storeBase()}/cart/${path}`;
+  const u = new URL(`${storeBase()}/cart/${path}`);
+  // storefront=true keeps the customer on the storefront cart page, where the
+  // Breeze SDK loads. Without it Shopify 302s to its own checkout.
+  u.searchParams.set("storefront", "true");
+  u.searchParams.set("utm_source", "whatsapp");
+  u.searchParams.set("utm_medium", "chat");
+  u.searchParams.set("utm_campaign", "in_chat_order");
+  return u.toString();
 }
 
 // Normalise the product_items array from a Meta `order` webhook message into
