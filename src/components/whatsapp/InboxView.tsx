@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   AlertTriangle, Archive, ArchiveRestore, Bot, Check, CheckCheck, CheckCircle2,
-  ChevronLeft, ExternalLink, Link2, MapPin, Megaphone, Phone, Search, Send, ShoppingBag,
+  ChevronLeft, ExternalLink, ImagePlus, Link2, MapPin, Megaphone, Phone, Search, Send, ShoppingBag,
   Sparkles, Tag, Ticket as TicketIcon, User as UserIcon, X,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
@@ -339,6 +339,11 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
   const [templates, setTemplates] = useState<Template[]>([]);
   const [pickingTemplate, setPickingTemplate] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  // Image attachment staged in the composer (uploaded to wa-media on pick; sent
+  // as a WhatsApp image message with the typed text as caption).
+  const [attachment, setAttachment] = useState<{ url: string; name: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: messages = [], refetch } = useQuery({
@@ -422,12 +427,35 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
     }
   }
 
+  async function pickImage(file: File | null) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("format", "IMAGE");
+      const r = await fetch("/api/whatsapp/media-upload", { method: "POST", body: fd });
+      const j = await r.json();
+      if (j.error) { toast.push({ kind: "error", text: j.error }); return; }
+      setAttachment({ url: j.url, name: file.name });
+    } catch (e) {
+      toast.push({ kind: "error", text: "Upload failed: " + String(e) });
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  const canSend = !!(text.trim() || attachment) && !sending && !uploading;
+
   async function send(kind: "text" | "template", payload?: any) {
     setSending(true);
     try {
       const body =
         kind === "text"
-          ? { thread_id: thread!.id, kind, text, sent_by: "khush@promunch.in" }
+          ? attachment
+            ? { thread_id: thread!.id, kind: "image", image: { link: attachment.url, caption: text.trim() || undefined }, sent_by: "khush@promunch.in" }
+            : { thread_id: thread!.id, kind, text, sent_by: "khush@promunch.in" }
           : { thread_id: thread!.id, kind: "template", template: payload, sent_by: "khush@promunch.in" };
       const r = await fetch("/api/whatsapp/send", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -439,6 +467,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
       else if (j.skipped)
         toast.push({ kind: "info", text: "Already sent — duplicate skipped." });
       setText("");
+      setAttachment(null);
       setPickingTemplate(false);
       load();
     } finally {
@@ -593,8 +622,33 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
         <div style={{
           padding: isMobile ? "10px 10px calc(10px + env(safe-area-inset-bottom, 0px))" : 12,
           borderTop: "1px solid var(--pm-border)",
-          display: "flex", gap: 8, alignItems: "center",
+          display: "flex", flexDirection: "column", gap: 8,
         }}>
+        {attachment && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, borderRadius: 10, background: "var(--pm-card2)", border: "1px solid var(--pm-border)" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={attachment.url} alt={attachment.name} style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8 }} />
+            <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <div style={{ fontWeight: 600 }}>{attachment.name}</div>
+              <div style={{ color: "var(--pm-hint)" }}>Sends as an image. Text below becomes the caption.</div>
+            </div>
+            <button type="button" onClick={() => setAttachment(null)} aria-label="Remove image"
+              style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--pm-muted)", padding: 6 }}>
+              <X size={16} />
+            </button>
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png" hidden
+            onChange={(e) => pickImage(e.target.files?.[0] ?? null)} />
+          <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} title="Attach image (JPG/PNG, up to 5 MB)" aria-label="Attach image"
+            style={{
+              minWidth: 44, minHeight: 44, padding: 0, borderRadius: 10, border: "1px solid var(--pm-border)",
+              background: attachment ? "var(--pm-card2)" : "var(--pm-card)", cursor: uploading ? "wait" : "pointer", color: "var(--pm-muted)",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            }}>
+            <ImagePlus size={18} />
+          </button>
           <button type="button" onClick={() => setPickingTemplate(true)} title="Send template" aria-label="Send template"
             style={{
               minWidth: 44, minHeight: 44, padding: isMobile ? 0 : "10px 14px", borderRadius: 10, border: "1px solid var(--pm-border)",
@@ -613,8 +667,8 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
           </button>
           <input
             value={text} onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && text.trim() && !sending) send("text"); }}
-            placeholder="Type a message…"
+            onKeyDown={(e) => { if (e.key === "Enter" && canSend) send("text"); }}
+            placeholder={attachment ? "Add a caption (optional)…" : uploading ? "Uploading image…" : "Type a message…"}
             enterKeyHint="send"
             style={{
               flex: 1, minWidth: 0, minHeight: 44, padding: "10px 14px", borderRadius: 10,
@@ -625,15 +679,16 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
             onFocus={(e) => { e.currentTarget.style.background = "var(--pm-card)"; e.currentTarget.style.borderColor = "var(--pm-terra)"; }}
             onBlur={(e) => { e.currentTarget.style.background = "var(--pm-card2)"; e.currentTarget.style.borderColor = "var(--pm-border)"; }}
           />
-          <button type="button" disabled={!text.trim() || sending} onClick={() => send("text")} aria-label="Send message"
+          <button type="button" disabled={!canSend} onClick={() => send("text")} aria-label="Send message"
             style={{
               minWidth: 44, minHeight: 44, padding: isMobile ? 0 : "10px 16px", borderRadius: 10, border: "none",
-              background: text.trim() ? BRAND : "var(--pm-border)",
-              color: "var(--pm-card)", fontWeight: 600, cursor: text.trim() ? "pointer" : "not-allowed",
+              background: canSend ? BRAND : "var(--pm-border)",
+              color: "var(--pm-card)", fontWeight: 600, cursor: canSend ? "pointer" : "not-allowed",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexShrink: 0,
             }}>
             <Send size={isMobile ? 18 : 14} /> {!isMobile && "Send"}
           </button>
+        </div>
         </div>
       )}
     </div>

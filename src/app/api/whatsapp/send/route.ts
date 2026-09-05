@@ -18,11 +18,13 @@ const DEDUP_WINDOW_SECONDS = 90;
 function dedupKey(body: Record<string, unknown>): string | null {
   const dest = body.thread_id ?? body.to ?? body.wa_id ?? body.phone;
   if (!dest) return null; // no stable destination -> cannot dedup, fail open
-  const kind = body.kind === "template" ? "template" : "text";
+  const kind = body.kind === "template" ? "template" : body.kind === "image" ? "image" : "text";
   const content =
     kind === "template"
       ? JSON.stringify(body.template ?? {})
-      : String(body.text ?? "").trim();
+      : kind === "image"
+        ? JSON.stringify(body.image ?? {})
+        : String(body.text ?? "").trim();
   if (!content) return null;
   const h = createHash("sha256").update(`${kind}\n${content}`).digest("hex").slice(0, 32);
   return `manual:${dest}:${h}`;
