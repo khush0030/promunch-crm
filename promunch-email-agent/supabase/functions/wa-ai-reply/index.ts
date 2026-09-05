@@ -11,7 +11,7 @@ import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { lookupOrders, orderForAI } from "../_shared/orders.ts";
-import { stripEmDashes, type CatalogSection } from "../_shared/whatsapp.ts";
+import { buildCtaUrl, stripEmDashes, type CatalogSection } from "../_shared/whatsapp.ts";
 import {
   type DueAsk,
   claimAsk,
@@ -22,7 +22,7 @@ import {
 } from "../_shared/window-asks.ts";
 import { getFlowSettings } from "../_shared/flow-settings.ts";
 import { CATALOG_ID, MAX_REPLY_CHARS, MAX_TOOL_TURNS, MODEL, OPENAI_API_KEY } from "./config.ts";
-import { lookupProducts } from "./products.ts";
+import { lookupProducts, pickCard, type ProductCard } from "./products.ts";
 import { supportHoursLabel } from "./support-hours.ts";
 import { SYSTEM_PROMPT, TOOLS } from "./prompt.ts";
 import { retrieveKb } from "./kb.ts";
@@ -126,6 +126,11 @@ Deno.serve(async (req) => {
   // If the model calls show_products, we stash the prepared catalog here and
   // send it AFTER winning the per-turn claim (so a retry can't double-send).
   let pendingCatalog: { sections: CatalogSection[]; count: number } | null = null;
+  // Product cards the model asked to send (image + Buy button). Delivered AFTER
+  // the per-turn claim is won, so a retry can never double-send them. Capped at
+  // two: this is a chat, not a catalogue dump.
+  let knownCards: ProductCard[] = [];
+  const pendingCards: ProductCard[] = [];
   // Structured order-change request from the request_order_change tool — becomes
   // THE ticket at the end (takes precedence over decision.ticket so we never
   // raise two escalations for the same turn).
@@ -214,11 +219,27 @@ Deno.serve(async (req) => {
       } else if (call.function?.name === "lookup_product") {
         let arg: { query?: string; in_stock_only?: boolean } = {};
         try { arg = JSON.parse(call.function.arguments || "{}"); } catch { /* tolerate */ }
-        result = await lookupProducts(sb, String(arg.query ?? ""), arg.in_stock_only !== false)
+        const found = await lookupProducts(sb, String(arg.query ?? ""), arg.in_stock_only !== false)
           .catch((e) => {
             console.error("[wa-ai-reply] lookup_product failed", e);
-            return "Product lookup failed. Tell the customer the team will send the link shortly.";
+            return { text: "Product lookup failed. Tell the customer the team will send the link shortly.", cards: [] as ProductCard[] };
           });
+        knownCards = [...knownCards, ...found.cards];
+        result = found.text;
+      } else if (call.function?.name === "send_product_card") {
+        let arg: { product_title?: string } = {};
+        try { arg = JSON.parse(call.function.arguments || "{}"); } catch { /* tolerate */ }
+        const card = pickCard(knownCards, String(arg.product_title ?? ""));
+        if (!card) {
+          result = "No such product in the lookup results. Call lookup_product first, then use a product title exactly as it appeared there.";
+        } else if (pendingCards.length >= 2) {
+          result = "Two cards are already queued, that is the limit for one reply. Do not send more.";
+        } else if (pendingCards.some((c) => c.url === card.url)) {
+          result = "That card is already queued for this reply.";
+        } else {
+          pendingCards.push(card);
+          result = `Queued a product card for ${card.title}. It goes out right after your reply as a photo with a Buy button. Do NOT repeat the name, price or URL in your reply text, just say one short line like "Here you go" or a sentence about why it suits them.`;
+        }
       } else if (call.function?.name === "show_products") {
         let arg: { category?: string } = {};
         try { arg = JSON.parse(call.function.arguments || "{}"); } catch { /* tolerate */ }
@@ -331,6 +352,18 @@ Deno.serve(async (req) => {
   }
   replyText = stripEmDashes(replyText);
 
+  // Belt and braces on the "never paste a link" rule: a raw product URL in the
+  // reply text is unreadable on WhatsApp (it wraps over ten lines) and is what
+  // the product card exists to replace. Strip product links only, order status
+  // and checkout links are legitimately sent as text elsewhere.
+  replyText = replyText
+    .replace(/\s*(?:here|below)?\s*:?\s*https?:\/\/[^\s]*\/products\/[^\s]*/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([.!?,])/g, "$1")
+    .replace(/[\s,]+$/g, "")
+    .trim();
+  if (!replyText) replyText = pendingCards.length ? "Here you go." : "Let me check that and get back to you.";
+
   // Brevity guard: one deterministic shorten pass when the model overshoots.
   if (replyText.length > MAX_REPLY_CHARS && !/https?:\/\//.test(replyText)) {
     try {
@@ -417,6 +450,21 @@ Deno.serve(async (req) => {
       waId,
       orderRef: claimedAsk.orderRef,
     });
+  }
+
+  // Product cards: photo + one-line caption + a Buy button, sent after the text
+  // reply and gated by the per-turn claim so a retry cannot double-send them.
+  for (const card of pendingCards) {
+    const price = card.price != null
+      ? `Rs ${Number.isInteger(card.price) ? card.price : card.price.toFixed(2)}`
+      : "";
+    const caption = price ? `${card.title}\n${price}` : card.title;
+    await callSend({
+      thread_id: thread_id,
+      kind: "interactive",
+      sent_by: "bot",
+      interactive: buildCtaUrl(caption, "Buy now", card.url, undefined, card.image ?? undefined),
+    }).catch((e) => console.error("[wa-ai-reply] product card send failed", e));
   }
 
   // If the bot chose to show products, deliver the catalog cards now — AFTER the

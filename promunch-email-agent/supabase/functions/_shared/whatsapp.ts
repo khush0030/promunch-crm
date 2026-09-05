@@ -325,13 +325,51 @@ export function sendInteractive(to: string, interactive: Record<string, unknown>
 // A tappable URL button (used to deliver the Shopify checkout link). The URL
 // shows as a real button rather than raw text, and survives the 24h window as a
 // normal session message.
-export function buildCtaUrl(bodyText: string, displayText: string, url: string, footer?: string): Record<string, unknown> {
+// A tappable URL button. `headerImage` renders a photo above the text, which is
+// how a product is shown in chat before the Meta catalog is live: image, one
+// line of copy, one button. Never paste a raw URL into a WhatsApp reply.
+// Meta caps: body 1024 chars, footer 60, button label 20.
+export function buildCtaUrl(
+  bodyText: string,
+  displayText: string,
+  url: string,
+  footer?: string,
+  headerImage?: string,
+): Record<string, unknown> {
   const i: Record<string, unknown> = {
     type: "cta_url",
-    body: { text: bodyText },
-    action: { name: "cta_url", parameters: { display_text: displayText, url } },
+    body: { text: stripEmDashes(bodyText).slice(0, 1024) },
+    action: {
+      name: "cta_url",
+      parameters: { display_text: displayText.slice(0, 20), url },
+    },
   };
-  if (footer) i.footer = { text: footer };
+  if (headerImage) i.header = { type: "image", image: { link: headerImage } };
+  if (footer) i.footer = { text: stripEmDashes(footer).slice(0, 60) };
+  return i;
+}
+
+// Up to 3 quick-reply buttons. The tap comes back as an interactive reply with
+// the id as its payload, so the bot can steer a conversation without the
+// customer typing. Meta caps: 3 buttons, title 20 chars, id 256.
+export function buildReplyButtons(
+  bodyText: string,
+  buttons: Array<{ id: string; title: string }>,
+  headerImage?: string,
+  footer?: string,
+): Record<string, unknown> {
+  const i: Record<string, unknown> = {
+    type: "button",
+    body: { text: stripEmDashes(bodyText).slice(0, 1024) },
+    action: {
+      buttons: buttons.slice(0, 3).map((b) => ({
+        type: "reply",
+        reply: { id: b.id.slice(0, 256), title: b.title.slice(0, 20) },
+      })),
+    },
+  };
+  if (headerImage) i.header = { type: "image", image: { link: headerImage } };
+  if (footer) i.footer = { text: stripEmDashes(footer).slice(0, 60) };
   return i;
 }
 

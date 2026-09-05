@@ -34,6 +34,7 @@ query CatalogSync($cursor: String) {
         title
         handle
         onlineStoreUrl
+        featuredImage { url }
         productType
         descriptionPlainText: description(truncateAt: 600)
         tags
@@ -44,6 +45,8 @@ query CatalogSync($cursor: String) {
               title
               price
               compareAtPrice
+              sku
+              image { url }
               inventoryQuantity
               availableForSale
             }
@@ -91,6 +94,8 @@ Deno.serve(async (req) => {
     description: string;
     tags: string[];
     last_synced_at: string;
+    image_url: string | null;
+    sku: string | null;
   }> = [];
 
   // Product-level view (for the KB doc) — one entry per Shopify product, with
@@ -122,6 +127,7 @@ Deno.serve(async (req) => {
         const handle = String(p.handle ?? "").trim() || null;
         const url = String(p.onlineStoreUrl ?? "").trim() || (handle ? `${STORE_URL}/products/${handle}` : null);
         const productId = variantNumericId(String(p.id ?? ""));
+        const productImage = String(p.featuredImage?.url ?? "").trim() || null;
         const prod = {
           title: noDash(String(p.title ?? "").trim()),
           url,
@@ -162,6 +168,8 @@ Deno.serve(async (req) => {
             description: prod.description.slice(0, 600),
             tags: prod.tags,
             last_synced_at: nowIso,
+            image_url: String(v.image?.url ?? "").trim() || productImage,
+            sku: String(v.sku ?? "").trim() || null,
           });
           prod.variants.push({
             title: variantTitle && variantTitle !== "Default Title" ? variantTitle : "",

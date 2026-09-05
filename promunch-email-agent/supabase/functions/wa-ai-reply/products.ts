@@ -16,28 +16,37 @@ interface Row {
   inventory_quantity: number | null;
   handle: string | null;
   product_url: string | null;
+  image_url: string | null;
   tags: string[] | null;
+}
+
+// One product ready to send as an image + button card.
+export interface ProductCard {
+  title: string;
+  price: number | null;
+  url: string;
+  image: string | null;
 }
 
 export async function lookupProducts(
   sb: any,
   query: string,
   inStockOnly = true,
-): Promise<string> {
+): Promise<{ text: string; cards: ProductCard[] }> {
   const q = (query ?? "").toLowerCase().replace(/[^a-z0-9& ]+/g, " ").trim();
   const terms = q.split(/\s+/).filter((t) => t.length > 1 && !STOP.has(t));
 
   let sel = sb
     .from("wa_catalog_items")
-    .select("retailer_id,title,product_title,variant_title,category,price_inr,compare_at_inr,in_stock,inventory_quantity,handle,product_url,tags")
+    .select("retailer_id,title,product_title,variant_title,category,price_inr,compare_at_inr,in_stock,inventory_quantity,handle,product_url,image_url,tags")
     .order("sort", { ascending: true })
     .limit(200);
   if (inStockOnly) sel = sel.eq("in_stock", true);
   const { data, error } = await sel;
-  if (error) return "Product lookup failed. Tell the customer the team will send the link shortly.";
+  if (error) return { text: "Product lookup failed. Tell the customer the team will send the link shortly.", cards: [] };
   const rows = (data ?? []) as Row[];
   if (!rows.length) {
-    return "The product catalogue is empty right now. Answer from the knowledge base and point them to promunch.in, without inventing a specific URL.";
+    return { text: "The product catalogue is empty right now. Answer from the knowledge base and point them to promunch.in, without inventing a specific URL.", cards: [] };
   }
 
   // Score: every query term that appears in title / category / tags counts;
@@ -53,7 +62,10 @@ export async function lookupProducts(
   if (!picked.length && terms.length === 0) picked = scored;
   if (!picked.length) {
     const names = uniq(rows.map((r) => r.product_title || r.title)).slice(0, 12).join("; ");
-    return `No product matches "${query}". We do sell: ${names}. Tell the customer we do not have that and name the closest one from this list.`;
+    return {
+      text: `No product matches "${query}". We do sell: ${names}. Tell the customer we do not have that and name the closest one from this list.`,
+      cards: [],
+    };
   }
 
   // Collapse variants under their product so the model sees one URL per product.
@@ -65,10 +77,19 @@ export async function lookupProducts(
   }
 
   const lines: string[] = [];
+  const cards: ProductCard[] = [];
   for (const [, variants] of [...byProduct.entries()].slice(0, 6)) {
     const p = variants[0];
     const url = p.product_url || (p.handle ? `${STORE_URL}/products/${p.handle}` : null);
     const stock = variants.some((v) => v.in_stock) ? "in stock" : "out of stock";
+    if (url && variants.some((v) => v.in_stock)) {
+      cards.push({
+        title: p.product_title || p.title,
+        price: variants.find((v) => v.in_stock)?.price_inr ?? p.price_inr,
+        url,
+        image: p.image_url ?? null,
+      });
+    }
     lines.push(`${p.product_title || p.title} (${stock})${url ? `\nURL: ${url}` : "\nURL: not available, do not invent one"}`);
     for (const v of variants.slice(0, 8)) {
       const price = v.price_inr != null ? `Rs ${fmt(v.price_inr)}` : "price not listed";
@@ -77,8 +98,25 @@ export async function lookupProducts(
       lines.push(`  - ${vt}${price}${mrp}, ${v.in_stock ? "in stock" : "sold out"}`);
     }
   }
-  lines.push("Use the exact title, price and URL above. Send at most one or two links unless asked for more.");
-  return lines.join("\n");
+  lines.push(
+    "Do NOT paste any of these URLs into your reply. If the customer is ready to see a product, " +
+      "call send_product_card with the exact product title, and it goes out as a photo with a Buy button. " +
+      "Otherwise just talk about the products in words.",
+  );
+  return { text: lines.join("\n"), cards };
+}
+
+// Resolve one product by title for send_product_card. Exact-ish match on the
+// title the model saw in the lookup_product result.
+export function pickCard(cards: ProductCard[], title: string): ProductCard | null {
+  const want = (title ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  if (!want) return cards[0] ?? null;
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return (
+    cards.find((c) => norm(c.title) === want) ??
+    cards.find((c) => norm(c.title).includes(want) || want.includes(norm(c.title))) ??
+    null
+  );
 }
 
 const STOP = new Set(["the", "a", "an", "of", "for", "and", "link", "please", "pls", "send", "me", "i", "want", "to", "buy", "order", "pack", "packs", "gm", "g", "grams", "gram"]);
