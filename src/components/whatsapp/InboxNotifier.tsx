@@ -42,22 +42,42 @@ function getCtx(): AudioContext | null {
   if (!audioCtx) audioCtx = new AC();
   return audioCtx;
 }
-export function playPing() {
+// Three synthesised tones. Each note = [frequency Hz, start offset s, length s].
+const SOUND_KEY = "wa_alert_sound";
+export type SoundId = "chime" | "pop" | "bell";
+export const SOUNDS: Array<{ id: SoundId; label: string; notes: Array<[number, number, number]>; wave: OscillatorType }> = [
+  { id: "chime", label: "Chime", wave: "sine", notes: [[880, 0, 0.22], [1175, 0.12, 0.22]] },
+  { id: "pop", label: "Pop", wave: "triangle", notes: [[1320, 0, 0.09], [990, 0.07, 0.12]] },
+  { id: "bell", label: "Bell", wave: "sine", notes: [[1568, 0, 0.5], [2093, 0.02, 0.35], [784, 0.02, 0.6]] },
+];
+export function getSound(): SoundId {
+  try {
+    const v = localStorage.getItem(SOUND_KEY) as SoundId | null;
+    return SOUNDS.some((s) => s.id === v) ? (v as SoundId) : "chime";
+  } catch { return "chime"; }
+}
+export function setSound(id: SoundId) {
+  try { localStorage.setItem(SOUND_KEY, id); } catch { /* private mode */ }
+  window.dispatchEvent(new Event("wa-alerts-changed"));
+}
+
+export function playPing(id: SoundId = getSound()) {
   const ctx = getCtx();
   if (!ctx) return;
+  const sound = SOUNDS.find((s) => s.id === id) ?? SOUNDS[0];
   const run = () => {
     const t0 = ctx.currentTime;
-    [[880, 0], [1175, 0.12]].forEach(([freq, offset]) => {
+    sound.notes.forEach(([freq, offset, len]) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = "sine";
+      osc.type = sound.wave;
       osc.frequency.value = freq;
       gain.gain.setValueAtTime(0.0001, t0 + offset);
       gain.gain.exponentialRampToValueAtTime(0.25, t0 + offset + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + offset + 0.22);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + offset + len);
       osc.connect(gain).connect(ctx.destination);
       osc.start(t0 + offset);
-      osc.stop(t0 + offset + 0.25);
+      osc.stop(t0 + offset + len + 0.03);
     });
   };
   if (ctx.state === "suspended") ctx.resume().then(run).catch(() => {});
@@ -136,10 +156,12 @@ export default function InboxNotifier() {
 // browsers need before audio may play).
 export function AlertsToggle() {
   const [muted, setMuted] = useState(false);
+  const [sound, setSoundState] = useState<SoundId>("chime");
   const [perm, setPerm] = useState<NotificationPermission | "unsupported">("default");
   useEffect(() => {
     const sync = () => {
       setMuted(isAlertsMuted());
+      setSoundState(getSound());
       setPerm(typeof Notification === "undefined" ? "unsupported" : Notification.permission);
     };
     sync();
@@ -173,6 +195,17 @@ export function AlertsToggle() {
         : "Sound on. Click again to allow browser notifications";
 
   return (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+    {!muted && (
+      <select aria-label="Notification sound" value={sound} title="Pick a sound; it previews on change"
+        onChange={(e) => { const id = e.target.value as SoundId; setSound(id); playPing(id); }}
+        style={{
+          padding: "6px 8px", borderRadius: 999, fontSize: 12, fontWeight: 600,
+          border: "1px solid var(--pm-border)", background: "var(--pm-card)", color: "var(--pm-ink)", cursor: "pointer",
+        }}>
+        {SOUNDS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+      </select>
+    )}
     <button type="button" onClick={toggle} title={hint} aria-pressed={!muted}
       style={{
         display: "inline-flex", alignItems: "center", gap: 6,
@@ -183,5 +216,6 @@ export function AlertsToggle() {
       }}>
       {muted ? "🔕" : "🔔"} {label}
     </button>
+    </div>
   );
 }
