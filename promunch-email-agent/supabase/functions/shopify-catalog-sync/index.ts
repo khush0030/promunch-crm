@@ -32,6 +32,8 @@ query CatalogSync($cursor: String) {
       node {
         id
         title
+        handle
+        onlineStoreUrl
         productType
         descriptionPlainText: description(truncateAt: 600)
         tags
@@ -41,6 +43,7 @@ query CatalogSync($cursor: String) {
               id
               title
               price
+              compareAtPrice
               inventoryQuantity
               availableForSale
             }
@@ -51,7 +54,12 @@ query CatalogSync($cursor: String) {
   }
 }`;
 
-const MAX_PAGES = 20; // safety cap (1000 products) — plenty for this catalog
+const MAX_PAGES = 20; // safety cap (1000 products), plenty for this catalog
+// Public storefront for product URLs when Shopify has no onlineStoreUrl
+// (custom domain not linked in the API response).
+const STORE_URL = (Deno.env.get("SHOPIFY_PUBLIC_STORE_URL") ?? "https://promunch.in").replace(/\/$/, "");
+// Copy rule: no em/en dashes in anything the bot may quote.
+const noDash = (t: string) => t.replace(/\s+[—–]\s+/g, ", ").replace(/[—–]/g, "-");
 
 function variantNumericId(gid: string): string {
   // gid://shopify/ProductVariant/123456 -> "123456"
@@ -73,12 +81,23 @@ Deno.serve(async (req) => {
     in_stock: boolean;
     sort: number;
     updated_at: string;
+    product_id: string;
+    product_title: string;
+    variant_title: string;
+    handle: string | null;
+    product_url: string | null;
+    inventory_quantity: number | null;
+    compare_at_inr: number | null;
+    description: string;
+    tags: string[];
+    last_synced_at: string;
   }> = [];
 
   // Product-level view (for the KB doc) — one entry per Shopify product, with
   // its variants rolled up. The bot reasons over this prose, not the cards.
   const products: Array<{
     title: string;
+    url: string | null;
     category: string | null;
     description: string;
     tags: string[];
@@ -100,10 +119,14 @@ Deno.serve(async (req) => {
       for (const pe of conn.edges ?? []) {
         const p = pe.node;
         const category = (p.productType ?? "").trim() || null;
+        const handle = String(p.handle ?? "").trim() || null;
+        const url = String(p.onlineStoreUrl ?? "").trim() || (handle ? `${STORE_URL}/products/${handle}` : null);
+        const productId = variantNumericId(String(p.id ?? ""));
         const prod = {
-          title: String(p.title ?? "").trim(),
+          title: noDash(String(p.title ?? "").trim()),
+          url,
           category,
-          description: String(p.descriptionPlainText ?? "").trim(),
+          description: noDash(String(p.descriptionPlainText ?? "").trim()),
           tags: Array.isArray(p.tags) ? p.tags.map((t: string) => String(t).trim()).filter(Boolean) : [],
           variants: [] as Array<{ title: string; price: number | null; inStock: boolean }>,
         };
@@ -117,16 +140,28 @@ Deno.serve(async (req) => {
             ? `${p.title} (${variantTitle})`
             : p.title;
           const price = v.price != null ? Number(v.price) : null;
+          const compareAt = v.compareAtPrice != null ? Number(v.compareAtPrice) : null;
           const inStock = v.availableForSale === true ||
             (v.availableForSale == null && (v.inventoryQuantity == null || v.inventoryQuantity > 0));
+          const nowIso = new Date().toISOString();
           rows.push({
             retailer_id: retailerId,
-            title: String(title).slice(0, 200),
+            title: noDash(String(title)).slice(0, 200),
             category,
             price_inr: Number.isFinite(price as number) ? (price as number) : null,
             in_stock: inStock,
             sort: sort++,
-            updated_at: new Date().toISOString(),
+            updated_at: nowIso,
+            product_id: productId,
+            product_title: prod.title,
+            variant_title: variantTitle && variantTitle !== "Default Title" ? noDash(variantTitle) : "",
+            handle,
+            product_url: url,
+            inventory_quantity: typeof v.inventoryQuantity === "number" ? v.inventoryQuantity : null,
+            compare_at_inr: Number.isFinite(compareAt as number) ? (compareAt as number) : null,
+            description: prod.description.slice(0, 600),
+            tags: prod.tags,
+            last_synced_at: nowIso,
           });
           prod.variants.push({
             title: variantTitle && variantTitle !== "Default Title" ? variantTitle : "",
@@ -183,6 +218,7 @@ async function syncKbDoc(
   sb: any,
   products: Array<{
     title: string;
+    url: string | null;
     category: string | null;
     description: string;
     tags: string[];
@@ -195,11 +231,12 @@ async function syncKbDoc(
   const now = new Date().toISOString();
 
   const lines: string[] = [];
-  lines.push("# PROMUNCH — Live Product Catalog");
+  lines.push("# PROMUNCH Live Product Catalog (promunch.in)");
   lines.push(
-    "This is the current list of PROMUNCH products, auto-synced from the live Shopify store. " +
-      "Use it to answer what products and flavours we sell, what is in or out of stock, and prices. " +
-      "If a product or flavour is not listed here, we do not currently sell it. " +
+    "Current PROMUNCH listings, auto-synced from the live Shopify store. " +
+      "Use it for what we sell online, what is in or out of stock, prices and the exact product link. " +
+      "If a product is not listed here it is not sold on promunch.in right now. " +
+      "Nutrition, ingredients and policies live in the Master KB, not here. " +
       `(Last synced: ${now}.)`,
   );
   lines.push("");
@@ -209,8 +246,9 @@ async function syncKbDoc(
     const availability = inStockVariants.length
       ? "in stock"
       : "currently out of stock / sold out";
-    lines.push(`## ${p.title}${p.category ? ` — ${p.category}` : ""}`);
+    lines.push(`## ${p.title}${p.category ? ` (${p.category})` : ""}`);
     lines.push(`Availability: ${availability}.`);
+    if (p.url) lines.push(`Link: ${p.url}`);
     if (p.description) lines.push(p.description);
 
     const named = p.variants.filter((v) => v.title);
@@ -219,7 +257,7 @@ async function syncKbDoc(
       for (const v of named) {
         const price = rupee(v.price);
         lines.push(
-          `- ${v.title}${price ? ` — ${price}` : ""} (${v.inStock ? "in stock" : "out of stock"})`,
+          `- ${v.title}${price ? `: ${price}` : ""} (${v.inStock ? "in stock" : "out of stock"})`,
         );
       }
     } else {

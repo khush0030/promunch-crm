@@ -46,9 +46,8 @@ export function askInstruction(due: DueAsk): string {
   return [
     `ELIGIBLE FOLLOW-UP (optional — you decide):`,
     `This customer is due for a ${kind}. IF — and ONLY IF — this conversation is a happy or neutral close ` +
-      `(NOT a complaint, NOT an unresolved problem, NOT mid-troubleshooting, NOT an open ticket), weave a SHORT, ` +
-      `PERSONALIZED ${kind} into your reply: ${how} One or two sentences at the END of your reply, after you ` +
-      `have fully answered what they actually asked. Answering them always comes first.`,
+      `(NOT a complaint, NOT an unresolved problem, NOT mid-troubleshooting, NOT an open ticket), add ONE short ` +
+      `sentence for the ${kind} at the END of your reply: ${how} Answer what they asked first. The whole reply still stays within 3 sentences.`,
     `Set "included_ask": true in your JSON if you included it, or "included_ask": false if the mood was wrong and you left it out.`,
   ].join("\n");
 }
@@ -115,8 +114,9 @@ async function composeProactiveMessage(
   const askFlows = await getFlowSettings();
   const askTagline = askFlows.tagline_proactive_asks ? (askFlows.tagline_text || "").trim() : "";
   const sys =
-    `You write short, warm WhatsApp messages for PROMUNCH ("Your Munchy Pal"), an Indian healthy-snack brand. ` +
-    `India-English, friendly, never corporate. Output ONLY the message text — no preamble, no quotes, no JSON.`;
+    `You write short WhatsApp messages for PROMUNCH, an Indian high-protein snack brand. ` +
+    `Sound like a person texting: plain India English, friendly, never corporate, no em dashes, no sign-off. ` +
+    `Output ONLY the message text, no preamble, no quotes, no JSON.`;
   const user = [
     `Write ${kind} as ONE WhatsApp message.`,
     `Customer first name: ${firstName}.`,
@@ -131,7 +131,7 @@ async function composeProactiveMessage(
     askTagline
       ? `End with the tagline "${askTagline}".`
       : `Do not add any sign-off or tagline.`,
-    `Keep it to 1–3 short sentences.`,
+    `Keep it to 1 or 2 short sentences. No greeting line, no closing line.`,
   ].join("\n");
   const client = new OpenAI({ apiKey: OPENAI_API_KEY });
   const resp = await chatCreate(client, {

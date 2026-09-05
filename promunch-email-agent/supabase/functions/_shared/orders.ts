@@ -23,6 +23,11 @@ export interface OrderSummary {
   customer_phone: string | null;
   items: { name: string; qty: number }[];
   tracking: string | null;
+  subtotal: string | null;                 // formatted, before discounts/shipping
+  discount: string | null;                 // formatted total discount, if any
+  discount_codes: string[];
+  shipping: string | null;                 // formatted shipping charge
+  cod: boolean;                            // cash on delivery
 }
 
 // Find a customer's orders. ALWAYS scoped to the chatter's own phone, so the
@@ -92,6 +97,16 @@ function toSummary(r: Record<string, any>): OrderSummary {
     customer_phone: r.customer_phone ?? null,
     items,
     tracking: f?.tracking_url || f?.tracking_urls?.[0] || raw.order_status_url || null,
+    subtotal: raw.subtotal_price != null ? fmtMoney(Number(raw.subtotal_price), r.currency || "INR") : null,
+    discount: Number(raw.total_discounts ?? 0) > 0 ? fmtMoney(Number(raw.total_discounts), r.currency || "INR") : null,
+    discount_codes: (Array.isArray(raw.discount_codes) ? raw.discount_codes : [])
+      .map((d: any) => String(d?.code ?? "")).filter(Boolean),
+    shipping: raw.total_shipping_price_set?.shop_money?.amount != null
+      ? fmtMoney(Number(raw.total_shipping_price_set.shop_money.amount), r.currency || "INR")
+      : (Array.isArray(raw.shipping_lines) && raw.shipping_lines[0]?.price != null
+        ? fmtMoney(Number(raw.shipping_lines[0].price), r.currency || "INR")
+        : null),
+    cod: /cod|cash on delivery/i.test(String((raw.payment_gateway_names ?? []).join(" ") + " " + (raw.gateway ?? ""))),
   };
 }
 
@@ -126,8 +141,12 @@ export function orderForAI(o: OrderSummary): string {
   return [
     `Order ${o.order_number} — placed ${o.placed_at}`,
     `Payment: ${o.financial_status ?? "unknown"} | Fulfillment: ${o.fulfillment_status}`,
-    `Total: ${o.total}`,
     `Items: ${items}`,
+    o.subtotal ? `Subtotal: ${o.subtotal}` : null,
+    o.discount ? `Discount: -${o.discount}${o.discount_codes.length ? ` (code ${o.discount_codes.join(", ")})` : ""}` : null,
+    o.shipping ? `Shipping: ${o.shipping}` : null,
+    o.cod ? `Payment method: Cash on delivery` : null,
+    `Total: ${o.total}`,
     o.tracking ? `Tracking: ${o.tracking}` : null,
     `Customer on file: ${o.customer_name ?? "—"}`,
   ].filter(Boolean).join("\n");

@@ -21,7 +21,9 @@ import {
   releaseAsk,
 } from "../_shared/window-asks.ts";
 import { getFlowSettings } from "../_shared/flow-settings.ts";
-import { CATALOG_ID, MAX_TOOL_TURNS, MODEL, OPENAI_API_KEY } from "./config.ts";
+import { CATALOG_ID, MAX_REPLY_CHARS, MAX_TOOL_TURNS, MODEL, OPENAI_API_KEY } from "./config.ts";
+import { lookupProducts } from "./products.ts";
+import { supportHoursLabel } from "./support-hours.ts";
 import { SYSTEM_PROMPT, TOOLS } from "./prompt.ts";
 import { retrieveKb } from "./kb.ts";
 import { supportHoursNote } from "./support-hours.ts";
@@ -61,10 +63,17 @@ Deno.serve(async (req) => {
   // thread — wa_id is the customer's phone, used for order lookup
   const { data: thread } = await sb
     .from("wa_threads")
-    .select("wa_id, ticket_status")
+    .select("wa_id, ticket_status, ticket_category, ticket_number, escalation_reason")
     .eq("id", thread_id)
     .maybeSingle();
   const waId: string | null = thread?.wa_id ?? null;
+  // Open-ticket awareness: the bot must not re-qualify a lead or re-collect
+  // complaint details the team already has (audit 2.3: day-two loops).
+  const openTicketNote = thread?.ticket_status === "open" || thread?.ticket_status === "pending"
+    ? `OPEN TICKET on this chat: #${thread.ticket_number ?? "?"} (${thread.ticket_category ?? "general"}): ${
+      String(thread.escalation_reason ?? "").slice(0, 240)
+    }. The team already has these details and will call back (${supportHoursLabel()}). Do not re-ask for them. Only raise a NEW ticket if the customer brings up something different.`
+    : "";
 
   // ---- proactive in-window ask: standalone personalized message, no inbound ----
   if (proactive_ask) {
@@ -142,6 +151,7 @@ Deno.serve(async (req) => {
     `CONVERSATION SO FAR:\n${history}`,
     "",
     `LATEST CUSTOMER MESSAGE:\n${latest}`,
+    openTicketNote ? "\n" + openTicketNote : "",
     claimedAsk ? "\n" + askInstruction(claimedAsk) : "",
     hoursNote ? "\n" + hoursNote : "",
     "",
@@ -201,6 +211,14 @@ Deno.serve(async (req) => {
         } else {
           result = orders.map(orderForAI).join("\n\n---\n\n");
         }
+      } else if (call.function?.name === "lookup_product") {
+        let arg: { query?: string; in_stock_only?: boolean } = {};
+        try { arg = JSON.parse(call.function.arguments || "{}"); } catch { /* tolerate */ }
+        result = await lookupProducts(sb, String(arg.query ?? ""), arg.in_stock_only !== false)
+          .catch((e) => {
+            console.error("[wa-ai-reply] lookup_product failed", e);
+            return "Product lookup failed. Tell the customer the team will send the link shortly.";
+          });
       } else if (call.function?.name === "show_products") {
         let arg: { category?: string } = {};
         try { arg = JSON.parse(call.function.arguments || "{}"); } catch { /* tolerate */ }
@@ -256,7 +274,21 @@ Deno.serve(async (req) => {
     lastUsage = resp.usage;
   }
 
-  const decision = parseDecision(textOf(resp));
+  let decision = parseDecision(textOf(resp));
+
+  // Empty / unparseable reply: one explicit retry before the canned fallback.
+  // The audit found the fallback fired three times on a food-safety complaint,
+  // including as the answer to "Proceed with refund" (thread 4a2dd47c).
+  if (!decision?.reply?.trim()) {
+    console.error("[wa-ai-reply] empty reply, retrying once", { thread_id, raw: textOf(resp)?.slice(0, 400) });
+    messages.push({
+      role: "user",
+      content: "Your last output had no usable reply. Write the customer reply now: JSON only, 1 to 3 short sentences in \"reply\", plus handoff and ticket.",
+    });
+    resp = await chatCreate(client, { model: MODEL, max_tokens: 600, tool_choice: "none", messages });
+    lastUsage = resp.usage;
+    decision = parseDecision(textOf(resp)) ?? decision;
+  }
 
   // If we claimed an in-window ask but the bot judged the mood wrong (or output
   // was unparseable) and left it out, hand the claim back so it's retried later.
@@ -288,19 +320,55 @@ Deno.serve(async (req) => {
   const voice = await getFlowSettings();
   const TAGLINE = (voice.tagline_text || "").trim();
   let replyText = (decision?.reply?.trim() ||
-    "Thanks for messaging PROMUNCH! 🥜 I've noted this — our team will follow up with you shortly.")
-    .replace(/\s*[—–-]\s*your munchy pal\s*💚?\s*\.?\s*$/i, "")
+    "Got it, I've passed this to the team and they'll get back to you shortly.")
+    // The model must never sign off itself. Strip any tagline it produced,
+    // wherever it put it, plus the green heart that rode along with it.
+    .replace(/[\s,.!-]*(?:[—–-]\s*)?your munchy pal\s*💚?\s*[.!]?/gi, "")
+    .replace(/\s*💚\s*$/g, "")
     .trim();
-  // Also strip a CONFIGURED tagline the model may have echoed, so the
-  // deterministic append below stays the only source of the sign-off.
   if (TAGLINE && replyText.toLowerCase().endsWith(TAGLINE.toLowerCase())) {
     replyText = replyText.slice(0, replyText.length - TAGLINE.length).replace(/[\s—–-]+$/g, "").trim();
+  }
+  replyText = stripEmDashes(replyText);
+
+  // Brevity guard: one deterministic shorten pass when the model overshoots.
+  if (replyText.length > MAX_REPLY_CHARS && !/https?:\/\//.test(replyText)) {
+    try {
+      const short = await chatCreate(client, {
+        model: MODEL,
+        max_tokens: 200,
+        messages: [
+          { role: "system", content: "Rewrite this WhatsApp reply so it reads like a person texting: at most 2 short sentences, keep every fact, number and link exactly, no greeting, no sign-off, no em dashes. Output the rewritten text only." },
+          { role: "user", content: replyText },
+        ],
+      });
+      const t = stripEmDashes((textOf(short) ?? "").trim());
+      if (t && t.length < replyText.length) replyText = t;
+    } catch (e) {
+      console.error("[wa-ai-reply] shorten pass failed", e);
+    }
+  }
+
+  // Safety backstop (audit 2.5): a food-safety or legal message must hand off
+  // and raise an urgent complaint even if the model forgot.
+  const SAFETY = /\b(insect|fly|flies|worm|maggot|hair|fungus|mould|mold|foreign object|food poison|vomit|sick after|hospital|allergic reaction|consumer court|legal action|lawyer|fssai)\b/i;
+  if (decision && SAFETY.test(latest ?? "")) {
+    decision.handoff = true;
+    if (!decision.ticket || !/urgent/i.test(String(decision.ticket.priority ?? ""))) {
+      decision.ticket = {
+        category: "complaint",
+        priority: "urgent",
+        reason: (decision.ticket?.reason as string) || `Food safety / legal complaint: ${String(latest).slice(0, 200)}`,
+        order_number: decision.ticket?.order_number,
+      };
+    }
   }
 
   const priorBotReply = ordered.some((m) => m.direction === "outbound" && m.sent_by === "bot");
   const isOpening = !priorBotReply;
   const isClosing = /\b(thanks|thank you|thank u|thx|tysm|bye|goodbye|see you|that'?s all|that'?s it|nothing else|all good|no that'?s all|cheers)\b/i.test(latest ?? "");
-  if ((isOpening || isClosing) && voice.tagline_bot_replies && TAGLINE) replyText = `${replyText}\n\n${TAGLINE}`;
+  // Tagline only when the Flows-tab toggle is explicitly ON (off since Sep 2026).
+  if ((isOpening || isClosing) && voice.tagline_bot_replies === true && TAGLINE) replyText = `${replyText}\n\n${TAGLINE}`;
 
   // ---- NO-SPAM: claim this turn before sending ----------------------------
   // A missed reply is recoverable (a later run or the cron picks it up); a

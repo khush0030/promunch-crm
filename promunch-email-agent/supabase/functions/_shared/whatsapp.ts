@@ -92,9 +92,9 @@ async function postMessage(body: Record<string, unknown>): Promise<SendResult> {
 // dash (word—word) becomes a hyphen. Then doubled punctuation/space is tidied.
 export function stripEmDashes(text: string): string {
   return text
-    .replace(/([.!?,;:])\s+[—–]\s+/g, "$1 ")  // after sentence punctuation -> just a space
-    .replace(/\s+[—–]\s+/g, ", ")              // spaced dash -> comma
-    .replace(/[—–]/g, "-")                      // any remaining tight dash -> hyphen
+    .replace(/([.!?,;:])\s+(?:[—–]|--)\s+/g, "$1 ")  // after sentence punctuation -> just a space
+    .replace(/\s+(?:[—–]|--)\s+/g, ", ")              // spaced dash (or "--") -> comma
+    .replace(/[—–]|--/g, "-")                          // any remaining tight dash -> hyphen
     .replace(/ {2,}/g, " ")
     .replace(/,\s*,/g, ",")
     .replace(/\s+([.!?,])/g, "$1");
