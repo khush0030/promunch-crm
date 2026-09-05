@@ -141,6 +141,7 @@ const CONNECTOR_LABEL: Record<string, string> = {
   shopify_slack: "Shopify → Slack",
   gmail_watch: "Gmail watch",
   whatsapp: "WhatsApp",
+  whatsapp_kb: "WhatsApp knowledge base",
   shopify_wa: "WhatsApp journeys",
   instagram: "Instagram DMs",
 };
@@ -211,6 +212,16 @@ export function classifyConnectorEvent(connector: string, event: string, message
       severity: "warning", expected: false,
       cause: "Hit a provider rate limit or ran out of credits/quota.",
       action: "Check the provider's billing/usage. WhatsApp: slow the send rate; AI: top up credits.",
+    };
+
+  // A customer asked something and got no answer at all. Distinct from a failed
+  // send (that alerts elsewhere): here the machinery reported success and the
+  // customer still waited. wa-unanswered puts the diagnosis in the message.
+  if (e === "reply_missing")
+    return {
+      severity: "critical", expected: false,
+      cause: "The bot never answered an inbound message. The code in brackets says where it broke: claim_held = a reply run crashed after taking the turn claim and froze the turn; no_job = the durable retry row was never written; job_stuck = the retries are exhausted; job_pending = still retrying, so this may clear on its own.",
+      action: "Open the thread in the WhatsApp inbox and reply by hand first, the customer is waiting. Then check the wa-ai-reply logs for the turn. claim_held with no recent deploy means a crash path is still unhandled.",
     };
 
   // A customer's inbound message was DROPPED. This is the worst failure class we

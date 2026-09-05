@@ -34,6 +34,7 @@ import { type TicketInput, changeToTicket, openTicket } from "./ticket.ts";
 import { buildCatalogSections } from "./catalog.ts";
 import { callSend, j } from "./send.ts";
 import { askInstruction, handleProactiveAsk } from "./asks.ts";
+import { isKbMiss, logKbMiss } from "./kb-miss.ts";
 
 interface InvokeBody {
   thread_id: string;
@@ -519,6 +520,14 @@ async function handle(req: Request): Promise<Response> {
   // everything else → owner) on a fresh ticket — including explicit cancels,
   // which map to an urgent order_issue ticket. No separate cancel ping needed.
   if (handoff || ticket) await openTicket(thread_id, waId, ticket, handoff);
+
+  // Knowledge gap: the bot deflected instead of answering. Recorded (never
+  // alerted) so KB holes surface from a query rather than from re-reading
+  // transcripts. See kb-miss.ts.
+  if (isKbMiss(replyText, !!ticket)) {
+    await logKbMiss({ question: latest ?? "", reply: replyText, threadId: thread_id, waId })
+      .catch(() => {});
+  }
 
   await markJobDone(job_id);
   return j({ ok: true, action: handoff ? "handoff" : "reply", ticket: !!ticket });

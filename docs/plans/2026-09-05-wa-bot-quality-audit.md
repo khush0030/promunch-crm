@@ -171,3 +171,55 @@ Verification (draft mode, no customer messaged), nine scenarios, all passed:
 No tagline, no em dashes, no greeting or closing filler in any reply. Average reply length dropped from roughly 300 characters to about 120.
 
 Still open: triage the 29 stale tickets (P0 item 2), and P3 monitoring (weekly sample, kb_miss logging, re-embed button in the dashboard).
+
+## 6. Monitoring (5 Sep 2026, deployed)
+
+The audit's failures were found by reading two weeks of transcripts by hand, and
+the same day's outage was found because Khush noticed. Both signals now exist
+without a person looking.
+
+### wa-unanswered: the customer-side smoke alarm
+Every existing WhatsApp monitor watches the machinery: `wa-health` pings the
+Cloud API, `wa-watchdog` watches that heartbeat, `wa-send` alerts on failed
+sends, `wa-jobs-tick` dead-letters an exhausted job. On 5 Sep all four were
+green while a customer sat unanswered, because the reply run threw a 400 AFTER
+taking the per-turn claim: no send failed and no job gave up.
+
+`wa-unanswered` checks the only thing that matters, that an inbound message got
+an answer. Every 5 minutes it finds bot-owned threads whose newest message is
+inbound and older than 8 minutes, and raises a critical alert carrying a
+diagnosis: `claim_held` (a run crashed after claiming and froze the turn),
+`no_job` (the durable retry row was never written), `job_stuck` (retries
+exhausted), `job_pending` (still retrying, may clear itself). One alert per
+thread per 6 hours. Bare STOP is excluded, silence there is by design.
+Human-owned threads are skipped, `wa-ticket-watchdog` owns their SLA.
+
+Verified by inserting a synthetic unanswered message: alert fired with
+diagnosis `no_job`, second run correctly skipped, artefacts removed.
+
+### kb_miss: knowledge gaps surface themselves
+`wa-ai-reply` now records a warn-level `kb_miss` event whenever it deflects
+instead of answering, with the customer's question. Warn, never error, so a
+content backlog never pages anyone or flips the status light.
+
+Precision was chosen over recall deliberately. Lead scripts ("the sales team
+will call you back"), safety scripts, and any reply that names a real product
+are excluded, because a review queue full of false positives is a queue nobody
+reads. The live test caught one such case: "we do not sell protein powder, our
+snacks are plant-protein based like roasted edamame" is a complete answer, not
+a gap, and is now excluded. Covered by `kb-miss_test.ts`.
+
+Weekly review:
+```sql
+select detail->>'question' as question, count(*)
+from connector_events
+where connector = 'whatsapp' and event = 'kb_miss'
+  and created_at > now() - interval '7 days'
+group by 1 order by 2 desc;
+```
+
+### Still open
+- Migration `20260905180000_wa_unanswered_cron.sql` must be pasted into the
+  Supabase SQL editor. Until then the function is deployed but never fires.
+- The Rakhi hamper gap from section 2.2 is closed: the bot now answers from the
+  live catalogue ("was Rs 555, currently sold out").
