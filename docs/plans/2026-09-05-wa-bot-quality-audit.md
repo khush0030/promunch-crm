@@ -2,7 +2,7 @@
 
 Date: 2026-09-05. Scope: every bot conversation Aug 15 to Sep 3 2026 (50 threads, 131 bot replies), the live Master KB, the `wa-ai-reply` prompt and retrieval code, and the open ticket queue.
 
-Status (5 Sep 2026, evening): Khush approved all of P0 to P2 plus a new top rule (short, human replies, no tagline anywhere, no em dashes). Built and typechecked, see section 5 for what is live vs pending.
+Status: FULLY LIVE 5 Sep 2026. Migration applied, three edge functions deployed, catalogue synced, nine draft-mode scenarios verified. See section 5.
 
 ## 1. Headline
 
@@ -142,12 +142,32 @@ Live now (config, no deploy needed):
 - `wa_flow_settings`: tagline text cleared, all four tagline toggles off. COD gate and checkout footer stop signing off immediately.
 - `kb_documents` Master KB rewritten from pack labels (Crunchies, Sticks, Chips, Edamame per 100 g and per 25 g), corrected Noodle Masala carbs (27.4 to 9.09), Chips protein (3.85 to 3.55), Indori Chatka protein (42 to 42.9), zero em dashes, all handling scripts. Separate edamame doc deleted (folded in).
 
-Committed, NOT deployed (Supabase CLI account cannot see the project, needs `supabase login`):
+Deployed 5 Sep 2026 (after Khush re-ran `supabase login`):
 - `wa-ai-reply`: new prompt (tone rules, never re-ask, open-ticket awareness, order-lookup gating, lead and creator scripts, supplier decline, safety handoff), `lookup_product` tool, empty-reply retry, 320-char shorten pass, safety regex backstop, tagline stripped from model output, dash strip before ledger, KB read from raw_text while it fits 28k chars, default model gpt-4.1 (env WA_AI_MODEL still pins gpt-4.1-mini in prod, unset it or set gpt-4.1), support hours Mon to Fri 10 to 6 and Sat 10 to 5.
 - `shopify-catalog-sync`: handle, URL, product id, inventory quantity, compare-at price, description and tags written to `wa_catalog_items`; generated KB doc carries links, no dashes.
 - `_shared/orders.ts`: subtotal, discount and code, shipping, COD flag in the order tool result.
 - `_shared/whatsapp.ts`: double hyphen stripped too (affects `wa-send`).
 
-Migration pending (paste in dashboard): `20260905120000_wa_catalog_items_products_and_sync_cron.sql` creates `wa_catalog_items` with the new columns, schedules `shopify-catalog-sync` every 30 min and `kb-embed` nightly.
+Migration `20260905120000` applied by Khush. `wa_catalog_items` live, `shopify-catalog-sync` every 30 min, `kb-embed` nightly.
 
-Deploy order once CLI works: apply migration, then `supabase functions deploy shopify-catalog-sync wa-send wa-ai-reply`, then trigger one catalog sync, then live test on Khush's number: product link request, wholesale enquiry, creator pitch, "call me", a food-safety sentence, a plain greeting.
+Secrets set at deploy: `WA_AI_MODEL=gpt-4.1` (was gpt-4.1-mini, the model behind the canned fallbacks), `WA_BUSINESS_OPEN=10:00`, `WA_BUSINESS_CLOSE=18:00`, `WA_BUSINESS_SAT_CLOSE=17:00`, `WA_BUSINESS_DAYS=1..6`, `SHOPIFY_PUBLIC_STORE_URL=https://promunch.in`.
+
+First catalogue sync: 23 variants, 0 missing URLs, all 8 edamame listings present, Rakhi hamper and Ultimate Munch Combo correctly flagged out of stock. Generated KB doc is 21 chunks.
+
+Verification (draft mode, no customer messaged), nine scenarios, all passed:
+
+| Input | Reply | Chars | Ticket |
+|---|---|---|---|
+| hi | Hey! How can I help you today? | 30 | none |
+| link for cream and onion sticks | real combo URL from the live catalogue | 160 | none |
+| do you have beetroot chips | B2B only, suggests Soya Chips or Sticks | 180 | none |
+| fly in packet, Bloom vending, batch 0607 | apology, quality team will call, asks for photo | 157 | complaint urgent, handoff true |
+| distributor Mumbai 10 MT monthly | one question, says it goes to sales | 102 | after intake |
+| call me | ops team will call back in hours | 53 | general |
+| which has most protein | edamame 45.3g/100g, crunchies 15.2g/30g | 213 | none |
+| a bare YouTube link | asks what they need, no order lookup | 81 | none |
+| creator with 45k, 200k views, 6% ER | logs it, no re-asking | 93 | partnership |
+
+No tagline, no em dashes, no greeting or closing filler in any reply. Average reply length dropped from roughly 300 characters to about 120.
+
+Still open: triage the 29 stale tickets (P0 item 2), and P3 monitoring (weekly sample, kb_miss logging, re-embed button in the dashboard).
