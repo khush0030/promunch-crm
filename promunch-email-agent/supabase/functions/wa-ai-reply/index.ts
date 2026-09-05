@@ -51,6 +51,19 @@ interface InvokeBody {
 }
 
 Deno.serve(async (req) => {
+  try {
+    return await handle(req);
+  } catch (e) {
+    // An unhandled throw here used to surface as an opaque 500 with the job
+    // left pending, so the customer just went silent. Log the real error and
+    // return it (this endpoint is internal-only, gated by requireInternal).
+    const msg = e instanceof Error ? `${e.message}\n${e.stack ?? ""}` : String(e);
+    console.error("[wa-ai-reply] unhandled", msg);
+    return j({ ok: false, error: msg.slice(0, 1500) }, 500);
+  }
+});
+
+async function handle(req: Request): Promise<Response> {
   const gate = requireInternal(req);
   if (gate) return gate;
   if (req.method !== "POST") return new Response("method", { status: 405 });
@@ -286,9 +299,13 @@ Deno.serve(async (req) => {
   // generic fallback reply AND a spurious "unparseable" ticket. Force ONE more
   // tool-free completion so the customer gets the real answer.
   if ((resp?.choices?.[0]?.message?.tool_calls ?? []).length > 0) {
+    // tools MUST still be passed: OpenAI rejects tool_choice without them
+    // ("'tool_choice' is only allowed when 'tools' are specified"), which threw
+    // a 400 and left the customer with no reply at all.
     resp = await chatCreate(client, {
       model: MODEL,
       max_tokens: 900,
+      tools: TOOLS,
       tool_choice: "none",
       messages,
     });
@@ -306,7 +323,7 @@ Deno.serve(async (req) => {
       role: "user",
       content: "Your last output had no usable reply. Write the customer reply now: JSON only, 1 to 3 short sentences in \"reply\", plus handoff and ticket.",
     });
-    resp = await chatCreate(client, { model: MODEL, max_tokens: 600, tool_choice: "none", messages });
+    resp = await chatCreate(client, { model: MODEL, max_tokens: 600, tools: TOOLS, tool_choice: "none", messages });
     lastUsage = resp.usage;
     decision = parseDecision(textOf(resp)) ?? decision;
   }
@@ -415,6 +432,11 @@ Deno.serve(async (req) => {
     return j({ ok: true, action: "skipped", reason: turn.reason });
   }
 
+  // From here on we HOLD the per-turn claim. Any throw past this point used to
+  // leave the claim held forever, so wa-jobs-tick could never retry and the
+  // customer just went silent (that is what "the bot got stuck" looks like).
+  // Release the claim on an unexpected failure, then rethrow.
+  try {
   const sent = await callSend({
     thread_id,
     kind: "text",
@@ -500,4 +522,9 @@ Deno.serve(async (req) => {
 
   await markJobDone(job_id);
   return j({ ok: true, action: handoff ? "handoff" : "reply", ticket: !!ticket });
-});
+  } catch (e) {
+    await releaseReplyTurn(sb, thread_id, answerInbound).catch(() => {});
+    if (claimedAsk) await releaseAsk(sb, claimedAsk.runId).catch(() => {});
+    throw e;
+  }
+}

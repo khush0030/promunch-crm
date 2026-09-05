@@ -94,7 +94,11 @@ export function stripEmDashes(text: string): string {
   return text
     .replace(/([.!?,;:])\s+(?:[—–]|--)\s+/g, "$1 ")  // after sentence punctuation -> just a space
     .replace(/\s+(?:[—–]|--)\s+/g, ", ")              // spaced dash (or "--") -> comma
-    .replace(/[—–]|--/g, "-")                          // any remaining tight dash -> hyphen
+    // A tight dash between two words is punctuation the model reached for
+    // ("looking for—something"), not a compound, so it becomes a comma too.
+    // Real compounds are written with a plain hyphen, which we never touch.
+    .replace(/(\w)(?:[—–]|--)(\w)/g, "$1, $2")
+    .replace(/[—–]|--/g, "-")                          // anything left -> hyphen
     .replace(/ {2,}/g, " ")
     .replace(/,\s*,/g, ",")
     .replace(/\s+([.!?,])/g, "$1");
