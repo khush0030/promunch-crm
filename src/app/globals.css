@@ -729,3 +729,28 @@ table.pm-tbl tbody tr:hover td{background:var(--pm-card2)}
 @media (max-width: 460px) {
   .pm-kpis, .pm-kpis.k3 { grid-template-columns: 1fr; }
 }
+
+/* ============================================================
+   WhatsApp module — phone layout (≤768px)
+   Card grids and pseudo-table rows inside the WhatsApp tabs are
+   laid out with inline `gridTemplateColumns`, so these overrides
+   need !important to win. Marked with explicit classes rather
+   than attribute selectors so the intent stays greppable.
+   ============================================================ */
+.pm-autogrid, .pm-autogrid-sm { min-width: 0; }
+.pm-autogrid > *, .pm-autogrid-sm > * { min-width: 0; }
+
+@media (max-width: 768px) {
+  /* Card grids whose minmax() floor (280–340px) is wider than a phone. */
+  .pm-autogrid { grid-template-columns: 1fr !important; }
+  /* Small stat tiles still fit two-up — don't waste the width. */
+  .pm-autogrid-sm { grid-template-columns: 1fr 1fr !important; }
+  /* Two-/three-up stat rows inside cards. */
+  .pm-grid2 { grid-template-columns: 1fr !important; }
+  .pm-grid3 { grid-template-columns: 1fr 1fr !important; }
+  /* Fixed-width selects/inputs inside toolbars go fluid. */
+  .pm-fluid-ctl { width: 100% !important; max-width: 100% !important; }
+  /* Grid-based pseudo-tables swipe sideways instead of squashing. */
+  .pm-gridtable-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .pm-gridtable-wrap > * { min-width: 720px; }
+}

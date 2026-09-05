@@ -175,13 +175,13 @@ export default function VoiceView() {
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
-        <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} style={{ ...inputStyle, width: 160 }}>
+        <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} className="pm-fluid-ctl" style={{ ...inputStyle, width: 160 }}>
           <option value="">All statuses</option>
           {STATUS_OPTIONS.map((s) => (
             <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
           ))}
         </select>
-        <select aria-label="Outcome" value={outcome} onChange={(e) => setOutcome(e.target.value)} style={{ ...inputStyle, width: 180 }}>
+        <select aria-label="Outcome" value={outcome} onChange={(e) => setOutcome(e.target.value)} className="pm-fluid-ctl" style={{ ...inputStyle, width: 180 }}>
           <option value="">All outcomes</option>
           {OUTCOME_OPTIONS.map((o) => (
             <option key={o} value={o}>{o.replace(/_/g, " ")}</option>
@@ -218,7 +218,7 @@ export default function VoiceView() {
           {hasFilters ? "No calls match these filters." : "No voice calls yet."}
         </div>
       ) : (
-        <div style={cardStyle}>
+        <div className="pm-gridtable-wrap" style={cardStyle}>
           <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, gap: 8, fontSize: 11, fontWeight: 700, color: "var(--pm-hint)", textTransform: "uppercase", letterSpacing: 0.4, padding: "0 10px 8px", borderBottom: "1px solid var(--pm-line)" }}>
             <span>When</span>
             <span>Customer</span>

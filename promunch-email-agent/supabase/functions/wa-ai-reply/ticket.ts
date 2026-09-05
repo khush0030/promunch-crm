@@ -4,6 +4,7 @@
 import { db } from "../_shared/supabase.ts";
 import { lookupOrders, type OrderSummary } from "../_shared/orders.ts";
 import { callSend } from "./send.ts";
+import { fanOutSupportAlert } from "../_shared/support-alert.ts";
 import { LEAD_TICKET_CATEGORIES, pingLeadDesk } from "../_shared/lead-alert.ts";
 
 export interface TicketInput {
@@ -159,6 +160,16 @@ async function notifyOps(o: {
     sent_by: "ops_ticket_alert",
     template: { name: tpl, language: "en", vars },
   });
+
+  // Copy every support-team number (SUPPORT_ALERT_WA_IDS) so a ticket is never
+  // one person's phone away from being missed. Claim-guarded per recipient, so
+  // the lane ping above is never duplicated.
+  await fanOutSupportAlert({
+    claimPrefix: `support_alert:ticket:${o.ticketNumber ?? o.waId ?? "unknown"}`,
+    vars,
+    sentBy: "ops_ticket_alert_copy",
+    alreadySent: [to],
+  }).catch((e) => console.error("[wa-ai-reply] support fan-out failed", e));
 
   // Commercial leads (wholesale / partnership) additionally copy the lead desk
   // (LEADS_WA_ID) so a distributor enquiry never sits unseen. Best-effort and

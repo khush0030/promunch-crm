@@ -40,7 +40,20 @@ export async function GET(req: NextRequest) {
     else if (assignee) q = q.eq("assigned_to", assignee);
     if (search) {
       const safe = sanitizeSearch(search);
-      if (safe) q = q.or(`wa_id.ilike.%${safe}%,last_message_snippet.ilike.%${safe}%,ticket_subject.ilike.%${safe}%`);
+      if (safe) {
+        // ticket_number is an integer, so it can't take ilike. Only fold it in
+        // (as an exact match) when the query is all digits — that's how a
+        // "#9793" style ticket lookup finds its thread.
+        const clauses = [
+          `wa_id.ilike.%${safe}%`,
+          `last_message_snippet.ilike.%${safe}%`,
+          `ticket_subject.ilike.%${safe}%`,
+          `escalation_reason.ilike.%${safe}%`,
+        ];
+        const digits = safe.replace(/^#/, "");
+        if (/^\d+$/.test(digits)) clauses.push(`ticket_number.eq.${digits}`);
+        q = q.or(clauses.join(","));
+      }
     }
     return q;
   };

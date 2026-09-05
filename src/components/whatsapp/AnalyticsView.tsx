@@ -267,7 +267,7 @@ function HintsRow({ hints }: { hints: Hints }) {
 function CampaignCards({ cards }: { cards: Card[] }) {
   return (
     <Panel title="Campaign report cards" icon={<Megaphone className="tic" size={18} />} caption="Each campaign graded A–F with a one-line verdict, so you can see what worked at a glance.">
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12, marginTop: 4 }}>
+      <div className="pm-autogrid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12, marginTop: 4 }}>
         {cards.map((c) => (
           <div key={c.id} style={{ border: "1px solid var(--pm-border)", borderRadius: "var(--pm-r2)", padding: "14px 15px", background: "var(--pm-card)" }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
@@ -279,7 +279,7 @@ function CampaignCards({ cards }: { cards: Card[] }) {
               }}>{c.grade}</span>
             </div>
             <p style={{ fontSize: 12, color: "var(--pm-muted)", margin: "7px 0 11px", lineHeight: 1.4 }}>{c.verdict}</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
+            <div className="pm-grid3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
               <Mini label="Sent" value={num(c.sent)} />
               <Mini label="Read" value={`${c.readPct}%`} />
               <Mini label="Orders" value={num(c.orders)} />

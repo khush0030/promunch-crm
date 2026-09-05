@@ -168,7 +168,7 @@ function TplPicker({ label, value, templates, onChange, allowNone, noneLabel }: 
     <label style={{ display: "grid", gap: 4, fontSize: 11.5, color: "var(--pm-muted)", fontWeight: 600 }}>
       {label}
       <select value={value} aria-label={label} onChange={(e) => onChange(e.target.value)}
-        style={{ ...inputStyle, width: 250, fontSize: 12.5, fontWeight: 600 }}>
+        className="pm-fluid-ctl" style={{ ...inputStyle, width: 250, fontSize: 12.5, fontWeight: 600 }}>
         {allowNone && <option value="">{noneLabel ?? "None"}</option>}
         {names.map((n) => <option key={n} value={n}>{n}</option>)}
         {value !== "" && !names.includes(value) && <option value={value}>{value}</option>}
@@ -325,7 +325,7 @@ export default function FlowsView() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
         <div style={{ fontSize: 13, color: "var(--pm-muted)", maxWidth: 620 }}>
           Every automated WhatsApp journey, in one place. Edit a wait time or coupon and hit Save —
           changes apply to customers entering the flow from then on (already-scheduled messages keep

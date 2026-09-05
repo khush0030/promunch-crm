@@ -386,7 +386,7 @@ export default function CampaignsView() {
           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 }}>
             Abandoned-cart recovery · last 30 days
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 10 }}>
+          <div className="pm-autogrid-sm" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 10 }}>
             {[
               { n: recovery.reached, l: "Reached", hint: `${recovery.reachRate}% of ${recovery.enrolled} carts got a message`, color: "var(--pm-green)" },
               { n: recovery.recovered, l: "Recovered", hint: `${recovery.recoveryRate}% of reached bought after the nudge`, color: "var(--pm-green)" },
@@ -412,7 +412,7 @@ export default function CampaignsView() {
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.4 }}>
               Customer segments
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))", gap: 10 }}>
+            <div className="pm-autogrid-sm" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))", gap: 10 }}>
               {SEGMENTS.map((seg) => {
                 const rows = seg.tags.map((t) => byTier[t]).filter(Boolean);
                 const customers = rows.reduce((a, r) => a + Number(r.customers), 0);
@@ -438,7 +438,7 @@ export default function CampaignsView() {
         );
       })()}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 12 }}>
+      <div className="pm-autogrid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 12 }}>
         {list.length === 0 && (
           <div style={{ gridColumn: "1/-1", padding: 32, textAlign: "center", color: "var(--pm-hint)", fontSize: 13 }}>
             No campaigns yet.

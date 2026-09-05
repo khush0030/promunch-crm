@@ -240,7 +240,7 @@ export default function TemplatesView() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))", gap: 12 }}>
+      <div className="pm-autogrid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))", gap: 12 }}>
         {list.map((t) => (
           <div key={t.id} style={cardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -282,7 +282,7 @@ export default function TemplatesView() {
             <input value={editing.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })}
               placeholder="diwali_offer_2026" style={inputStyle} />
           </Field>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div className="pm-grid2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <Field label="Category">
               <select value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value as any })} style={inputStyle}>
                 <option value="marketing">Marketing</option>

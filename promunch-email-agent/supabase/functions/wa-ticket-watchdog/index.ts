@@ -24,6 +24,7 @@
 // scripts/wa-ticket-watchdog-cron.sql).
 
 import { db } from "../_shared/supabase.ts";
+import { fanOutSupportAlert } from "../_shared/support-alert.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { errStr } from "../_shared/connector-log.ts";
 
@@ -142,6 +143,17 @@ async function pingFallback(t: Ticket): Promise<boolean> {
     }),
   });
   const out = await r.json().catch(() => ({ ok: false }));
+
+  // Same fan-out as the first ping: everyone on SUPPORT_ALERT_WA_IDS also hears
+  // that this ticket has blown its SLA. Per-recipient claim keyed on the alert
+  // round, so each re-ping is exactly-once per person.
+  await fanOutSupportAlert({
+    claimPrefix: `support_alert:sla:${t.ticket_number ?? t.id}:${t.ticket_alert_count ?? 0}`,
+    vars,
+    sentBy: "ticket_watchdog_fallback_copy",
+    alreadySent: [to],
+  }).catch((e) => console.error("[wa-ticket-watchdog] support fan-out failed", e));
+
   return !!out?.ok;
 }
 

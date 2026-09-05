@@ -146,7 +146,7 @@ export default function AudienceHealthPanel() {
       }
       style={{ marginBottom: 18 }}
     >
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 10, marginBottom: 16 }}>
+      <div className="pm-autogrid-sm" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 10, marginBottom: 16 }}>
         {tiles.map((t) => (
           <KpiCard key={t.label} label={t.label} value={t.value} sub={t.sub} icon={t.icon} tone={t.tone} valueColor={t.color} />
         ))}
@@ -154,7 +154,7 @@ export default function AudienceHealthPanel() {
 
       <TierBar byTier={h.byTier} total={h.total} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 10, marginTop: 16 }}>
+      <div className="pm-autogrid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 10, marginTop: 16 }}>
         <Compare
           title="Sent to people who have replied to us"
           rate={h.warm30d.deliveryRate}
