@@ -218,8 +218,25 @@ where connector = 'whatsapp' and event = 'kb_miss'
 group by 1 order by 2 desc;
 ```
 
+### Applied
+All three crons confirmed active on 5 Sep: `wa-unanswered` (*/5),
+`shopify-catalog-sync` (*/30), `kb-embed-nightly` (15 2 * * *). The dashboard is
+deployed and the Meta feed at `/api/public/meta-catalog` serves 23 products with
+zero skipped or malformed rows and no duplicate ids.
+
+Caveat worth re-checking if alerts ever go quiet: pg_cron reporting "succeeded"
+only means the SQL ran, not that the HTTP call returned 200. Verify with
+`select status_code, content::text, created from net._http_response order by
+created desc limit 5;` — a 401 there means the Vault bearer stopped resolving
+and the alarm is installed but deaf. This exact trap hid a two-month
+cart-recovery outage in Jul 2026.
+
 ### Still open
-- Migration `20260905180000_wa_unanswered_cron.sql` must be pasted into the
-  Supabase SQL editor. Until then the function is deployed but never fires.
+- Meta catalogue: point a scheduled feed at `/api/public/meta-catalog` (hourly),
+  connect it to the WhatsApp Business Account, then set `WHATSAPP_CATALOG_ID`
+  to switch on the in-chat cart. Use the URL feed, NOT Meta's Shopify connector:
+  the connector assigns its own item ids and would break the invariant that
+  `id` is the Shopify variant id, which is what lets a WhatsApp cart become a
+  checkout link with no product lookup.
 - The Rakhi hamper gap from section 2.2 is closed: the bot now answers from the
   live catalogue ("was Rs 555, currently sold out").
