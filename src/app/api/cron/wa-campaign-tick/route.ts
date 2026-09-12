@@ -41,7 +41,10 @@ export async function GET(req: NextRequest) {
     .select("id, name, scheduled_at, repeat_rule, repeat_until, template_id, template_vars, audience_filter, created_by")
     .eq("status", "scheduled")
     .lte("scheduled_at", nowIso);
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) {
+    console.error("wa_campaign_tick_read_failed", { code: error.code, message: error.message });
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
 
   const fired: { id: string; name: string; ok: boolean; note?: string }[] = [];
   for (const c of due ?? []) {

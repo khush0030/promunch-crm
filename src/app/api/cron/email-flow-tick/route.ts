@@ -19,6 +19,7 @@ async function handle(req: NextRequest) {
     const summary = await tick();
     return NextResponse.json({ ok: true, ...summary });
   } catch (e) {
+    console.error("email_flow_tick_failed", { message: e instanceof Error ? e.message : String(e) });
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 }
