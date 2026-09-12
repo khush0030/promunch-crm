@@ -83,7 +83,7 @@ truth = it PLUS these later additions (verify live with
 | `deal-scan-every-30min` | `*/30 * * * *` → edge `deal-scan` | `20260717130000_deal_pipeline.sql` |
 | `b2b-leads-tick` | `5 * * * *` → Next `/api/cron/leads-tick` (cron_secret) | `20260706130000_b2b_lists_sequences.sql` |
 | `wa-confirmation-sweep` | `*/15 * * * *` → edge (order-confirmation safety net; customer-visible — see migration header) | `20260718123000_cron_additions.sql` |
-| `wa-watchdog` | `*/10 * * * *` → edge (Slack alert when wa-health heartbeats stop) | `20260718123000_cron_additions.sql` |
+| `wa-watchdog` | `5-59/10 * * * *` → edge (Slack alert when wa-health heartbeats stop; offset from the `:X0` stampede, see `20260912120000_wa_watchdog_offset.sql`) | `20260718123000_cron_additions.sql` |
 
 **Vercel cron added (2026-08-26):** `/api/cron/wa-engagement-tiers` at
 `30 20 * * *` — re-derives the `tier:*` engagement tag on every `wa_contacts`

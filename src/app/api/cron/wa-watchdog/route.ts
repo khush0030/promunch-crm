@@ -28,14 +28,33 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const { data: last } = await supabaseAdmin
-    .from("connector_events")
-    .select("created_at")
-    .eq("connector", "whatsapp")
-    .eq("event", "health_ok")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // A failed READ is "could not observe", not "no heartbeat". Never page on a
+  // query error (Sep 12 2026: the edge twin paged CRITICAL 28 ms after a fresh
+  // health_ok because a PostgREST blip read as null). Retry once, then log quietly.
+  let last: { created_at: string } | null = null;
+  let lastErr: string | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { data, error } = await supabaseAdmin
+      .from("connector_events")
+      .select("created_at")
+      .eq("connector", "whatsapp")
+      .eq("event", "health_ok")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!error) { last = data as { created_at: string } | null; lastErr = null; break; }
+    lastErr = error.message ?? String(error);
+    if (attempt === 0) await new Promise((r) => setTimeout(r, 3000));
+  }
+  if (lastErr) {
+    await supabaseAdmin.from("connector_events").insert({
+      connector: "whatsapp",
+      level: "warn",
+      event: "watchdog_query_failed",
+      message: `Vercel wa-watchdog could not read connector_events (not alerting; unobservable != dark): ${lastErr.slice(0, 200)}`,
+    }).then(() => {}, () => {});
+    return NextResponse.json({ ok: false, stale: null, error: "query_failed", detail: lastErr }, { status: 503 });
+  }
 
   const lastMs = last?.created_at ? new Date(last.created_at as string).getTime() : 0;
   const ageMin = lastMs ? Math.round((Date.now() - lastMs) / 60_000) : Infinity;

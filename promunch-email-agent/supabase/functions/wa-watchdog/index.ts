@@ -14,7 +14,7 @@
 
 import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
-import { postSlack, slackChannelFor, buildStructuredAlert } from "../_shared/connector-log.ts";
+import { logConnector, postSlack, slackChannelFor, buildStructuredAlert } from "../_shared/connector-log.ts";
 
 const STALE_MINUTES = 20;   // alert if no health_ok within this window
 const DEDUPE_MINUTES = 20;  // don't re-ping more than once per window
@@ -24,14 +24,35 @@ Deno.serve(async (req) => {
   if (gate) return gate;
   const sb = db();
 
-  const { data: last } = await sb
-    .from("connector_events")
-    .select("created_at")
-    .eq("connector", "whatsapp")
-    .eq("event", "health_ok")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Read the last heartbeat. If the READ itself fails (PostgREST blip, DB busy
+  // under the :X0 cron stampede) that is NOT "no heartbeat" — treat a query
+  // error as "could not observe", log it quietly and bail. Sep 12 2026: two
+  // CRITICAL "no heartbeat found" pages fired 28 ms after a fresh health_ok
+  // because this destructured only `data` and a failed SELECT read as null.
+  let last: { created_at: string } | null = null;
+  let lastErr: string | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { data, error } = await sb
+      .from("connector_events")
+      .select("created_at")
+      .eq("connector", "whatsapp")
+      .eq("event", "health_ok")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!error) { last = data; lastErr = null; break; }
+    lastErr = error.message ?? String(error);
+    if (attempt === 0) await new Promise((r) => setTimeout(r, 3000));
+  }
+  if (lastErr) {
+    await logConnector({
+      connector: "whatsapp",
+      level: "warn",
+      event: "watchdog_query_failed",
+      message: `wa-watchdog could not read connector_events (not alerting; unobservable != dark): ${lastErr.slice(0, 200)}`,
+    });
+    return j({ ok: false, stale: null, error: "query_failed", detail: lastErr }, 503);
+  }
 
   const lastMs = last?.created_at ? new Date(last.created_at).getTime() : 0;
   const ageMin = lastMs ? Math.round((Date.now() - lastMs) / 60_000) : Infinity;
