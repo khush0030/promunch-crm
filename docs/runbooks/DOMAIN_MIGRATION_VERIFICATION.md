@@ -21,11 +21,22 @@ Before these code changes: password and magic-link login on the new domain worke
 
 Code checks: 101 tests passed; changed-file lint passed. Full repository lint reported 218 pre-existing errors and 38 warnings outside the touched files. Migration filename collision check passed; no SQL changes are needed.
 
-Production invitation, recovery and Secure-cookie acceptance tests must be recorded after deployment. Do not confuse code checks with live verification.
+Production deployment: commit `cc75c4d`, Vercel deployment `dpl_EDcusVFJsK9whKr7KHynkjBWHdYz`, confirmed READY by 2026-09-12T13:04:15Z (18:34 IST).
+
+Live acceptance tests passed on the approved temporary alias account:
+
+- Actual CRM invitation send, Resend delivery, server token verification, password setup and dashboard entry with agent permissions.
+- Forgot password, actual recovery email, PKCE callback, password change, old-password rejection and new-password login.
+- Reload retained authenticated API access (HTTP 200).
+- Logout blocked protected API access (HTTP 401).
+- Reusing the consumed invitation showed the invalid/expired-link error.
+- Production login cookies had Secure=true, SameSite=Lax and domain admin.promunch.in (host-only).
+
+Both emails were reported opened by Resend. The authorized links were retrieved from the outbound email records for automated browser testing; provider events are not a substitute for a human inbox check. The temporary alias account was removed after testing, and the owner password was untouched. Test browser contexts and the temporary credential/link relay were closed.
 
 ## Daily-cycle monitor
 
-The app heartbeat `verify-crm-migration-over-24-hours` runs hourly. Its 24-hour period starts at the production auth/cookie deployment, not at the initial DNS change. It pauses after reporting final results.
+The app heartbeat `verify-crm-migration-over-24-hours` runs hourly. Its 24-hour period starts at the production auth/cookie deployment, not at the initial DNS change. Final review is due no earlier than 2026-09-13T13:04:15Z (18:34 IST). It pauses after reporting final results. This observation is pending, not passed.
 
 Read-only evidence command:
 
