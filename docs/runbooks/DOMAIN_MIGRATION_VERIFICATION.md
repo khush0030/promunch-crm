@@ -36,7 +36,7 @@ Both emails were reported opened by Resend. The authorized links were retrieved 
 
 ## Daily-cycle monitor
 
-The app heartbeat `verify-crm-migration-over-24-hours` runs hourly. Its 24-hour period starts at the production auth/cookie deployment, not at the initial DNS change. Final review is due no earlier than 2026-09-13T13:04:15Z (18:34 IST). It pauses after reporting final results. This observation is pending, not passed.
+The app heartbeat `verify-crm-migration-over-24-hours` runs every 15 minutes while investigating intermittent cron failures. Its 24-hour period starts at the production auth/cookie deployment, not at the initial DNS change. Final review is due no earlier than 2026-09-13T13:04:15Z (18:34 IST). It pauses after reporting final results. This observation is pending, not passed.
 
 Read-only evidence command:
 
@@ -47,6 +47,18 @@ node --env-file=.env.local scripts/check-domain-migration.mjs /private/tmp/promu
 Baseline at 2026-09-12T13:00:52Z: both login pages HTTP 200; all 30 jobs enabled; latest runs for due daily/frequent jobs marked succeeded. Latest 24 hours included 142 WhatsApp health_ok events and 58 webhook_received events. Existing warnings include Gmail service-account authentication failures and WhatsApp delivery failures. Weekly/monthly jobs with no recent run are not automatically failures.
 
 The snapshot is bounded and contains no customer message bodies or credentials. Scheduler success proves dispatch only. Final sign-off must inspect HTTP/provider outcomes, Vercel daily runs, and jobs due within the observation window. Missing access, missing events and no traffic must be reported accurately, never converted into a blanket pass. Do not trigger jobs or resend messages to manufacture evidence.
+
+## Cron investigation, September 12
+
+Production logs show intermittent HTTP 500 responses from `wa-campaign-tick` and `email-flow-tick` before and after the auth deployment. Both pg_cron jobs still target the retained `promunch-crm.vercel.app` hostname every 15 minutes. At 14:15 UTC, WhatsApp campaign tick returned 500 and email flow tick returned 200. These are not merely failed dashboard login redirects.
+
+A read-only query of `net._http_response` at approximately 14:11 UTC, covering requests since 11:00 UTC, counted 571 responses: 522 HTTP 200 and 49 transport timeouts. Of those, 27 spent approximately the entire five-second timeout resolving DNS. No HTTP 500 body was retained in that sample. These counts cover all HTTP jobs and cannot be attributed exclusively to the two Vercel routes. Scheduler dispatch success does not establish successful completion.
+
+The campaign route's explicit HTTP 500 branch is its initial `wa_campaigns` read. The email flow route catches errors from its engine, including its initial `flow_enrollments` read. Three read-only checks of each starting query succeeded and returned no due work. The precise transient error remains unverified; the observed scheduler DNS failures alone do not prove what caused the Vercel HTTP 500s.
+
+Commit `9cdc12e` adds error logging (`wa_campaign_tick_read_failed`, `email_flow_tick_failed`) without changing job execution or message sending. Production build, 101 tests, changed-file lint and migration collision check passed. The monitor must inspect the next natural failures for these markers and distinguish confirmed evidence from hypotheses. No workers were manually invoked for this investigation.
+
+Diagnostics deployed successfully to production as `dpl_Eo9ZUcwBnHortRvQFGAUtuDhowEM` (`promunch-jeczezi05-oltaflock-ai.vercel.app`, READY). An isolated archive of committed code excluded unrelated local documentation work from this deployment. The exact HTTP 500 error remains pending a naturally scheduled failure with the new logging.
 
 ## Rollback
 
