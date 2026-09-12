@@ -142,3 +142,19 @@ visible button under the main cart form. At 390px viewport width, its panel was
 cart endpoint returned HTTP 200 and a correctly addressed WhatsApp request URL.
 The owner had already confirmed the real image/CTA reply. No new outbound message
 or order was submitted during storefront verification. The cart button is live.
+
+
+## Cart-card design refinement
+
+At the user's request, commit `69b5101` replaces the green instruction box with
+an outlined white card, a clear heading, shorter supporting copy, a WhatsApp
+icon and a full-width mobile button. Desktop uses a side-by-side layout. Focus,
+loading and reduced-motion styles are scoped to this card. The accessible action
+name remains “Send my cart to WhatsApp”; request generation and the WhatsApp
+reply flow are unchanged. All 93 application tests and changed-file lint passed;
+mobile (390px) and desktop (1280px) browser previews confirmed the card fits and
+checkout remains visible.
+
+Design deployment `dpl_EDiwcWepGDc92nLGokMMtVwSAXZf` completed READY, with the
+hosted build and TypeScript checks passing. A fresh live mobile load confirmed
+the redesigned heading, one visible button and intact checkout.
