@@ -7,6 +7,7 @@ Rule: every doc lives in exactly one subfolder below. Superseded docs move to `a
 | Doc | What it answers |
 |---|---|
 | [ARCHITECTURE.md](architecture/ARCHITECTURE.md) | The whole platform on one page: deployables, modules, routes, edge functions, tables, external services, cron topology, the three sacred data flows, where to look when something breaks |
+| [PROMUNCH_WHATSAPP_CURRENT_STATE.md](architecture/PROMUNCH_WHATSAPP_CURRENT_STATE.md) | September 2026 WhatsApp architecture audit: message owners, live flow settings and schedules, preservation boundaries and unresolved risks |
 | [AI_CHANGE_PLAYBOOK.md](architecture/AI_CHANGE_PLAYBOOK.md) | How any AI agent (or human) safely changes the app: recipes per change type, verification gate, deploy sequence, production debugging order |
 
 ## runbooks/ — how to operate + deploy

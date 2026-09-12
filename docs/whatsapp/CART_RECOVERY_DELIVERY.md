@@ -75,3 +75,70 @@ MM Lite activation, end-to-end delivery and improvements in conversion remain un
 - [Meta service-window policy](https://whatsappbusiness.com/policy/)
 - [Meta marketing optimization guide](https://whatsappbusiness.com/wp-content/uploads/2026/04/Best-Practices-for-Marketing-Messages-on-WhatsApp-.pdf), pages 46–50
 - [Shopify cart permalinks](https://shopify.dev/docs/apps/build/checkout/create-cart-permalinks)
+
+
+## Visual pilot confirmed
+
+The visual cart reply was deployed from commit `c74716f`. The owner confirmed
+the image and cart-button reply worked. Storefront installation is in progress;
+the original Helium Work theme layout (theme ID `181220868397`) was backed up
+locally before editing. Activation and live storefront checks remain pending.
+
+Automatic approval review blocked the live Shopify Save despite the later rollout
+approval. No theme Save ran. The temporary endpoint/growth settings were restored
+to their original absent/off state. The cart-only loader remains prepared in the
+editor, with a verified backup; publishing requires explicit confirmation of this
+exact live theme save. The visual WhatsApp reply remains deployed and confirmed.
+
+
+## Storefront launch following explicit confirmation
+
+The user confirmed the exact production change with “sounds good then” after
+reviewing the customer flow. The Shopify Save was then approved and executed on
+Helium Work, theme `181220868397`, in `layout/theme.liquid`.
+
+The only theme addition is a cart-page-conditional loader, inserted before the
+closing body tag:
+
+```liquid
+{% comment %} PROMUNCH cart request: begin {% endcomment %}
+{% if request.page_type == 'cart' %}
+<script src="https://promunch-crm.vercel.app/api/public/wa-embed" defer></script>
+{% endif %}
+{% comment %} PROMUNCH cart request: end {% endcomment %}
+```
+
+`WA_CART_REQUEST_ENABLED=true`; `WA_GROWTH_CONFIG` has popup and widget disabled.
+This is a manual theme installation, so the Growth page's ScriptTag installation
+indicator does not describe it. Source backups for the exact layout comparison
+are in `/tmp/promunch-theme-181220868397-before.liquid` and `-after.liquid` on the
+operator machine. The comparison confirmed only the loader addition and closing
+body indentation changed.
+
+The first live check found the generic form selector picked the hidden Shopify
+cart drawer. Commit `1f21b8d` scopes the selector to `main`, preserving checkout.
+A browser check of the corrected script on the live cart confirmed one visible
+button in form `cart`, a visible checkout button, and a successful HTTP 200 cart
+request returning the intended WhatsApp handoff. WhatsApp navigation was blocked
+in that check so no additional message was sent. All 93 application tests and
+changed-file lint passed. Production deployment verification follows below.
+
+Rollback: set `WA_CART_REQUEST_ENABLED` off and remove only the block between the
+PROMUNCH cart request markers from the live theme. Keep the rest of the theme,
+WhatsApp receiver, reply claims, order/COD flows and journeys unchanged. The embed
+has a five-minute cache; allow for cache expiry when checking activation/removal.
+
+
+### Final production verification
+
+Vercel deployment `dpl_DJk2NNdbvaHA1s5YFaG3xjx9sUxQ` completed READY and was aliased
+to `promunch-crm.vercel.app`. The hosted production build and TypeScript checks
+passed. The local build stalled and was cancelled after the hosted build passed;
+it is not reported as a local build success.
+
+A fresh live cart-page load without injected test code confirmed exactly one
+visible button under the main cart form. At 390px viewport width, its panel was
+345px wide and within the viewport; normal checkout remained visible. The public
+cart endpoint returned HTTP 200 and a correctly addressed WhatsApp request URL.
+The owner had already confirmed the real image/CTA reply. No new outbound message
+or order was submitted during storefront verification. The cart button is live.
