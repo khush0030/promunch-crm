@@ -32,7 +32,7 @@ Live acceptance tests passed on the approved temporary alias account:
 - Reusing the consumed invitation showed the invalid/expired-link error.
 - Production login cookies had Secure=true, SameSite=Lax and domain admin.promunch.in (host-only).
 
-Both emails were reported opened by Resend. The authorized links were retrieved from the outbound email records for automated browser testing; provider events are not a substitute for a human inbox check. The temporary alias account was removed after testing, and the owner password was untouched. Test browser contexts and the temporary credential/link relay were closed.
+Both emails were reported opened by Resend. The authorized links were retrieved from the outbound email records for automated browser testing. The user then explicitly confirmed receiving both invitation and password-reset emails, completing the human inbox-delivery check. The temporary alias account was removed after testing, and the owner password was untouched. Test browser contexts and the temporary credential/link relay were closed.
 
 ## Daily-cycle monitor
 
