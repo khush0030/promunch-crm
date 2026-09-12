@@ -35,6 +35,7 @@ import { buildCatalogSections } from "./catalog.ts";
 import { callSend, j } from "./send.ts";
 import { askInstruction, handleProactiveAsk } from "./asks.ts";
 import { isKbMiss, logKbMiss } from "./kb-miss.ts";
+import { handleCartRequest } from "./cart-request.ts";
 
 interface InvokeBody {
   thread_id: string;
@@ -112,8 +113,11 @@ async function handle(req: Request): Promise<Response> {
   // (b) take an atomic per-turn claim so a concurrent run or a wa-jobs-tick
   // retry of an already-answered turn can never send a second time.
   const answerInbound = [...ordered].reverse().find((m) => m.direction === "inbound") as
-    | { id: string; created_at: string }
+    | { id: string; created_at: string; body?: string }
     | undefined;
+
+  const cartResponse = await handleCartRequest(sb, thread_id, answerInbound, draft, job_id);
+  if (cartResponse) return cartResponse;
 
   // resolve the message to answer — fall back to the latest inbound
   let latest = last_message;

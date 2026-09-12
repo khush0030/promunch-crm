@@ -9,6 +9,7 @@
 // (targeting triggers, form submit, frequency cap).
 
 import { POPUP_CONSENT_TEXT } from "./wa-engagement";
+import { buildCartRequestEmbed } from "./wa-cart-embed";
 
 /* ----------------------------- types ----------------------------- */
 
@@ -302,8 +303,9 @@ export function popupCardMax(pos: PopupPosition, layout: PopupLayout = "text"): 
 
 /* --------------------------- embed JS --------------------------- */
 
-export function buildEmbedJs(cfg: GrowthConfig, opts: { appOrigin: string; widgetLink: string | null; waNumber: string }): string {
+export function buildEmbedJs(cfg: GrowthConfig, opts: { appOrigin: string; widgetLink: string | null; waNumber: string; cartRequestEnabled?: boolean }): string {
   const parts: string[] = ["/* PROMUNCH WhatsApp embed — configure in CRM → WhatsApp → Growth */"];
+  if (opts.cartRequestEnabled) parts.push(buildCartRequestEmbed(opts.appOrigin));
   const fontLinks = new Set<string>();
   const pf = fontHref(cfg.popup.theme.font);
   if (cfg.popup.enabled && pf) fontLinks.add(pf);

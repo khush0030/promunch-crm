@@ -17,6 +17,7 @@ import { logConnector } from "../_shared/connector-log.ts";
 import { WINDOW_DELIVER_JOURNEYS, claimAsk, releaseAsk, sessionOpen } from "../_shared/window-asks.ts";
 import { isCapError, isMarketingTemplate, isUndeliverableError, marketingAllowed } from "../_shared/marketing-governor.ts";
 import { inCallWindow, nextWindowOpen, voiceEligibility } from "../_shared/voice-eligibility.ts";
+import { claimCartTemplateAttempt, hasPriorityCart } from "../_shared/cart-recovery-policy.ts";
 
 const BATCH = 200;
 // Max times to retry the (per-recipient-capped) template fallback for a
@@ -220,6 +221,17 @@ Deno.serve(async (req) => {
     const windowEligible = (WINDOW_DELIVER_JOURNEYS as readonly string[]).includes(run.journey_key);
     const isCart = run.journey_key === "abandoned_checkout";
 
+    // Reserve attention for active carts across scheduled AND in-window asks.
+    if (!isCart && await isMarketingTemplate(run.context?.template ?? cfg.template) &&
+      await hasPriorityCart(sb, run.wa_id, now)) {
+      await sb.from("wa_journey_runs").update({
+        next_action_at: new Date(Date.now() + GOVERNOR_DEFER_MAX_MS_WINDOW).toISOString(),
+        last_error: "deferred: active cart takes priority over other marketing",
+      }).eq("id", run.id).eq("status", "active");
+      skipped++;
+      continue;
+    }
+
     // In-window delivery: review_request / replenishment_reminder / abandoned_cart
     // recovery are MARKETING templates that Meta throttles per-recipient (131049).
     // If the customer's 24h service window is open, deliver a personalized
@@ -330,6 +342,16 @@ Deno.serve(async (req) => {
       if (!(claimed && claimed.length)) { skipped++; continue; }
     }
 
+    if (isCart && !(await claimCartTemplateAttempt(sb, run.wa_id, run.order_ref))) {
+      await releaseAsk(sb, run.id);
+      await sb.from("wa_journey_runs").update({
+        next_action_at: new Date(Date.now() + 3600_000).toISOString(),
+        last_error: "cart template attempt held: already attempted or history unavailable; waiting for customer conversation",
+      }).eq("id", run.id).eq("status", "active");
+      skipped++;
+      continue;
+    }
+
     const res = await callWaSend({
       to: run.wa_id,
       kind: "template",
@@ -383,7 +405,7 @@ Deno.serve(async (req) => {
       await releaseAsk(sb, run.id);
       const capped = isCapError(res?.error_code, res?.error);
       const nextCapAttempts = capped ? capAttempts + 1 : capAttempts;
-      const standDown = capped && nextCapAttempts >= TPL_CAP_ATTEMPTS_MAX;
+      const standDown = capped; // A cart cap retires templates after the first verdict.
       // Stood down: re-check hourly (not every tick) — often enough to catch any
       // open 24h window well inside it, cheap enough that a pile of retired carts
       // can't crowd the BATCH limit out from under live runs.

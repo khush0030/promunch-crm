@@ -3,6 +3,7 @@
 
 import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
+import { hasPriorityCart } from "../_shared/cart-recovery-policy.ts";
 import {
   type DueAsk,
   claimAsk,
@@ -62,6 +63,9 @@ export async function handleProactiveAsk(
   waId: string | null,
   ask: { run_id: string; journey_key: string; url?: string; name?: string },
 ): Promise<Response> {
+  if (ask.journey_key !== "abandoned_checkout" && waId && await hasPriorityCart(sb, waId)) {
+    return j({ ok: true, skipped: "active cart takes priority" });
+  }
   if (!(await claimAsk(sb, ask.run_id))) return j({ ok: true, skipped: "already claimed" });
   try {
     const orders = waId ? await lookupOrders(waId, null).catch(() => [] as OrderSummary[]) : [];

@@ -48,7 +48,14 @@ Deno.serve(async (req) => {
   const override = Number(rawOverride);
   const daily_limit_override = Number.isFinite(override) && override > 0 ? Math.floor(override) : null;
 
-  return j({ ok: phoneRes.ok, phone, account, phoneNumbers, daily_limit_override });
+  return j({ ok: phoneRes.ok, phone, account, phoneNumbers, daily_limit_override,
+    marketing_routing: {
+      mm_lite_enabled: ["true", "1"].includes((Deno.env.get("WA_MM_LITE_ENABLED") ?? "").trim().toLowerCase()),
+      graph_version: Deno.env.get("WA_MM_LITE_GRAPH_VERSION") ?? Deno.env.get("WHATSAPP_GRAPH_VERSION") ?? "v21.0",
+      // The local flag is NOT proof that Meta onboarding is complete.
+      meta_onboarding_verified: false,
+    },
+  });
 });
 
 function j(o: unknown, s = 200) {

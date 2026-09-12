@@ -22,6 +22,7 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { logConnector } from "./connector-log.ts";
+import { hasPriorityCart } from "./cart-recovery-policy.ts";
 
 // Journeys whose DUE run may be delivered as cap-immune free text when the 24h
 // service window is open. This is BOTH the tick's window-delivery set and the
@@ -98,6 +99,7 @@ export async function findDueAsk(
     .eq("wa_id", waId)
     .maybeSingle();
   if (!cErr && c && c.opted_in === false) return null;
+  const cartPriority = await hasPriorityCart(sb, waId, nowIso);
 
   const { data } = await sb
     .from("wa_journey_runs")
@@ -114,6 +116,7 @@ export async function findDueAsk(
   // sort lexicographically against each other at equal instants.
   const nowMs = Date.parse(nowIso);
   const eligible = data.filter((r) => {
+    if (cartPriority && r.journey_key !== "abandoned_checkout") return false;
     // delivered_at is the terminal flag on the cart's at-least-once guarantee.
     // A run carrying it has already landed with the customer — never again.
     if (r.delivered_at) return false;

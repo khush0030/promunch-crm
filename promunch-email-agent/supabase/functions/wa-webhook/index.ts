@@ -222,7 +222,7 @@ async function handleStatus(status: any) {
           const ctx = (run.context ?? {}) as Record<string, unknown>;
           const capAttempts = capped ? Number(ctx.tpl_cap_attempts ?? 0) + 1 : Number(ctx.tpl_cap_attempts ?? 0);
           // ONE reopen on a cap verdict; the second one retires the template.
-          const standDown = capped && capAttempts >= 2;
+          const standDown = capped; // No second cart template after confirmed #131049.
           const backoffH = (await getFlowSettings()).cart_backoff_hours;
           // A stood-down run re-checks hourly for an open window instead of
           // waiting out the (now pointless) template backoff.

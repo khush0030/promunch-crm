@@ -37,6 +37,8 @@ export async function GET() {
     appOrigin: (process.env.SITE_APP_URL || "https://promunch-crm.vercel.app").replace(/\/+$/, ""),
     widgetLink,
     waNumber: WA_NUMBER,
+    // Activate only after the receiving worker is deployed and verified.
+    cartRequestEnabled: (await getSecret("WA_CART_REQUEST_ENABLED")) === "true",
   });
 
   return new NextResponse(js, {
