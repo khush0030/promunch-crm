@@ -6,7 +6,7 @@ export function buildCartRequestEmbed(appOrigin: string): string {
   if(!/\\/cart\\/?$/.test(location.pathname))return;
   function mount(){
     if(document.getElementById("pm-cart-request"))return;
-    var host=document.querySelector('form[action$="/cart"],form[action$="/cart/"]')||document.querySelector("main");
+    var host=document.querySelector('main form[action$="/cart"],main form[action$="/cart/"]')||document.querySelector("main");
     if(!host)return;
     var panel=document.createElement("div");panel.id="pm-cart-request";
     panel.style.cssText="margin:16px 0;padding:16px;border:1px solid #d5dfd3;border-radius:12px;background:#f5faf3;color:#25352b;font-family:inherit";
