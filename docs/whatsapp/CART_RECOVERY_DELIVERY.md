@@ -27,6 +27,16 @@ No database migration is required. Cart priority is a selection rule, not a new 
 5. Verify Meta Marketing Messages API onboarding and the deployed `WA_MM_LITE_ENABLED` setting separately. The enhanced `wa-meta-info` response reports local routing flag/version; it cannot certify Meta onboarding. Do not turn the flag on based on the existence of code alone.
 6. Run an opt-in pilot with disjoint customer groups. Measure unique carts reached, delivered/read receipts, conversions and cost. API acceptance is not delivery. Never send both experiment variants to the same person.
 
+## Production status, September 12
+
+- Implementation committed and pushed on `main`: `e04613b`.
+- Supabase deployments verified ACTIVE: `wa-ai-reply` v110, `wa-journey-tick` v83, `wa-webhook` v102, `wa-meta-info` v36. The cart priority and attempt safeguards are live.
+- Next application deployed and aliased to `https://promunch-crm.vercel.app`. Public embed returns 200; cart-request endpoint returns the expected 503 while disabled and 403 for an unapproved origin.
+- `WA_CART_REQUEST_ENABLED` is absent and the cart button remains off. A live browser check of `https://promunch.in/cart` found no CRM embed script. `trypromunch.in/cart` returns 404; the live storefront is `promunch.in`.
+- CLI secret metadata contains SHA-256 digests. Comparing the existing workspace service credential locally against that metadata confirmed it differs from the runtime service credential, explaining the diagnostic authentication mismatch. This comparison retrieved no new credentials. Automatic approval review rejected a request to retrieve project API credentials into a temporary file; that operation was not retried or bypassed.
+- Customer-requested end-to-end delivery, storefront installation, Meta onboarding and the opt-in pilot remain outstanding. No customer messages were sent for testing.
+- Validation: 93 application tests and 11 edge tests passed, production build and TypeScript checks passed, changed-file lint and edge type checks passed, migration filename check and diff whitespace check passed. Repository-wide lint still reports 218 errors and 38 warnings; it is not a clean gate. Mobile browser fixture checked the cart handoff without contacting WhatsApp.
+
 ## Fallback channels and limits
 
 The existing Shopify checkout handler already enrolls eligible email addresses in an active `checkout_abandoned` email flow, with `(flow_id, dedup_key)` uniqueness and purchase cancellation. It is an independent flow, not a new failure-triggered fallback introduced here. Its live activation, consent and timing require verification before claiming full fallback coverage. No SMS integration or additional automatic calls were enabled. Where no permitted fallback exists, wait for a customer conversation or stop; do not disguise marketing as utility.
