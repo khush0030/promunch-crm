@@ -6,19 +6,22 @@ import Image from "next/image";
 import { Mail, Lock, User as UserIcon, ArrowRight } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { isAllowedEmail, ALLOWED_DOMAINS_LABEL } from "@/lib/auth-domains";
+import { safeAuthNext } from "@/lib/auth-options";
 
-type Tab = "signin" | "signup" | "magic";
+type Tab = "signin" | "signup" | "magic" | "reset";
 
 function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/dashboard";
+  const next = safeAuthNext(params.get("next"));
 
   const supabase = createSupabaseBrowserClient();
   const initialErr =
     params.get("error") === "domain"
       ? `Only ${ALLOWED_DOMAINS_LABEL} email addresses are allowed.`
-      : null;
+      : params.get("error") === "auth"
+        ? "This sign-in link is invalid or expired. Request a new link and open it in the same browser."
+        : null;
   const [tab, setTab] = useState<Tab>("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -40,7 +43,13 @@ function LoginInner() {
       if (!isAllowedEmail(email)) {
         throw new Error(`Only ${ALLOWED_DOMAINS_LABEL} email addresses are allowed.`);
       }
-      if (tab === "magic") {
+      if (tab === "reset") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth/callback?next=/auth/set-password`,
+        });
+        if (error) throw error;
+        setMsg("If an account exists for this email, a reset link is on its way. Open it in this browser.");
+      } else if (tab === "magic") {
         const { error } = await supabase.auth.signInWithOtp({
           email,
           options: {
@@ -91,6 +100,8 @@ function LoginInner() {
     ? "Create account"
     : tab === "magic"
     ? "Send magic link"
+    : tab === "reset"
+    ? "Send reset link"
     : "Sign in";
 
   return (
@@ -128,7 +139,7 @@ function LoginInner() {
           </div>
         </div>
         <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.015em", marginBottom: 4 }}>
-          {tab === "signup" ? "Create your account" : "Sign in"}
+          {tab === "signup" ? "Create your account" : tab === "reset" ? "Reset your password" : "Sign in"}
         </h1>
         <div className="sub" style={{ marginBottom: 18 }}>
           {tab === "signup"
@@ -223,7 +234,7 @@ function LoginInner() {
             </div>
           </div>
 
-          {tab !== "magic" && (
+          {(tab === "signin" || tab === "signup") && (
             <div className="field">
               <label>Password{tab === "signup" ? " (min 8 chars)" : ""}</label>
               <div style={{ position: "relative" }}>
@@ -273,6 +284,12 @@ function LoginInner() {
             {!busy && <ArrowRight size={14} />}
           </button>
         </form>
+
+        {tab === "signin" && (
+          <button type="button" className="btn" style={{ marginTop: 12 }} onClick={() => { setTab("reset"); reset(); }}>
+            Forgot password?
+          </button>
+        )}
 
         <div style={{ marginTop: 14, textAlign: "center", fontSize: 12.5 }}>
           <span className="muted">

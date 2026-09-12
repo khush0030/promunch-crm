@@ -135,7 +135,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const inviteUrl = data?.properties?.action_link;
+  const inviteToken = data?.properties?.hashed_token;
+  const inviteUrl = inviteToken
+    ? `${origin}/auth/callback?token_hash=${encodeURIComponent(inviteToken)}&type=invite&next=/auth/set-password`
+    : null;
   if (!inviteUrl) {
     return NextResponse.json({ error: "Could not generate an invite link." }, { status: 500 });
   }

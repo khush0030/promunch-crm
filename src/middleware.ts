@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isAllowedEmail } from "@/lib/auth-domains";
+import { authCookieOptions } from "@/lib/auth-options";
 
 // /r/* = public click-tracking redirects (WhatsApp short links) — must be
 // reachable without a dashboard session.
@@ -22,6 +23,7 @@ export async function middleware(req: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: authCookieOptions,
       cookies: {
         getAll() {
           return req.cookies.getAll();
