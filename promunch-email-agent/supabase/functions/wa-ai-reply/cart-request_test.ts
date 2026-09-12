@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { handleCartRequest } from "./cart-request.ts";
+import { handleCartRequest, requestedCartCard } from "./cart-request.ts";
 
 function fakeDb(options: { sealFails?: boolean; claimFails?: boolean } = {}) {
   let claimed = false;
@@ -49,4 +49,30 @@ Deno.test("draft and expired service window never send", async () => {
   await handleCartRequest(fakeDb(), "thread", inbound(), true, null, send);
   await handleCartRequest(fakeDb(), "thread", { ...inbound(), created_at: "2020-01-01T00:00:00Z" }, false, null, send);
   assertEquals(sends, 0);
+});
+
+Deno.test("requested cart uses matched product image and one URL action", async () => {
+  const sb = { from: () => ({ select: () => ({ in: () => Promise.resolve({ data: [
+    { retailer_id: "123", title: "Noodle Masala Soya Crunchies", image_url: "https://cdn.shopify.com/product.jpg" },
+    { retailer_id: "456", title: "Another product", image_url: null },
+  ], error: null }) }) }) } as unknown as Parameters<typeof requestedCartCard>[0];
+  const card = await requestedCartCard(sb, "https://promunch.in/cart/123:2,456:1?storefront=true");
+  assertEquals(card.type, "cta_url");
+  assertEquals(card.header, { type: "image", image: { link: "https://cdn.shopify.com/product.jpg" } });
+  const body = (card.body as { text: string }).text;
+  assertEquals(body.includes("2 × Noodle Masala Soya Crunchies"), true);
+  assertEquals(body.includes("https://"), false);
+  const action = card.action as { parameters: { display_text: string; url: string } };
+  assertEquals(action.parameters.display_text, "View my cart");
+  assertEquals(new URL(action.parameters.url).searchParams.get("storefront"), "true");
+});
+
+Deno.test("catalogue failure retains cart action without fabricated product media", async () => {
+  const card = await requestedCartCard(fakeDb(), "https://promunch.in/cart/123:2?storefront=true");
+  assertEquals(card.header, undefined);
+  assertEquals((card.body as { text: string }).text.includes("2 × Cart item 1"), true);
+  let payload: any;
+  await handleCartRequest(fakeDb(), "thread", inbound(), false, null, async (body) => { payload = body; return { ok: true }; });
+  assertEquals(payload.kind, "interactive");
+  assertEquals(payload.interactive.type, "cta_url");
 });

@@ -1,5 +1,24 @@
 # Cart recovery delivery changes, September 12, 2026
 
+## Owner pilot and visual reply update
+
+The owner-initiated pilot at 08:39 UTC on September 12 produced one inbound
+request and exactly one reply, marked read with no error. Its storefront link
+restored one Noodle Masala Soya Crunchies 270gm, with checkout still available.
+
+Following owner feedback, valid requests now use one interactive message with
+the first cart product's Shopify catalogue image, a quantity/item summary and
+a **View my cart** URL button. No bare URL is shown in the message body. Product
+facts come from `wa_catalog_items`; missing catalogue data falls back to a
+generic item summary and the same button, without inventing a photo. Invalid or
+expired requests retain their explanatory text response. The mandatory reply
+claim, pre-send seal and no-retry rule remain unchanged. Five targeted tests and
+the `wa-ai-reply` type check passed. Visual production delivery requires a fresh
+owner request after deployment; the old inbound must never be replayed.
+
+The public button is still off pending completion of the revised visual pilot
+and storefront installation. No Shopify theme edit has been saved.
+
 ## Customer-visible behavior
 
 - The optional **Send my cart to WhatsApp** action prepares a product-only cart snapshot on the storefront cart page. The shopper must press Send in WhatsApp before the bot replies. No marketing subscription is created.
