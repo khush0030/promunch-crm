@@ -1,0 +1,322 @@
+{
+  "checkedAt": "2026-09-13T10:26:53.268Z",
+  "final": false,
+  "deadline": "2026-09-13T13:04:15Z",
+  "health": {
+    "checkedAt": "2026-09-13T10:26:53.268Z",
+    "since": "2026-09-12T10:26:50.695Z",
+    "oldHost": 200,
+    "newHost": 200,
+    "cronError": null,
+    "jobs": [
+      {
+        "jobname": "amazon-poll",
+        "schedule": "*/15 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:15:00.170876+00:00"
+      },
+      {
+        "jobname": "amazon-settlements",
+        "schedule": "0 5 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T05:00:00.286367+00:00"
+      },
+      {
+        "jobname": "b2b-leads-tick",
+        "schedule": "5 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:05:00.453059+00:00"
+      },
+      {
+        "jobname": "deal-scan-every-30min",
+        "schedule": "*/30 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:00:00.276704+00:00"
+      },
+      {
+        "jobname": "email-flow-tick",
+        "schedule": "*/15 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:15:00.166964+00:00"
+      },
+      {
+        "jobname": "gmail-poll-every-2min",
+        "schedule": "*/2 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:26:00.101163+00:00"
+      },
+      {
+        "jobname": "gmail-watch-renew-daily",
+        "schedule": "0 6 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T06:00:00.303873+00:00"
+      },
+      {
+        "jobname": "kb-embed-nightly",
+        "schedule": "15 2 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T02:15:00.238765+00:00"
+      },
+      {
+        "jobname": "nudge-pending-15min",
+        "schedule": "*/15 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:15:00.21014+00:00"
+      },
+      {
+        "jobname": "purge-operational-logs",
+        "schedule": "10 3 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T03:10:00.147431+00:00"
+      },
+      {
+        "jobname": "shopify-catalog-sync",
+        "schedule": "*/30 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:00:00.264032+00:00"
+      },
+      {
+        "jobname": "shopify-catalog-sync-nightly",
+        "schedule": "30 19 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-12T19:30:00.296102+00:00"
+      },
+      {
+        "jobname": "shopify-daily-summary",
+        "schedule": "29 18 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-12T18:29:00.125579+00:00"
+      },
+      {
+        "jobname": "shopify-monthly-recap",
+        "schedule": "29 18 28-31 * *",
+        "active": true,
+        "last_status": null,
+        "last_start": null
+      },
+      {
+        "jobname": "shopify-webhooks-ensure",
+        "schedule": "15 4 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T04:15:00.262213+00:00"
+      },
+      {
+        "jobname": "shopify-weekly-recap",
+        "schedule": "29 18 * * 0",
+        "active": true,
+        "last_status": null,
+        "last_start": null
+      },
+      {
+        "jobname": "vacuum-hot-log-tables",
+        "schedule": "40 3 * * 0",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T03:40:00.191221+00:00"
+      },
+      {
+        "jobname": "voice-transcript-purge",
+        "schedule": "20 3 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T03:20:00.17908+00:00"
+      },
+      {
+        "jobname": "wa-campaign-tick",
+        "schedule": "*/15 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:15:00.177741+00:00"
+      },
+      {
+        "jobname": "wa-campaign-worker",
+        "schedule": "*/2 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:26:00.102266+00:00"
+      },
+      {
+        "jobname": "wa-confirmation-sweep",
+        "schedule": "*/15 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:15:00.165724+00:00"
+      },
+      {
+        "jobname": "wa-health",
+        "schedule": "*/10 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:20:00.197702+00:00"
+      },
+      {
+        "jobname": "wa-jobs-tick",
+        "schedule": "* * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:26:00.103418+00:00"
+      },
+      {
+        "jobname": "wa-journey-tick",
+        "schedule": "*/15 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:15:00.179863+00:00"
+      },
+      {
+        "jobname": "wa-rfm-tick-nightly",
+        "schedule": "30 1 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T01:30:00.284948+00:00"
+      },
+      {
+        "jobname": "wa-ticket-watchdog-digest",
+        "schedule": "30 3 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T03:30:00.2826+00:00"
+      },
+      {
+        "jobname": "wa-ticket-watchdog-reping",
+        "schedule": "*/15 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:15:00.183105+00:00"
+      },
+      {
+        "jobname": "wa-unanswered",
+        "schedule": "*/5 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:25:00.067965+00:00"
+      },
+      {
+        "jobname": "wa-watchdog",
+        "schedule": "5-59/10 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T10:25:00.07693+00:00"
+      },
+      {
+        "jobname": "wa-weekly-summary",
+        "schedule": "30 3 * * 1",
+        "active": true,
+        "last_status": null,
+        "last_start": null
+      }
+    ],
+    "eventsError": null,
+    "eventsMayBeTruncated": false,
+    "events": {
+      "email_slack:post_ok:info": {
+        "count": 303,
+        "latest": "2026-09-13T10:22:13.845797+00:00"
+      },
+      "whatsapp:health_ok:info": {
+        "count": 142,
+        "latest": "2026-09-13T10:20:01.872721+00:00"
+      },
+      "anthropic:draft_ok:info": {
+        "count": 30,
+        "latest": "2026-09-13T09:58:08.710072+00:00"
+      },
+      "gmail_pipeline:poll_ok:info": {
+        "count": 25,
+        "latest": "2026-09-13T09:34:09.431998+00:00"
+      },
+      "gmail_pipeline:auth_ageing:warn": {
+        "count": 2,
+        "latest": "2026-09-13T08:44:58.221273+00:00"
+      },
+      "shopify_wa:confirmation_skipped_dup:info": {
+        "count": 3,
+        "latest": "2026-09-13T08:37:53.567961+00:00"
+      },
+      "whatsapp:webhook_received:info": {
+        "count": 6,
+        "latest": "2026-09-13T08:28:37.949047+00:00"
+      },
+      "gmail_pipeline:sa_auth_failed:warn": {
+        "count": 6,
+        "latest": "2026-09-13T08:20:06.161266+00:00"
+      },
+      "shopify_slack:post_skipped_dup:info": {
+        "count": 1,
+        "latest": "2026-09-13T07:37:54.701027+00:00"
+      },
+      "shopify_slack:order_refreshed:info": {
+        "count": 2,
+        "latest": "2026-09-13T07:37:51.903824+00:00"
+      },
+      "shopify_slack:post_ok:info": {
+        "count": 1,
+        "latest": "2026-09-13T07:37:50.574743+00:00"
+      },
+      "shopify_wa:confirmation_sent:info": {
+        "count": 1,
+        "latest": "2026-09-13T07:37:50.159648+00:00"
+      },
+      "whatsapp:send_failed:deliverability:131026:warn": {
+        "count": 1,
+        "latest": "2026-09-13T07:15:11.415062+00:00"
+      },
+      "gmail_watch:watch_renewed:info": {
+        "count": 1,
+        "latest": "2026-09-13T06:00:05.094265+00:00"
+      },
+      "whatsapp:send_failed:deliverability:131049:warn": {
+        "count": 2,
+        "latest": "2026-09-13T05:15:09.999754+00:00"
+      },
+      "shopify_wa:abandoned_recover_url:info": {
+        "count": 1,
+        "latest": "2026-09-13T04:02:05.09113+00:00"
+      },
+      "whatsapp:rfm_recompute:info": {
+        "count": 1,
+        "latest": "2026-09-13T01:30:06.69904+00:00"
+      },
+      "gmail_pipeline:poll_failed:error": {
+        "count": 1,
+        "latest": "2026-09-12T22:30:08.428224+00:00"
+      },
+      "gmail_pipeline:auth_missing:error": {
+        "count": 1,
+        "latest": "2026-09-12T22:30:07.77699+00:00"
+      }
+    },
+    "limitations": "Cron status is the latest scheduler result, not proof of HTTP success. Events are bounded to the latest 1000; inspect provider and HTTP logs before final sign-off."
+  },
+  "requests": [
+    {
+      "timestamp": 1789294505202,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "timestamp": 1789294500281,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    }
+  ],
+  "assessment": "10:15Z campaign200,email500 with existing Gateway Timeout. Both hosts200,30jobs active,health10:20Z,email Slack10:22Z. No new warning or failure timestamps since last observation. Daily cycle pending; no production changes or workers invoked."
+}

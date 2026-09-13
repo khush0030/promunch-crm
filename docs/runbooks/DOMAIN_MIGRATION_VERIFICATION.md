@@ -63,3 +63,9 @@ Diagnostics deployed successfully to production as `dpl_Eo9ZUcwBnHortRvQFGAUtuDh
 ## Rollback
 
 Keep both domains attached. Restore the previous production deployment if required; no data migration is involved. The old host's callbacks remain allowed. Reverting to a callback without token-hash support would break newly issued invitation links; preserve the callback handler or reissue only affected staff invitations deliberately.
+
+## Final 24-hour result, September 13
+
+The observation window ended at 13:04:15 UTC (18:34 IST). Domain/auth checks passed, but operational sign-off failed: campaign tick returned HTTP 500 in 48 of 96 runs; email flow tick failed in 50 of 96. All 24 leads calls and all three daily Vercel calls returned HTTP 200. Some Supabase daily job and provider outcomes remain unverified. The monitoring heartbeat is paused; failures have not been fixed.
+
+See the [final report and per-job evidence](../audits/2026-09-13-domain-migration-evidence/REPORT.md). Earlier pending statements above describe intermediate observations.

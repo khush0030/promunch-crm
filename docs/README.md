@@ -68,6 +68,7 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 
 | Doc | What it answers |
 |---|---|
+| [Domain migration final verification](audits/2026-09-13-domain-migration-evidence/REPORT.md) | Full-day results: domain/auth verified; operational failures and unverified jobs remain |
 | [2026-07-18-production-hardening-audit.md](audits/2026-07-18-production-hardening-audit.md) | Full-platform audit + same-day fix pass: criticals fixed, migrations to apply, known-open items, Interakt/Klaviyo roadmap |
 | [PROMUNCH_CRM_Architecture_Audit.html](audits/PROMUNCH_CRM_Architecture_Audit.html) | Jul 2026 full architecture + security audit report |
 

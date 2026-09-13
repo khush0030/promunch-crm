@@ -1,0 +1,2351 @@
+{
+  "windowStart": "2026-09-12T13:04:15Z",
+  "windowEnd": "2026-09-13T13:04:15Z",
+  "checkedAt": "2026-09-13T13:08:11.362Z",
+  "overall": "FAIL: operational reliability; domain/auth migration verified separately",
+  "health": {
+    "checkedAt": "2026-09-13T13:08:11.362Z",
+    "since": "2026-09-12T13:08:08.920Z",
+    "oldHost": 200,
+    "newHost": 200,
+    "cronError": null,
+    "jobs": [
+      {
+        "jobname": "amazon-poll",
+        "schedule": "*/15 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:00:00.354893+00:00"
+      },
+      {
+        "jobname": "amazon-settlements",
+        "schedule": "0 5 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T05:00:00.286367+00:00"
+      },
+      {
+        "jobname": "b2b-leads-tick",
+        "schedule": "5 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:05:00.116518+00:00"
+      },
+      {
+        "jobname": "deal-scan-every-30min",
+        "schedule": "*/30 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:00:00.356091+00:00"
+      },
+      {
+        "jobname": "email-flow-tick",
+        "schedule": "*/15 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:00:00.332894+00:00"
+      },
+      {
+        "jobname": "gmail-poll-every-2min",
+        "schedule": "*/2 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:08:00.214061+00:00"
+      },
+      {
+        "jobname": "gmail-watch-renew-daily",
+        "schedule": "0 6 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T06:00:00.303873+00:00"
+      },
+      {
+        "jobname": "kb-embed-nightly",
+        "schedule": "15 2 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T02:15:00.238765+00:00"
+      },
+      {
+        "jobname": "nudge-pending-15min",
+        "schedule": "*/15 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:00:00.367878+00:00"
+      },
+      {
+        "jobname": "purge-operational-logs",
+        "schedule": "10 3 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T03:10:00.147431+00:00"
+      },
+      {
+        "jobname": "shopify-catalog-sync",
+        "schedule": "*/30 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:00:00.34871+00:00"
+      },
+      {
+        "jobname": "shopify-catalog-sync-nightly",
+        "schedule": "30 19 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-12T19:30:00.296102+00:00"
+      },
+      {
+        "jobname": "shopify-daily-summary",
+        "schedule": "29 18 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-12T18:29:00.125579+00:00"
+      },
+      {
+        "jobname": "shopify-monthly-recap",
+        "schedule": "29 18 28-31 * *",
+        "active": true,
+        "last_status": null,
+        "last_start": null
+      },
+      {
+        "jobname": "shopify-webhooks-ensure",
+        "schedule": "15 4 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T04:15:00.262213+00:00"
+      },
+      {
+        "jobname": "shopify-weekly-recap",
+        "schedule": "29 18 * * 0",
+        "active": true,
+        "last_status": null,
+        "last_start": null
+      },
+      {
+        "jobname": "vacuum-hot-log-tables",
+        "schedule": "40 3 * * 0",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T03:40:00.191221+00:00"
+      },
+      {
+        "jobname": "voice-transcript-purge",
+        "schedule": "20 3 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T03:20:00.17908+00:00"
+      },
+      {
+        "jobname": "wa-campaign-tick",
+        "schedule": "*/15 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:00:00.370409+00:00"
+      },
+      {
+        "jobname": "wa-campaign-worker",
+        "schedule": "*/2 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:08:00.212907+00:00"
+      },
+      {
+        "jobname": "wa-confirmation-sweep",
+        "schedule": "*/15 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:00:00.347438+00:00"
+      },
+      {
+        "jobname": "wa-health",
+        "schedule": "*/10 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:00:00.369255+00:00"
+      },
+      {
+        "jobname": "wa-jobs-tick",
+        "schedule": "* * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:08:00.210357+00:00"
+      },
+      {
+        "jobname": "wa-journey-tick",
+        "schedule": "*/15 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:00:00.345059+00:00"
+      },
+      {
+        "jobname": "wa-rfm-tick-nightly",
+        "schedule": "30 1 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T01:30:00.284948+00:00"
+      },
+      {
+        "jobname": "wa-ticket-watchdog-digest",
+        "schedule": "30 3 * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T03:30:00.2826+00:00"
+      },
+      {
+        "jobname": "wa-ticket-watchdog-reping",
+        "schedule": "*/15 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:00:00.365217+00:00"
+      },
+      {
+        "jobname": "wa-unanswered",
+        "schedule": "*/5 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:05:00.117662+00:00"
+      },
+      {
+        "jobname": "wa-watchdog",
+        "schedule": "5-59/10 * * * *",
+        "active": true,
+        "last_status": "succeeded",
+        "last_start": "2026-09-13T13:05:00.119921+00:00"
+      },
+      {
+        "jobname": "wa-weekly-summary",
+        "schedule": "30 3 * * 1",
+        "active": true,
+        "last_status": null,
+        "last_start": null
+      }
+    ],
+    "eventsError": null,
+    "eventsMayBeTruncated": false,
+    "events": {
+      "email_slack:post_ok:info": {
+        "count": 357,
+        "latest": "2026-09-13T13:04:10.295985+00:00"
+      },
+      "whatsapp:health_ok:info": {
+        "count": 142,
+        "latest": "2026-09-13T13:00:01.829093+00:00"
+      },
+      "anthropic:draft_ok:info": {
+        "count": 35,
+        "latest": "2026-09-13T12:40:09.026042+00:00"
+      },
+      "gmail_pipeline:poll_ok:info": {
+        "count": 25,
+        "latest": "2026-09-13T12:22:09.563297+00:00"
+      },
+      "shopify_wa:abandoned_enrol_refreshed:info": {
+        "count": 1,
+        "latest": "2026-09-13T11:28:52.409508+00:00"
+      },
+      "shopify_wa:abandoned_recover_url:info": {
+        "count": 3,
+        "latest": "2026-09-13T11:28:51.277888+00:00"
+      },
+      "gmail_pipeline:sa_auth_failed:warn": {
+        "count": 6,
+        "latest": "2026-09-13T11:00:07.208264+00:00"
+      },
+      "shopify_slack:order_refreshed:info": {
+        "count": 4,
+        "latest": "2026-09-13T10:49:56.062551+00:00"
+      },
+      "shopify_slack:post_skipped_dup:info": {
+        "count": 2,
+        "latest": "2026-09-13T10:49:23.556123+00:00"
+      },
+      "shopify_wa:confirmation_skipped_dup:info": {
+        "count": 5,
+        "latest": "2026-09-13T10:49:22.421626+00:00"
+      },
+      "whatsapp:webhook_received:info": {
+        "count": 7,
+        "latest": "2026-09-13T10:49:21.566317+00:00"
+      },
+      "shopify_slack:post_ok:info": {
+        "count": 2,
+        "latest": "2026-09-13T10:49:18.74399+00:00"
+      },
+      "shopify_wa:confirmation_sent:info": {
+        "count": 2,
+        "latest": "2026-09-13T10:49:17.874511+00:00"
+      },
+      "gmail_pipeline:auth_ageing:warn": {
+        "count": 2,
+        "latest": "2026-09-13T08:44:58.221273+00:00"
+      },
+      "whatsapp:send_failed:deliverability:131026:warn": {
+        "count": 1,
+        "latest": "2026-09-13T07:15:11.415062+00:00"
+      },
+      "gmail_watch:watch_renewed:info": {
+        "count": 1,
+        "latest": "2026-09-13T06:00:05.094265+00:00"
+      },
+      "whatsapp:send_failed:deliverability:131049:warn": {
+        "count": 1,
+        "latest": "2026-09-13T05:15:09.999754+00:00"
+      },
+      "whatsapp:rfm_recompute:info": {
+        "count": 1,
+        "latest": "2026-09-13T01:30:06.69904+00:00"
+      },
+      "gmail_pipeline:poll_failed:error": {
+        "count": 1,
+        "latest": "2026-09-12T22:30:08.428224+00:00"
+      },
+      "gmail_pipeline:auth_missing:error": {
+        "count": 1,
+        "latest": "2026-09-12T22:30:07.77699+00:00"
+      }
+    },
+    "limitations": "Cron status is the latest scheduler result, not proof of HTTP success. Events are bounded to the latest 1000; inspect provider and HTTP logs before final sign-off."
+  },
+  "jobs": [
+    {
+      "jobname": "amazon-poll",
+      "schedule": "*/15 * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:00:00.354893+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "amazon-settlements",
+      "schedule": "0 5 * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T05:00:00.286367+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "b2b-leads-tick",
+      "schedule": "5 * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:05:00.116518+00:00",
+      "verification": "PASS (HTTP)",
+      "evidence": "24/24 calls HTTP200; downstream lead processing not independently audited."
+    },
+    {
+      "jobname": "deal-scan-every-30min",
+      "schedule": "*/30 * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:00:00.356091+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "email-flow-tick",
+      "schedule": "*/15 * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:00:00.332894+00:00",
+      "verification": "FAIL",
+      "evidence": "50/96 HTTP500; Gateway Timeout in email flow database access."
+    },
+    {
+      "jobname": "gmail-poll-every-2min",
+      "schedule": "*/2 * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:08:00.214061+00:00",
+      "verification": "FAIL (intermittent)",
+      "evidence": "auth_missing/poll_failed at Sep12 22:30 UTC; later poll_ok and email processing confirmed."
+    },
+    {
+      "jobname": "gmail-watch-renew-daily",
+      "schedule": "0 6 * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T06:00:00.303873+00:00",
+      "verification": "PASS (application)",
+      "evidence": "watch_renewed event Sep13 06:00:05 UTC."
+    },
+    {
+      "jobname": "kb-embed-nightly",
+      "schedule": "15 2 * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T02:15:00.238765+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "nudge-pending-15min",
+      "schedule": "*/15 * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:00:00.367878+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "purge-operational-logs",
+      "schedule": "10 3 * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T03:10:00.147431+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "shopify-catalog-sync",
+      "schedule": "*/30 * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:00:00.34871+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "shopify-catalog-sync-nightly",
+      "schedule": "30 19 * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-12T19:30:00.296102+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "shopify-daily-summary",
+      "schedule": "29 18 * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-12T18:29:00.125579+00:00",
+      "verification": "PASS (correlated application evidence)",
+      "evidence": "Sep12 18:29 UTC HTTP200/ok:true response matched count,ok,period,total schema and schedule; independently observed Slack delivery unverified."
+    },
+    {
+      "jobname": "shopify-monthly-recap",
+      "schedule": "29 18 28-31 * *",
+      "active": true,
+      "last_status": null,
+      "last_start": null,
+      "verification": "NOT DUE",
+      "evidence": "Monthly date outside window."
+    },
+    {
+      "jobname": "shopify-webhooks-ensure",
+      "schedule": "15 4 * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T04:15:00.262213+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "shopify-weekly-recap",
+      "schedule": "29 18 * * 0",
+      "active": true,
+      "last_status": null,
+      "last_start": null,
+      "verification": "NOT DUE",
+      "evidence": "Sunday18:29 UTC occurs after cutoff."
+    },
+    {
+      "jobname": "vacuum-hot-log-tables",
+      "schedule": "40 3 * * 0",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T03:40:00.191221+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "voice-transcript-purge",
+      "schedule": "20 3 * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T03:20:00.17908+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "wa-campaign-tick",
+      "schedule": "*/15 * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:00:00.370409+00:00",
+      "verification": "FAIL",
+      "evidence": "48/96 HTTP500; Gateway Timeout on initial campaign read."
+    },
+    {
+      "jobname": "wa-campaign-worker",
+      "schedule": "*/2 * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:08:00.212907+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "wa-confirmation-sweep",
+      "schedule": "*/15 * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:00:00.347438+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "wa-health",
+      "schedule": "*/10 * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:00:00.369255+00:00",
+      "verification": "PASS (observed health)",
+      "evidence": "Recurring health_ok events, latest13:00:01 UTC; not proof every dispatch completed."
+    },
+    {
+      "jobname": "wa-jobs-tick",
+      "schedule": "* * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:08:00.210357+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "wa-journey-tick",
+      "schedule": "*/15 * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:00:00.345059+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "wa-rfm-tick-nightly",
+      "schedule": "30 1 * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T01:30:00.284948+00:00",
+      "verification": "PASS (application)",
+      "evidence": "rfm_recompute event Sep13 01:30:06 UTC."
+    },
+    {
+      "jobname": "wa-ticket-watchdog-digest",
+      "schedule": "30 3 * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T03:30:00.2826+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "wa-ticket-watchdog-reping",
+      "schedule": "*/15 * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:00:00.365217+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "wa-unanswered",
+      "schedule": "*/5 * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:05:00.117662+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "wa-watchdog",
+      "schedule": "5-59/10 * * * *",
+      "active": true,
+      "last_status": "succeeded",
+      "last_start": "2026-09-13T13:05:00.119921+00:00",
+      "verification": "UNVERIFIED",
+      "evidence": "Latest due scheduler execution succeeded; HTTP, application or resulting DB outcome not independently verified."
+    },
+    {
+      "jobname": "wa-weekly-summary",
+      "schedule": "30 3 * * 1",
+      "active": true,
+      "last_status": null,
+      "last_start": null,
+      "verification": "NOT DUE",
+      "evidence": "Monday03:30 UTC outside window."
+    }
+  ],
+  "requests": [
+    {
+      "id": "jfzpg-1789218300289-c1ffdcd1a578",
+      "timestamp": 1789218300289,
+      "deploymentId": "dpl_EDcusVFJsK9whKr7KHynkjBWHdYz",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "g88j6-1789218900346-b8bf431869e6",
+      "timestamp": 1789218900346,
+      "deploymentId": "dpl_BZhBW11Q4Uvvb7UDZqHCHoaJ2Eqo",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "v2kx7-1789218900352-6ff1fa12e790",
+      "timestamp": 1789218900352,
+      "deploymentId": "dpl_BZhBW11Q4Uvvb7UDZqHCHoaJ2Eqo",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": ""
+    },
+    {
+      "id": "9t6hz-1789219800423-7b7374a79df9",
+      "timestamp": 1789219800423,
+      "deploymentId": "dpl_BZhBW11Q4Uvvb7UDZqHCHoaJ2Eqo",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": ""
+    },
+    {
+      "id": "xc5kg-1789219800429-cc324af5f178",
+      "timestamp": 1789219800429,
+      "deploymentId": "dpl_BZhBW11Q4Uvvb7UDZqHCHoaJ2Eqo",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "67266-1789220705336-2b8158503435",
+      "timestamp": 1789220705336,
+      "deploymentId": "dpl_BZhBW11Q4Uvvb7UDZqHCHoaJ2Eqo",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "n2qnk-1789220705343-8dd92354e8e1",
+      "timestamp": 1789220705343,
+      "deploymentId": "dpl_BZhBW11Q4Uvvb7UDZqHCHoaJ2Eqo",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "v2kx7-1789221600344-156f7f157f59",
+      "timestamp": 1789221600344,
+      "deploymentId": "dpl_BZhBW11Q4Uvvb7UDZqHCHoaJ2Eqo",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "8z88q-1789221607615-c362f7ad11a7",
+      "timestamp": 1789221607615,
+      "deploymentId": "dpl_BZhBW11Q4Uvvb7UDZqHCHoaJ2Eqo",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": ""
+    },
+    {
+      "id": "gsq9f-1789221900823-20a21f5cbafb",
+      "timestamp": 1789221900823,
+      "deploymentId": "dpl_BZhBW11Q4Uvvb7UDZqHCHoaJ2Eqo",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "2chfd-1789222500464-96d025a09d86",
+      "timestamp": 1789222500464,
+      "deploymentId": "dpl_BZhBW11Q4Uvvb7UDZqHCHoaJ2Eqo",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": ""
+    },
+    {
+      "id": "h25mr-1789222500469-6d81ac7ffe34",
+      "timestamp": 1789222500469,
+      "deploymentId": "dpl_BZhBW11Q4Uvvb7UDZqHCHoaJ2Eqo",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "jxbfc-1789223405287-e316dce8a6c1",
+      "timestamp": 1789223405287,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "wrk56-1789223405289-0ce79f822416",
+      "timestamp": 1789223405289,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "n2qnk-1789224300359-784769cf76ee",
+      "timestamp": 1789224300359,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "wrk56-1789224300364-75b00f7e3c76",
+      "timestamp": 1789224300364,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "47x4r-1789225200401-17b93e0ca83b",
+      "timestamp": 1789225200401,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "9t6hz-1789225205310-f66db1c3ecf3",
+      "timestamp": 1789225205310,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "zt458-1789225244001-f8d6055f65e5",
+      "timestamp": 1789225244001,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-watchdog",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "54pvp-1789225500726-4bf155f7ca89",
+      "timestamp": 1789225500726,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "rspss-1789226100354-51912fad7856",
+      "timestamp": 1789226100354,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "tjkqg-1789226100360-841160ef4a70",
+      "timestamp": 1789226100360,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "rmnkj-1789227000385-eed38add95b2",
+      "timestamp": 1789227000385,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "47x4r-1789227007134-1f620e86eed7",
+      "timestamp": 1789227007134,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "jfzpg-1789227900588-0baa35312d0f",
+      "timestamp": 1789227900588,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "m8b5k-1789227900593-7e41ad3fe5d3",
+      "timestamp": 1789227900593,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "tjkqg-1789228800423-bbeedc67ead6",
+      "timestamp": 1789228800423,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "xv2zf-1789228800427-dec8e9ef4bbd",
+      "timestamp": 1789228800427,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "8kzwl-1789229100458-e6b6669995bb",
+      "timestamp": 1789229100458,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "8kzwl-1789229700781-9ed84e4d8d73",
+      "timestamp": 1789229700781,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "2gdf6-1789229700788-a54464c58499",
+      "timestamp": 1789229700788,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "b8b5j-1789230600419-ad21cf811d28",
+      "timestamp": 1789230600419,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "99hp8-1789230600424-433b14a6792d",
+      "timestamp": 1789230600424,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "2qwks-1789231500333-60f0e9112afe",
+      "timestamp": 1789231500333,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "tjkqg-1789231505244-8e53fb9d0bf4",
+      "timestamp": 1789231505244,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "9wn2q-1789232405315-c418e24d29e4",
+      "timestamp": 1789232405315,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "6jcfz-1789232405319-ff5d7aeec956",
+      "timestamp": 1789232405319,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "2qwks-1789232700247-b1064cde5a50",
+      "timestamp": 1789232700247,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "km5tq-1789233300448-28ca9d40281f",
+      "timestamp": 1789233300448,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "sp5tb-1789233300453-69bda516b702",
+      "timestamp": 1789233300453,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "vwmgj-1789234200370-dc233c250291",
+      "timestamp": 1789234200370,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "km5tq-1789234206733-c410a49bc3b1",
+      "timestamp": 1789234206733,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "b8b5j-1789235100346-a1a48f971349",
+      "timestamp": 1789235100346,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "6jcfz-1789235100352-836c2aef8395",
+      "timestamp": 1789235100352,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "kvfr4-1789236000313-9f3d0dd4e779",
+      "timestamp": 1789236000313,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "9wrql-1789236005232-bfb466a5801e",
+      "timestamp": 1789236005232,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "8crq5-1789236300286-d27b1be5a58b",
+      "timestamp": 1789236300286,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "mh55p-1789236900328-ac2f22250eca",
+      "timestamp": 1789236900328,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "blnsp-1789236900333-eb61361960fe",
+      "timestamp": 1789236900333,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "km5tq-1789237806921-89de43dfb58e",
+      "timestamp": 1789237806921,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "vj8n7-1789237806922-6c8060f87c4b",
+      "timestamp": 1789237806922,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "47gv4-1789238700312-c64f130586d8",
+      "timestamp": 1789238700312,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "b8b5j-1789238700317-de21adb70f75",
+      "timestamp": 1789238700317,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "9wn2q-1789239600431-f8d076ac2ba9",
+      "timestamp": 1789239600431,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "b8b5j-1789239600437-36af4cf36163",
+      "timestamp": 1789239600437,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "r6kcb-1789239900802-1036428e704d",
+      "timestamp": 1789239900802,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "2qwks-1789240500494-e3b8e3ed81bd",
+      "timestamp": 1789240500494,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "tn9vp-1789240500498-c50e8d3efa0f",
+      "timestamp": 1789240500498,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "6jcfz-1789241400429-0b4e4f2ff554",
+      "timestamp": 1789241400429,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "47gv4-1789241406764-a28a9983d1ad",
+      "timestamp": 1789241406764,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "47gv4-1789242300457-525804c2274c",
+      "timestamp": 1789242300457,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "488zr-1789242300464-99b2a726a3b6",
+      "timestamp": 1789242300464,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "blnsp-1789243200413-a74f327e6a0d",
+      "timestamp": 1789243200413,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "blnsp-1789243205315-4224cb5a0cd7",
+      "timestamp": 1789243205315,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "488zr-1789243500396-3e3e654fb015",
+      "timestamp": 1789243500396,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "47gv4-1789244100420-d6e7565a2d4c",
+      "timestamp": 1789244100420,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "b8b5j-1789244100424-35a674079bd9",
+      "timestamp": 1789244100424,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "r6kcb-1789245000420-522db0c99fb9",
+      "timestamp": 1789245000420,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "r6kcb-1789245006453-648ee42ed3d2",
+      "timestamp": 1789245006453,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "zg2vw-1789245031130-520588d5669b",
+      "timestamp": 1789245031130,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-engagement-tiers",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "t7f5d-1789245900502-e551a8fec119",
+      "timestamp": 1789245900502,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "jn5x5-1789245900509-b0b6aca8d82b",
+      "timestamp": 1789245900509,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "7jdjn-1789246805349-bd345a5cbde8",
+      "timestamp": 1789246805349,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "72rpc-1789246805357-93ad8a61344c",
+      "timestamp": 1789246805357,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "pxd85-1789247100385-ad4c998aba48",
+      "timestamp": 1789247100385,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "7jdjn-1789247700485-6914748d0b28",
+      "timestamp": 1789247700485,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "tn9vp-1789247705386-6b6fb86dcd6e",
+      "timestamp": 1789247705386,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "jmqtb-1789248600424-e91bae4d8e6d",
+      "timestamp": 1789248600424,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "7jdjn-1789248600431-695019d546d5",
+      "timestamp": 1789248600431,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "7jdjn-1789249500388-2036fb6f8af5",
+      "timestamp": 1789249500388,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "mcmsm-1789249500389-fe67e3cd4f84",
+      "timestamp": 1789249500389,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "rgptq-1789250400430-9bc86e54b4e1",
+      "timestamp": 1789250400430,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "ffhj7-1789250400437-101cd00487e1",
+      "timestamp": 1789250400437,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "t7f5d-1789250700820-fa4d5b4de9a7",
+      "timestamp": 1789250700820,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "pjbbr-1789251300353-203b776a434c",
+      "timestamp": 1789251300353,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "ffhj7-1789251300363-c8d8392e4e59",
+      "timestamp": 1789251300363,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "4rs89-1789252200364-724f66c125d5",
+      "timestamp": 1789252200364,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "6jrk9-1789252205259-1c32cfad3ab7",
+      "timestamp": 1789252205259,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "jmqtb-1789253100336-840376f4b0c6",
+      "timestamp": 1789253100336,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "wttp9-1789253103776-eb02b76776e9",
+      "timestamp": 1789253103776,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "wttp9-1789254000489-be4f7991c81c",
+      "timestamp": 1789254000489,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "6jrk9-1789254000495-aa9c3428dca9",
+      "timestamp": 1789254000495,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "7jdjn-1789254301463-bccec7a2978d",
+      "timestamp": 1789254301463,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "t7f5d-1789254901705-ee4f0cdbd14d",
+      "timestamp": 1789254901705,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "whdsn-1789254901712-e0aa8d1b0735",
+      "timestamp": 1789254901712,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "t7f5d-1789255800357-40500a247f49",
+      "timestamp": 1789255800357,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "ptr9b-1789255805626-e6b1b639ace3",
+      "timestamp": 1789255805626,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "tc9sk-1789256700403-453a66568f90",
+      "timestamp": 1789256700403,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "jmqtb-1789256700406-a34b99604254",
+      "timestamp": 1789256700406,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "nbql7-1789257604444-45fd1960ec11",
+      "timestamp": 1789257604444,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "jmqtb-1789257604449-6faf08a47701",
+      "timestamp": 1789257604449,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "4rs89-1789257900241-73d89bc519ec",
+      "timestamp": 1789257900241,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "whdsn-1789258500687-960c876b33e5",
+      "timestamp": 1789258500687,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "jn5x5-1789258500693-478259966796",
+      "timestamp": 1789258500693,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "xhs49-1789259400435-71ee9fa1a5c9",
+      "timestamp": 1789259400435,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "z5hx4-1789259405752-71ad9c796f9e",
+      "timestamp": 1789259405752,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "jmqtb-1789260300359-33c28313a493",
+      "timestamp": 1789260300359,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "4rs89-1789260300366-b60dcd6af233",
+      "timestamp": 1789260300366,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "w6g8q-1789261200413-895fd829e21b",
+      "timestamp": 1789261200413,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "p2j74-1789261200418-a70ccb01a778",
+      "timestamp": 1789261200418,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "h7rx2-1789261500198-b139b55477bf",
+      "timestamp": 1789261500198,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "z5hx4-1789262100331-9b0c67a501e0",
+      "timestamp": 1789262100331,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "mc4z2-1789262105229-1b3af7d2d74e",
+      "timestamp": 1789262105229,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "kq86p-1789263006041-420cfa1a2940",
+      "timestamp": 1789263006041,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "mc4z2-1789263006047-c18186841524",
+      "timestamp": 1789263006047,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "ch8qr-1789263905430-b2aaa109bea4",
+      "timestamp": 1789263905430,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "44nqs-1789263905436-d7138ae9472d",
+      "timestamp": 1789263905436,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "q4tjs-1789264800437-894295163028",
+      "timestamp": 1789264800437,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "w6g8q-1789264805356-195b63bd94c3",
+      "timestamp": 1789264805356,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "pnspj-1789265100945-faef19282c75",
+      "timestamp": 1789265100945,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "kq86p-1789265700380-282166379125",
+      "timestamp": 1789265700380,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "m57qc-1789265700384-d2e8f257bc29",
+      "timestamp": 1789265700384,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "m57qc-1789266600441-c49d4a502981",
+      "timestamp": 1789266600441,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "9xnvl-1789266600446-c6d9940b4d1f",
+      "timestamp": 1789266600446,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "64s27-1789267500281-1935935d38da",
+      "timestamp": 1789267500281,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "w6g8q-1789267500286-9a17c4a764b9",
+      "timestamp": 1789267500286,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "nkq7v-1789268410903-662c7150d4b8",
+      "timestamp": 1789268410903,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "h7rx2-1789268410918-4d8f1cfd4c3d",
+      "timestamp": 1789268410918,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "6f8b5-1789268446085-29c5211d5d55",
+      "timestamp": 1789268446085,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-watchdog",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "z5hx4-1789268701546-3fd130ff3130",
+      "timestamp": 1789268701546,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "kq86p-1789269305349-6b8a5ab22693",
+      "timestamp": 1789269305349,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "64s27-1789269305356-843bfc014d20",
+      "timestamp": 1789269305356,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "w6g8q-1789270200443-1167cd596fa4",
+      "timestamp": 1789270200443,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "nkq7v-1789270205363-04e3d594f515",
+      "timestamp": 1789270205363,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "qb7jd-1789271100325-d9de5ccca380",
+      "timestamp": 1789271100325,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "x6x5b-1789271105206-bbe1666f4839",
+      "timestamp": 1789271105206,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "cxvvj-1789272004234-fd0fbd6e742d",
+      "timestamp": 1789272004234,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "62plc-1789272004240-bc759adc8170",
+      "timestamp": 1789272004240,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "tcvsj-1789272300284-47661bce8701",
+      "timestamp": 1789272300284,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "8ndtz-1789272900443-ed40b533551f",
+      "timestamp": 1789272900443,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "cxvvj-1789272900450-b025a8c217ca",
+      "timestamp": 1789272900450,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "62plc-1789273800421-aa9914003d18",
+      "timestamp": 1789273800421,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "ggdp7-1789273807855-16094c09490e",
+      "timestamp": 1789273807855,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "ctb6c-1789274701096-c506e7fde598",
+      "timestamp": 1789274701096,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "tp59d-1789274701103-0a9db77446ec",
+      "timestamp": 1789274701103,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "vrg8r-1789275600449-a470854eb61a",
+      "timestamp": 1789275600449,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "2bdkz-1789275609555-e4fddd711d3e",
+      "timestamp": 1789275609555,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "pnspj-1789275901640-8c3d8e71a448",
+      "timestamp": 1789275901640,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "jgd69-1789276500377-3d619ed9f2ae",
+      "timestamp": 1789276500377,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "56pjq-1789276505264-c0f885fbc6ea",
+      "timestamp": 1789276505264,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "wrrjs-1789277406757-b4562a7ebf81",
+      "timestamp": 1789277406757,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "nzkf6-1789277406762-8c7499cebd7b",
+      "timestamp": 1789277406762,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "vrg8r-1789278300582-316d94170996",
+      "timestamp": 1789278300582,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "vrg8r-1789278300590-b31e48285c17",
+      "timestamp": 1789278300590,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "qrl8m-1789279200454-044346204050",
+      "timestamp": 1789279200454,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "kktk2-1789279200462-b3b6280f444b",
+      "timestamp": 1789279200462,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "pvr5k-1789279500296-41df0b06065c",
+      "timestamp": 1789279500296,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "4rtr6-1789280100986-4ba3255f450c",
+      "timestamp": 1789280100986,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "jgd69-1789280100991-e63457cb1381",
+      "timestamp": 1789280100991,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "5pwdq-1789281000440-213e26e0012e",
+      "timestamp": 1789281000440,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "pvr5k-1789281010554-ab2219fa122b",
+      "timestamp": 1789281010554,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "kktk2-1789281900364-b0b4fdd25e8c",
+      "timestamp": 1789281900364,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "prh9w-1789281900370-60ee4ee63be5",
+      "timestamp": 1789281900370,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "f9bbh-1789282800418-ab0cf79ef570",
+      "timestamp": 1789282800418,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "wrrjs-1789282807164-5e9a2e07ba37",
+      "timestamp": 1789282807164,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "tf8ft-1789283100231-75da46cacff5",
+      "timestamp": 1789283100231,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "f9bbh-1789283705368-1acfe7167625",
+      "timestamp": 1789283705368,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "jgd69-1789283705375-4e4af778f56e",
+      "timestamp": 1789283705375,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "56pjq-1789284600389-821927378ca9",
+      "timestamp": 1789284600389,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "6nwjv-1789284607418-71667552bb67",
+      "timestamp": 1789284607418,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "x6jll-1789285500401-e165d18890bd",
+      "timestamp": 1789285500401,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "4rtr6-1789285505285-1e399f33a0a7",
+      "timestamp": 1789285505285,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "f9bbh-1789286410155-4c26afaf8912",
+      "timestamp": 1789286410155,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "dsr8b-1789286410159-9eb70f9cf201",
+      "timestamp": 1789286410159,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "4rtr6-1789286701872-54ca6c4b64f8",
+      "timestamp": 1789286701872,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "skcpd-1789287305315-5577ed117060",
+      "timestamp": 1789287305315,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "tf8ft-1789287305323-643a975db56d",
+      "timestamp": 1789287305323,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "82pk7-1789288206904-8bb482d78232",
+      "timestamp": 1789288206904,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "f9bbh-1789288206910-5c8c9ed954f2",
+      "timestamp": 1789288206910,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "6nwjv-1789289102336-e474f02db46f",
+      "timestamp": 1789289102336,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "j4xtp-1789289102345-b9921dd10adc",
+      "timestamp": 1789289102345,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "q97b8-1789290000460-0f53edf59057",
+      "timestamp": 1789290000460,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "frh85-1789290005344-9e48653dce33",
+      "timestamp": 1789290005344,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "jmjrn-1789290300242-5696839351f0",
+      "timestamp": 1789290300242,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "nqnzp-1789290900400-cecafd211c58",
+      "timestamp": 1789290900400,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "gxswx-1789290900405-8cfb8426d79d",
+      "timestamp": 1789290900405,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "9df4t-1789291800438-13d04cc25dfb",
+      "timestamp": 1789291800438,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "7ks87-1789291806437-eb7674fc77f8",
+      "timestamp": 1789291806437,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "frh85-1789292700392-68f8a6180c83",
+      "timestamp": 1789292700392,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "bx9cf-1789292700398-9284db907e76",
+      "timestamp": 1789292700398,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "bx9cf-1789293600437-31905da96c97",
+      "timestamp": 1789293600437,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "phj4r-1789293607324-e0e81ed5e156",
+      "timestamp": 1789293607324,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "frh85-1789293900802-81eb472f40a9",
+      "timestamp": 1789293900802,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "mxb27-1789294500281-6ffbfa136eb4",
+      "timestamp": 1789294500281,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "9h99g-1789294505202-fd2c88688d5b",
+      "timestamp": 1789294505202,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "8vx8w-1789295400381-92cb09ea6205",
+      "timestamp": 1789295400381,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "skcpd-1789295407297-e5dc10f4dd8a",
+      "timestamp": 1789295407297,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "frh85-1789296300637-f57c0fb46291",
+      "timestamp": 1789296300637,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "xgf24-1789296300641-b2acfcc2f066",
+      "timestamp": 1789296300641,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "xxrnd-1789297210707-b98e6b8e7680",
+      "timestamp": 1789297210707,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "mvqz9-1789297210710-c8f3e6b5aa24",
+      "timestamp": 1789297210710,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "tst74-1789297500617-486704afd0d6",
+      "timestamp": 1789297500617,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "6svts-1789298100357-4328a0832562",
+      "timestamp": 1789298100357,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "2dkfr-1789298105251-3733c9e00865",
+      "timestamp": 1789298105251,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "skcpd-1789299000417-e2a73b1a2480",
+      "timestamp": 1789299000417,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "bcd78-1789299000421-b08be0911549",
+      "timestamp": 1789299000421,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "hcphk-1789299902433-d7377fe2d364",
+      "timestamp": 1789299902433,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "frh85-1789299902438-9c2a46c75533",
+      "timestamp": 1789299902438,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "jmjrn-1789300805544-e69ae91c6a96",
+      "timestamp": 1789300805544,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "bfr8s-1789300805548-f64a9103d5e3",
+      "timestamp": 1789300805548,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "tst74-1789301100810-78bd8a231df7",
+      "timestamp": 1789301100810,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/leads-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "n44ws-1789301700590-8ead5896544d",
+      "timestamp": 1789301700590,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "h9jvd-1789301700592-5c2849960a25",
+      "timestamp": 1789301700592,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "s4gdd-1789302600616-05da123c9fe8",
+      "timestamp": 1789302600616,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "4lk7z-1789302600622-cbe04569c175",
+      "timestamp": 1789302600622,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "9p5w8-1789303500416-e424dcc48d4a",
+      "timestamp": 1789303500416,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 200,
+      "message": ""
+    },
+    {
+      "id": "bx9cf-1789303500420-cc44f4c06423",
+      "timestamp": 1789303500420,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "hjw84-1789304400528-3de01fe57966",
+      "timestamp": 1789304400528,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/email-flow-tick",
+      "status": 500,
+      "message": "email_flow_tick_failed { message: 'Gateway Timeout' }"
+    },
+    {
+      "id": "bm84v-1789304407352-a32c71d33fd1",
+      "timestamp": 1789304407352,
+      "deploymentId": "dpl_BYZ4ncRrY9ZxyP3fEQQqRRwMDto7",
+      "path": "/api/cron/wa-campaign-tick",
+      "status": 500,
+      "message": "wa_campaign_tick_read_failed { code: undefined, message: 'Gateway Timeout' }"
+    }
+  ],
+  "net": {
+    "earliest": "2026-09-13T07:11:00.113356Z",
+    "latest": "2026-09-13T13:04:00.328890Z",
+    "requests": 1045,
+    "http2xx": 898,
+    "http5xx": 0,
+    "transportTimeouts": 147,
+    "limitation": "Retained pg_net response window only, across all HTTP jobs; cannot assign each response to a target URL. Timeout does not prove the downstream job failed or never completed."
+  },
+  "limitations": [
+    "219 unique Vercel requests fetched in six bounded intervals; repeated CLI pagination removed.96 requests for each15-minute route cover24hours.",
+    "Earlier temporary evidence files disappeared; earlier SQL/browser observations are retained in task history and runbook, distinguished from newly exported raw evidence.",
+    "Provider event snapshots use rolling24-hour windows and latest1000 cap. Final snapshot extends about4minutes past cutoff; event timestamps are considered individually.",
+    "No manual worker invocations, resends, production schedule changes, or provider contact during monitoring."
+  ]
+}
