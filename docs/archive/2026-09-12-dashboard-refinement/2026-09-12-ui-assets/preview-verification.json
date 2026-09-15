@@ -1,0 +1,191 @@
+{
+  "scope": "Design mockups only; not production or physical-device certification.",
+  "render_checks": {
+    "checked": 420,
+    "errors": [],
+    "failures": []
+  },
+  "interaction_checks": {
+    "errors": [],
+    "checks": [
+      {
+        "id": "S013",
+        "width": 320,
+        "overflow": false
+      },
+      {
+        "id": "S018",
+        "width": 320,
+        "overflow": false
+      },
+      {
+        "id": "S019",
+        "width": 320,
+        "overflow": false
+      },
+      {
+        "id": "S028",
+        "width": 320,
+        "overflow": false
+      },
+      {
+        "id": "S045",
+        "width": 320,
+        "overflow": false
+      },
+      {
+        "id": "S103",
+        "width": 320,
+        "overflow": false
+      },
+      {
+        "id": "S130-1",
+        "width": 320,
+        "overflow": false
+      },
+      {
+        "id": "D001",
+        "width": 320,
+        "overflow": false
+      },
+      {
+        "id": "S013",
+        "width": 768,
+        "overflow": false
+      },
+      {
+        "id": "S018",
+        "width": 768,
+        "overflow": false
+      },
+      {
+        "id": "S019",
+        "width": 768,
+        "overflow": false
+      },
+      {
+        "id": "S028",
+        "width": 768,
+        "overflow": false
+      },
+      {
+        "id": "S045",
+        "width": 768,
+        "overflow": false
+      },
+      {
+        "id": "S103",
+        "width": 768,
+        "overflow": false
+      },
+      {
+        "id": "S130-1",
+        "width": 768,
+        "overflow": false
+      },
+      {
+        "id": "D001",
+        "width": 768,
+        "overflow": false
+      },
+      {
+        "id": "S013",
+        "width": 1024,
+        "overflow": false
+      },
+      {
+        "id": "S018",
+        "width": 1024,
+        "overflow": false
+      },
+      {
+        "id": "S019",
+        "width": 1024,
+        "overflow": false
+      },
+      {
+        "id": "S028",
+        "width": 1024,
+        "overflow": false
+      },
+      {
+        "id": "S045",
+        "width": 1024,
+        "overflow": false
+      },
+      {
+        "id": "S103",
+        "width": 1024,
+        "overflow": false
+      },
+      {
+        "id": "S130-1",
+        "width": 1024,
+        "overflow": false
+      },
+      {
+        "id": "D001",
+        "width": 1024,
+        "overflow": false
+      },
+      {
+        "id": "S001",
+        "publicNoNavigation": true
+      },
+      {
+        "id": "S003-1",
+        "publicNoNavigation": true
+      },
+      {
+        "id": "S004-1",
+        "publicNoNavigation": true
+      },
+      {
+        "id": "S005",
+        "publicNoNavigation": true
+      },
+      {
+        "id": "S011",
+        "publicNoNavigation": true
+      },
+      {
+        "id": "S011-1",
+        "publicNoNavigation": true
+      },
+      {
+        "state": "Loading",
+        "rendered": true
+      },
+      {
+        "state": "Empty",
+        "rendered": true
+      },
+      {
+        "state": "Error",
+        "rendered": true
+      },
+      {
+        "state": "Access denied",
+        "rendered": true
+      },
+      {
+        "navigation": true
+      },
+      {
+        "filterRows": 1
+      },
+      {
+        "livePreview": "Hi Riya, this is a preview."
+      },
+      {
+        "composerVisible": true
+      },
+      {
+        "sendConfirmation": 1
+      },
+      {
+        "reviewSaved": true
+      }
+    ]
+  }
+}

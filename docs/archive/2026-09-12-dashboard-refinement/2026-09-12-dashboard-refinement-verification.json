@@ -1,0 +1,12 @@
+{
+  "artifact": "2026-09-12-dashboard-refinement-review.html",
+  "scope": "isolated fictional-data design previews, not authenticated production",
+  "view_compositions": 210,
+  "viewport_checks": 420,
+  "laptop_width": 1240,
+  "mobile_width": 390,
+  "javascript_errors": [],
+  "horizontal_page_overflows": [],
+  "application_files_changed": false,
+  "deployed": false
+}

@@ -55,6 +55,10 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 
 | Doc | What it answers |
 |---|---|
+| [2026-09-15 CRM redesign](plans/2026-09-15-crm-redesign/IMPLEMENTATION_PLAN.md) | APPROVED 15 Sep: 6-hub navigation, PROMUNCH brand system, 34 screens laptop + phone (prototype: `index.html` + `screens.js` in the same folder, live at https://claude.ai/artifact/Wej9SQVrLomK5jGNp84PSZ); Phase 0-1 implementation plan |
+| [2026-09-15-b2b-buyer-discovery.md](plans/2026-09-15-b2b-buyer-discovery.md) | Buyer Finder proposal: Apollo + ZeroBounce, named decision makers, UI/backend design, costs, deliverability safeguards and coverage pilot |
+| [UI component architecture](archive/2026-09-12-broad-ui-proposal/plans/2026-09-12-ui-component-architecture.md) | Shared component responsibilities, module boundaries and rules against future crowding |
+| [2026-09-12-complete-ui-redesign-plan.md](archive/2026-09-12-broad-ui-proposal/plans/2026-09-12-complete-ui-redesign-plan.md) | Complete CRM UI audit, brand alignment, mobile specification and implementation sequence |
 | [2026-07-05-b2b-leads-v2.md](plans/2026-07-05-b2b-leads-v2.md) | B2B leads v2 implementation plan (lists/sequences/templates/analytics) |
 | [2026-07-05-b2b-leads-v2-design.md](plans/2026-07-05-b2b-leads-v2-design.md) | B2B leads v2 design spec |
 | [2026-07-17-deal-pipeline.md](plans/2026-07-17-deal-pipeline.md) | Deal pipeline: AI scan of hello@promunch.in → /dashboard/deals stage tracker (architecture + ops checklist) |
@@ -69,6 +73,10 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 | Doc | What it answers |
 |---|---|
 | [Domain migration final verification](audits/2026-09-13-domain-migration-evidence/REPORT.md) | Full-day results: domain/auth verified; operational failures and unverified jobs remain |
+| [12 Sep dashboard refinement (superseded)](archive/2026-09-12-dashboard-refinement/2026-09-12-dashboard-refinement-review.html) | Earlier proposal that kept the old navigation and Geist; replaced by the 15 Sep redesign |
+| [Earlier broad UI proposal (superseded)](archive/2026-09-12-broad-ui-proposal/audits/2026-09-12-ui-redesign-review.html) | Interactive visual review: 209 app views plus a component reference, laptop/mobile previews, states and local approval notes |
+| [UI coverage register](archive/2026-09-12-broad-ui-proposal/audits/2026-09-12-ui-screen-coverage.md) | All 28 page routes and 132 source surfaces mapped to the redesign |
+| [Source surface inventory](archive/2026-09-12-broad-ui-proposal/audits/2026-09-12-ui-screen-inventory.json) / [Visual manifest](archive/2026-09-12-broad-ui-proposal/audits/2026-09-12-ui-prototype-manifest.json) | Structured inventories for keeping implementation scope complete |
 | [2026-07-18-production-hardening-audit.md](audits/2026-07-18-production-hardening-audit.md) | Full-platform audit + same-day fix pass: criticals fixed, migrations to apply, known-open items, Interakt/Klaviyo roadmap |
 | [PROMUNCH_CRM_Architecture_Audit.html](audits/PROMUNCH_CRM_Architecture_Audit.html) | Jul 2026 full architecture + security audit report |
 
