@@ -904,6 +904,7 @@ table.pm2-tbl{width:100%;border-collapse:collapse;font-size:14px;color:var(--pm-
 .pm2-tbl td .sub{display:block;font-size:12.5px;color:var(--pm-hint)}
 .pm2-tbl tr.hl td{background:color-mix(in srgb,var(--pm-terra-soft) 55%,transparent)}
 .pm2-cards{display:none}
+.pm2-empty{padding:18px;color:var(--pm-hint);font-size:13.5px;text-align:center}
 .pm2-rowc{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:start;padding:11px 14px;border-top:1px solid var(--pm-line)}
 .pm2-rowc:first-child{border-top:0}
 .pm2-rowc.hl{background:color-mix(in srgb,var(--pm-terra-soft) 55%,transparent)}

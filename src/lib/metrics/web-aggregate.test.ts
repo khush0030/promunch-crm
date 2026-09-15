@@ -152,6 +152,46 @@ describe("aggregateWeb", () => {
     expect(nt).toMatchObject({ revenue: 300, orders: 1 });
   });
 
+  it("WhatsApp match is word-anchored: 'giveaway' as a source must not match", () => {
+    const r = aggregateWeb(
+      makeInput({
+        shopify: [
+          row({ shopify_created_at: "2026-09-09T10:00:00.000Z", first_utm_source: "giveaway", customer_order_index: 1 }),
+          row({ shopify_created_at: "2026-09-09T11:00:00.000Z", first_utm_medium: "whatsapp", customer_order_index: 1 }),
+          row({
+            shopify_created_at: "2026-09-09T12:00:00.000Z",
+            first_referrer_url: "https://wa.me/919999999999",
+            customer_order_index: 1,
+          }),
+        ],
+      }),
+    );
+    const wa = r.sources.find((s) => s.label === "WhatsApp");
+    // only the explicit whatsapp medium row is classified as WhatsApp
+    expect(wa?.orders).toBe(1);
+    // "giveaway" and the wa.me referrer host (which does not literally
+    // contain "whatsapp") still carry a source signal, so both land in Other.
+    const other = r.sources.find((s) => s.label === "Other");
+    expect(other?.orders).toBe(2);
+  });
+
+  it("Instagram ads match is word-anchored: fbclid/meta_pixel style values must not match", () => {
+    const r = aggregateWeb(
+      makeInput({
+        shopify: [
+          row({ shopify_created_at: "2026-09-09T10:00:00.000Z", first_utm_source: "fbclid", customer_order_index: 1 }),
+          row({ shopify_created_at: "2026-09-09T11:00:00.000Z", first_utm_source: "meta_pixel", customer_order_index: 1 }),
+          row({ shopify_created_at: "2026-09-09T12:00:00.000Z", first_utm_source: "instagram", customer_order_index: 1 }),
+        ],
+      }),
+    );
+    const ig = r.sources.find((s) => s.label === "Instagram ads");
+    // only the exact "instagram" source row counts as Instagram ads
+    expect(ig?.orders).toBe(1);
+    const other = r.sources.find((s) => s.label === "Other");
+    expect(other?.orders).toBe(2);
+  });
+
   it("splits new vs returning revenue and aov by customer_order_index", () => {
     // new (idx 1): 500 + 300 = 800; returning (idx > 1): 900 (idx 3) + 200 (idx 2) = 1100.
     expect(out.newVsReturning).toEqual({

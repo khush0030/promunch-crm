@@ -292,6 +292,7 @@ function SalesPageInner() {
               value: formatLakh(r.revenue),
               meta: `${r.units.toLocaleString("en-IN")} units · ${r.share}% of sales`,
             })}
+            empty="No product sales in this period"
           />
         </Card>
       </div>

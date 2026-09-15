@@ -17,12 +17,15 @@ export function Table<T>({
   card,
   rowKey,
   highlight,
+  empty,
 }: {
   cols: TableCol<T>[];
   rows: T[];
   card?: (row: T) => TableCard;
   rowKey?: (row: T, index: number) => string | number;
   highlight?: (row: T) => boolean;
+  // Rendered in place of the table/card list when rows is empty.
+  empty?: ReactNode;
 }) {
   const k = (r: T, i: number) => (rowKey ? rowKey(r, i) : i);
   const cell = (c: TableCol<T>, r: T): ReactNode => {
@@ -33,6 +36,9 @@ export function Table<T>({
     }
     return null;
   };
+  if (rows.length === 0 && empty != null) {
+    return <div className="pm2-empty">{empty}</div>;
+  }
   return (
     <>
       <div className={`pm2-tbl-wrap${card ? " swap" : ""}`}>

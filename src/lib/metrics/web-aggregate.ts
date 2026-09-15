@@ -107,9 +107,13 @@ const SOURCE_LABEL: Record<SourceKey, string> = {
 // Business-name source mapping. Checked in this order against
 // first_utm_source / first_utm_medium / first_source / first_referrer_url
 // host — first match wins:
-//   1. Instagram ads — utm source looks like instagram/ig/meta/facebook/fb,
-//      or the referrer host is instagram/facebook.
-//   2. WhatsApp      — utm source or medium looks like whatsapp/wa.
+//   1. Instagram ads — utm source is exactly instagram/ig, or the referrer
+//      host is instagram.com/facebook.com (incl. the l./lm. click-redirect
+//      subdomains Meta uses). Word-anchored so "fbclid"/"meta_pixel" style
+//      values (present on plenty of non-Meta traffic) don't false-match.
+//   2. WhatsApp      — utm source or medium is exactly whatsapp/wa, or the
+//      referrer host contains whatsapp. Word-anchored so "wa" doesn't match
+//      inside an unrelated value like "giveaway".
 //   3. Google        — utm source looks like google, or referrer host is google.
 //   4. Email         — utm medium looks like email, or utm source looks like
 //      resend/klaviyo/mail.
@@ -126,8 +130,8 @@ function sourceKeyOf(o: WebOrderRow): SourceKey {
   const ref = (o.first_referrer_url ?? "").trim();
   const refHost = ref ? hostOf(ref) : "";
 
-  if (/instagram|^ig$|meta|facebook|fb/.test(s) || /instagram|facebook/.test(refHost)) return "instagram_ads";
-  if (/whatsapp|wa/.test(s) || /whatsapp|wa/.test(m)) return "whatsapp";
+  if (/instagram|^ig$/i.test(s) || /instagram\.com|facebook\.com|l\.facebook\.com|lm\.facebook\.com/i.test(refHost)) return "instagram_ads";
+  if (/^(whatsapp|wa)$/i.test(s) || /^(whatsapp|wa)$/i.test(m) || /whatsapp/i.test(refHost)) return "whatsapp";
   if (/google/.test(s) || /google/.test(refHost)) return "google";
   if (/email/.test(m) || /resend|klaviyo|mail/.test(s)) return "email";
   if (/hypd|creator/.test(s)) return "creators";

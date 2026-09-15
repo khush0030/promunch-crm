@@ -246,6 +246,7 @@ function WebStorePageInner() {
                 value: formatLakh(r.revenue),
                 meta: `${r.source} · ${r.orders.toLocaleString("en-IN")} orders`,
               })}
+              empty="No campaign links in this period"
             />
           </Card>
         </div>
