@@ -888,6 +888,12 @@ table.pm-tbl tbody tr:hover td{background:var(--pm-card2)}
 .pm2-att .c{font-size:13px;color:var(--pm-muted)}
 .pm2-att .amt{font-family:var(--pm-mono);font-size:13px;color:var(--pm-ink);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .pm2-att .amt small{display:block;color:var(--pm-hint);font-size:11.5px}
+.pm2-att-actions{display:inline-flex;gap:6px;align-items:center}
+.pm2-done{display:flex;flex-direction:column}
+.pm2-done .row{display:flex;align-items:center;gap:10px;padding:11px 16px;border-top:1px solid var(--pm-line);color:var(--pm-hint)}
+.pm2-done .row:first-child{border-top:0}
+.pm2-done .row svg{flex:none;color:var(--pm-green)}
+.pm2-done .row span{font-size:14.5px;text-decoration:line-through;text-decoration-color:var(--pm-line)}
 
 .pm2-tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table.pm2-tbl{width:100%;border-collapse:collapse;font-size:14px;color:var(--pm-ink);font-family:var(--pm-font)}
@@ -974,6 +980,7 @@ table.pm2-tbl{width:100%;border-collapse:collapse;font-size:14px;color:var(--pm-
   .pm2-att{grid-template-columns:30px minmax(0,1fr);align-items:start;padding:11px 12px}
   .pm2-att .amt{display:none}
   .pm2-att .pm2-btn{grid-column:2;justify-self:start;margin-top:2px}
+  .pm2-att .pm2-att-actions{grid-column:2;justify-self:start;margin-top:2px}
   .pm2-p-head{padding:12px 12px 0}
   .pm2-p-body{padding:10px 12px 12px}
   .pm2-p-body.flush{padding:10px 0 0}
