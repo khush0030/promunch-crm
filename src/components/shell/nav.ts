@@ -16,11 +16,11 @@ export type Hub = "Today" | "Sales" | "Inbox" | "Marketing" | "Partners" | "Syst
 export type AttentionCounts = Omit<Attention["counts"], "byHub">;
 
 // Current targets for items whose final page does not exist yet.
-// Phase 1 swaps these to /dashboard/sales, /dashboard/sales/web,
-// /dashboard/sales/amazon and /dashboard/sales/orders (Task 0.7 adds the
-// redirects from the legacy routes).
+// Phase 1 swaps these to /dashboard/sales/web, /dashboard/sales/amazon and
+// /dashboard/sales/orders (Task 0.7 adds the redirects from the legacy
+// routes). salesOverview now points at the real Sales overview page (1.3).
 export const ROUTES = {
-  salesOverview: "/dashboard",
+  salesOverview: "/dashboard/sales",
   salesWeb: "/dashboard/shopify-attribution",
   salesAmazon: "/dashboard/amazon",
   salesOrders: "/dashboard/order-confirmations",
