@@ -23,26 +23,35 @@ const CACHE_TTL_MS = 60_000;
 let cache: { at: number; body: Attention } | null = null;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const PAGE_SIZE = 1000;
 
-// Each source query is independent and swallows its own error — a failed
-// sub-query drops that item from the feed instead of 502ing the whole thing
-// (Task 0.4 decision #10). Empty array on error, with a console.error so it
-// still surfaces in logs.
-async function safe<T>(
+// PostgREST caps a single select at 1000 rows (amazon_finance_item_events is
+// already at 998 for a 30d window and will cross that line soon), so every
+// row-returning query below is walked in 1000-row pages via .range() until a
+// short page comes back — same pattern as src/app/api/metrics/sales/route.ts's
+// fetchAll, kept local here rather than cross-imported from another route.
+// A failed page swallows the error and returns whatever was already paged
+// (Task 0.4 decision #10: a failed sub-query drops that item, not the feed).
+async function fetchAll<T>(
   label: string,
-  fn: () => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
 ): Promise<T[]> {
+  const rows: T[] = [];
   try {
-    const { data, error } = await fn();
-    if (error) {
-      console.error(`[metrics/attention] ${label}:`, error.message);
-      return [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await page(from, from + PAGE_SIZE - 1);
+      if (error) {
+        console.error(`[metrics/attention] ${label}:`, error.message);
+        break;
+      }
+      const chunk = data ?? [];
+      rows.push(...chunk);
+      if (chunk.length < PAGE_SIZE) break;
     }
-    return data ?? [];
   } catch (e) {
     console.error(`[metrics/attention] ${label}:`, e);
-    return [];
   }
+  return rows;
 }
 
 export async function GET(req: Request) {
@@ -59,44 +68,65 @@ export async function GET(req: Request) {
   const since4h = new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString();
 
   const [amazonInventory, amazonFinanceItems, codOrders, tickets, emailDrafts, pausedCampaigns] = await Promise.all([
-    safe<AmazonInventoryRow>("amazon_inventory", () =>
-      supabaseAdmin.from("amazon_inventory").select("seller_sku, product_name, fulfillable_quantity, inbound_shipped"),
+    fetchAll<AmazonInventoryRow>("amazon_inventory", (from, to) =>
+      supabaseAdmin
+        .from("amazon_inventory")
+        .select("seller_sku, product_name, fulfillable_quantity, inbound_shipped")
+        .order("seller_sku", { ascending: true })
+        .range(from, to),
     ),
-    safe<AmazonFinanceItemRow>("amazon_finance_item_events", () =>
+    fetchAll<AmazonFinanceItemRow>("amazon_finance_item_events", (from, to) =>
       supabaseAdmin
         .from("amazon_finance_item_events")
         .select("seller_sku, event_type, posted_date, quantity, net")
-        .gte("posted_date", since30),
+        .gte("posted_date", since30)
+        .order("posted_date", { ascending: true })
+        .range(from, to),
     ),
     // COD orders stuck on a confirmation call, opened in the last 14 days
     // (mirrors /api/whatsapp/cod-gate's GET query and the order-confirmations
     // page, which read the gate-managed queue the same way).
-    safe<CodOrderRow>("shopify_orders (needs_call)", () =>
+    fetchAll<CodOrderRow>("shopify_orders (needs_call)", (from, to) =>
       supabaseAdmin
         .from("shopify_orders")
         .select("shopify_id, total_price, shopify_created_at")
         .eq("confirmation_status", "needs_call")
-        .gte("shopify_created_at", since14),
+        .gte("shopify_created_at", since14)
+        .order("shopify_created_at", { ascending: true })
+        .range(from, to),
     ),
     // Open/pending WhatsApp tickets opened more than 4h ago, not archived.
-    safe<TicketRow>("wa_threads (tickets)", () =>
+    fetchAll<TicketRow>("wa_threads (tickets)", (from, to) =>
       supabaseAdmin
         .from("wa_threads")
         .select("id, ticket_opened_at")
         .in("ticket_status", ["open", "pending"])
         .is("archived_at", null)
-        .lt("ticket_opened_at", since4h),
+        .lt("ticket_opened_at", since4h)
+        .order("ticket_opened_at", { ascending: true })
+        .range(from, to),
     ),
-    safe<EmailDraftRow>("email_threads (pending)", () =>
-      supabaseAdmin.from("email_threads").select("id").eq("status", "pending"),
+    fetchAll<EmailDraftRow>("email_threads (pending)", (from, to) =>
+      supabaseAdmin
+        .from("email_threads")
+        .select("id")
+        .eq("status", "pending")
+        .order("created_at", { ascending: true })
+        .range(from, to),
     ),
     // Candidates for "deferred by Meta's marketing cap": wa_campaigns has no
     // 'paused' status and never stamps last_error with 131049 (see
     // wa-campaign-send/index.ts) — a capped campaign stays status='sending'
     // with resume_at set to the next daily send slot. buildAttention() does
     // the "resume_at is still in the future" filtering.
-    safe<PausedCampaignRow>("wa_campaigns (deferred)", () =>
-      supabaseAdmin.from("wa_campaigns").select("id, name, resume_at").eq("status", "sending").not("resume_at", "is", null),
+    fetchAll<PausedCampaignRow>("wa_campaigns (deferred)", (from, to) =>
+      supabaseAdmin
+        .from("wa_campaigns")
+        .select("id, name, resume_at")
+        .eq("status", "sending")
+        .not("resume_at", "is", null)
+        .order("id", { ascending: true })
+        .range(from, to),
     ),
   ]);
 

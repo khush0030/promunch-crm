@@ -186,6 +186,29 @@ describe("buildAttention", () => {
     ]);
   });
 
+  it("breaks a tie on equal amount and severity by age, oldest first", () => {
+    const out = buildAttention(
+      baseInput({
+        amazonInventory: [
+          { seller_sku: "NEWER", product_name: "Newer stockout", fulfillable_quantity: 0, inbound_shipped: 0 },
+          { seller_sku: "OLDER", product_name: "Older stockout", fulfillable_quantity: 0, inbound_shipped: 0 },
+        ],
+        amazonFinanceItems: [
+          // Same units30 (10) and same net30 (400) for both SKUs -> identical
+          // lostPerDay amount and identical severity (crit) -> age must decide.
+          { seller_sku: "NEWER", event_type: "Shipment", posted_date: "2026-09-01T00:00:00.000Z", quantity: 10, net: 400 },
+          { seller_sku: "OLDER", event_type: "Shipment", posted_date: "2026-08-20T00:00:00.000Z", quantity: 10, net: 400 },
+        ],
+      }),
+    );
+    expect(out.items).toHaveLength(2);
+    expect(out.items[0].amount).toBe(out.items[1].amount);
+    expect(out.items[0].severity).toBe(out.items[1].severity);
+    expect(out.items.map((i) => i.id)).toEqual(["amazon-stockout-OLDER", "amazon-stockout-NEWER"]);
+    expect(out.items[0].since).toBe("2026-08-20T00:00:00.000Z");
+    expect(out.items[1].since).toBe("2026-09-01T00:00:00.000Z");
+  });
+
   it("computes byHub counts across sources", () => {
     const out = buildAttention(
       baseInput({

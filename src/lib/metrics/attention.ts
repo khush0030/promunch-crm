@@ -20,6 +20,10 @@ export type AttentionItem = {
   href: string;
   cta: string;
   count?: number;
+  // ISO timestamp of the oldest underlying record this item summarizes
+  // (e.g. the earliest sale feeding a stock-out, the oldest COD order, the
+  // oldest open ticket). Used only as the final sort tiebreak — oldest first.
+  since?: string;
 };
 
 export type AttentionHub = "Today" | "Sales" | "Inbox" | "Marketing" | "Partners" | "System";
@@ -144,18 +148,19 @@ export function buildAttention(input: AttentionInput): Attention {
   // economics the Amazon page already computes in src/app/api/amazon/route.ts,
   // which sources both figures from this table — see task report).
   const since30 = new Date(now.getTime() - 30 * DAY_MS).toISOString();
-  const skuAgg = new Map<string, { units30: number; net30: number }>();
+  const skuAgg = new Map<string, { units30: number; net30: number; since: string }>();
   for (const ev of input.amazonFinanceItems) {
     if (!ev.seller_sku) continue;
     if (ev.event_type !== "Shipment") continue;
     if (!ev.posted_date || ev.posted_date < since30) continue;
-    const agg = skuAgg.get(ev.seller_sku) ?? { units30: 0, net30: 0 };
+    const agg = skuAgg.get(ev.seller_sku) ?? { units30: 0, net30: 0, since: ev.posted_date };
     agg.units30 += num(ev.quantity);
     agg.net30 += num(ev.net);
+    if (ev.posted_date < agg.since) agg.since = ev.posted_date;
     skuAgg.set(ev.seller_sku, agg);
   }
 
-  const lowStock: { sku: string; title: string; daysCover: number }[] = [];
+  const lowStock: { sku: string; title: string; daysCover: number; since: string }[] = [];
   for (const inv of input.amazonInventory) {
     const fulfillable = num(inv.fulfillable_quantity);
     const agg = skuAgg.get(inv.seller_sku);
@@ -177,19 +182,21 @@ export function buildAttention(input: AttentionInput): Attention {
         amountLabel: "per day",
         href: "/dashboard/sales/amazon?tab=stock",
         cta: "Restock",
+        since: agg!.since,
       });
       continue;
     }
 
     const daysCover = fulfillable / velocity;
     if (daysCover >= 1 && daysCover < 10) {
-      lowStock.push({ sku: inv.seller_sku, title, daysCover });
+      lowStock.push({ sku: inv.seller_sku, title, daysCover, since: agg!.since });
     }
   }
 
   if (lowStock.length > 0) {
     lowStock.sort((a, b) => a.daysCover - b.daysCover);
     const soonest = Math.round(lowStock[0].daysCover);
+    const oldestLowStock = lowStock.reduce((min, s) => (s.since < min ? s.since : min), lowStock[0].since);
     items.push({
       id: "amazon-low-stock",
       group: "money",
@@ -199,6 +206,7 @@ export function buildAttention(input: AttentionInput): Attention {
       count: lowStock.length,
       href: "/dashboard/sales/amazon?tab=stock",
       cta: "Restock",
+      since: oldestLowStock,
     });
   }
 
@@ -218,6 +226,7 @@ export function buildAttention(input: AttentionInput): Attention {
       count: input.codOrders.length,
       href: "/dashboard/sales/orders",
       cta: "Call list",
+      since: oldest ?? undefined,
     });
   }
 
@@ -234,6 +243,7 @@ export function buildAttention(input: AttentionInput): Attention {
       count: input.tickets.length,
       href: "/dashboard/whatsapp?tab=tickets",
       cta: "Tickets",
+      since: oldest ?? undefined,
     });
   }
 
@@ -267,13 +277,21 @@ export function buildAttention(input: AttentionInput): Attention {
     });
   }
 
-  // ---- Sort: amount desc (items without an amount after), then severity -
+  // ---- Sort: amount desc (items without an amount after), then severity,
+  // then age (oldest `since` first) as the final tiebreak. -----------------
   items.sort((a, b) => {
     const aHas = a.amount != null;
     const bHas = b.amount != null;
     if (aHas && bHas && a.amount !== b.amount) return b.amount! - a.amount!;
     if (aHas !== bHas) return aHas ? -1 : 1;
-    return SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity];
+    if (a.severity !== b.severity) return SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity];
+    // Items with a known age sort before ones without (nothing to compare
+    // an unknown age against); between two known ages, oldest (smallest
+    // ISO timestamp) first.
+    if (a.since && b.since && a.since !== b.since) return a.since < b.since ? -1 : 1;
+    if (a.since && !b.since) return -1;
+    if (!a.since && b.since) return 1;
+    return 0;
   });
 
   // ---- Counts -------------------------------------------------------------
