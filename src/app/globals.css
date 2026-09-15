@@ -14,8 +14,8 @@
   --border: var(--pm-border);
   --border-2: var(--pm-line);
 
-  --hover: #efe9de;
-  --hover-2: #e7e0d2;
+  --hover: var(--pm-card2);
+  --hover-2: var(--pm-line);
 
   --accent: var(--pm-brand);
   --accent-soft: var(--pm-brand-soft);
@@ -43,15 +43,15 @@
   --side-bg: var(--pm-side);
   --side-text: var(--pm-side-text);
   --side-text-strong: var(--pm-side-accent);
-  --side-hover: #e8e2d6;
-  --side-active-bg: #ffffff;
+  --side-hover: var(--pm-side-2);
+  --side-active-bg: var(--pm-side-active-bg);
   --side-active-text: var(--pm-side-accent);
-  --side-border: #e6e0d3;
-  --side-icon: #aaa193;
+  --side-border: #2F2629;
+  --side-icon: var(--pm-side-text);
   --side-active-icon: var(--pm-brand);
-  --side-badge-bg: #fff;
-  --side-badge-text: #aaa193;
-  --side-badge-border: #e2dccd;
+  --side-badge-bg: var(--pm-brand);
+  --side-badge-text: #FFFFFF;
+  --side-badge-border: var(--pm-brand-line);
 }
 
 * {
@@ -428,8 +428,8 @@ textarea.input { resize: vertical; min-height: 80px; }
   --pm-app:#F2F1EF; --pm-card:#FFFFFF; --pm-card2:#F8F7F6;
   --pm-border:#E4DFDD; --pm-line:#EFECEA;
   /* Sidebar (ink) */
-  --pm-side:#1D1517; --pm-side-text:#CFC5C8; --pm-side-dim:#7E8F79;
-  --pm-side-active-bg:#273B2C; --pm-side-active-text:#FFFFFF; --pm-side-accent:#FFC905;
+  --pm-side:#1D1517; --pm-side-2:#2A2124; --pm-side-text:#CFC5C8; --pm-side-dim:#8F8386;
+  --pm-side-active-bg:#FFFFFF; --pm-side-active-text:#1D1517; --pm-side-accent:#FFC905;
   /* Text */
   --pm-ink:#1D1517; --pm-muted:#5C5155; --pm-hint:#8A7F83;
   /* Brand */
@@ -439,7 +439,7 @@ textarea.input { resize: vertical; min-height: 80px; }
   --pm-gold:#A95C00;  --pm-gold-soft:#FCEBD6;
   --pm-terra:#BF311C; --pm-terra-soft:#FBE2DC;
   --pm-blue:#0A9CB8;  --pm-blue-soft:#DDF1F5;
-  --pm-cyan:#08809A;  --pm-cyan-soft:#DDF1F5;
+  --pm-cyan:#0A9CB8;  --pm-cyan-soft:#DDF1F5;
   --pm-sun:#FFC905;   --pm-sun-soft:#FFF3C4;
   --pm-orange:#E86A24; --pm-orange-soft:#FDE8DA;
   /* Channel/source colors */
