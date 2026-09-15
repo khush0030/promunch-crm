@@ -251,7 +251,7 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
                         value={s.body_html}
                         onChange={(e) => updateStep(i, { body_html: e.target.value })}
                         title="Email body HTML"
-                        style={{ minHeight: 120, fontFamily: "var(--font-geist-mono), monospace", fontSize: 12.5, resize: "vertical" }}
+                        style={{ minHeight: 120, fontFamily: "var(--pm-mono)", fontSize: 12.5, resize: "vertical" }}
                       />
                       <span className="pm-dim" style={{ fontSize: 11, marginTop: 4, display: "block" }}>Wrapped in the PROMUNCH branded layout with an unsubscribe footer at send. Use {"{{first_name}}"} and {"{{checkout_url}}"} where relevant.</span>
                     </div>

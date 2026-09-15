@@ -1,34 +1,37 @@
-/* ============ DESIGN TOKENS — Warm / soft / editorial ============ */
+/* ============ DESIGN TOKENS — Warm / soft / editorial ============
+   Old-theme token names below are aliased onto the --pm-* brand tokens
+   (defined further down in this file) so modules still reading the old
+   names retheme automatically. Do not delete any old token name. */
 :root {
-  --bg: #faf8f4;
-  --canvas: #faf8f4;
-  --card-bg: #ffffff;
+  --bg: var(--pm-app);
+  --canvas: var(--pm-app);
+  --card-bg: var(--pm-card);
 
-  --text: #39342c;
-  --text-2: #857d6f;
-  --text-3: #aaa193;
+  --text: var(--pm-ink);
+  --text-2: var(--pm-muted);
+  --text-3: var(--pm-hint);
 
-  --border: #ebe5d9;
-  --border-2: #e2dccd;
+  --border: var(--pm-border);
+  --border-2: var(--pm-line);
 
   --hover: #efe9de;
   --hover-2: #e7e0d2;
 
-  --accent: #b9303f;
-  --accent-soft: #f5e7e1;
+  --accent: var(--pm-brand);
+  --accent-soft: var(--pm-brand-soft);
 
-  --green: #5a8c52;
-  --green-soft: #ecf0e2;
-  --amber: #bb8a2c;
-  --amber-soft: #f6eed9;
-  --blue: #5b7e96;
-  --blue-soft: #e9eef0;
+  --green: var(--pm-green);
+  --green-soft: var(--pm-green-soft);
+  --amber: var(--pm-gold);
+  --amber-soft: var(--pm-gold-soft);
+  --blue: var(--pm-blue);
+  --blue-soft: var(--pm-blue-soft);
 
   --radius: 14px;
   --radius-sm: 10px;
   --radius-pill: 999px;
 
-  --card-border: 1px solid #efe9dd;
+  --card-border: 1px solid var(--pm-border);
   --card-shadow: 0 1px 2px rgba(67, 55, 32, 0.05), 0 8px 22px rgba(67, 55, 32, 0.06);
 
   --h1-size: 25px;
@@ -37,15 +40,15 @@
   --kpi-size: 28px;
   --kpi-weight: 600;
 
-  --side-bg: #f2ede3;
-  --side-text: #857d6f;
-  --side-text-strong: #39342c;
+  --side-bg: var(--pm-side);
+  --side-text: var(--pm-side-text);
+  --side-text-strong: var(--pm-side-accent);
   --side-hover: #e8e2d6;
   --side-active-bg: #ffffff;
-  --side-active-text: #39342c;
+  --side-active-text: var(--pm-side-accent);
   --side-border: #e6e0d3;
   --side-icon: #aaa193;
-  --side-active-icon: #b9303f;
+  --side-active-icon: var(--pm-brand);
   --side-badge-bg: #fff;
   --side-badge-text: #aaa193;
   --side-badge-border: #e2dccd;
@@ -63,10 +66,10 @@ body {
 }
 
 body {
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--pm-font);
   background: var(--canvas);
   color: var(--text);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.006em;
@@ -77,7 +80,7 @@ pre,
 kbd,
 samp,
 .mono {
-  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--pm-mono);
 }
 
 a {
@@ -286,7 +289,7 @@ select {
   padding: 8px 12px; border: 1px solid var(--border-2); border-radius: var(--radius-sm);
   background: var(--hover); }
 .input:focus { outline: none; border-color: var(--accent); background: var(--card-bg); }
-.input.mono { font-family: var(--font-geist-mono), monospace; }
+.input.mono { font-family: var(--pm-mono); }
 textarea.input { resize: vertical; min-height: 80px; }
 .search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border-2);
   border-radius: var(--radius-sm); padding: 7px 12px; background: var(--hover);
@@ -422,24 +425,73 @@ textarea.input { resize: vertical; min-height: 80px; }
    ============================================================ */
 :root {
   /* Surfaces */
-  --pm-app:#F1EBE0; --pm-card:#FFFFFF; --pm-card2:#FBF8F2;
-  --pm-border:#E8DFD0; --pm-line:#EFE8DB;
-  /* Sidebar (deep green) */
-  --pm-side:#1B2A20; --pm-side-text:#C3D2BE; --pm-side-dim:#7E8F79;
-  --pm-side-active-bg:#273B2C; --pm-side-active-text:#FFFFFF; --pm-side-accent:#E0A24E;
+  --pm-app:#F2F1EF; --pm-card:#FFFFFF; --pm-card2:#F8F7F6;
+  --pm-border:#E4DFDD; --pm-line:#EFECEA;
+  /* Sidebar (ink) */
+  --pm-side:#1D1517; --pm-side-text:#CFC5C8; --pm-side-dim:#7E8F79;
+  --pm-side-active-bg:#273B2C; --pm-side-active-text:#FFFFFF; --pm-side-accent:#FFC905;
   /* Text */
-  --pm-ink:#1A1714; --pm-muted:#6E665A; --pm-hint:#9A9081;
+  --pm-ink:#1D1517; --pm-muted:#5C5155; --pm-hint:#8A7F83;
+  /* Brand */
+  --pm-brand:#AF272F; --pm-brand-ink:#FFFFFF; --pm-brand-soft:#F6E3E4; --pm-brand-line:#E9C2C5;
   /* Accents */
-  --pm-green:#3F6B4F; --pm-green-soft:#E9F1E6;
-  --pm-gold:#C98A1E;  --pm-gold-soft:#FAF1DD;
-  --pm-terra:#C2492E; --pm-terra-soft:#F8ECE7;
-  --pm-blue:#3C6E72;  --pm-blue-soft:#E5EFEF;
+  --pm-green:#1E7F55; --pm-green-soft:#E0F2E9;
+  --pm-gold:#A95C00;  --pm-gold-soft:#FCEBD6;
+  --pm-terra:#BF311C; --pm-terra-soft:#FBE2DC;
+  --pm-blue:#0A9CB8;  --pm-blue-soft:#DDF1F5;
+  --pm-cyan:#08809A;  --pm-cyan-soft:#DDF1F5;
+  --pm-sun:#FFC905;   --pm-sun-soft:#FFF3C4;
+  --pm-orange:#E86A24; --pm-orange-soft:#FDE8DA;
+  /* Channel/source colors */
+  --pm-s-web:#AF272F; --pm-s-amz:#C98A00; --pm-s-hypd:#6E4FB0; --pm-s-wa:#0A9CB8;
   /* Radii */
-  --pm-r:16px; --pm-r2:11px; --pm-r3:9px;
-  /* Type (Geist) */
-  --pm-font:var(--font-geist-sans),system-ui,-apple-system,'Segoe UI',sans-serif;
+  --pm-r:12px; --pm-r2:8px; --pm-r3:9px;
+  --pm-shadow:0 1px 2px rgba(29,21,23,.06),0 8px 24px rgba(29,21,23,.07);
+  /* Type (Archivo) */
+  --pm-font:var(--font-sans),system-ui,-apple-system,'Segoe UI',sans-serif;
+  --pm-display:var(--font-display),"Arial Black",sans-serif;
+  --pm-mono:var(--font-mono),ui-monospace,monospace;
   --pm-h1:25px; --pm-kpi:28px; --pm-h3:15px; --pm-body:13.5px; --pm-label:12.5px; --pm-caption:11.5px;
 }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --pm-app:#141012; --pm-card:#1D181A; --pm-card2:#231D20;
+    --pm-border:#352D30; --pm-line:#2B2427;
+    --pm-side:#0F0B0C; --pm-side-text:#CFC5C8;
+    --pm-side-accent:#FFD23F;
+    --pm-ink:#F3EEEF; --pm-muted:#BBB0B4; --pm-hint:#877C80;
+    --pm-brand:#E0525A; --pm-brand-ink:#1D0B0D; --pm-brand-soft:#3A1C1F; --pm-brand-line:#5C2A2F;
+    --pm-green:#4CB985; --pm-green-soft:#15301F;
+    --pm-gold:#E6A04A;  --pm-gold-soft:#3A2913;
+    --pm-terra:#EF6D51; --pm-terra-soft:#3D1D17;
+    --pm-blue:#4FC0D6;  --pm-blue-soft:#12323A;
+    --pm-cyan:#4FC0D6;  --pm-cyan-soft:#12323A;
+    --pm-sun:#FFD23F;   --pm-sun-soft:#3A3113;
+    --pm-orange:#F0843F; --pm-orange-soft:#3B2416;
+    --pm-s-web:#E0525A; --pm-s-amz:#BF8A1A; --pm-s-hypd:#9B7FD1; --pm-s-wa:#1898B3;
+    --pm-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 28px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"] {
+  --pm-app:#141012; --pm-card:#1D181A; --pm-card2:#231D20;
+  --pm-border:#352D30; --pm-line:#2B2427;
+  --pm-side:#0F0B0C; --pm-side-text:#CFC5C8;
+  --pm-side-accent:#FFD23F;
+  --pm-ink:#F3EEEF; --pm-muted:#BBB0B4; --pm-hint:#877C80;
+  --pm-brand:#E0525A; --pm-brand-ink:#1D0B0D; --pm-brand-soft:#3A1C1F; --pm-brand-line:#5C2A2F;
+  --pm-green:#4CB985; --pm-green-soft:#15301F;
+  --pm-gold:#E6A04A;  --pm-gold-soft:#3A2913;
+  --pm-terra:#EF6D51; --pm-terra-soft:#3D1D17;
+  --pm-blue:#4FC0D6;  --pm-blue-soft:#12323A;
+  --pm-cyan:#4FC0D6;  --pm-cyan-soft:#12323A;
+  --pm-sun:#FFD23F;   --pm-sun-soft:#3A3113;
+  --pm-orange:#F0843F; --pm-orange-soft:#3B2416;
+  --pm-s-web:#E0525A; --pm-s-amz:#BF8A1A; --pm-s-hypd:#9B7FD1; --pm-s-wa:#1898B3;
+  --pm-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 28px rgba(0,0,0,.35);
+}
+
+h1.pm-h1 { font-family: var(--pm-display); }
 
 /* ---- Shell ---- */
 .pm-page{background:var(--pm-app);color:var(--pm-ink);font-family:var(--pm-font);min-height:100vh;padding:24px 30px 50px}

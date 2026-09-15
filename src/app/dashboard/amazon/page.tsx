@@ -213,7 +213,7 @@ export default function AmazonPage() {
       cell: (s) => (
         <div style={{ maxWidth: 320 }}>
           <div className="pm-b7" style={{ fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
-          <div className="pm-dim" style={{ fontFamily: "var(--font-geist-mono), monospace", fontSize: 11 }}>{s.sku}</div>
+          <div className="pm-dim" style={{ fontFamily: "var(--pm-mono)", fontSize: 11 }}>{s.sku}</div>
         </div>
       ),
     },
@@ -247,7 +247,7 @@ export default function AmazonPage() {
       cell: (s) => (
         <div style={{ maxWidth: 300 }}>
           <div className="pm-b7" style={{ fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
-          <div className="pm-dim" style={{ fontFamily: "var(--font-geist-mono), monospace", fontSize: 11 }}>
+          <div className="pm-dim" style={{ fontFamily: "var(--pm-mono)", fontSize: 11 }}>
             {s.sku}{s.isFba ? "" : " · MFN"}
           </div>
         </div>
@@ -323,7 +323,7 @@ export default function AmazonPage() {
   ];
 
   const orderCols: Column<Order>[] = [
-    { header: "Order", cell: (o) => <span style={{ fontFamily: "var(--font-geist-mono), monospace", fontSize: 12 }}>{o.id}</span> },
+    { header: "Order", cell: (o) => <span style={{ fontFamily: "var(--pm-mono)", fontSize: 12 }}>{o.id}</span> },
     { header: "Date", cell: (o) => <span className="pm-dim">{fmtDate(o.date)}</span> },
     { header: "Channel", cell: (o) => o.channel },
     { header: "Status", cell: (o) => <span className="pm-dim">{o.status}</span> },

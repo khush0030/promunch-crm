@@ -168,7 +168,7 @@ export default function NewCampaignPage() {
               placeholder="<p>Hi {{first_name}}, …</p>"
               value={formData.body}
               onChange={(e) => update("body", e.target.value)}
-              style={{ minHeight: 240, fontFamily: "var(--font-geist-mono), monospace", fontSize: 13, resize: "vertical" }}
+              style={{ minHeight: 240, fontFamily: "var(--pm-mono)", fontSize: 13, resize: "vertical" }}
             />
           </div>
         </Panel>
