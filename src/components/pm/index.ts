@@ -23,3 +23,26 @@ export { Tabs } from "./Tabs";
 export type { Tab } from "./Tabs";
 export { EmptyState } from "./EmptyState";
 export { InboxLayout } from "./InboxLayout";
+
+// ---- pm v2 (CRM redesign, pm2- classes in globals.css) ----
+export { Card } from "./Card";
+export { KpiStrip, Kpi } from "./Kpi";
+export { Delta, DELTA_TIP } from "./Delta";
+export { Pill } from "./Pill";
+export type { PillTone } from "./Pill";
+export { HBars } from "./HBars";
+export type { HBarItem } from "./HBars";
+export { StackBar } from "./StackBar";
+export type { StackPart } from "./StackBar";
+export { LineChart } from "./LineChart";
+export type { LineSeries } from "./LineChart";
+export { BarChart } from "./BarChart";
+export type { BarSeries } from "./BarChart";
+export { Funnel } from "./Funnel";
+export type { FunnelStep } from "./Funnel";
+export { Table } from "./Table";
+export type { TableCol, TableCard } from "./Table";
+export { AttentionList } from "./AttentionList";
+export { PeriodPicker } from "./PeriodPicker";
+export { Callout } from "./Callout";
+export { TooltipLayer } from "./Tooltip";
