@@ -71,11 +71,12 @@ function DashboardPageInner() {
 
   const setPeriod = useCallback(
     (p: Period) => {
-      const q = new URLSearchParams();
-      if (p !== "30d") q.set("period", p);
+      const q = new URLSearchParams(params.toString());
+      if (p === "30d") q.delete("period");
+      else q.set("period", p);
       router.replace(`/dashboard${q.toString() ? `?${q}` : ""}`);
     },
-    [router],
+    [router, params],
   );
 
   const { user } = useShellUser();

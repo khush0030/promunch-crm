@@ -238,6 +238,7 @@ describe("shortProductName", () => {
   it("keeps the part before the first comma, pipe or bracket", () => {
     expect(shortProductName("PROMUNCH Rakhi Gift Hamper for Brother Sister, Healthy Raksha Bandhan Gift Box")).toBe("PROMUNCH Rakhi Gift Hamper for Brother Sister");
     expect(shortProductName("Vama SOYA Flour Enriched with 50% Protein | Low Carb")).toBe("Vama SOYA Flour Enriched with 50% Protein");
+    expect(shortProductName("PROMUNCH High-Protein Roasted Soya Snack, 200g")).toBe("PROMUNCH High-Protein Roasted Soya Snack");
   });
   it("caps very long names and handles empty", () => {
     expect(shortProductName("A".repeat(80)).length).toBe(46);

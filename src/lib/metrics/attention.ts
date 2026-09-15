@@ -143,7 +143,7 @@ const SEVERITY_RANK: Record<AttentionSeverity, number> = { crit: 0, warn: 1, inf
 // product name rather than a search listing.
 export function shortProductName(name: string | null | undefined): string {
   if (!name) return "";
-  const head = name.split(/[,|(\-]/)[0].trim();
+  const head = name.split(/[,|(]/)[0].trim();
   return head.length > 48 ? head.slice(0, 45).trimEnd() + "…" : head;
 }
 
