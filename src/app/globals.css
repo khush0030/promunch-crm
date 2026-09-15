@@ -943,11 +943,26 @@ table.pm2-tbl{width:100%;border-collapse:collapse;font-size:14px;color:var(--pm-
 .pm2-callout .c{font-size:13.5px;color:var(--pm-muted)}
 .pm2-callout .act{margin-left:auto;flex:none}
 
+/* Page header (ported from the prototype's .a-top/.a-crumb/.a-h1/.a-actions)
+   + body wrapper (was .a-body) — the shell no longer renders page headers,
+   so each page renders its own via PageHeader. */
+.pm2-top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--pm-app) 92%,transparent);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border-bottom:1px solid var(--pm-line);padding:14px 28px 12px;display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.pm2-crumb{font-family:var(--pm-mono);font-size:11.5px;color:var(--pm-hint);letter-spacing:.06em;text-transform:uppercase;display:flex;gap:6px;align-items:center}
+.pm2-crumb i{width:7px;height:7px;border-radius:2px;background:var(--pm-brand)}
+.pm2-h1{font-family:var(--pm-display);font-size:26px;line-height:1.05;margin:3px 0 0;letter-spacing:-.005em;color:var(--pm-ink)}
+.pm2-actions{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pm2-body{padding:20px 28px 40px;display:flex;flex-direction:column;gap:16px}
+.pm2-skel{min-height:120px;border-radius:10px;background:var(--pm-card);border:1px solid var(--pm-border)}
+
 .pm2-tip{position:fixed;left:0;top:0;z-index:1000;pointer-events:none;background:var(--pm-ink);color:var(--pm-card);padding:6px 9px;border-radius:6px;font-family:var(--pm-font);font-size:13px;line-height:1.35;max-width:240px;box-shadow:var(--pm-shadow);opacity:0;transition:opacity .08s}
 .pm2-tip.on{opacity:1}
 
 /* pm v2 phone layout (was @container app (max-width:720px) in the prototype) */
 @media (max-width: 720px){
+  .pm2-top{position:static;padding:14px 16px 10px;-webkit-backdrop-filter:none;backdrop-filter:none}
+  .pm2-h1{font-size:22px}
+  .pm2-actions{margin-left:0;width:100%}
+  .pm2-body{padding:14px 16px 24px;gap:12px}
   .pm2-g2,.pm2-g3,.pm2-g21,.pm2-g12{grid-template-columns:minmax(0,1fr);gap:12px}
   .pm2-kpis,.pm2-kpis.k3{grid-template-columns:repeat(2,minmax(0,1fr))}
   .pm2-kpi{border-bottom:1px solid var(--pm-line);padding:11px 12px}

@@ -46,3 +46,4 @@ export { AttentionList } from "./AttentionList";
 export { PeriodPicker } from "./PeriodPicker";
 export { Callout } from "./Callout";
 export { TooltipLayer } from "./Tooltip";
+export { PageHeader } from "./PageHeader";

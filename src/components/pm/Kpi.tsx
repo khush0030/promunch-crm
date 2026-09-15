@@ -15,6 +15,7 @@ export function Kpi({
   tip,
   deltaTip,
   invert,
+  deltaUnit,
 }: {
   label: ReactNode;
   value: ReactNode;
@@ -23,13 +24,14 @@ export function Kpi({
   tip?: string;
   deltaTip?: string;
   invert?: boolean;
+  deltaUnit?: "%" | "pts";
 }) {
   return (
     <div className="pm2-kpi" data-tip={tip || undefined} tabIndex={tip ? 0 : undefined}>
       <div className="l">{label}</div>
       <div className="v">{value}</div>
       <div className="s">
-        <Delta value={delta} tip={deltaTip} invert={invert} />
+        <Delta value={delta} tip={deltaTip} invert={invert} unit={deltaUnit} />
         {sub != null && <span>{sub}</span>}
       </div>
     </div>

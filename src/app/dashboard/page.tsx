@@ -1,574 +1,273 @@
 "use client";
-import { useEffect, useState } from "react";
+
+import { Suspense, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import Link from "next/link";
-import {
-  RefreshCw,
-  IndianRupee,
-  ShoppingBag,
-  Receipt,
-  Users,
-  TrendingUp,
-  Compass,
-  CircleCheck,
-  MessageCircle,
-  Mail,
-  AlertTriangle,
-  PlugZap,
-  MessageCircleOff,
-  CircleDashed,
-  Ticket,
-  MailWarning,
-} from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import {
-  PageHead,
-  SectionLabel,
-  KpiCard,
-  Panel,
-  Ring,
-  MiniBar,
-  StatLine,
-  AttentionItem,
-  HealthPill,
-} from "@/components/pm";
-import type { HealthStatus } from "@/components/pm";
-import { AreaChart, ChannelDonut } from "@/components/pm/charts";
+import { RefreshCw } from "lucide-react";
+import { PageHeader, KpiStrip, Kpi, Card, LineChart, StackBar, AttentionList, PeriodPicker, Callout } from "@/components/pm";
+import { useShellUser } from "@/components/shell/useShellData";
+import { formatLakh } from "@/lib/metrics/money";
+import { pctChange } from "@/lib/metrics/period";
+import type { SalesMetrics } from "@/lib/metrics/sales-aggregate";
+import type { Attention } from "@/lib/metrics/attention";
 
-type Period = "today" | "7d" | "30d" | "90d" | "all";
+type Period = "7d" | "30d" | "90d";
+const PERIODS: readonly Period[] = ["7d", "30d", "90d"];
+const PERIOD_DAYS: Record<Period, number> = { "7d": 7, "30d": 30, "90d": 90 };
 
-const periodLabel: Record<Period, string> = {
-  today: "today",
-  "7d": "last 7 days",
-  "30d": "last 30 days",
-  "90d": "last 90 days",
-  all: "all time",
-};
-
-const rangeButtons: { key: Period; label: string }[] = [
-  { key: "today", label: "Today" },
-  { key: "7d", label: "7d" },
-  { key: "30d", label: "30d" },
-  { key: "90d", label: "90d" },
-  { key: "all", label: "All" },
-];
-
-function sinceForPeriod(period: Period): string | null {
-  if (period === "all") return null;
-  if (period === "today") {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d.toISOString();
-  }
-  const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
-  return new Date(Date.now() - days * 86400_000).toISOString();
+function parsePeriodParam(raw: string | null): Period {
+  return raw === "7d" || raw === "90d" ? raw : "30d";
 }
 
-const hoursForPeriod: Record<Period, number> = {
-  today: 24,
-  "7d": 168,
-  "30d": 720,
-  "90d": 2160,
-  all: 8760,
-};
-
-// Deterministic gentle daily distribution of a known total — keeps the magnitude
-// real while giving the trend a shape (we have period totals, not a daily series).
-function distribute(total: number, n: number, seed: number): number[] {
-  if (total <= 0 || n <= 0) return new Array(Math.max(n, 0)).fill(0);
-  const w = Array.from({ length: n }, (_, i) => 1 + 0.45 * Math.sin(i / 2.3 + seed) + 0.3 * Math.sin(i / 5 + seed) + 0.35 * (i / n));
-  const sum = w.reduce((s, x) => s + Math.max(0.05, x), 0);
-  return w.map((x) => Math.round((Math.max(0.05, x) / sum) * total));
+// Time-of-day greeting + the display title date, both computed against
+// India local time (Asia/Kolkata) so the server render and the client
+// hydration agree regardless of which region the request is served from.
+function greetingWord(d: Date): string {
+  const hour = Number(d.toLocaleString("en-US", { timeZone: "Asia/Kolkata", hour: "2-digit", hour12: false }));
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  return "evening";
 }
 
-const inr = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-const fmtK = (n: number) => (n >= 1000 ? `₹${Math.round(n / 1000)}k` : `₹${Math.round(n)}`);
-
-const CHAN_COLORS = ["var(--pm-green)", "var(--pm-gold)", "var(--pm-terra)", "var(--pm-blue)", "#B9AE99"];
-
-type ChannelOrder = {
-  total_price: number | null;
-  first_utm_source: string | null;
-  first_source: string | null;
-  source_name: string | null;
-  is_creator: boolean | null;
-};
-function channelOf(o: ChannelOrder): string {
-  const sn = o.source_name ?? "";
-  // Marketplaces are their own sales channels — classify by source_name FIRST so a
-  // HYPD order with first_source="direct" is not mislabeled as direct traffic.
-  if (o.is_creator) return "HYPD Creator";
-  if (sn === "341128478721" || /hypd/i.test(sn)) return "HYPD Marketplace";
-  // The PROMUNCH Shopify storefront (online store channel) is source_name "web".
-  if (sn === "web") return "PROMUNCH D2C Website";
-  // Other numeric Shopify channel ids = connected marketplaces/apps.
-  if (/^\d+$/.test(sn)) return "Other Marketplace";
-  // Anything left: attribute by first-touch traffic source.
-  if (o.first_utm_source) return o.first_utm_source;
-  if (o.first_source) return o.first_source;
-  if (sn) return sn;
-  return "Direct";
+function titleDate(d: Date): string {
+  const weekday = d.toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", weekday: "long" });
+  const day = d.toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", day: "numeric", month: "long" });
+  return `${weekday}, ${day}`;
 }
 
-type LiveStats = {
-  revenue: Record<string, number>;
-  orders: Record<string, number>;
-  customers: number | null;
-  aov_all: number;
-};
-type Confirmations = { sent: number; outstanding: number; noPhone: number; cancelled: number; total: number; coveragePct: number };
-type WaHealth = { status: string; uptime24h: number | null; failedOutbound24h: number | null; aiReplies24h: number | null };
-type NeedsAttention = { failedWhatsApp: number; highPriorityWaTickets: number; urgentEmails: number };
-type SupportStat = { pending: number; sent: number; skipped: number };
-type ChannelSeg = { label: string; value: number; color: string };
-type ChannelRow = { label: string; status: HealthStatus; pill: string };
-
-// Small inline failure state for a widget panel: no eternal "Loading…", no
-// crashed page — just say it failed and offer a retry.
-function PanelRetry({ label, onRetry }: { label: string; onRetry: () => void }) {
+// useSearchParams needs a Suspense boundary in the App Router.
+export default function DashboardPage() {
   return (
-    <div style={{ color: "var(--pm-hint)", fontSize: 12.5, padding: "20px 0", display: "flex", alignItems: "center", gap: 10 }}>
-      <span>{label}</span>
-      <button type="button" className="pm-btn ghost sm" onClick={onRetry}>Retry</button>
+    <Suspense fallback={<HomeFallback />}>
+      <DashboardPageInner />
+    </Suspense>
+  );
+}
+
+function HomeFallback() {
+  return (
+    <div className="pm2-body">
+      <KpiStrip>
+        <Kpi label="Sales" value="—" sub="—" />
+        <Kpi label="Web store" value="—" sub="—" />
+        <Kpi label="Amazon payout" value="—" sub="—" />
+        <Kpi label="Repeat buyers" value="—" sub="—" />
+      </KpiStrip>
+      <div className="pm2-skel" />
+      <div className="pm2-g21">
+        <div className="pm2-skel" />
+        <div className="pm2-skel" />
+      </div>
     </div>
   );
 }
 
-export default function DashboardPage() {
-  const [period, setPeriod] = useState<Period>("30d");
-  const [refreshing, setRefreshing] = useState(false);
+function DashboardPageInner() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const period = parsePeriodParam(params.get("period"));
+  const days = PERIOD_DAYS[period];
 
-  const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
-  const [amazonGross, setAmazonGross] = useState<Record<Period, number> | null>(null);
-  const [amazonOrders, setAmazonOrders] = useState<number | null>(null);
-  const [waHealth, setWaHealth] = useState<WaHealth | null>(null);
-  const [needs, setNeeds] = useState<NeedsAttention | null>(null);
-  const [support, setSupport] = useState<SupportStat | null>(null);
-  const [feedErr, setFeedErr] = useState<{ needs?: boolean; wa?: boolean; support?: boolean }>({});
-  const [feedTry, setFeedTry] = useState(0);
-
-  // Live Shopify snapshot (revenue/orders windows, customers, AOV).
-  useEffect(() => {
-    fetch("/api/shopify/stats")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d?.ok) setLiveStats({ revenue: d.revenue, orders: d.orders, customers: d.customers, aov_all: d.aov_all ?? 0 });
-      })
-      .catch(() => {});
-  }, []);
-
-  // Amazon gross by window + order count (SP-API mirror; 90-day cap).
-  useEffect(() => {
-    fetch("/api/amazon")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d?.ok && d.financials) {
-          setAmazonGross({
-            today: d.financials.today?.gross ?? 0,
-            "7d": d.financials.d7?.gross ?? 0,
-            "30d": d.financials.d30?.gross ?? 0,
-            "90d": d.financials.d90?.gross ?? 0,
-            all: d.financials.d90?.gross ?? 0,
-          });
-          setAmazonOrders(d.orders?.total ?? null);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  // Operations + Action feeds — all existing endpoints. Each is shape-gated so
-  // a 401 {ok:false,error} payload can never enter state (it used to render as
-  // a false "All clear" / NaN bars); failures flip a per-panel error flag.
-  useEffect(() => {
-    setFeedErr({});
-    fetch("/api/needs-attention")
-      .then((r) => r.json())
-      .then((d) => {
-        if (typeof d?.failedWhatsApp === "number") setNeeds(d);
-        else setFeedErr((e) => ({ ...e, needs: true }));
-      })
-      .catch(() => setFeedErr((e) => ({ ...e, needs: true })));
-    fetch("/api/whatsapp/health")
-      .then((r) => r.json())
-      .then((d) => {
-        if (typeof d?.status === "string") setWaHealth(d);
-        else setFeedErr((e) => ({ ...e, wa: true }));
-      })
-      .catch(() => setFeedErr((e) => ({ ...e, wa: true })));
-    fetch("/api/support-emails/facets")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then(async (f) => {
-        // pending comes from facets; sent/skipped via head counts (best-effort).
-        const counts = async (status: string) => {
-          const { count } = await supabase.from("email_threads").select("id", { count: "exact", head: true }).eq("status", status);
-          return count ?? 0;
-        };
-        const [sent, skipped] = await Promise.all([counts("sent"), counts("skipped")]);
-        setSupport({ pending: f?.pending ?? 0, sent, skipped });
-      })
-      .catch(() => setFeedErr((e) => ({ ...e, support: true })));
-  }, [feedTry]);
-
-  // Period-scoped snapshot: orders-table revenue/count, confirmation coverage,
-  // D2C channel mix and channel health. Replaces the old load() + [period] mount
-  // effect + 30s setInterval + focus/visibility refresh.
-  const { data, refetch, isError: snapshotError } = useQuery({
-    queryKey: ["dashboard-snapshot", period],
-    queryFn: async () => {
-      const sinceIso = sinceForPeriod(period);
-
-      // Orders-table revenue + count for the window (mirror; live snapshot wins below).
-      let ordersQ = supabase.from("orders").select("total_amount, placed_at");
-      if (sinceIso) ordersQ = ordersQ.gte("placed_at", sinceIso);
-      const ordersRes = await ordersQ;
-      const orderRows = ordersRes.data || [];
-      const shopifyRevPeriod = orderRows.reduce((s, o) => s + (Number(o.total_amount) || 0), 0);
-      const ordersPeriod = orderRows.length;
-
-      // Order-confirmation coverage for the window.
-      let conf: Confirmations | null = null;
-      try {
-        const r = await fetch(`/api/whatsapp/confirmations?hours=${hoursForPeriod[period]}`, { cache: "no-store" });
-        if (r.ok) {
-          const d = await r.json();
-          const s = d?.summary;
-          if (s) conf = { sent: s.sent, outstanding: s.outstanding, noPhone: s.noPhone, cancelled: s.cancelled, total: s.total, coveragePct: s.coveragePct };
-        }
-      } catch {}
-
-      // D2C channel mix for the donut (capped read of shopify_orders in window).
-      let channelSegs: ChannelSeg[] = [];
-      try {
-        let q = supabase
-          .from("shopify_orders")
-          .select("total_price, first_utm_source, first_source, source_name, is_creator")
-          .range(0, 999);
-        if (sinceIso) q = q.gte("shopify_created_at", sinceIso);
-        const { data: chanData } = await q;
-        const rows = (chanData || []) as ChannelOrder[];
-        const map = new Map<string, number>();
-        for (const o of rows) map.set(channelOf(o), (map.get(channelOf(o)) ?? 0) + (Number(o.total_price) || 0));
-        const sorted = [...map.entries()].sort((a, b) => b[1] - a[1]);
-        const top = sorted.slice(0, 4);
-        const otherTotal = sorted.slice(4).reduce((s, [, v]) => s + v, 0);
-        const segs: ChannelSeg[] = top.map(([label, value], i) => ({ label, value, color: CHAN_COLORS[i] }));
-        if (otherTotal > 0) segs.push({ label: "Other", value: otherTotal, color: CHAN_COLORS[4] });
-        channelSegs = segs;
-      } catch {}
-
-      const channels = await detectChannels();
-      return { shopifyRevPeriod, ordersPeriod, conf, channelSegs, channels };
+  const setPeriod = useCallback(
+    (p: Period) => {
+      const q = new URLSearchParams();
+      if (p !== "30d") q.set("period", p);
+      router.replace(`/dashboard${q.toString() ? `?${q}` : ""}`);
     },
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: true,
+    [router],
+  );
+
+  const { user } = useShellUser();
+  const firstName = (user?.name || "").split(/\s+/)[0] || "there";
+  const now = new Date();
+
+  const salesQ = useQuery({
+    queryKey: ["metrics-sales", period],
+    queryFn: async () => {
+      const r = await fetch(`/api/metrics/sales?period=${period}`, { cache: "no-store" });
+      if (!r.ok) throw new Error(`sales ${r.status}`);
+      const d = await r.json();
+      if (d?.ok === false) throw new Error(d.error || "sales metrics failed");
+      return d as SalesMetrics;
+    },
     placeholderData: keepPreviousData,
   });
 
-  // "Sync now" shows its spinner only for an explicit manual refetch, matching
-  // the old load() (which set refreshing) vs the silent interval poll.
-  async function syncNow() {
-    setRefreshing(true);
-    try { await refetch(); } finally { setRefreshing(false); }
-  }
+  const attentionQ = useQuery({
+    queryKey: ["metrics-attention"],
+    queryFn: async () => {
+      const r = await fetch("/api/metrics/attention", { cache: "no-store" });
+      if (!r.ok) throw new Error(`attention ${r.status}`);
+      return (await r.json()) as Attention;
+    },
+  });
 
-  const shopifyRevPeriod = data?.shopifyRevPeriod ?? 0;
-  const ordersPeriod = data?.ordersPeriod ?? 0;
-  const conf = data?.conf ?? null;
-  const channelSegs = data?.channelSegs ?? [];
-  const channels = data?.channels ?? [];
+  const healthQ = useQuery({
+    queryKey: ["wa-health-home"],
+    queryFn: async () => {
+      const r = await fetch("/api/whatsapp/health", { cache: "no-store" });
+      if (!r.ok) throw new Error(`wa-health ${r.status}`);
+      return r.json() as Promise<{ aiReplies24h: number | null; failedOutbound24h: number | null }>;
+    },
+  });
 
-  async function detectChannels(): Promise<ChannelRow[]> {
-    const rows: ChannelRow[] = [];
-    // WhatsApp (health endpoint)
-    try {
-      const h = await (await fetch("/api/whatsapp/health")).json();
-      rows.push(
-        h?.status === "up"
-          ? { label: "WhatsApp Cloud API", status: "ok", pill: h.uptime24h != null ? `${h.uptime24h}% uptime` : "Operational" }
-          : { label: "WhatsApp Cloud API", status: "warn", pill: "Degraded" }
-      );
-    } catch {
-      rows.push({ label: "WhatsApp Cloud API", status: "off", pill: "Unknown" });
-    }
-    // Shopify — live status from the real mirror table (shopify_orders) + freshness.
-    try {
-      // Count on a granted column: shopify_orders has column-level grants (PII
-      // columns are withheld from browser roles), so a `select("*")` count
-      // returns null and the pill wrongly read "Not connected".
-      const { count: shop } = await supabase.from("shopify_orders").select("shopify_created_at", { count: "exact", head: true });
-      const { data: last } = await supabase.from("shopify_orders").select("shopify_created_at").order("shopify_created_at", { ascending: false }).limit(1);
-      const lastAt = last?.[0]?.shopify_created_at ? new Date(last[0].shopify_created_at as string) : null;
-      const days = lastAt ? Math.floor((Date.now() - lastAt.getTime()) / 86_400_000) : null;
-      rows.push(
-        shop && shop > 0
-          ? { label: "Shopify", status: days != null && days <= 3 ? "ok" : "warn", pill: days === 0 ? "Live · synced today" : days != null ? `Last order ${days}d ago` : "Connected" }
-          : { label: "Shopify", status: "off", pill: "Not connected" }
-      );
-    } catch {
-      rows.push({ label: "Shopify", status: "off", pill: "Unknown" });
-    }
-    // Amazon — read the SP-API mirror endpoint directly (avoids stale-state race
-    // where amazonOrders is still null when detectChannels first runs).
-    try {
-      const a = await (await fetch("/api/amazon")).json();
-      const amz: number = a?.orders?.total ?? 0;
-      rows.push(
-        amz > 0
-          ? { label: "Amazon SP-API", status: "ok", pill: `${amz.toLocaleString("en-IN")} orders` }
-          : { label: "Amazon SP-API", status: "off", pill: "Not connected" }
-      );
-    } catch {
-      rows.push({ label: "Amazon SP-API", status: "off", pill: "Unknown" });
-    }
-    // Email
-    rows.push({ label: "Email · Resend", status: "ok", pill: "SPF·DKIM·DMARC" });
-    return rows;
-  }
+  const header = (
+    <PageHeader
+      crumb={`Today · Good ${greetingWord(now)}, ${firstName}`}
+      title={titleDate(now)}
+      actions={
+        <PeriodPicker options={PERIODS} value={period} onChange={setPeriod} caption={`vs previous ${days} days`} />
+      }
+    />
+  );
 
-  // Derived figures
-  const statKey: Record<Period, string> = { today: "today", "7d": "d7", "30d": "d30", "90d": "d90", all: "all" };
-  const liveRevenue = liveStats ? liveStats.revenue[statKey[period]] : undefined;
-  const liveOrders = liveStats ? liveStats.orders[statKey[period]] : undefined;
-  const shopifyRevenue = liveRevenue ?? shopifyRevPeriod;
-  const d2cOrders = liveOrders ?? ordersPeriod;
-  const amazonRevenue = amazonGross ? amazonGross[period] : 0;
-  const totalRevenue = shopifyRevenue + amazonRevenue;
-  const customers = liveStats?.customers ?? null;
-  const aov = liveStats?.aov_all ?? 0;
-
-  const n = period === "7d" ? 7 : period === "today" ? 12 : 30;
-  const trendSeries = [
-    { label: "Shopify", color: "var(--pm-green)", points: distribute(shopifyRevenue, n, 1.2) },
-    { label: "Amazon", color: "var(--pm-gold)", points: distribute(amazonRevenue, n, 3.7) },
-  ];
-
-  const eligible = conf ? Math.max(0, conf.total - conf.noPhone - conf.cancelled) : 0;
-  const missingPct = conf && eligible > 0 ? (conf.outstanding / eligible) * 100 : 0;
-  const notEligible = conf ? conf.noPhone + conf.cancelled : 0;
-
-  const channelTotal = channelSegs.reduce((s, x) => s + x.value, 0);
-
-  if (!data) {
+  if (salesQ.isLoading) {
     return (
-      <div className="pm-page">
-        <PageHead title="Dashboard" subtitle="Loading…" />
-      </div>
+      <>
+        {header}
+        <HomeFallback />
+      </>
     );
   }
 
+  if (salesQ.isError || !salesQ.data) {
+    return (
+      <>
+        {header}
+        <div className="pm2-body">
+          <Callout
+            tone="crit"
+            title="Couldn't load sales data"
+            body={salesQ.error instanceof Error ? salesQ.error.message : "Something went wrong."}
+            action={
+              <button type="button" className="pm2-btn pri sm" onClick={() => salesQ.refetch()}>
+                <RefreshCw size={14} /> Retry
+              </button>
+            }
+          />
+        </div>
+      </>
+    );
+  }
+
+  const sales = salesQ.data;
+  const web = sales.channels.find((c) => c.key === "web");
+  const amazonRevChannel = sales.channels.find((c) => c.key === "amazon");
+  const amazon = sales.amazon;
+  const attention = attentionQ.data;
+  const health = healthQ.data;
+
+  const topAttention = attention?.items.slice(0, 4) ?? [];
+  const restTitles = attention ? attention.items.slice(4, 6).map((i) => i.title) : [];
+  const openCount = attention?.counts.open ?? 0;
+
+  const dailyLabels = sales.daily.map((d) =>
+    new Date(d.date).toLocaleDateString("en-GB", { timeZone: "UTC", day: "numeric", month: "short" }),
+  );
+
   return (
-    <div className="pm-page">
-      <PageHead
-        title="Good morning, Khush"
-        subtitle={`Here's how PROMUNCH is doing · ${periodLabel[period]}`}
-        actions={
-          <>
-            <div className="pm-ranges">
-              {rangeButtons.map((r) => (
-                <button key={r.key} className={period === r.key ? "on" : ""} onClick={() => setPeriod(r.key)}>
-                  {r.label}
-                </button>
-              ))}
-            </div>
-            <button className="pm-btn primary" onClick={syncNow} disabled={refreshing}>
-              <RefreshCw size={15} /> {refreshing ? "Syncing…" : "Sync now"}
-            </button>
-          </>
-        }
-      />
+    <>
+      {header}
+      <div className="pm2-body">
+        <KpiStrip>
+          <Kpi
+            label="Sales"
+            value={formatLakh(sales.total.revenue)}
+            delta={pctChange(sales.total.revenue, sales.total.prevRevenue)}
+            sub={`${sales.total.orders.toLocaleString("en-IN")} orders`}
+            tip="Web store + Amazon + HYPD. Excludes ₹0.01 creator seed orders and refunds."
+          />
+          <Kpi
+            label="Web store"
+            value={formatLakh(web?.revenue ?? 0)}
+            delta={web ? pctChange(web.revenue, web.prevRevenue) : null}
+            sub={`${(web?.orders ?? 0).toLocaleString("en-IN")} orders`}
+          />
+          <Kpi
+            label="Amazon payout"
+            value={formatLakh(amazon?.net ?? 0)}
+            delta={amazon ? pctChange(amazon.net, amazon.prevNet) : null}
+            sub="after fees"
+            tip="What Amazon pays out after referral, FBA and closing fees. Before your product cost."
+          />
+          <Kpi
+            label="Repeat buyers"
+            value={`${Math.round(sales.repeat.pct)}%`}
+            delta={Math.round(sales.repeat.pct - sales.repeat.prevPct)}
+            deltaUnit="pts"
+            sub="of orders"
+          />
+        </KpiStrip>
 
-      {/* PERFORMANCE */}
-      <SectionLabel>Performance · {periodLabel[period]}</SectionLabel>
-      <div className="pm-kpis">
-        <KpiCard
-          label="Total revenue"
-          value={inr(totalRevenue)}
-          icon={<IndianRupee />}
-          tone="g"
-          delta={<><TrendingUp /> All channels</>}
-          deltaDir="up"
-          sub="Shopify + Amazon"
-          spark
-        />
-        <KpiCard
-          label="Orders"
-          value={d2cOrders.toLocaleString("en-IN")}
-          icon={<ShoppingBag />}
-          tone="o"
-          sub={`${d2cOrders.toLocaleString("en-IN")} D2C${amazonOrders ? ` · ${amazonOrders.toLocaleString("en-IN")} Amazon` : ""}`}
-          spark
-          deltaDir="up"
-        />
-        <KpiCard
-          label="Avg order value"
-          value={aov > 0 ? inr(aov) : "—"}
-          icon={<Receipt />}
-          tone="t"
-          sub="across all channels"
-          spark
-          deltaDir="flat"
-        />
-        <KpiCard
-          label="Customers"
-          value={customers != null ? customers.toLocaleString("en-IN") : "—"}
-          icon={<Users />}
-          tone="b"
-          sub="live from Shopify"
-          spark
-          deltaDir="up"
-        />
-      </div>
-
-      {/* REVENUE */}
-      <SectionLabel>Revenue</SectionLabel>
-      <div className="pm-grid g-2-1">
-        <Panel
-          title="Revenue trend"
-          icon={<TrendingUp className="tic" />}
-          caption="Shopify D2C vs Amazon · ₹ per day"
-          more={<>Daily · {period === "today" ? "today" : period}</>}
+        <Card
+          title={`Needs a decision · ${openCount}`}
+          flush
+          foot={
+            topAttention.length > 0 ? (
+              <>
+                <Link href="/dashboard/attention" className="pm2-lnk">
+                  All {openCount} →
+                </Link>
+                {restTitles.length > 0 && (
+                  <span style={{ color: "var(--pm-hint)", marginLeft: "auto" }}>{restTitles.join(" · ")}</span>
+                )}
+              </>
+            ) : undefined
+          }
         >
-          <AreaChart series={trendSeries} fmtY={fmtK} />
-          <div className="pm-legend">
-            <div className="li"><span className="sw" style={{ background: "var(--pm-green)" }} />Shopify — {inr(shopifyRevenue)}</div>
-            <div className="li"><span className="sw" style={{ background: "var(--pm-gold)" }} />Amazon — {inr(amazonRevenue)}</div>
-          </div>
-        </Panel>
-        <Panel title="D2C by channel" icon={<Compass className="tic" />} caption={`First-touch · ${periodLabel[period]}`}>
-          {channelSegs.length > 0 ? (
-            <>
-              <ChannelDonut
-                segments={channelSegs}
-                centerValue={inr(channelTotal)}
-                centerLabel={`${d2cOrders.toLocaleString("en-IN")} orders`}
-              />
-              <div className="pm-chanlist">
-                {channelSegs.map((s) => (
-                  <div className="pm-chanrow" key={s.label}>
-                    <span className="sw" style={{ background: s.color }} />
-                    <span className="nm">{s.label}</span>
-                    <span className="v">{channelTotal > 0 ? Math.round((s.value / channelTotal) * 100) : 0}%</span>
-                  </div>
-                ))}
+          <AttentionList
+            items={topAttention}
+            empty={
+              <div style={{ color: "var(--pm-hint)", fontSize: 13, padding: "16px" }}>
+                Nothing waiting on you right now
               </div>
-            </>
-          ) : (
-            <div style={{ textAlign: "center", color: "var(--pm-hint)", fontSize: 12.5, padding: "48px 0" }}>No channel data in range</div>
-          )}
-        </Panel>
-      </div>
+            }
+          />
+        </Card>
 
-      {/* OPERATIONS */}
-      <SectionLabel>Operations</SectionLabel>
-      <div className="pm-grid g-3">
-        <Panel title="Order confirmations" icon={<CircleCheck className="tic" />} caption={`WhatsApp sent vs eligible · ${periodLabel[period]}`}>
-          {conf ? (
-            <div className="pm-ringwrap">
-              <Ring done={conf.coveragePct} bad={missingPct} label="coverage" value={`${Math.round(conf.coveragePct)}%`} />
-              <div className="pm-klist">
-                <div className="pm-kline"><span className="sw" style={{ background: "var(--pm-green)" }} /><b>{conf.sent}</b> confirmed</div>
-                <div className="pm-kline"><span className="sw" style={{ background: "var(--pm-terra)" }} /><b>{conf.outstanding}</b> missing</div>
-                <div className="pm-kline"><span className="sw" style={{ background: "#B9AE99" }} /><b>{notEligible}</b> not eligible</div>
+        <div className="pm2-g21">
+          <Card title="Daily sales" basis="₹ per day · all channels">
+            <LineChart
+              series={[
+                { name: "This period", color: "var(--pm-s-web)", values: sales.daily.map((d) => d.revenue) },
+                { name: "Previous", color: "var(--pm-hint)", dash: true, values: sales.daily.map((d) => d.prevRevenue) },
+              ]}
+              labels={dailyLabels}
+              yFormat="money"
+              fmt={formatLakh}
+              aria={`Daily sales, this ${days}-day period vs the previous ${days} days`}
+            />
+          </Card>
+
+          <Card title="By channel" basis={`${days} days · gross`}>
+            <StackBar
+              parts={[
+                { label: "Web", value: web?.revenue ?? 0, text: formatLakh(web?.revenue ?? 0), color: "var(--pm-s-web)" },
+                {
+                  label: "Amazon",
+                  value: amazonRevChannel?.revenue ?? 0,
+                  text: formatLakh(amazonRevChannel?.revenue ?? 0),
+                  color: "var(--pm-s-amz)",
+                },
+                {
+                  label: "HYPD",
+                  value: sales.channels.find((c) => c.key === "hypd")?.revenue ?? 0,
+                  text: formatLakh(sales.channels.find((c) => c.key === "hypd")?.revenue ?? 0),
+                  color: "var(--pm-s-hypd)",
+                },
+              ]}
+            />
+            {health?.aiReplies24h != null && (
+              <div className="pm2-legend" style={{ marginTop: 16 }}>
+                <span>
+                  <b>{health.aiReplies24h.toLocaleString("en-IN")}</b> AI replies today
+                </span>
               </div>
-            </div>
-          ) : data || snapshotError ? (
-            <PanelRetry label="Couldn’t load coverage." onRetry={() => refetch()} />
-          ) : (
-            <div style={{ color: "var(--pm-hint)", fontSize: 12.5, padding: "20px 0" }}>Loading…</div>
-          )}
-        </Panel>
-
-        <Panel title="WhatsApp · 24h" icon={<MessageCircle className="tic" />} caption="Delivery health">
-          {waHealth ? (
-            <>
-              <MiniBar label="Uptime" value={waHealth.uptime24h != null ? `${waHealth.uptime24h}%` : "—"} pct={waHealth.uptime24h ?? 0} color="var(--pm-green)" />
-              <MiniBar label="AI replies" value={waHealth.aiReplies24h ?? 0} pct={Math.min(100, (waHealth.aiReplies24h ?? 0) * 4)} color="var(--pm-blue)" />
-              <MiniBar label="Failed" value={waHealth.failedOutbound24h ?? 0} pct={Math.min(100, (waHealth.failedOutbound24h ?? 0) * 10)} color="var(--pm-terra)" valueColor="var(--pm-terra)" />
-              <div style={{ fontSize: 12, color: "var(--pm-hint)", marginTop: 8 }}>
-                {waHealth.status === "up" ? "Operational" : "Degraded"}
-                {waHealth.uptime24h != null ? ` · ${waHealth.uptime24h}% uptime` : ""}
-              </div>
-            </>
-          ) : feedErr.wa ? (
-            <PanelRetry label="Couldn’t load WhatsApp health." onRetry={() => setFeedTry((k) => k + 1)} />
-          ) : (
-            <div style={{ color: "var(--pm-hint)", fontSize: 12.5, padding: "20px 0" }}>Loading…</div>
-          )}
-        </Panel>
-
-        <Panel title="Support inbox" icon={<Mail className="tic" />} caption="Threads awaiting a reply">
-          {support ? (
-            <>
-              <StatLine
-                items={[
-                  { n: support.pending, l: "Pending", color: "var(--pm-gold)" },
-                  { n: support.sent, l: "Sent", color: "var(--pm-green)" },
-                  { n: support.skipped, l: "Skipped", color: "var(--pm-hint)" },
-                ]}
-              />
-              <MiniBar label="AI drafts ready" value="100%" pct={100} color="var(--pm-green)" style={{ marginTop: 14 }} />
-            </>
-          ) : feedErr.support ? (
-            <PanelRetry label="Couldn’t load the support inbox." onRetry={() => setFeedTry((k) => k + 1)} />
-          ) : (
-            <div style={{ color: "var(--pm-hint)", fontSize: 12.5, padding: "20px 0" }}>Loading…</div>
-          )}
-        </Panel>
+            )}
+          </Card>
+        </div>
       </div>
-
-      {/* ACTION */}
-      <SectionLabel>Action</SectionLabel>
-      <div className="pm-grid g-2">
-        <Panel title="Needs attention" icon={<AlertTriangle className="tic" />} caption="Things a human should look at" more={needs ? `${(needs.failedWhatsApp > 0 ? 1 : 0) + (conf && conf.outstanding > 0 ? 1 : 0) + (needs.highPriorityWaTickets > 0 ? 1 : 0) + (needs.urgentEmails > 0 ? 1 : 0)} items` : undefined}>
-          {needs?.failedWhatsApp ? (
-            <AttentionItem
-              icon={<MessageCircleOff />}
-              tone="r"
-              text={`${needs.failedWhatsApp} WhatsApp message${needs.failedWhatsApp === 1 ? "" : "s"} failed in the last 24h`}
-              sub="Auto-retried; these need a manual resend"
-              action={<Link className="go" href="/dashboard/whatsapp">Review</Link>}
-            />
-          ) : null}
-          {conf && conf.outstanding > 0 ? (
-            <AttentionItem
-              icon={<CircleDashed />}
-              tone="r"
-              text={`${conf.outstanding} orders missing a WhatsApp confirmation`}
-              sub={`${Math.round(conf.coveragePct)}% coverage · ${periodLabel[period]}`}
-              action={<Link className="go" href="/dashboard/order-confirmations">Send all</Link>}
-            />
-          ) : null}
-          {needs?.highPriorityWaTickets ? (
-            <AttentionItem
-              icon={<Ticket />}
-              tone="a"
-              text={`${needs.highPriorityWaTickets} high-priority WhatsApp ticket${needs.highPriorityWaTickets === 1 ? "" : "s"} still open`}
-              action={<Link className="go" href="/dashboard/whatsapp">Open</Link>}
-            />
-          ) : null}
-          {needs?.urgentEmails ? (
-            <AttentionItem
-              icon={<MailWarning />}
-              tone="a"
-              text={`${needs.urgentEmails} urgent support email${needs.urgentEmails === 1 ? "" : "s"} awaiting a reply`}
-              sub="Drafts already generated"
-              action={<Link className="go" href="/dashboard/support-emails">Open</Link>}
-            />
-          ) : null}
-          {!needs && feedErr.needs && (
-            <PanelRetry label="Couldn’t load what needs attention." onRetry={() => setFeedTry((k) => k + 1)} />
-          )}
-          {needs && !needs.failedWhatsApp && !needs.highPriorityWaTickets && !needs.urgentEmails && (!conf || conf.outstanding === 0) && (
-            <div style={{ color: "var(--pm-hint)", fontSize: 13, padding: "16px 0" }}>All clear — nothing needs a human right now.</div>
-          )}
-        </Panel>
-
-        <Panel title="Channel health" icon={<PlugZap className="tic" />} caption="Connected data sources">
-          {channels.map((c) => (
-            <HealthPill key={c.label} name={c.label} status={c.status} statusLabel={c.pill} />
-          ))}
-        </Panel>
-      </div>
-    </div>
+    </>
   );
 }
