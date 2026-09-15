@@ -63,7 +63,8 @@ All pages are client components (`"use client"`) except thin server wrappers for
 | `instagram/` | IG DM inbox + collab pipeline (built, gated on Meta review) | `/api/instagram/*` |
 | `amazon/` | Amazon financials / inventory / settlements / SKU economics | `/api/amazon`, `/api/amazon/costs` |
 | `order-confirmations/` | WA confirmation coverage + COD-gate needs-call queue | `/api/whatsapp/confirmations`, `/api/whatsapp/cod-gate` |
-| `analytics/`, `shopify-attribution/`, `audit-log/`, `flows/`, `assistant/` (Maya), `settings/`, `team/`, `integrations/` | Supporting screens | various |
+| `sales/web/` | Web store attribution (where orders came from, new vs returning, campaigns); `shopify-attribution/` redirects here | `/api/metrics/web` |
+| `analytics/`, `audit-log/`, `flows/`, `assistant/` (Maya), `settings/`, `team/`, `integrations/` | Supporting screens | various |
 
 Public (non-dashboard) surface: `/login`, `/r/[code]` (WA short-link redirect + click tracking).
 

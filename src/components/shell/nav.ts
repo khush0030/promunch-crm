@@ -21,7 +21,7 @@ export type AttentionCounts = Omit<Attention["counts"], "byHub">;
 // routes). salesOverview now points at the real Sales overview page (1.3).
 export const ROUTES = {
   salesOverview: "/dashboard/sales",
-  salesWeb: "/dashboard/shopify-attribution",
+  salesWeb: "/dashboard/sales/web",
   salesAmazon: "/dashboard/amazon",
   salesOrders: "/dashboard/order-confirmations",
   // Instagram tabs are not URL-driven yet, so Creators lands on the page.

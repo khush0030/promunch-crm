@@ -18,6 +18,15 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  async redirects() {
+    return [
+      {
+        source: "/dashboard/shopify-attribution",
+        destination: "/dashboard/sales/web",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 // Sentry build plugin. Source-map upload only runs when SENTRY_AUTH_TOKEN +

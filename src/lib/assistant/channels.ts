@@ -3,7 +3,7 @@
 // This mirrors channelOf() in src/app/dashboard/page.tsx (sales-channel
 // semantics: source_name FIRST, so HYPD marketplace orders are never
 // mislabeled as direct traffic). Note this is intentionally different from
-// the traffic-source-first channelOf() in shopify-attribution/page.tsx —
+// the traffic-source-first sourceKeyOf() in lib/metrics/web-aggregate.ts —
 // the assistant reports sales channels, not ad attribution.
 
 export type ChannelOrder = {
