@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildAttention, type AttentionInput } from "./attention";
+import { buildAttention, shortProductName, type AttentionInput } from "./attention";
 
 const now = new Date("2026-09-15T12:00:00.000Z");
 
@@ -231,5 +231,16 @@ describe("buildAttention", () => {
       System: 0,
     });
     expect(out.counts.open).toBe(5);
+  });
+});
+
+describe("shortProductName", () => {
+  it("keeps the part before the first comma, pipe or bracket", () => {
+    expect(shortProductName("PROMUNCH Rakhi Gift Hamper for Brother Sister, Healthy Raksha Bandhan Gift Box")).toBe("PROMUNCH Rakhi Gift Hamper for Brother Sister");
+    expect(shortProductName("Vama SOYA Flour Enriched with 50% Protein | Low Carb")).toBe("Vama SOYA Flour Enriched with 50% Protein");
+  });
+  it("caps very long names and handles empty", () => {
+    expect(shortProductName("A".repeat(80)).length).toBe(46);
+    expect(shortProductName(null)).toBe("");
   });
 });

@@ -138,6 +138,15 @@ function oldestTs(rows: { ts: string | null }[]): string | null {
 
 const SEVERITY_RANK: Record<AttentionSeverity, number> = { crit: 0, warn: 1, info: 2 };
 
+// Amazon listing titles run to 150+ characters of keywords. Keep the part
+// before the first comma, pipe or bracket, and cap it, so a row reads as a
+// product name rather than a search listing.
+export function shortProductName(name: string | null | undefined): string {
+  if (!name) return "";
+  const head = name.split(/[,|(\-]/)[0].trim();
+  return head.length > 48 ? head.slice(0, 45).trimEnd() + "…" : head;
+}
+
 export function buildAttention(input: AttentionInput): Attention {
   const { now } = input;
   const items: AttentionItem[] = [];
@@ -167,7 +176,7 @@ export function buildAttention(input: AttentionInput): Attention {
     const units30 = agg?.units30 ?? 0;
     if (units30 <= 0) continue; // no recent sales velocity, nothing to flag
     const velocity = units30 / 30;
-    const title = inv.product_name || inv.seller_sku;
+    const title = shortProductName(inv.product_name) || inv.seller_sku;
 
     if (fulfillable === 0) {
       const avgNetPerUnit = agg!.net30 / units30;
