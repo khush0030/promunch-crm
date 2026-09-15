@@ -169,6 +169,7 @@ export function buildAttention(input: AttentionInput): Attention {
     skuAgg.set(ev.seller_sku, agg);
   }
 
+  const stockouts: { sku: string; title: string; units30: number; lostPerDay: number; since: string }[] = [];
   const lowStock: { sku: string; title: string; daysCover: number; since: string }[] = [];
   for (const inv of input.amazonInventory) {
     const fulfillable = num(inv.fulfillable_quantity);
@@ -180,19 +181,7 @@ export function buildAttention(input: AttentionInput): Attention {
 
     if (fulfillable === 0) {
       const avgNetPerUnit = agg!.net30 / units30;
-      const lostPerDay = velocity * avgNetPerUnit;
-      items.push({
-        id: `amazon-stockout-${inv.seller_sku}`,
-        group: "money",
-        severity: "crit",
-        title: `${title} is out of stock on Amazon`,
-        context: `${units30} sold in the last 30 days`,
-        amount: round2(lostPerDay),
-        amountLabel: "per day",
-        href: "/dashboard/sales/amazon?tab=stock",
-        cta: "Restock",
-        since: agg!.since,
-      });
+      stockouts.push({ sku: inv.seller_sku, title, units30, lostPerDay: velocity * avgNetPerUnit, since: agg!.since });
       continue;
     }
 
@@ -200,6 +189,41 @@ export function buildAttention(input: AttentionInput): Attention {
     if (daysCover >= 1 && daysCover < 10) {
       lowStock.push({ sku: inv.seller_sku, title, daysCover, since: agg!.since });
     }
+  }
+
+  // One row for all stock-outs: fourteen separate rows on Home hides
+  // everything else. The Stock tab lists them individually.
+  if (stockouts.length === 1) {
+    const s = stockouts[0];
+    items.push({
+      id: `amazon-stockout-${s.sku}`,
+      group: "money",
+      severity: "crit",
+      title: `${s.title} is out of stock on Amazon`,
+      context: `${s.units30} sold in the last 30 days`,
+      amount: round2(s.lostPerDay),
+      amountLabel: "per day",
+      href: "/dashboard/sales/amazon?tab=stock",
+      cta: "Restock",
+      since: s.since,
+    });
+  } else if (stockouts.length > 1) {
+    stockouts.sort((a, b) => b.lostPerDay - a.lostPerDay);
+    const names = stockouts.slice(0, 2).map((s) => s.title).join(", ");
+    const more = stockouts.length - 2;
+    items.push({
+      id: "amazon-stockouts",
+      group: "money",
+      severity: "crit",
+      title: `${stockouts.length} products out of stock on Amazon`,
+      context: `${names}${more > 0 ? ` and ${more} more` : ""}`,
+      amount: round2(stockouts.reduce((t, s) => t + s.lostPerDay, 0)),
+      amountLabel: "per day",
+      href: "/dashboard/sales/amazon?tab=stock",
+      cta: "Restock",
+      count: stockouts.length,
+      since: stockouts.reduce((min, s) => (s.since < min ? s.since : min), stockouts[0].since),
+    });
   }
 
   if (lowStock.length > 0) {

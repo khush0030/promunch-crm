@@ -186,7 +186,7 @@ describe("buildAttention", () => {
     ]);
   });
 
-  it("breaks a tie on equal amount and severity by age, oldest first", () => {
+  it("groups several stock-outs into one row, oldest since, summed loss", () => {
     const out = buildAttention(
       baseInput({
         amazonInventory: [
@@ -194,19 +194,36 @@ describe("buildAttention", () => {
           { seller_sku: "OLDER", product_name: "Older stockout", fulfillable_quantity: 0, inbound_shipped: 0 },
         ],
         amazonFinanceItems: [
-          // Same units30 (10) and same net30 (400) for both SKUs -> identical
-          // lostPerDay amount and identical severity (crit) -> age must decide.
           { seller_sku: "NEWER", event_type: "Shipment", posted_date: "2026-09-01T00:00:00.000Z", quantity: 10, net: 400 },
           { seller_sku: "OLDER", event_type: "Shipment", posted_date: "2026-08-20T00:00:00.000Z", quantity: 10, net: 400 },
+        ],
+      }),
+    );
+    expect(out.items).toHaveLength(1);
+    const it0 = out.items[0];
+    expect(it0.id).toBe("amazon-stockouts");
+    expect(it0.title).toBe("2 products out of stock on Amazon");
+    expect(it0.context).toBe("Newer stockout, Older stockout");
+    expect(it0.count).toBe(2);
+    expect(it0.amount).toBeCloseTo(26.67, 2);
+    expect(it0.since).toBe("2026-08-20T00:00:00.000Z");
+  });
+
+  it("breaks a tie on equal amount and severity by age, oldest first", () => {
+    const out = buildAttention(
+      baseInput({
+        codOrders: [{ shopify_id: 1, total_price: "400", shopify_created_at: "2026-09-01T00:00:00.000Z" }],
+        amazonInventory: [{ seller_sku: "X", product_name: "X", fulfillable_quantity: 0, inbound_shipped: 0 }],
+        amazonFinanceItems: [
+          // 30 units × ₹400 net / 30 days = ₹400 per day, same as the COD hold.
+          { seller_sku: "X", event_type: "Shipment", posted_date: "2026-08-20T00:00:00.000Z", quantity: 30, net: 12000 },
         ],
       }),
     );
     expect(out.items).toHaveLength(2);
     expect(out.items[0].amount).toBe(out.items[1].amount);
     expect(out.items[0].severity).toBe(out.items[1].severity);
-    expect(out.items.map((i) => i.id)).toEqual(["amazon-stockout-OLDER", "amazon-stockout-NEWER"]);
-    expect(out.items[0].since).toBe("2026-08-20T00:00:00.000Z");
-    expect(out.items[1].since).toBe("2026-09-01T00:00:00.000Z");
+    expect(out.items.map((i) => i.id)).toEqual(["amazon-stockout-X", expect.stringContaining("cod")]);
   });
 
   it("computes byHub counts across sources", () => {

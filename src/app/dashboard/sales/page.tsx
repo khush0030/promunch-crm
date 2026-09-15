@@ -181,22 +181,34 @@ function SalesPageInner() {
     .filter((c): c is ChannelRow => !!c)
     .filter((c) => c.revenue !== 0 || c.prevRevenue !== 0);
 
+  // Three columns so the card fits its 1fr slot at laptop width: orders sit
+  // under the channel name, the change under the sales figure.
   const channelCols: TableCol<ChannelRow>[] = [
     {
       h: "Channel",
       render: (r) => (
-        <span className="pm2-legend" style={{ margin: 0 }}>
-          <span>
-            <i style={{ background: CHANNEL_COLOR[r.key] ?? "var(--pm-muted)" }} />
-            {r.label}
+        <>
+          <span className="pm2-legend" style={{ margin: 0 }}>
+            <span>
+              <i style={{ background: CHANNEL_COLOR[r.key] ?? "var(--pm-muted)" }} />
+              {r.label}
+            </span>
           </span>
-        </span>
+          <span className="sub">{r.orders.toLocaleString("en-IN")} orders</span>
+        </>
       ),
     },
-    { h: "Sales", num: true, render: (r) => formatLakh(r.revenue) },
-    { h: "Change", num: true, render: (r) => <Delta value={pctChange(r.revenue, r.prevRevenue)} /> },
-    { h: "Orders", num: true, render: (r) => r.orders.toLocaleString("en-IN") },
-    { h: "AOV", num: true, render: (r) => formatINR(r.aov) },
+    {
+      h: "Sales",
+      num: true,
+      render: (r) => (
+        <>
+          {formatLakh(r.revenue)}
+          <span className="sub"><Delta value={pctChange(r.revenue, r.prevRevenue)} /></span>
+        </>
+      ),
+    },
+    { h: "Avg order", num: true, render: (r) => formatINR(r.aov) },
   ];
 
   const productCols: TableCol<ProductRow>[] = [
