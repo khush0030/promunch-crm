@@ -21,8 +21,10 @@ export function channelOf(o: ChannelOrderInput): ChannelKey {
 
   if (sn === "341128478721" || /hypd/i.test(sn)) return "hypd";
   if (/amazon/i.test(sn)) return "amazon";
-  // The PROMUNCH Shopify storefront (online store sales channel).
-  if (sn === "web") return "web";
+  // The PROMUNCH storefront. Shopify reported it as "web" until 30 May 2026;
+  // from 2 Jun 2026 every storefront order carries sales-channel id
+  // 368925802497 instead (the "web" orders stop the day this id starts).
+  if (sn === "web" || sn === "368925802497") return "web";
   // Any other numeric Shopify channel id is a connected marketplace/app we
   // don't have a named bucket for.
   if (/^\d+$/.test(sn)) return "other";

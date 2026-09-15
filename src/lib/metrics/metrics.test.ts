@@ -62,6 +62,7 @@ describe("pctChange", () => {
 describe("channelOf", () => {
   it("classifies the D2C web store", () => {
     expect(channelOf({ source_name: "web" })).toBe("web");
+    expect(channelOf({ source_name: "368925802497" })).toBe("web");
   });
   it("classifies HYPD by known marketplace id", () => {
     expect(channelOf({ source_name: "341128478721" })).toBe("hypd");
