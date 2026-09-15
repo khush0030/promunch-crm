@@ -193,10 +193,12 @@ export function buildAttention(input: AttentionInput): Attention {
 
   // One row for all stock-outs: fourteen separate rows on Home hides
   // everything else. The Stock tab lists them individually.
+  // The id stays "amazon-stockouts" whatever the count so snoozes and
+  // "done today" survive a second SKU running out.
   if (stockouts.length === 1) {
     const s = stockouts[0];
     items.push({
-      id: `amazon-stockout-${s.sku}`,
+      id: "amazon-stockouts",
       group: "money",
       severity: "crit",
       title: `${s.title} is out of stock on Amazon`,

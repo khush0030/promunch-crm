@@ -47,7 +47,7 @@ describe("buildAttention", () => {
 
     expect(out.items).toHaveLength(1);
     const item = out.items[0];
-    expect(item.id).toBe("amazon-stockout-PP-100");
+    expect(item.id).toBe("amazon-stockouts");
     expect(item.group).toBe("money");
     expect(item.severity).toBe("crit");
     expect(item.href).toBe("/dashboard/sales/amazon?tab=stock");
@@ -179,7 +179,7 @@ describe("buildAttention", () => {
     // amazon stockout has the largest amount (30/30*1000=1000/day), then COD (100), then
     // no-amount items ordered by severity (tickets=warn before campaign=info).
     expect(out.items.map((i) => i.id)).toEqual([
-      "amazon-stockout-X",
+      "amazon-stockouts",
       "cod-needs-call",
       "wa-tickets-open",
       "campaign-paused-c1",
@@ -223,7 +223,7 @@ describe("buildAttention", () => {
     expect(out.items).toHaveLength(2);
     expect(out.items[0].amount).toBe(out.items[1].amount);
     expect(out.items[0].severity).toBe(out.items[1].severity);
-    expect(out.items.map((i) => i.id)).toEqual(["amazon-stockout-X", expect.stringContaining("cod")]);
+    expect(out.items.map((i) => i.id)).toEqual(["amazon-stockouts", expect.stringContaining("cod")]);
   });
 
   it("computes byHub counts across sources", () => {
