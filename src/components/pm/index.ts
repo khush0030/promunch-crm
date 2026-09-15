@@ -35,7 +35,7 @@ export type { HBarItem } from "./HBars";
 export { StackBar } from "./StackBar";
 export type { StackPart } from "./StackBar";
 export { LineChart } from "./LineChart";
-export type { LineSeries } from "./LineChart";
+export type { LineSeries, YFormat } from "./LineChart";
 export { BarChart } from "./BarChart";
 export type { BarSeries } from "./BarChart";
 export { Funnel } from "./Funnel";

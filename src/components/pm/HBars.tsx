@@ -28,7 +28,7 @@ function HBarRow({ item: x, max }: { item: HBarItem; max: number }) {
       <span className="lab" title={x.label}>
         {x.label}
       </span>
-      <span className="trk" data-tip={x.tip || undefined}>
+      <span className="trk" data-tip={x.tip || undefined} tabIndex={x.tip ? 0 : undefined}>
         <span className="fill" style={{ width: `${pct}%`, background: x.color || "var(--pm-cyan)" }} />
       </span>
       <span className="val">

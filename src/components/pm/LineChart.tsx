@@ -1,6 +1,17 @@
+import { formatAxisTicks } from "@/lib/metrics/money";
+
 export type LineSeries = { name: string; color: string; values: number[]; dash?: boolean };
 
 type Fmt = (v: number) => string;
+export type YFormat = "money" | "count";
+
+// Y-axis tick labels. "money" = one shared unit per axis (formatAxisTicks),
+// "count" = en-IN grouped integers, otherwise the caller's fmt (or rounded).
+export function axisLabels(ticks: number[], yFormat?: YFormat, fmt?: Fmt): string[] {
+  if (yFormat === "money") return formatAxisTicks(ticks);
+  if (yFormat === "count") return ticks.map((v) => Math.round(v).toLocaleString("en-IN"));
+  return ticks.map((v) => (fmt ? fmt(v) : String(Math.round(v))));
+}
 
 // Round the axis top up to 4 even steps of a round multiple of 10^k so tick
 // labels read as round numbers.
@@ -24,22 +35,24 @@ export function LineChart({
   series,
   labels,
   fmt,
+  yFormat,
   aria,
   height = H,
 }: {
   series: LineSeries[];
   labels: string[];
   fmt?: Fmt;
+  yFormat?: YFormat;
   aria: string;
   height?: number;
 }) {
   return (
     <div className="pm2-chart">
       <div className="pm2-chart-d">
-        <LineSvg series={series} labels={labels} fmt={fmt} aria={aria} W={640} pl={50} pr={116} maxXLabels={6} h={height} />
+        <LineSvg series={series} labels={labels} fmt={fmt} yFormat={yFormat} aria={aria} W={640} pl={50} pr={116} maxXLabels={6} h={height} />
       </div>
       <div className="pm2-chart-m">
-        <LineSvg series={series} labels={labels} fmt={fmt} aria={aria} W={360} pl={46} pr={108} maxXLabels={3} h={height} />
+        <LineSvg series={series} labels={labels} fmt={fmt} yFormat={yFormat} aria={aria} W={360} pl={46} pr={108} maxXLabels={3} h={height} />
       </div>
     </div>
   );
@@ -49,6 +62,7 @@ function LineSvg({
   series,
   labels,
   fmt,
+  yFormat,
   aria,
   W,
   pl,
@@ -59,6 +73,7 @@ function LineSvg({
   series: LineSeries[];
   labels: string[];
   fmt?: Fmt;
+  yFormat?: YFormat;
   aria: string;
   W: number;
   pl: number;
@@ -74,6 +89,7 @@ function LineSvg({
   const x = (i: number) => pl + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
   const y = (v: number) => PT + (1 - v / max) * (h - PT - PB);
   const ticks = [0, 1, 2, 3, 4].map((t) => (max / 4) * t);
+  const tickText = axisLabels(ticks, yFormat, fmt);
   const step = Math.max(1, Math.ceil(n / maxXLabels));
 
   // End labels: place at the last point, then push apart so they never overlap.
@@ -94,7 +110,7 @@ function LineSvg({
         <g key={`t${t}`}>
           <line className="grid" x1={pl} x2={W - pr} y1={y(v)} y2={y(v)} />
           <text x={pl - 6} y={y(v) + 3.5} textAnchor="end">
-            {f(v)}
+            {tickText[t]}
           </text>
         </g>
       ))}

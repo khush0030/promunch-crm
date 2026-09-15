@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parsePeriod, periodWindow, previousWindow, pctChange } from "./period";
 import { channelOf, isRevenueOrder } from "./channel";
-import { formatINR, formatLakh } from "./money";
+import { formatINR, formatLakh, formatAxisTicks } from "./money";
 
 describe("parsePeriod", () => {
   it("defaults unknown/missing input to 30d", () => {
@@ -118,5 +118,26 @@ describe("formatLakh", () => {
 describe("formatINR", () => {
   it("formats with Indian digit grouping", () => {
     expect(formatINR(142300)).toBe("₹1,42,300");
+  });
+});
+
+describe("formatAxisTicks", () => {
+  it("uses one lakh unit for every tick, with a decimal only when needed", () => {
+    expect(formatAxisTicks([0, 80000, 160000, 240000, 320000])).toEqual(["₹0", "₹0.8L", "₹1.6L", "₹2.4L", "₹3.2L"]);
+    expect(formatAxisTicks([0, 100000, 200000, 300000, 400000])).toEqual(["₹0", "₹1L", "₹2L", "₹3L", "₹4L"]);
+    expect(formatAxisTicks([0, 50000, 100000, 150000, 200000])).toEqual(["₹0", "₹0.5L", "₹1L", "₹1.5L", "₹2L"]);
+  });
+  it("uses thousands when the largest tick is under a lakh", () => {
+    expect(formatAxisTicks([0, 12000, 24000, 36000, 48000])).toEqual(["₹0", "₹12k", "₹24k", "₹36k", "₹48k"]);
+    expect(formatAxisTicks([0, 500, 1000, 1500, 2000])).toEqual(["₹0", "₹0.5k", "₹1k", "₹1.5k", "₹2k"]);
+  });
+  it("uses whole rupees below a thousand", () => {
+    expect(formatAxisTicks([0, 25, 50, 75, 100])).toEqual(["₹0", "₹25", "₹50", "₹75", "₹100"]);
+  });
+  it("picks the unit from the largest absolute tick", () => {
+    expect(formatAxisTicks([-200000, 0, 200000])).toEqual(["-₹2L", "₹0", "₹2L"]);
+  });
+  it("handles an empty list", () => {
+    expect(formatAxisTicks([])).toEqual([]);
   });
 });

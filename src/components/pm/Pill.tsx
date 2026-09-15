@@ -16,7 +16,7 @@ export function Pill({
   children: ReactNode;
 }) {
   return (
-    <span className={`pm2-pill ${tone}${plain ? " plain" : ""}`} data-tip={tip || undefined}>
+    <span className={`pm2-pill ${tone}${plain ? " plain" : ""}`} data-tip={tip || undefined} tabIndex={tip ? 0 : undefined}>
       {children}
     </span>
   );

@@ -18,7 +18,7 @@ export function Delta({
   if (rounded < 0) tone = invert ? "good" : "bad";
   const text = rounded === 0 ? "±0%" : `${rounded > 0 ? "▲" : "▼"} ${Math.abs(rounded)}%`;
   return (
-    <span className={`pm2-dl ${tone}`} data-tip={tip || undefined}>
+    <span className={`pm2-dl ${tone}`} data-tip={tip || undefined} tabIndex={tip ? 0 : undefined}>
       {text}
     </span>
   );

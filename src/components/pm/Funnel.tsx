@@ -14,7 +14,7 @@ export function Funnel({ steps }: { steps: FunnelStep[] }) {
         return (
           <div className="pm2-fn" key={`${s.label}-${i}`}>
             <span>{s.label}</span>
-            <span className="bar" data-tip={s.tip || undefined}>
+            <span className="bar" data-tip={s.tip || undefined} tabIndex={s.tip ? 0 : undefined}>
               <div style={{ width: `${pct}%`, background: s.color || "var(--pm-cyan)" }} />
               <span>{s.text}</span>
             </span>

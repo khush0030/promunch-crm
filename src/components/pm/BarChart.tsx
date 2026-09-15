@@ -1,6 +1,7 @@
 export type BarSeries = { name: string; color: string; values: number[] };
 
-import { niceMax } from "./LineChart";
+import { niceMax, axisLabels } from "./LineChart";
+import type { YFormat } from "./LineChart";
 
 type Fmt = (v: number) => string;
 
@@ -14,6 +15,7 @@ export function BarChart({
   cats,
   series,
   fmt,
+  yFormat,
   labels = false,
   aria = "Bar chart",
   height = 200,
@@ -21,6 +23,7 @@ export function BarChart({
   cats: string[];
   series: BarSeries[];
   fmt?: Fmt;
+  yFormat?: YFormat;
   labels?: boolean;
   aria?: string;
   height?: number;
@@ -29,10 +32,10 @@ export function BarChart({
     <>
       <div className="pm2-chart">
         <div className="pm2-chart-d">
-          <BarSvg cats={cats} series={series} fmt={fmt} labels={labels} aria={aria} W={640} pl={50} maxXLabels={16} h={height} />
+          <BarSvg cats={cats} series={series} fmt={fmt} yFormat={yFormat} labels={labels} aria={aria} W={640} pl={50} maxXLabels={16} h={height} />
         </div>
         <div className="pm2-chart-m">
-          <BarSvg cats={cats} series={series} fmt={fmt} labels={labels && cats.length <= 8} aria={aria} W={360} pl={46} maxXLabels={6} h={height} />
+          <BarSvg cats={cats} series={series} fmt={fmt} yFormat={yFormat} labels={labels && cats.length <= 8} aria={aria} W={360} pl={46} maxXLabels={6} h={height} />
         </div>
       </div>
       {series.length > 1 && (
@@ -53,6 +56,7 @@ function BarSvg({
   cats,
   series,
   fmt,
+  yFormat,
   labels,
   aria,
   W,
@@ -63,6 +67,7 @@ function BarSvg({
   cats: string[];
   series: BarSeries[];
   fmt?: Fmt;
+  yFormat?: YFormat;
   labels: boolean;
   aria: string;
   W: number;
@@ -78,16 +83,17 @@ function BarSvg({
   const max = niceMax(peak * (labels ? 1.12 : 1.02));
   const bw = (W - pl - pr) / cats.length;
   const y = (v: number) => PT + (1 - v / max) * (h - PT - PB);
+  const ticks = [0, 1, 2, 3, 4].map((t) => (max / 4) * t);
+  const tickText = axisLabels(ticks, yFormat, fmt);
   const step = Math.max(1, Math.ceil(cats.length / maxXLabels));
   return (
     <svg viewBox={`0 0 ${W} ${h}`} role="img" aria-label={aria}>
-      {[0, 1, 2, 3, 4].map((t) => {
-        const v = (max / 4) * t;
+      {ticks.map((v, t) => {
         return (
           <g key={`t${t}`}>
             <line className="grid" x1={pl} x2={W - pr} y1={y(v)} y2={y(v)} />
             <text x={pl - 6} y={y(v) + 3.5} textAnchor="end">
-              {f(v)}
+              {tickText[t]}
             </text>
           </g>
         );

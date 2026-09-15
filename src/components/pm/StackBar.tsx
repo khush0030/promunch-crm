@@ -10,7 +10,7 @@ export function StackBar({ parts, legendExtra }: { parts: StackPart[]; legendExt
         {parts
           .filter((p) => p.value > 0)
           .map((p) => (
-            <div key={p.label} style={{ flex: p.value, background: p.color }} data-tip={`${p.label}: ${p.text}`} />
+            <div key={p.label} style={{ flex: p.value, background: p.color }} data-tip={`${p.label}: ${p.text}`} tabIndex={0} />
           ))}
       </div>
       <div className="pm2-legend">

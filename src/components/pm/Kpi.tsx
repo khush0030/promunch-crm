@@ -25,7 +25,7 @@ export function Kpi({
   invert?: boolean;
 }) {
   return (
-    <div className="pm2-kpi" data-tip={tip || undefined}>
+    <div className="pm2-kpi" data-tip={tip || undefined} tabIndex={tip ? 0 : undefined}>
       <div className="l">{label}</div>
       <div className="v">{value}</div>
       <div className="s">
