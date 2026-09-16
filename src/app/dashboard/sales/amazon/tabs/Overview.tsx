@@ -4,7 +4,7 @@ import { formatLakh, formatINR } from "@/lib/metrics/money";
 import { pctChange } from "@/lib/metrics/period";
 import type { AmazonMetrics } from "@/lib/amazon/economics";
 import type { AmazonTabKey } from "../types";
-import { fmtDate, PERIOD_LABEL } from "../format";
+import { fmtDate, PERIOD_LABEL, COST_COVERAGE_TIP } from "../format";
 
 // Amazon · Overview: the crit stock callout (only when something with sales
 // is actually out), the 4 headline KPIs, the "Where the money went" bars and
@@ -77,14 +77,16 @@ export function OverviewTab({ data, onTab }: { data: AmazonMetrics; onTab: (tab:
           label="Your profit"
           value={formatLakh(money.profit)}
           delta={pctChange(money.profit, money.profitPrev)}
-          sub="after product cost"
+          sub={money.costCoverage < 100 ? `after product cost · ${Math.round(money.costCoverage)}% of units costed` : "after product cost"}
+          tip={money.costCoverage < 100 ? COST_COVERAGE_TIP : undefined}
         />
         <Kpi
           label="Profit margin"
           value={`${Math.round(money.marginPct)}%`}
           delta={Math.round(money.marginPct - money.marginPctPrev)}
           deltaUnit="pts"
-          sub="of sales"
+          sub={money.costCoverage < 100 ? `of sales · ${Math.round(money.costCoverage)}% of units costed` : "of sales"}
+          tip={money.costCoverage < 100 ? COST_COVERAGE_TIP : undefined}
         />
       </KpiStrip>
 

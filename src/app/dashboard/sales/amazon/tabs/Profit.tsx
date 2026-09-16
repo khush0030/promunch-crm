@@ -5,7 +5,7 @@ import { KpiStrip, Kpi, Card, Pill } from "@/components/pm";
 import { formatLakh, formatINR } from "@/lib/metrics/money";
 import { sortForProfit } from "@/lib/amazon/economics";
 import type { AmazonMetrics, AmazonSku } from "@/lib/amazon/economics";
-import { PERIOD_LABEL } from "../format";
+import { PERIOD_LABEL, COST_COVERAGE_TIP } from "../format";
 
 function CostEditor({ sku, onSaved, onCancel }: { sku: string; onSaved: () => void; onCancel: () => void }) {
   const [val, setVal] = useState("");
@@ -146,7 +146,17 @@ export function ProfitTab({ data, onCostSaved }: { data: AmazonMetrics; onCostSa
   return (
     <>
       <KpiStrip cols={3}>
-        <Kpi label="Profit, all products" value={formatLakh(data.money.profit)} delta={null} sub={PERIOD_LABEL[data.period]} />
+        <Kpi
+          label="Profit, all products"
+          value={formatLakh(data.money.profit)}
+          delta={null}
+          sub={
+            data.money.costCoverage < 100
+              ? `${PERIOD_LABEL[data.period]} · ${Math.round(data.money.costCoverage)}% of units costed`
+              : PERIOD_LABEL[data.period]
+          }
+          tip={data.money.costCoverage < 100 ? COST_COVERAGE_TIP : undefined}
+        />
         <Kpi label="Best" value={best ? formatINR(best.keepPerUnit ?? 0) + " / pack" : "—"} sub={best?.shortTitle ?? ""} />
         <Kpi
           label="Missing cost price"

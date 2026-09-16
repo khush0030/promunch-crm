@@ -2,6 +2,10 @@
 
 export const PERIOD_LABEL: Record<"7d" | "30d" | "90d", string> = { "7d": "7 days", "30d": "30 days", "90d": "90 days" };
 
+// Tooltip for any profit/margin KPI when costCoverage < 100 — those figures
+// only account for SKUs with a cost price entered, not every unit sold.
+export const COST_COVERAGE_TIP = "Only products with a cost price entered count. Set cost prices on the Product profit tab for a full figure.";
+
 export function fmtDate(iso: string | null): string {
   if (!iso) return "—";
   const t = Date.parse(iso);

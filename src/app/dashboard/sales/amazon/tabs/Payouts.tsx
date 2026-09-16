@@ -12,10 +12,18 @@ export function PayoutsTab({ data }: { data: AmazonMetrics }) {
   // BarChart draws a single-series bar chart against a zero-based, all-positive
   // axis; it has no baseline for a negative bar. A settlement can legitimately
   // deposit a negative amount (refunds outweighing sales in that period) — floor
-  // the chart's height at 0 so that rare case doesn't render a broken bar. The
-  // real (possibly negative) figure is still what's labelled above the bar via
-  // BarChart's `fmt`, and the table below always shows the true amount.
-  const series: BarSeries[] = [{ name: "Paid out", color: "var(--pm-s-amz)", values: deposited.map((s) => Math.max(0, s.deposit)) }];
+  // the chart's height (and its "₹0" label) at 0 so that rare case doesn't
+  // render a broken bar. `tipValues` keeps the true, possibly-negative figure
+  // in the hover tooltip, and the table below always shows the real amount too.
+  const hasNegativeDeposit = deposited.some((s) => s.deposit < 0);
+  const series: BarSeries[] = [
+    {
+      name: "Paid out",
+      color: "var(--pm-s-amz)",
+      values: deposited.map((s) => Math.max(0, s.deposit)),
+      tipValues: deposited.map((s) => s.deposit),
+    },
+  ];
 
   const cols: TableCol<AmazonSettlement>[] = [
     { h: "Deposited", render: (s) => fmtDate(s.depositDate) },
@@ -56,7 +64,14 @@ export function PayoutsTab({ data }: { data: AmazonMetrics }) {
         {cats.length === 0 ? (
           <div className="pm2-empty">No payouts yet</div>
         ) : (
-          <BarChart cats={cats} series={series} fmt={formatLakh} labels />
+          <>
+            <BarChart cats={cats} series={series} fmt={formatLakh} labels />
+            {hasNegativeDeposit && (
+              <p style={{ fontSize: 12.5, color: "var(--pm-hint)", margin: "8px 0 0" }}>
+                One payout was negative (a reserve clawback); the bar shows 0, the table shows the real figure
+              </p>
+            )}
+          </>
         )}
       </Card>
 

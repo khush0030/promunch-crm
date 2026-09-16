@@ -1,4 +1,8 @@
-export type BarSeries = { name: string; color: string; values: number[] };
+// `tipValues` is optional and only feeds the hover tooltip text — useful when
+// `values` had to be adjusted for the chart's geometry (e.g. floored at 0
+// because the chart has no negative baseline) but the tooltip should still
+// say the real number. Falls back to `values` when omitted.
+export type BarSeries = { name: string; color: string; values: number[]; tipValues?: number[] };
 
 import { niceMax, axisLabels } from "./LineChart";
 import type { YFormat } from "./LineChart";
@@ -128,7 +132,7 @@ function BarSvg({
               y={PT}
               width={bw}
               height={h - PT - PB}
-              data-tip={`${c}: ${series.map((s) => `${s.name} ${f(s.values[i] ?? 0)}`).join(" · ")}`}
+              data-tip={`${c}: ${series.map((s) => `${s.name} ${f(s.tipValues?.[i] ?? s.values[i] ?? 0)}`).join(" · ")}`}
             />
           </g>
         );
