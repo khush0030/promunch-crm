@@ -55,7 +55,8 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 
 | Doc | What it answers |
 |---|---|
-| [2026-09-15 CRM redesign](plans/2026-09-15-crm-redesign/IMPLEMENTATION_PLAN.md) | APPROVED 15 Sep: 6-hub navigation, PROMUNCH brand system, 34 screens laptop + phone (prototype: `index.html` + `screens.js` in the same folder, live at https://claude.ai/artifact/Wej9SQVrLomK5jGNp84PSZ); Phase 0-1 implementation plan |
+| [2026-09-15 CRM redesign](plans/2026-09-15-crm-redesign/IMPLEMENTATION_PLAN.md) | APPROVED 15 Sep: 6-hub navigation, PROMUNCH brand system, 34 screens laptop + phone (prototype: `index.html` + `screens.js` in the same folder, live at https://claude.ai/artifact/Wej9SQVrLomK5jGNp84PSZ); Phase 0-1 implementation plan (LIVE 17 Sep) |
+| [2026-09-17 CRM redesign Phase 2: Inbox](plans/2026-09-15-crm-redesign/PHASE_2_INBOX_PLAN.md) | Unified conversations (WhatsApp + Instagram + email), conversation view, tickets board, email drafts queue with approve/edit/rewrite/skip in the CRM (new `email-draft-action` edge fn reusing the Slack approve claim) |
 | [2026-09-15-b2b-buyer-discovery.md](plans/2026-09-15-b2b-buyer-discovery.md) | Buyer Finder proposal: Apollo + ZeroBounce, named decision makers, UI/backend design, costs, deliverability safeguards and coverage pilot |
 | [UI component architecture](archive/2026-09-12-broad-ui-proposal/plans/2026-09-12-ui-component-architecture.md) | Shared component responsibilities, module boundaries and rules against future crowding |
 | [2026-09-12-complete-ui-redesign-plan.md](archive/2026-09-12-broad-ui-proposal/plans/2026-09-12-complete-ui-redesign-plan.md) | Complete CRM UI audit, brand alignment, mobile specification and implementation sequence |
