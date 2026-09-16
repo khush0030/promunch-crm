@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { RefreshCw, Send } from "lucide-react";
@@ -91,13 +91,23 @@ function hoursSince(iso: string | null): number | null {
   return (Date.now() - new Date(iso).getTime()) / 3600_000;
 }
 
-// Waiting pill: crit past 12h, warn past 4h, neu below. Hours below 24,
-// days above — matches the approved markup's "{h} hours" / "{d} days".
+// Waiting pill: crit past 12h, warn past 4h, neu below. Minutes under 1h,
+// hours below 24, days above — properly pluralised ("1 hour" vs "2 hours").
 function waitingPill(iso: string | null) {
   const h = hoursSince(iso);
   if (h == null) return <Pill tone="neu">—</Pill>;
   const tone = h > 12 ? "crit" : h > 4 ? "warn" : "neu";
-  const text = h >= 24 ? `${Math.floor(h / 24)} days` : `${Math.max(0, Math.round(h))} hours`;
+  let text: string;
+  if (h < 1) {
+    const m = Math.max(1, Math.round(h * 60));
+    text = `${m} min`;
+  } else if (h < 24) {
+    const hr = Math.round(h);
+    text = `${hr} ${hr === 1 ? "hour" : "hours"}`;
+  } else {
+    const d = Math.floor(h / 24);
+    text = `${d} ${d === 1 ? "day" : "days"}`;
+  }
   return <Pill tone={tone as "crit" | "warn" | "neu"}>{text}</Pill>;
 }
 
@@ -140,17 +150,57 @@ function ConfirmDialog({
   onConfirm: () => void;
   onClose: () => void;
 }) {
+  const keepRef = useRef<HTMLButtonElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const openerRef = useRef<Element | null>(null);
+
+  // Focus the safe action on open, restore focus to whatever opened the
+  // dialog on close (this component only ever unmounts to close, so the
+  // cleanup below runs on both unmount and a changed onClose identity).
+  useEffect(() => {
+    openerRef.current = document.activeElement;
+    keepRef.current?.focus();
+    return () => {
+      if (openerRef.current instanceof HTMLElement) openerRef.current.focus();
+    };
+  }, []);
+
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+      if (e.key === "Tab") {
+        // Simple two-item focus trap: Keep and the primary action are the
+        // only focusable elements, so Tab/Shift+Tab just bounces between them.
+        e.preventDefault();
+        const next = document.activeElement === keepRef.current ? confirmRef.current : keepRef.current;
+        next?.focus();
+      }
+    },
+    [onClose],
+  );
+
   return (
     <div className="pm2-dialog-backdrop" onClick={onClose}>
-      <div className="pm2-dialog" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="pm2-dialog"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={onKeyDown}
+      >
         <div className="t">{title}</div>
         <div className="c">{body}</div>
         <div className="act">
-          <button type="button" className="pm2-btn" onClick={onClose} disabled={busy}>
+          <button type="button" ref={keepRef} className="pm2-btn" onClick={onClose} disabled={busy}>
             {keepLabel}
           </button>
           <button
             type="button"
+            ref={confirmRef}
             className="pm2-btn pri"
             style={danger ? { background: "var(--pm-terra)", borderColor: "var(--pm-terra)", color: "#fff" } : undefined}
             onClick={onConfirm}
