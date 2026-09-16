@@ -24,7 +24,7 @@ export function categoryWord(c: string | null): string {
 
 export function urgencyPill(u: string | null): { tone: "crit" | "warn"; text: string } | null {
   if (u === "critical") return { tone: "crit", text: "Urgent" };
-  if (u === "high") return { tone: "warn", text: "Urgent" };
+  if (u === "high") return { tone: "warn", text: "Soon" };
   return null;
 }
 

@@ -24,14 +24,21 @@ describe("urgencyPill", () => {
     expect(urgencyPill("critical")).toEqual({ tone: "crit", text: "Urgent" });
   });
 
-  it("flags high as an urgent warn pill", () => {
-    expect(urgencyPill("high")).toEqual({ tone: "warn", text: "Urgent" });
+  it("flags high as a warn Soon pill", () => {
+    expect(urgencyPill("high")).toEqual({ tone: "warn", text: "Soon" });
   });
 
-  it("returns null for low, medium, and null", () => {
-    expect(urgencyPill("low")).toBeNull();
+  it("returns null for medium", () => {
     expect(urgencyPill("medium")).toBeNull();
+  });
+
+  it("returns null for low", () => {
+    expect(urgencyPill("low")).toBeNull();
+  });
+
+  it("returns null for null and unknown values", () => {
     expect(urgencyPill(null)).toBeNull();
+    expect(urgencyPill("unknown")).toBeNull();
   });
 });
 
