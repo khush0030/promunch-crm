@@ -6,7 +6,7 @@ import { isAllowedEmail } from "@/lib/auth-domains";
 
 // Upserts our cost-of-goods per Amazon SKU (amazon_sku_costs) — the one number
 // Amazon can't give us. Edited inline from the SKU economics table on
-// /dashboard/amazon; joined into profit-per-unit there.
+// /dashboard/sales/amazon; joined into profit-per-unit there.
 
 export const dynamic = "force-dynamic";
 

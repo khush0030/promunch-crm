@@ -25,6 +25,11 @@ const nextConfig: NextConfig = {
         destination: "/dashboard/sales/web",
         permanent: false,
       },
+      {
+        source: "/dashboard/amazon",
+        destination: "/dashboard/sales/amazon",
+        permanent: false,
+      },
     ];
   },
 };

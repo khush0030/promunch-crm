@@ -30,8 +30,8 @@ describe("shell nav", () => {
     expect(label("/dashboard/contacts/abc")).toBe("Audience");
     expect(label("/dashboard/settings")).toBe("Settings");
     expect(label("/dashboard/settings", null, "#connections")).toBe("Health");
-    expect(label("/dashboard/amazon")).toBe("Amazon");
-    expect(findActive("/dashboard/amazon", null, "")?.hub).toBe("Sales");
+    expect(label("/dashboard/sales/amazon")).toBe("Amazon");
+    expect(findActive("/dashboard/sales/amazon", null, "")?.hub).toBe("Sales");
   });
 
   it("hub links land inside their hub", () => {

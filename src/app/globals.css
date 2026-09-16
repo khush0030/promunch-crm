@@ -961,6 +961,35 @@ table.pm2-tbl{width:100%;border-collapse:collapse;font-size:14px;color:var(--pm-
 .pm2-body{padding:20px 28px 40px;display:flex;flex-direction:column;gap:16px}
 .pm2-skel{min-height:120px;border-radius:10px;background:var(--pm-card);border:1px solid var(--pm-border)}
 
+/* Second header row: a page's sub-sections (was .a-tabs in the prototype). */
+.pm2-tabs{display:flex;gap:2px;padding:0 28px;border-bottom:1px solid var(--pm-line);background:color-mix(in srgb,var(--pm-app) 92%,transparent);overflow-x:auto;scrollbar-width:none}
+.pm2-tabs::-webkit-scrollbar{display:none}
+.pm2-tabs button{appearance:none;border:0;background:transparent;font-family:var(--pm-font);padding:10px 12px;font-size:14px;color:var(--pm-muted);border-bottom:2px solid transparent;white-space:nowrap;cursor:pointer}
+.pm2-tabs button.on{color:var(--pm-ink);border-color:var(--pm-brand);font-weight:600}
+.pm2-tabs button:focus-visible{outline:2px solid var(--pm-brand);outline-offset:-2px}
+.pm2-tabs button em{font-style:normal;font-family:var(--pm-mono);font-size:11.5px;color:var(--pm-hint);margin-left:4px}
+
+/* Money-flow bars (Amazon overview "Where the money went"): a label column,
+   a horizontal bar sized to a % of the top row, a right-aligned value, and
+   an optional full-width sub line. Ported from the prototype's .money. */
+.pm2-money{display:grid;grid-template-columns:150px minmax(0,1fr) 100px;gap:8px 12px;align-items:center;font-size:14px}
+.pm2-money .k{color:var(--pm-muted)}
+.pm2-money .bar{height:26px;border-radius:0 6px 6px 0}
+.pm2-money .v{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.pm2-money .sub{grid-column:1/-1;font-size:12.5px;color:var(--pm-hint);margin:-4px 0 4px}
+
+/* Amazon stock list row: coloured stripe, title + detail line, a big
+   days-left number. Ported from the prototype's .stock-row/.amz-link/.days. */
+.pm2-stock-row{display:grid;grid-template-columns:5px minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px 14px 12px 12px;border-top:1px solid var(--pm-line)}
+.pm2-stock-row:first-child{border-top:0}
+.pm2-stock-row i{width:5px;align-self:stretch;border-radius:3px}
+.pm2-stock-row .t{font-weight:650;font-size:14.5px}
+.pm2-stock-row .m{font-size:13px;color:var(--pm-muted);display:flex;gap:6px 12px;flex-wrap:wrap;align-items:center}
+.pm2-stock-row .days{text-align:right}
+.pm2-stock-row .days b{display:block;font-size:22px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.pm2-stock-row .days small{font-size:11.5px;color:var(--pm-hint)}
+.pm2-amz-link{font-size:12.5px;color:var(--pm-cyan);font-weight:600;white-space:nowrap;text-decoration:none}
+
 .pm2-tip{position:fixed;left:0;top:0;z-index:1000;pointer-events:none;background:var(--pm-ink);color:var(--pm-card);padding:6px 9px;border-radius:6px;font-family:var(--pm-font);font-size:13px;line-height:1.35;max-width:240px;box-shadow:var(--pm-shadow);opacity:0;transition:opacity .08s}
 .pm2-tip.on{opacity:1}
 
@@ -969,7 +998,12 @@ table.pm2-tbl{width:100%;border-collapse:collapse;font-size:14px;color:var(--pm-
   .pm2-top{position:static;padding:14px 16px 10px;-webkit-backdrop-filter:none;backdrop-filter:none}
   .pm2-h1{font-size:22px}
   .pm2-actions{margin-left:0;width:100%}
+  .pm2-tabs{padding:0 16px}
   .pm2-body{padding:14px 16px 24px;gap:12px}
+  .pm2-money{grid-template-columns:minmax(0,1fr) auto}
+  .pm2-money .k{grid-column:1/-1;margin-top:6px;font-weight:600;color:var(--pm-ink)}
+  .pm2-money .k:first-child{margin-top:0}
+  .pm2-money .bar{height:18px}
   .pm2-g2,.pm2-g3,.pm2-g21,.pm2-g12{grid-template-columns:minmax(0,1fr);gap:12px}
   .pm2-kpis,.pm2-kpis.k3{grid-template-columns:repeat(2,minmax(0,1fr))}
   .pm2-kpi{border-bottom:1px solid var(--pm-line);padding:11px 12px}
@@ -995,6 +1029,7 @@ table.pm2-tbl{width:100%;border-collapse:collapse;font-size:14px;color:var(--pm-
   .pm2-callout .act{margin-left:0}
   .pm2-chart-d{display:none}
   .pm2-chart-m{display:block}
+  .pm2-d-only{display:none!important}
 }
 [data-tip][tabindex]:focus-visible{outline:2px solid var(--pm-brand);outline-offset:2px;border-radius:4px}
 

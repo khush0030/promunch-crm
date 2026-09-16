@@ -47,3 +47,7 @@ export { PeriodPicker } from "./PeriodPicker";
 export { Callout } from "./Callout";
 export { TooltipLayer } from "./Tooltip";
 export { PageHeader } from "./PageHeader";
+export type { PageHeaderTab } from "./PageHeader";
+export { MoneyFlow } from "./MoneyFlow";
+export type { MoneyFlowRow } from "./MoneyFlow";
+export { StockRow } from "./StockRow";
