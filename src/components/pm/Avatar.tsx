@@ -17,7 +17,7 @@ export function Avatar({
 }) {
   const token = avatarColorToken(name);
   return (
-    <span style={{ position: "relative", width: size, height: size, display: "inline-flex", flex: "none" }}>
+    <span className="pm2-av-wrap" style={{ width: size, height: size }}>
       <span
         className={`pm2-av${size === 34 ? " lg" : ""}`}
         style={{ background: token, color: avatarTextColor(token) }}

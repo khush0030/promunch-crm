@@ -37,7 +37,11 @@ export function Bubbles({ items }: { items: BubbleItem[] }) {
           <div className={`pm2-bub ${BUBBLE_CLASS[item.kind]}`} key={i}>
             {item.mediaUrl ? (
               // eslint-disable-next-line @next/next/no-img-element -- chat bubble thumbnail from a remote WA/IG media URL, not a static asset
-              <img src={item.mediaUrl} alt="" style={{ maxWidth: "100%", borderRadius: 8, display: "block", marginBottom: 4 }} />
+              <img
+                src={item.mediaUrl}
+                alt={item.kind === "in" ? "Photo from the chat" : "Photo sent"}
+                style={{ maxWidth: "100%", borderRadius: 8, display: "block", marginBottom: 4 }}
+              />
             ) : null}
             {item.text}
             <small>

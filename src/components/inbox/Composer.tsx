@@ -1,4 +1,7 @@
+"use client";
+
 import { useRef, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
+import { canSend } from "@/lib/pm/composer";
 
 const MIN_ROWS = 2;
 const MAX_ROWS = 6;
@@ -7,8 +10,11 @@ const MAX_ROWS = 6;
 // Grows with content up to 6 rows, then scrolls. Plain Enter inserts a
 // newline (textarea default); ⌘/Ctrl+Enter sends, matching the WhatsApp/
 // email clients staff already use. `disabledReason` (e.g. a closed 24h
-// window) shows as a line above the action row instead of guessing why
-// Send is greyed out.
+// window) shows as a line above the action row AND blocks sending outright
+// (both the Send button and ⌘/Ctrl+Enter) — the way out of that state is
+// the `actions` slot (e.g. a Template button), not the text box. The
+// busy/empty/disabledReason rule lives in the pure `canSend` helper so the
+// button and the keyboard shortcut can never disagree.
 export function Composer({
   placeholder,
   value,
@@ -31,7 +37,7 @@ export function Composer({
   attachment?: { name: string } | null;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const canSend = !busy && value.trim().length > 0;
+  const sendable = canSend({ busy, value, disabledReason });
 
   const autoGrow = (el: HTMLTextAreaElement) => {
     const line = parseFloat(getComputedStyle(el).lineHeight || "20") || 20;
@@ -49,7 +55,7 @@ export function Composer({
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
-      if (canSend) onSend();
+      if (sendable) onSend();
     }
   };
 
@@ -82,7 +88,7 @@ export function Composer({
             </button>
           </>
         ) : null}
-        <button type="button" className="pm2-btn pri sm" style={{ marginLeft: "auto" }} onClick={onSend} disabled={!canSend}>
+        <button type="button" className="pm2-btn pri sm" style={{ marginLeft: "auto" }} onClick={onSend} disabled={!sendable}>
           {busy ? "Sending…" : "Send"}
         </button>
       </div>

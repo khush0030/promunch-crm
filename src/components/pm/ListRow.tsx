@@ -1,3 +1,5 @@
+"use client";
+
 import type { ReactNode } from "react";
 import { Avatar, type Channel } from "./Avatar";
 

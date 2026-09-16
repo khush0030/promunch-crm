@@ -1032,7 +1032,8 @@ table.pm2-tbl{width:100%;border-collapse:collapse;font-size:14px;color:var(--pm-
 .pm2-ch-ic.ch-wa{background:#1A9E5C}
 .pm2-ch-ic.ch-ig{background:#C13584}
 .pm2-ch-ic.ch-em{background:#5C5155}
-.pm2-list-row .ch{position:absolute;right:-4px;bottom:-3px;width:15px;height:15px;font-size:8px;border-radius:50%;box-shadow:0 0 0 2px var(--pm-card)}
+.pm2-av-wrap{position:relative;display:inline-flex;flex:none}
+.pm2-av-wrap .pm2-ch-ic.ch{position:absolute;right:-4px;bottom:-3px;width:15px;height:15px;font-size:8px;border-radius:50%;box-shadow:0 0 0 2px var(--pm-card)}
 .pm2-av.lg{width:34px;height:34px;font-size:12px}
 
 .pm2-composer{background:var(--pm-card);border:1px solid var(--pm-border);border-radius:14px;padding:10px 12px;box-shadow:var(--pm-shadow);display:flex;flex-direction:column;gap:8px;font-family:var(--pm-font)}

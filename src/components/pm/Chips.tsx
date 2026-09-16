@@ -1,3 +1,5 @@
+"use client";
+
 export type ChipItem = { key: string; label: string; count?: number };
 
 // Single-select filter chips, e.g. Inbox's "Needs a human / Mine / Bot / All".
