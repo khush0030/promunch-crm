@@ -5,18 +5,23 @@ import { recordAudit } from "@/lib/audit";
 
 // COD confirmation gate — dashboard needs-call queue + manual confirm/cancel.
 // GET returns gate-managed orders (confirmation_status non-null, i.e. the
-// order actually went through the gate) for the Task 10 UI. POST proxies to
-// the cod-gate-action edge function (service-role auth), mirroring the same
-// confirm/cancel logic the customer's WhatsApp buttons trigger, but with
-// confirmed_via="manual" — no outbound WhatsApp message is sent.
+// order actually went through the gate) for the Task 10 UI, windowed by
+// ?hours= (default 336 = 14 days, matching the old fixed window; clamped
+// 1..720 so it can follow the Orders & COD page's period picker). POST
+// proxies to the cod-gate-action edge function (service-role auth),
+// mirroring the same confirm/cancel logic the customer's WhatsApp buttons
+// trigger, but with confirmed_via="manual" — no outbound WhatsApp message is
+// sent.
 
 export const dynamic = "force-dynamic";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-export async function GET() {
-  const since = new Date(Date.now() - 14 * 86400_000).toISOString();
+export async function GET(req: NextRequest) {
+  const raw = Number(new URL(req.url).searchParams.get("hours"));
+  const hours = Math.min(Math.max(Number.isFinite(raw) ? raw : 336, 1), 720);
+  const since = new Date(Date.now() - hours * 3600_000).toISOString();
   const { data, error } = await supabaseAdmin
     .from("shopify_orders")
     .select("shopify_id, order_number, customer_name, customer_phone, total_price, currency, confirmation_status, confirmation_sent_at, confirmed_at, confirmed_via, shopify_created_at")

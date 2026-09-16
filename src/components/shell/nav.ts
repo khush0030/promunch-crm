@@ -16,15 +16,13 @@ export type Hub = "Today" | "Sales" | "Inbox" | "Marketing" | "Partners" | "Syst
 export type AttentionCounts = Omit<Attention["counts"], "byHub">;
 
 // Current targets for items whose final page does not exist yet.
-// Phase 1 swaps these to /dashboard/sales/web, /dashboard/sales/amazon and
-// /dashboard/sales/orders (Task 0.7 adds the redirects from the legacy
-// routes). salesOverview and salesAmazon now point at their real pages
-// (1.3, 1.5).
+// salesOverview, salesAmazon and salesOrders now point at their real pages
+// (1.3, 1.5, 1.6).
 export const ROUTES = {
   salesOverview: "/dashboard/sales",
   salesWeb: "/dashboard/sales/web",
   salesAmazon: "/dashboard/sales/amazon",
-  salesOrders: "/dashboard/order-confirmations",
+  salesOrders: "/dashboard/sales/orders",
   // Instagram tabs are not URL-driven yet, so Creators lands on the page.
   creators: "/dashboard/instagram",
 } as const;
