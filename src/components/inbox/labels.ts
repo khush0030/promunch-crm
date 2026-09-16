@@ -2,17 +2,17 @@
 // Supabase, no fetch here — see src/lib/inbox/conversations.ts for the
 // aggregator that consumes these.
 
-// Mirrors the lead_category -> label mapping used on the Support Emails
-// list (src/app/dashboard/support-emails/page.tsx `categoryLabel`), kept in
-// sync so the Inbox pill text matches what the rest of the app calls each
-// category.
+// Exact words from the plan's Global Constraints for Task 2.2 — these
+// intentionally diverge from the older `categoryLabel` map on the Support
+// Emails list (src/app/dashboard/support-emails/page.tsx), e.g.
+// order_tracking is "Order status" here, not "Order Tracking".
 const CATEGORY_WORDS: Record<string, string> = {
   customer_support: "Support",
-  order_tracking: "Order Tracking",
+  order_tracking: "Order status",
   complaint: "Complaint",
   partnership_inquiry: "Partnership",
   wholesale: "Wholesale",
-  job_application: "Job",
+  job_application: "Job application",
   spam: "Spam",
   general: "General",
 };

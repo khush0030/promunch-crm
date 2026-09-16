@@ -75,7 +75,7 @@ function isOpenOrPendingTicket(status: string | null): boolean {
 export function waToItem(r: WaThreadRow): InboxItem {
   const ticketActive = isOpenOrPendingTicket(r.ticket_status);
   const pill = ticketActive
-    ? ({ tone: "crit", text: `Ticket #${r.ticket_number ?? ""}` } as const)
+    ? ({ tone: "crit", text: r.ticket_number != null ? `Ticket #${r.ticket_number}` : "Ticket" } as const)
     : r.status === "human"
       ? ({ tone: "warn", text: "Needs a human" } as const)
       : r.status === "closed"

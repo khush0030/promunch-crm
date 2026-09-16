@@ -98,6 +98,19 @@ describe("waToItem", () => {
     expect(item.needsHuman).toBe(true);
   });
 
+  it("an active ticket with no ticket_number shows plain Ticket, no #", () => {
+    const item = waToItem(waRow({ status: "bot", ticket_status: "open", ticket_number: null }));
+    expect(item.pill).toEqual({ tone: "crit", text: "Ticket" });
+    expect(item.needsHuman).toBe(true);
+  });
+
+  it("snoozed status with no ticket is still an info Bot pill, but bot stays false (literal brief rule: bot only when status is exactly \"bot\")", () => {
+    const item = waToItem(waRow({ status: "snoozed" }));
+    expect(item.pill).toEqual({ tone: "info", text: "Bot" });
+    expect(item.needsHuman).toBe(false);
+    expect(item.bot).toBe(false);
+  });
+
   it("falls back at → created_at when last_activity_at is null", () => {
     const item = waToItem(waRow({ last_activity_at: null, created_at: "2026-09-10T00:00:00.000Z" }));
     expect(item.at).toBe("2026-09-10T00:00:00.000Z");

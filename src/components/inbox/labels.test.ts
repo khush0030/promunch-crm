@@ -2,14 +2,35 @@ import { describe, it, expect } from "vitest";
 import { categoryWord, urgencyPill, ticketStatusWord } from "./labels";
 
 describe("categoryWord", () => {
-  it("maps known lead categories to their business word", () => {
-    expect(categoryWord("wholesale")).toBe("Wholesale");
+  it("maps customer_support to Support", () => {
     expect(categoryWord("customer_support")).toBe("Support");
-    expect(categoryWord("order_tracking")).toBe("Order Tracking");
+  });
+
+  it("maps order_tracking to Order status", () => {
+    expect(categoryWord("order_tracking")).toBe("Order status");
+  });
+
+  it("maps complaint to Complaint", () => {
     expect(categoryWord("complaint")).toBe("Complaint");
+  });
+
+  it("maps partnership_inquiry to Partnership", () => {
     expect(categoryWord("partnership_inquiry")).toBe("Partnership");
-    expect(categoryWord("job_application")).toBe("Job");
+  });
+
+  it("maps wholesale to Wholesale", () => {
+    expect(categoryWord("wholesale")).toBe("Wholesale");
+  });
+
+  it("maps job_application to Job application", () => {
+    expect(categoryWord("job_application")).toBe("Job application");
+  });
+
+  it("maps spam to Spam", () => {
     expect(categoryWord("spam")).toBe("Spam");
+  });
+
+  it("maps general to General", () => {
     expect(categoryWord("general")).toBe("General");
   });
 
