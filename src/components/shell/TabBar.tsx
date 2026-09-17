@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { MoreHorizontal, Sparkles, X } from "lucide-react";
-import { NAV, hubHref, type ActiveNav, type AttentionCounts, type Hub } from "./nav";
+import { NAV, hubHref, visibleItems, type ActiveNav, type AttentionCounts, type Hub } from "./nav";
 import { Badge } from "./Sidebar";
 
 const TABS: Hub[] = ["Today", "Sales", "Inbox", "Marketing"];
@@ -110,7 +110,7 @@ function MoreSheet({ active, onClose, onNavigate }: { active: ActiveNav | null; 
                 <i aria-hidden />
                 {h.hub}
               </h6>
-              {h.items.map((it) => (
+              {visibleItems(h).map((it) => (
                 <Link
                   key={it.label}
                   href={it.href}

@@ -3,7 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { Search, LogOut, HelpCircle } from "lucide-react";
-import { NAV, type ActiveNav, type AttentionCounts, type Hub } from "./nav";
+import { NAV, hubPreview, visibleItems, type ActiveNav, type AttentionCounts, type Hub } from "./nav";
+import "./sidebar.css";
 import { initialsOf, type ShellUser } from "./useShellData";
 
 type Props = {
@@ -47,6 +48,8 @@ export default function Sidebar({ active, locationKey, counts, user, signingOut,
           const open = h.hub === openHub;
           const Icon = h.icon;
           const style = { "--hc": h.color, "--hc2": h.accent ?? h.color } as React.CSSProperties;
+          const items = visibleItems(h);
+          const preview = hubPreview(h);
           return (
             <div key={h.hub} style={style}>
               <button
@@ -57,17 +60,22 @@ export default function Sidebar({ active, locationKey, counts, user, signingOut,
               >
                 <i aria-hidden />
                 {h.hub}
-                {!open && <span className="n">{h.items.length}</span>}
+                {!open && (
+                  <span className="pv">
+                    {preview.names.join(" · ")}
+                    {preview.more > 0 && <span className="n">+{preview.more}</span>}
+                  </span>
+                )}
                 {/* Tour anchors: while a hub is collapsed its items are not
                     rendered, so the onboarding spotlight lands on this row. */}
                 {!open &&
-                  h.items.filter((it) => it.tour).map((it) => (
+                  items.filter((it) => it.tour).map((it) => (
                     <span key={it.tour} data-tour={it.tour} className="pm2-tour-anchor" aria-hidden />
                   ))}
               </button>
               {open && (
                 <ul className="pm2-items">
-                  {h.items.map((it) => {
+                  {items.map((it) => {
                     const on = active?.item === it;
                     return (
                       <li key={it.label}>

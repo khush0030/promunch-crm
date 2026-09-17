@@ -33,6 +33,10 @@ export type NavItem = {
   badge?: keyof AttentionCounts;
   // data-tour anchor used by the onboarding spotlight (Onboarding.tsx).
   tour?: string;
+  // Not listed in the sidebar or the More sheet, but still resolves in
+  // findActive (so the hub highlights) and shows up in the command palette.
+  // Used for legacy pages kept reachable by URL.
+  hidden?: boolean;
 };
 export type NavHub = { hub: Hub; color: string; accent?: string; icon: LucideIcon; items: NavItem[] };
 
@@ -57,23 +61,25 @@ export const NAV: NavHub[] = [
   {
     hub: "Inbox", color: "#0A9CB8", icon: Inbox,
     items: [
-      { label: "Conversations", href: "/dashboard/whatsapp", badge: "inbox", tour: "whatsapp" },
+      { label: "WhatsApp chats", href: "/dashboard/whatsapp", badge: "inbox", tour: "whatsapp" },
       { label: "Tickets", href: "/dashboard/whatsapp?tab=tickets" },
-      { label: "Email drafts", href: "/dashboard/support-emails", tour: "support-emails" },
+      { label: "Support emails", href: "/dashboard/support-emails", tour: "support-emails" },
       { label: "Instagram", href: "/dashboard/instagram" },
     ],
   },
   {
     hub: "Marketing", color: "#FFC905", icon: Megaphone,
     items: [
-      { label: "Campaigns", href: "/dashboard/whatsapp?tab=campaigns" },
+      { label: "WhatsApp campaigns", href: "/dashboard/whatsapp?tab=campaigns", tour: "campaigns" },
+      { label: "WhatsApp automations", href: "/dashboard/whatsapp?tab=flows" },
       { label: "Email (Brevo)", href: "/dashboard/marketing/email" },
-      { label: "Email campaigns", href: "/dashboard/campaigns", tour: "campaigns" },
-      { label: "Automations", href: "/dashboard/whatsapp?tab=flows" },
-      { label: "Email automations", href: "/dashboard/flows" },
       { label: "Audience", href: "/dashboard/contacts", tour: "contacts" },
-      { label: "Templates", href: "/dashboard/whatsapp?tab=templates" },
-      { label: "Sign-up popup", href: "/dashboard/whatsapp?tab=growth" },
+      { label: "WhatsApp templates", href: "/dashboard/whatsapp?tab=templates" },
+      { label: "WhatsApp popup", href: "/dashboard/whatsapp?tab=growth" },
+      // Old in-house email engine, superseded by Brevo. Reachable by URL and
+      // through the command palette only.
+      { label: "Legacy email campaigns", href: "/dashboard/campaigns", hidden: true },
+      { label: "Legacy email automations", href: "/dashboard/flows", hidden: true },
     ],
   },
   {
@@ -119,6 +125,19 @@ const claimed = (() => {
 
 export type ActiveNav = { hub: Hub; item: NavItem };
 
+// Items shown in the sidebar and the More sheet.
+export function visibleItems(h: NavHub): NavItem[] {
+  return h.items.filter((it) => !it.hidden);
+}
+
+// Short preview of a collapsed hub: the first few item names, plus how many
+// more it holds.
+export const PREVIEW_ITEMS = 3;
+export function hubPreview(h: NavHub): { names: string[]; more: number } {
+  const items = visibleItems(h);
+  return { names: items.slice(0, PREVIEW_ITEMS).map((it) => it.label), more: Math.max(0, items.length - PREVIEW_ITEMS) };
+}
+
 // The nav item for the current location. Exact path beats a prefix match
 // (/dashboard/contacts/123 -> Audience), a matching tab or hash beats none,
 // and on a tie the first item in NAV order wins. "/dashboard" never matches
@@ -155,7 +174,7 @@ export function findActive(pathname: string, tab: string | null, hash: string): 
 // /dashboard with Home, the Sales tab opens Web store instead.
 export function hubHref(hub: Hub): string {
   const h = NAV.find((x) => x.hub === hub)!;
-  for (const item of h.items) {
+  for (const item of visibleItems(h)) {
     const p = parseHref(item.href);
     if (findActive(p.path, p.tab, p.hash)?.hub === hub) return item.href;
   }

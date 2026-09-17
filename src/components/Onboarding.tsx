@@ -59,14 +59,14 @@ const STEPS: Step[] = [
   },
   {
     tour: "contacts",
-    title: "Contacts",
+    title: "Audience",
     body: "Every customer, enriched and segmented, ready to target.",
     icon: <Users size={16} />,
   },
   {
     tour: "campaigns",
-    title: "Campaigns",
-    body: "Build and send email or WhatsApp campaigns to the right segment.",
+    title: "WhatsApp campaigns",
+    body: "Build and send WhatsApp broadcasts to the right segment. Email campaigns live under Email (Brevo).",
     icon: <Megaphone size={16} />,
   },
   {
