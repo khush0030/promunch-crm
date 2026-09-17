@@ -35,6 +35,10 @@ export type IgThreadRow = {
   last_message_snippet: string | null;
   last_activity_at: string | null;
   archived_at: string | null;
+  // Optional: only needed as a fallback for `at` when last_activity_at is
+  // null (older rows, or the generated column not backfilled yet). Callers
+  // that don't select it simply never hit the fallback branch.
+  created_at?: string | null;
 };
 
 export type EmailThreadRow = {
@@ -117,7 +121,10 @@ export function igToItem(r: IgThreadRow): InboxItem {
     channel: "ig",
     name,
     preview: toPreview(r.last_message_snippet),
-    at: r.last_activity_at || "",
+    // Fall back to created_at when last_activity_at is null; if neither is
+    // available `at` is "" and the caller must exclude the item from paging
+    // rather than emit a cursor built from an empty timestamp.
+    at: r.last_activity_at || r.created_at || "",
     pill,
     needsHuman: ticketOpen || r.status === "human",
     assignee: r.assigned_to,

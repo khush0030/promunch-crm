@@ -172,6 +172,16 @@ describe("igToItem", () => {
     expect(igToItem(igRow({ full_name: null, handle: "priya.eats" })).name).toBe("@priya.eats");
     expect(igToItem(igRow({ full_name: null, handle: null })).name).toBe("Instagram user");
   });
+
+  it("falls back at → created_at when last_activity_at is null", () => {
+    const item = igToItem(igRow({ last_activity_at: null, created_at: "2026-09-10T00:00:00.000Z" }));
+    expect(item.at).toBe("2026-09-10T00:00:00.000Z");
+  });
+
+  it("at is an empty string when both last_activity_at and created_at are missing — callers must exclude these from paging rather than emit a cursor from them", () => {
+    expect(igToItem(igRow({ last_activity_at: null })).at).toBe("");
+    expect(igToItem(igRow({ last_activity_at: null, created_at: null })).at).toBe("");
+  });
 });
 
 describe("emailToItem", () => {
