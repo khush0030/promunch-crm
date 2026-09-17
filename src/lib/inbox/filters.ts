@@ -1,9 +1,9 @@
 // Pure per-channel filter-clause builders for the unified Inbox list (Task
-// 2.3, fix round 2). Each function turns an InboxFilter into a PostgREST
-// filter plan — data, not a live query builder — so the plan itself can be
-// unit-tested (exact clause strings, and a table test against matchesFilter)
+// 2.3). Each function turns an InboxFilter into a PostgREST filter plan —
+// data, not a live query builder — so the plan itself can be unit-tested
+// (exact clause strings, and a table test against matchesFilter)
 // independently of Supabase. src/app/api/inbox/conversations/route.ts is the
-// only place that turns a plan into an actual `.eq()/.or()/.ilike()` call.
+// only place that turns a plan into an actual `.eq()/.or()` call.
 //
 // Every branch below is commented with the matchesFilter/toItem rule
 // (conversations.ts) it mirrors — that pairing is what the table test in
@@ -26,6 +26,12 @@ export type FilterPlan =
   | { type: "eqOr"; column: string; value: string; clause: string } // apply .eq(column, value).or(clause)
   | { type: "skip" }; // this channel+filter combination can never match — skip the query entirely
 
+// WA's plan (below) never actually returns "skip" (WA has both a status and
+// an assignee model for every filter), so its return type excludes that
+// variant — the route can apply it without a defensive null-check for a
+// state that can't occur.
+export type NonSkipFilterPlan = Exclude<FilterPlan, { type: "skip" }>;
+
 // --- WhatsApp -----------------------------------------------------------
 //
 // Mirrors waToItem's derived fields:
@@ -35,7 +41,7 @@ export type FilterPlan =
 //   assignee     = assigned_to ?? ticket_assignee   (nullish coalescing: only
 //                  falls back when assigned_to is null, not "")
 //   mine         = !!assignee && assignee.toLowerCase() === me.toLowerCase()
-export function waFilterPlan(filter: InboxFilter, me: string): FilterPlan {
+export function waFilterPlan(filter: InboxFilter, me: string): NonSkipFilterPlan {
   switch (filter) {
     case "human":
       return { type: "or", clause: "status.eq.human,ticket_status.in.(open,pending)" };

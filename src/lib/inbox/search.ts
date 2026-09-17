@@ -49,21 +49,19 @@ export function emSearchOr(q: string): string | null {
 // Wraps `value` as a double-quoted PostgREST literal, for embedding inside
 // an `.or()` (or other raw filter) string whenever the value might contain
 // characters PostgREST would otherwise try to parse as syntax — commas,
-// parentheses, or (the case that bit filter=mine) an ISO timestamp's `:`/`+`.
-// Escapes `\` and `"` with a backslash, per PostgREST's quoted-value rules.
+// parentheses, or an ISO timestamp's `:`/`+`. Escapes `\` and `"` with a
+// backslash, per PostgREST's quoted-value rules.
 export function quotePostgrestValue(value: string): string {
   return `"${value.replace(/[\\"]/g, (c) => `\\${c}`)}"`;
 }
 
-// Fix round 2 (review): `sanitizeSearch` was being (mis-)used to make the
-// caller's email safe for `.ilike()` — but sanitizeSearch strips "." (its
-// job is stripping PostgREST .or() syntax characters for *free-text search*,
-// where a literal query is filtered instead of exactly matched), which
-// silently corrupted every email address and made filter=mine never match
-// anything. ilikeExact is for a different job: an *exact* (no-wildcard)
-// case-insensitive match value. It escapes ILIKE's own pattern
-// metacharacters (`\`, `%`, `_`) so they're matched literally rather than as
-// wildcards, then quotes the result for embedding in an `.or()` string.
+// An *exact* (no-wildcard) case-insensitive match value for `.ilike()`,
+// distinct from sanitizeSearch (which strips PostgREST .or() syntax
+// characters, including ".", for *free-text search* — appropriate for a
+// lossy user query, but wrong for a value like an email address that must
+// match byte-for-byte). Escapes ILIKE's own pattern metacharacters (`\`,
+// `%`, `_`) so they're matched literally rather than as wildcards, then
+// quotes the result for embedding in an `.or()` string.
 export function ilikeExact(value: string): string {
   const patternEscaped = value.replace(/[\\%_]/g, (c) => `\\${c}`);
   return quotePostgrestValue(patternEscaped);

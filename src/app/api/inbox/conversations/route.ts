@@ -13,7 +13,7 @@ import {
   matchesFilter,
 } from "@/lib/inbox/conversations";
 import { waSearchOr, igSearchOr, emSearchOr, quotePostgrestValue } from "@/lib/inbox/search";
-import { waFilterPlan, igFilterPlan, emFilterPlan, type FilterPlan } from "@/lib/inbox/filters";
+import { waFilterPlan, igFilterPlan, emFilterPlan, type FilterPlan, type NonSkipFilterPlan } from "@/lib/inbox/filters";
 import {
   parseCursor,
   channelCursorBound,
@@ -28,27 +28,14 @@ import {
 // writes; see the peek-read (`?peek=1`) addition on the per-thread GET
 // routes for how opening a thread from here avoids clearing unread_count.
 //
-// Fix round 1 (review): filters are now pushed into SQL per channel instead
-// of over-fetched-then-filtered-in-memory, and counts are exact `count:
-// "exact", head: true` queries per channel per filter, not a 500-row sample.
-//
-// Fix round 2 (review):
-//   - `filter=mine` was silently broken — sanitizeSearch (built for
-//     free-text search, where lossy stripping is fine) was stripping "."
-//     from the caller's own email before it went into an `.ilike()` clause.
-//     Now uses ilikeExact (src/lib/inbox/search.ts), which escapes ILIKE's
-//     own metacharacters instead of stripping arbitrary ones.
-//   - "mine" now matches the pure rule's *effective* assignee
-//     (assigned_to ?? ticket_assignee for WA) instead of "either field
-//     matches", which could wrongly match a thread reassigned away from you
-//     whose stale ticket_assignee still says you.
-//   - Filter clause builders moved to src/lib/inbox/filters.ts as pure,
-//     independently-tested functions (table-tested against matchesFilter).
-//   - Paging is now tie-safe by construction: each channel query is ordered
-//     (time column desc, id asc) and bounded by an exact tuple/lt/lte cursor
-//     bound (channelCursorBound in cursor.ts) instead of a `.lte` + in-memory
-//     trim — so a channel returns precisely the rows after the cursor, and
-//     fetches exactly `limit` rows (no more over-fetch window).
+// Each channel's filter (human/mine/bot/all), search and cursor bound are
+// all pushed into SQL (src/lib/inbox/filters.ts, src/lib/inbox/cursor.ts) so
+// the DB only ever returns rows that already belong on the page — nothing is
+// over-fetched and filtered in memory. `matchesFilter` (the pure rule in
+// conversations.ts) is still re-run over the mapped rows as a consistency
+// guard: any mismatch is dropped and logged, so SQL and the pure rule can't
+// silently diverge unnoticed. Counts are exact `count: "exact", head: true`
+// queries, one per (channel, filter) pair, cached 30s.
 export const dynamic = "force-dynamic";
 
 type Channel = "wa" | "ig" | "em";
@@ -58,8 +45,9 @@ const EMAIL_STATUSES = ["pending", "sent", "skipped", "failed"];
 
 const WA_COLUMNS =
   "id, status, assigned_to, ticket_status, ticket_number, ticket_assignee, unread_count, last_message_snippet, last_activity_at, created_at, archived_at, contact:wa_contacts!inner(name, phone, wa_id)";
-// MINOR (review): includes created_at so igToItem's last_activity_at →
-// created_at fallback is actually populated, not silently always "".
+// Includes created_at so igToItem's last_activity_at → created_at fallback
+// (ig_threads.last_activity_at is nullable, unlike wa_threads' — see the WA
+// exclusion below) is actually populated, not silently always "".
 const IG_COLUMNS =
   "id, status, classification, handle, full_name, ticket_status, assigned_to, unread_count, last_message_snippet, last_activity_at, created_at, archived_at";
 const EM_COLUMNS =
@@ -98,8 +86,11 @@ type QueryBuilder<Q> = {
 };
 
 // Turns a pure FilterPlan (src/lib/inbox/filters.ts) into the actual
-// `.eq()/.or()` calls. Returns null when the plan is "skip" (email's bot/mine
-// — can never match, so the caller should not run the query at all).
+// `.eq()/.or()` calls. Returns null when the plan is "skip" — a
+// channel+filter combination that can never match (only email's bot/mine —
+// WA's and IG's plans are typed NonSkipFilterPlan/never actually skip, see
+// the WA call sites below, which assert accordingly instead of handling a
+// null that can't occur), so the caller should not run the query at all.
 function applyFilterPlan<Q extends QueryBuilder<Q>>(query: Q, plan: FilterPlan): Q | null {
   switch (plan.type) {
     case "none":
@@ -147,9 +138,11 @@ async function fetchWaRows(
   me: string,
 ): Promise<{ rows: WaThreadRow[]; truncated: boolean }> {
   // Ordered (time column desc, id asc) so a channel's own rows arrive in
-  // exactly the order compareItems would sort them (prefix is constant
-  // within a channel, so "id asc" == "key asc"), and bounded by the exact
-  // cursor tuple/lt/lte instead of a lossy `.lte` + in-memory trim.
+  // exactly the order compareItems would sort them, and bounded by the exact
+  // cursor tuple/lt/lte instead of a lossy `.lte` + in-memory trim. Fetches
+  // `limit + 1` rows so a fetch that fills the whole window (there may be
+  // more beyond it) is distinguishable from one that returns fewer than
+  // asked for (there is nothing more) — see `truncated` below.
   const build = (orderCol: string) => {
     let query = supabaseAdmin
       .from("wa_threads")
@@ -157,44 +150,57 @@ async function fetchWaRows(
       .is("archived_at", null)
       .order(orderCol, { ascending: false, nullsFirst: false })
       .order("id", { ascending: true })
-      .limit(limit);
+      .limit(limit + 1);
+    // Threads with no messages either way (last_activity_at, the generated
+    // greatest(last_inbound_at, last_outbound_at), is null) have nothing to
+    // act on — excluded so SQL order and item.at always agree (waToItem has
+    // no created_at fallback to fall out of sync with the order column) and
+    // so counts (which apply the same exclusion) match what paging can
+    // actually reach. Only applied when last_activity_at is the order
+    // column: if that column doesn't exist yet (the 42703 retry below,
+    // ordering by created_at instead), filtering on it would 42703 too and
+    // defeat the schema-drift fallback.
+    if (orderCol === "last_activity_at") query = query.not("last_activity_at", "is", null);
     query = applyCursorBound(query, orderCol, channelCursorBound("wa", cursor));
-    const filtered = applyFilterPlan(query, waFilterPlan(filter, me));
-    if (!filtered) return null; // WA's plan never actually skips; kept honest for the shared type
-    query = filtered;
+    const waPlan: NonSkipFilterPlan = waFilterPlan(filter, me);
+    query = applyFilterPlan(query, waPlan)!; // waFilterPlan's type guarantees this is never "skip"
     const orClause = waSearchOr(q);
     if (orClause) query = query.or(orClause);
     return query;
   };
 
-  let built = build("last_activity_at");
-  if (!built) return { rows: [], truncated: false };
-  let { data, error } = await built;
+  let { data, error } = await build("last_activity_at");
   if (error?.code === "42703") {
     // Mirrors src/app/api/whatsapp/threads/route.ts's fallback: the
     // generated last_activity_at column hasn't landed on this DB yet.
-    built = build("created_at");
-    if (!built) return { rows: [], truncated: false };
-    ({ data, error } = await built);
+    ({ data, error } = await build("created_at"));
   }
   if (error) throw new Error(`wa_threads: ${error.message}`);
-  const rows = (data ?? []) as unknown as WaThreadRow[];
-  return { rows, truncated: rows.length === limit };
+  const raw = (data ?? []) as unknown as WaThreadRow[];
+  return { rows: raw.slice(0, limit), truncated: raw.length > limit };
 }
 
 async function countWaFilter(filter: InboxFilter, q: string, me: string): Promise<number> {
-  // ⚠️ Same inner join as the list query (contact:wa_contacts!inner) so a
-  // wa_threads row with no matching wa_contacts row — which the list query
-  // already excludes — doesn't inflate the count above what's reachable.
+  // Same inner join as the list query (contact:wa_contacts!inner) so a
+  // wa_threads row with no matching wa_contacts row doesn't inflate the
+  // count above what's reachable, and the same last_activity_at-null
+  // exclusion as the list query (see fetchWaRows) so total matches what
+  // paging can actually return.
   let query = supabaseAdmin
     .from("wa_threads")
     .select("id, contact:wa_contacts!inner(id)", { count: "exact", head: true })
     .is("archived_at", null);
   const filtered = applyFilterPlan(query, waFilterPlan(filter, me));
-  if (!filtered) return 0;
+  if (!filtered) return 0; // waFilterPlan never actually returns "skip"
   query = filtered;
   const orClause = waSearchOr(q);
   if (orClause) query = query.or(orClause);
+  // Applied last: chaining `.not()` earlier, ahead of the generic
+  // applyFilterPlan call above, hits a TS "type instantiation excessively
+  // deep" error on this particular (count: "exact", head: true) query shape
+  // — an inference quirk, not a semantic requirement (every one of these
+  // filters ANDs together regardless of order).
+  query = query.not("last_activity_at", "is", null);
   const { count, error } = await query;
   if (error) throw new Error(`wa_threads count: ${error.message}`);
   return count ?? 0;
@@ -203,7 +209,7 @@ async function countWaFilter(filter: InboxFilter, q: string, me: string): Promis
 // IG failures (missing table, RLS, empty env) degrade to an empty list
 // instead of a 500 for the whole route — Instagram is one channel of three.
 // Failures are collected on `igIssues` and logged once, at the end of the
-// request, by the caller — including the real error message (review MINOR).
+// request, by the caller, including the real error message.
 async function fetchIgRows(
   filter: InboxFilter,
   limit: number,
@@ -219,7 +225,7 @@ async function fetchIgRows(
       .is("archived_at", null)
       .order("last_activity_at", { ascending: false, nullsFirst: false })
       .order("id", { ascending: true })
-      .limit(limit);
+      .limit(limit + 1);
     query = applyCursorBound(query, "last_activity_at", channelCursorBound("ig", cursor));
     const filtered = applyFilterPlan(query, igFilterPlan(filter, me));
     if (!filtered) return { rows: [], truncated: false };
@@ -228,8 +234,8 @@ async function fetchIgRows(
     if (orClause) query = query.or(orClause);
     const { data, error } = await query;
     if (error) throw error;
-    const rows = (data ?? []) as unknown as IgThreadRow[];
-    return { rows, truncated: rows.length === limit };
+    const raw = (data ?? []) as unknown as IgThreadRow[];
+    return { rows: raw.slice(0, limit), truncated: raw.length > limit };
   } catch (err) {
     igIssues.push(err instanceof Error ? err.message : String(err));
     return { rows: [], truncated: false };
@@ -268,7 +274,7 @@ async function fetchEmRows(
     .in("status", EMAIL_STATUSES)
     .order("created_at", { ascending: false })
     .order("id", { ascending: true })
-    .limit(limit);
+    .limit(limit + 1);
   query = applyCursorBound(query, "created_at", channelCursorBound("em", cursor));
 
   const filtered = applyFilterPlan(query, emFilterPlan(filter));
@@ -280,8 +286,8 @@ async function fetchEmRows(
 
   const { data, error } = await query;
   if (error) throw new Error(`email_threads: ${error.message}`);
-  const rows = (data ?? []) as unknown as EmailThreadRow[];
-  return { rows, truncated: rows.length === limit };
+  const raw = (data ?? []) as unknown as EmailThreadRow[];
+  return { rows: raw.slice(0, limit), truncated: raw.length > limit };
 }
 
 async function countEmFilter(filter: InboxFilter, q: string): Promise<number> {
@@ -323,14 +329,12 @@ function assertMatchesFilter(items: InboxItem[], filter: InboxFilter, me: string
   return kept;
 }
 
-// Items with no usable `at` (last_activity_at and created_at both null —
-// only realistically possible for IG rows on a stale schema) are excluded
-// from paging entirely rather than sorted-as-empty-string or used to build a
-// cursor. Review MINOR: the counts pass (exact head:true queries) can't
-// cheaply apply this same exclusion without mapping every row to an
-// InboxItem first, which would defeat the point of an exact count query —
-// accepted as a known gap (at-less rows, if any exist, are excluded from the
-// list but still counted) rather than adding that complexity.
+// Items with no usable `at` (only realistically possible for IG rows whose
+// last_activity_at and created_at are both null) are excluded from paging
+// entirely rather than sorted-as-empty-string or used to build a cursor. The
+// counts pass (exact head:true queries) can't cheaply apply this same
+// exclusion without mapping every row to an InboxItem first, which would
+// defeat the point of an exact count query — accepted as a known gap.
 function hasAt(item: InboxItem): boolean {
   return item.at !== "";
 }
@@ -344,24 +348,28 @@ async function fetchChannelPage(
   me: string,
   igIssues: string[],
 ): Promise<ChannelPage> {
-  let items: InboxItem[];
+  let rawItems: InboxItem[];
   let truncated: boolean;
   if (channel === "wa") {
     const { rows, truncated: t } = await fetchWaRows(filter, limit, q, cursor, me);
-    items = rows.map(waToItem);
+    rawItems = rows.map(waToItem);
     truncated = t;
   } else if (channel === "ig") {
     const { rows, truncated: t } = await fetchIgRows(filter, limit, q, cursor, me, igIssues);
-    items = rows.map(igToItem);
+    rawItems = rows.map(igToItem);
     truncated = t;
   } else {
     const { rows, truncated: t } = await fetchEmRows(filter, limit, q, cursor);
-    items = rows.map(emailToItem);
+    rawItems = rows.map(emailToItem);
     truncated = t;
   }
-  items = items.filter(hasAt);
+  // The last row of the RAW (limit-capped, pre-drop) fetch — used only as a
+  // cursor-boundary fallback by pageFromChannels when every row here ends up
+  // dropped below and `items` has nothing left to anchor a cursor on.
+  const rawLast = rawItems.length ? rawItems[rawItems.length - 1] : null;
+  let items = rawItems.filter(hasAt);
   items = assertMatchesFilter(items, filter, me);
-  return { items, truncated }; // truncated is the RAW fetch size check — unaffected by the drops above
+  return { items, truncated, rawLast };
 }
 
 async function countChannelFilter(
@@ -394,7 +402,7 @@ export async function GET(req: NextRequest) {
 
   const [channelPages, countsResult] = await Promise.all([
     // ---- list pass ----
-    // Each channel fetches exactly `limit` rows already matching the
+    // Each channel fetches up to `limit` rows already matching the
     // requested filter (pushed into SQL) and bounded by the exact cursor
     // tuple/lt/lte (channelCursorBound) — see src/lib/inbox/cursor.ts for
     // the tie-safety/correctness argument. pageFromChannels does the final

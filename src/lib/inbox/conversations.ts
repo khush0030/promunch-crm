@@ -94,7 +94,12 @@ export function waToItem(r: WaThreadRow): InboxItem {
     channel: "wa",
     name,
     preview: toPreview(r.last_message_snippet),
-    at: r.last_activity_at || r.created_at,
+    // No created_at fallback here (unlike igToItem): the API route excludes
+    // WA threads with a null last_activity_at (no messages either way —
+    // nothing to act on) before they ever reach this function, so SQL fetch
+    // order and item.at always agree. `?? ""` only matters as a defensive
+    // fallback if that exclusion is ever bypassed.
+    at: r.last_activity_at ?? "",
     pill,
     needsHuman: ticketActive || r.status === "human",
     assignee: r.assigned_to ?? r.ticket_assignee,
@@ -169,12 +174,19 @@ export function matchesFilter(i: InboxItem, f: InboxFilter, me: string): boolean
   }
 }
 
+// Anything with an `at`/`key` pair sorts the same way an InboxItem does —
+// widened (rather than requiring a full InboxItem) so cursor.ts's
+// pageFromChannels can also compare bare cursor-boundary markers (a raw
+// fetch's last row, before it's known whether that row survives filtering)
+// against real items with the same comparator.
+export type AtKey = { at: string; key: string };
+
 // The canonical sort order for the merged Inbox list: `at` desc, `key` asc
 // as the tiebreak. Exported (not just inlined in mergeItems) so
 // src/lib/inbox/cursor.ts's pageFromChannels can re-sort each channel's rows
 // with the exact same comparator before slicing/merging — one definition of
 // "sorted", not two that could drift.
-export function compareItems(a: InboxItem, b: InboxItem): number {
+export function compareItems(a: AtKey, b: AtKey): number {
   if (a.at !== b.at) return a.at < b.at ? 1 : -1; // desc by at
   return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; // asc by key
 }
@@ -183,19 +195,4 @@ export function mergeItems(lists: InboxItem[][], limit: number): InboxItem[] {
   const all = lists.flat();
   all.sort(compareItems);
   return all.slice(0, limit);
-}
-
-export function nextCursor(items: InboxItem[], limit: number): string | null {
-  if (items.length !== limit) return null;
-  const last = items[items.length - 1];
-  return `${last.at}|${last.key}`;
-}
-
-export function countFilters(items: InboxItem[], me: string): Record<InboxFilter, number> {
-  const filters: InboxFilter[] = ["human", "mine", "bot", "all"];
-  const counts = { human: 0, mine: 0, bot: 0, all: 0 } as Record<InboxFilter, number>;
-  for (const f of filters) {
-    counts[f] = items.filter((i) => matchesFilter(i, f, me)).length;
-  }
-  return counts;
 }

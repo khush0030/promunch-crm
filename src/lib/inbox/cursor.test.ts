@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseCursor, isAfterCursor, channelCursorBound, pageFromChannels, type Cursor, type ChannelPage } from "./cursor";
-import { compareItems, type InboxItem } from "./conversations";
+import { parseCursor, channelCursorBound, pageFromChannels, type Cursor, type ChannelPage } from "./cursor";
+import { compareItems, type AtKey, type InboxItem } from "./conversations";
 
 describe("parseCursor", () => {
   it("splits at the first pipe", () => {
@@ -30,42 +30,6 @@ describe("parseCursor", () => {
   it("returns null when either half is empty", () => {
     expect(parseCursor("|wa-abc")).toBeNull();
     expect(parseCursor("2026-09-17T01:00:00.000Z|")).toBeNull();
-  });
-});
-
-describe("isAfterCursor", () => {
-  it("always passes when there is no cursor (first page)", () => {
-    expect(isAfterCursor("2026-09-17T01:00:00.000Z", "wa-1", null)).toBe(true);
-  });
-
-  it("passes items with an earlier `at` (sorts later, desc)", () => {
-    const cursor = { at: "2026-09-17T01:00:00.000Z", key: "wa-1" };
-    expect(isAfterCursor("2026-09-16T01:00:00.000Z", "wa-9", cursor)).toBe(true);
-  });
-
-  it("blocks items with a later `at`", () => {
-    const cursor = { at: "2026-09-17T01:00:00.000Z", key: "wa-1" };
-    expect(isAfterCursor("2026-09-18T01:00:00.000Z", "wa-0", cursor)).toBe(false);
-  });
-
-  it("on a tied `at`, passes only keys that sort after the cursor's key (asc)", () => {
-    const cursor = { at: "2026-09-17T01:00:00.000Z", key: "wa-b" };
-    expect(isAfterCursor("2026-09-17T01:00:00.000Z", "wa-c", cursor)).toBe(true);
-    expect(isAfterCursor("2026-09-17T01:00:00.000Z", "wa-a", cursor)).toBe(false);
-    expect(isAfterCursor("2026-09-17T01:00:00.000Z", "wa-b", cursor)).toBe(false); // the cursor item itself
-  });
-
-  it("never duplicates or drops items across a simulated page boundary", () => {
-    // Five items tied on the same `at`, sorted by key asc (compareItems' order).
-    const at = "2026-09-17T01:00:00.000Z";
-    const keys = ["wa-a", "wa-b", "wa-c", "wa-d", "wa-e"];
-    // Page 1 returns the first three; cursor = last item of page 1.
-    const page1 = keys.slice(0, 3);
-    const cursor = { at, key: page1[page1.length - 1] };
-    const page2 = keys.filter((k) => isAfterCursor(at, k, cursor));
-    expect(page2).toEqual(["wa-d", "wa-e"]);
-    // No overlap, no gap.
-    expect(new Set([...page1, ...page2])).toEqual(new Set(keys));
   });
 });
 
@@ -118,16 +82,20 @@ describe("pageFromChannels", () => {
     };
   }
 
-  function page(items: InboxItem[], truncated: boolean): ChannelPage {
-    return { items, truncated };
+  function page(items: InboxItem[], truncated: boolean, rawLast: AtKey | null = null): ChannelPage {
+    // Most tests don't care about the rawLast fallback path, so default it
+    // to the natural value (the last item, if any) unless a test explicitly
+    // wants to simulate "every raw row got dropped" (rawLast set, items empty).
+    return { items, truncated, rawLast: rawLast ?? (items.length ? items[items.length - 1] : null) };
   }
 
-  // Simulates one channel's server-side fetch under the round-2 design:
-  // SQL orders (at desc, id asc) — equivalent to compareItems within a
-  // single channel, since the prefix is constant — bounds with the exact
-  // channelCursorBound (no over-fetch window, no in-memory trim needed
-  // afterwards), and fetches exactly `limit` rows. `truncated` reflects the
-  // raw fetch hitting `limit`, same as the real route computes it.
+  // Simulates one channel's server-side fetch: SQL orders (at desc, id asc)
+  // — equivalent to compareItems within a single channel, since the prefix
+  // is constant — bounds with the exact channelCursorBound, and fetches
+  // `limit + 1` raw rows so a fetch of exactly `limit` rows (no more
+  // available) is distinguishable from a fetch that filled the whole window
+  // (more may exist beyond it). `truncated` is true only in the latter case;
+  // the raw fetch is then capped to `limit` before returning.
   function simulateChannelFetch(allRows: InboxItem[], cursor: Cursor | null, limit: number, prefix: string): ChannelPage {
     const bound = channelCursorBound(prefix, cursor);
     const matches = allRows.filter((row) => {
@@ -141,8 +109,11 @@ describe("pageFromChannels", () => {
       return id > bound.id;
     });
     const sorted = [...matches].sort(compareItems);
-    const fetched = sorted.slice(0, limit);
-    return { items: fetched, truncated: fetched.length === limit };
+    const raw = sorted.slice(0, limit + 1);
+    const truncated = raw.length > limit;
+    const fetched = raw.slice(0, limit);
+    const rawLast = fetched.length ? fetched[fetched.length - 1] : null;
+    return { items: fetched, truncated, rawLast };
   }
 
   it("one channel empty: pages using only the non-empty channel", () => {
@@ -171,16 +142,55 @@ describe("pageFromChannels", () => {
     expect(nextCursor).toBe("2026-09-17T02:00:00.000Z|wa-b");
   });
 
-  it("a channel that returned exactly `limit` rows but was NOT truncated (its true total equals limit) still yields nextCursor null once nothing else is pending", () => {
-    // Distinguishes truncated (raw fetch hit the cap, so more MIGHT exist)
-    // from "happened to have exactly `limit` rows total" (truncated=false —
-    // the caller knows there's nothing beyond what it fetched, e.g. because
-    // fewer than `limit` rows were available so the DB simply returned all
-    // of them and the cap was never actually hit... this test instead pins
-    // the case where truncated=false is trusted at face value).
+  it("a channel with exactly `limit` total rows (not truncated) still yields nextCursor null once nothing else is pending", () => {
+    // With a `limit + 1` fetch, truncated=false and items.length===limit at
+    // the same time is a perfectly ordinary outcome: it means the channel
+    // had exactly `limit` matching rows and no more (the DB simply had
+    // nothing left to fill the +1 slot with) — not an edge case.
     const wa = [item("2026-09-17T03:00:00.000Z", "wa-a"), item("2026-09-17T02:00:00.000Z", "wa-b")];
     const { nextCursor } = pageFromChannels([page(wa, false), page([], false)], null, 2);
     expect(nextCursor).toBeNull();
+  });
+
+  it("every row a truncated channel fetched got dropped (items empty): still emits a cursor from that channel's raw last row, so paging continues instead of silently stopping", () => {
+    // Simulates the consistency-guard/hasAt drop path in the route: the
+    // channel's raw fetch found 2 rows and was truncated (there may be
+    // more), but by the time route.ts's filters ran, both were dropped —
+    // so `items` is empty. Without the rawLast fallback, `more` would still
+    // be true (anyTruncated) but there'd be no item to build a cursor from,
+    // and paging would stop even though more data exists.
+    const rawLast: AtKey = { at: "2026-09-17T02:00:00.000Z", key: "wa-b" };
+    const dropped = page([], true, rawLast);
+    const { items, nextCursor } = pageFromChannels([dropped], null, 2);
+    expect(items).toEqual([]);
+    expect(nextCursor).toBe("2026-09-17T02:00:00.000Z|wa-b");
+  });
+
+  it("rawLast is ignored whenever `items` is non-empty — even if a different, fully-dropped channel's rawLast would sort further along", () => {
+    // ig has 2 visible items (not truncated); wa's whole fetch got dropped
+    // but was truncated, with a rawLast that sorts FURTHER along than ig's
+    // own last item. If that rawLast were blended into the boundary choice,
+    // the cursor would jump past rows wa hasn't actually shown yet on a
+    // future page (a real bug an earlier draft had) — so as long as `items`
+    // isn't empty, the merged page's own last item is the only boundary
+    // used, full stop.
+    const ig = [item("2026-09-17T05:00:00.000Z", "ig-a"), item("2026-09-17T01:00:00.000Z", "ig-b")];
+    const waRawLast: AtKey = { at: "2026-08-01T00:00:00.000Z", key: "wa-x" }; // sorts further along than ig-b
+    const { items, nextCursor } = pageFromChannels([page(ig, false), page([], true, waRawLast)], null, 10);
+    expect(items.map((i) => i.key)).toEqual(["ig-a", "ig-b"]);
+    expect(nextCursor).toBe("2026-09-17T01:00:00.000Z|ig-b");
+  });
+
+  it("when `items` is empty and multiple channels were truncated-and-fully-dropped, the LEAST advanced rawLast is used — never the most advanced (which could skip the less-advanced channel's still-unexplored rows)", () => {
+    const aheadRawLast: AtKey = { at: "2026-08-01T00:00:00.000Z", key: "wa-x" }; // further along
+    const behindRawLast: AtKey = { at: "2026-09-10T00:00:00.000Z", key: "ig-y" }; // less far along
+    const { items, nextCursor } = pageFromChannels(
+      [page([], true, aheadRawLast), page([], true, behindRawLast)],
+      null,
+      10,
+    );
+    expect(items).toEqual([]);
+    expect(nextCursor).toBe("2026-09-10T00:00:00.000Z|ig-y");
   });
 
   it("boundary tie at the page edge: items tied on `at` across two channels are neither duplicated nor dropped", () => {
@@ -239,6 +249,20 @@ describe("pageFromChannels", () => {
     expect(pages).toBeLessThan(50); // actually terminated
   });
 
+  it("pageFromChannels sorts each channel's rows before capping to `limit` — unsorted ChannelPage input still keeps the correct top rows, not just the first `limit` array elements", () => {
+    // Passed directly (not through simulateChannelFetch, which sorts on the
+    // way in) so this exercises pageFromChannels' OWN sort, not the test
+    // helper's. Deliberately shuffled so "the first `limit` elements" of the
+    // raw array is NOT the correct answer.
+    const at = "2026-09-17T00:00:00.000Z";
+    const waUnsorted = [item(at, "wa-d"), item(at, "wa-b"), item(at, "wa-e"), item(at, "wa-a"), item(at, "wa-c")];
+    const { items, nextCursor } = pageFromChannels([{ items: waUnsorted, truncated: true, rawLast: null }], null, 2);
+    // Correct top-2 by compareItems (at tied, key asc) are wa-a, wa-b — NOT
+    // wa-d, wa-b (the literal first two elements of the unsorted array).
+    expect(items.map((i) => i.key)).toEqual(["wa-a", "wa-b"]);
+    expect(nextCursor).toBe(`${at}|wa-b`);
+  });
+
   it("shuffled input, many ties (including a timestamp shared by more rows than `limit`), paged to exhaustion across two channels: every item exactly once", () => {
     const tieAt = "2026-09-17T00:00:00.000Z"; // shared by 7 wa rows and 4 ig rows — more than `limit`
     const wa = [
@@ -254,12 +278,11 @@ describe("pageFromChannels", () => {
       ),
     ];
 
-    // Shuffle deterministically (a fixed seed-like reversal + interleave) —
-    // simulateChannelFetch must re-sort with compareItems regardless of the
+    // Shuffle deterministically (a fixed permutation, no Math.random) —
+    // simulateChannelFetch re-sorts with compareItems regardless of the
     // order rows arrive in, so the shuffle should have zero effect on the
-    // outcome. (channelCursorBound/pageFromChannels don't rely on input
-    // order, but this pins that pageFromChannels' own re-sort-before-slice
-    // step, not just the simulation's sort, is doing real work.)
+    // outcome; the standalone test above pins pageFromChannels' own re-sort
+    // more directly (unsorted input with no upstream sort at all).
     function shuffle<T>(arr: T[]): T[] {
       const out = [...arr];
       for (let i = out.length - 1; i > 0; i--) {

@@ -5,7 +5,7 @@
 // (e.g. "wa-7449b43e-..."), so a channel's own id can always be recovered by
 // splitting on the first "-" — the channel prefix itself never contains one.
 
-import { mergeItems, compareItems, type InboxItem } from "./conversations";
+import { mergeItems, compareItems, type AtKey, type InboxItem } from "./conversations";
 
 export type Cursor = { at: string; key: string };
 
@@ -22,26 +22,9 @@ export function parseCursor(raw: string | null | undefined): Cursor | null {
   return { at, key };
 }
 
-// True if (at, key) sorts strictly after the cursor under compareItems' order
-// (at desc, key asc) — i.e. it belongs on the next page, not this one. A null
-// cursor (first page) always passes. Kept as a small standalone predicate
-// (used by channelCursorBound's own reasoning, and available for tests/other
-// callers) even though fix round 2's route no longer needs to run it over
-// fetched rows — SQL now enforces the bound directly (see channelCursorBound).
-export function isAfterCursor(at: string, key: string, cursor: Cursor | null): boolean {
-  if (!cursor) return true;
-  if (at !== cursor.at) return at < cursor.at; // earlier `at` sorts later (desc)
-  return key > cursor.key; // same `at`, key is the asc tiebreak
-}
-
-// Fix round 2 (review): round 1 bounded each channel's fetch with a plain
-// `.lte(atColumn, cursor.at)` and then trimmed the result with isAfterCursor
-// in memory. That's tie-*safe* for a single page, but wasteful (fetches rows
-// it then throws away) and — combined with the old "+10 window, take first
-// limit" approach — could still miss rows when more than `limit` rows shared
-// the cursor's exact `at`. This computes the *exact* SQL bound instead, so a
-// channel's query returns precisely the rows that belong after the cursor,
-// nothing more.
+// Each channel query is bounded by an exact SQL condition instead of a
+// looser bound trimmed in memory, so a channel returns precisely the rows
+// that belong after the cursor — nothing more, nothing dropped.
 export type CursorBound =
   | { op: "none" } // no cursor (first page): no bound
   | { op: "lt"; value: string } // at < value — every at===value row for this channel sorts BEFORE the cursor
@@ -79,35 +62,51 @@ export function channelCursorBound(channelPrefix: string, cursor: Cursor | null)
   return { op: "lt", value: cursor.at };
 }
 
-// One channel's page-worth of rows, plus whether the raw SQL fetch (before
-// any consistency-check drops) came back exactly `limit` long — meaning
-// there might be more beyond what was fetched. `truncated` must be computed
-// from the RAW fetch, not the post-drop `items` length, so a consistency
-// mismatch can never accidentally suppress a real "there's more" signal (or
-// fabricate one).
-export type ChannelPage = { items: InboxItem[]; truncated: boolean };
+// One channel's page-worth of rows, plus:
+//   - `truncated`: whether the raw SQL fetch (before any consistency-check
+//     drops) came back longer than `limit` — meaning there might be more
+//     beyond what was fetched. Computed from the RAW fetch, not the
+//     post-drop `items` length, so a dropped row can never suppress or
+//     fabricate a "there's more" signal.
+//   - `rawLast`: the (at, key) of the last row this channel's raw fetch
+//     considered this round (after capping to `limit`, before any
+//     hasAt/consistency-check drops), or null if the raw fetch was empty.
+//     Used only as a cursor-boundary fallback (see pageFromChannels) for the
+//     edge case where every row this channel fetched got dropped, so none of
+//     them appear in `items` to anchor a cursor on.
+export type ChannelPage = { items: InboxItem[]; truncated: boolean; rawLast: AtKey | null };
 
-// Turns each channel's already-filtered, already-cursor-bounded page (each
-// channel query now fetches exactly `limit` rows — no over-fetch window) into
+// Turns each channel's already-filtered, already-cursor-bounded page into
 // one merged page + a nextCursor decision.
 //
 // Correctness of the nextCursor decision: a channel's own rows are re-sorted
-// with compareItems (defensive — see the comment on that function in
-// conversations.ts: it guards against a channel's SQL order column and its
-// InboxItem `at` occasionally disagreeing, e.g. an IG row that fell back
-// from last_activity_at to created_at) and capped to `limit` before merging,
-// so nothing beyond a channel's own top `limit` (by the true merge order)
-// ever competes for a page slot. nextCursor is non-null when either:
-//   - the merged candidate pool (summed across channels, pre-cap) is bigger
-//     than what actually fit on this page (some rows got pushed to the next
-//     page), or
-//   - any channel was `truncated` (its raw fetch hit exactly `limit`) — that
-//     channel might have more rows beyond what was fetched, even if none of
-//     its rows made this particular page.
-// Every row a channel doesn't return this round is <= its own last returned
-// row's `at`/key, which is <= everything that made the page, so nothing is
-// ever silently lost — it just arrives on a later page once the cursor moves
-// past it (the next fetch re-queries every channel from the new cursor).
+// with compareItems (defensive: guards against a channel's SQL order column
+// and its InboxItem `at` occasionally disagreeing) and capped to `limit`
+// before merging, so nothing beyond a channel's own top `limit` (by the true
+// merge order) ever competes for a page slot. `more` is true when either the
+// merged candidate pool (summed across channels, pre-cap) is bigger than
+// what actually fit on this page, or any channel was truncated.
+//
+// When `items` is non-empty, its own last entry is always the correct
+// boundary — every candidate a channel didn't get onto the page (whether
+// cut by the per-channel cap or by losing the global sort) is guaranteed to
+// sort after it, so resuming from it next round can't skip anything. A
+// channel's `rawLast` must NOT be blended into that choice: a truncated
+// channel's rawLast can be further along than the page's actual last item
+// (e.g. the channel had 3 candidates for a page of 2), and treating it as a
+// valid boundary would make the next round's cursor bound skip that
+// channel's own not-yet-shown rows between the two points — a real bug an
+// earlier draft of this function had.
+//
+// `rawLast` exists for exactly one edge case: `items` is completely empty
+// (every channel's raw fetch this round, if it had one, got entirely
+// dropped by hasAt/the matchesFilter consistency guard in the route) but
+// `more` is still true because a channel was truncated. There's no visible
+// item to anchor a cursor on, so pick the LEAST advanced truncated channel's
+// `rawLast` — the most conservative choice, since a MORE advanced channel
+// will just redundantly (but harmlessly) re-examine the range it already
+// dropped on the next round, while a less-advanced choice could skip real,
+// never-yet-fetched rows for whichever channel didn't get that far.
 export function pageFromChannels(
   channelRows: ChannelPage[],
   cursor: Cursor | null,
@@ -120,11 +119,19 @@ export function pageFromChannels(
   const items = mergeItems(capped, limit);
 
   const more = anyTruncated || totalCandidates > items.length;
-  const last = items[items.length - 1];
-  // Never emit a cursor built from an item with no `at` (conversations.ts
-  // already excludes these before they reach here, but this is the last
-  // line of defense so a future caller can't accidentally leak a broken one).
-  const nextCursor = more && last && last.at ? `${last.at}|${last.key}` : null;
+
+  const lastItem = items[items.length - 1];
+  let boundary: AtKey | null = lastItem ?? null;
+  if (!boundary) {
+    const truncatedRawLasts = channelRows
+      .filter((c): c is ChannelPage & { rawLast: AtKey } => c.truncated && c.rawLast !== null)
+      .map((c) => c.rawLast);
+    truncatedRawLasts.sort(compareItems);
+    boundary = truncatedRawLasts[0] ?? null; // least advanced — see the comment above
+  }
+
+  // Never emit a cursor built from an item/boundary with no `at`.
+  const nextCursor = more && boundary && boundary.at ? `${boundary.at}|${boundary.key}` : null;
 
   return { items, nextCursor };
 }

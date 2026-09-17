@@ -5,8 +5,6 @@ import {
   emailToItem,
   matchesFilter,
   mergeItems,
-  nextCursor,
-  countFilters,
   type WaThreadRow,
   type IgThreadRow,
   type EmailThreadRow,
@@ -111,9 +109,9 @@ describe("waToItem", () => {
     expect(item.bot).toBe(false);
   });
 
-  it("falls back at → created_at when last_activity_at is null", () => {
+  it("at is an empty string when last_activity_at is null — no created_at fallback (the API route excludes these threads entirely; see waToItem)", () => {
     const item = waToItem(waRow({ last_activity_at: null, created_at: "2026-09-10T00:00:00.000Z" }));
-    expect(item.at).toBe("2026-09-10T00:00:00.000Z");
+    expect(item.at).toBe("");
   });
 
   it("name falls back contact.name → phone → wa_id", () => {
@@ -301,34 +299,3 @@ describe("mergeItems", () => {
   });
 });
 
-describe("nextCursor", () => {
-  it("is null when fewer items than the limit come back", () => {
-    const items = [waToItem(waRow({ id: "w1" }))];
-    expect(nextCursor(items, 5)).toBeNull();
-  });
-
-  it("is `${at}|${key}` of the last item when the page is full", () => {
-    const items = [
-      waToItem(waRow({ id: "w1", last_activity_at: "2026-09-15T09:00:00.000Z" })),
-      waToItem(waRow({ id: "w2", last_activity_at: "2026-09-15T08:00:00.000Z" })),
-    ];
-    expect(nextCursor(items, 2)).toBe("2026-09-15T08:00:00.000Z|wa-w2");
-  });
-});
-
-describe("countFilters", () => {
-  it("counts each filter bucket independently", () => {
-    const items = [
-      waToItem(waRow({ id: "w1", status: "human" })),
-      waToItem(waRow({ id: "w2", status: "bot" })),
-      waToItem(waRow({ id: "w3", status: "bot", assigned_to: "khush@trypromunch.in" })),
-      emailToItem(emailRow({ id: "e1", status: "pending", should_reply: true })),
-    ];
-    expect(countFilters(items, "khush@trypromunch.in")).toEqual({
-      human: 2, // w1 (human status) + e1 (pending draft)
-      mine: 1, // w3
-      bot: 2, // w2, w3
-      all: 4,
-    });
-  });
-});
