@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { parseBody } from "@/lib/api-helpers";
 
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  // ?peek=1 = the Inbox hub previewing a thread without opening it — skip the
+  // unread_count reset so the badge doesn't clear until the agent actually
+  // opens the conversation. Everything else about this response is identical.
+  const peek = new URL(req.url).searchParams.get("peek") === "1";
 
   const { data: thread, error } = await supabaseAdmin
     .from("wa_threads")
@@ -20,7 +24,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     .limit(500);
 
   // mark read
-  await supabaseAdmin.from("wa_threads").update({ unread_count: 0 }).eq("id", id);
+  if (!peek) await supabaseAdmin.from("wa_threads").update({ unread_count: 0 }).eq("id", id);
 
   return NextResponse.json({ thread, messages: messages ?? [] });
 }
