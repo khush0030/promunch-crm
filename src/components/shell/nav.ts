@@ -67,6 +67,7 @@ export const NAV: NavHub[] = [
     hub: "Marketing", color: "#FFC905", icon: Megaphone,
     items: [
       { label: "Campaigns", href: "/dashboard/whatsapp?tab=campaigns" },
+      { label: "Email (Brevo)", href: "/dashboard/marketing/email" },
       { label: "Email campaigns", href: "/dashboard/campaigns", tour: "campaigns" },
       { label: "Automations", href: "/dashboard/whatsapp?tab=flows" },
       { label: "Email automations", href: "/dashboard/flows" },

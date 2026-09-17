@@ -16,10 +16,10 @@ PROMUNCH CRM is **two deployables sharing one Supabase database**:
                     └───────▲──────────────────────────▲──────────┘
                             │                          │
         ┌───────────────────┴────────┐   ┌─────────────┴──────────────────┐
-        │  Next.js 16 dashboard      │   │  56 Supabase Edge Functions    │
+        │  Next.js 16 dashboard      │   │  57 Supabase Edge Functions    │
         │  src/  (Vercel)            │──▶│  promunch-email-agent/ (Deno)  │
         │  17 dashboard modules      │   │  all customer-facing sends,    │
-        │  114 API route files       │   │  webhooks, cron workers        │
+        │  153 API route files       │   │  webhooks, cron workers        │
         │  deploy: vercel --prod     │   │  deploy: supabase functions    │
         └────────────────────────────┘   │          deploy <name>         │
                                          └───────▲────────────────────────┘

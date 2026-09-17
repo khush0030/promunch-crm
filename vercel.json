@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/wa-engagement-tiers",
       "schedule": "30 20 * * *"
+    },
+    {
+      "path": "/api/cron/brevo-sync",
+      "schedule": "0 21 * * *"
     }
   ]
 }

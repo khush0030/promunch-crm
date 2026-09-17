@@ -33,6 +33,7 @@ export const EDITABLE_KEYS: SecretDef[] = [
   // storefront script tag). Needs the write_script_tags scope. Read via
   // getSecret() by src/app/api/whatsapp/growth/route.ts.
   { name: "SHOPIFY_ACCESS_TOKEN", label: "Shopify Admin", group: "Store", hint: "Publish the WhatsApp popup + chat button to your store (needs write_script_tags scope)", testable: true },
+  { name: "BREVO_API_KEY", label: "Brevo", group: "Email", hint: "Email marketing campaign stats (read-only)", testable: true },
   { name: "KLAVIYO_API_KEY", label: "Klaviyo", group: "Email", hint: "Legacy profile enrichment imports", testable: true },
   { name: "APIFY_TOKEN", label: "Apify", group: "Instagram", hint: "Influencer discovery scrapers", testable: true },
 ];
@@ -116,6 +117,10 @@ export async function testSecret(name: string, value: string): Promise<TestResul
       case "APIFY_TOKEN": {
         const r = await t(fetch(`https://api.apify.com/v2/users/me?token=${encodeURIComponent(value)}`));
         return r?.ok ? { ok: true, detail: "Apify accepted the token" } : { ok: false, detail: `Apify rejected the token (${r?.status ?? "network error"})` };
+      }
+      case "BREVO_API_KEY": {
+        const r = await t(fetch("https://api.brevo.com/v3/account", { headers: { "api-key": value, accept: "application/json" } }));
+        return r?.ok ? { ok: true, detail: "Brevo accepted the key" } : { ok: false, detail: `Brevo rejected the key (${r?.status ?? "network error"})` };
       }
       case "KLAVIYO_API_KEY": {
         const r = await t(fetch("https://a.klaviyo.com/api/accounts/", { headers: { Authorization: `Klaviyo-API-Key ${value}`, revision: "2024-10-15" } }));
