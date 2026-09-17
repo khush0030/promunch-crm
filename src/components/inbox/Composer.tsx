@@ -37,7 +37,7 @@ export function Composer({
   attachment?: { name: string } | null;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const sendable = canSend({ busy, value, disabledReason });
+  const sendable = canSend({ busy, value, disabledReason, hasAttachment: !!attachment });
 
   const autoGrow = (el: HTMLTextAreaElement) => {
     const line = parseFloat(getComputedStyle(el).lineHeight || "20") || 20;

@@ -25,4 +25,9 @@ describe("canSend", () => {
   it("treats an empty-string disabledReason as no reason", () => {
     expect(canSend({ busy: false, value: "Hi there", disabledReason: "" })).toBe(true);
   });
+
+  it("is true with an attachment and no text, but not while disabled", () => {
+    expect(canSend({ busy: false, value: "", hasAttachment: true })).toBe(true);
+    expect(canSend({ busy: false, value: "", hasAttachment: true, disabledReason: "closed" })).toBe(false);
+  });
 });
