@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { waSearchOr, igSearchOr, emSearchOr } from "./search";
+import { waSearchOr, igSearchOr, emSearchOr, ilikeExact, quotePostgrestValue } from "./search";
 
 describe("waSearchOr", () => {
   it("returns null for an empty/whitespace-only query", () => {
@@ -59,5 +59,45 @@ describe("emSearchOr", () => {
     expect(emSearchOr("rohan")).toBe(
       "from_email.ilike.%rohan%,from_name.ilike.%rohan%,subject.ilike.%rohan%",
     );
+  });
+});
+
+describe("quotePostgrestValue", () => {
+  it("wraps a plain value in double quotes", () => {
+    expect(quotePostgrestValue("kmutha@vippysoya.com")).toBe('"kmutha@vippysoya.com"');
+  });
+
+  it("escapes an embedded backslash and double-quote", () => {
+    expect(quotePostgrestValue('a\\b"c')).toBe('"a\\\\b\\"c"');
+  });
+
+  it("wraps an ISO timestamp (colons and a `+` are not PostgREST-special once quoted)", () => {
+    expect(quotePostgrestValue("2026-09-17T02:22:35.743+00:00")).toBe('"2026-09-17T02:22:35.743+00:00"');
+  });
+});
+
+describe("ilikeExact", () => {
+  // The regression this guards: sanitizeSearch (built for *free-text*
+  // search, where stripping PostgREST syntax characters from an already-lossy
+  // query is fine) strips "." — which corrupts every email address and made
+  // filter=mine silently match nothing. ilikeExact must NOT touch ".", "@",
+  // or any other character that isn't an ILIKE/PostgREST metacharacter.
+  it("passes a plain email through unchanged except for the quotes", () => {
+    expect(ilikeExact("kmutha@vippysoya.com")).toBe('"kmutha@vippysoya.com"');
+  });
+
+  it("escapes an ILIKE wildcard underscore so it matches literally, then quotes", () => {
+    // Step 1 (ILIKE-escape "_" → "\_") then step 2 (quote, which re-escapes
+    // that backslash) — verified against a hand-run reference implementation,
+    // see the report for the derivation.
+    expect(ilikeExact("k_mutha@vippysoya.com")).toBe('"k\\\\_mutha@vippysoya.com"');
+  });
+
+  it("escapes a literal % the same way", () => {
+    expect(ilikeExact("100%_done")).toBe('"100\\\\%\\\\_done"');
+  });
+
+  it("two different underscore-containing emails never collapse to the same clause value (no accidental wildcard match)", () => {
+    expect(ilikeExact("a_b@x.com")).not.toBe(ilikeExact("axb@x.com"));
   });
 });

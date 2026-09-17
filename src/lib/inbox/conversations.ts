@@ -169,12 +169,19 @@ export function matchesFilter(i: InboxItem, f: InboxFilter, me: string): boolean
   }
 }
 
+// The canonical sort order for the merged Inbox list: `at` desc, `key` asc
+// as the tiebreak. Exported (not just inlined in mergeItems) so
+// src/lib/inbox/cursor.ts's pageFromChannels can re-sort each channel's rows
+// with the exact same comparator before slicing/merging — one definition of
+// "sorted", not two that could drift.
+export function compareItems(a: InboxItem, b: InboxItem): number {
+  if (a.at !== b.at) return a.at < b.at ? 1 : -1; // desc by at
+  return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; // asc by key
+}
+
 export function mergeItems(lists: InboxItem[][], limit: number): InboxItem[] {
   const all = lists.flat();
-  all.sort((a, b) => {
-    if (a.at !== b.at) return a.at < b.at ? 1 : -1; // desc by at
-    return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; // asc by key
-  });
+  all.sort(compareItems);
   return all.slice(0, limit);
 }
 
