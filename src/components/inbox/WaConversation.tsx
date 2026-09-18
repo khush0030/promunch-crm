@@ -69,12 +69,14 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
       if (!r.ok || j.error) throw new Error(j.error || `thread ${r.status}`);
       return { thread: j.thread as ThreadRow, messages: (j.messages ?? []) as WaMessageRow[] };
     },
-    // A real 404 is terminal (no polling); anything else is a transient poll
-    // failure: keep the last data on screen and keep polling every 4s.
+    // A 404 before anything loaded is terminal (no polling). The WA route also
+    // answers 404 for any database error, so once the thread has loaded a 404
+    // is treated like any other transient poll failure: keep the last data on
+    // screen and keep polling every 4s.
     retry: false,
-    refetchInterval: (q) => (isNotFound(q.state.error) ? false : 4000),
+    refetchInterval: (q) => (isNotFound(q.state.error) && !q.state.data ? false : 4000),
   });
-  const notFound = threadQ.isError && isNotFound(threadQ.error);
+  const notFound = threadQ.isError && isNotFound(threadQ.error) && !threadQ.data;
   const pollFailed = threadQ.isError && !notFound;
   const now = useNow(30_000);
   const thread = threadQ.data?.thread ?? null;
