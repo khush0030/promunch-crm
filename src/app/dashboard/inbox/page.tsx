@@ -22,6 +22,7 @@ import { IgConversation } from "@/components/inbox/IgConversation";
 import { ConversationHeader } from "@/components/inbox/ConversationHeader";
 import { categoryWord } from "@/components/inbox/labels";
 import { formatWhen } from "@/lib/inbox/when";
+import { useMediaPhone } from "@/components/shell/useMediaPhone";
 import type { InboxFilter, InboxItem } from "@/lib/inbox/conversations";
 
 type Channel = "all" | "wa" | "ig" | "em";
@@ -167,9 +168,9 @@ function InboxPageInner() {
   }, [openParam, items]);
   const selectedItem = items.find((i) => i.key === selectedKey) ?? null;
 
+  const isPhone = useMediaPhone();
   const openRow = useCallback(
     (item: InboxItem) => {
-      const isPhone = typeof window !== "undefined" && window.matchMedia("(max-width: 720px)").matches;
       if (isPhone) {
         router.push(`/dashboard/inbox/${item.key}`);
         return;
@@ -182,7 +183,7 @@ function InboxPageInner() {
           .finally(() => qc.invalidateQueries({ queryKey: ["inbox-list"] }));
       }
     },
-    [router, setQuery, qc],
+    [isPhone, router, setQuery, qc],
   );
 
   const goNext = useCallback(() => {
@@ -308,6 +309,9 @@ function InboxPageInner() {
               ) : null}
             </div>
           </div>
+          {/* Phones get no pane: it is not mounted at all, so its conversation
+              polling never runs in the background. */}
+          {isPhone ? null : (
           <div className="pm2-d-only" style={{ display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
             {selectedItem ? (
               selectedItem.channel === "wa" ? (
@@ -321,6 +325,7 @@ function InboxPageInner() {
               <div style={{ padding: 24, color: "var(--pm-hint)", fontSize: 13.5 }}>Select a conversation.</div>
             )}
           </div>
+          )}
         </div>
       </div>
     </>
