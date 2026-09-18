@@ -7,6 +7,7 @@ import { inviteEmailHtml, inviteEmailSubject } from "@/lib/emails/invite";
 import { recordAudit } from "@/lib/audit";
 import { assertHuman } from "@/lib/botid-guard";
 import { isAdminUser } from "@/lib/rbac";
+import { resolveTeamDisplayName } from "@/lib/team";
 
 function callerName(user: { email?: string | null; user_metadata?: Record<string, unknown> }): string {
   const meta = (user.user_metadata || {}) as Record<string, unknown>;
@@ -67,15 +68,10 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const users: TeamUser[] = data.users.map((u) => {
-    const meta = (u.user_metadata || {}) as Record<string, unknown>;
-    const name =
-      (typeof meta.full_name === "string" && meta.full_name) ||
-      (typeof meta.name === "string" && meta.name) ||
-      (u.email ? u.email.split("@")[0] : "User");
     return {
       id: u.id,
       email: u.email ?? null,
-      name,
+      name: resolveTeamDisplayName(u),
       role: roleOf(u),
       created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at ?? null,

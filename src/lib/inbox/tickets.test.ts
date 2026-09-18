@@ -5,6 +5,7 @@ import {
   isHumanReplySender,
   firstHumanReplyAt,
   ageText,
+  humanizeTitleSeparator,
   buildBoard,
   type TicketRow,
 } from "./tickets";
@@ -124,6 +125,15 @@ describe("ageText", () => {
   });
 });
 
+describe("humanizeTitleSeparator", () => {
+  it("replaces ' — ' with ': ' for display", () => {
+    expect(humanizeTitleSeparator("Wrong flavour — sent Peri Peri instead")).toBe("Wrong flavour: sent Peri Peri instead");
+  });
+  it("leaves text with no em dash untouched", () => {
+    expect(humanizeTitleSeparator("Refund for cancelled COD")).toBe("Refund for cancelled COD");
+  });
+});
+
 const teamName = (email: string) => (email === "khush@trypromunch.in" ? "Khush Mutha" : email === "narendra@trypromunch.in" ? "Narendra Singh" : email);
 
 describe("buildBoard", () => {
@@ -151,7 +161,7 @@ describe("buildBoard", () => {
     expect(board.counts.waiting).toBe(1);
   });
 
-  it("excludes a ticket resolved yesterday from the Resolved column", () => {
+  it("includes a ticket resolved yesterday in the Resolved this week column", () => {
     const resolvedYesterday = ticketRow({
       id: "y",
       ticket_status: "resolved",
@@ -159,11 +169,26 @@ describe("buildBoard", () => {
       ticket_resolved_at: hoursAgo(26),
     });
     const board = buildBoard([resolvedYesterday], {}, NOW, teamName);
-    const resolved = board.columns.find((c) => c.key === "resolved-today")!;
-    expect(resolved.cards).toHaveLength(0);
+    const resolved = board.columns.find((c) => c.key === "resolved")!;
+    expect(resolved.title).toBe("Resolved this week");
+    expect(resolved.cards.map((c) => c.key)).toEqual(["wa-y"]);
+    expect(resolved.cards[0].ageText).toBe("resolved in 4h · yesterday");
   });
 
-  it("includes a ticket resolved earlier today in the Resolved column", () => {
+  it("excludes a ticket resolved 8 days ago from the Resolved this week column", () => {
+    const resolvedLongAgo = ticketRow({
+      id: "old",
+      ticket_status: "resolved",
+      ticket_opened_at: hoursAgo(8 * 24 + 2),
+      ticket_resolved_at: hoursAgo(8 * 24),
+    });
+    const board = buildBoard([resolvedLongAgo], {}, NOW, teamName);
+    const resolved = board.columns.find((c) => c.key === "resolved")!;
+    expect(resolved.cards).toHaveLength(0);
+    expect(board.counts.resolvedWeek).toBe(0);
+  });
+
+  it("includes a ticket resolved earlier today in the Resolved this week column, dated 'today'", () => {
     const resolvedToday = ticketRow({
       id: "r",
       ticket_status: "resolved",
@@ -171,9 +196,10 @@ describe("buildBoard", () => {
       ticket_resolved_at: hoursAgo(1),
     });
     const board = buildBoard([resolvedToday], {}, NOW, teamName);
-    const resolved = board.columns.find((c) => c.key === "resolved-today")!;
+    const resolved = board.columns.find((c) => c.key === "resolved")!;
     expect(resolved.cards.map((c) => c.key)).toEqual(["wa-r"]);
-    expect(resolved.cards[0].ageText).toBe("resolved in 2h");
+    expect(resolved.cards[0].ageText).toBe("resolved in 2h · today");
+    expect(board.counts.resolvedWeek).toBe(1);
   });
 
   it("computes the median resolve time over the last 7 days", () => {
@@ -203,6 +229,35 @@ describe("buildBoard", () => {
     const card = board.columns.find((c) => c.key === "new")!.cards[0];
     expect(card.orderRef).toBe("#2231");
     expect(card.orderValue).toBe(799);
+  });
+
+  it("derives chip counts from the columns actually shown (Open excludes Waiting)", () => {
+    const rows = [
+      ticketRow({ id: "n1", ticket_status: "open", ticket_assignee: null }), // New
+      ticketRow({ id: "n2", ticket_status: "open", ticket_assignee: null }), // New
+      ticketRow({ id: "w1", ticket_status: "open", ticket_assignee: "khush@trypromunch.in" }), // With Khush
+      ticketRow({ id: "wait1", ticket_status: "pending", ticket_assignee: null }), // Waiting
+      ticketRow({
+        id: "res1",
+        ticket_status: "resolved",
+        ticket_opened_at: hoursAgo(3),
+        ticket_resolved_at: hoursAgo(1),
+      }), // Resolved this week
+    ];
+    const board = buildBoard(rows, {}, NOW, teamName);
+
+    const newCount = board.columns.find((c) => c.key === "new")!.cards.length;
+    const withCount = board.columns.filter((c) => c.key.startsWith("with:")).reduce((s, c) => s + c.cards.length, 0);
+    const waitingCount = board.columns.find((c) => c.key === "waiting")!.cards.length;
+    const resolvedCount = board.columns.find((c) => c.key === "resolved")!.cards.length;
+
+    expect(board.counts.open).toBe(newCount + withCount);
+    expect(board.counts.open).toBe(3); // 2 New + 1 With — Waiting is NOT counted in Open
+    expect(board.counts.waiting).toBe(waitingCount);
+    expect(board.counts.waiting).toBe(1);
+    expect(board.counts.resolvedWeek).toBe(resolvedCount);
+    expect(board.counts.resolvedWeek).toBe(1);
+    expect(board.kpis.open).toBe(board.counts.open);
   });
 
   it("marks past-target cards crit and includes them in kpis.pastTarget", () => {

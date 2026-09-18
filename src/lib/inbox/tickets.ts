@@ -55,6 +55,11 @@ export type TicketsBoard = {
   counts: { open: number; waiting: number; resolvedWeek: number };
 };
 
+// "D Mon" for a date outside "today"/"yesterday" — en-IN's "short" month
+// renders "Sept", not "Sep", so build it by hand off IST day/month parts.
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const istDateParts = new Intl.DateTimeFormat("en-CA", { day: "numeric", month: "numeric", timeZone: "Asia/Kolkata" });
+
 // First /#?(\d{4,6})/ match in the text, normalised to "#2231". Order refs
 // show up in ticket_subject/escalation_reason free text, with or without a
 // leading '#' (bot-written vs. agent-written).
@@ -136,6 +141,15 @@ function truncate(text: string, max: number): string {
   return t.length > max ? `${t.slice(0, max).trim()}…` : t;
 }
 
+// Card titles come from bot- or agent-written subjects that sometimes use
+// an em dash as a clause separator ("Wrong flavour — sent Peri Peri
+// instead"). PROMUNCH copy bans em dashes on screen, so the card title
+// swaps it for ": " — this only affects display, never the stored
+// ticket_subject/escalation_reason text.
+export function humanizeTitleSeparator(text: string): string {
+  return text.replace(/ — /g, ": ");
+}
+
 // The real UTC ms timestamp of IST midnight for the calendar day containing
 // `d`. Shifting by the fixed IST offset before flooring to a day boundary
 // gives the right answer regardless of the host process's TZ.
@@ -143,6 +157,20 @@ function istMidnightMs(d: Date): number {
   const shifted = d.getTime() + IST_OFFSET_MS;
   const dayFloor = Math.floor(shifted / DAY_MS) * DAY_MS;
   return dayFloor - IST_OFFSET_MS;
+}
+
+// "today" / "yesterday" / "12 Sep" (IST calendar day) for a resolved card's
+// meta line, so an older card in the 7-day Resolved column still reads
+// right instead of implying it just happened.
+function istDayLabel(d: Date, now: Date): string {
+  const dayStart = istMidnightMs(d);
+  const todayStart = istMidnightMs(now);
+  if (dayStart === todayStart) return "today";
+  if (dayStart === todayStart - DAY_MS) return "yesterday";
+  const parts = istDateParts.formatToParts(d);
+  const day = parts.find((p) => p.type === "day")?.value ?? "";
+  const month = Number(parts.find((p) => p.type === "month")?.value ?? "1");
+  return `${day} ${MONTHS[month - 1]}`;
 }
 
 function median(values: number[]): number | null {
@@ -179,13 +207,10 @@ export function buildBoard(
 
   const newRows: TicketRow[] = [];
   const waitingRows: TicketRow[] = [];
-  const resolvedTodayRows: TicketRow[] = [];
+  const resolvedWeekRows: TicketRow[] = [];
   const withRowsByAssignee = new Map<string, TicketRow[]>();
 
-  let openCount = 0;
   let pastTargetCount = 0;
-  let waitingCount = 0;
-  let resolvedWeekCount = 0;
   const resolveDurationsWeek: number[] = [];
   const resolveDurationsPrevWeek: number[] = [];
   const categoryCountsWeek = new Map<string, number>();
@@ -196,7 +221,6 @@ export function buildBoard(
     const isResolvedLike = r.ticket_status === "resolved" || r.ticket_status === "closed";
 
     if (isOpenLike) {
-      openCount++;
       if (isPastTarget(r, now)) pastTargetCount++;
       if (r.ticket_assignee) {
         const bucket = withRowsByAssignee.get(r.ticket_assignee) ?? [];
@@ -205,7 +229,6 @@ export function buildBoard(
       } else if (r.ticket_status === "open") {
         newRows.push(r);
       } else {
-        waitingCount++;
         waitingRows.push(r);
       }
     }
@@ -213,12 +236,13 @@ export function buildBoard(
     if (isResolvedLike && r.ticket_resolved_at) {
       const resolvedMs = new Date(r.ticket_resolved_at).getTime();
       if (Number.isFinite(resolvedMs)) {
-        if (resolvedMs >= todayStart && resolvedMs < todayEnd) resolvedTodayRows.push(r);
-
+        // "Resolved this week" = the last 7 IST days including today (not
+        // only today) — the column and the counts.resolvedWeek badge both
+        // read off the same resolvedWeekRows list, so they can never drift.
         const openedMs = r.ticket_opened_at ? new Date(r.ticket_opened_at).getTime() : NaN;
         const durationHours = Number.isFinite(openedMs) ? (resolvedMs - openedMs) / HOUR_MS : null;
         if (resolvedMs >= last7Start && resolvedMs < todayEnd) {
-          resolvedWeekCount++;
+          resolvedWeekRows.push(r);
           if (durationHours != null) resolveDurationsWeek.push(durationHours);
         } else if (resolvedMs >= prev7Start && resolvedMs < prev7End) {
           if (durationHours != null) resolveDurationsPrevWeek.push(durationHours);
@@ -243,7 +267,7 @@ export function buildBoard(
   function toCard(r: TicketRow, kind: "open" | "resolved"): TicketCard {
     const orderRef = extractOrderRef(r.ticket_subject) ?? extractOrderRef(r.escalation_reason);
     const orderValue = orderRef && orders[orderRef] != null ? orders[orderRef] : null;
-    const title = truncate(r.ticket_subject || r.escalation_reason || "Ticket", 60);
+    const title = truncate(humanizeTitleSeparator(r.ticket_subject || r.escalation_reason || "Ticket"), 60);
     const href = `/dashboard/inbox/${r.channel}-${r.id}`;
     const base = {
       key: `${r.channel}-${r.id}`,
@@ -257,8 +281,13 @@ export function buildBoard(
     };
 
     if (kind === "resolved") {
-      const age = r.ticket_opened_at && r.ticket_resolved_at ? ageText(r.ticket_opened_at, new Date(r.ticket_resolved_at)) : "—";
-      return { ...base, ageText: `resolved in ${age}`, tone: "neu", pastTarget: false };
+      let text = "—";
+      if (r.ticket_opened_at && r.ticket_resolved_at) {
+        const resolvedAt = new Date(r.ticket_resolved_at);
+        const age = ageText(r.ticket_opened_at, resolvedAt);
+        text = `resolved in ${age} · ${istDayLabel(resolvedAt, now)}`;
+      }
+      return { ...base, ageText: text, tone: "neu", pastTarget: false };
     }
 
     const past = isPastTarget(r, now);
@@ -290,9 +319,9 @@ export function buildBoard(
     cards: [...waitingRows].sort(byOpenedAtAsc).map((r) => toCard(r, "open")),
   });
   columns.push({
-    key: "resolved-today",
-    title: "Resolved",
-    cards: [...resolvedTodayRows].sort(byOpenedAtAsc).map((r) => toCard(r, "resolved")),
+    key: "resolved",
+    title: "Resolved this week",
+    cards: [...resolvedWeekRows].sort(byOpenedAtAsc).map((r) => toCard(r, "resolved")),
   });
 
   let topCategory: TicketsBoard["kpis"]["topCategory"] = null;
@@ -308,15 +337,24 @@ export function buildBoard(
     topCategory = { word: bestWord, count: bestCount, prevCount: categoryCountsPrevWeek.get(bestWord) ?? 0 };
   }
 
+  // Chip badges must equal the cards each chip's columns actually show, so
+  // both `counts` and kpis.open are read straight off the columns just
+  // built rather than kept as separate running totals that could drift.
+  const openCardCount = columns
+    .filter((c) => c.key === "new" || c.key.startsWith("with:"))
+    .reduce((sum, c) => sum + c.cards.length, 0);
+  const waitingCardCount = columns.find((c) => c.key === "waiting")?.cards.length ?? 0;
+  const resolvedCardCount = columns.find((c) => c.key === "resolved")?.cards.length ?? 0;
+
   return {
     columns,
     kpis: {
-      open: openCount,
+      open: openCardCount,
       pastTarget: pastTargetCount,
       medianResolveHours: median(resolveDurationsWeek),
       prevMedianResolveHours: median(resolveDurationsPrevWeek),
       topCategory,
     },
-    counts: { open: openCount, waiting: waitingCount, resolvedWeek: resolvedWeekCount },
+    counts: { open: openCardCount, waiting: waitingCardCount, resolvedWeek: resolvedCardCount },
   };
 }

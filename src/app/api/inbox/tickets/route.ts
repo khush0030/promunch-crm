@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { buildBoard, extractOrderRef, firstHumanReplyAt, type TicketRow } from "@/lib/inbox/tickets";
+import { resolveTeamDisplayName } from "@/lib/team";
 
 // GET /api/inbox/tickets — the Tickets board (Task 2.6). Read-only: reuses
 // the existing PATCH /api/whatsapp/threads/[id] and
@@ -45,29 +46,19 @@ function isOpenTicketStatus(s: string | null): s is "open" | "pending" | "resolv
   return s === "open" || s === "pending" || s === "resolved" || s === "closed";
 }
 
-function capitalize(s: string): string {
-  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-}
-
-// Same name-resolution rule as GET /api/team (src/app/api/team/route.ts):
-// user_metadata.full_name / .name, falling back to the capitalised email
-// local part. There is no dedicated team-members table to import a helper
-// from, so this mirrors that route's logic against the same auth users list.
+// Same helper GET /api/team uses (src/lib/team.ts) — the Assign dropdown on
+// the board comes from /api/team's `name` field, so "With {name}" must
+// resolve to the exact same string for the same person.
 async function loadTeamNames(): Promise<(email: string) => string> {
   const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
   const map = new Map<string, string>();
   if (!error && data) {
     for (const u of data.users) {
       if (!u.email) continue;
-      const meta = (u.user_metadata || {}) as Record<string, unknown>;
-      const name =
-        (typeof meta.full_name === "string" && meta.full_name) ||
-        (typeof meta.name === "string" && meta.name) ||
-        capitalize(u.email.split("@")[0]);
-      map.set(u.email, name);
+      map.set(u.email, resolveTeamDisplayName(u));
     }
   }
-  return (email: string) => map.get(email) ?? capitalize(email.split("@")[0] || email);
+  return (email: string) => map.get(email) ?? email.split("@")[0] ?? email;
 }
 
 export async function GET() {
@@ -165,7 +156,10 @@ export async function GET() {
   }
 
   // Order values: look up shopify_orders.total_price for every order ref we
-  // can extract from a ticket's subject/escalation text.
+  // can extract from a ticket's subject/escalation text. order_number is
+  // stored WITH the leading '#' (e.g. "#2121"), same as extractOrderRef's
+  // output — query and key the lookup map with the ref exactly as-is, no
+  // stripping/re-adding the '#'.
   const refs = new Set<string>();
   for (const r of rows) {
     const ref = extractOrderRef(r.ticket_subject) ?? extractOrderRef(r.escalation_reason);
@@ -173,13 +167,12 @@ export async function GET() {
   }
   const orders: Record<string, number> = {};
   if (refs.size > 0) {
-    const numbers = [...refs].map((ref) => ref.slice(1));
     const { data: orderRows } = await supabaseAdmin
       .from("shopify_orders")
       .select("order_number, total_price")
-      .in("order_number", numbers);
+      .in("order_number", [...refs]);
     for (const o of (orderRows ?? []) as { order_number: string; total_price: number | string | null }[]) {
-      if (o.total_price != null) orders[`#${o.order_number}`] = Number(o.total_price);
+      if (o.total_price != null) orders[o.order_number] = Number(o.total_price);
     }
   }
 

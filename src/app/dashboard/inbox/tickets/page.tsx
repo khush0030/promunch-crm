@@ -208,7 +208,7 @@ function TicketsPageInner() {
   const visibleColumns = board.columns.filter((c) => {
     if (filter === "open") return c.key === "new" || c.key.startsWith("with:");
     if (filter === "waiting") return c.key === "waiting";
-    return c.key === "resolved-today";
+    return c.key === "resolved";
   });
   const boardColumns: BoardColumn[] = visibleColumns.map((c) => ({
     key: c.key,
@@ -235,7 +235,7 @@ function TicketsPageInner() {
           <Kpi label="Open" value={board.kpis.open} sub={`${board.kpis.pastTarget} past target`} />
           <Kpi
             label="Median time to resolve"
-            value={board.kpis.medianResolveHours != null ? `${board.kpis.medianResolveHours.toFixed(1)}h` : "—"}
+            value={board.kpis.medianResolveHours != null ? `${board.kpis.medianResolveHours.toFixed(1)}h` : "None resolved"}
             delta={medianDeltaPct}
             invert
             sub="this week"
@@ -359,7 +359,7 @@ function TicketCardView({
       ) : null}
       {confirming ? (
         <ConfirmDialog
-          title={`Resolve ticket ${card.number != null ? `#${card.number}` : ""}?`}
+          title={card.number != null ? `Resolve ticket #${card.number}?` : "Resolve this ticket?"}
           body="The customer is not messaged."
           confirmLabel="Resolve"
           busy={busy}
