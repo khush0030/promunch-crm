@@ -12,12 +12,13 @@ import Link from "next/link";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/Toast";
-import { ConfirmDialog } from "@/components/pm";
+import { ConfirmDialog, Callout } from "@/components/pm";
 import { Bubbles } from "./Bubbles";
 import { Composer } from "./Composer";
 import { TemplatePicker } from "./TemplatePicker";
 import { ConversationHeader } from "./ConversationHeader";
-import { useMeEmail, useStickToBottom, useTeamMembers } from "./hooks";
+import { useMeEmail, useNow, useStickToBottom, useTeamMembers } from "./hooks";
+import { AssignSelect, ConnectionNotice, NotFoundCard, patchThread, shareLink } from "./shared";
 import { WindowChip, windowLeftMs } from "@/components/whatsapp/WindowTimer";
 import type { Template, Thread } from "@/components/whatsapp/types";
 import { formatINR } from "@/lib/metrics/money";
@@ -29,6 +30,8 @@ import {
   latestInboundAt,
   waitingCodOrder,
   orderLabel,
+  NotFoundError,
+  isNotFound,
   type WaMessageRow,
   type CodGateOrder,
 } from "@/lib/inbox/thread";
@@ -61,15 +64,19 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
     queryKey: ["wa-thread-messages", id],
     queryFn: async (): Promise<{ thread: ThreadRow; messages: WaMessageRow[] }> => {
       const r = await fetch(`/api/whatsapp/threads/${id}${peek ? "?peek=1" : ""}`, { cache: "no-store" });
+      if (r.status === 404) throw new NotFoundError();
       const j = await r.json();
       if (!r.ok || j.error) throw new Error(j.error || `thread ${r.status}`);
       return { thread: j.thread as ThreadRow, messages: (j.messages ?? []) as WaMessageRow[] };
     },
-    // Keep polling while the thread loads fine; a missing thread stays a
-    // one-shot "not found" instead of a 4s retry loop.
+    // A real 404 is terminal (no polling); anything else is a transient poll
+    // failure: keep the last data on screen and keep polling every 4s.
     retry: false,
-    refetchInterval: (q) => (q.state.status === "error" ? false : 4000),
+    refetchInterval: (q) => (isNotFound(q.state.error) ? false : 4000),
   });
+  const notFound = threadQ.isError && isNotFound(threadQ.error);
+  const pollFailed = threadQ.isError && !notFound;
+  const now = useNow(30_000);
   const thread = threadQ.data?.thread ?? null;
   const messages = useMemo(() => threadQ.data?.messages ?? [], [threadQ.data]);
 
@@ -104,9 +111,9 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
   });
 
   // ---- derived -----------------------------------------------------------
-  const items = useMemo(() => waBubbles(messages, thread, Date.now()), [messages, thread]);
+  const items = useMemo(() => waBubbles(messages, thread, now), [messages, thread, now]);
   const lastInbound = useMemo(() => latestInboundAt(thread?.last_inbound_at, messages), [thread?.last_inbound_at, messages]);
-  const windowOpen = (windowLeftMs(lastInbound, Date.now()) ?? 0) > 0;
+  const windowOpen = (windowLeftMs(lastInbound, now) ?? 0) > 0;
   const codOrder = useMemo(() => waitingCodOrder(codQ.data ?? [], thread?.wa_id), [codQ.data, thread?.wa_id]);
   const ticketOpen = thread?.ticket_status === "open" || thread?.ticket_status === "pending";
   const name = thread?.contact?.name || thread?.contact?.phone || "WhatsApp chat";
@@ -211,13 +218,7 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
     if (patching) return;
     setPatching(true);
     try {
-      const r = await fetch(`/api/whatsapp/threads/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(p),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || j.error) toast.push({ kind: "error", text: "Could not update: " + (j.error ?? `HTTP ${r.status}`) });
+      await patchThread(`/api/whatsapp/threads/${id}`, p, toast);
       await refresh();
     } finally {
       setPatching(false);
@@ -270,26 +271,17 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
     }
   }
 
-  async function shareLink() {
-    const url = `${window.location.origin}/dashboard/inbox/wa-${id}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.push({ kind: "success", text: "Chat link copied." });
-    } catch {
-      window.prompt("Copy this chat link", url);
-    }
-  }
-
   // ---- render ------------------------------------------------------------
-  if (threadQ.isError) {
+  if (notFound) return <NotFoundCard />;
+  if (!thread && pollFailed) {
     return (
-      <div className="pm2-body">
-        <div className="pm2-panel" style={{ padding: 20 }}>
-          <b>This conversation was not found</b>
-          <div style={{ marginTop: 6 }}>
-            <Link className="pm2-lnk" href="/dashboard/inbox">Back to Inbox</Link>
-          </div>
-        </div>
+      <div className={compact ? undefined : "pm2-body"}>
+        <Callout
+          tone="crit"
+          title="Could not load this conversation"
+          body="Check the connection and try again."
+          action={<button type="button" className="pm2-btn" onClick={() => threadQ.refetch()}>Retry</button>}
+        />
       </div>
     );
   }
@@ -302,28 +294,17 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
   const headerActions = (
     <>
       {compact ? <WindowChip lastInboundAt={lastInbound} /> : null}
-      {thread.status === "bot" ? (
-        <button type="button" className={btn} disabled={patching} onClick={() => patch({ status: "human" })}>Take over</button>
-      ) : thread.status === "human" ? (
+      {thread.status === "human" ? (
         <button type="button" className={btn} disabled={patching} onClick={() => patch({ status: "bot" })}>Hand back to bot</button>
-      ) : null}
+      ) : thread.status === "closed" ? null : (
+        // bot or snoozed: a person can pick the chat up
+        <button type="button" className={btn} disabled={patching} onClick={() => patch({ status: "human" })}>Take over</button>
+      )}
       {ticketOpen ? (
         <button type="button" className={`${btn} ghost`} disabled={patching} onClick={() => patch({ ticket_status: "resolved" })}>Resolve</button>
       ) : null}
-      <button type="button" className={`${btn} ghost`} onClick={shareLink}>Share</button>
-      <select
-        aria-label="Assigned to"
-        className="pm2-btn sm"
-        value={thread.assigned_to ?? ""}
-        disabled={patching}
-        onChange={(e) => patch({ assigned_to: e.target.value || null })}
-        style={{ appearance: "auto", cursor: "pointer" }}
-      >
-        <option value="">Unassigned</option>
-        {members.filter((m) => m.email).map((m) => (
-          <option key={m.id} value={m.email!}>{m.name}</option>
-        ))}
-      </select>
+      <button type="button" className={`${btn} ghost`} onClick={() => shareLink(`/dashboard/inbox/wa-${id}`, toast)}>Share</button>
+      <AssignSelect value={thread.assigned_to} members={members} disabled={patching} onChange={(email) => patch({ assigned_to: email || null })} />
     </>
   );
 
@@ -343,7 +324,7 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
       {codOrder ? <span>{orderLabel(codOrder.order_number)} · COD · <b>waiting</b></span> : null}
       <WindowChip lastInboundAt={lastInbound} />
       {customer?.contact?.id ? (
-        <a className="pm2-lnk" style={{ marginLeft: "auto" }} href={`/dashboard/contacts/${customer.contact.id}`}>Profile →</a>
+        <Link className="pm2-lnk" style={{ marginLeft: "auto" }} href={`/dashboard/contacts/${customer.contact.id}`}>Profile →</Link>
       ) : null}
     </>
   );
@@ -404,6 +385,7 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
             <Bubbles items={items} />
           )}
         </div>
+        {pollFailed ? <ConnectionNotice /> : null}
         <div className="pm2-thread-foot">
           {pickingTemplate ? (
             <div className="pm2-panel">

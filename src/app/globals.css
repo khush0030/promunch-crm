@@ -1055,6 +1055,9 @@ table.pm2-tbl{width:100%;border-collapse:collapse;font-size:14px;color:var(--pm-
 .pm2-thread-body{display:flex;flex-direction:column;flex:1;min-height:0}
 .pm2-thread-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
 .pm2-thread-foot{padding:8px 28px 16px;flex:none}
+.pm2-facts{padding:12px 28px 0;display:flex;flex-direction:column;gap:6px}
+.pm2-thread-notice{font-size:12.5px;color:var(--pm-terra);padding:4px 28px 0}
+.pm2-thread.compact .pm2-thread-notice{padding:4px 16px 0}
 .pm2-thread.compact .pm2-thread-foot{padding:0 12px 12px}
 .pm2-thread.compact .pm2-composer{box-shadow:none}
 .pm2-thread select.pm2-btn{max-width:160px;overflow:hidden;text-overflow:ellipsis}
@@ -1102,7 +1105,7 @@ table.pm2-tbl{width:100%;border-collapse:collapse;font-size:14px;color:var(--pm-
   .pm2-inbox-grid{margin:-14px -16px -24px;min-height:0}
   .pm2-thread:not(.compact){height:calc(100dvh - var(--pm2-topbar-h,58px) - 62px - env(safe-area-inset-bottom))}
   .pm2-thread-foot{padding:8px 16px 12px}
-  .pm2-facts{padding:10px 16px 0!important}
+  .pm2-facts{padding:10px 16px 0}
   .pm2-kan{display:flex;overflow-x:auto;scroll-snap-type:x mandatory}
   .pm2-kcol{flex:0 0 86%;scroll-snap-align:start}
   .pm2-bub{max-width:86%}

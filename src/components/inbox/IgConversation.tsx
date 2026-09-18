@@ -6,15 +6,16 @@
 // thread to "human" (so the note under the header). No template, photo or
 // COD actions on Instagram.
 
-import Link from "next/link";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/Toast";
 import { Bubbles } from "./Bubbles";
 import { Composer } from "./Composer";
 import { ConversationHeader } from "./ConversationHeader";
-import { useMeEmail, useStickToBottom, useTeamMembers } from "./hooks";
-import { igBubbles, igReplyErrorCopy, waStatusPill, firstNameOf, type IgMessageRow } from "@/lib/inbox/thread";
+import { Callout } from "@/components/pm";
+import { useMeEmail, useNow, useStickToBottom, useTeamMembers } from "./hooks";
+import { AssignSelect, ConnectionNotice, NotFoundCard, patchThread, shareLink } from "./shared";
+import { igBubbles, igReplyErrorCopy, waStatusPill, firstNameOf, NotFoundError, isNotFound, type IgMessageRow } from "@/lib/inbox/thread";
 
 type IgThread = {
   id: string;
@@ -40,18 +41,22 @@ export function IgConversation({ id, peek = false, compact = false }: { id: stri
     queryKey: ["ig-thread-messages", id],
     queryFn: async (): Promise<{ thread: IgThread; messages: IgMessageRow[] }> => {
       const r = await fetch(`/api/instagram/threads/${id}${peek ? "?peek=1" : ""}`, { cache: "no-store" });
+      if (r.status === 404) throw new NotFoundError();
       const j = await r.json();
       if (!r.ok || j.error) throw new Error(j.error || `thread ${r.status}`);
       return { thread: j.thread as IgThread, messages: (j.messages ?? []) as IgMessageRow[] };
     },
-    // Keep polling while the thread loads fine; a missing thread stays a
-    // one-shot "not found" instead of a 4s retry loop.
+    // A real 404 is terminal (no polling); anything else is a transient poll
+    // failure: keep the last data on screen and keep polling every 4s.
     retry: false,
-    refetchInterval: (q) => (q.state.status === "error" ? false : 4000),
+    refetchInterval: (q) => (isNotFound(q.state.error) ? false : 4000),
   });
+  const notFound = threadQ.isError && isNotFound(threadQ.error);
+  const pollFailed = threadQ.isError && !notFound;
+  const now = useNow(30_000);
   const thread = threadQ.data?.thread ?? null;
   const messages = useMemo(() => threadQ.data?.messages ?? [], [threadQ.data]);
-  const items = useMemo(() => igBubbles(messages, Date.now()), [messages]);
+  const items = useMemo(() => igBubbles(messages, now), [messages, now]);
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -91,38 +96,23 @@ export function IgConversation({ id, peek = false, compact = false }: { id: stri
     setPatching(true);
     try {
       // The IG thread PATCH lives at /stage (status, assigned_to, resolve_ticket).
-      const r = await fetch(`/api/instagram/threads/${id}/stage`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(p),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || j.error) toast.push({ kind: "error", text: "Could not update: " + (j.error ?? `HTTP ${r.status}`) });
+      await patchThread(`/api/instagram/threads/${id}/stage`, p, toast);
       await refresh();
     } finally {
       setPatching(false);
     }
   }
 
-  async function shareLink() {
-    const url = `${window.location.origin}/dashboard/inbox/ig-${id}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.push({ kind: "success", text: "Chat link copied." });
-    } catch {
-      window.prompt("Copy this chat link", url);
-    }
-  }
-
-  if (threadQ.isError) {
+  if (notFound) return <NotFoundCard />;
+  if (!thread && pollFailed) {
     return (
-      <div className="pm2-body">
-        <div className="pm2-panel" style={{ padding: 20 }}>
-          <b>This conversation was not found</b>
-          <div style={{ marginTop: 6 }}>
-            <Link className="pm2-lnk" href="/dashboard/inbox">Back to Inbox</Link>
-          </div>
-        </div>
+      <div className={compact ? undefined : "pm2-body"}>
+        <Callout
+          tone="crit"
+          title="Could not load this conversation"
+          body="Check the connection and try again."
+          action={<button type="button" className="pm2-btn" onClick={() => threadQ.refetch()}>Retry</button>}
+        />
       </div>
     );
   }
@@ -149,20 +139,8 @@ export function IgConversation({ id, peek = false, compact = false }: { id: stri
       {ticketOpen ? (
         <button type="button" className={`${btn} ghost`} disabled={patching} onClick={() => patch({ resolve_ticket: true })}>Resolve</button>
       ) : null}
-      <button type="button" className={`${btn} ghost`} onClick={shareLink}>Share</button>
-      <select
-        aria-label="Assigned to"
-        className="pm2-btn sm"
-        value={thread.assigned_to ?? ""}
-        disabled={patching}
-        onChange={(e) => patch({ assigned_to: e.target.value })}
-        style={{ appearance: "auto", cursor: "pointer" }}
-      >
-        <option value="">Unassigned</option>
-        {members.filter((m) => m.email).map((m) => (
-          <option key={m.id} value={m.email!}>{m.name}</option>
-        ))}
-      </select>
+      <button type="button" className={`${btn} ghost`} onClick={() => shareLink(`/dashboard/inbox/ig-${id}`, toast)}>Share</button>
+      <AssignSelect value={thread.assigned_to} members={members} disabled={patching} onChange={(email) => patch({ assigned_to: email })} />
     </>
   );
 
@@ -202,6 +180,7 @@ export function IgConversation({ id, peek = false, compact = false }: { id: stri
             <Bubbles items={items} />
           )}
         </div>
+        {pollFailed ? <ConnectionNotice /> : null}
         <div className="pm2-thread-foot">
           <Composer
             placeholder={`Reply as ${firstNameOf(me)}…`}

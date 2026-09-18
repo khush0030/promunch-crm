@@ -7,6 +7,16 @@ import { useQuery } from "@tanstack/react-query";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import type { TeamMember } from "@/components/whatsapp/types";
 
+/** Wall clock that ticks every `intervalMs`, so window state and day labels stay current. */
+export function useNow(intervalMs = 30_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(t);
+  }, [intervalMs]);
+  return now;
+}
+
 /** Signed-in user's email from the Supabase browser session (same source as the shell). */
 export function useMeEmail(): string | null {
   const [email, setEmail] = useState<string | null>(null);

@@ -16,6 +16,8 @@ import {
   igReplyErrorCopy,
   waStatusPill,
   parseConversationId,
+  NotFoundError,
+  isNotFound,
   type WaMessageRow,
   type IgMessageRow,
 } from "./thread";
@@ -224,5 +226,16 @@ describe("parseConversationId", () => {
     expect(parseConversationId("sms-1")).toBeNull();
     expect(parseConversationId("wa-")).toBeNull();
     expect(parseConversationId(undefined)).toBeNull();
+  });
+});
+
+describe("isNotFound", () => {
+  it("is true only for a tagged 404", () => {
+    expect(isNotFound(new NotFoundError())).toBe(true);
+    expect(isNotFound(Object.assign(new Error("x"), { status: 404 }))).toBe(true);
+    expect(isNotFound(Object.assign(new Error("x"), { status: 500 }))).toBe(false);
+    expect(isNotFound(new TypeError("Failed to fetch"))).toBe(false);
+    expect(isNotFound(null)).toBe(false);
+    expect(isNotFound(undefined)).toBe(false);
   });
 });

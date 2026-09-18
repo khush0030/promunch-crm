@@ -86,7 +86,7 @@ export function WindowChip({ lastInboundAt }: { lastInboundAt: string | null | u
   const open = left !== null && left > 0;
   const color = stateColor(left);
   return (
-    <span title={open ? `${fmtLeft(left)} left in the 24h customer window` : "24h customer window closed — template required"}
+    <span title={open ? `${fmtLeft(left)} left in the 24h customer window` : "24h customer window closed, template required"}
       style={{
         display: "inline-flex", alignItems: "center", gap: 3,
         fontSize: 10.5, fontWeight: 700, color,

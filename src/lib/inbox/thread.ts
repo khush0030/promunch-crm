@@ -5,8 +5,8 @@
 // order match, Instagram window errors). The components stay thin and these
 // stay testable.
 
-import type { BubbleItem } from "../../components/inbox/Bubbles";
-import { explainWaError } from "../../components/whatsapp/waErrors";
+import type { BubbleItem } from "@/components/inbox/Bubbles";
+import { explainWaError } from "@/components/whatsapp/waErrors";
 
 const IST = "Asia/Kolkata";
 
@@ -352,4 +352,27 @@ export function parseConversationId(raw: string | null | undefined): { channel: 
   const m = /^(wa|ig|em)-(.+)$/.exec(s);
   if (!m || !m[2]) return null;
   return { channel: m[1] as "wa" | "ig" | "em", id: m[2] };
+}
+
+// ---- fetch errors --------------------------------------------------------
+
+/** Thrown by the thread queries when the route answers 404. */
+export class NotFoundError extends Error {
+  readonly status = 404;
+  constructor(message = "not found") {
+    super(message);
+    this.name = "NotFoundError";
+  }
+}
+
+/**
+ * Only a real 404 means "this conversation does not exist". Anything else
+ * (network blip, 5xx, aborted poll) is transient: the view keeps its last
+ * data and keeps polling.
+ */
+export function isNotFound(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  if (err instanceof NotFoundError) return true;
+  const status = (err as { status?: unknown }).status;
+  return status === 404 || status === "404";
 }
