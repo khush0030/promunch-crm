@@ -1001,6 +1001,12 @@ table.pm2-tbl{width:100%;border-collapse:collapse;font-size:14px;color:var(--pm-
    phone 491,495,522-528). See docs/plans/2026-09-15-crm-redesign/. */
 .pm2-m-only{display:none}
 .pm2-inbox-grid{grid-template-columns:minmax(0,340px) minmax(0,1fr);margin:-20px -28px -40px;min-height:640px}
+/* Laptop: list and conversation each scroll inside a viewport-tall grid (the
+   page itself doesn't scroll), so the conversation opens at the latest
+   message with the reply box on screen. 75px = page header. */
+.pm2-inbox-grid{height:calc(100dvh - 75px)}
+.pm2-inbox-list{overflow-y:auto;min-height:0}
+.pm2-inbox-pane{height:100%;min-height:0;display:flex;flex-direction:column;background:var(--canvas)}
 
 .pm2-kan{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(210px,1fr);gap:12px;overflow-x:auto}
 .pm2-kcol{background:var(--pm-card2);border:1px solid var(--pm-line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0}
@@ -1102,7 +1108,8 @@ table.pm2-tbl{width:100%;border-collapse:collapse;font-size:14px;color:var(--pm-
   .pm2-chart-m{display:block}
   .pm2-d-only{display:none!important}
   .pm2-m-only{display:block}
-  .pm2-inbox-grid{margin:-14px -16px -24px;min-height:0}
+  .pm2-inbox-grid{grid-template-columns:minmax(0,1fr);margin:-14px -16px -24px;min-height:0;height:auto}
+  .pm2-inbox-list{overflow-y:visible}
   .pm2-thread:not(.compact){height:calc(100dvh - var(--pm2-topbar-h,58px) - 62px - env(safe-area-inset-bottom))}
   .pm2-thread-foot{padding:8px 16px 12px}
   .pm2-facts{padding:10px 16px 0}

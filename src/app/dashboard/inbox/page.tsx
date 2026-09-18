@@ -256,7 +256,7 @@ function InboxPageInner() {
       {header}
       <div className="pm2-body">
         <div className="pm2-inbox-grid" style={{ display: "grid", gap: 0 }}>
-          <div className="pm2-panel" style={{ borderRadius: 0, borderWidth: "0 1px 0 0" }}>
+          <div className="pm2-panel pm2-inbox-list" style={{ borderRadius: 0, borderWidth: "0 1px 0 0" }}>
             <div className="pm2-p-body" style={{ padding: "12px 14px 6px" }}>
               <SearchBar value={qDraft} onChange={setQDraft} placeholder="Search name, phone, order…" />
               <div style={{ marginTop: 8 }}>{channelSelect("pm2-m-only")}</div>
@@ -312,7 +312,7 @@ function InboxPageInner() {
           {/* Phones get no pane: it is not mounted at all, so its conversation
               polling never runs in the background. */}
           {isPhone ? null : (
-          <div className="pm2-d-only" style={{ display: "flex", flexDirection: "column", background: "var(--canvas)" }}>
+          <div className="pm2-d-only pm2-inbox-pane">
             {selectedItem ? (
               selectedItem.channel === "wa" ? (
                 <WaConversation id={idFromKey(selectedItem.key)} peek compact />

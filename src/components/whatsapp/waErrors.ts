@@ -23,7 +23,7 @@ const RULES: ({ re: RegExp } & WaErrorInfo)[] = [
     title: "Meta marketing frequency cap",
     willRetry: true,
     action: null,
-    msg: "Meta's per-person marketing limit — this contact got too many promos recently. Not a fault; the engine retries them on a later day.",
+    msg: "Meta's per-person marketing limit: this contact got too many promos recently. Not a fault; the engine retries them on a later day.",
   },
   {
     re: /130472|part of an experiment/i,
@@ -47,7 +47,7 @@ const RULES: ({ re: RegExp } & WaErrorInfo)[] = [
     title: "Template format mismatch",
     willRetry: false,
     action: "Check the template's header media, then re-sync from Meta (Templates tab).",
-    msg: "Message didn't match the approved template's shape — usually a missing or extra media header. Check the template's header media, then re-sync from Meta.",
+    msg: "Message didn't match the approved template's shape: usually a missing or extra media header. Check the template's header media, then re-sync from Meta.",
   },
   {
     re: /132000|number of parameters/i,
@@ -55,7 +55,7 @@ const RULES: ({ re: RegExp } & WaErrorInfo)[] = [
     title: "Wrong variable count",
     willRetry: false,
     action: "Fill every {{n}} variable before sending.",
-    msg: "Wrong number of variable values for this template — fill every {{n}} variable before sending.",
+    msg: "Wrong number of variable values for this template: fill every {{n}} variable before sending.",
   },
   {
     re: /132001|template name does not exist/i,
@@ -71,7 +71,7 @@ const RULES: ({ re: RegExp } & WaErrorInfo)[] = [
     title: "Outside the 24h window",
     willRetry: false,
     action: "Use an approved template to reach this person.",
-    msg: "Outside the 24-hour customer window — only an approved template can reach this person until they message us again.",
+    msg: "Outside the 24-hour customer window: only an approved template can reach this person until they message us again.",
   },
   {
     re: /131026|undeliverable/i,
@@ -79,7 +79,7 @@ const RULES: ({ re: RegExp } & WaErrorInfo)[] = [
     title: "Not reachable on WhatsApp",
     willRetry: false,
     action: null,
-    msg: "Recipient can't receive this — the number may not be on WhatsApp.",
+    msg: "Recipient can't receive this: the number may not be on WhatsApp.",
   },
   {
     re: /131053|media upload error/i,
@@ -87,7 +87,7 @@ const RULES: ({ re: RegExp } & WaErrorInfo)[] = [
     title: "Header media fetch failed",
     willRetry: false,
     action: "If only a few contacts hit this it was a transient Meta timeout. If most did, re-upload the template's header media.",
-    msg: "Meta couldn't fetch the template's header image/video for this recipient — usually a transient timeout on Meta's side.",
+    msg: "Meta couldn't fetch the template's header image/video for this recipient: usually a transient timeout on Meta's side.",
   },
   {
     re: /131048/,
@@ -103,7 +103,7 @@ const RULES: ({ re: RegExp } & WaErrorInfo)[] = [
     title: "Too many to one person",
     willRetry: false,
     action: "Wait before retrying this contact.",
-    msg: "Too many messages to this same person in a short burst — wait before retrying.",
+    msg: "Too many messages to this same person in a short burst: wait before retrying.",
   },
   {
     re: /131031|account has been locked/i,
@@ -111,7 +111,7 @@ const RULES: ({ re: RegExp } & WaErrorInfo)[] = [
     title: "Business account locked",
     willRetry: false,
     action: "Check WhatsApp Manager immediately.",
-    msg: "Our WhatsApp business account is locked or restricted — check WhatsApp Manager immediately.",
+    msg: "Our WhatsApp business account is locked or restricted: check WhatsApp Manager immediately.",
   },
   {
     re: /OAuthException|access token|Error validating access token|\(#190\)|code.{0,3}190/i,
@@ -119,7 +119,7 @@ const RULES: ({ re: RegExp } & WaErrorInfo)[] = [
     title: "Access token expired",
     willRetry: false,
     action: "Rotate the system-user token (see SECURITY_RUNBOOK).",
-    msg: "WhatsApp access token expired — rotate the system-user token (see SECURITY_RUNBOOK).",
+    msg: "WhatsApp access token expired: rotate the system-user token (see SECURITY_RUNBOOK).",
   },
   {
     re: /80007|rate limit/i,
@@ -127,7 +127,7 @@ const RULES: ({ re: RegExp } & WaErrorInfo)[] = [
     title: "API rate limit",
     willRetry: true,
     action: null,
-    msg: "Hit Meta's API rate limit — the engine backs off and retries automatically.",
+    msg: "Hit Meta's API rate limit: the engine backs off and retries automatically.",
   },
   {
     re: /131042|payment/i,
@@ -135,7 +135,7 @@ const RULES: ({ re: RegExp } & WaErrorInfo)[] = [
     title: "Billing problem",
     willRetry: false,
     action: "Check the payment method in Meta Business settings.",
-    msg: "Billing problem on the WhatsApp account — check the payment method in Meta Business settings.",
+    msg: "Billing problem on the WhatsApp account: check the payment method in Meta Business settings.",
   },
   {
     re: /temporarily blocked|\(#368\)/i,
@@ -143,7 +143,7 @@ const RULES: ({ re: RegExp } & WaErrorInfo)[] = [
     title: "Number temporarily blocked",
     willRetry: false,
     action: "Check WhatsApp Manager.",
-    msg: "Our number is temporarily blocked by Meta for policy reasons — check WhatsApp Manager.",
+    msg: "Our number is temporarily blocked by Meta for policy reasons: check WhatsApp Manager.",
   },
   {
     re: /stale claim reclaimed/i,
@@ -151,7 +151,7 @@ const RULES: ({ re: RegExp } & WaErrorInfo)[] = [
     title: "Interrupted mid-send",
     willRetry: false,
     action: null,
-    msg: "The sender restarted while this contact was in flight. Not retried automatically — we can't be sure the message didn't go out, and a duplicate is worse than a miss.",
+    msg: "The sender restarted while this contact was in flight. Not retried automatically: we can't be sure the message didn't go out, and a duplicate is worse than a miss.",
   },
 ];
 
