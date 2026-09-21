@@ -35,6 +35,55 @@ const nextConfig: NextConfig = {
         destination: "/dashboard/sales/orders",
         permanent: false,
       },
+      // Inbox hub (Phase 2): old WhatsApp/support-email URLs redirect to the
+      // unified /dashboard/inbox routes. Order matters — the thread-link
+      // rules must come before the bare-path fallback, and tab=campaigns/
+      // templates/flows/growth/kb (still hosted on /dashboard/whatsapp) must
+      // never match any of these.
+      {
+        source: "/dashboard/support-emails",
+        destination: "/dashboard/inbox/email",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/support-emails/:id",
+        destination: "/dashboard/inbox/email?id=:id",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/whatsapp",
+        has: [{ type: "query", key: "tab", value: "tickets" }],
+        destination: "/dashboard/inbox/tickets",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/whatsapp",
+        has: [{ type: "query", key: "thread", value: "(?<thread>[0-9a-f-]{36})" }],
+        missing: [{ type: "query", key: "tab" }],
+        destination: "/dashboard/inbox/wa-:thread",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/whatsapp",
+        has: [
+          { type: "query", key: "tab", value: "inbox" },
+          { type: "query", key: "thread", value: "(?<thread>[0-9a-f-]{36})" },
+        ],
+        destination: "/dashboard/inbox/wa-:thread",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/whatsapp",
+        missing: [{ type: "query", key: "tab" }],
+        destination: "/dashboard/inbox",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/whatsapp",
+        has: [{ type: "query", key: "tab", value: "inbox" }],
+        destination: "/dashboard/inbox",
+        permanent: false,
+      },
     ];
   },
 };

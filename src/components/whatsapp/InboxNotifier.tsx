@@ -28,7 +28,7 @@ export function setAlertsMuted(muted: boolean) {
 
 export function threadLink(threadId: string): string {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  return `${origin}/dashboard/whatsapp?tab=inbox&thread=${encodeURIComponent(threadId)}`;
+  return `${origin}/dashboard/inbox/wa-${encodeURIComponent(threadId)}`;
 }
 
 // Two-tone ping via WebAudio: no asset file, no network. Browsers only allow

@@ -15,15 +15,20 @@ describe("shell nav", () => {
   });
 
   it("resolves WhatsApp tabs", () => {
-    expect(label("/dashboard/whatsapp")).toBe("WhatsApp chats");
-    expect(label("/dashboard/whatsapp", "inbox")).toBe("WhatsApp chats");
-    expect(label("/dashboard/whatsapp", "tickets")).toBe("Tickets");
     expect(label("/dashboard/whatsapp", "campaigns")).toBe("WhatsApp campaigns");
     expect(label("/dashboard/whatsapp", "flows")).toBe("WhatsApp automations");
     expect(label("/dashboard/whatsapp", "templates")).toBe("WhatsApp templates");
     expect(label("/dashboard/whatsapp", "growth")).toBe("WhatsApp popup");
     expect(label("/dashboard/whatsapp", "kb")).toBe("Bot knowledge");
     expect(findActive("/dashboard/whatsapp", "kb", "")?.hub).toBe("System");
+  });
+
+  it("resolves the Inbox hub", () => {
+    expect(label("/dashboard/inbox")).toBe("Conversations");
+    expect(label("/dashboard/inbox/wa-123")).toBe("Conversations");
+    expect(label("/dashboard/inbox/tickets")).toBe("Tickets");
+    expect(label("/dashboard/inbox/email")).toBe("Email drafts");
+    expect(findActive("/dashboard/inbox/wa-123", null, "")?.hub).toBe("Inbox");
   });
 
   it("uses prefix matches and hashes", () => {

@@ -25,6 +25,13 @@ export const ROUTES = {
   salesOrders: "/dashboard/sales/orders",
   // Instagram tabs are not URL-driven yet, so Creators lands on the page.
   creators: "/dashboard/instagram",
+  inbox: "/dashboard/inbox",
+  inboxTickets: "/dashboard/inbox/tickets",
+  inboxEmail: "/dashboard/inbox/email",
+  // Deep link to a single conversation on the unified Inbox page. `key`
+  // carries its channel as a prefix: wa-<uuid> (WhatsApp), ig-<uuid>
+  // (Instagram), em-<uuid> (support email, redirected to inboxEmail).
+  conversation: (key: string) => `/dashboard/inbox/${key}`,
 } as const;
 
 export type NavItem = {
@@ -61,10 +68,9 @@ export const NAV: NavHub[] = [
   {
     hub: "Inbox", color: "#0A9CB8", icon: Inbox,
     items: [
-      { label: "WhatsApp chats", href: "/dashboard/whatsapp", badge: "inbox", tour: "whatsapp" },
-      { label: "Tickets", href: "/dashboard/whatsapp?tab=tickets" },
-      { label: "Support emails", href: "/dashboard/support-emails", tour: "support-emails" },
-      { label: "Instagram", href: "/dashboard/instagram" },
+      { label: "Conversations", href: ROUTES.inbox, badge: "inbox", tour: "whatsapp" },
+      { label: "Tickets", href: ROUTES.inboxTickets },
+      { label: "Email drafts", href: ROUTES.inboxEmail, tour: "support-emails" },
     ],
   },
   {

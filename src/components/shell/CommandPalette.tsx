@@ -72,7 +72,7 @@ export default function CommandPalette({ onClose }: { onClose: (navigated: boole
           group: "Conversations",
           label: r.contact?.name || r.contact?.phone || r.wa_id || "WhatsApp chat",
           sub: [r.ticket_number ? `#${r.ticket_number}` : "", (r.last_message_snippet || "").split("\n")[0].slice(0, 80)].filter(Boolean).join(" · ") || undefined,
-          href: `/dashboard/whatsapp?thread=${encodeURIComponent(r.id)}`,
+          href: `/dashboard/inbox/wa-${encodeURIComponent(r.id)}`,
         })),
       });
     }, 200);
