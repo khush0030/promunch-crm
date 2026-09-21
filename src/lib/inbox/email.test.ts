@@ -326,6 +326,8 @@ describe("replyBlockedReason", () => {
       "no-reply@x.com",
       "donotreply@bank.in",
       "do-not-reply@y.com",
+      "no_reply@x.com",
+      "do_not_reply@y.com",
       "MAILER-DAEMON@googlemail.com",
       "postmaster@z.com",
       "notification@a.com",
