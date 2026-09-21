@@ -3,7 +3,7 @@
 // with a provider-verified email. Billing is per VALID result only (2 credits);
 // risky, blacklisted and not_found are free.
 
-import { FinderError, type DecisionMakerFinder, type FinderInput, type FinderResult, type FinderStatus } from './types';
+import { DECISION_CATEGORIES, FinderError, type DecisionMakerFinder, type FinderInput, type FinderResult, type FinderStatus } from './types';
 
 const ENDPOINT = 'https://api.anymailfinder.com/v5.1/find-email/decision-maker';
 const TIMEOUT_MS = 40_000; // vendor recommends a long timeout; typical is 2-5s
@@ -37,6 +37,8 @@ export function parseDecisionMakerResponse(body: unknown): FinderResult {
 export const anymailFinder: DecisionMakerFinder = {
   name: 'anymailfinder',
   creditsPerLookup: 2,
+  // Its ten documented categories; it has no administration category.
+  supportedCategories: DECISION_CATEGORIES.filter((c) => c !== 'admin'),
 
   async findDecisionMaker(input: FinderInput, apiKey: string): Promise<FinderResult> {
     if (!input.domain && !input.companyName) throw new FinderError('bad_request', 'domain or company name required');

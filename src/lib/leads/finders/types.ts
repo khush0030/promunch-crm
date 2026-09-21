@@ -6,6 +6,7 @@
 export const DECISION_CATEGORIES = [
   'hr',
   'buyer',
+  'admin',
   'operations',
   'ceo',
   'finance',
@@ -67,5 +68,7 @@ export interface DecisionMakerFinder {
   readonly name: string;
   /** Worst-case credits one lookup can charge; reserved before the call. */
   readonly creditsPerLookup: number;
+  /** Roles this vendor can search; others are skipped without reserving credits. */
+  readonly supportedCategories: readonly DecisionCategory[];
   findDecisionMaker(input: FinderInput, apiKey: string): Promise<FinderResult>;
 }

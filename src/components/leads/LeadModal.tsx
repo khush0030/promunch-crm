@@ -134,7 +134,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
           <button
             type="button" className="pm-btn"
             disabled={busy !== null || !roles.length}
-            title="Pay-as-you-go lookup: finds a named decision maker with a provider-verified email. Uses credits only when a valid email is found."
+            title="Finds a named decision maker with a provider-verified email. Tries the free provider first, then any paid one for roles it missed."
             onClick={async () => {
               setBusy("buyers");
               try {
@@ -151,7 +151,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
                   ? `Found ${saved} verified decision maker${saved > 1 ? "s" : ""} (${json.creditsCharged} credits).`
                   : json.stopped
                     ? `Stopped: ${json.stopped}`
-                    : "No verified decision maker found. No credits used.";
+                    : `No verified decision maker found (${json.creditsCharged} credits used).`;
                 toast.push({ kind: saved ? "success" : "info", text });
               } catch (e) {
                 toast.push({ kind: "error", text: e instanceof Error ? e.message : "lookup failed" });
@@ -165,7 +165,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8, fontSize: 12.5 }}>
           <span className="pm-muted">Roles:</span>
-          {[["hr", "HR"], ["buyer", "Procurement"], ["operations", "Operations"], ["ceo", "CEO"]].map(([key, label]) => (
+          {[["hr", "HR"], ["buyer", "Procurement"], ["admin", "Admin"], ["operations", "Operations"], ["ceo", "CEO"]].map(([key, label]) => (
             <label key={key} style={{ display: "flex", gap: 4, alignItems: "center" }}>
               <input
                 type="checkbox"
@@ -175,7 +175,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
               {label}
             </label>
           ))}
-          <span className="pm-muted">(max 3, about 2 credits per valid email)</span>
+          <span className="pm-muted">(max 3 roles; the free provider is tried first)</span>
         </div>
 
         <PipelineSteps lead={lead} />

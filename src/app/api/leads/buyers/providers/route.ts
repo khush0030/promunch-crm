@@ -26,7 +26,7 @@ export async function GET() {
     .from('provider_usage_events')
     .select('provider, status, credits_reserved, credits_charged')
     .gte('created_at', monthStart.toISOString())
-    .in('status', ['reserved', 'ok', 'uncertain']);
+    .in('status', ['reserved', 'ok', 'uncertain', 'risky', 'not_found']);
   const used: Record<string, number> = {};
   for (const e of events ?? []) {
     used[e.provider as string] = (used[e.provider as string] ?? 0) + ((e.credits_charged as number | null) ?? (e.credits_reserved as number));

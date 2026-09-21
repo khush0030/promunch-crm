@@ -35,6 +35,7 @@ export const EDITABLE_KEYS: SecretDef[] = [
   { name: "SHOPIFY_ACCESS_TOKEN", label: "Shopify Admin", group: "Store", hint: "Publish the WhatsApp popup + chat button to your store (needs write_script_tags scope)", testable: true },
   { name: "BREVO_API_KEY", label: "Brevo", group: "Email", hint: "Email marketing campaign stats (read-only)", testable: true },
   { name: "KLAVIYO_API_KEY", label: "Klaviyo", group: "Email", hint: "Legacy profile enrichment imports", testable: true },
+  { name: "HUNTER_API_KEY", label: "Hunter", group: "B2B leads", hint: "Free decision-maker email finder (50 credits/month on the free plan)", testable: true },
   { name: "ANYMAILFINDER_API_KEY", label: "Anymail Finder", group: "B2B leads", hint: "Verified decision-maker emails (pay per valid result)", testable: false },
   { name: "APIFY_TOKEN", label: "Apify", group: "Instagram", hint: "Influencer discovery scrapers", testable: true },
 ];
@@ -114,6 +115,10 @@ export async function testSecret(name: string, value: string): Promise<TestResul
         const base = raw.startsWith("http") ? raw.replace(/\/$/, "") : `https://${raw.replace(/\/$/, "")}`;
         const r = await t(fetch(`${base}/admin/api/2024-10/shop.json`, { headers: { "X-Shopify-Access-Token": value } }));
         return r?.ok ? { ok: true, detail: "Shopify accepted the token" } : { ok: false, detail: `Shopify rejected the token (${r?.status ?? "network error"})` };
+      }
+      case "HUNTER_API_KEY": {
+        const r = await t(fetch("https://api.hunter.io/v2/account", { headers: { "X-API-KEY": value } }));
+        return r?.ok ? { ok: true, detail: "Hunter accepted the key" } : { ok: false, detail: `Hunter rejected the key (${r?.status ?? "network error"})` };
       }
       case "APIFY_TOKEN": {
         const r = await t(fetch(`https://api.apify.com/v2/users/me?token=${encodeURIComponent(value)}`));

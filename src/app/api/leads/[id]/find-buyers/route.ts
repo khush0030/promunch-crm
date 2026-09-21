@@ -36,8 +36,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       action: 'leads.find_buyers',
       entityType: 'lead',
       entityId: id,
-      summary: `Decision-maker lookup via ${result.provider}: ${result.creditsCharged} credits`,
-      metadata: { categories, outcomes: result.outcomes.map((o) => `${o.category}:${o.outcome}`), stopped: result.stopped },
+      summary: `Decision-maker lookup via ${result.providers.join(' > ')}: ${JSON.stringify(result.creditsByProvider)} credits`,
+      metadata: { categories, outcomes: result.outcomes.map((o) => `${o.category}:${o.outcome}${o.provider ? '@' + o.provider : ''}`), stopped: result.stopped },
       actor: gate.user,
       request: req,
     });
