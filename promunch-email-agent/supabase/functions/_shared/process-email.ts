@@ -727,16 +727,27 @@ async function nextRevision(emailThreadId: string): Promise<number> {
 // Slack. So we back off silently and return null: the caller must stop, never
 // double-post (§0 never-message-twice). Mirrors the new-thread race handling.
 // Returns the created row, or null if we lost the race.
-async function insertRevision(
+// Exported for _shared/email-actions.ts (Slack regenerate/feedback + CRM
+// rewrite/edit). `feedback` is optional so the existing callers here keep
+// writing exactly the same row as before.
+export async function insertRevision(
   emailThreadId: string,
   body: string,
   model: string,
+  feedback?: string | null,
 ): Promise<{ id: string; revision: number } | null> {
   const supabase = db();
   const revision = await nextRevision(emailThreadId);
   const { data: rev, error } = await supabase
     .from("draft_revisions")
-    .insert({ email_thread_id: emailThreadId, revision, body, model, is_current: true })
+    .insert({
+      email_thread_id: emailThreadId,
+      revision,
+      body,
+      model,
+      is_current: true,
+      ...(feedback != null ? { feedback } : {}),
+    })
     .select("id, revision")
     .single();
   if (error) {

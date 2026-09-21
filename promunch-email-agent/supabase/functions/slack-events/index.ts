@@ -9,11 +9,11 @@
 // Slack will first POST a `{"type":"url_verification","challenge":"..."}`
 // payload. We echo the challenge back.
 
-import { verifySlackSignature, postDraftRevision } from "../_shared/slack.ts";
+import { verifySlackSignature } from "../_shared/slack.ts";
 import { db } from "../_shared/supabase.ts";
-import { generateDraft, mayaChat } from "../_shared/openai.ts";
+import { mayaChat } from "../_shared/openai.ts";
 import { logEvent } from "../_shared/log.ts";
-import { recordFeedback } from "../_shared/brand.ts";
+import { rewriteDraft, skipThread } from "../_shared/email-actions.ts";
 
 const BOT_USER_ID = Deno.env.get("SLACK_BOT_USER_ID") ?? "";
 
@@ -122,17 +122,11 @@ async function handleMessage(ev: SlackMessageEvent, isRetry = false): Promise<vo
     return;
   }
   if (lower === "skip" || lower === "ignore" || lower === "discard") {
-    await db().from("email_threads").update({ status: "skipped" }).eq("id", thread.id);
-    await logEvent({
-      eventType: "skipped",
+    await skipThread({
       emailThreadId: thread.id,
-      fromEmail: thread.from_email,
-      subject: thread.subject,
-      actor: ev.user ?? "system",
-      detail: { via: "slack-thread-command", command: lower },
+      source: { kind: "slack-command", slackUser: ev.user ?? null, command: lower },
+      slack: { channel: ev.channel, threadTs: ev.thread_ts! },
     });
-    const { replyInThread } = await import("../_shared/slack.ts");
-    await replyInThread(ev.channel, ev.thread_ts!, ":wastebasket: Skipped — no reply will be sent.");
     return;
   }
 
@@ -146,75 +140,13 @@ async function handleMessage(ev: SlackMessageEvent, isRetry = false): Promise<vo
     detail: { feedback },
   });
 
-  // Otherwise: regenerate the draft using the feedback
-  const { data: currentDraft } = await db()
-    .from("draft_revisions")
-    .select("body, revision")
-    .eq("email_thread_id", thread.id)
-    .eq("is_current", true)
-    .maybeSingle();
-
-  const { body: newDraft, model } = await generateDraft({
-    fromName: thread.from_name,
-    fromEmail: thread.from_email,
-    subject: thread.subject,
-    body: thread.body_plain ?? "",
-    priorDraft: currentDraft?.body ?? null,
-    feedback,
-  });
-
-  const nextRev = (currentDraft?.revision ?? 0) + 1;
-
-  // Demote prior revisions, insert new one
-  await db()
-    .from("draft_revisions")
-    .update({ is_current: false })
-    .eq("email_thread_id", thread.id);
-
-  const { data: rev, error: revErr } = await db()
-    .from("draft_revisions")
-    .insert({
-      email_thread_id: thread.id,
-      revision: nextRev,
-      body: newDraft,
-      feedback,
-      model,
-      is_current: true,
-    })
-    .select("id")
-    .single();
-  if (revErr) throw revErr;
-
-  // Post the new revision back in the same Slack thread
-  const posted = await postDraftRevision({
-    channel: ev.channel,
-    threadTs: ev.thread_ts!,
-    revision: nextRev,
-    feedback,
-    draftBody: newDraft,
+  // Otherwise: regenerate the draft using the feedback. Shared with the CRM
+  // rewrite action; uses the backoff-safe revision insert so a concurrent
+  // twin can never double-post a revision.
+  await rewriteDraft({
     emailThreadId: thread.id,
-    draftRevisionId: rev.id,
-  });
-
-  await db()
-    .from("draft_revisions")
-    .update({ slack_message_ts: posted.ts })
-    .eq("id", rev.id);
-
-  await logEvent({
-    eventType: "revised",
-    emailThreadId: thread.id,
-    fromEmail: thread.from_email,
-    subject: thread.subject,
-    actor: "claude",
-    detail: { revision: nextRev, model, feedback, trigger: "slack-feedback" },
-  });
-
-  // Teach the brain: this feedback → this corrected reply.
-  await recordFeedback({
-    threadId: thread.id,
-    subject: thread.subject,
+    source: { kind: "slack-feedback", slackUser: ev.user ?? null },
     feedback,
-    resultingReply: newDraft,
+    slack: { channel: ev.channel, threadTs: ev.thread_ts! },
   });
 }

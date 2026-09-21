@@ -171,3 +171,6 @@ verify_jwt = false                    # Sarvam post-call webhook; auth = per-cal
 
 [functions.voice-tool-wa-link]
 verify_jwt = false                    # Sarvam HTTPS tool; auth = bearer INTERNAL_FN_SECRET via requireInternal
+
+[functions.email-draft-action]
+verify_jwt = false                    # called by Next.js API with service role bearer; gated by requireInternal
