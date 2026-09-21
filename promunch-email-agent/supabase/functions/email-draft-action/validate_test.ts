@@ -4,15 +4,35 @@ import { parseEmailDraftActionReq } from "./validate.ts";
 const ID = "3f2a9c1e-8b7d-4e6f-a5b4-c3d2e1f0a9b8";
 const ACTOR = "team@trypromunch.in";
 
-Deno.test("approve and skip need only id + actor", () => {
-  for (const action of ["approve", "skip"] as const) {
-    const r = parseEmailDraftActionReq({ action, email_thread_id: ID, actor_email: ACTOR });
-    assertEquals(r, { ok: true, value: { action, email_thread_id: ID, actor_email: ACTOR } });
-  }
+const REV = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+
+Deno.test("skip needs only id + actor", () => {
+  const r = parseEmailDraftActionReq({ action: "skip", email_thread_id: ID, actor_email: ACTOR });
+  assertEquals(r, { ok: true, value: { action: "skip", email_thread_id: ID, actor_email: ACTOR } });
+});
+
+Deno.test("approve requires the draft_revision_id the approver saw", () => {
+  assertEquals(
+    parseEmailDraftActionReq({ action: "approve", email_thread_id: ID, actor_email: ACTOR }).ok,
+    false,
+  );
+  assertEquals(
+    parseEmailDraftActionReq({ action: "approve", email_thread_id: ID, actor_email: ACTOR, draft_revision_id: "v3" }).ok,
+    false,
+  );
+  assertEquals(
+    parseEmailDraftActionReq({ action: "approve", email_thread_id: ID, actor_email: ACTOR, draft_revision_id: REV }),
+    { ok: true, value: { action: "approve", email_thread_id: ID, actor_email: ACTOR, draft_revision_id: REV } },
+  );
 });
 
 Deno.test("rejects a non-uuid thread id", () => {
-  const r = parseEmailDraftActionReq({ action: "approve", email_thread_id: "1; drop", actor_email: ACTOR });
+  const r = parseEmailDraftActionReq({
+    action: "approve",
+    email_thread_id: "1; drop",
+    actor_email: ACTOR,
+    draft_revision_id: REV,
+  });
   assertEquals(r.ok, false);
 });
 

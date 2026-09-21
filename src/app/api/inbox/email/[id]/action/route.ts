@@ -5,7 +5,7 @@ import {
   auditSummary,
   isEmailThreadId,
   parseEmailDraftAction,
-  routeStatusFor,
+  shapeActionResponse,
 } from "@/lib/inbox/email-action";
 
 // CRM Inbox › Email drafts: Approve & send / Edit / Rewrite / Skip.
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: false, error: `Couldn't reach the email service: ${msg}` }, { status: 502 });
   }
 
-  const status = routeStatusFor(edgeStatus);
+  const { status, body } = shapeActionResponse(edgeStatus, out);
   if (status === 200 && out.ok === true) {
     await recordAudit({
       action: `email_draft.${action.action}`,
@@ -65,6 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       metadata: {
         result: out.status ?? null,
         revision: out.revision ?? null,
+        ...(action.action === "approve" ? { draft_revision_id: action.draft_revision_id } : {}),
         ...(action.action === "rewrite" && action.feedback ? { feedback: action.feedback } : {}),
       },
       request: req,
@@ -72,11 +73,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
   }
 
-  if (status === 502) {
-    return NextResponse.json(
-      { ok: false, error: typeof out.error === "string" ? out.error : "email service failed" },
-      { status },
-    );
-  }
-  return NextResponse.json(out, { status });
+  return NextResponse.json(body, { status });
 }

@@ -165,6 +165,9 @@ export async function rewriteDraft(opts: {
   source: ActionSource;
   feedback?: string | null;
   slack?: SlackTarget | null;
+  // Runs only once the rewrite is accepted (thread not sent/sending), before
+  // the model is called. slack-events logs its "feedback" event here.
+  onAccepted?: () => Promise<void>;
 }): Promise<EmailActionResult> {
   const { data: thread } = await db()
     .from("email_threads")
@@ -181,6 +184,8 @@ export async function rewriteDraft(opts: {
     }
     return { ok: false, error: ALREADY_SENT };
   }
+
+  if (opts.onAccepted) await opts.onAccepted();
 
   const userFeedback = (opts.feedback ?? "").trim() || null;
 

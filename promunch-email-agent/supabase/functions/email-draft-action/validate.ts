@@ -6,7 +6,7 @@ export const EDIT_MAX_CHARS = 8000;
 export const FEEDBACK_MAX_CHARS = 500;
 
 export type EmailDraftActionReq =
-  | { action: "approve"; email_thread_id: string; actor_email: string }
+  | { action: "approve"; email_thread_id: string; actor_email: string; draft_revision_id: string }
   | { action: "skip"; email_thread_id: string; actor_email: string }
   | { action: "rewrite"; email_thread_id: string; actor_email: string; feedback?: string }
   | { action: "edit"; email_thread_id: string; actor_email: string; body: string };
@@ -26,9 +26,17 @@ export function parseEmailDraftActionReq(
   }
 
   switch (b.action) {
-    case "approve":
+    case "approve": {
+      // The draft revision the approver saw; approve refuses if it isn't current.
+      const rev = typeof b.draft_revision_id === "string" ? b.draft_revision_id.trim() : "";
+      if (!UUID_RE.test(rev)) return { ok: false, error: "draft_revision_id must be a uuid" };
+      return {
+        ok: true,
+        value: { action: "approve", email_thread_id: id, actor_email: actor, draft_revision_id: rev },
+      };
+    }
     case "skip":
-      return { ok: true, value: { action: b.action, email_thread_id: id, actor_email: actor } };
+      return { ok: true, value: { action: "skip", email_thread_id: id, actor_email: actor } };
     case "rewrite": {
       if (b.feedback !== undefined && b.feedback !== null && typeof b.feedback !== "string") {
         return { ok: false, error: "feedback must be text" };

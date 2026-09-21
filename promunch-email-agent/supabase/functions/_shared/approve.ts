@@ -9,6 +9,13 @@ import { sendReply } from "./gmail.ts";
 import { replyInThread, updateMessage, buildSentBlocks, type Classification } from "./slack.ts";
 import { logEvent } from "./log.ts";
 import { recordApprovedReply } from "./brand.ts";
+import { claimLossOutcome, isStaleDraft } from "./approve-guard.ts";
+
+export type ApproveResult = {
+  ok: boolean;
+  status?: "sent" | "already_sent" | "draft_changed";
+  error?: string;
+};
 
 export async function approveAndSend(opts: {
   emailThreadId: string;
@@ -16,7 +23,11 @@ export async function approveAndSend(opts: {
   approvedByEmail?: string | null;
   slackChannel?: string | null;
   slackThreadTs?: string | null;
-}): Promise<{ ok: boolean; status?: "sent" | "already_sent"; error?: string }> {
+  // The draft revision the approver was looking at (CRM passes it). If the
+  // current draft is a different revision, nothing is sent. Slack passes
+  // nothing and keeps sending the current draft as before.
+  expectedDraftRevisionId?: string | null;
+}): Promise<ApproveResult> {
   const supabase = db();
   // Slack is optional: CRM approvals of a thread that was never posted to Slack
   // have no channel/ts, so every Slack call below is skipped for them.
@@ -24,6 +35,10 @@ export async function approveAndSend(opts: {
     ? { channel: opts.slackChannel, ts: opts.slackThreadTs }
     : null;
   const actor = opts.approvedBySlackUser ?? opts.approvedByEmail ?? "system";
+  // CRM-initiated approvals (email, no Slack user) get their answer in the
+  // CRM, so the Slack "Already sent" / "Could not start" lines are Slack-only.
+  const fromCrm = !opts.approvedBySlackUser && !!opts.approvedByEmail;
+  const slackStatus = fromCrm ? null : slack;
 
   // Load thread + current draft
   const { data: thread, error: tErr } = await supabase
@@ -37,7 +52,7 @@ export async function approveAndSend(opts: {
     return { ok: false, error: "thread not found" };
   }
   if (thread.status === "sent") {
-    if (slack) await replyInThread(slack.channel, slack.ts, ":information_source: Already sent.");
+    if (slackStatus) await replyInThread(slackStatus.channel, slackStatus.ts, ":information_source: Already sent.");
     return { ok: true, status: "already_sent" };
   }
 
@@ -45,17 +60,32 @@ export async function approveAndSend(opts: {
   // typed "approve", and Slack event retries can all race into this function;
   // exactly one caller may win the guarded UPDATE. Losers exit silently — a
   // missed send is recoverable, a duplicate email is not.
-  const { data: claimed } = await supabase
+  const { data: claimed, error: claimErr } = await supabase
     .from("email_threads")
     .update({ status: "sending" })
     .eq("id", opts.emailThreadId)
     .not("status", "in", '("sent","sending")')
     .select("id");
   if (!claimed || claimed.length === 0) {
-    if (slack) {
-      await replyInThread(slack.channel, slack.ts, ":information_source: Already sent (or send in progress).");
+    // No row claimed. Only a thread that is really sent/sending is "already
+    // sent"; a claim error (e.g. a status constraint rejecting 'sending') means
+    // the send never started, and must not be reported as sent.
+    if (claimErr) console.warn(`[approve] claim failed for ${opts.emailThreadId}:`, claimErr.message);
+    const { data: after } = await supabase
+      .from("email_threads")
+      .select("status")
+      .eq("id", opts.emailThreadId)
+      .maybeSingle();
+    if (claimLossOutcome(after?.status) === "already_sent") {
+      if (slackStatus) {
+        await replyInThread(slackStatus.channel, slackStatus.ts, ":information_source: Already sent (or send in progress).");
+      }
+      return { ok: true, status: "already_sent" };
     }
-    return { ok: true, status: "already_sent" };
+    if (slackStatus) {
+      await replyInThread(slackStatus.channel, slackStatus.ts, ":warning: Could not start the send.");
+    }
+    return { ok: false, error: "could not start the send" };
   }
 
   const { data: draft, error: dErr } = await supabase
@@ -68,6 +98,25 @@ export async function approveAndSend(opts: {
     // Release the claim so a draft added later can still be approved.
     await supabase.from("email_threads").update({ status: thread.status }).eq("id", opts.emailThreadId);
     return { ok: false, error: "no current draft" };
+  }
+  if (isStaleDraft(opts.expectedDraftRevisionId, draft.id)) {
+    // The approver saw an older draft. Release the claim exactly like the
+    // no-draft branch and send nothing; they must review the new version.
+    await supabase.from("email_threads").update({ status: thread.status }).eq("id", opts.emailThreadId);
+    await logEvent({
+      eventType: "failed",
+      emailThreadId: thread.id,
+      gmailThreadId: thread.gmail_thread_id,
+      fromEmail: thread.from_email,
+      subject: thread.subject,
+      actor,
+      detail: {
+        stage: "draft-changed",
+        expected_draft_revision_id: opts.expectedDraftRevisionId,
+        current_draft_revision_id: draft.id,
+      },
+    });
+    return { ok: false, error: "draft changed", status: "draft_changed" };
   }
 
   // Send via Gmail

@@ -6,7 +6,7 @@ export const EDIT_MAX_CHARS = 8000;
 export const FEEDBACK_MAX_CHARS = 500;
 
 export type EmailDraftAction =
-  | { action: "approve" }
+  | { action: "approve"; draft_revision_id: string }
   | { action: "skip" }
   | { action: "rewrite"; feedback?: string }
   | { action: "edit"; body: string };
@@ -27,9 +27,17 @@ export function parseEmailDraftAction(raw: unknown): ParseResult {
   }
   const b = raw as Record<string, unknown>;
   switch (b.action) {
-    case "approve":
+    case "approve": {
+      // The draft revision the approver was looking at. The edge function
+      // refuses to send if a newer draft has replaced it.
+      const rev = typeof b.draft_revision_id === "string" ? b.draft_revision_id.trim() : "";
+      if (!UUID_RE.test(rev)) {
+        return { ok: false, error: "Approve needs the id of the draft you reviewed." };
+      }
+      return { ok: true, value: { action: "approve", draft_revision_id: rev } };
+    }
     case "skip":
-      return { ok: true, value: { action: b.action } };
+      return { ok: true, value: { action: "skip" } };
     case "rewrite": {
       if (b.feedback !== undefined && b.feedback !== null && typeof b.feedback !== "string") {
         return { ok: false, error: "Rewrite instructions must be text." };
@@ -64,6 +72,30 @@ export function routeStatusFor(edgeStatus: number): number {
   if (edgeStatus >= 200 && edgeStatus < 300) return 200;
   if (edgeStatus === 400 || edgeStatus === 404 || edgeStatus === 409) return edgeStatus;
   return 502;
+}
+
+export const DRAFT_CHANGED_MESSAGE = "The draft changed. Review the new version before sending.";
+export const NOT_SENT_MESSAGE = "The reply was not sent. Nothing went to the customer.";
+
+// Final HTTP status + JSON body for the CRM, from the edge function's answer.
+export function shapeActionResponse(
+  edgeStatus: number,
+  out: Record<string, unknown>,
+): { status: number; body: Record<string, unknown> } {
+  if (out.status === "draft_changed") {
+    return { status: 409, body: { ok: false, status: "draft_changed", error: DRAFT_CHANGED_MESSAGE } };
+  }
+  if (out.error === "could not start the send") {
+    return { status: 502, body: { ok: false, error: NOT_SENT_MESSAGE } };
+  }
+  const status = routeStatusFor(edgeStatus);
+  if (status === 502) {
+    return {
+      status,
+      body: { ok: false, error: typeof out.error === "string" ? out.error : "email service failed" },
+    };
+  }
+  return { status, body: out };
 }
 
 export function auditSummary(action: EmailDraftAction["action"], threadId: string): string {

@@ -130,23 +130,23 @@ async function handleMessage(ev: SlackMessageEvent, isRetry = false): Promise<vo
     return;
   }
 
-  // Anything else is feedback that drives a regeneration.
-  await logEvent({
-    eventType: "feedback",
-    emailThreadId: thread.id,
-    fromEmail: thread.from_email,
-    subject: thread.subject,
-    actor: ev.user ?? "system",
-    detail: { feedback },
-  });
-
-  // Otherwise: regenerate the draft using the feedback. Shared with the CRM
+  // Anything else is feedback that drives a regeneration. Shared with the CRM
   // rewrite action; uses the backoff-safe revision insert so a concurrent
-  // twin can never double-post a revision.
+  // twin can never double-post a revision. The "feedback" event is logged
+  // only once the rewrite is accepted (not when the thread is sent/sending).
   await rewriteDraft({
     emailThreadId: thread.id,
     source: { kind: "slack-feedback", slackUser: ev.user ?? null },
     feedback,
     slack: { channel: ev.channel, threadTs: ev.thread_ts! },
+    onAccepted: () =>
+      logEvent({
+        eventType: "feedback",
+        emailThreadId: thread.id,
+        fromEmail: thread.from_email,
+        subject: thread.subject,
+        actor: ev.user ?? "system",
+        detail: { feedback },
+      }),
   });
 }

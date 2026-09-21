@@ -17,7 +17,7 @@ import { parseEmailDraftActionReq } from "./validate.ts";
 
 type EmailDraftActionRes = {
   ok: boolean;
-  status?: "sent" | "already_sent" | "skipped" | "rewritten" | "saved";
+  status?: "sent" | "already_sent" | "draft_changed" | "skipped" | "rewritten" | "saved";
   error?: string;
   revision?: number;
 };
@@ -53,6 +53,7 @@ Deno.serve(async (req) => {
           approvedByEmail: r.actor_email,
           slackChannel: thread.slack_channel_id,
           slackThreadTs: thread.slack_thread_ts,
+          expectedDraftRevisionId: r.draft_revision_id,
         });
         break;
       }
@@ -86,12 +87,16 @@ Deno.serve(async (req) => {
 });
 
 // 200 for success (incl. already_sent), 404/409 for refusals the CRM should
-// show as-is, 500 for real failures (e.g. Gmail send error).
+// show as-is (incl. draft_changed), 500 for real failures (Gmail send error,
+// "could not start the send").
 function statusFor(out: EmailDraftActionRes): number {
   if (out.ok) return 200;
   const err = out.error ?? "";
   if (err === "thread not found") return 404;
-  if (err === "already sent" || err === "no current draft" || err.startsWith("another revision")) {
+  if (
+    out.status === "draft_changed" || err === "already sent" || err === "no current draft" ||
+    err.startsWith("another revision")
+  ) {
     return 409;
   }
   return 500;
