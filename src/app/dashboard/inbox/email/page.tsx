@@ -451,7 +451,10 @@ function EmailDraftsInner() {
                       <Pill tone={it.urgency?.tone ?? "neu"} plain>
                         {it.category}
                       </Pill>
-                      {daysOld != null ? <Pill tone="warn">{`${daysOld} days old`}</Pill> : null}
+                      {/* Short form: the row shares its pill slot with the
+                          category, and "N days old" gets clipped mid-word.
+                          The full wording is on the detail pane and dialog. */}
+                      {daysOld != null ? <Pill tone="warn" tip={`${daysOld} days old`}>{`${daysOld}d`}</Pill> : null}
                     </>
                   }
                   preview={it.subject || "(no subject)"}
