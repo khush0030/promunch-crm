@@ -195,7 +195,9 @@ export async function approveAndSend(opts: {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    await supabase.from("email_threads").update({ status: "failed" }).eq("id", thread.id);
+    // Same guard as the other claim releases: only the claim we still hold
+    // may be released, so a newer status can never be clobbered.
+    await supabase.from("email_threads").update({ status: "failed" }).eq("id", thread.id).eq("status", "sending");
     await logEvent({
       eventType: "failed",
       emailThreadId: thread.id,
