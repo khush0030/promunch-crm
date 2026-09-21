@@ -217,8 +217,8 @@ export function draftBlock(
 // A reply goes to from_email. Contact-form relays and no-reply senders would
 // swallow it, so Approve is hidden for them.
 
-const BLOCKED_LOCAL = /(^|[._+-])(no-?reply|do-?not-?reply|mailer-daemon|postmaster|notifications?|bounces?)([._+-]|$)/i;
-const BLOCKED_DOMAIN = /(^|\.)(no-?reply|bounces?)\./i;
+const BLOCKED_LOCAL = /(^|[._+-])(no[-_]?reply|do[-_]?not[-_]?reply|mailer-daemon|postmaster|notifications?|bounces?)([._+-]|$)/i;
+const BLOCKED_DOMAIN = /(^|\.)(no[-_]?reply|bounces?)\./i;
 const EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 
 function contactFormEmail(body: string | null): string | null {
