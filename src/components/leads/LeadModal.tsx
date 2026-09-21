@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useEscapeKey } from "./useEscapeKey";
-import { Ban, Gauge, MailCheck, MailSearch, Plus, Send, Sparkles, Trash2, X } from "lucide-react";
+import { Ban, Gauge, MailCheck, MailSearch, Plus, Send, Sparkles, Trash2, UserSearch, X } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "@/app/dashboard/leads/leads.module.css";
 import type { Lead } from "./types";
@@ -23,6 +23,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
   const [bodyText, setBodyText] = useState(activeDraft?.body_text ?? "");
   const [newEmail, setNewEmail] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [roles, setRoles] = useState<string[]>(["hr", "buyer"]);
   const fp = fitPill(lead.fit_score);
 
   useEffect(() => {
@@ -130,6 +131,51 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
           >
             <MailSearch size={14} /> {busy === "enrich" ? "Enriching…" : "Enrich (find contacts)"}
           </button>
+          <button
+            type="button" className="pm-btn"
+            disabled={busy !== null || !roles.length}
+            title="Pay-as-you-go lookup: finds a named decision maker with a provider-verified email. Uses credits only when a valid email is found."
+            onClick={async () => {
+              setBusy("buyers");
+              try {
+                const res = await fetch(`/api/leads/${lead.id}/find-buyers`, {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ categories: roles }),
+                });
+                const json = await res.json();
+                if (!res.ok) throw new Error(json.error || "lookup failed");
+                onChanged();
+                const saved = (json.outcomes as { outcome: string }[]).filter((o) => o.outcome === "saved").length;
+                const text = saved
+                  ? `Found ${saved} verified decision maker${saved > 1 ? "s" : ""} (${json.creditsCharged} credits).`
+                  : json.stopped
+                    ? `Stopped: ${json.stopped}`
+                    : "No verified decision maker found. No credits used.";
+                toast.push({ kind: saved ? "success" : "info", text });
+              } catch (e) {
+                toast.push({ kind: "error", text: e instanceof Error ? e.message : "lookup failed" });
+              } finally {
+                setBusy(null);
+              }
+            }}
+          >
+            <UserSearch size={14} /> {busy === "buyers" ? "Finding…" : "Find decision maker"}
+          </button>
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8, fontSize: 12.5 }}>
+          <span className="pm-muted">Roles:</span>
+          {[["hr", "HR"], ["buyer", "Procurement"], ["operations", "Operations"], ["ceo", "CEO"]].map(([key, label]) => (
+            <label key={key} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <input
+                type="checkbox"
+                checked={roles.includes(key)}
+                onChange={(e) => setRoles((r) => (e.target.checked ? [...r, key].slice(0, 3) : r.filter((x) => x !== key)))}
+              />
+              {label}
+            </label>
+          ))}
+          <span className="pm-muted">(max 3, about 2 credits per valid email)</span>
         </div>
 
         <PipelineSteps lead={lead} />
@@ -165,6 +211,8 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
                   <td className="mono" style={{ fontSize: 12.5 }}>
                     {c.email}
                     {c.is_primary ? <span className="pm-badge2 bg-green" style={{ marginLeft: 6 }}>primary</span> : null}
+                    {c.mailbox_status === "valid" ? <span className="pm-badge2 bg-green" style={{ marginLeft: 6 }} title={`Mailbox verified by ${c.mailbox_provider ?? "provider"}${c.mailbox_checked_at ? " on " + c.mailbox_checked_at.slice(0, 10) : ""}`}>verified</span> : null}
+                    {c.person_name ? <div className="pm-muted" style={{ fontSize: 12, fontFamily: "inherit" }}>{c.person_name}{c.person_title ? `, ${c.person_title}` : ""}</div> : null}
                   </td>
                   <td className="pm-muted">{c.role_hint ?? c.kind}</td>
                   <td className="pm-muted">{c.verify_status}</td>

@@ -11,6 +11,12 @@ export type Contact = {
   verify_status: string;
   confidence: string;
   is_primary: boolean;
+  person_name?: string | null;
+  person_title?: string | null;
+  decision_category?: string | null;
+  mailbox_status?: string | null;
+  mailbox_provider?: string | null;
+  mailbox_checked_at?: string | null;
 };
 
 export type Draft = {

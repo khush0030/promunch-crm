@@ -35,6 +35,7 @@ export const EDITABLE_KEYS: SecretDef[] = [
   { name: "SHOPIFY_ACCESS_TOKEN", label: "Shopify Admin", group: "Store", hint: "Publish the WhatsApp popup + chat button to your store (needs write_script_tags scope)", testable: true },
   { name: "BREVO_API_KEY", label: "Brevo", group: "Email", hint: "Email marketing campaign stats (read-only)", testable: true },
   { name: "KLAVIYO_API_KEY", label: "Klaviyo", group: "Email", hint: "Legacy profile enrichment imports", testable: true },
+  { name: "ANYMAILFINDER_API_KEY", label: "Anymail Finder", group: "B2B leads", hint: "Verified decision-maker emails (pay per valid result)", testable: false },
   { name: "APIFY_TOKEN", label: "Apify", group: "Instagram", hint: "Influencer discovery scrapers", testable: true },
 ];
 
