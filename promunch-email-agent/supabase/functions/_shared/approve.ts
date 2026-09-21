@@ -5,15 +5,15 @@
 // surface can never send the customer a second email (§0).
 
 import { db } from "./supabase.ts";
-import { sendReply } from "./gmail.ts";
+import { getThreadParsed, mailboxAddress, sendReply } from "./gmail.ts";
 import { replyInThread, updateMessage, buildSentBlocks, type Classification } from "./slack.ts";
 import { logEvent } from "./log.ts";
 import { recordApprovedReply } from "./brand.ts";
-import { claimLossOutcome, isStaleDraft } from "./approve-guard.ts";
+import { claimLossOutcome, isStaleDraft, mailboxRepliedAfter } from "./approve-guard.ts";
 
 export type ApproveResult = {
   ok: boolean;
-  status?: "sent" | "already_sent" | "draft_changed";
+  status?: "sent" | "already_sent" | "draft_changed" | "already_answered" | "gmail_check_failed";
   error?: string;
 };
 
@@ -24,8 +24,9 @@ export async function approveAndSend(opts: {
   slackChannel?: string | null;
   slackThreadTs?: string | null;
   // The draft revision the approver was looking at (CRM passes it). If the
-  // current draft is a different revision, nothing is sent. Slack passes
-  // nothing and keeps sending the current draft as before.
+  // current draft is a different revision, nothing is sent. The Slack Approve
+  // button passes the revision it was posted with; a typed "approve" in the
+  // Slack thread passes nothing and sends the current draft.
   expectedDraftRevisionId?: string | null;
 }): Promise<ApproveResult> {
   const supabase = db();
@@ -54,6 +55,59 @@ export async function approveAndSend(opts: {
   if (thread.status === "sent") {
     if (slackStatus) await replyInThread(slackStatus.channel, slackStatus.ts, ":information_source: Already sent.");
     return { ok: true, status: "already_sent" };
+  }
+
+  // Already answered straight from Gmail? If anyone replied from the support
+  // mailbox after the customer's message, sending our draft too would message
+  // the customer twice (§0). If Gmail can't be read, fail closed: send nothing.
+  // A thread already 'sending' skips this and loses the claim below as before.
+  if (thread.status !== "sending") {
+    let answered: boolean;
+    try {
+      const msgs = await getThreadParsed(thread.gmail_thread_id);
+      if (msgs.length === 0) throw new Error("gmail thread has no messages");
+      answered = mailboxRepliedAfter(
+        msgs.map((m) => ({
+          gmailMessageId: m.email.gmail_message_id,
+          fromEmail: m.email.from_email,
+          internalDateMs: m.internalDateMs,
+          labelIds: m.labelIds,
+        })),
+        mailboxAddress(),
+        thread.gmail_message_id,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[approve] gmail check failed for ${opts.emailThreadId}:`, msg);
+      await logEvent({
+        eventType: "failed",
+        emailThreadId: thread.id,
+        gmailThreadId: thread.gmail_thread_id,
+        fromEmail: thread.from_email,
+        subject: thread.subject,
+        actor,
+        detail: { stage: "gmail-check", error: msg.slice(0, 500) },
+      });
+      if (slackStatus) {
+        await replyInThread(slackStatus.channel, slackStatus.ts, ":warning: Could not check Gmail, nothing was sent.");
+      }
+      return { ok: false, status: "gmail_check_failed", error: "could not check gmail" };
+    }
+    if (answered) {
+      await logEvent({
+        eventType: "failed",
+        emailThreadId: thread.id,
+        gmailThreadId: thread.gmail_thread_id,
+        fromEmail: thread.from_email,
+        subject: thread.subject,
+        actor,
+        detail: { stage: "already-answered-in-gmail" },
+      });
+      if (slackStatus) {
+        await replyInThread(slackStatus.channel, slackStatus.ts, ":information_source: Already answered in Gmail, not sent.");
+      }
+      return { ok: false, status: "already_answered", error: "already answered in gmail" };
+    }
   }
 
   // ATOMIC CLAIM (§0: never message a customer twice). The Approve button, a
@@ -95,14 +149,17 @@ export async function approveAndSend(opts: {
     .eq("is_current", true)
     .single();
   if (dErr || !draft) {
-    // Release the claim so a draft added later can still be approved.
-    await supabase.from("email_threads").update({ status: thread.status }).eq("id", opts.emailThreadId);
+    // Release the claim so a draft added later can still be approved. Only
+    // our own 'sending' claim is released, never a status someone else set.
+    await supabase.from("email_threads").update({ status: thread.status }).eq("id", opts.emailThreadId)
+      .eq("status", "sending");
     return { ok: false, error: "no current draft" };
   }
   if (isStaleDraft(opts.expectedDraftRevisionId, draft.id)) {
     // The approver saw an older draft. Release the claim exactly like the
     // no-draft branch and send nothing; they must review the new version.
-    await supabase.from("email_threads").update({ status: thread.status }).eq("id", opts.emailThreadId);
+    await supabase.from("email_threads").update({ status: thread.status }).eq("id", opts.emailThreadId)
+      .eq("status", "sending");
     await logEvent({
       eventType: "failed",
       emailThreadId: thread.id,
@@ -116,6 +173,13 @@ export async function approveAndSend(opts: {
         current_draft_revision_id: draft.id,
       },
     });
+    if (slackStatus) {
+      await replyInThread(
+        slackStatus.channel,
+        slackStatus.ts,
+        ":information_source: The draft changed since this button was posted. Approve the latest version below.",
+      );
+    }
     return { ok: false, error: "draft changed", status: "draft_changed" };
   }
 
@@ -161,7 +225,7 @@ export async function approveAndSend(opts: {
     approved_by_slack_user: opts.approvedBySlackUser,
     approved_by_email: opts.approvedByEmail ?? null,
   });
-  await supabase.from("email_threads").update({ status: "sent" }).eq("id", thread.id);
+  await markSendFinished(thread.id);
 
   await logEvent({
     eventType: "sent",
@@ -220,4 +284,39 @@ export async function approveAndSend(opts: {
   }
 
   return { ok: true, status: "sent" };
+}
+
+// Close our 'sending' claim after a successful send. If the customer wrote
+// again while we were sending (process-email set requeue_after_send), the
+// thread goes back to 'pending' so the new message gets its own review;
+// otherwise it is 'sent'. Both updates only touch a row still in 'sending'.
+async function markSendFinished(threadId: string): Promise<void> {
+  const supabase = db();
+  const { data: sentRows, error: sentErr } = await supabase
+    .from("email_threads")
+    .update({ status: "sent" })
+    .eq("id", threadId)
+    .eq("status", "sending")
+    .eq("requeue_after_send", false)
+    .select("id");
+  if (sentErr) console.warn(`[approve] mark sent failed for ${threadId}:`, sentErr.message);
+  if (sentRows && sentRows.length > 0) return;
+
+  const { data: requeued, error: rqErr } = await supabase
+    .from("email_threads")
+    .update({ status: "pending", requeue_after_send: false })
+    .eq("id", threadId)
+    .eq("status", "sending")
+    .eq("requeue_after_send", true)
+    .select("id");
+  if (rqErr) console.warn(`[approve] requeue after send failed for ${threadId}:`, rqErr.message);
+  if (sentErr && rqErr) {
+    // Both guarded updates errored (e.g. requeue_after_send not migrated yet):
+    // still close the claim so the thread doesn't sit in 'sending' forever.
+    await supabase.from("email_threads").update({ status: "sent" }).eq("id", threadId).eq("status", "sending");
+    return;
+  }
+  if (!requeued || requeued.length === 0) {
+    console.warn(`[approve] thread ${threadId} was not in 'sending' after a successful send; status left as is`);
+  }
 }

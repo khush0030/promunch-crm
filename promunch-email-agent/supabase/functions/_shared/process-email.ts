@@ -161,7 +161,10 @@ export async function processIncomingMessage(messageId: string): Promise<{
       await supabase
         .from("email_threads")
         .update({ status: "skipped", should_reply: false })
-        .eq("id", existingThread.id);
+        .eq("id", existingThread.id)
+        // Never overwrite an in-flight send claim (§0): 'skipped' is claimable,
+        // so a second Approve could otherwise send again.
+        .neq("status", "sending");
       await logEvent({
         eventType: "skipped",
         emailThreadId: existingThread.id,
@@ -459,26 +462,49 @@ async function handleContinuation(
   const slackChannel = existingThread.slack_channel_id ?? SLACK_DEFAULT_CHANNEL;
   const slackThreadTs = existingThread.slack_thread_ts ?? "";
 
-  const { error } = await supabase
-    .from("email_threads")
-    .update({
-      gmail_message_id: email.gmail_message_id,
-      gmail_history_id: email.history_id,
-      in_reply_to_header: email.in_reply_to_header,
-      subject: email.subject,
-      snippet: email.snippet,
-      body_plain: email.body_plain,
-      body_html: email.body_html,
-      status: "pending",
-      lead_category: classification?.lead_category ?? null,
-      urgency: classification?.urgency ?? null,
-      score: classification?.score ?? null,
-      classification_meta: classification ?? null,
-      draft_status: draft.ok ? "ok" : "failed",
-      draft_error: draft.ok ? null : draft.error.slice(0, 1000),
-    })
-    .eq("id", threadRowId);
-  if (error) throw error;
+  const fields = {
+    gmail_message_id: email.gmail_message_id,
+    gmail_history_id: email.history_id,
+    in_reply_to_header: email.in_reply_to_header,
+    subject: email.subject,
+    snippet: email.snippet,
+    body_plain: email.body_plain,
+    body_html: email.body_html,
+    lead_category: classification?.lead_category ?? null,
+    urgency: classification?.urgency ?? null,
+    score: classification?.score ?? null,
+    classification_meta: classification ?? null,
+    draft_status: draft.ok ? "ok" : "failed",
+    draft_error: draft.ok ? null : draft.error.slice(0, 1000),
+  };
+  // Never reopen a thread that is mid-send (§0): flipping 'sending' back to
+  // 'pending' would let a second Approve win a fresh claim and email the
+  // customer twice. A thread that is sending keeps its claim and is flagged;
+  // approve.ts moves it back to 'pending' once its send finishes. Both updates
+  // are guarded on status, and we retry if the status moved in between.
+  let reopened = false;
+  for (let attempt = 0; attempt < 3 && !reopened; attempt++) {
+    const { data: open, error } = await supabase
+      .from("email_threads")
+      .update({ ...fields, status: "pending" })
+      .eq("id", threadRowId)
+      .neq("status", "sending")
+      .select("id");
+    if (error) throw error;
+    if (open && open.length > 0) {
+      reopened = true;
+      break;
+    }
+    const { data: flagged, error: flagErr } = await supabase
+      .from("email_threads")
+      .update({ ...fields, requeue_after_send: true })
+      .eq("id", threadRowId)
+      .eq("status", "sending")
+      .select("id");
+    if (flagErr) throw flagErr;
+    if (flagged && flagged.length > 0) reopened = true;
+  }
+  if (!reopened) throw new Error(`continuation: could not update thread ${threadRowId}`);
 
   if (draft.ok) {
     const rev = await insertRevision(threadRowId, draft.body, draft.model);

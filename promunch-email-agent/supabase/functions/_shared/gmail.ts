@@ -9,6 +9,12 @@ import { logConnector } from "./connector-log.ts";
 import { ParsedEmail } from "./types.ts";
 
 const MAILBOX = Deno.env.get("MAILBOX_EMAIL") ?? "hello@promunch.in";
+
+// The address sendReply/sendNewEmail send From. approve.ts uses it to spot
+// replies someone already sent straight from Gmail.
+export function mailboxAddress(): string {
+  return MAILBOX;
+}
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID")!;
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
 // PERMANENT AUTH (preferred): a Google service-account JSON with domain-wide
@@ -314,6 +320,7 @@ export async function listThreads(
 export interface ThreadMessage {
   email: ParsedEmail;
   internalDateMs: number;
+  labelIds: string[];
 }
 
 // Full thread, every message parsed, oldest first (Gmail's native order).
@@ -322,6 +329,7 @@ export async function getThreadParsed(threadId: string): Promise<ThreadMessage[]
   return (resp.messages ?? []).map((m) => ({
     email: parseMessage(m),
     internalDateMs: Number(m.internalDate ?? 0),
+    labelIds: m.labelIds ?? [],
   }));
 }
 
@@ -347,6 +355,7 @@ interface GmailMessage {
   threadId: string;
   historyId?: string;
   internalDate?: string;
+  labelIds?: string[];
   snippet?: string;
   payload: GmailMessagePart;
 }

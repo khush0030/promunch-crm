@@ -59,6 +59,9 @@ Deno.serve(async (req) => {
           slackChannel: payload.container.channel_id,
           slackThreadTs: payload.container.thread_ts ?? payload.container.message_ts,
           approvedBySlackUser: payload.user.id,
+          // The revision this button was posted with. An older button (the
+          // draft was rewritten/edited since) sends nothing.
+          expectedDraftRevisionId: typeof routing.r === "string" && routing.r ? routing.r : null,
         });
         break;
 

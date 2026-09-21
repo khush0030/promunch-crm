@@ -17,7 +17,15 @@ import { parseEmailDraftActionReq } from "./validate.ts";
 
 type EmailDraftActionRes = {
   ok: boolean;
-  status?: "sent" | "already_sent" | "draft_changed" | "skipped" | "rewritten" | "saved";
+  status?:
+    | "sent"
+    | "already_sent"
+    | "draft_changed"
+    | "already_answered"
+    | "gmail_check_failed"
+    | "skipped"
+    | "rewritten"
+    | "saved";
   error?: string;
   revision?: number;
 };
@@ -87,18 +95,20 @@ Deno.serve(async (req) => {
 });
 
 // 200 for success (incl. already_sent), 404/409 for refusals the CRM should
-// show as-is (incl. draft_changed), 500 for real failures (Gmail send error,
+// show as-is (incl. draft_changed, already_answered), 502 when Gmail could not
+// be checked (nothing sent), 500 for real failures (Gmail send error,
 // "could not start the send").
 function statusFor(out: EmailDraftActionRes): number {
   if (out.ok) return 200;
   const err = out.error ?? "";
   if (err === "thread not found") return 404;
   if (
-    out.status === "draft_changed" || err === "already sent" || err === "no current draft" ||
+    out.status === "draft_changed" || out.status === "already_answered" || err === "already sent" || err === "no current draft" ||
     err.startsWith("another revision")
   ) {
     return 409;
   }
+  if (out.status === "gmail_check_failed") return 502;
   return 500;
 }
 
