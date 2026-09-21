@@ -5,7 +5,7 @@ import { useEscapeKey } from "./useEscapeKey";
 import { Clock, Search, X } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "@/app/dashboard/leads/leads.module.css";
-import { DEFAULT_CATEGORIES, DEFAULT_CITIES, PRODUCT_OPTIONS } from "./constants";
+import { CATEGORY_PRESETS, DEFAULT_CITIES, PRODUCT_OPTIONS } from "./constants";
 
 // ----------------------------------------------------------- search modal --
 
@@ -49,7 +49,7 @@ function planScrape(target: number, combos: number, findEmails: boolean) {
 export default function SearchModal({ onClose, onQueued }: { onClose: () => void; onQueued: (rounds: number) => void }) {
   useEscapeKey(onClose);
   const toast = useToast();
-  const [categories, setCategories] = useState<string[]>([DEFAULT_CATEGORIES[0]]);
+  const [categories, setCategories] = useState<string[]>([CATEGORY_PRESETS[0].query]);
   const [cities, setCities] = useState<string[]>([DEFAULT_CITIES[0]]);
   const [customCategory, setCustomCategory] = useState("");
   const [target, setTarget] = useState(50);
@@ -100,35 +100,35 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Find companies" className={`pm-panel ${styles.modal} ${styles.modalMd}`} onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label="Find companies" className={`pm-panel ${styles.modal} ${styles.modalMd} ${styles.searchModal}`} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHead}>
           <div className="card-title">Find companies</div>
           <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
         </div>
         <p className={styles.modalIntro}>
-          Pick who you sell to and where. Each category × city is one Google search (up to ~60 companies).
-          Start small — 1–2 categories and cities — then hit “Find”.
+          Choose who you sell to, then the city. Each pick runs one Google search and can find up to 60 companies.
+          Start with one or two of each, then press “Find companies”.
         </p>
 
         <div className={styles.fieldGroup}>
-          <div className={styles.fieldLabel}>Categories</div>
+          <div className={styles.fieldLabel}>Who are you targeting?</div>
           <div className="pm-chips" style={{ flexWrap: "wrap" }}>
-            {DEFAULT_CATEGORIES.map((c) => (
-              <button key={c} type="button" className={`pm-chip${categories.includes(c) ? " on" : ""}`} onClick={() => toggle(categories, setCategories, c)}>
-                {c}
+            {CATEGORY_PRESETS.map((c) => (
+              <button key={c.query} type="button" className={`pm-chip${categories.includes(c.query) ? " on" : ""}`} onClick={() => toggle(categories, setCategories, c.query)}>
+                {c.label}
               </button>
             ))}
           </div>
           <input
             className={`input ${styles.customInput}`}
-            placeholder="Custom category (e.g. 'corporate caterer')"
+            placeholder="Not on the list? Type your own, e.g. 'corporate caterer'"
             value={customCategory}
             onChange={(e) => setCustomCategory(e.target.value)}
           />
         </div>
 
         <div className={styles.fieldGroup}>
-          <div className={styles.fieldLabel}>Cities</div>
+          <div className={styles.fieldLabel}>Which cities?</div>
           <div className="pm-chips" style={{ flexWrap: "wrap" }}>
             {DEFAULT_CITIES.map((c) => (
               <button key={c} type="button" className={`pm-chip${cities.includes(c) ? " on" : ""}`} onClick={() => toggle(cities, setCities, c)}>

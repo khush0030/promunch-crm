@@ -1032,3 +1032,30 @@
   .wizModeRow { grid-template-columns: 1fr; }
   .recipScroll { max-height: none; }
 }
+
+/* ---- "Find companies" modal: larger, plainer type ----
+   Scoped to .searchModal only — .fieldLabel/.toggleCopy/.toggleHint are
+   shared with CampaignWizard, TemplatesView and LeadModal, so this must not
+   change their (smaller) sizing. A compound selector like `.searchModal
+   .fieldLabel` is more specific than the shared bare `.fieldLabel` rules
+   above, so it wins here without touching them anywhere else. */
+.searchModal { font-size: 14px; }
+.searchModal .modalIntro { font-size: 13.5px; line-height: 1.6; }
+.searchModal .fieldGroup { margin-top: 20px; }
+.searchModal .fieldLabel {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text-1, inherit);
+  margin-bottom: 10px;
+}
+.searchModal .toggleCopy { font-size: 13.5px; line-height: 1.6; }
+.searchModal .toggleHint { font-size: 12.5px; line-height: 1.55; margin-top: 4px; }
+.searchModal .estimateMain { font-size: 13.5px; line-height: 1.55; }
+.searchModal .estimateNote { font-size: 12.5px; line-height: 1.5; }
+.searchModal input,
+.searchModal textarea { font-size: 14px; }
+/* Chips: bigger label text, more tap room. Scoped so other pm-chip users
+   (Products row here too, city chips, other pages) are unaffected. */
+.searchModal :global(.pm-chip) { font-size: 13.5px; padding: 8px 14px; }
