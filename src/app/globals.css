@@ -1068,7 +1068,26 @@ table.pm2-tbl{width:100%;border-collapse:collapse;font-size:14px;color:var(--pm-
 .pm2-thread.compact .pm2-composer{box-shadow:none}
 .pm2-thread select.pm2-btn{max-width:160px;overflow:hidden;text-overflow:ellipsis}
 
-.pm2-drafts-step{display:none}
+.pm2-drafts-step{display:none;align-items:center;gap:10px;font-size:13.5px}
+.pm2-drafts-step .who{color:var(--pm-muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pm2-drafts-step .nav{margin-left:auto;display:flex;gap:12px;flex-shrink:0}
+.pm2-drafts-list{align-self:start;max-height:calc(100dvh - 180px);overflow-y:auto}
+.pm2-drafts-bar{position:fixed;left:0;right:0;bottom:calc(62px + env(safe-area-inset-bottom));z-index:55;display:flex;gap:8px;padding:10px 16px;background:var(--pm-card);border-top:1px solid var(--pm-line)}
+.pm2-draft-block{border-left:3px solid var(--pm-brand);background:var(--pm-card2);border-radius:0 8px 8px 0;padding:12px 14px;font-size:14.5px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.pm2-draft-block.sent{border-left-color:var(--pm-border)}
+.pm2-draft-block.dim{opacity:.6}
+.pm2-draft-eyebrow{font-family:var(--pm-mono);font-size:11.5px;color:var(--pm-hint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;white-space:normal}
+.pm2-draft-sub{font-size:12.5px;color:var(--pm-muted);margin-bottom:6px;white-space:normal}
+.pm2-draft-pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.pm2-draft-edit{box-shadow:none}
+.pm2-draft-edit textarea{min-height:220px;max-height:none;resize:vertical}
+.pm2-draft-input{border:0;background:var(--pm-card2);border-radius:8px;padding:8px 10px;color:var(--pm-ink);font-family:var(--pm-font);font-size:14px}
+.pm2-draft-input:focus{outline:2px solid var(--pm-brand);outline-offset:1px}
+.pm2-draft-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.pm2-draft-actions .end{margin-left:auto}
+.pm2-draft-history{margin:10px 0 0;padding:0;list-style:none;font-size:13px;color:var(--pm-muted);display:grid;gap:4px}
+.pm2-draft-note{margin-top:8px;font-size:13px;color:var(--pm-muted)}
+.pm2-draft-gap{margin-bottom:12px}
 
 /* pm v2 phone layout (was @container app (max-width:720px) in the prototype) */
 @media (max-width: 720px){
@@ -1118,6 +1137,7 @@ table.pm2-tbl{width:100%;border-collapse:collapse;font-size:14px;color:var(--pm-
   .pm2-bub{max-width:86%}
   .pm2-drafts-list{display:none}
   .pm2-drafts-step{display:flex!important}
+  .pm2-body.pm2-has-bar{padding-bottom:96px}
 }
 [data-tip][tabindex]:focus-visible{outline:2px solid var(--pm-brand);outline-offset:2px;border-radius:4px}
 

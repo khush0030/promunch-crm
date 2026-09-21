@@ -84,13 +84,19 @@ function itemsQuery(tab: EmailQueueTab, ascending: boolean, limit: number) {
   return q.order("created_at", { ascending }).limit(limit);
 }
 
-async function countTab(tab: EmailQueueTab): Promise<number> {
-  const { count, error } = await countQuery(tab);
-  if (error) {
-    console.error(`[inbox/email] count ${tab}:`, error.message);
-    return 0;
+// A failed count is null, not 0: "0 drafts waiting" would be a lie.
+async function countTab(tab: EmailQueueTab): Promise<number | null> {
+  try {
+    const { count, error } = await countQuery(tab);
+    if (error) {
+      console.error(`[inbox/email] count ${tab}:`, error.message);
+      return null;
+    }
+    return count ?? 0;
+  } catch (e) {
+    console.error(`[inbox/email] count ${tab}:`, e);
+    return null;
   }
-  return count ?? 0;
 }
 
 function toItem(r: ThreadRow): EmailQueueItem {
@@ -194,7 +200,7 @@ export async function GET(req: Request) {
   const ordered = pending ? sortQueue(rows) : rows;
   const items = ordered.slice(0, MAX_ITEMS).map(toItem);
 
-  const counts = Object.fromEntries(EMAIL_TABS.map((t, i) => [t, countList[i]])) as Record<EmailQueueTab, number>;
+  const counts = Object.fromEntries(EMAIL_TABS.map((t, i) => [t, countList[i]])) as Record<EmailQueueTab, number | null>;
 
   let selected: EmailQueueSelected | null = null;
   try {
