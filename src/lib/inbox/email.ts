@@ -4,23 +4,61 @@
 //
 // tabOf is the single rule for "can this email be approved": only a pending
 // thread whose classifier did not say "no reply needed" lands in "approve".
-// Sending, failed, sent, skipped and no-reply threads are read-only.
+// Sending, failed, sent, skipped and no-reply threads are read-only. Failed
+// threads and threads stuck in 'sending' land in "attention" (read-only, no
+// retry): their reply may or may not have gone out.
 
-import { DRAFT_CHANGED_MESSAGE, NOT_SENT_MESSAGE } from "./email-action";
+import {
+  ALREADY_ANSWERED_MESSAGE,
+  DRAFT_CHANGED_MESSAGE,
+  GMAIL_CHECK_FAILED_MESSAGE,
+  NOT_SENT_MESSAGE,
+} from "./email-action";
 
-export type EmailQueueTab = "approve" | "noreply" | "sent" | "skipped";
+export type EmailQueueTab = "approve" | "attention" | "noreply" | "sent" | "skipped";
 
-export const EMAIL_TABS: EmailQueueTab[] = ["approve", "noreply", "sent", "skipped"];
+export const EMAIL_TABS: EmailQueueTab[] = ["approve", "attention", "noreply", "sent", "skipped"];
+
+// A thread still 'sending' after this long is stuck, not in flight.
+export const STUCK_SENDING_MS = 5 * 60_000;
+
+export const ATTENTION_MESSAGE =
+  "This reply may or may not have gone out. Check the support mailbox's Sent folder in Gmail before doing anything.";
 
 export function isEmailQueueTab(v: unknown): v is EmailQueueTab {
   return typeof v === "string" && (EMAIL_TABS as string[]).includes(v);
 }
 
-export function tabOf(r: { status: string; should_reply: boolean | null }): EmailQueueTab | null {
+// Cutoff for "stuck sending": rows whose updated_at is before this ISO time.
+export function stuckSendingBefore(nowMs: number): string {
+  return new Date(nowMs - STUCK_SENDING_MS).toISOString();
+}
+
+export function tabOf(
+  r: { status: string; should_reply: boolean | null; updated_at?: string | null },
+  nowMs: number = Date.now(),
+): EmailQueueTab | null {
   if (r.status === "pending") return r.should_reply === false ? "noreply" : "approve";
   if (r.status === "sent") return "sent";
   if (r.status === "skipped") return "skipped";
+  if (r.status === "failed") return "attention";
+  if (r.status === "sending") {
+    const t = r.updated_at ? Date.parse(r.updated_at) : NaN;
+    // No usable timestamp: we can't tell in-flight from stuck, so show it.
+    if (!Number.isFinite(t)) return "attention";
+    return nowMs - t > STUCK_SENDING_MS ? "attention" : null;
+  }
   return null;
+}
+
+// Whole days since `iso`, but only when the email has waited MORE than
+// 3 days (the "N days old" warning). Otherwise null.
+export const OLD_EMAIL_DAYS = 3;
+export function oldEmailDays(iso: string, nowMs: number = Date.now()): number | null {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return null;
+  const days = Math.floor((nowMs - t) / 86_400_000);
+  return days > OLD_EMAIL_DAYS ? days : null;
 }
 
 const URGENCY_RANK: Record<string, number> = { critical: 0, high: 1 };
@@ -109,11 +147,22 @@ export type DraftAction = "approve" | "skip" | "edit" | "rewrite";
 
 export const UNCERTAIN_SEND_MESSAGE =
   "We couldn't confirm whether the reply went out. Check the Sent tab before trying again.";
+// The uncertain copy once the refetched thread turned out failed/stuck: the
+// Sent tab won't have it, Gmail's Sent folder is the only truth.
+export const UNCERTAIN_CHECK_GMAIL_MESSAGE =
+  "We couldn't confirm whether the reply went out. Check the support mailbox's Sent folder in Gmail.";
 export const REPLY_SENT_MESSAGE = "The reply was sent.";
 const NOTHING_WENT = "Nothing went to the customer.";
 
 // Edge refusals that happen before Gmail is ever called.
-const PRE_SEND_EDGE_ERRORS = new Set(["could not start the send", "no current draft", "thread not found", "draft changed"]);
+const PRE_SEND_EDGE_ERRORS = new Set([
+  "could not start the send",
+  "no current draft",
+  "thread not found",
+  "draft changed",
+  "already answered in gmail",
+  "could not check gmail",
+]);
 
 // Known edge strings to plain sentences. The route's own copy is already a
 // plain sentence (capitalised, ends in punctuation) and passes through.
@@ -126,6 +175,8 @@ export function plainEdgeError(error: unknown): string | null {
   if (e === "draft changed" || e.startsWith("another revision")) return DRAFT_CHANGED_MESSAGE;
   if (e === "thread not found") return "This email no longer exists.";
   if (e === "could not start the send") return NOT_SENT_MESSAGE;
+  if (e === "already answered in gmail") return ALREADY_ANSWERED_MESSAGE;
+  if (e === "could not check gmail") return GMAIL_CHECK_FAILED_MESSAGE;
   if (/^[A-Z][^\n]{0,200}[.!?]$/.test(e)) return e;
   return null;
 }
@@ -159,6 +210,11 @@ export function actionOutcome(
   const uncertain = fail(UNCERTAIN_SEND_MESSAGE, true);
   if (httpStatus == null || body == null) return uncertain;
 
+  // Refused before the claim: already answered in Gmail, or Gmail couldn't
+  // be checked (fail closed). Both are definite not-sent outcomes.
+  if (body.status === "already_answered") return fail(ALREADY_ANSWERED_MESSAGE, false);
+  if (body.status === "gmail_check_failed") return fail(GMAIL_CHECK_FAILED_MESSAGE, false);
+
   if (httpStatus === 409) {
     if (body.status === "draft_changed") return fail(DRAFT_CHANGED_MESSAGE, false);
     return fail(plainEdgeError(body.error) ?? `${NOT_SENT_MESSAGE}`, false);
@@ -171,18 +227,24 @@ export function actionOutcome(
   if (httpStatus === 502 && body.error === NOT_SENT_MESSAGE) return fail(NOT_SENT_MESSAGE, false);
   if (typeof body.error === "string" && PRE_SEND_EDGE_ERRORS.has(body.error.trim())) {
     const plain = plainEdgeError(body.error)!;
-    return fail(plain === NOT_SENT_MESSAGE ? plain : `${plain} ${NOTHING_WENT}`, false);
+    const saysNotSent = plain === NOT_SENT_MESSAGE || plain === ALREADY_ANSWERED_MESSAGE || plain === GMAIL_CHECK_FAILED_MESSAGE;
+    return fail(saysNotSent ? plain : `${plain} ${NOTHING_WENT}`, false);
   }
   return uncertain;
 }
 
 // After the refetch: an uncertain send that landed on the Sent tab reads as
-// sent. Everything else is shown as decided.
+// sent. One that landed failed (or stuck, "attention") points at Gmail's Sent
+// folder, never the Sent tab. Everything else is shown as decided.
 export function settleNotice(
   n: { tone: "crit" | "plain"; message: string; uncertain: boolean },
   tab: EmailQueueTab | null,
+  status?: string | null,
 ): { tone: "crit" | "plain"; message: string } {
   if (n.uncertain && tab === "sent") return { tone: "plain", message: REPLY_SENT_MESSAGE };
+  if (n.uncertain && (tab === "attention" || status === "failed")) {
+    return { tone: "crit", message: UNCERTAIN_CHECK_GMAIL_MESSAGE };
+  }
   return { tone: n.tone, message: n.message };
 }
 
@@ -205,6 +267,9 @@ export function draftBlock(
   if (!s.draft) return null;
   if (s.tab === "approve") {
     return { kind: "draft", label: `Draft · reply goes to ${s.from_email} · grounded in Master KB`, body: s.draft.body };
+  }
+  if (s.tab === "attention") {
+    return { kind: "draft", label: "Draft · may or may not have gone out", body: s.draft.body };
   }
   if (s.tab === "skipped" || s.tab === "noreply" || s.status === "failed") {
     return { kind: "draft", label: "Draft · not sent", body: s.draft.body };

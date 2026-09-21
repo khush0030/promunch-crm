@@ -6,6 +6,7 @@ import {
   EMAIL_TABS,
   isEmailQueueTab,
   sortQueue,
+  stuckSendingBefore,
   tabOf,
   type EmailQueueItem,
   type EmailQueueResponse,
@@ -13,7 +14,7 @@ import {
   type EmailQueueTab,
 } from "@/lib/inbox/email";
 
-// GET /api/inbox/email?tab=approve|noreply|sent|skipped&id=
+// GET /api/inbox/email?tab=approve|attention|noreply|sent|skipped&id=
 // Inbox › Email drafts queue (Task 2.8). READ-ONLY: this route only SELECTs.
 // Every write (approve, edit, rewrite, skip) goes through
 // POST /api/inbox/email/[id]/action, which proxies to the email-draft-action
@@ -25,9 +26,10 @@ const MAX_ITEMS = 200;
 // return; the history tabs just show the newest 200.
 const PENDING_WINDOW = 1000;
 
-const ITEM_COLUMNS = "id, from_name, from_email, subject, lead_category, urgency, created_at, status, should_reply";
+const ITEM_COLUMNS =
+  "id, from_name, from_email, subject, lead_category, urgency, created_at, updated_at, status, should_reply";
 const THREAD_COLUMNS =
-  "id, from_name, from_email, subject, body_plain, snippet, created_at, lead_category, urgency, status, should_reply";
+  "id, from_name, from_email, subject, body_plain, snippet, created_at, updated_at, lead_category, urgency, status, should_reply";
 
 type ThreadRow = {
   id: string;
@@ -37,6 +39,7 @@ type ThreadRow = {
   lead_category: string | null;
   urgency: string | null;
   created_at: string;
+  updated_at: string | null;
   status: string;
   should_reply: boolean | null;
 };
@@ -60,34 +63,47 @@ type SentRow = {
 };
 
 // The same WHERE clause per tab for counts and items. Kept as data so both
-// query builders apply it identically.
-const TAB_FILTER: Record<EmailQueueTab, { status: string; shouldReply?: "null_or_true" | "false" }> = {
+// query builders apply it identically. "attention" = failed, or stuck in
+// 'sending' for more than 5 minutes (same rule as tabOf).
+type TabFilter = { status: string; shouldReply?: "null_or_true" | "false" } | { attention: true };
+const TAB_FILTER: Record<EmailQueueTab, TabFilter> = {
   approve: { status: "pending", shouldReply: "null_or_true" },
+  attention: { attention: true },
   noreply: { status: "pending", shouldReply: "false" },
   sent: { status: "sent" },
   skipped: { status: "skipped" },
 };
 
-function countQuery(tab: EmailQueueTab) {
+// PostgREST filter for "attention": failed, or 'sending' with no update for
+// more than 5 minutes.
+function attentionFilter(nowMs: number): string {
+  return `status.eq.failed,and(status.eq.sending,updated_at.lt.${stuckSendingBefore(nowMs)})`;
+}
+
+function countQuery(tab: EmailQueueTab, nowMs: number) {
   const f = TAB_FILTER[tab];
-  let q = supabaseAdmin.from("email_threads").select("id", { count: "exact", head: true }).eq("status", f.status);
+  const base = supabaseAdmin.from("email_threads").select("id", { count: "exact", head: true });
+  if ("attention" in f) return base.or(attentionFilter(nowMs));
+  let q = base.eq("status", f.status);
   if (f.shouldReply === "null_or_true") q = q.or("should_reply.is.null,should_reply.eq.true");
   if (f.shouldReply === "false") q = q.eq("should_reply", false);
   return q;
 }
 
-function itemsQuery(tab: EmailQueueTab, ascending: boolean, limit: number) {
+function itemsQuery(tab: EmailQueueTab, ascending: boolean, limit: number, nowMs: number) {
   const f = TAB_FILTER[tab];
-  let q = supabaseAdmin.from("email_threads").select(ITEM_COLUMNS).eq("status", f.status);
+  const base = supabaseAdmin.from("email_threads").select(ITEM_COLUMNS);
+  if ("attention" in f) return base.or(attentionFilter(nowMs)).order("created_at", { ascending }).limit(limit);
+  let q = base.eq("status", f.status);
   if (f.shouldReply === "null_or_true") q = q.or("should_reply.is.null,should_reply.eq.true");
   if (f.shouldReply === "false") q = q.eq("should_reply", false);
   return q.order("created_at", { ascending }).limit(limit);
 }
 
 // A failed count is null, not 0: "0 drafts waiting" would be a lie.
-async function countTab(tab: EmailQueueTab): Promise<number | null> {
+async function countTab(tab: EmailQueueTab, nowMs: number): Promise<number | null> {
   try {
-    const { count, error } = await countQuery(tab);
+    const { count, error } = await countQuery(tab, nowMs);
     if (error) {
       console.error(`[inbox/email] count ${tab}:`, error.message);
       return null;
@@ -144,7 +160,7 @@ async function loadSent(id: string): Promise<EmailQueueSelected["sent"]> {
   return { body: row.body, sent_at: row.sent_at, approved_by: row.approved_by_email ?? "Slack" };
 }
 
-async function loadSelected(id: string): Promise<EmailQueueSelected | null> {
+async function loadSelected(id: string, nowMs: number): Promise<EmailQueueSelected | null> {
   const { data: t, error } = await supabaseAdmin.from("email_threads").select(THREAD_COLUMNS).eq("id", id).maybeSingle();
   if (error) throw new Error(error.message);
   if (!t) return null;
@@ -173,7 +189,7 @@ async function loadSelected(id: string): Promise<EmailQueueSelected | null> {
     category: categoryWord(thread.lead_category),
     urgency: urgencyPill(thread.urgency),
     status: thread.status,
-    tab: tabOf({ status: thread.status, should_reply: thread.should_reply }),
+    tab: tabOf({ status: thread.status, should_reply: thread.should_reply, updated_at: thread.updated_at }, nowMs),
     draft: current ? { id: current.id, body: current.body, revision: current.revision } : null,
     revisions: drafts.map((d) => ({ revision: d.revision, feedback: d.feedback, created_at: d.created_at })),
     sent,
@@ -188,15 +204,16 @@ export async function GET(req: Request) {
   const wantedId = rawId && isEmailThreadId(rawId) ? rawId : null;
 
   const pending = tab === "approve" || tab === "noreply";
+  const nowMs = Date.now();
   const [countList, itemsRes] = await Promise.all([
-    Promise.all(EMAIL_TABS.map(countTab)),
-    itemsQuery(tab, pending, pending ? PENDING_WINDOW : MAX_ITEMS),
+    Promise.all(EMAIL_TABS.map((t) => countTab(t, nowMs))),
+    itemsQuery(tab, pending, pending ? PENDING_WINDOW : MAX_ITEMS, nowMs),
   ]);
   if (itemsRes.error) return NextResponse.json({ error: itemsRes.error.message }, { status: 500 });
 
   // Belt and braces: keep only rows whose own status really belongs to this
   // tab, so a row can never be offered for approval from the wrong list.
-  const rows = ((itemsRes.data ?? []) as ThreadRow[]).filter((r) => tabOf(r) === tab);
+  const rows = ((itemsRes.data ?? []) as ThreadRow[]).filter((r) => tabOf(r, nowMs) === tab);
   const ordered = pending ? sortQueue(rows) : rows;
   const items = ordered.slice(0, MAX_ITEMS).map(toItem);
 
@@ -204,8 +221,8 @@ export async function GET(req: Request) {
 
   let selected: EmailQueueSelected | null = null;
   try {
-    if (wantedId) selected = await loadSelected(wantedId);
-    if (!selected && items[0]) selected = await loadSelected(items[0].id);
+    if (wantedId) selected = await loadSelected(wantedId, nowMs);
+    if (!selected && items[0]) selected = await loadSelected(items[0].id, nowMs);
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }

@@ -53,9 +53,26 @@ describe("isHumanReplySender", () => {
     expect(isHumanReplySender("campaign_edamame")).toBe(false);
     expect(isHumanReplySender(null)).toBe(false);
   });
-  it("accepts a real agent email or 'dashboard'", () => {
+  it("rejects every automated sender, including ones added later", () => {
+    for (const s of [
+      "ticket_watchdog_fallback",
+      "journey:review",
+      "journey:x",
+      "cod_gate",
+      "checkout",
+      "optin",
+      "voice:cart_link",
+      "growth:widget",
+      "followup_bot",
+      "dashboard",
+      "",
+    ]) {
+      expect(isHumanReplySender(s)).toBe(false);
+    }
+  });
+  it("accepts only a real agent email or 'human'", () => {
     expect(isHumanReplySender("khush@trypromunch.in")).toBe(true);
-    expect(isHumanReplySender("dashboard")).toBe(true);
+    expect(isHumanReplySender("human")).toBe(true);
   });
 });
 

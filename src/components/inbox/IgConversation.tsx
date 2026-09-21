@@ -61,6 +61,9 @@ export function IgConversation({ id, peek = false, compact = false }: { id: stri
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [patching, setPatching] = useState(false);
+  // setSending is async, so two clicks in the same tick both pass the state
+  // check. The ref flips synchronously and is the real in-flight guard.
+  const sendingRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastKey = messages.length ? messages[messages.length - 1].id : "empty";
   useStickToBottom(scrollRef, id, lastKey);
@@ -69,7 +72,8 @@ export function IgConversation({ id, peek = false, compact = false }: { id: stri
 
   const send = useCallback(async () => {
     const body = text.trim();
-    if (sending || !body) return;
+    if (sendingRef.current || !body) return;
+    sendingRef.current = true;
     setSending(true);
     try {
       const r = await fetch(`/api/instagram/threads/${id}/reply`, {
@@ -87,9 +91,10 @@ export function IgConversation({ id, peek = false, compact = false }: { id: stri
     } catch (e) {
       toast.push({ kind: "error", text: "Reply failed: " + String(e) });
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
-  }, [text, sending, id, toast, refresh]);
+  }, [text, id, toast, refresh]);
 
   async function patch(p: Record<string, unknown>) {
     if (patching) return;

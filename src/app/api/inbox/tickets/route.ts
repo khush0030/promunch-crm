@@ -109,7 +109,11 @@ export async function GET() {
       .select("thread_id, direction, sent_by, created_at")
       .in("thread_id", threadIds)
       .eq("direction", "outbound")
+      // Human senders only (same rule as isHumanReplySender), so bot and
+      // journey traffic can't crowd real replies out of the row limit.
+      .or("sent_by.like.%@%,sent_by.eq.human")
       .gte("created_at", minOpened)
+      .order("created_at", { ascending: true })
       .limit(5000);
     replyMap = firstHumanReplyAt(
       (msgs ?? []) as { thread_id: string; direction: string; sent_by: string | null; created_at: string }[],

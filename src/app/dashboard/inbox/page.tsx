@@ -20,6 +20,7 @@ import { SearchBar } from "@/components/pm";
 import { WaConversation } from "@/components/inbox/WaConversation";
 import { IgConversation } from "@/components/inbox/IgConversation";
 import { ConversationHeader } from "@/components/inbox/ConversationHeader";
+import { AlertsToggle } from "@/components/whatsapp/InboxNotifier";
 import { categoryWord } from "@/components/inbox/labels";
 import { formatWhen } from "@/lib/inbox/when";
 import { useMediaPhone } from "@/components/shell/useMediaPhone";
@@ -226,6 +227,7 @@ function InboxPageInner() {
         <>
           <Chips items={chipItems} value={filter} onChange={(k) => setQuery({ filter: k as InboxFilter })} ariaLabel="Filter conversations" />
           {channelSelect("pm2-d-only")}
+          <AlertsToggle />
         </>
       }
     />

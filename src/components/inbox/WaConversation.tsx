@@ -136,6 +136,9 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
   const [confirmCod, setConfirmCod] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [patching, setPatching] = useState(false);
+  // setSending is async, so two clicks in the same tick both pass the state
+  // check. The ref flips synchronously and is the real in-flight guard.
+  const sendingRef = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastKey = messages.length ? messages[messages.length - 1].id : "empty";
@@ -147,11 +150,12 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
   // signed-in email. The box is cleared only once the send is accepted.
   const send = useCallback(
     async (kind: "text" | "template", payload?: { name: string; language: string; vars: Record<string, string> }) => {
-      if (sending || uploading) return;
+      if (sendingRef.current || uploading) return;
       if (!me) {
         toast.push({ kind: "error", text: "Still signing you in. Try again in a moment." });
         return;
       }
+      sendingRef.current = true;
       setSending(true);
       try {
         const body =
@@ -180,10 +184,11 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
       } catch (e) {
         toast.push({ kind: "error", text: "Send failed: " + String(e) });
       } finally {
+        sendingRef.current = false;
         setSending(false);
       }
     },
-    [sending, uploading, me, attachment, id, text, toast, refresh],
+    [uploading, me, attachment, id, text, toast, refresh],
   );
 
   async function pickImage(file: File | null) {

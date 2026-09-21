@@ -14,6 +14,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader, Chips, KpiStrip, Kpi, Board, Pill, Avatar, Callout, ConfirmDialog } from "@/components/pm";
 import type { ChipItem, BoardColumn } from "@/components/pm";
 import { formatINR } from "@/lib/metrics/money";
+import { useToast } from "@/components/ui/Toast";
+import { patchThread } from "@/components/inbox/shared";
 import type { TicketCard, TicketsBoard } from "@/lib/inbox/tickets";
 
 type FilterKey = "open" | "waiting" | "resolved";
@@ -96,20 +98,27 @@ function TicketsPageInner() {
 
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
-  const patchWa = useCallback(async (id: string, body: Record<string, unknown>) => {
-    await fetch(`/api/whatsapp/threads/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  }, []);
-  const patchIg = useCallback(async (id: string, body: Record<string, unknown>) => {
-    await fetch(`/api/instagram/threads/${id}/stage`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  }, []);
+  const toast = useToast();
+  // patchThread checks r.ok and shows the route's error as a toast; a
+  // network drop gets its own toast here.
+  const patch = useCallback(
+    async (url: string, body: Record<string, unknown>) => {
+      try {
+        await patchThread(url, body, toast);
+      } catch {
+        toast.push({ kind: "error", text: "Could not update: network error. Please try again." });
+      }
+    },
+    [toast],
+  );
+  const patchWa = useCallback(
+    (id: string, body: Record<string, unknown>) => patch(`/api/whatsapp/threads/${id}`, body),
+    [patch],
+  );
+  const patchIg = useCallback(
+    (id: string, body: Record<string, unknown>) => patch(`/api/instagram/threads/${id}/stage`, body),
+    [patch],
+  );
 
   const runAction = useCallback(
     async (key: string, action: () => Promise<void>) => {

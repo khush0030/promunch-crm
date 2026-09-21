@@ -11,9 +11,19 @@ import {
   draftBlock,
   replyBlockedReason,
   UNCERTAIN_SEND_MESSAGE,
+  UNCERTAIN_CHECK_GMAIL_MESSAGE,
   REPLY_SENT_MESSAGE,
+  ATTENTION_MESSAGE,
+  STUCK_SENDING_MS,
+  oldEmailDays,
+  stuckSendingBefore,
 } from "./email";
-import { DRAFT_CHANGED_MESSAGE, NOT_SENT_MESSAGE } from "./email-action";
+import {
+  ALREADY_ANSWERED_MESSAGE,
+  DRAFT_CHANGED_MESSAGE,
+  GMAIL_CHECK_FAILED_MESSAGE,
+  NOT_SENT_MESSAGE,
+} from "./email-action";
 
 describe("tabOf", () => {
   it("puts pending emails that need a reply in To approve", () => {
@@ -31,14 +41,51 @@ describe("tabOf", () => {
     expect(tabOf({ status: "skipped", should_reply: null })).toBe("skipped");
   });
 
-  it("returns null for in-flight or failed threads, so they are never approvable", () => {
-    expect(tabOf({ status: "sending", should_reply: true })).toBeNull();
-    expect(tabOf({ status: "failed", should_reply: true })).toBeNull();
+  const NOW = Date.parse("2026-09-21T12:00:00Z");
+  const ago = (ms: number) => new Date(NOW - ms).toISOString();
+
+  it("returns null for a thread sending right now, so it is never approvable", () => {
+    expect(tabOf({ status: "sending", should_reply: true, updated_at: ago(60_000) }, NOW)).toBeNull();
+    expect(tabOf({ status: "sending", should_reply: true, updated_at: ago(STUCK_SENDING_MS) }, NOW)).toBeNull();
     expect(tabOf({ status: "", should_reply: null })).toBeNull();
   });
 
-  it("lists the four tabs in display order", () => {
-    expect(EMAIL_TABS).toEqual(["approve", "noreply", "sent", "skipped"]);
+  it("puts failed threads and threads stuck sending over 5 minutes in Needs attention", () => {
+    expect(tabOf({ status: "failed", should_reply: true }, NOW)).toBe("attention");
+    expect(tabOf({ status: "sending", should_reply: true, updated_at: ago(STUCK_SENDING_MS + 1000) }, NOW)).toBe("attention");
+    // No timestamp: can't prove it's in flight, so it is shown.
+    expect(tabOf({ status: "sending", should_reply: true }, NOW)).toBe("attention");
+  });
+
+  it("stuckSendingBefore is exactly 5 minutes before now", () => {
+    expect(stuckSendingBefore(NOW)).toBe(ago(STUCK_SENDING_MS));
+  });
+
+  it("lists the five tabs in display order", () => {
+    expect(EMAIL_TABS).toEqual(["approve", "attention", "noreply", "sent", "skipped"]);
+  });
+
+  it("keeps the attention copy pointing at Gmail's Sent folder", () => {
+    expect(ATTENTION_MESSAGE).toBe(
+      "This reply may or may not have gone out. Check the support mailbox's Sent folder in Gmail before doing anything.",
+    );
+  });
+});
+
+describe("oldEmailDays", () => {
+  const NOW = Date.parse("2026-09-21T12:00:00Z");
+  const daysAgo = (d: number) => new Date(NOW - d * 86_400_000).toISOString();
+
+  it("is null up to 3 days, then the whole number of days", () => {
+    expect(oldEmailDays(daysAgo(0.5), NOW)).toBeNull();
+    expect(oldEmailDays(daysAgo(3), NOW)).toBeNull();
+    expect(oldEmailDays(daysAgo(3.9), NOW)).toBeNull();
+    expect(oldEmailDays(daysAgo(4), NOW)).toBe(4);
+    expect(oldEmailDays(daysAgo(17.2), NOW)).toBe(17);
+  });
+
+  it("is null for a bad date", () => {
+    expect(oldEmailDays("not a date", NOW)).toBeNull();
   });
 });
 
@@ -228,7 +275,39 @@ describe("actionOutcome: skip, edit, rewrite", () => {
   });
 });
 
+describe("actionOutcome: approve refused by the Gmail check", () => {
+  it("reads already_answered as a definite not-sent", () => {
+    expect(
+      actionOutcome("approve", { httpStatus: 409, body: { ok: false, status: "already_answered", error: ALREADY_ANSWERED_MESSAGE } }),
+    ).toEqual({ kind: "failed", tone: "crit", message: ALREADY_ANSWERED_MESSAGE, uncertain: false });
+  });
+
+  it("reads gmail_check_failed (502) as a definite not-sent, not uncertain", () => {
+    expect(
+      actionOutcome("approve", { httpStatus: 502, body: { ok: false, status: "gmail_check_failed", error: GMAIL_CHECK_FAILED_MESSAGE } }),
+    ).toEqual({ kind: "failed", tone: "crit", message: GMAIL_CHECK_FAILED_MESSAGE, uncertain: false });
+  });
+
+  it("maps the raw edge strings too", () => {
+    expect(plainEdgeError("already answered in gmail")).toBe(ALREADY_ANSWERED_MESSAGE);
+    expect(plainEdgeError("could not check gmail")).toBe(GMAIL_CHECK_FAILED_MESSAGE);
+    expect(actionOutcome("approve", { httpStatus: 500, body: { ok: false, error: "could not check gmail" } })).toEqual({
+      kind: "failed",
+      tone: "crit",
+      message: GMAIL_CHECK_FAILED_MESSAGE,
+      uncertain: false,
+    });
+  });
+});
+
 describe("settleNotice", () => {
+  it("points an uncertain send that landed failed at Gmail's Sent folder, not the Sent tab", () => {
+    const n = { tone: "crit" as const, message: UNCERTAIN_SEND_MESSAGE, uncertain: true };
+    expect(settleNotice(n, "attention", "failed")).toEqual({ tone: "crit", message: UNCERTAIN_CHECK_GMAIL_MESSAGE });
+    expect(settleNotice(n, null, "failed")).toEqual({ tone: "crit", message: UNCERTAIN_CHECK_GMAIL_MESSAGE });
+    expect(UNCERTAIN_CHECK_GMAIL_MESSAGE).not.toMatch(/Sent tab/);
+  });
+
   it("turns an uncertain send into 'sent' once the thread is on the Sent tab", () => {
     expect(settleNotice({ tone: "crit", message: UNCERTAIN_SEND_MESSAGE, uncertain: true }, "sent")).toEqual({
       tone: "plain",
@@ -292,6 +371,15 @@ describe("draftBlock", () => {
     expect(draftBlock({ ...base, tab: "noreply" }, fmt)?.label).toBe("Draft · not sent");
     expect(draftBlock({ ...base, tab: null, status: "failed" }, fmt)?.label).toBe("Draft · not sent");
     expect(draftBlock({ ...base, tab: null, status: "sending" }, fmt)?.label).toBe("Draft · sending now");
+  });
+
+  it("never says not sent for a thread that needs attention", () => {
+    expect(draftBlock({ ...base, tab: "attention", status: "failed" }, fmt)?.label).toBe(
+      "Draft · may or may not have gone out",
+    );
+    expect(draftBlock({ ...base, tab: "attention", status: "sending" }, fmt)?.label).toBe(
+      "Draft · may or may not have gone out",
+    );
   });
 
   it("returns null when there is nothing to show", () => {

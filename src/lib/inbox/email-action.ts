@@ -76,6 +76,11 @@ export function routeStatusFor(edgeStatus: number): number {
 
 export const DRAFT_CHANGED_MESSAGE = "The draft changed. Review the new version before sending.";
 export const NOT_SENT_MESSAGE = "The reply was not sent. Nothing went to the customer.";
+// Owner decision D2: Approve refuses when the support mailbox already replied
+// in Gmail, and refuses (fails closed) when Gmail can't be checked. Both are
+// definite: nothing was sent.
+export const ALREADY_ANSWERED_MESSAGE = "Already answered in Gmail. Nothing was sent.";
+export const GMAIL_CHECK_FAILED_MESSAGE = "Couldn't check Gmail, so nothing was sent. Try again in a minute.";
 
 // Final HTTP status + JSON body for the CRM, from the edge function's answer.
 export function shapeActionResponse(
@@ -84,6 +89,12 @@ export function shapeActionResponse(
 ): { status: number; body: Record<string, unknown> } {
   if (out.status === "draft_changed") {
     return { status: 409, body: { ok: false, status: "draft_changed", error: DRAFT_CHANGED_MESSAGE } };
+  }
+  if (out.status === "already_answered") {
+    return { status: 409, body: { ok: false, status: "already_answered", error: ALREADY_ANSWERED_MESSAGE } };
+  }
+  if (out.status === "gmail_check_failed") {
+    return { status: 502, body: { ok: false, status: "gmail_check_failed", error: GMAIL_CHECK_FAILED_MESSAGE } };
   }
   if (out.error === "could not start the send") {
     return { status: 502, body: { ok: false, error: NOT_SENT_MESSAGE } };

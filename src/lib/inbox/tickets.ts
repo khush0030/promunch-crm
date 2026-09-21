@@ -75,10 +75,11 @@ export function extractOrderRef(text: string | null): string | null {
 // human picking up the ticket.
 export function isHumanReplySender(sentBy: string | null): boolean {
   if (!sentBy) return false;
-  if (sentBy === "bot") return false;
-  if (sentBy === "ops_resolve") return false;
-  if (sentBy.startsWith("campaign")) return false;
-  return true;
+  // Allowlist, not denylist: automated senders keep growing (journey:x,
+  // cod_gate, checkout, optin, voice:cart_link, growth:x, followup_bot,
+  // ticket_watchdog_fallback, ...). Only a signed-in agent's email or the
+  // literal "human" (Instagram replies) is a person answering.
+  return sentBy.includes("@") || sentBy === "human";
 }
 
 // Reduces a raw wa_messages slice to the first genuine human reply per

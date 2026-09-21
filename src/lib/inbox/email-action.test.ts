@@ -3,6 +3,8 @@ import {
   EDIT_MAX_CHARS,
   FEEDBACK_MAX_CHARS,
   DRAFT_CHANGED_MESSAGE,
+  ALREADY_ANSWERED_MESSAGE,
+  GMAIL_CHECK_FAILED_MESSAGE,
   NOT_SENT_MESSAGE,
   isEmailThreadId,
   parseEmailDraftAction,
@@ -94,6 +96,26 @@ describe("routeStatusFor", () => {
 });
 
 describe("shapeActionResponse", () => {
+  it("maps already_answered to 409 saying nothing was sent", () => {
+    expect(
+      shapeActionResponse(409, { ok: false, status: "already_answered", error: "already answered in gmail" }),
+    ).toEqual({
+      status: 409,
+      body: { ok: false, status: "already_answered", error: ALREADY_ANSWERED_MESSAGE },
+    });
+  });
+
+  it("maps gmail_check_failed to 502 saying nothing was sent", () => {
+    expect(
+      shapeActionResponse(502, { ok: false, status: "gmail_check_failed", error: "could not check gmail" }),
+    ).toEqual({
+      status: 502,
+      body: { ok: false, status: "gmail_check_failed", error: GMAIL_CHECK_FAILED_MESSAGE },
+    });
+    expect(ALREADY_ANSWERED_MESSAGE).toBe("Already answered in Gmail. Nothing was sent.");
+    expect(GMAIL_CHECK_FAILED_MESSAGE).toBe("Couldn't check Gmail, so nothing was sent. Try again in a minute.");
+  });
+
   it("maps draft_changed to 409 with the review message", () => {
     expect(shapeActionResponse(409, { ok: false, error: "draft changed", status: "draft_changed" })).toEqual({
       status: 409,

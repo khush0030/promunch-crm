@@ -26,6 +26,7 @@ import { formatWhen } from "@/lib/inbox/when";
 import {
   actionOutcome,
   isEmailQueueTab,
+  oldEmailDays,
   replyBlockedReason,
   settleNotice,
   stepIndex,
@@ -36,6 +37,7 @@ import {
 
 const TAB_LABELS: Record<EmailQueueTab, string> = {
   approve: "To approve",
+  attention: "Needs attention",
   noreply: "No reply needed",
   sent: "Sent",
   skipped: "Skipped",
@@ -52,7 +54,7 @@ type ActionBody =
   | { action: "edit"; body: string };
 
 type Confirming =
-  | { kind: "approve"; threadId: string; draftRevisionId: string; to: string }
+  | { kind: "approve"; threadId: string; draftRevisionId: string; to: string; daysOld: number | null }
   | { kind: "skip"; threadId: string };
 
 export default function EmailDraftsPage() {
@@ -132,8 +134,11 @@ function EmailDraftsInner() {
     shownIdRef.current = selectedId;
   }, [selectedId]);
 
-  // One in-flight flag per thread: all four buttons disable together.
+  // One in-flight flag per thread: all four buttons disable together. The ref
+  // is the synchronous guard (state updates land a render later, so a fast
+  // double click could otherwise start two requests).
   const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const inFlightRef = useRef<Record<string, boolean>>({});
   const [notices, setNotices] = useState<Record<string, Notice | undefined>>({});
   const [confirming, setConfirming] = useState<Confirming | null>(null);
   // baseRevision: the draft the edit started from, to warn when a newer one lands.
@@ -156,6 +161,8 @@ function EmailDraftsInner() {
       const moveTo = ids.includes(threadId) ? (pos.next ?? pos.prev) : null;
       const action: DraftAction = body.action;
 
+      if (inFlightRef.current[threadId]) return;
+      inFlightRef.current[threadId] = true;
       setBusy((b) => ({ ...b, [threadId]: true }));
       setNotices((n) => ({ ...n, [threadId]: undefined }));
       let httpStatus: number | null = null;
@@ -203,6 +210,7 @@ function EmailDraftsInner() {
         // Keep the buttons disabled until the fresh row is on screen. For an
         // uncertain send this refetch is what settles the notice.
         await refresh().catch(() => undefined);
+        inFlightRef.current[threadId] = false;
         setBusy((b) => ({ ...b, [threadId]: false }));
       }
     },
@@ -274,7 +282,9 @@ function EmailDraftsInner() {
   const canAct = selected?.tab === "approve" && !q.isPlaceholderData && !doneIds[selected.id];
   const blocked = selected ? replyBlockedReason(selected.from_email, selected.body_plain) : null;
   const rawNotice = selectedId ? notices[selectedId] : undefined;
-  const notice = rawNotice && selected ? settleNotice(rawNotice, selected.tab) : null;
+  const notice = rawNotice && selected ? settleNotice(rawNotice, selected.tab, selected.status) : null;
+  // "N days old" warning, only for emails still waiting in To approve.
+  const selectedDaysOld = selected?.tab === "approve" ? oldEmailDays(selected.created_at) : null;
   const edit = selected && editing?.id === selected.id ? editing : null;
   const newerDraftWhileEditing = Boolean(edit && selected?.draft && selected.draft.revision > edit.baseRevision);
   const rewriting = Boolean(
@@ -285,7 +295,13 @@ function EmailDraftsInner() {
     if (!selected?.draft || !canAct || blocked) return;
     // Pin the revision rendered right now. If a newer draft lands before the
     // confirm, the edge refuses with "The draft changed".
-    setConfirming({ kind: "approve", threadId: selected.id, draftRevisionId: selected.draft.id, to: selected.from_email });
+    setConfirming({
+      kind: "approve",
+      threadId: selected.id,
+      draftRevisionId: selected.draft.id,
+      to: selected.from_email,
+      daysOld: oldEmailDays(selected.created_at),
+    });
   };
   const onSkip = () => {
     if (!selected || !canAct) return;
@@ -322,6 +338,7 @@ function EmailDraftsInner() {
       canAct={canAct}
       blockedMessage={blocked?.message ?? null}
       busy={isBusy}
+      daysOld={selectedDaysOld}
       notice={notice}
       rewriting={rewriting}
       editing={edit ? edit.text : null}
@@ -344,7 +361,13 @@ function EmailDraftsInner() {
     />
   ) : (
     <div className="pm2-panel">
-      <div className="pm2-empty">{tab === "approve" ? "Nothing waiting. Every email has been answered or skipped." : "No emails here."}</div>
+      <div className="pm2-empty">
+        {tab === "approve"
+          ? "Nothing waiting. Every email has been answered or skipped."
+          : tab === "attention"
+            ? "Nothing needs attention."
+            : "No emails here."}
+      </div>
     </div>
   );
 
@@ -352,7 +375,9 @@ function EmailDraftsInner() {
     confirming.kind === "approve" ? (
       <ConfirmDialog
         title={`Send this reply to ${confirming.to}?`}
-        body="It goes out from the support mailbox. This cannot be undone."
+        body={`It goes out from the support mailbox. This cannot be undone.${
+          confirming.daysOld != null ? ` This email is ${confirming.daysOld} days old.` : ""
+        }`}
         confirmLabel="Send reply"
         busy={Boolean(busy[confirming.threadId])}
         onConfirm={() =>
@@ -415,21 +440,27 @@ function EmailDraftsInner() {
             {items.length === 0 ? (
               <div className="pm2-empty">{tab === "approve" ? "No drafts waiting." : "No emails here."}</div>
             ) : (
-              items.map((it) => (
+              items.map((it) => {
+                const daysOld = tab === "approve" ? oldEmailDays(it.created_at) : null;
+                return (
                 <ListRow
                   key={it.id}
                   name={it.from_name?.trim() || it.from_email}
                   pill={
-                    <Pill tone={it.urgency?.tone ?? "neu"} plain>
-                      {it.category}
-                    </Pill>
+                    <>
+                      <Pill tone={it.urgency?.tone ?? "neu"} plain>
+                        {it.category}
+                      </Pill>
+                      {daysOld != null ? <Pill tone="warn">{`${daysOld} days old`}</Pill> : null}
+                    </>
                   }
                   preview={it.subject || "(no subject)"}
                   when={formatWhen(it.created_at)}
                   selected={it.id === selectedId}
                   onClick={() => setQuery({ id: it.id })}
                 />
-              ))
+                );
+              })
             )}
           </div>
           {detail}

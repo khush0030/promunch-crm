@@ -7,7 +7,7 @@
 
 import { Pill, Callout } from "@/components/pm";
 import { EDIT_MAX_CHARS, FEEDBACK_MAX_CHARS } from "@/lib/inbox/email-action";
-import { clipText, draftBlock, type EmailQueueSelected } from "@/lib/inbox/email";
+import { ATTENTION_MESSAGE, clipText, draftBlock, type EmailQueueSelected } from "@/lib/inbox/email";
 import { formatWhen } from "@/lib/inbox/when";
 
 const BODY_CLIP = 1200;
@@ -22,7 +22,7 @@ function statusWord(s: EmailQueueSelected): string {
   if (s.tab === "skipped") return "Skipped";
   if (s.tab === "noreply") return "No reply needed";
   if (s.tab === "approve") return "Updating…";
-  if (s.status === "sending") return "Sending now";
+  if (s.status === "sending") return s.tab === "attention" ? "Stuck sending" : "Sending now";
   if (s.status === "failed") return "Failed to send";
   return s.status;
 }
@@ -34,6 +34,8 @@ export type EmailDetailProps = {
   // Approve hidden (sender can't receive a reply); the sun Callout explains.
   blockedMessage: string | null;
   busy: boolean;
+  // Days the email has waited, only when over 3 and still To approve.
+  daysOld?: number | null;
   notice: { tone: "crit" | "plain"; message: string } | null;
   rewriting: boolean;
   editing: string | null;
@@ -112,6 +114,11 @@ export function EmailDetail(p: EmailDetailProps) {
             <Callout tone={p.notice.tone} title={p.notice.message} />
           </div>
         ) : null}
+        {s.tab === "attention" ? (
+          <div className="pm2-draft-gap">
+            <Callout tone="crit" title={ATTENTION_MESSAGE} />
+          </div>
+        ) : null}
         {canAct && p.blockedMessage ? (
           <div className="pm2-draft-gap">
             <Callout tone="sun" title={p.blockedMessage} />
@@ -135,7 +142,10 @@ export function EmailDetail(p: EmailDetailProps) {
           <Pill tone="neu" plain>
             {s.category}
           </Pill>
-          {!canAct ? <Pill tone={s.status === "failed" ? "crit" : "neu"}>{statusWord(s)}</Pill> : null}
+          {p.daysOld != null ? <Pill tone="warn">{`${p.daysOld} days old`}</Pill> : null}
+          {!canAct ? (
+            <Pill tone={s.status === "failed" || s.tab === "attention" ? "crit" : "neu"}>{statusWord(s)}</Pill>
+          ) : null}
         </div>
 
         {editing !== null && canAct ? (
