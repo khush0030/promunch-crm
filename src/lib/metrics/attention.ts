@@ -276,7 +276,7 @@ export function buildAttention(input: AttentionInput): Attention {
       title: `${input.tickets.length} WhatsApp ticket${input.tickets.length === 1 ? "" : "s"} waiting over 4 hours`,
       context: `oldest ${age}`,
       count: input.tickets.length,
-      href: "/dashboard/whatsapp?tab=tickets",
+      href: "/dashboard/inbox/tickets",
       cta: "Tickets",
       since: oldest ?? undefined,
     });
@@ -291,7 +291,7 @@ export function buildAttention(input: AttentionInput): Attention {
       title: `${input.emailDrafts.length} email draft${input.emailDrafts.length === 1 ? "" : "s"} waiting for review`,
       context: "Ready to send once you approve",
       count: input.emailDrafts.length,
-      href: "/dashboard/support-emails",
+      href: "/dashboard/inbox/email",
       cta: "Review",
     });
   }

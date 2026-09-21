@@ -111,6 +111,9 @@ export async function GET(req: Request) {
         .from("email_threads")
         .select("id")
         .eq("status", "pending")
+        // Same rule as the Email drafts "To approve" tab: emails the
+        // classifier marked as needing no reply are not waiting on anyone.
+        .or("should_reply.is.null,should_reply.eq.true")
         .order("created_at", { ascending: true })
         .range(from, to),
     ),

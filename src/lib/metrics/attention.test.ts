@@ -132,13 +132,13 @@ describe("buildAttention", () => {
     expect(ticket.severity).toBe("warn");
     expect(ticket.count).toBe(2);
     expect(ticket.context).toBe("oldest 12h");
-    expect(ticket.href).toBe("/dashboard/whatsapp?tab=tickets");
+    expect(ticket.href).toBe("/dashboard/inbox/tickets");
 
     const draft = out.items.find((i) => i.id === "email-drafts-pending")!;
     expect(draft.group).toBe("customers");
     expect(draft.severity).toBe("info");
     expect(draft.count).toBe(1);
-    expect(draft.href).toBe("/dashboard/support-emails");
+    expect(draft.href).toBe("/dashboard/inbox/email");
 
     expect(out.counts.inbox).toBe(3); // 2 tickets + 1 draft
     expect(out.counts.byHub.Inbox).toBe(2); // 2 items (ticket item + draft item)
