@@ -1040,7 +1040,6 @@
    .fieldLabel` is more specific than the shared bare `.fieldLabel` rules
    above, so it wins here without touching them anywhere else. */
 .searchModal { font-size: 14px; }
-.searchModal .modalIntro { font-size: 13.5px; line-height: 1.6; }
 .searchModal .fieldGroup { margin-top: 20px; }
 .searchModal .fieldLabel {
   font-size: 14px;
@@ -1059,3 +1058,21 @@
 /* Chips: bigger label text, more tap room. Scoped so other pm-chip users
    (Products row here too, city chips, other pages) are unaffected. */
 .searchModal :global(.pm-chip) { font-size: 13.5px; padding: 8px 14px; }
+
+/* Plain-text toggle links ("+ Not on the list", "More options…") — no
+   button chrome, so optional/advanced controls stay visually quiet until
+   opened. */
+.linkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--pm-green, #2f7d5b);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.linkBtn:hover { text-decoration: underline; }

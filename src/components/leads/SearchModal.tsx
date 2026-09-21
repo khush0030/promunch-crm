@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useEscapeKey } from "./useEscapeKey";
-import { Clock, Search, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock, Search, X } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "@/app/dashboard/leads/leads.module.css";
 import { CATEGORY_PRESETS, DEFAULT_CITIES, PRODUCT_OPTIONS } from "./constants";
@@ -59,6 +59,8 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
   const [subjectHint, setSubjectHint] = useState("");
   const [listName, setListName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showCustomCategory, setShowCustomCategory] = useState(false);
+  const [showMore, setShowMore] = useState(false);
 
   function toggle(list: string[], setList: (v: string[]) => void, value: string) {
     setList(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
@@ -105,11 +107,6 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
           <div className="card-title">Find companies</div>
           <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
         </div>
-        <p className={styles.modalIntro}>
-          Choose who you sell to, then the city. Each pick runs one Google search and can find up to 60 companies.
-          Start with one or two of each, then press “Find companies”.
-        </p>
-
         <div className={styles.fieldGroup}>
           <div className={styles.fieldLabel}>Who are you targeting?</div>
           <div className="pm-chips" style={{ flexWrap: "wrap" }}>
@@ -119,16 +116,21 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
               </button>
             ))}
           </div>
-          <input
-            className={`input ${styles.customInput}`}
-            placeholder="Not on the list? Type your own, e.g. 'corporate caterer'"
-            value={customCategory}
-            onChange={(e) => setCustomCategory(e.target.value)}
-          />
+          {showCustomCategory || customCategory ? (
+            <input
+              className={`input ${styles.customInput}`}
+              placeholder="Type your own, e.g. 'corporate caterer'"
+              value={customCategory}
+              onChange={(e) => setCustomCategory(e.target.value)}
+              autoFocus
+            />
+          ) : (
+            <button type="button" className={styles.linkBtn} onClick={() => setShowCustomCategory(true)}>+ Not on the list</button>
+          )}
         </div>
 
         <div className={styles.fieldGroup}>
-          <div className={styles.fieldLabel}>Which cities?</div>
+          <div className={styles.fieldLabel}>Cities</div>
           <div className="pm-chips" style={{ flexWrap: "wrap" }}>
             {DEFAULT_CITIES.map((c) => (
               <button key={c} type="button" className={`pm-chip${cities.includes(c) ? " on" : ""}`} onClick={() => toggle(cities, setCities, c)}>
@@ -139,7 +141,7 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
         </div>
 
         <div className={styles.fieldGroup}>
-          <div className={styles.fieldLabel}>{findEmails ? "How many leads (with email)?" : "How many companies?"}</div>
+          <div className={styles.fieldLabel}>{findEmails ? "How many leads?" : "How many companies?"}</div>
           <div className={styles.countRow}>
             {COUNT_PRESETS.map((n) => (
               <button key={n} type="button" className={`pm-chip${target === n ? " on" : ""}`} onClick={() => setTarget(n)}>
@@ -159,7 +161,7 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
         </div>
 
         <div className={styles.fieldGroup}>
-          <div className={styles.fieldLabel}>Which product(s) is this for? <span className="pm-muted">(optional — the email leads with these)</span></div>
+          <div className={styles.fieldLabel}>Products <span className="pm-muted">(optional)</span></div>
           <div className="pm-chips" style={{ flexWrap: "wrap" }}>
             {PRODUCT_OPTIONS.map((p) => (
               <button key={p} type="button" className={`pm-chip${products.includes(p) ? " on" : ""}`} onClick={() => toggle(products, setProducts, p)}>
@@ -172,73 +174,77 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
         <label className={styles.toggleCard}>
           <input type="checkbox" checked={findEmails} onChange={(e) => setFindEmails(e.target.checked)} />
           <span className={styles.toggleCopy}>
-            <b>Find email addresses</b> — crawl each company’s site for verified emails and draft a cold email.
-            <span className={styles.toggleHint}>Turn off to just collect the company list (much faster); you can enrich any lead later.</span>
+            <b>Find & verify emails</b>
+            <span className={styles.toggleHint}>Off = just the company list (faster).</span>
           </span>
         </label>
 
-        {findEmails ? (
-          <div className={styles.fieldGroup}>
-            <div className={styles.fieldLabel}>What are you pitching? <span className="pm-muted">(optional, steers the AI)</span></div>
-            <textarea
-              className="input"
-              rows={2}
-              placeholder="e.g. Our new edamame snack as a healthy corporate gifting hamper — free sample box + 15-min call."
-              value={offer}
-              onChange={(e) => setOffer(e.target.value)}
-              maxLength={400}
-            />
-            <input
-              className={`input ${styles.customInput}`}
-              placeholder="Subject line idea (optional) — e.g. 'A healthier snack for your gift hampers'"
-              value={subjectHint}
-              onChange={(e) => setSubjectHint(e.target.value)}
-              maxLength={160}
-            />
-            <div className={styles.toggleHint} style={{ marginTop: 6 }}>
-              Leave blank and the AI picks the best angle from your knowledge base. Anything you write here leads the email; product facts still come only from the KB.
-            </div>
-          </div>
-        ) : null}
+        <button type="button" className={styles.linkBtn} style={{ marginTop: 16 }} onClick={() => setShowMore((v) => !v)}>
+          {showMore ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          More options — pitch, subject line, list name
+        </button>
 
-        <div className={styles.fieldGroup}>
-          <div className={styles.fieldLabel}>Save results as a list</div>
-          <input
-            className="input"
-            placeholder={
-              combos === 1
-                ? `List name (default: ${allCats[0] ? allCats[0][0].toUpperCase() + allCats[0].slice(1) : "Category"} — ${cities[0] ?? "City"})`
-                : "Each category × city gets its own auto-named list"
-            }
-            value={listName}
-            onChange={(e) => setListName(e.target.value)}
-            disabled={combos > 1}
-            maxLength={120}
-          />
-          <div className={styles.toggleHint} style={{ marginTop: 6 }}>
-            Results land in the Lists tab; from there you enroll the list in an email sequence.
-          </div>
-        </div>
+        {showMore ? (
+          <>
+            {findEmails ? (
+              <div className={styles.fieldGroup}>
+                <div className={styles.fieldLabel}>What are you pitching? <span className="pm-muted">(optional)</span></div>
+                <textarea
+                  className="input"
+                  rows={2}
+                  placeholder="e.g. Our new edamame snack as a healthy corporate gifting hamper — free sample box + 15-min call."
+                  value={offer}
+                  onChange={(e) => setOffer(e.target.value)}
+                  maxLength={400}
+                />
+                <input
+                  className={`input ${styles.customInput}`}
+                  placeholder="Subject line idea (optional) — e.g. 'A healthier snack for your gift hampers'"
+                  value={subjectHint}
+                  onChange={(e) => setSubjectHint(e.target.value)}
+                  maxLength={160}
+                />
+                <div className={styles.toggleHint} style={{ marginTop: 6 }}>
+                  Leave blank and the AI picks the angle. Product facts still come only from the knowledge base.
+                </div>
+              </div>
+            ) : null}
+
+            <div className={styles.fieldGroup}>
+              <div className={styles.fieldLabel}>List name <span className="pm-muted">(optional)</span></div>
+              <input
+                className="input"
+                placeholder={
+                  combos === 1
+                    ? `Default: ${allCats[0] ? allCats[0][0].toUpperCase() + allCats[0].slice(1) : "Category"} — ${cities[0] ?? "City"}`
+                    : "Each category × city gets its own auto-named list"
+                }
+                value={listName}
+                onChange={(e) => setListName(e.target.value)}
+                disabled={combos > 1}
+                maxLength={120}
+              />
+            </div>
+          </>
+        ) : null}
 
         <div className={styles.estimate}>
           <div className={styles.estimateMain}>
             <Clock size={15} className={styles.estimateIcon} />
             <span>
               {findEmails ? (
-                <>Estimated <b>{fmtDuration(plan.lo)}–{fmtDuration(plan.hi)}</b> to find <b>~{plan.expectedEmails} leads with email</b> (scanning <b>{plan.actualScan}</b> companies across <b>{combos}</b> search{combos > 1 ? "es" : ""}).</>
+                <>~<b>{plan.expectedEmails} leads with email</b>, about <b>{fmtDuration(plan.lo)}–{fmtDuration(plan.hi)}</b>.</>
               ) : (
-                <>Estimated <b>{fmtDuration(plan.lo)}–{fmtDuration(plan.hi)}</b> to list <b>{plan.actualScan}</b> companies across <b>{combos}</b> search{combos > 1 ? "es" : ""}.</>
+                <>~<b>{plan.actualScan} companies</b>, about <b>{fmtDuration(plan.lo)}–{fmtDuration(plan.hi)}</b>.</>
               )}
             </span>
           </div>
           {plan.capped ? (
             <div className={styles.estimateNote}>
-              Google caps each search at ~60 companies, so this can find about {plan.expectedEmails} with email. Add more cities or categories to get more.
+              Google caps each search at ~60 companies. Add more cities or categories for more.
             </div>
           ) : null}
-          <div className={styles.estimateNote}>
-            Runs in your browser — keep this tab open. It also continues automatically every hour once the cron migration is applied.
-          </div>
+          <div className={styles.estimateNote}>Keep this tab open while it runs.</div>
         </div>
 
         <div className={styles.modalActions}>
