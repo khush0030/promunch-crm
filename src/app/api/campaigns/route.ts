@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
-import { parseBody } from '@/lib/api-helpers';
+import { parseBody, intParam } from '@/lib/api-helpers';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || '';
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '50');
+  const page = intParam(searchParams.get('page'), 1, 1);
+  const limit = intParam(searchParams.get('limit'), 50, 1, 100);
   const offset = (page - 1) * limit;
 
   let query = supabase

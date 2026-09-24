@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
-import { parseBody, sanitizeSearch } from '@/lib/api-helpers';
+import { parseBody, intParam } from '@/lib/api-helpers';
+import { ilikeContains } from '@/lib/inbox/search';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '50');
+  const page = intParam(searchParams.get('page'), 1, 1);
+  const limit = intParam(searchParams.get('limit'), 50, 1, 100);
   const search = searchParams.get('search') || '';
   const status = searchParams.get('status') || '';
   const tag = searchParams.get('tag') || '';
   const list = searchParams.get('list') || '';
   const segment = searchParams.get('segment') || '';
-  const minOrders = parseInt(searchParams.get('minOrders') || '0');
-  const maxOrders = parseInt(searchParams.get('maxOrders') || '0');
+  const minOrders = intParam(searchParams.get('minOrders'), 0);
+  const maxOrders = intParam(searchParams.get('maxOrders'), 0);
   const minLtv = parseFloat(searchParams.get('minLtv') || '0');
   const maxLtv = parseFloat(searchParams.get('maxLtv') || '0');
   const lastOrderDays = parseInt(searchParams.get('lastOrderDays') || '0');
@@ -41,9 +42,9 @@ export async function GET(request: NextRequest) {
 
   if (search) {
     // strip PostgREST or() syntax chars so user input can't break the filter
-    const safe = sanitizeSearch(search);
-    if (safe) {
-      query = query.or(`email.ilike.%${safe}%,first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,phone.ilike.%${safe}%`);
+    const like = ilikeContains(search);
+    if (like) {
+      query = query.or(`email.ilike.${like},first_name.ilike.${like},last_name.ilike.${like},phone.ilike.${like}`);
     }
   }
 

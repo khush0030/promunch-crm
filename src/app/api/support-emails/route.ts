@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { sanitizeSearch } from "@/lib/api-helpers";
+import { ilikeContains } from "@/lib/inbox/search";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -22,8 +22,8 @@ export async function GET(req: NextRequest) {
   if (status) q = q.eq("status", status);
   if (leadCategory) q = q.eq("lead_category", leadCategory);
   if (search) {
-    const safe = sanitizeSearch(search);
-    if (safe) q = q.or(`from_email.ilike.%${safe}%,from_name.ilike.%${safe}%,subject.ilike.%${safe}%`);
+    const like = ilikeContains(search);
+    if (like) q = q.or(`from_email.ilike.${like},from_name.ilike.${like},subject.ilike.${like}`);
   }
 
   const { data, count, error } = await q;

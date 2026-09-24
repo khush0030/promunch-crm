@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSession } from '@/lib/leads/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { sanitizeSearch } from '@/lib/api-helpers';
+import { ilikeContains } from '@/lib/inbox/search';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,8 +43,8 @@ export async function GET(req: NextRequest) {
   if (classification && CLASSES.includes(classification)) query = query.eq('classification', classification);
   if (stage && STAGES.includes(stage)) query = query.eq('collab_stage', stage);
   if (q) {
-    const safe = sanitizeSearch(q);
-    if (safe) query = query.or(`handle.ilike.%${safe}%,full_name.ilike.%${safe}%,last_message_snippet.ilike.%${safe}%`);
+    const like = ilikeContains(q);
+    if (like) query = query.or(`handle.ilike.${like},full_name.ilike.${like},last_message_snippet.ilike.${like}`);
   }
 
   const [{ data: threads, count, error }, classCounts, stageCounts, settings] = await Promise.all([

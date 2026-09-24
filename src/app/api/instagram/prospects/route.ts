@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSession } from '@/lib/leads/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { sanitizeSearch } from '@/lib/api-helpers';
+import { ilikeContains } from '@/lib/inbox/search';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,12 +47,12 @@ export async function GET(req: NextRequest) {
   if (Number.isFinite(minFit)) query = query.gte('fit_score', minFit);
   if (hasEmail) query = query.not('bio_email', 'is', null);
   if (niche) {
-    const safe = sanitizeSearch(niche);
-    if (safe) query = query.ilike('niche', `%${safe}%`);
+    const trimmed = niche.trim();
+    if (trimmed) query = query.ilike('niche', `%${trimmed.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
   }
   if (q) {
-    const safe = sanitizeSearch(q);
-    if (safe) query = query.or(`handle.ilike.%${safe}%,full_name.ilike.%${safe}%,biography.ilike.%${safe}%`);
+    const like = ilikeContains(q);
+    if (like) query = query.or(`handle.ilike.${like},full_name.ilike.${like},biography.ilike.${like}`);
   }
 
   const { data: prospects, count, error } = await query;

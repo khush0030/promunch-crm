@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
+import { intParam } from '@/lib/api-helpers';
 
 // CSV export of the contact list, honouring the same filters as GET
 // /api/contacts (filter logic intentionally mirrored — keep the two in sync).
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
   const tag = searchParams.get('tag') || '';
   const list = searchParams.get('list') || '';
   const segment = searchParams.get('segment') || '';
-  const minOrders = parseInt(searchParams.get('minOrders') || '0');
+  const minOrders = intParam(searchParams.get('minOrders'), 0);
   const minLtv = parseFloat(searchParams.get('minLtv') || '0');
   const lastOrderDays = parseInt(searchParams.get('lastOrderDays') || '0');
   const lastOrderOp = searchParams.get('lastOrderOp') || 'within';
