@@ -47,7 +47,17 @@ describe("shell nav", () => {
     expect(visibleItems(marketing).map((it) => it.label)).toEqual([
       "WhatsApp campaigns", "WhatsApp automations", "Email (Brevo)", "Audience", "WhatsApp templates", "WhatsApp popup",
     ]);
-    for (const h of NAV) expect(visibleItems(h).length).toBeGreaterThanOrEqual(3);
+    // Partners is down to 2 while Creators (Instagram) is hidden; restore it
+    // to the >= 3 rule when Creators comes back.
+    for (const h of NAV) {
+      expect(visibleItems(h).length).toBeGreaterThanOrEqual(h.hub === "Partners" ? 2 : 3);
+    }
+  });
+
+  it("hides Instagram until its backend is live", () => {
+    const partners = NAV.find((h) => h.hub === "Partners")!;
+    expect(partners.items.map((it) => it.label)).toEqual(["B2B leads", "Deals"]);
+    expect(NAV.flatMap((h) => h.items).some((it) => it.href.startsWith("/dashboard/instagram"))).toBe(false);
   });
 
   it("previews the first few visible items of a hub", () => {

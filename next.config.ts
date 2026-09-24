@@ -35,6 +35,19 @@ const nextConfig: NextConfig = {
         destination: "/dashboard/sales/orders",
         permanent: false,
       },
+      // Instagram is hidden until its backend is live (its tables were never
+      // migrated in prod, so the page only errors). Temporary: remove this with
+      // the Creators nav entry when Instagram ships.
+      {
+        source: "/dashboard/instagram",
+        destination: "/dashboard",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/instagram/:path*",
+        destination: "/dashboard",
+        permanent: false,
+      },
       // Inbox hub (Phase 2): old WhatsApp/support-email URLs redirect to the
       // unified /dashboard/inbox routes. Order matters — the thread-link
       // rules must come before the bare-path fallback, and tab=campaigns/

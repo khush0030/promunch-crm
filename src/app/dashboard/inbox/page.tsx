@@ -214,7 +214,7 @@ function InboxPageInner() {
     >
       <option value="all">All channels</option>
       <option value="wa">WhatsApp</option>
-      <option value="ig">Instagram</option>
+      {/* Instagram hidden until its backend is live; see nav.ts Partners hub. */}
       <option value="em">Email</option>
     </select>
   );
