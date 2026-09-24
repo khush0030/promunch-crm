@@ -1,0 +1,17 @@
+/* Typography directions use native fonts, with explicit cross-platform fallbacks. */
+html[data-typography="modern"]{--ui-font:"Avenir Next",Avenir,"Segoe UI",sans-serif;--heading-font:var(--ui-font)}
+html[data-typography="system"]{--ui-font:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--heading-font:var(--ui-font)}
+html[data-typography="editorial"]{--ui-font:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--heading-font:Georgia,"Times New Roman",serif}
+html[data-typography] body{font-family:var(--ui-font)!important;font-size:15px;line-height:1.55}
+html[data-typography] :is(button,input,select,textarea){font-family:var(--ui-font)!important}
+html[data-typography] :is(h1,h2,h3){font-family:var(--heading-font)!important}
+html[data-typography] .main{max-width:none!important;width:100%;min-width:0}
+html[data-typography] .pagehead h1{font-size:32px!important;font-weight:750;letter-spacing:-.8px}
+html[data-typography] .panelhead h2{font-size:17px!important;font-weight:700}
+html[data-typography] .sidebar .navlink{font-size:14px!important;font-weight:600}
+html[data-typography] td{font-size:14px!important;line-height:1.6}
+html[data-typography] th{font-size:12px!important;font-weight:700}
+html[data-typography] .tabs a{font-size:14px!important;font-weight:650}
+html[data-typography="editorial"] .pagehead h1{font-size:35px!important;font-weight:700;letter-spacing:-1px}
+html[data-typography="editorial"] .panelhead h2{font-size:19px!important}
+@media(max-width:760px){html[data-typography] .pagehead h1{font-size:28px!important}html[data-typography] .panelhead h2{font-size:16px!important}}

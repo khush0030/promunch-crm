@@ -50,3 +50,7 @@ contacts_*.csv
 
 # Local credentials — never commit
 PM-CRM_GKeys.json
+
+# tool scratch output — regenerated, never committed
+.playwright-mcp/
+.codex/

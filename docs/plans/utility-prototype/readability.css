@@ -1,0 +1,67 @@
+/* Readable content density at desktop size, with breathing room around groups. */
+html[data-typography] body{--muted:#555563;font-size:16px;color:#302d38}
+html[data-typography] .main{max-width:none!important;width:100%;margin:0!important;padding:28px 24px 48px}
+html[data-typography] :is(small,.muted,.meta,.page-description,.detail small,.issue .copy small,.product small,.chatlist small,.context small,.callout,.channel-intro,.channel-stats span,.channel-comparison,.chart-caption){font-size:14px!important;line-height:1.6;color:#555563}
+html[data-typography] .kpi small{font-size:14px!important;line-height:1.5}
+html[data-typography] .kpi strong{font-size:36px!important}
+html[data-typography] .kpi .name{font-size:16px!important;font-weight:650}
+html[data-typography] :is(td,.detail strong,.issue .copy strong,.product b){font-size:16px!important}
+html[data-typography] :is(th,.badge,.btn,button,.tabs a,.filterlabel){font-size:14px!important}
+html[data-typography] .panelhead h2{font-size:20px!important}
+html[data-typography] .panelhead{padding:18px 24px}
+html[data-typography] .panelbody{padding:24px}
+html[data-typography] .issue{gap:18px;padding:20px 0;justify-content:flex-start}
+html[data-typography] .issue .copy{flex:0 1 780px}
+html[data-typography] .issue>.btn{margin-left:0}
+html[data-typography] .navigation-context{font-size:13px;color:#555563}
+html[data-typography] .navigation-context a{color:#655363}
+html[data-typography] .barrow{grid-template-columns:130px minmax(60px,1fr) 100px;gap:18px}
+.revenue-visual{width:100%;max-width:none;margin:0;text-align:left}.revenue-explanation{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:24px}.revenue-explanation strong{font-size:18px}.revenue-explanation span,.revenue-footnote{font-size:14px;color:#555563}.revenue-columns{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:20px}.revenue-day{text-align:left;font-size:14px;font-variant-numeric:tabular-nums}.revenue-day b{font-size:17px}.revenue-track{height:130px;display:flex;align-items:flex-end;justify-content:flex-start;margin:10px 0;border-bottom:1px solid #dce2e8}.revenue-track span{width:65%;max-width:70px;background:#16869b;border-radius:6px 6px 0 0}.revenue-footnote{margin:18px 0 0}.aov-feature>span{font-size:16px;color:#555563}.aov-feature>strong{display:block;font-size:40px;line-height:1.3;margin:8px 0;color:#285a49}.aov-feature p{font-size:15px;color:#555563}
+html[data-typography] .inbox{grid-template-columns:260px minmax(0,1fr) 280px}
+html[data-typography] .chatheader{padding:20px;font-size:17px}
+html[data-typography] .messages{padding:24px;display:flex;flex-direction:column;gap:16px;min-height:240px}
+html[data-typography] .bubble{width:fit-content;max-width:78%;font-size:17px!important;line-height:1.65;padding:16px 20px;border-radius:16px;margin:0}
+html[data-typography] .bubble.out{align-self:flex-end}
+html[data-typography] .composer{padding:24px;background:#faf9fb;border-top:1px solid #e5e1e7}
+html[data-typography] .composer .field{font-size:16px;margin-bottom:16px}
+html[data-typography] .writing-surface{border:1px solid #c9c4ce;border-radius:18px;box-shadow:0 4px 18px #34253908;background:white}
+html[data-typography] .writing-header{padding:14px 18px;background:white;border-bottom:1px solid #eeeaf0;font-size:14px;color:#514759}
+html[data-typography] .writing-header>span:last-child{background:#f0edf3;padding:3px 10px;border-radius:20px;font-size:12px}
+html[data-typography] .writing-surface textarea{font-family:var(--ui-font);font-size:17px!important;line-height:1.7;padding:18px 20px;min-height:140px;background:white!important;color:#302d38}
+html[data-typography] .writing-surface textarea::placeholder{color:#696270;opacity:1}
+html[data-typography] .writing-footer{padding:12px 18px;background:#faf9fb;color:#62596a;font-size:13px}
+html[data-typography] .chatlist a{padding:20px 16px}
+html[data-typography] .context{padding:22px}
+@media(max-width:1100px){html[data-typography] .inbox{grid-template-columns:210px minmax(0,1fr)}html[data-typography] .inbox>.context{grid-column:1/-1}.revenue-columns{gap:10px}}
+@media(max-width:760px){html[data-typography] .main{padding:20px 16px 96px}html[data-typography] .panelbody{padding:18px}html[data-typography] .panelhead{padding:16px 18px}html[data-typography] .inbox{display:block}.revenue-columns{gap:6px}.revenue-day b{font-size:11px}.revenue-day{font-size:12px}.revenue-track{height:100px}.revenue-explanation span,.revenue-footnote{font-size:13px}.revenue-track span{width:80%}html[data-typography] .composer{padding:16px}html[data-typography] .bubble{max-width:95%}html[data-typography] .barrow{grid-template-columns:95px minmax(35px,1fr) 72px;gap:8px}}
+
+/* Contrast belongs to the surface, never a blanket gray on colored cards. */
+html[data-typography] body[data-design="bold"] .kpi:first-child :is(small,.name,.metric-caption,.mix-labels,.mix-labels span){color:#fff!important;opacity:1!important}
+html[data-typography] body[data-design="bold"] .kpi:nth-child(2) :is(small,.name,.metric-caption){color:#294e57!important;opacity:1!important}
+html[data-typography] body[data-design="bold"] .kpi:nth-child(3) :is(small,.name,.metric-caption){color:#594710!important;opacity:1!important}
+html[data-typography] body[data-design="bold"] .kpi:nth-child(4) :is(small,.name,.metric-caption){color:#315d48!important;opacity:1!important}
+html[data-typography] :is(.page-description,.freshness,.detail small,.issue .copy small,.product small,.chatlist small,.context small,.navigation-context,.writing-footer,.channel-intro,.revenue-footnote,.revenue-explanation>span){color:#4d4d5b!important;opacity:1!important}
+html[data-typography] :is(.metric-caption,.mix-labels span){font-size:14px!important;line-height:1.5;opacity:1!important}
+html[data-typography] :is(.pagehead,.panelhead,.panelbody,.kpi,.detail,.issue .copy){text-align:left}
+html[data-typography] .source-total :is(small,strong){text-align:left}
+html[data-typography] .sidebar summary{color:#514955!important}
+html[data-typography] :is(.top .meta,.notice,.chart-caption,.source-legend,.filterlabel){color:#50515f!important;opacity:1!important}
+html[data-typography] .kpi:first-child .channel-mix{outline:1px solid #ffffff75;outline-offset:3px}
+html[data-typography] .kpi:first-child .channel-mix span:nth-child(2){box-shadow:inset 0 0 0 1px #ffffffb3}
+
+/* Compact navigation and paired sales charts. */
+html[data-typography] .sidebar .navlink{font-size:13px!important;line-height:1.4;min-height:34px;padding:7px 9px;margin:1px 0;font-weight:550}
+html[data-typography] .sidebar .navlink.on{font-weight:700}
+html[data-typography] .sidebar>details{margin:4px 0;padding-top:2px}
+html[data-typography] .sidebar>details>summary{min-height:34px;padding:7px 9px;font-size:10px!important;letter-spacing:.6px}
+html[data-typography] .sidebar .nav-directory{margin:5px 0 12px;padding:9px;font-size:12px}
+.sales-chart-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-bottom:20px;align-items:stretch}
+.sales-chart-pair .panel{margin:0!important}
+.sales-chart-pair .revenue-explanation{margin-bottom:18px}
+.sales-chart-pair .revenue-columns{gap:12px}
+.sales-chart-pair .revenue-day b{font-size:14px}
+.sales-chart-pair .revenue-track{height:110px}
+.sales-chart-pair .barrow{margin:18px 0}
+@media(max-width:1000px){.sales-chart-pair{grid-template-columns:1fr}}
+/* Maya is a full-width business workspace with readable evidence. */
+body .maya-workspace{max-width:none;margin:0;min-height:650px}.maya-core-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:28px}.maya-context{margin-top:24px;background:white;border:1px solid #dce1e7;border-radius:14px;padding:22px;align-self:start}.maya-context h2{font-size:21px;margin:14px 0}.maya-context p,.maya-data-row span{font-size:14px;line-height:1.6;color:#4d4d5b}.maya-data-row{border-bottom:1px solid #e7e9ed;padding:16px 0}.maya-data-row b,.maya-data-row span{display:block}.maya-data-row b{font-size:15px;margin-bottom:5px}body .maya-welcome{max-width:none;text-align:left;margin:28px 0}body .maya-hero-mark{margin:0 0 20px}body .maya-transcript{max-width:none;margin:24px 0}body .maya-compose-wrap{width:calc(100% - 328px);margin:0}body .maya-followups{max-width:none;margin:14px 0}body .maya-prompts{grid-template-columns:repeat(2,minmax(0,1fr))}body .maya-prompts b{font-size:16px}body .maya-prompts small{font-size:14px;color:#4d4d5b}body .maya-welcome>p,body .maya-answer>p{font-size:16px;color:#4d4d5b;max-width:none}body .maya-identity small,body .maya-stats small,body .maya-stats span,body .maya-footnote,body .maya-takeaway,body .maya-source,body .maya-disclaimer{font-size:14px;color:#4d4d5b}body .maya-stats strong{font-size:28px}body .maya-answer-tag,body .maya-eyebrow{color:#745262;font-size:12px}body #maya-question{font-size:16px;font-family:inherit}body #maya-question::placeholder{color:#62616c}.maya-analysis-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0}.maya-analysis-grid section{border:1px solid #dce1e7;border-radius:12px;padding:18px;background:white}.maya-analysis-grid h3{font-size:17px;margin:0 0 10px}.maya-analysis-grid p{font-size:15px;color:#4d4d5b;line-height:1.65;margin:0}@media(max-width:1100px){.maya-core-layout{grid-template-columns:1fr}.maya-context{display:none}body .maya-compose-wrap{width:100%}}@media(max-width:600px){.maya-analysis-grid{grid-template-columns:1fr}body .maya-prompts{grid-template-columns:1fr}body .maya-welcome h2{font-size:28px}.top .maya-global{font-size:12px}}

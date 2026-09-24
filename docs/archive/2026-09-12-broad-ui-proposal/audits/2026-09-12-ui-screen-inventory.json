@@ -1,0 +1,1190 @@
+[
+  {
+    "id": "S001",
+    "module": "Access & shell",
+    "name": "Sign in",
+    "kind": "Existing",
+    "source": "src/app/login/page.tsx; src/app/auth/set-password/page.tsx; src/components/Sidebar.tsx; src/components/Onboarding.tsx; src/app/global-error.tsx; src/app/dashboard/error.tsx; src/app/u/[token]/page.tsx",
+    "plan": "Use current red wordmark, email and password, one Sign in action; secondary magic-link and account creation links.",
+    "mobile": "Single column; visible labels; 48px primary controls; preserve destination after login."
+  },
+  {
+    "id": "S002",
+    "module": "Access & shell",
+    "name": "Create account",
+    "kind": "Existing",
+    "source": "src/app/login/page.tsx; src/app/auth/set-password/page.tsx; src/components/Sidebar.tsx; src/components/Onboarding.tsx; src/app/global-error.tsx; src/app/dashboard/error.tsx; src/app/u/[token]/page.tsx",
+    "plan": "Name, allowed work email, password and validation in one compact form; show confirmation-required outcome explicitly.",
+    "mobile": "Single column; visible labels; 48px primary controls; preserve destination after login."
+  },
+  {
+    "id": "S003",
+    "module": "Access & shell",
+    "name": "Magic-link request & sent confirmation",
+    "kind": "Existing",
+    "source": "src/app/login/page.tsx; src/app/auth/set-password/page.tsx; src/components/Sidebar.tsx; src/components/Onboarding.tsx; src/app/global-error.tsx; src/app/dashboard/error.tsx; src/app/u/[token]/page.tsx",
+    "plan": "Explain email delivery, show destination address, allow retry with pending state and return to sign in.",
+    "mobile": "Single column; visible labels; 48px primary controls; preserve destination after login."
+  },
+  {
+    "id": "S004",
+    "module": "Access & shell",
+    "name": "Invitation / set password",
+    "kind": "Existing",
+    "source": "src/app/login/page.tsx; src/app/auth/set-password/page.tsx; src/components/Sidebar.tsx; src/components/Onboarding.tsx; src/app/global-error.tsx; src/app/dashboard/error.tsx; src/app/u/[token]/page.tsx",
+    "plan": "Valid, expired, missing-session, weak-password, saving and success states; preserve existing invitation handling.",
+    "mobile": "Single column; visible labels; 48px primary controls; preserve destination after login."
+  },
+  {
+    "id": "S005",
+    "module": "Access & shell",
+    "name": "Root & auth callback redirects",
+    "kind": "Existing",
+    "source": "src/app/login/page.tsx; src/app/auth/set-password/page.tsx; src/components/Sidebar.tsx; src/components/Onboarding.tsx; src/app/global-error.tsx; src/app/dashboard/error.tsx; src/app/u/[token]/page.tsx",
+    "plan": "Preserve / and /auth/callback navigation; expose recoverable auth errors without blank intermediate screens.",
+    "mobile": "Single column; visible labels; 48px primary controls; preserve destination after login."
+  },
+  {
+    "id": "S006",
+    "module": "Access & shell",
+    "name": "Desktop navigation & account menu",
+    "kind": "Existing",
+    "source": "src/app/login/page.tsx; src/app/auth/set-password/page.tsx; src/components/Sidebar.tsx; src/components/Onboarding.tsx; src/app/global-error.tsx; src/app/dashboard/error.tsx; src/app/u/[token]/page.tsx",
+    "plan": "Current wordmark, grouped navigation, one active location, account and Help; move diagnostics into Settings.",
+    "mobile": "Single column; visible labels; 48px primary controls; preserve destination after login."
+  },
+  {
+    "id": "S007",
+    "module": "Access & shell",
+    "name": "Mobile navigation",
+    "kind": "Existing",
+    "source": "src/app/login/page.tsx; src/app/auth/set-password/page.tsx; src/components/Sidebar.tsx; src/components/Onboarding.tsx; src/app/global-error.tsx; src/app/dashboard/error.tsx; src/app/u/[token]/page.tsx",
+    "plan": "Home, Inbox, Orders, More shortcuts; complete grouped menu under More; modal focus handling and route restoration.",
+    "mobile": "Single column; visible labels; 48px primary controls; preserve destination after login."
+  },
+  {
+    "id": "S008",
+    "module": "Access & shell",
+    "name": "Help & onboarding tour",
+    "kind": "Existing",
+    "source": "src/app/login/page.tsx; src/app/auth/set-password/page.tsx; src/components/Sidebar.tsx; src/components/Onboarding.tsx; src/app/global-error.tsx; src/app/dashboard/error.tsx; src/app/u/[token]/page.tsx",
+    "plan": "Task-based help; resumable tour with skip and close; anchor mobile steps to visible controls.",
+    "mobile": "Single column; visible labels; 48px primary controls; preserve destination after login."
+  },
+  {
+    "id": "S009",
+    "module": "Access & shell",
+    "name": "Notifications & sound preferences",
+    "kind": "Existing",
+    "source": "src/app/login/page.tsx; src/app/auth/set-password/page.tsx; src/components/Sidebar.tsx; src/components/Onboarding.tsx; src/app/global-error.tsx; src/app/dashboard/error.tsx; src/app/u/[token]/page.tsx",
+    "plan": "Plain unread/needs-attention meanings; sound selector and browser-permission states; settings in account menu.",
+    "mobile": "Single column; visible labels; 48px primary controls; preserve destination after login."
+  },
+  {
+    "id": "S010",
+    "module": "Access & shell",
+    "name": "Page loading / recoverable error / global error",
+    "kind": "Existing",
+    "source": "src/app/login/page.tsx; src/app/auth/set-password/page.tsx; src/components/Sidebar.tsx; src/components/Onboarding.tsx; src/app/global-error.tsx; src/app/dashboard/error.tsx; src/app/u/[token]/page.tsx",
+    "plan": "Consistent skeleton, useful error and Retry; session expiry, offline, empty and forbidden remain distinguishable.",
+    "mobile": "Single column; visible labels; 48px primary controls; preserve destination after login."
+  },
+  {
+    "id": "S011",
+    "module": "Access & shell",
+    "name": "Unsubscribe success & invalid link",
+    "kind": "Existing",
+    "source": "src/app/login/page.tsx; src/app/auth/set-password/page.tsx; src/components/Sidebar.tsx; src/components/Onboarding.tsx; src/app/global-error.tsx; src/app/dashboard/error.tsx; src/app/u/[token]/page.tsx",
+    "plan": "Current brand, clear email opt-out outcome; preserve idempotent behavior and no-login access.",
+    "mobile": "Single column; visible labels; 48px primary controls; preserve destination after login."
+  },
+  {
+    "id": "S012",
+    "module": "Access & shell",
+    "name": "Unknown route / unavailable record",
+    "kind": "Proposed",
+    "source": "src/app/login/page.tsx; src/app/auth/set-password/page.tsx; src/components/Sidebar.tsx; src/components/Onboarding.tsx; src/app/global-error.tsx; src/app/dashboard/error.tsx; src/app/u/[token]/page.tsx",
+    "plan": "Branded not-found state with Back and relevant list link; distinguish deleted, denied and failed-to-load records.",
+    "mobile": "Single column; visible labels; 48px primary controls; preserve destination after login."
+  },
+  {
+    "id": "S013",
+    "module": "Home",
+    "name": "Daily overview",
+    "kind": "Existing",
+    "source": "src/app/dashboard/page.tsx; src/components/NeedsAttention.tsx; src/components/ConnectorBanner.tsx",
+    "plan": "Limit opening view to task queue and four period-labelled metrics; remove decorative sparklines and generated trend data.",
+    "mobile": "Needs attention first; two compact metrics per row; reports below tasks."
+  },
+  {
+    "id": "S014",
+    "module": "Home",
+    "name": "Needs attention queue",
+    "kind": "Existing",
+    "source": "src/app/dashboard/page.tsx; src/components/NeedsAttention.tsx; src/components/ConnectorBanner.tsx",
+    "plan": "Group missing confirmations, failed sends, urgent emails and tickets by required action; cap preview to five rows with View all.",
+    "mobile": "Needs attention first; two compact metrics per row; reports below tasks."
+  },
+  {
+    "id": "S015",
+    "module": "Home",
+    "name": "Revenue & channel performance",
+    "kind": "Existing",
+    "source": "src/app/dashboard/page.tsx; src/components/NeedsAttention.tsx; src/components/ConnectorBanner.tsx",
+    "plan": "Use real dated series only; one chart plus channel summary; label Shopify/Amazon periods and gross/net basis.",
+    "mobile": "Needs attention first; two compact metrics per row; reports below tasks."
+  },
+  {
+    "id": "S016",
+    "module": "Home",
+    "name": "Operations & channel health",
+    "kind": "Existing",
+    "source": "src/app/dashboard/page.tsx; src/components/NeedsAttention.tsx; src/components/ConnectorBanner.tsx",
+    "plan": "Compact current status; expand details on demand; never hardcode healthy when no telemetry supports it.",
+    "mobile": "Needs attention first; two compact metrics per row; reports below tasks."
+  },
+  {
+    "id": "S017",
+    "module": "Home",
+    "name": "Full attention list",
+    "kind": "Proposed",
+    "source": "src/app/dashboard/page.tsx; src/components/NeedsAttention.tsx; src/components/ConnectorBanner.tsx",
+    "plan": "Dedicated filtered worklist linked from Home, with owner, age and one next action per item.",
+    "mobile": "Needs attention first; two compact metrics per row; reports below tasks."
+  },
+  {
+    "id": "S018",
+    "module": "Amazon",
+    "name": "Amazon overview",
+    "kind": "Existing, reorganized",
+    "source": "src/app/dashboard/amazon/page.tsx",
+    "plan": "Gross sales, fees, net payout and stock alerts only; use one selected period and per-source freshness; move long tables to dedicated sections.",
+    "mobile": "Section selector replaces long tabs; summary cards open full-screen detail; primary work never requires sideways scrolling."
+  },
+  {
+    "id": "S019",
+    "module": "Amazon",
+    "name": "Inventory & stock risk",
+    "kind": "Existing, reorganized",
+    "source": "src/app/dashboard/amazon/page.tsx",
+    "plan": "Product, fulfillable units, days of cover, inbound and risk; consolidate duplicate low-stock panels; show modelled loss as an estimate.",
+    "mobile": "Section selector replaces long tabs; summary cards open full-screen detail; primary work never requires sideways scrolling."
+  },
+  {
+    "id": "S020",
+    "module": "Amazon",
+    "name": "SKU economics",
+    "kind": "Existing, reorganized",
+    "source": "src/app/dashboard/amazon/page.tsx",
+    "plan": "Default columns Product, units, net per unit, landed cost, estimated contribution; secondary fees in detail; explicitly fixed 90-day window.",
+    "mobile": "Section selector replaces long tabs; summary cards open full-screen detail; primary work never requires sideways scrolling."
+  },
+  {
+    "id": "S021",
+    "module": "Amazon",
+    "name": "SKU detail & fee breakdown",
+    "kind": "Proposed",
+    "source": "src/app/dashboard/amazon/page.tsx",
+    "plan": "Expose referral/FBA/closing/other fees on tap, alongside full product name, SKU, refunds, velocity basis and missing-cost explanation.",
+    "mobile": "Section selector replaces long tabs; summary cards open full-screen detail; primary work never requires sideways scrolling."
+  },
+  {
+    "id": "S022",
+    "module": "Amazon",
+    "name": "Edit landed cost (COGS)",
+    "kind": "Existing, reorganized",
+    "source": "src/app/dashboard/amazon/page.tsx",
+    "plan": "Move inline field to focused edit sheet with currency/unit label, Save/Cancel, validation and unsaved state; preserve current calculation.",
+    "mobile": "Section selector replaces long tabs; summary cards open full-screen detail; primary work never requires sideways scrolling."
+  },
+  {
+    "id": "S023",
+    "module": "Amazon",
+    "name": "Settlements & reconciliation",
+    "kind": "Existing, reorganized",
+    "source": "src/app/dashboard/amazon/page.tsx",
+    "plan": "Separate settlement ledger and gross/net chart; label settlement period independently of finance-event period.",
+    "mobile": "Section selector replaces long tabs; summary cards open full-screen detail; primary work never requires sideways scrolling."
+  },
+  {
+    "id": "S024",
+    "module": "Amazon",
+    "name": "Settlement detail",
+    "kind": "Proposed",
+    "source": "src/app/dashboard/amazon/page.tsx",
+    "plan": "Readable breakdown of only fields already supplied; surface unreconciled/unknown values; do not invent bank-match functionality.",
+    "mobile": "Section selector replaces long tabs; summary cards open full-screen detail; primary work never requires sideways scrolling."
+  },
+  {
+    "id": "S025",
+    "module": "Amazon",
+    "name": "Recent orders",
+    "kind": "Existing, reorganized",
+    "source": "src/app/dashboard/amazon/page.tsx",
+    "plan": "Own section with order, date, fulfilment and amount; clearly label current recent-order limit; full history requires API pagination work.",
+    "mobile": "Section selector replaces long tabs; summary cards open full-screen detail; primary work never requires sideways scrolling."
+  },
+  {
+    "id": "S026",
+    "module": "Amazon",
+    "name": "Sync status & result",
+    "kind": "Existing, reorganized",
+    "source": "src/app/dashboard/amazon/page.tsx",
+    "plan": "Compact freshness control; show orders, inventory and finance timestamps separately; progress/failure beside sync action.",
+    "mobile": "Section selector replaces long tabs; summary cards open full-screen detail; primary work never requires sideways scrolling."
+  },
+  {
+    "id": "S027",
+    "module": "WhatsApp inbox",
+    "name": "Inbox & saved filters",
+    "kind": "Existing",
+    "source": "src/app/dashboard/whatsapp/page.tsx; src/components/whatsapp/InboxView.tsx; src/components/whatsapp/InboxNotifier.tsx",
+    "plan": "Conversation search, All/Mine/Unassigned, status and archive; preserve last_activity_at ordering; clear unread and human-required badges.",
+    "mobile": "One pane at a time: list \u2192 conversation \u2192 customer context; back restores list and draft; composer stays above keyboard."
+  },
+  {
+    "id": "S028",
+    "module": "WhatsApp inbox",
+    "name": "Conversation",
+    "kind": "Existing",
+    "source": "src/app/dashboard/whatsapp/page.tsx; src/components/whatsapp/InboxView.tsx; src/components/whatsapp/InboxNotifier.tsx",
+    "plan": "Quiet neutral canvas, legible messages, subtle outgoing tint, clear sender and delivery state; customer support tone in admin labels.",
+    "mobile": "One pane at a time: list \u2192 conversation \u2192 customer context; back restores list and draft; composer stays above keyboard."
+  },
+  {
+    "id": "S029",
+    "module": "WhatsApp inbox",
+    "name": "Customer & order context",
+    "kind": "Existing",
+    "source": "src/app/dashboard/whatsapp/page.tsx; src/components/whatsapp/InboxView.tsx; src/components/whatsapp/InboxNotifier.tsx",
+    "plan": "Identity, contact link, purchase context, consent, tags and tickets in collapsible side panel; full-screen context on phone.",
+    "mobile": "One pane at a time: list \u2192 conversation \u2192 customer context; back restores list and draft; composer stays above keyboard."
+  },
+  {
+    "id": "S030",
+    "module": "WhatsApp inbox",
+    "name": "Tickets worklist",
+    "kind": "Existing",
+    "source": "src/app/dashboard/whatsapp/page.tsx; src/components/whatsapp/InboxView.tsx; src/components/whatsapp/InboxNotifier.tsx",
+    "plan": "Open/pending/resolved/closed and urgency as text; rank next action and age; show ticket owner and related conversation.",
+    "mobile": "One pane at a time: list \u2192 conversation \u2192 customer context; back restores list and draft; composer stays above keyboard."
+  },
+  {
+    "id": "S031",
+    "module": "WhatsApp inbox",
+    "name": "Ticket handling / assignment / AI-human mode",
+    "kind": "Existing",
+    "source": "src/app/dashboard/whatsapp/page.tsx; src/components/whatsapp/InboxView.tsx; src/components/whatsapp/InboxNotifier.tsx",
+    "plan": "Keep assignment, status and handoff controls near identity; preserve backend behavior and permissions; make mode changes explicit.",
+    "mobile": "One pane at a time: list \u2192 conversation \u2192 customer context; back restores list and draft; composer stays above keyboard."
+  },
+  {
+    "id": "S032",
+    "module": "WhatsApp inbox",
+    "name": "Message composer & draft generation",
+    "kind": "Existing",
+    "source": "src/app/dashboard/whatsapp/page.tsx; src/components/whatsapp/InboxView.tsx; src/components/whatsapp/InboxNotifier.tsx",
+    "plan": "Visible Reply label, 16px text, separate draft generation from Send; preserve text across upload/error/navigation.",
+    "mobile": "One pane at a time: list \u2192 conversation \u2192 customer context; back restores list and draft; composer stays above keyboard."
+  },
+  {
+    "id": "S033",
+    "module": "WhatsApp inbox",
+    "name": "Template picker & variable preview",
+    "kind": "Existing",
+    "source": "src/app/dashboard/whatsapp/page.tsx; src/components/whatsapp/InboxView.tsx; src/components/whatsapp/InboxNotifier.tsx",
+    "plan": "Search approved templates, fill named variables, show rendered customer message before sending; clearly explain closed-window limitation.",
+    "mobile": "One pane at a time: list \u2192 conversation \u2192 customer context; back restores list and draft; composer stays above keyboard."
+  },
+  {
+    "id": "S034",
+    "module": "WhatsApp inbox",
+    "name": "Attachment upload, preview & media viewing",
+    "kind": "Existing",
+    "source": "src/app/dashboard/whatsapp/page.tsx; src/components/whatsapp/InboxView.tsx; src/components/whatsapp/InboxNotifier.tsx",
+    "plan": "Preview file before send; progress/retry/remove; image/audio/video/document surfaces with usable controls and accessible labels.",
+    "mobile": "One pane at a time: list \u2192 conversation \u2192 customer context; back restores list and draft; composer stays above keyboard."
+  },
+  {
+    "id": "S035",
+    "module": "WhatsApp inbox",
+    "name": "Share chat / archive / resolve",
+    "kind": "Existing",
+    "source": "src/app/dashboard/whatsapp/page.tsx; src/components/whatsapp/InboxView.tsx; src/components/whatsapp/InboxNotifier.tsx",
+    "plan": "Secondary action menu; copy confirmation and predictable history; archive undo only where backend supports safe reversal.",
+    "mobile": "One pane at a time: list \u2192 conversation \u2192 customer context; back restores list and draft; composer stays above keyboard."
+  },
+  {
+    "id": "S036",
+    "module": "WhatsApp inbox",
+    "name": "Opted-out / closed window / failed delivery",
+    "kind": "Existing",
+    "source": "src/app/dashboard/whatsapp/page.tsx; src/components/whatsapp/InboxView.tsx; src/components/whatsapp/InboxNotifier.tsx",
+    "plan": "Persistent reason beside composer; surface safe available actions and exact status; never use colour alone or imply send succeeded.",
+    "mobile": "One pane at a time: list \u2192 conversation \u2192 customer context; back restores list and draft; composer stays above keyboard."
+  },
+  {
+    "id": "S037",
+    "module": "WhatsApp inbox",
+    "name": "Connection health details",
+    "kind": "Existing",
+    "source": "src/app/dashboard/whatsapp/page.tsx; src/components/whatsapp/InboxView.tsx; src/components/whatsapp/InboxNotifier.tsx",
+    "plan": "One compact health control; expanded uptime, last inbound and failures in diagnostics view rather than permanent metrics strip.",
+    "mobile": "One pane at a time: list \u2192 conversation \u2192 customer context; back restores list and draft; composer stays above keyboard."
+  },
+  {
+    "id": "S038",
+    "module": "WhatsApp marketing",
+    "name": "Template library",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/TemplatesView.tsx; src/components/whatsapp/CampaignsView.tsx; src/components/whatsapp/AudienceHealthPanel.tsx",
+    "plan": "Compact searchable rows with name, purpose, category and approval status; preview on selection instead of all content expanded.",
+    "mobile": "Full-screen staged editors; audience and rendered message reviewed sequentially; all scheduling controls touch accessible."
+  },
+  {
+    "id": "S039",
+    "module": "WhatsApp marketing",
+    "name": "New / edit template",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/TemplatesView.tsx; src/components/whatsapp/CampaignsView.tsx; src/components/whatsapp/AudienceHealthPanel.tsx",
+    "plan": "Staged Content \u2192 Media & buttons \u2192 Preview \u2192 Submit; preserve Meta constraints, variable examples and edit mode.",
+    "mobile": "Full-screen staged editors; audience and rendered message reviewed sequentially; all scheduling controls touch accessible."
+  },
+  {
+    "id": "S040",
+    "module": "WhatsApp marketing",
+    "name": "Template media upload & approval result",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/TemplatesView.tsx; src/components/whatsapp/CampaignsView.tsx; src/components/whatsapp/AudienceHealthPanel.tsx",
+    "plan": "Upload/progress/error states; approved, pending, rejected and sync states with next action and available rejection reason.",
+    "mobile": "Full-screen staged editors; audience and rendered message reviewed sequentially; all scheduling controls touch accessible."
+  },
+  {
+    "id": "S041",
+    "module": "WhatsApp marketing",
+    "name": "Campaign list & status",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/TemplatesView.tsx; src/components/whatsapp/CampaignsView.tsx; src/components/whatsapp/AudienceHealthPanel.tsx",
+    "plan": "Draft/scheduled/running/paused/completed/failed presentation; summary counts; expand one campaign at a time.",
+    "mobile": "Full-screen staged editors; audience and rendered message reviewed sequentially; all scheduling controls touch accessible."
+  },
+  {
+    "id": "S042",
+    "module": "WhatsApp marketing",
+    "name": "Campaign detail & recipient log",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/TemplatesView.tsx; src/components/whatsapp/CampaignsView.tsx; src/components/whatsapp/AudienceHealthPanel.tsx",
+    "plan": "Progress funnel, schedule, controls and received/failed/duplicate recipient filters; distinguish exclusions from delivery failures.",
+    "mobile": "Full-screen staged editors; audience and rendered message reviewed sequentially; all scheduling controls touch accessible."
+  },
+  {
+    "id": "S043",
+    "module": "WhatsApp marketing",
+    "name": "Campaign edit / schedule / recurrence",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/TemplatesView.tsx; src/components/whatsapp/CampaignsView.tsx; src/components/whatsapp/AudienceHealthPanel.tsx",
+    "plan": "Focused edit view; show timezone, repeat rule and next send; never hide whether an action launches immediately.",
+    "mobile": "Full-screen staged editors; audience and rendered message reviewed sequentially; all scheduling controls touch accessible."
+  },
+  {
+    "id": "S044",
+    "module": "WhatsApp marketing",
+    "name": "New campaign: audience",
+    "kind": "Existing, reorganized",
+    "source": "src/components/whatsapp/TemplatesView.tsx; src/components/whatsapp/CampaignsView.tsx; src/components/whatsapp/AudienceHealthPanel.tsx",
+    "plan": "Show tier/segment/tags eligibility, consent exclusions and eligible count; retain existing audience rules and defaults.",
+    "mobile": "Full-screen staged editors; audience and rendered message reviewed sequentially; all scheduling controls touch accessible."
+  },
+  {
+    "id": "S045",
+    "module": "WhatsApp marketing",
+    "name": "New campaign: content & personalization",
+    "kind": "Existing, reorganized",
+    "source": "src/components/whatsapp/TemplatesView.tsx; src/components/whatsapp/CampaignsView.tsx; src/components/whatsapp/AudienceHealthPanel.tsx",
+    "plan": "Template, media, variables and AI personalization with exact preview; keep personalization changes reviewable.",
+    "mobile": "Full-screen staged editors; audience and rendered message reviewed sequentially; all scheduling controls touch accessible."
+  },
+  {
+    "id": "S046",
+    "module": "WhatsApp marketing",
+    "name": "New campaign: test / review / launch",
+    "kind": "Existing, reorganized",
+    "source": "src/components/whatsapp/TemplatesView.tsx; src/components/whatsapp/CampaignsView.tsx; src/components/whatsapp/AudienceHealthPanel.tsx",
+    "plan": "Recipient count, exclusions, sample, schedule and repeat in a review summary; explicit send control and pending/result states.",
+    "mobile": "Full-screen staged editors; audience and rendered message reviewed sequentially; all scheduling controls touch accessible."
+  },
+  {
+    "id": "S047",
+    "module": "WhatsApp marketing",
+    "name": "Contact import & CSV column mapping",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/TemplatesView.tsx; src/components/whatsapp/CampaignsView.tsx; src/components/whatsapp/AudienceHealthPanel.tsx",
+    "plan": "Separate import from campaign creation; preview phone/name/tags mappings, invalid rows, duplicates and consent provenance.",
+    "mobile": "Full-screen staged editors; audience and rendered message reviewed sequentially; all scheduling controls touch accessible."
+  },
+  {
+    "id": "S048",
+    "module": "WhatsApp marketing",
+    "name": "Audience quality",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/TemplatesView.tsx; src/components/whatsapp/CampaignsView.tsx; src/components/whatsapp/AudienceHealthPanel.tsx",
+    "plan": "Explain engaged versus imported contacts, suppression and delivery; preserve refresh states and distinguish disabled tiering from zero audience.",
+    "mobile": "Full-screen staged editors; audience and rendered message reviewed sequentially; all scheduling controls touch accessible."
+  },
+  {
+    "id": "S049",
+    "module": "WhatsApp automation & knowledge",
+    "name": "Automation library",
+    "kind": "Existing, reorganized",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Summarize flow name, trigger, state and last outcome; expand one flow for settings; preserve current journeys.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S050",
+    "module": "WhatsApp automation & knowledge",
+    "name": "Order confirmation automation",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Dedicated detail for enablement, template and timing; explain sent/delivered versus customer confirmation.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S051",
+    "module": "WhatsApp automation & knowledge",
+    "name": "COD confirmation gate",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Readable ordered reminder and needs-call steps; preserve gate timing and manual confirmation requirements.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S052",
+    "module": "WhatsApp automation & knowledge",
+    "name": "Shipping update automation",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Trigger and approved template settings; preserve Shopify order-status link source.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S053",
+    "module": "WhatsApp automation & knowledge",
+    "name": "Abandoned-cart recovery automation",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Show reminder/coupon sequence, stop conditions, active/recovered/expired outcomes and current templates in separate blocks.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S054",
+    "module": "WhatsApp automation & knowledge",
+    "name": "Voice rescue automation settings",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Show eligibility, delay, calling settings and status; link to Voice calls; existing customer contact rules remain intact.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S055",
+    "module": "WhatsApp automation & knowledge",
+    "name": "Review request automation",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Template, delay and skipped/cancelled outcomes in focused detail.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S056",
+    "module": "WhatsApp automation & knowledge",
+    "name": "Restock reminder automation",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Template, delay and outcome counts; no concurrent expanded journey diagrams.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S057",
+    "module": "WhatsApp automation & knowledge",
+    "name": "Custom flows: list / new / edit",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Name, supported trigger, ordered template/delay steps and saved state; separate review before activation.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S058",
+    "module": "WhatsApp automation & knowledge",
+    "name": "Voice calls list",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Contact, date, status, outcome and duration; filter/search; use plain names for raw provider statuses.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S059",
+    "module": "WhatsApp automation & knowledge",
+    "name": "Voice call detail / transcript / recording",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Outcome summary followed by transcript, recording and related cart/order; preserve masked list identity and do-not-call state.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S060",
+    "module": "WhatsApp automation & knowledge",
+    "name": "Voice sync & partial failure",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Explain syncing progress, stale dialing, partial do-not-call update failures and retry without treating errors as success.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S061",
+    "module": "WhatsApp automation & knowledge",
+    "name": "Growth: storefront popup editor",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Content, design, targeting/display and preview sections; desktop/mobile preview toggle; save and install kept distinct.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S062",
+    "module": "WhatsApp automation & knowledge",
+    "name": "Growth: WhatsApp widget editor",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Focused appearance/content form and preview; image upload, placement options and install feedback remain reachable.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S063",
+    "module": "WhatsApp automation & knowledge",
+    "name": "Knowledge library",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Searchable document list, upload status and source metadata; clarify documents feed the Master KB.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S064",
+    "module": "WhatsApp automation & knowledge",
+    "name": "Knowledge upload / paste / delete",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "File and manual-text intake, indexing progress, errors and remove confirmation; readable document title and content preview where available.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S065",
+    "module": "WhatsApp automation & knowledge",
+    "name": "WhatsApp analytics overview",
+    "kind": "Existing, reorganized",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Four primary delivery/reply/revenue metrics; funnel, attribution and delivery problems below in distinct sections.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S066",
+    "module": "WhatsApp automation & knowledge",
+    "name": "WhatsApp analytics details",
+    "kind": "Existing",
+    "source": "src/components/whatsapp/FlowsView.tsx; src/components/whatsapp/VoiceView.tsx; src/components/whatsapp/GrowthView.tsx; src/components/whatsapp/KbView.tsx; src/components/whatsapp/AnalyticsView.tsx",
+    "plan": "Retain campaign report cards, customer tiers, send-time view, live activity and failure categories behind drilldowns; explain each denominator.",
+    "mobile": "Vertical steps and full-screen detail; no sideways flow canvas requirement; previews toggled separately from form."
+  },
+  {
+    "id": "S067",
+    "module": "Email support",
+    "name": "Support inbox & filters",
+    "kind": "Existing",
+    "source": "src/app/dashboard/support-emails/page.tsx; src/app/dashboard/support-emails/[id]/page.tsx",
+    "plan": "Sender, subject, age, urgency and status; put scores and taxonomy in detail; filter drawer with active count.",
+    "mobile": "List \u2192 thread \u2192 sender context; email and reply full width; latest content first; fixed reply action does not obscure text."
+  },
+  {
+    "id": "S068",
+    "module": "Email support",
+    "name": "Support thread & incoming email",
+    "kind": "Existing",
+    "source": "src/app/dashboard/support-emails/page.tsx; src/app/dashboard/support-emails/[id]/page.tsx",
+    "plan": "Readable conversation chronology and attachments/content treatment; subject can wrap; source identity stays visible.",
+    "mobile": "List \u2192 thread \u2192 sender context; email and reply full width; latest content first; fixed reply action does not obscure text."
+  },
+  {
+    "id": "S069",
+    "module": "Email support",
+    "name": "AI draft: review / edit / rewrite / send",
+    "kind": "Existing",
+    "source": "src/app/dashboard/support-emails/page.tsx; src/app/dashboard/support-emails/[id]/page.tsx",
+    "plan": "Separate editable draft from received/sent messages; exact recipient and content review; preserve draft approval semantics.",
+    "mobile": "List \u2192 thread \u2192 sender context; email and reply full width; latest content first; fixed reply action does not obscure text."
+  },
+  {
+    "id": "S070",
+    "module": "Email support",
+    "name": "Sent replies & earlier revisions",
+    "kind": "Existing",
+    "source": "src/app/dashboard/support-emails/page.tsx; src/app/dashboard/support-emails/[id]/page.tsx",
+    "plan": "Latest reply visible; older revisions collapsed with timestamp and status, never confused with sent email.",
+    "mobile": "List \u2192 thread \u2192 sender context; email and reply full width; latest content first; fixed reply action does not obscure text."
+  },
+  {
+    "id": "S071",
+    "module": "Email support",
+    "name": "Sender context / handling guidance / add B2B lead",
+    "kind": "Existing",
+    "source": "src/app/dashboard/support-emails/page.tsx; src/app/dashboard/support-emails/[id]/page.tsx",
+    "plan": "Secondary context view; existing Add to B2B Leads action and status changes remain available.",
+    "mobile": "List \u2192 thread \u2192 sender context; email and reply full width; latest content first; fixed reply action does not obscure text."
+  },
+  {
+    "id": "S072",
+    "module": "Orders & Shopify",
+    "name": "Order confirmation worklist",
+    "kind": "Existing",
+    "source": "src/app/dashboard/order-confirmations/page.tsx; src/app/dashboard/shopify-attribution/page.tsx",
+    "plan": "Prioritize missing/failed/needs-call; distinguish notification Sent from COD Customer confirmed; show period and eligibility.",
+    "mobile": "Prioritized order cards; separate delivery and COD status lines; attribution tables become ranked lists."
+  },
+  {
+    "id": "S073",
+    "module": "Orders & Shopify",
+    "name": "Manual retry & bulk missing-send review",
+    "kind": "Existing",
+    "source": "src/app/dashboard/order-confirmations/page.tsx; src/app/dashboard/shopify-attribution/page.tsx",
+    "plan": "Display exact eligible order count, exclusions, pending state and outcome; retain atomic claims and no duplicate sends.",
+    "mobile": "Prioritized order cards; separate delivery and COD status lines; attribution tables become ranked lists."
+  },
+  {
+    "id": "S074",
+    "module": "Orders & Shopify",
+    "name": "COD action detail",
+    "kind": "Existing",
+    "source": "src/app/dashboard/order-confirmations/page.tsx; src/app/dashboard/shopify-attribution/page.tsx",
+    "plan": "Customer, order, gate state, reason and permitted next action; explicit confirmation for release/cancellation actions.",
+    "mobile": "Prioritized order cards; separate delivery and COD status lines; attribution tables become ranked lists."
+  },
+  {
+    "id": "S075",
+    "module": "Orders & Shopify",
+    "name": "Shopify overview",
+    "kind": "Existing",
+    "source": "src/app/dashboard/order-confirmations/page.tsx; src/app/dashboard/shopify-attribution/page.tsx",
+    "plan": "One selected-period summary, creator segment and coverage; move competing Today/7d/30d/All-time cards to comparison view.",
+    "mobile": "Prioritized order cards; separate delivery and COD status lines; attribution tables become ranked lists."
+  },
+  {
+    "id": "S076",
+    "module": "Orders & Shopify",
+    "name": "Shopify channels & attribution coverage",
+    "kind": "Existing",
+    "source": "src/app/dashboard/order-confirmations/page.tsx; src/app/dashboard/shopify-attribution/page.tsx",
+    "plan": "Ranked source table, revenue/orders/share and first-touch definition; explain unattributed versus zero sales.",
+    "mobile": "Prioritized order cards; separate delivery and COD status lines; attribution tables become ranked lists."
+  },
+  {
+    "id": "S077",
+    "module": "Orders & Shopify",
+    "name": "Shopify campaign & referrer reports",
+    "kind": "Existing",
+    "source": "src/app/dashboard/order-confirmations/page.tsx; src/app/dashboard/shopify-attribution/page.tsx",
+    "plan": "Dedicated drilldown for UTM campaigns and referrers; retain creator exclusion and consistent currency/period labels.",
+    "mobile": "Prioritized order cards; separate delivery and COD status lines; attribution tables become ranked lists."
+  },
+  {
+    "id": "S078",
+    "module": "Instagram",
+    "name": "Instagram inbox / needs human / spam",
+    "kind": "Existing",
+    "source": "src/app/dashboard/instagram/page.tsx; src/components/instagram/DiscoveryTab.tsx; src/components/instagram/PitchQueue.tsx; src/components/instagram/TasksTab.tsx",
+    "plan": "Inbox with saved filters rather than parallel product sections; clear classification and unread status.",
+    "mobile": "Single thread or candidate at a time; stage and filter selectors; no wide table dependence."
+  },
+  {
+    "id": "S079",
+    "module": "Instagram",
+    "name": "Instagram conversation & reply",
+    "kind": "Existing",
+    "source": "src/app/dashboard/instagram/page.tsx; src/components/instagram/DiscoveryTab.tsx; src/components/instagram/PitchQueue.tsx; src/components/instagram/TasksTab.tsx",
+    "plan": "Shared conversation layout; sender identity, classification, handoff/analyze controls and send pending/error.",
+    "mobile": "Single thread or candidate at a time; stage and filter selectors; no wide table dependence."
+  },
+  {
+    "id": "S080",
+    "module": "Instagram",
+    "name": "Collaboration pipeline",
+    "kind": "Existing",
+    "source": "src/app/dashboard/instagram/page.tsx; src/components/instagram/DiscoveryTab.tsx; src/components/instagram/PitchQueue.tsx; src/components/instagram/TasksTab.tsx",
+    "plan": "List/board with next step and creator; reduce classification jargon; details on selection.",
+    "mobile": "Single thread or candidate at a time; stage and filter selectors; no wide table dependence."
+  },
+  {
+    "id": "S081",
+    "module": "Instagram",
+    "name": "Discovery search / hashtag search",
+    "kind": "Existing",
+    "source": "src/app/dashboard/instagram/page.tsx; src/components/instagram/DiscoveryTab.tsx; src/components/instagram/PitchQueue.tsx; src/components/instagram/TasksTab.tsx",
+    "plan": "Focused query and eligibility form; explicit search progress and result count.",
+    "mobile": "Single thread or candidate at a time; stage and filter selectors; no wide table dependence."
+  },
+  {
+    "id": "S082",
+    "module": "Instagram",
+    "name": "Discovery candidate list & enrichment",
+    "kind": "Existing",
+    "source": "src/app/dashboard/instagram/page.tsx; src/components/instagram/DiscoveryTab.tsx; src/components/instagram/PitchQueue.tsx; src/components/instagram/TasksTab.tsx",
+    "plan": "Follower fit, available contact, selection and enrichment/draft actions; detailed reasoning on expansion.",
+    "mobile": "Single thread or candidate at a time; stage and filter selectors; no wide table dependence."
+  },
+  {
+    "id": "S083",
+    "module": "Instagram",
+    "name": "Pitch queue: review / send / skip",
+    "kind": "Existing",
+    "source": "src/app/dashboard/instagram/page.tsx; src/components/instagram/DiscoveryTab.tsx; src/components/instagram/PitchQueue.tsx; src/components/instagram/TasksTab.tsx",
+    "plan": "One creator and complete proposed pitch per screen; visible outcome and pending/error feedback.",
+    "mobile": "Single thread or candidate at a time; stage and filter selectors; no wide table dependence."
+  },
+  {
+    "id": "S084",
+    "module": "Instagram",
+    "name": "Tasks & fulfilment worklist",
+    "kind": "Existing",
+    "source": "src/app/dashboard/instagram/page.tsx; src/components/instagram/DiscoveryTab.tsx; src/components/instagram/PitchQueue.tsx; src/components/instagram/TasksTab.tsx",
+    "plan": "Task type, creator, due date and completion action; expose fulfilment/tracking detail only when relevant.",
+    "mobile": "Single thread or candidate at a time; stage and filter selectors; no wide table dependence."
+  },
+  {
+    "id": "S085",
+    "module": "Instagram",
+    "name": "Instagram settings",
+    "kind": "Existing",
+    "source": "src/app/dashboard/instagram/page.tsx; src/components/instagram/DiscoveryTab.tsx; src/components/instagram/PitchQueue.tsx; src/components/instagram/TasksTab.tsx",
+    "plan": "Separate automation switches and barter/follower criteria into labelled sections; preserve actual connection availability.",
+    "mobile": "Single thread or candidate at a time; stage and filter selectors; no wide table dependence."
+  },
+  {
+    "id": "S086",
+    "module": "B2B leads",
+    "name": "Lead lists & create / rename / delete",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Lists with purpose, sendable count and next step; list actions in menu with clear result states.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S087",
+    "module": "B2B leads",
+    "name": "Lead list detail & recipient selection",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Company, contact availability, fit and outreach state; column chooser for secondary fields; bulk selection count.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S088",
+    "module": "B2B leads",
+    "name": "Find companies / search configuration",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Category, city, product and target grouped in steps; explain run state and avoid a wall of choices.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S089",
+    "module": "B2B leads",
+    "name": "Lead pipeline progress & email finding",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Readable Searching \u2192 Enriching \u2192 Ready status; progress/errors contextual to list; retain reveal and bulk-email finding.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S090",
+    "module": "B2B leads",
+    "name": "Lead detail / evidence / draft / outreach actions",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Company overview, evidence, contact details and draft in separate sections; safe next action; source email/reply history preserved.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S091",
+    "module": "B2B leads",
+    "name": "List picker",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Search list names and show counts; one selection and Continue.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S092",
+    "module": "B2B leads",
+    "name": "Outreach wizard: recipients",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Ready, missing email, already in sequence, replied and suppressed groups; show exclusions explicitly.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S093",
+    "module": "B2B leads",
+    "name": "Outreach wizard: content / sequence",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Products, saved email or AI draft, quick send versus sequence; use correct founder sender details.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S094",
+    "module": "B2B leads",
+    "name": "Outreach wizard: personalized preview",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Exact rendered email for chosen recipient; step through examples without losing content; later steps clearly indicated.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S095",
+    "module": "B2B leads",
+    "name": "Outreach wizard: launch / results",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Send window, cap, recipients and sequence review; pending/success/partial failure; explicit launch.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S096",
+    "module": "B2B leads",
+    "name": "Sequences list / create",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Name, stage, enrolled count and next action; name dialog with validation.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S097",
+    "module": "B2B leads",
+    "name": "Sequence editor & enrolled recipients",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Vertical delay/email steps, save, pause/activate and enrolment list; remove drag-only dependencies.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S098",
+    "module": "B2B leads",
+    "name": "Saved emails: library / editor",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Searchable templates; subject/body/variables; focused editor with preview and unsaved indicator.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S099",
+    "module": "B2B leads",
+    "name": "Saved emails: AI drafting",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Product-grounded brief, pending/error and editable result; approved content separate from generated draft.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S100",
+    "module": "B2B leads",
+    "name": "Replies inbox",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Prioritized replies linked to lead and deal context; show stopped-sequence status.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S101",
+    "module": "B2B leads",
+    "name": "Outreach analytics",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Separate sends/opens/funnel/sequence/template comparisons; label periods and sample size; avoid decorative charts.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S102",
+    "module": "B2B leads",
+    "name": "Outreach settings & guide",
+    "kind": "Existing",
+    "source": "src/app/dashboard/leads/page.tsx; src/components/leads/",
+    "plan": "Sender, schedule, caps and configuration in a settings view; task guide available on demand, not repeated over every list.",
+    "mobile": "Searchable lists and full-screen lead/editor views; wizard one step at a time; sticky footer with Back and primary action."
+  },
+  {
+    "id": "S103",
+    "module": "Deals",
+    "name": "Deal board & inquiry/active/closed filters",
+    "kind": "Existing",
+    "source": "src/app/dashboard/deals/page.tsx; src/components/deals/DealsBoard.tsx; src/components/deals/DealDrawer.tsx",
+    "plan": "Stage, company, value, next action and due date; list alternative with search/kind/follow-up filters.",
+    "mobile": "Stage selector and vertical list; detail full screen; status change possible without dragging."
+  },
+  {
+    "id": "S104",
+    "module": "Deals",
+    "name": "Deal details & next step",
+    "kind": "Existing",
+    "source": "src/app/dashboard/deals/page.tsx; src/components/deals/DealsBoard.tsx; src/components/deals/DealDrawer.tsx",
+    "plan": "Summary, owner of next step, due date and stage; focus on what happens next.",
+    "mobile": "Stage selector and vertical list; detail full screen; status change possible without dragging."
+  },
+  {
+    "id": "S105",
+    "module": "Deals",
+    "name": "Deal edit & email history",
+    "kind": "Existing",
+    "source": "src/app/dashboard/deals/page.tsx; src/components/deals/DealsBoard.tsx; src/components/deals/DealDrawer.tsx",
+    "plan": "Separate edit form and expandable source emails; retain linked evidence, updates and save/error states.",
+    "mobile": "Stage selector and vertical list; detail full screen; status change possible without dragging."
+  },
+  {
+    "id": "S106",
+    "module": "Contacts",
+    "name": "Contact directory & advanced filters",
+    "kind": "Existing",
+    "source": "src/app/dashboard/contacts/page.tsx; src/app/dashboard/contacts/[id]/page.tsx",
+    "plan": "Identity, channel availability, lifecycle, last purchase and LTV; advanced order/spend/date/audience filters on demand.",
+    "mobile": "Identity cards with phone fallback; filters in sheet; contact tabs become a selector; orders open readable detail."
+  },
+  {
+    "id": "S107",
+    "module": "Contacts",
+    "name": "Add contact",
+    "kind": "Existing",
+    "source": "src/app/dashboard/contacts/page.tsx; src/app/dashboard/contacts/[id]/page.tsx",
+    "plan": "Name, email and phone with visible optional/required rules matching API; phone-only identity supported.",
+    "mobile": "Identity cards with phone fallback; filters in sheet; contact tabs become a selector; orders open readable detail."
+  },
+  {
+    "id": "S108",
+    "module": "Contacts",
+    "name": "Contact import & result",
+    "kind": "Existing",
+    "source": "src/app/dashboard/contacts/page.tsx; src/app/dashboard/contacts/[id]/page.tsx",
+    "plan": "Preview import source, progress and outcome; no implied marketing consent from import.",
+    "mobile": "Identity cards with phone fallback; filters in sheet; contact tabs become a selector; orders open readable detail."
+  },
+  {
+    "id": "S109",
+    "module": "Contacts",
+    "name": "Contact overview",
+    "kind": "Existing",
+    "source": "src/app/dashboard/contacts/page.tsx; src/app/dashboard/contacts/[id]/page.tsx",
+    "plan": "Identity, consent and key purchase facts; no huge KPI wall before contact actions.",
+    "mobile": "Identity cards with phone fallback; filters in sheet; contact tabs become a selector; orders open readable detail."
+  },
+  {
+    "id": "S110",
+    "module": "Contacts",
+    "name": "Contact orders & activity",
+    "kind": "Existing",
+    "source": "src/app/dashboard/contacts/page.tsx; src/app/dashboard/contacts/[id]/page.tsx",
+    "plan": "Chronological real orders and channel activity; correct Shopify data source and empty/unmatched explanations.",
+    "mobile": "Identity cards with phone fallback; filters in sheet; contact tabs become a selector; orders open readable detail."
+  },
+  {
+    "id": "S111",
+    "module": "Contacts",
+    "name": "Contact audience & custom properties",
+    "kind": "Existing",
+    "source": "src/app/dashboard/contacts/page.tsx; src/app/dashboard/contacts/[id]/page.tsx",
+    "plan": "Lists, segments and properties grouped; lifecycle separated from consent; maintain null-safe email and anonymization.",
+    "mobile": "Identity cards with phone fallback; filters in sheet; contact tabs become a selector; orders open readable detail."
+  },
+  {
+    "id": "S112",
+    "module": "Contacts",
+    "name": "Contact status / delete actions",
+    "kind": "Existing",
+    "source": "src/app/dashboard/contacts/page.tsx; src/app/dashboard/contacts/[id]/page.tsx",
+    "plan": "Plain effect, permission-aware actions and confirmation; preserve GDPR behavior and consent history.",
+    "mobile": "Identity cards with phone fallback; filters in sheet; contact tabs become a selector; orders open readable detail."
+  },
+  {
+    "id": "S113",
+    "module": "Email marketing & automation",
+    "name": "Email campaign list",
+    "kind": "Existing",
+    "source": "src/app/dashboard/campaigns/; src/app/dashboard/flows/; src/app/dashboard/analytics/page.tsx",
+    "plan": "Rename ambiguous Campaigns navigation to Email campaigns; status filtering and date/revenue/open sorting remain.",
+    "mobile": "Full-width email preview separate from editor; vertical flow steps; summaries before detail; schedule in explicit timezone."
+  },
+  {
+    "id": "S114",
+    "module": "Email marketing & automation",
+    "name": "Email campaign create: setup",
+    "kind": "Existing",
+    "source": "src/app/dashboard/campaigns/; src/app/dashboard/flows/; src/app/dashboard/analytics/page.tsx",
+    "plan": "Name, audience, subject and preview text in logical steps; email eligibility and exclusions visible.",
+    "mobile": "Full-width email preview separate from editor; vertical flow steps; summaries before detail; schedule in explicit timezone."
+  },
+  {
+    "id": "S115",
+    "module": "Email marketing & automation",
+    "name": "Email campaign create: content / preview / schedule",
+    "kind": "Existing",
+    "source": "src/app/dashboard/campaigns/; src/app/dashboard/flows/; src/app/dashboard/analytics/page.tsx",
+    "plan": "Add readable editor and safe rendered preview; keep HTML source as advanced mode; schedule and draft save distinct.",
+    "mobile": "Full-width email preview separate from editor; vertical flow steps; summaries before detail; schedule in explicit timezone."
+  },
+  {
+    "id": "S116",
+    "module": "Email marketing & automation",
+    "name": "Email campaign save success",
+    "kind": "Existing",
+    "source": "src/app/dashboard/campaigns/; src/app/dashboard/flows/; src/app/dashboard/analytics/page.tsx",
+    "plan": "Link to campaign detail and state, with clear next action.",
+    "mobile": "Full-width email preview separate from editor; vertical flow steps; summaries before detail; schedule in explicit timezone."
+  },
+  {
+    "id": "S117",
+    "module": "Email marketing & automation",
+    "name": "Email campaign detail / lifecycle controls",
+    "kind": "Existing",
+    "source": "src/app/dashboard/campaigns/; src/app/dashboard/flows/; src/app/dashboard/analytics/page.tsx",
+    "plan": "Performance funnel, health and content; edit/start/pause/schedule only as currently supported; clear pending/failed states.",
+    "mobile": "Full-width email preview separate from editor; vertical flow steps; summaries before detail; schedule in explicit timezone."
+  },
+  {
+    "id": "S118",
+    "module": "Email marketing & automation",
+    "name": "Email flows list",
+    "kind": "Existing",
+    "source": "src/app/dashboard/campaigns/; src/app/dashboard/flows/; src/app/dashboard/analytics/page.tsx",
+    "plan": "Rename Flows to Email automations; show trigger, state and last result, keep template entry points.",
+    "mobile": "Full-width email preview separate from editor; vertical flow steps; summaries before detail; schedule in explicit timezone."
+  },
+  {
+    "id": "S119",
+    "module": "Email marketing & automation",
+    "name": "Email flow creation / template selection",
+    "kind": "Existing",
+    "source": "src/app/dashboard/campaigns/; src/app/dashboard/flows/; src/app/dashboard/analytics/page.tsx",
+    "plan": "Choose supported template or custom flow; save as draft, then edit.",
+    "mobile": "Full-width email preview separate from editor; vertical flow steps; summaries before detail; schedule in explicit timezone."
+  },
+  {
+    "id": "S120",
+    "module": "Email marketing & automation",
+    "name": "Email flow settings & step editor",
+    "kind": "Existing",
+    "source": "src/app/dashboard/campaigns/; src/app/dashboard/flows/; src/app/dashboard/analytics/page.tsx",
+    "plan": "Name, trigger, coupon, ordered steps, timing and content; readable activate/pause/delete controls and result states.",
+    "mobile": "Full-width email preview separate from editor; vertical flow steps; summaries before detail; schedule in explicit timezone."
+  },
+  {
+    "id": "S121",
+    "module": "Email marketing & automation",
+    "name": "Email analytics",
+    "kind": "Existing",
+    "source": "src/app/dashboard/campaigns/; src/app/dashboard/flows/; src/app/dashboard/analytics/page.tsx",
+    "plan": "Explicit email scope, selected period, actual revenue/sends/growth/health; drill into campaigns and flows; remove unsupported comparison claims.",
+    "mobile": "Full-width email preview separate from editor; vertical flow steps; summaries before detail; schedule in explicit timezone."
+  },
+  {
+    "id": "S122",
+    "module": "Assistant & administration",
+    "name": "Ask Maya welcome & conversation history",
+    "kind": "Existing",
+    "source": "src/app/dashboard/assistant/page.tsx; src/components/assistant/ToolResult.tsx; src/app/dashboard/settings/page.tsx; src/components/settings/ApiKeysPanel.tsx; src/app/dashboard/audit-log/page.tsx",
+    "plan": "Task examples and recent chats; avoid oversized decorative welcome; mobile history drawer.",
+    "mobile": "History and context in sheets; settings subsections single column; long values wrap; owner-only controls preserve server checks."
+  },
+  {
+    "id": "S123",
+    "module": "Assistant & administration",
+    "name": "Ask Maya conversation / streaming / copy",
+    "kind": "Existing",
+    "source": "src/app/dashboard/assistant/page.tsx; src/components/assistant/ToolResult.tsx; src/app/dashboard/settings/page.tsx; src/components/settings/ApiKeysPanel.tsx; src/app/dashboard/audit-log/page.tsx",
+    "plan": "Readable answers and provenance, progress/stop/retry states; input above keyboard and safe scroll behavior.",
+    "mobile": "History and context in sheets; settings subsections single column; long values wrap; owner-only controls preserve server checks."
+  },
+  {
+    "id": "S124",
+    "module": "Assistant & administration",
+    "name": "Assistant tool results / tables / errors",
+    "kind": "Existing",
+    "source": "src/app/dashboard/assistant/page.tsx; src/components/assistant/ToolResult.tsx; src/app/dashboard/settings/page.tsx; src/components/settings/ApiKeysPanel.tsx; src/app/dashboard/audit-log/page.tsx",
+    "plan": "Summary first, details on demand; scroll contained tables; explain unavailable evidence and action outcomes.",
+    "mobile": "History and context in sheets; settings subsections single column; long values wrap; owner-only controls preserve server checks."
+  },
+  {
+    "id": "S125",
+    "module": "Assistant & administration",
+    "name": "Settings connections & diagnostic detail",
+    "kind": "Existing",
+    "source": "src/app/dashboard/assistant/page.tsx; src/components/assistant/ToolResult.tsx; src/app/dashboard/settings/page.tsx; src/components/settings/ApiKeysPanel.tsx; src/app/dashboard/audit-log/page.tsx",
+    "plan": "Integration name, connection/freshness status and next action; advanced events/log details on demand.",
+    "mobile": "History and context in sheets; settings subsections single column; long values wrap; owner-only controls preserve server checks."
+  },
+  {
+    "id": "S126",
+    "module": "Assistant & administration",
+    "name": "Shopify connection / disconnect / catalog sync",
+    "kind": "Existing",
+    "source": "src/app/dashboard/assistant/page.tsx; src/components/assistant/ToolResult.tsx; src/app/dashboard/settings/page.tsx; src/components/settings/ApiKeysPanel.tsx; src/app/dashboard/audit-log/page.tsx",
+    "plan": "Focused connection card with progress, last sync and explicit disconnect effect; preserve current permissions.",
+    "mobile": "History and context in sheets; settings subsections single column; long values wrap; owner-only controls preserve server checks."
+  },
+  {
+    "id": "S127",
+    "module": "Assistant & administration",
+    "name": "API keys list & edit/rotation",
+    "kind": "Existing",
+    "source": "src/app/dashboard/assistant/page.tsx; src/components/assistant/ToolResult.tsx; src/app/dashboard/settings/page.tsx; src/components/settings/ApiKeysPanel.tsx; src/app/dashboard/audit-log/page.tsx",
+    "plan": "Owner-only provider status, masked values, explicit save/remove and migration-required state; never expose keys in previews.",
+    "mobile": "History and context in sheets; settings subsections single column; long values wrap; owner-only controls preserve server checks."
+  },
+  {
+    "id": "S128",
+    "module": "Assistant & administration",
+    "name": "Email sender settings",
+    "kind": "Existing",
+    "source": "src/app/dashboard/assistant/page.tsx; src/components/assistant/ToolResult.tsx; src/app/dashboard/settings/page.tsx; src/components/settings/ApiKeysPanel.tsx; src/app/dashboard/audit-log/page.tsx",
+    "plan": "Readable sender identity, reply-to and domain status; distinguish saved values from editable fields.",
+    "mobile": "History and context in sheets; settings subsections single column; long values wrap; owner-only controls preserve server checks."
+  },
+  {
+    "id": "S129",
+    "module": "Assistant & administration",
+    "name": "Brand settings & logo upload",
+    "kind": "Existing",
+    "source": "src/app/dashboard/assistant/page.tsx; src/components/assistant/ToolResult.tsx; src/app/dashboard/settings/page.tsx; src/components/settings/ApiKeysPanel.tsx; src/app/dashboard/audit-log/page.tsx",
+    "plan": "Preview current approved logo, filename and dimensions; upload validation and save result; no stretching or crop.",
+    "mobile": "History and context in sheets; settings subsections single column; long values wrap; owner-only controls preserve server checks."
+  },
+  {
+    "id": "S130",
+    "module": "Assistant & administration",
+    "name": "Team list / invite / role / remove",
+    "kind": "Existing",
+    "source": "src/app/dashboard/assistant/page.tsx; src/components/assistant/ToolResult.tsx; src/app/dashboard/settings/page.tsx; src/components/settings/ApiKeysPanel.tsx; src/app/dashboard/audit-log/page.tsx",
+    "plan": "Admin/member meanings; invite form, pending/success/error and permission-aware role/removal controls.",
+    "mobile": "History and context in sheets; settings subsections single column; long values wrap; owner-only controls preserve server checks."
+  },
+  {
+    "id": "S131",
+    "module": "Assistant & administration",
+    "name": "Audit log list / action filter / details",
+    "kind": "Existing",
+    "source": "src/app/dashboard/assistant/page.tsx; src/components/assistant/ToolResult.tsx; src/app/dashboard/settings/page.tsx; src/components/settings/ApiKeysPanel.tsx; src/app/dashboard/audit-log/page.tsx",
+    "plan": "Actor, action, target and time first; expanded metadata secondary; sensitive data stays protected.",
+    "mobile": "History and context in sheets; settings subsections single column; long values wrap; owner-only controls preserve server checks."
+  },
+  {
+    "id": "S132",
+    "module": "Assistant & administration",
+    "name": "Legacy Team and Integrations URLs",
+    "kind": "Existing redirects",
+    "source": "src/app/dashboard/assistant/page.tsx; src/components/assistant/ToolResult.tsx; src/app/dashboard/settings/page.tsx; src/components/settings/ApiKeysPanel.tsx; src/app/dashboard/audit-log/page.tsx",
+    "plan": "Preserve /dashboard/team \u2192 Settings Team and /dashboard/integrations \u2192 Settings Connections, including browser history.",
+    "mobile": "History and context in sheets; settings subsections single column; long values wrap; owner-only controls preserve server checks."
+  }
+]

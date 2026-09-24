@@ -1,0 +1,53 @@
+/* Control and layout polish shared by the prototype's three directions. */
+select[hidden] { display:none!important }
+.pm-select { display:inline-flex; max-width:100%; min-width:0; vertical-align:middle }
+.pm-select-trigger { display:flex!important; align-items:center; justify-content:space-between; gap:18px; min-height:44px; width:100%; padding:10px 13px!important; border:1px solid #cfd4dc!important; border-radius:10px!important; background:#fff!important; color:#30343b!important; box-shadow:0 1px 2px #16202d06!important; font:inherit; font-size:13px!important; font-weight:500!important; text-align:left; cursor:pointer }
+.pm-select-trigger svg { width:18px; height:18px; flex:none; color:#77808d; transition:transform .15s }
+.pm-select-trigger[aria-expanded=true] { border-color:#af272f!important; box-shadow:0 0 0 3px #af272f12!important }
+.pm-select-trigger[aria-expanded=true] svg { transform:rotate(180deg) }
+.pm-select-trigger:hover { border-color:#9b8590!important; background:#fffafa!important; transform:none!important }
+.pm-select-trigger:focus-visible { outline:2px solid #af272f!important; outline-offset:3px }
+.pm-select-value { white-space:normal; overflow-wrap:anywhere }
+.pm-select-menu { position:fixed; z-index:2000; overflow:auto; padding:6px; border:1px solid #e2dadd; border-radius:13px; background:#fff; color:#30343b; box-shadow:0 12px 35px #24202b21,0 3px 8px #24202b08; font:500 13px/1.4 Arial,sans-serif; box-sizing:border-box }
+.pm-select-option { position:relative; min-height:44px; padding:12px 34px 12px 12px; border-radius:8px; cursor:pointer; outline:none }
+.pm-select-option[aria-selected=true] { background:#fbebed; color:#97232c; font-weight:600 }
+.pm-select-option[aria-selected=true]::after { content:'✓'; position:absolute; right:13px }
+.pm-select-option:hover,.pm-select-option:focus { background:#f2f3f6; box-shadow:inset 3px 0 #af272f }
+.pm-select-option[aria-disabled=true] { opacity:.45; cursor:default }
+.field>.pm-select { display:flex; width:100%; margin-top:7px }
+body .field input,body .field textarea { font-weight:400!important; font-size:14px!important; line-height:1.55; border-radius:10px!important; box-shadow:0 1px 2px #16202d04 }
+body .field { font-size:12px; font-weight:600 }
+body .field small { font-weight:400; margin-top:6px; line-height:1.5 }
+body .field textarea { min-height:130px }
+body .stack>.btn { justify-self:start; width:auto }
+body .grid { align-items:start }
+body .toolbar { margin:0; gap:10px }
+body .toolbar>input { min-width:150px; flex:1 }
+body .rank-control { display:flex; align-items:center; gap:9px; font-size:12px; color:#657080; white-space:nowrap }
+body .bank-form { max-width:760px }
+body .bank-fields { display:grid; grid-template-columns:1fr 1fr; gap:16px }
+body .form-actions { border-top:1px solid #e8e9ee; padding-top:16px; margin-top:18px }
+body[data-design=bold] .main .stack { gap:18px }
+body[data-design=bold] .panelhead { padding:15px 19px; background:#faf9fa; border-bottom:1px solid #e8e7eb }
+body[data-design=bold] .panelbody { padding:20px }
+body[data-design=bold] .btn,body[data-design=bold] button:not(.pm-select-trigger) { border-radius:10px; box-shadow:0 1px 2px #24202b08 }
+body[data-design=bold] .btn.primary,body[data-design=bold] button.primary { background:#af272f; box-shadow:0 2px 4px #af272f24; border:1px solid #97232c }
+body[data-design=bold] td .btn { min-height:38px; padding:8px 12px; color:#97232c; background:#fff8f8; border-color:#efdadd; font-size:12px }
+body[data-design=bold] [data-screen=products] .toolbar { padding:12px; background:#fff; border:1px solid #e0e3e9; border-radius:13px }
+body[data-design=bold] [data-screen=payout] td:last-child { text-align:right; font-variant-numeric:tabular-nums }
+body[data-design=bold] [data-screen=payout] .grid .panel:first-child tr:last-child { background:#f0f7f5; font-weight:700 }
+body[data-design=bold] [data-screen=deal] .timeline { margin:20px 0; padding-left:18px; border-color:#e5cbd0 }
+body[data-design=bold] [data-screen=inbox]>.stack>.toolbar { justify-content:flex-start; padding:10px 12px; background:#fff; border:1px solid #e0e3e9; border-radius:13px }
+@media(max-width:600px) {
+ body .bank-fields { grid-template-columns:1fr; gap:0 }
+ body .toolbar>.pm-select,body .toolbar>.rank-control { flex:1; min-width:0 }
+ body .rank-control { flex-wrap:wrap; gap:5px }
+ body .rank-control .pm-select { width:100% }
+ body[data-design=bold] .panelbody { padding:15px }
+ body[data-design=bold] [data-screen=inbox]>.stack>.toolbar { flex-direction:column; align-items:stretch }
+ body .pm-select-trigger { min-height:44px }
+}
+@media(max-width:600px) {
+ body .field input,body .field textarea { font-size:16px!important }
+ body[data-design=bold] td .btn { min-height:44px }
+}

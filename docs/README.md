@@ -2,6 +2,13 @@
 
 Rule: every doc lives in exactly one subfolder below. Superseded docs move to `archive/`. Update this index when adding or moving anything.
 
+- [Email follow-up and deal-stage analysis](audits/2026-09-21-email-followup-redesign.md): CRM email-history coverage, observed reply timing, sample-stage errors, and proposed redesign rules.
+- [Project workflow and redesign audit](audits/2026-09-21-project-flow-redesign-audit.md): live database evidence, actual integration ownership, workflow gaps, feature retirement decisions, and redesign dependencies.
+- [Utility redesign blueprint](plans/2026-09-21-utility-redesign-blueprint.md): consolidated user requirements, proposed page layouts, mobile navigation, data prerequisites, feature cleanup, and review gates.
+
+- [Compare three visual directions](plans/utility-prototype/compare.html): Soft depth, Bold brand, and Compact utility, with shared desktop/mobile screen previews.
+- [Interactive desktop and mobile redesign prototype](plans/utility-prototype/index.html): 76 responsive screens, 10 guided processes, shared states, and a complete current-route coverage checklist.
+
 ## architecture/ — system map + how to change it (START HERE)
 
 | Doc | What it answers |

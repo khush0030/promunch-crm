@@ -1,0 +1,89 @@
+/* Calm surfaces, explicit financial categories, and recognizable writing areas. */
+body[data-design=bold] { color:#35333c }
+body[data-design=bold] .panel { box-shadow:0 2px 3px #29324703,0 8px 24px #29324704; border-color:#e0e3ea }
+body[data-design=bold] .field { color:#514b59; letter-spacing:.05px; margin-bottom:18px }
+body[data-design=bold] input:not([type=checkbox]):not([type=radio]),body[data-design=bold] .pm-select-trigger { background:#fcfcfe!important; border-color:#d8dce5!important; transition:border-color .15s,box-shadow .15s }
+body[data-design=bold] input:focus { outline:none; border-color:#b65468!important; box-shadow:0 0 0 3px #af272f0c }
+body .writing-surface { display:block; margin-top:8px; overflow:hidden; border:1px solid #cbd2dd; border-radius:13px; background:#fff; box-shadow:0 2px 5px #27334b05; transition:border-color .15s,box-shadow .15s }
+body .writing-surface:focus-within { border-color:#b64d61; box-shadow:0 0 0 3px #af272f0c,0 5px 18px #27334b06 }
+body .writing-header { display:flex; justify-content:space-between; align-items:center; padding:11px 16px; border-bottom:1px solid #eceaf0; background:#f6f5f8; color:#695b70; font-size:11px; font-weight:600 }
+body .field .writing-surface textarea { display:block; width:100%; margin:0; padding:17px!important; border:0!important; border-radius:0!important; box-shadow:none!important; outline:none!important; background:#fff!important; color:#332e3b; font-size:14px!important; line-height:1.8; resize:vertical; min-height:120px; max-height:500px; font-weight:400 }
+body .writing-footer { display:flex; justify-content:space-between; gap:12px; padding:10px 16px; border-top:1px solid #f0eef2; background:#fcfbfd; font-size:10px; font-weight:400; color:#78717f }
+body .composer { padding:16px; background:#f4f5f8; border-top:1px solid #e0e3ea }
+body .composer .field { margin-bottom:12px }
+body .composer .row { gap:10px }
+body .composer button.primary { margin-left:auto }
+body .cost-layout { display:grid; grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr); gap:20px; align-items:start }
+body .economics-total { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:8px 0 22px }
+body .economics-total small { display:block; color:#62796f; font-size:10px; letter-spacing:1px }
+body .economics-total strong { display:block; font-size:38px; line-height:1.3; color:#27765b; font-weight:650; letter-spacing:-1px }
+body .economics-total .is-loss { color:#b7353e }
+body .cost-segments { display:flex; height:20px; gap:3px; overflow:hidden; border-radius:6px; margin-bottom:22px }
+body .product-cost { --cost-color:#c68c36; --cost-soft:#fcf5e9 }
+body .packaging-cost { --cost-color:#5793ba; --cost-soft:#edf5fb }
+body .fee-cost { --cost-color:#8972b4; --cost-soft:#f2eef8 }
+body .profit-cost { --cost-color:#378568; --cost-soft:#edf7f2 }
+body .loss-cost { --cost-color:#c44650; --cost-soft:#fceef0 }
+body .cost-segments>span,body .cost-dot,body .cost-line-track i { background:var(--cost-color) }
+body .cost-line { display:grid; grid-template-columns:10px 1fr auto; align-items:center; gap:5px 11px; padding:12px 0; border-bottom:1px solid #f0eef3 }
+body .cost-dot { width:8px; height:8px; border-radius:3px }
+body .cost-line b { font-size:13px; font-weight:500; color:#4b4253 }
+body .cost-line small { display:block; font-size:10px; color:#7e7585; margin-top:3px }
+body .cost-line strong { color:var(--cost-color); font-size:15px; font-variant-numeric:tabular-nums }
+body .cost-line-track { grid-column:2 / 4; height:5px; border-radius:9px; background:var(--cost-soft); overflow:hidden; margin-top:6px }
+body .cost-line-track i { display:block; height:100%; border-radius:9px; transition:width .18s }
+body .cost-caption { font-size:11px; color:#7b7482; line-height:1.7; margin:18px 0 0 }
+body .form-intro { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:0 0 20px; margin-bottom:20px; border-bottom:1px solid #eeebf0 }
+body .cost-input-grid { display:grid; grid-template-columns:1fr 1fr; gap:0 16px }
+body .cost-input-grid .field:last-child { grid-column:1 / -1 }
+body .form-actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap }
+body .form-actions small { color:#807785; font-size:11px }
+body .sku-disclosure summary { display:flex; gap:9px; align-items:center; min-height:44px; list-style:none; cursor:pointer; border-radius:8px; padding:6px 8px; margin-left:-8px }
+body .sku-disclosure summary::-webkit-details-marker { display:none }
+body .sku-disclosure summary::before { content:'›'; font-size:23px; color:#a03348; transition:transform .15s }
+body .sku-disclosure[open] summary::before { transform:rotate(90deg) }
+body .sku-disclosure summary:hover { background:#f8f1f3 }
+body .sku-disclosure summary:focus-visible { outline:2px solid #ac4055; outline-offset:2px }
+body .sku-disclosure summary small { display:block; font-size:10px; margin-top:5px; color:#807381 }
+body .sku-options { padding:10px; margin-top:8px; border:1px solid #e9e1e6; background:#fcf9fb; border-radius:10px }
+body .sku-options>div { display:grid; gap:7px; padding:8px 0 }
+body .sku-options>div+div { border-top:1px solid #e9e1e6 }
+body .sku-options .badge { justify-self:start }
+body .risk-amount { color:#b53846; font-size:15px; font-variant-numeric:tabular-nums }
+body .risk-amount.warning { color:#a16c18 }
+body .bank-form { max-width:none; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 20px; align-items:start }
+body .bank-fields { display:contents }
+body .bank-form>.field { grid-column:1 / -1; max-width:620px }
+body .bank-form>button { justify-self:start; grid-column:1 / -1; margin-top:6px }
+body .incoming-email { border:1px solid #e6e3ec; border-left:3px solid #9477af; background:#f8f6fb; padding:18px; border-radius:10px; margin:18px 0 22px }
+body .email-stamp { color:#856c99; font-size:10px; letter-spacing:.8px; font-weight:600 }
+body .incoming-email p { margin-bottom:0; color:#493f52; line-height:1.7 }
+body .support-overview { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; padding:18px 20px; background:#fff; border:1px solid #e5dfe6; border-radius:13px }
+body .support-overview small { display:block; margin:6px 0 0 17px; color:#887a89; font-size:12px }
+body .status-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#b3394e; margin-right:10px; box-shadow:0 0 0 4px #fbebee }
+body .source-total { padding:8px 0 18px }
+body .source-total small { display:block; color:#817685; font-size:11px }
+body .source-total strong { display:block; margin-top:7px; font-size:28px; letter-spacing:-.5px }
+body .source-legend { display:flex; gap:18px; margin-top:24px; padding-top:14px; border-top:1px solid #ece8ef; font-size:11px; color:#776b7e }
+body .source-legend span::before { content:''; display:inline-block; width:7px; height:7px; background:#218d9c; border-radius:2px; margin-right:6px }
+body .source-legend span+span::before { background:#bc8a39 }
+body[data-design=bold] [data-screen=assistant] .panel { max-width:900px }
+body[data-design=bold] [data-screen=draft] .panelbody,body[data-design=bold] [data-screen=email-compose] .panelbody { max-width:980px }
+body dialog { border:1px solid #ddd5e1; border-radius:18px; padding:28px; box-shadow:0 22px 80px #24132c30; max-width:min(560px,calc(100vw - 32px)); color:#423648 }
+body dialog::backdrop { background:#241b354a; backdrop-filter:blur(3px) }
+body dialog h2 { font-size:20px; padding-bottom:16px; border-bottom:1px solid #ece7ee }
+body dialog p { line-height:1.75; color:#756779 }
+body .product small { display:block }
+@media(max-width:800px) {
+ body .cost-layout { grid-template-columns:1fr }
+}
+@media(max-width:600px) {
+ body .cost-input-grid,body .bank-form { grid-template-columns:1fr }
+ body .writing-footer { font-size:10px; flex-wrap:wrap; gap:5px }
+ body .field .writing-surface textarea { font-size:16px!important }
+ body .form-intro { flex-wrap:wrap }
+ body .economics-total strong { font-size:32px }
+ body .support-overview { padding:16px }
+ body .support-overview>.btn { width:100% }
+}
+@media(prefers-reduced-motion:reduce) { body * { transition:none!important } }

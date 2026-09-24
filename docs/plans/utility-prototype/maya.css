@@ -1,0 +1,93 @@
+body [data-screen=assistant]>.pagehead { display:none }
+body[data-design=bold] [data-screen=assistant] { padding-top:16px }
+.sr-only { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0 }
+.maya-workspace { display:flex; flex-direction:column; min-height:690px; max-width:1100px; width:100%; margin:auto; color:#393340 }
+.maya-top { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:4px 0 20px; border-bottom:1px solid #e5e3eb }
+.maya-identity { display:flex; gap:10px; align-items:center }
+.maya-identity b { font-size:17px; letter-spacing:-.3px }
+.maya-identity small { display:block; font-size:11px; color:#8b818f; margin-top:3px }
+.maya-mark,.maya-mini-mark { display:grid; place-items:center; width:36px;height:36px;border-radius:12px;color:#a4314a;background:#faedf0;border:1px solid #efd6de }
+.maya-mark svg { width:25px;height:25px }
+body[data-design=bold] #maya-new { background:transparent;border-color:#dedbe4;min-height:40px;padding:8px 12px;font-size:12px }
+.maya-welcome { text-align:center; max-width:740px; margin:36px auto 28px }
+.maya-hero-mark { display:grid;place-items:center;width:64px;height:64px;margin:0 auto 23px;border:1px solid #edd5dd;border-radius:22px;background:linear-gradient(145deg,#fff,#f6e8ee);color:#a52b48;box-shadow:0 5px 14px #98334809,inset 0 2px white }
+.maya-hero-mark svg { width:39px;height:39px }
+.maya-eyebrow { font-size:9px;font-weight:600;letter-spacing:1.6px;color:#957887 }
+body .maya-welcome h2 { font-size:36px;line-height:1.2;font-weight:600;letter-spacing:-1.4px;margin:13px 0;color:#362d3d }
+.maya-welcome>p { font-size:14px;line-height:1.7;color:#8a7b8e;margin:0 0 28px }
+.maya-prompts { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;text-align:left }
+body[data-design=bold] .maya-prompts button { position:relative;display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:9px;padding:17px 13px;min-height:142px;background:#fff;border:1px solid #e4dfe8;border-radius:14px;box-shadow:0 3px 8px #32213a03;white-space:normal;transition:border-color .15s,box-shadow .15s }
+body[data-design=bold] .maya-prompts button:hover { border-color:#cb9fad;box-shadow:0 5px 16px #7e324a0b;background:#fffafb }
+.maya-prompt-icon { font-size:20px;display:grid;place-items:center;width:30px;height:30px;border-radius:9px;color:#9b6830;background:#fbf2e7 }
+.maya-prompt-icon.sales { color:#438292;background:#eaf4f7 }
+.maya-prompt-icon.profit { color:#548169;background:#edf6ef }
+.maya-prompt-icon.support { color:#9573ac;background:#f3edf8 }
+.maya-prompts b { font-size:12px;line-height:1.5;color:#514355;font-weight:600 }
+.maya-prompts small { font-size:10px;color:#9a8c9e;font-weight:400;line-height:1.45 }
+.maya-prompt-arrow { position:absolute;right:12px;top:16px;color:#b8a9be;font-size:15px }
+.maya-compose-wrap { width:min(780px,100%);margin:0 auto;padding:10px 0 0;position:sticky;bottom:0;background:linear-gradient(transparent,#f5f6fa 15%);z-index:5 }
+#maya-form { border:1px solid #d9cedd;border-radius:19px;padding:14px 16px 10px;background:white;box-shadow:0 4px 20px #38223c08,inset 0 1px white }
+#maya-form:focus-within { border-color:#bb8495;box-shadow:0 0 0 3px #ac3d5708,0 5px 20px #38223c09 }
+body #maya-question { display:block;width:100%;min-height:54px;max-height:180px;background:transparent;border:0;box-shadow:none;outline:none;resize:none;margin:0;padding:4px 2px;font:400 14px/1.7 Arial,sans-serif;color:#43364b }
+#maya-question::placeholder { color:#9a8b9f }
+.maya-compose-bottom { display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px }
+.maya-compose-bottom>span { display:flex;align-items:center;gap:6px;font-size:10px;color:#998d9e }
+.maya-compose-bottom svg { width:15px;height:15px }
+.maya-demo { padding:3px 6px;border-radius:5px;background:#f5f1f7;color:#8b7796;margin-left:5px }
+body[data-design=bold] #maya-send { display:grid;place-items:center;padding:0;width:36px;min-height:36px;border-radius:11px;border-color:#9c2540;background:#ad2e49;color:white;box-shadow:0 2px 5px #a92f4920 }
+body[data-design=bold] #maya-send:disabled { background:#eee9f0;border-color:#eee9f0;color:#b6aabb;opacity:1;cursor:default }
+#maya-send svg { width:19px;height:19px }
+.maya-disclaimer { text-align:center;font-size:10px;line-height:1.5;color:#9a8e9f;margin:10px 0 0;padding-bottom:10px }
+#maya-body { flex:1;min-width:0 }
+.maya-transcript { max-width:780px;margin:25px auto }
+.maya-user { margin:26px 0 24px auto;max-width:85%;width:fit-content;text-align:right;scroll-margin-top:20px }
+.maya-user>span { font-size:10px;color:#9a879f }
+.maya-user p { background:#ede6ef;color:#5a435f;padding:13px 18px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0 }
+.maya-answer { padding:0 0 24px;border-bottom:1px solid #e8e2ec }
+.maya-answer-author { display:flex;align-items:center;gap:8px;margin:18px 0 22px;font-size:13px }
+.maya-answer-author>span:last-child { color:#a18ca6;font-size:10px;margin-left:4px }
+.maya-mini-mark { width:26px;height:26px;border-radius:8px }
+.maya-mini-mark svg { width:19px;height:19px }
+.maya-answer-heading { display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap }
+.maya-answer-tag { color:#957784;font-size:9px;font-weight:600;letter-spacing:1px }
+body .maya-answer h2 { font-size:24px;letter-spacing:-.6px;color:#3e3049;margin:12px 0;font-weight:600 }
+.maya-answer>p { font-size:14px;line-height:1.8;color:#86718c;max-width:680px }
+.maya-stats { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:20px 0 }
+.maya-stats>div { border:1px solid #e6dfeb;border-radius:12px;padding:15px;background:#fff }
+.maya-stats small { display:block;color:#8c7b96;font-size:10px }
+.maya-stats strong { display:block;color:#51405b;font-size:23px;letter-spacing:-.5px;margin:8px 0 }
+.maya-stats span { display:block;color:#9b8aa4;font-size:10px;line-height:1.5 }
+.maya-stats .risk { background:#fff6f7;border-color:#f0dce1 }.maya-stats .risk strong { color:#b14157 }
+.maya-stats .good strong { color:#368264 }
+.maya-compare { background:#fff;border:1px solid #e7e1eb;border-radius:12px;padding:16px;margin:18px 0 }
+.maya-compare>div { display:grid;grid-template-columns:125px 1fr 95px;gap:12px;align-items:center;font-size:11px;color:#85718c;padding:8px 0 }
+.maya-compare i { height:7px;border-radius:9px;background:#f3e9ed;position:relative;overflow:hidden }
+.maya-compare i:before { content:'';display:block;height:100%;width:var(--fill);background:#bf758b;border-radius:9px }
+.maya-compare b { text-align:right;font-size:12px;color:#875b71 }
+.maya-takeaway { display:flex;flex-direction:column;gap:6px;border-left:3px solid #c9b2d3;background:#f0ecf4;border-radius:0 9px 9px 0;padding:14px 16px;font-size:12px;line-height:1.7;color:#8a7495;margin:18px 0 }
+.maya-takeaway b { color:#6d527a }
+.maya-evidence { display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 }
+body .maya-source { display:flex;align-items:center;gap:15px;font-size:11px;border:1px solid #e0d5e7;padding:10px 13px;border-radius:8px;color:#886294;background:#fff;text-decoration:none }
+.maya-footnote { color:#a18ca8;font-size:10px;line-height:1.6;display:block }
+.maya-followups { display:flex;gap:8px;flex-wrap:wrap;max-width:780px;margin:12px auto }
+body[data-design=bold] .maya-followups button { border-radius:20px;font-size:11px;background:transparent;border-color:#ded2e7;color:#896997;min-height:38px }
+.maya-person { display:flex;align-items:center;gap:10px;padding:16px;border-bottom:1px solid #e6deec;background:#fff }
+.maya-person>div { flex:1 }.maya-person small { display:block;font-size:11px;color:#9a82a6;margin-top:5px }
+.maya-initial { display:grid;place-items:center;width:35px;height:35px;background:#f2eaf7;border-radius:10px;color:#8c679e;font-size:11px }
+@media(max-width:850px) { .maya-prompts { grid-template-columns:repeat(2,minmax(0,1fr)) }.maya-welcome{margin-top:25px}.maya-workspace{min-height:650px} }
+@media(max-width:600px) {
+ body[data-design=bold] [data-screen=assistant] { padding:12px 14px 90px }
+ .maya-top{padding-bottom:14px}.maya-identity small{font-size:10px;max-width:145px}.maya-identity b{font-size:16px}
+ .maya-mark{width:32px;height:32px}.maya-workspace{min-height:620px}
+ body .maya-welcome h2{font-size:29px;letter-spacing:-1px}.maya-hero-mark{width:50px;height:50px;margin-bottom:17px;border-radius:17px}
+ .maya-welcome>p{font-size:13px;margin-bottom:20px}.maya-eyebrow{font-size:8px;letter-spacing:1.2px}
+ body[data-design=bold] .maya-prompts button{padding:12px;min-height:123px}.maya-prompts b{font-size:12px}
+ .maya-compose-wrap{bottom:58px}.maya-disclaimer{font-size:9px}.maya-compose-bottom>span{font-size:9px;flex-wrap:wrap}
+ body #maya-question{font-size:16px}body[data-design=bold] #maya-send{width:44px;min-height:44px;flex-shrink:0}
+ .maya-stats{grid-template-columns:1fr}.maya-stats>div{display:grid;grid-template-columns:1fr auto;align-items:center;padding:13px}
+ .maya-stats strong{grid-column:2;grid-row:1/3;margin:0;font-size:23px}.maya-stats span{margin-top:5px;max-width:180px}
+ .maya-compare>div{grid-template-columns:1fr 85px}.maya-compare i{grid-column:1;grid-row:auto}.maya-compare b{grid-column:2;grid-row:auto}
+ .maya-person{flex-wrap:wrap}.maya-source{min-height:44px}.maya-user{max-width:95%}
+ body .maya-answer h2{font-size:22px}.maya-answer-heading .badge{font-size:10px}
+}
+@media(prefers-reduced-motion:reduce){.maya-workspace *{transition:none!important;scroll-behavior:auto!important}}
