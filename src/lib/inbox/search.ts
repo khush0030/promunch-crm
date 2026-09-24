@@ -24,8 +24,14 @@ export function waSearchOr(q: string): string | null {
     `ticket_subject.ilike.%${safe}%`,
     `escalation_reason.ilike.%${safe}%`,
   ];
+  // ticket_number is int4. A query that is all digits but larger than int4
+  // (every 10-digit phone number) makes Postgres reject the WHOLE or-clause
+  // with 22003 "out of range", so the search 500s instead of matching on
+  // wa_id. Only add the numeric clause when the value actually fits.
   const digits = safe.replace(/^#/, "");
-  if (/^\d+$/.test(digits)) clauses.push(`ticket_number.eq.${digits}`);
+  if (/^\d+$/.test(digits) && Number(digits) <= 2147483647) {
+    clauses.push(`ticket_number.eq.${digits}`);
+  }
   return clauses.join(",");
 }
 

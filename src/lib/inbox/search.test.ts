@@ -25,6 +25,17 @@ describe("waSearchOr", () => {
     );
   });
 
+  it("omits ticket_number when the digits overflow a 32-bit integer", () => {
+    // A 10-digit Indian mobile is the most natural thing to search for, and
+    // ticket_number is int4: sending it as ticket_number.eq made Postgres
+    // fail the whole query with 22003 (out of range), so search 500'd.
+    expect(waSearchOr("9599499864")).toBe(
+      "wa_id.ilike.%9599499864%,last_message_snippet.ilike.%9599499864%,ticket_subject.ilike.%9599499864%,escalation_reason.ilike.%9599499864%",
+    );
+    expect(waSearchOr("2147483647")).toContain("ticket_number.eq.2147483647");
+    expect(waSearchOr("2147483648")).not.toContain("ticket_number");
+  });
+
   it("does not add ticket_number for a mixed alphanumeric query", () => {
     expect(waSearchOr("order9793")).toBe(
       "wa_id.ilike.%order9793%,last_message_snippet.ilike.%order9793%,ticket_subject.ilike.%order9793%,escalation_reason.ilike.%order9793%",
