@@ -106,6 +106,8 @@ const PAGE_PREFIXES: Array<[string, ModuleKey]> = [
   ["/dashboard/instagram", "partners"],
   ["/dashboard/settings", "system"],
   ["/dashboard/audit-log", "system"],
+  // Admin → security & activity. The page and its APIs are Admin-only on top.
+  ["/dashboard/admin", "system"],
   ["/dashboard/integrations", "system"],
   ["/dashboard/team", "system"],
 ];
@@ -195,6 +197,7 @@ export const API_RULES: ApiRule[] = [
 
   { prefix: "/api/settings", modules: ["system"] },
   { prefix: "/api/audit", modules: ["system"] },
+  { prefix: "/api/admin", modules: ["system"] },
   { prefix: "/api/integrations", modules: ["system"] },
   { prefix: "/api/shopify/catalog", modules: ["system"] },
   // Raw send-any-email endpoint with no UI caller: keep it off restricted members.

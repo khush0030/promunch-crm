@@ -45,6 +45,8 @@ export type NavItem = {
   // findActive (so the hub highlights) and shows up in the command palette.
   // Used for legacy pages kept reachable by URL.
   hidden?: boolean;
+  // Owners / admins only (the page's APIs refuse everyone else too).
+  adminOnly?: boolean;
 };
 export type NavHub = { hub: Hub; color: string; accent?: string; icon: LucideIcon; items: NavItem[] };
 
@@ -107,7 +109,7 @@ export const NAV: NavHub[] = [
       { label: "Bot knowledge", href: "/dashboard/whatsapp?tab=kb" },
       { label: "Health", href: "/dashboard/settings#connections" },
       { label: "Settings", href: "/dashboard/settings", tour: "settings" },
-      { label: "Activity", href: "/dashboard/audit-log" },
+      { label: "Admin", href: "/dashboard/admin", adminOnly: true },
     ],
   },
 ];
@@ -145,10 +147,11 @@ export function visibleItems(h: NavHub): NavItem[] {
 // no items drop out. Null access (still loading) shows nothing, so a
 // restricted member never sees a flash of areas they can't open.
 export function navFor(access: Access | null): NavHub[] {
-  if (access && !access.restricted) return NAV;
-  return NAV.map((h) => ({ ...h, items: h.items.filter((it) => access && canOpenHref(access, it.href)) })).filter(
-    (h) => h.items.length > 0,
-  );
+  if (access?.admin) return NAV;
+  return NAV.map((h) => ({
+    ...h,
+    items: h.items.filter((it) => access && !it.adminOnly && canOpenHref(access, it.href)),
+  })).filter((h) => h.items.length > 0);
 }
 
 // Short preview of a collapsed hub: the first few item names, plus how many

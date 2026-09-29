@@ -106,6 +106,12 @@ describe("nav", () => {
     expect(navFor(null)).toEqual([]);
     expect(navFor(accessOf({ email: OWNER_EMAIL }))).toBe(NAV);
   });
+  it("Admin (sign-ins, IPs, activity log) is shown to owners/admins only", () => {
+    const labels = (a: ReturnType<typeof accessOf>) => navFor(a).flatMap((h) => h.items.map((i) => i.label));
+    expect(labels(accessOf({ email: "boss@promunch.in", app_metadata: { role: "admin" } }))).toContain("Admin");
+    expect(labels(accessOf({ email: "a@promunch.in", app_metadata: { role: "agent" } }))).not.toContain("Admin");
+    expect(labels(accessOf({ email: "a@promunch.in", app_metadata: { role: "agent", modules: ["system"] } }))).not.toContain("Admin");
+  });
 });
 
 // Coverage guard: a new route or page must be given an area here, otherwise
