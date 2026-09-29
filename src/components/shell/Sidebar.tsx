@@ -3,7 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { Search, LogOut, HelpCircle } from "lucide-react";
-import { NAV, hubPreview, visibleItems, type ActiveNav, type AttentionCounts, type Hub } from "./nav";
+import { hubPreview, navFor, visibleItems, type ActiveNav, type AttentionCounts, type Hub } from "./nav";
+import { useAccess } from "./useAccess";
 import "./sidebar.css";
 import { initialsOf, type ShellUser } from "./useShellData";
 
@@ -29,7 +30,8 @@ export function Badge({ n, className = "bd" }: { n: number | undefined; classNam
 // the last navigation.
 export default function Sidebar({ active, locationKey, counts, user, signingOut, onSignOut, onSearch, onNavigate }: Props) {
   const [picked, setPicked] = useState<{ key: string; hub: Hub } | null>(null);
-  const openHub: Hub = picked?.key === locationKey ? picked.hub : active?.hub ?? "Today";
+  const nav = navFor(useAccess());
+  const openHub: Hub = picked?.key === locationKey ? picked.hub : active?.hub ?? nav[0]?.hub ?? "Today";
 
   return (
     <aside className="pm2-side" aria-label="Main navigation">
@@ -44,7 +46,7 @@ export default function Sidebar({ active, locationKey, counts, user, signingOut,
       </button>
 
       <nav className="pm2-hubs">
-        {NAV.map((h) => {
+        {nav.map((h) => {
           const open = h.hub === openHub;
           const Icon = h.icon;
           const style = { "--hc": h.color, "--hc2": h.accent ?? h.color } as React.CSSProperties;

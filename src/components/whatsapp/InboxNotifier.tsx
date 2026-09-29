@@ -14,6 +14,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Thread } from "./types";
+import { useAccess } from "@/components/shell/useAccess";
+import { canUse } from "@/lib/access";
 
 const MUTE_KEY = "wa_alerts_muted";
 const POLL_MS = 5000;
@@ -100,8 +102,11 @@ export default function InboxNotifier() {
     return () => window.removeEventListener("pointerdown", unlock);
   }, []);
 
+  // Chat alerts are for teammates with the Inbox area only.
+  const access = useAccess();
   const { data: threads = [] } = useQuery({
     queryKey: ["wa-alert-threads"],
+    enabled: !!access && canUse(access, "inbox"),
     queryFn: async (): Promise<Thread[]> => {
       const r = await fetch("/api/whatsapp/threads?limit=60", { cache: "no-store" });
       if (!r.ok) return [];

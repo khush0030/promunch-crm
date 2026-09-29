@@ -43,6 +43,8 @@ Three rules explain almost every design decision:
 
 All `/api/*` require a Supabase session (email-domain allowlist) EXCEPT two fail-closed classes: webhooks (`/api/webhooks/*` — provider signature required) and cron routes (`/api/cron/*` — `CRON_SECRET` bearer required). A 401 there usually means a missing secret, not a bug. Extra layers: `requireAdmin` (`src/lib/rbac-server.ts`), `requireSecretsOwner` (`src/lib/secrets.ts`, owner-only API keys), `requireSession` (`src/lib/leads/auth.ts`), BotID guard on abuse-prone mutations. Public surface: `/login`, `/r/[code]` (WA short-link click tracking), `/api/public/*`.
 
+**Per-area access:** admins can restrict an Agent to chosen areas (Settings → Team → Access, stored in `app_metadata.modules`). `src/lib/access.ts` maps every dashboard page and session-gated API route to an area and the middleware enforces it (403 / redirect). A new page or route must be added there; `access.test.ts` fails until it is, and restricted members are refused unmapped paths.
+
 ### Edge function roles (grouped)
 
 - **Webhook receivers** (public, signature-verified): `wa-webhook`, `shopify-webhook`/`shopify-wa`/`shopify-status`, `gmail-webhook` (Pub/Sub), `ig-webhook`, `slack-events`/`slack-interactivity`, `oauth-callback`, `voice-webhook` (Sarvam post-call callback, per-call token instead of a provider signature).

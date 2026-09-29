@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import AnalyticsView from "@/components/whatsapp/AnalyticsView";
@@ -15,6 +15,8 @@ import VoiceView from "@/components/whatsapp/VoiceView";
 import GrowthView from "@/components/whatsapp/GrowthView";
 import InboxView from "@/components/whatsapp/InboxView";
 import { AlertsToggle } from "@/components/whatsapp/InboxNotifier";
+import { useAccess } from "@/components/shell/useAccess";
+import { canUse, whatsappTabModule } from "@/lib/access";
 
 
 
@@ -37,6 +39,11 @@ function WhatsAppPageInner() {
   const urlTab = params.get("tab") as Tab | null;
   const tab: Tab = urlTab && TABS.includes(urlTab) ? urlTab : "inbox";
   const threadParam = params.get("thread");
+  // Tabs outside this teammate's areas are hidden (the middleware refuses
+  // them too). Null while access loads: nothing renders yet.
+  const access = useAccess();
+  const allowedTabs = useMemo(() => TABS.filter((t) => access && canUse(access, whatsappTabModule(t))), [access]);
+  const tabAllowed = allowedTabs.includes(tab);
 
   const setTab = useCallback((t: Tab) => {
     const q = new URLSearchParams();
@@ -53,12 +60,17 @@ function WhatsAppPageInner() {
     router.replace(`/dashboard/whatsapp${q.toString() ? `?${q}` : ""}`);
   }, [router, tab]);
 
+  // Landed on a tab they can't use (old link, shared chat): hop to one they can.
+  useEffect(() => {
+    if (access && !tabAllowed && allowedTabs.length) setTab(allowedTabs[0]);
+  }, [access, tabAllowed, allowedTabs, setTab]);
+
   return (
     <div className="pm-page">
       <Header />
       <StatusMeter />
-      <Tabs tab={tab} onChange={setTab} />
-      <div>
+      <Tabs tab={tab} allowed={allowedTabs} onChange={setTab} />
+      {tabAllowed && <div>
         {tab === "inbox" && <InboxView ticketsOnly={false} threadId={threadParam} onThreadChange={setThread} />}
         {tab === "tickets" && <InboxView ticketsOnly={true} threadId={threadParam} onThreadChange={setThread} />}
         {tab === "templates" && <TemplatesView />}
@@ -68,7 +80,7 @@ function WhatsAppPageInner() {
         {tab === "growth" && <GrowthView />}
         {tab === "analytics" && <AnalyticsView />}
         {tab === "kb" && <KbView />}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -167,7 +179,7 @@ function StatusMeter() {
 }
 
 
-function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
+function Tabs({ tab, allowed, onChange }: { tab: Tab; allowed: Tab[]; onChange: (t: Tab) => void }) {
   const items: Array<{ key: Tab; label: string }> = [
     { key: "inbox", label: "Inbox" },
     { key: "tickets", label: "Tickets" },
@@ -181,7 +193,7 @@ function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
   ];
   return (
     <div className="pm-tabs">
-      {items.map((it) => (
+      {items.filter((it) => allowed.includes(it.key)).map((it) => (
         <button
           key={it.key}
           type="button"

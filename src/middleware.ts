@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isAllowedEmail } from "@/lib/auth-domains";
 import { authCookieOptions } from "@/lib/auth-options";
+import { accessOf, canCallApi, canOpenPage, landingFor } from "@/lib/access";
 
 // /r/* = public click-tracking redirects (WhatsApp short links) — must be
 // reachable without a dashboard session.
@@ -85,6 +86,28 @@ export async function middleware(req: NextRequest) {
     const url = req.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
+  }
+
+  // Per-area access (src/lib/access.ts). Only members an admin restricted are
+  // affected. 403, never 401: SessionGuard treats a 401 as an expired session.
+  if (user) {
+    const access = accessOf(user);
+    if (access.restricted) {
+      if (isProtectedApi && !canCallApi(access, path, req.method)) {
+        return NextResponse.json(
+          { ok: false, error: "You don't have access to this area. Ask an admin to grant it." },
+          { status: 403 }
+        );
+      }
+      const isPage = path === "/dashboard" || path.startsWith("/dashboard/");
+      if (isPage && !canOpenPage(access, path, req.nextUrl.searchParams.get("tab"))) {
+        const url = req.nextUrl.clone();
+        const [target, query = ""] = landingFor(access).split("?");
+        url.pathname = target;
+        url.search = query ? `?${query}` : "";
+        return NextResponse.redirect(url);
+      }
+    }
   }
 
   return response;

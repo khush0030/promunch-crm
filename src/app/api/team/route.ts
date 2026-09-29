@@ -8,6 +8,7 @@ import { recordAudit } from "@/lib/audit";
 import { assertHuman } from "@/lib/botid-guard";
 import { isAdminUser } from "@/lib/rbac";
 import { resolveTeamDisplayName } from "@/lib/team";
+import { isModuleKey, MODULE_KEYS, storedModules, type ModuleKey } from "@/lib/access";
 
 function callerName(user: { email?: string | null; user_metadata?: Record<string, unknown> }): string {
   const meta = (user.user_metadata || {}) as Record<string, unknown>;
@@ -55,6 +56,8 @@ type TeamUser = {
   email: string | null;
   name: string;
   role: Role;
+  // Areas this member may use (lib/access.ts); null = every area.
+  modules: ModuleKey[] | null;
   created_at: string;
   last_sign_in_at: string | null;
   confirmed: boolean;
@@ -73,6 +76,7 @@ export async function GET() {
       email: u.email ?? null,
       name: resolveTeamDisplayName(u),
       role: roleOf(u),
+      modules: storedModules(u),
       created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at ?? null,
       confirmed: Boolean(u.email_confirmed_at || u.confirmed_at),
@@ -85,6 +89,7 @@ export async function GET() {
     currentUserId: caller.id,
     currentUserEmail: caller.email ?? null,
     currentUserRole: roleOf(caller),
+    currentUserModules: storedModules(caller),
   });
 }
 
@@ -180,8 +185,9 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-// Change a member's role (owner/admin/agent). Admins only; you can't change
-// your own role (prevents the last admin locking themselves out).
+// Change a member's role (owner/admin/agent) and/or the areas they can use
+// (`modules`: a list of area keys, or null for every area). Admins only; you
+// can't change your own access (prevents the last admin locking themselves out).
 export async function PATCH(req: NextRequest) {
   const bot = await assertHuman();
   if (bot) return bot;
@@ -191,12 +197,15 @@ export async function PATCH(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const id = String(body?.id ?? "");
-  const role = String(body?.role ?? "");
   if (!id) return NextResponse.json({ error: "Missing user id." }, { status: 400 });
+  if (id === caller.id) return NextResponse.json({ error: "You can't change your own access." }, { status: 400 });
+
+  if (body && "modules" in body && !("role" in body)) return setModules(req, caller, id, body.modules);
+
+  const role = String(body?.role ?? "");
   if (!["owner", "admin", "agent"].includes(role)) {
     return NextResponse.json({ error: "Invalid role." }, { status: 400 });
   }
-  if (id === caller.id) return NextResponse.json({ error: "You can't change your own role." }, { status: 400 });
 
   const { data: target } = await supabaseAdmin.auth.admin.getUserById(id);
   const prevRole = roleOf(target.user ?? {});
@@ -218,6 +227,41 @@ export async function PATCH(req: NextRequest) {
   });
 
   return NextResponse.json({ ok: true });
+}
+
+async function setModules(
+  req: NextRequest,
+  caller: NonNullable<Awaited<ReturnType<typeof requireCaller>>>,
+  id: string,
+  raw: unknown
+) {
+  if (raw !== null && (!Array.isArray(raw) || !raw.every(isModuleKey))) {
+    return NextResponse.json({ error: "Invalid areas." }, { status: 400 });
+  }
+  // Canonical order, no duplicates. null clears the restriction (every area).
+  const modules: ModuleKey[] | null = raw === null ? null : MODULE_KEYS.filter((k) => (raw as unknown[]).includes(k));
+
+  const { data: target } = await supabaseAdmin.auth.admin.getUserById(id);
+  if (!target.user) return NextResponse.json({ error: "No such member." }, { status: 404 });
+  const prev = storedModules(target.user);
+  const meta: Record<string, unknown> = { ...(target.user.app_metadata ?? {}) };
+  // GoTrue merges app_metadata keys, so clearing needs an explicit null.
+  meta.modules = modules;
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(id, { app_metadata: meta });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const label = (m: ModuleKey[] | null) => (m === null ? "all areas" : m.length ? m.join(", ") : "no areas");
+  await recordAudit({
+    action: "team.access_change",
+    entityType: "user",
+    entityId: id,
+    summary: `Changed ${target.user.email ?? id} access: ${label(prev)} → ${label(modules)}`,
+    metadata: { from: prev, to: modules, email: target.user.email ?? null },
+    actor: caller,
+    request: req,
+  });
+
+  return NextResponse.json({ ok: true, modules });
 }
 
 export async function DELETE(req: NextRequest) {

@@ -7,6 +7,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { PageHead, Tabs, Panel, HealthPill, StatusBadge, DataTable } from "@/components/pm";
 import { ApiKeysPanel } from "@/components/settings/ApiKeysPanel";
 import type { Column, HealthStatus } from "@/components/pm";
+import { MODULES, type ModuleKey } from "@/lib/access";
 
 type Status = "healthy" | "degraded" | "down" | "unknown";
 type Connector = { id: string; label: string; description: string; status: Status; headline: string; metrics: { label: string; value: string }[] };
@@ -289,7 +290,7 @@ export default function SettingsPage() {
   );
 }
 
-type Member = { id: string; name: string; email: string | null; role: string; confirmed: boolean };
+type Member = { id: string; name: string; email: string | null; role: string; modules: ModuleKey[] | null; confirmed: boolean };
 
 const ROLE_TONE: Record<string, "terra" | "gold" | "blue"> = { owner: "terra", admin: "gold", agent: "blue" };
 
@@ -297,6 +298,7 @@ function TeamTable() {
   const [members, setMembers] = useState<Member[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [currentRole, setCurrentRole] = useState<string>("admin");
+  const [editing, setEditing] = useState<Member | null>(null);
 
   const load = useCallback(() => {
     fetch("/api/team")
@@ -320,6 +322,9 @@ function TeamTable() {
     load();
   }
 
+  const accessLabel = (m: Member) =>
+    m.role !== "agent" ? "Everything" : m.modules === null ? "All areas" : m.modules.length === 0 ? "No areas" : `${m.modules.length} of ${MODULES.length} areas`;
+
   const columns: Column<Member>[] = [
     { header: "Member", cell: (m) => <div className="pm-cellname"><Avatar name={m.name} size={30} /><span className="pm-b7">{m.name}</span></div> },
     { header: "Email", cell: (m) => <span className="pm-dim">{m.email}</span> },
@@ -336,8 +341,126 @@ function TeamTable() {
           <StatusBadge tone={ROLE_TONE[m.role] ?? "gold"}>{m.role[0].toUpperCase() + m.role.slice(1)}</StatusBadge>
         ),
     },
+    {
+      header: "Access",
+      cell: (m) =>
+        canManage && m.id !== currentId && m.role === "agent" ? (
+          <button type="button" className="pm-btn ghost sm" onClick={() => setEditing(m)} title="Choose which areas this member can use">
+            {accessLabel(m)}
+          </button>
+        ) : (
+          <span className="pm-dim" title={m.role !== "agent" ? "Owners and admins can use every area" : undefined}>{accessLabel(m)}</span>
+        ),
+    },
     { header: "Status", cell: (m) => <StatusBadge tone={m.confirmed ? "green" : "gold"}>{m.confirmed ? "Active" : "Invited"}</StatusBadge> },
   ];
 
-  return <DataTable columns={columns} rows={members} rowKey={(m) => m.id} empty="No team data yet" />;
+  return (
+    <>
+      <DataTable columns={columns} rows={members} rowKey={(m) => m.id} empty="No team data yet" />
+      {editing && (
+        <AccessDialog
+          member={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            load();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// Pick the areas an Agent can use. "All areas" stores no restriction, so the
+// member also gets any area added later; a ticked list is exactly those areas.
+function AccessDialog({ member, onClose, onSaved }: { member: Member; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const [all, setAll] = useState(member.modules === null);
+  const [picked, setPicked] = useState<Set<ModuleKey>>(new Set(member.modules ?? []));
+  const [busy, setBusy] = useState(false);
+
+  function toggle(k: ModuleKey) {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+  }
+
+  async function save() {
+    setBusy(true);
+    try {
+      const r = await fetch("/api/team", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: member.id, modules: all ? null : [...picked] }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d?.error || "Save failed.");
+      toast.push({ kind: "success", text: `Access updated for ${member.name}.` });
+      onSaved();
+    } catch (e) {
+      toast.push({ kind: "error", text: `Couldn't save access: ${e instanceof Error ? e.message : "unknown"}` });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(36,30,24,0.5)", display: "grid", placeItems: "center", padding: 20 }}
+      onClick={() => !busy && onClose()}
+    >
+      <div
+        className="card card-pad"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Access for ${member.name}`}
+        style={{ width: "100%", maxWidth: 480, padding: 28, maxHeight: "90vh", overflowY: "auto" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 4px" }}>Access for {member.name}</h3>
+        <div className="sub" style={{ marginBottom: 16 }}>
+          Choose which parts of the CRM {member.email ?? "this member"} can open. Everything else is hidden and blocked.
+        </div>
+
+        <label style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0", borderBottom: "1px solid var(--pm-border)", cursor: "pointer" }}>
+          <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} style={{ marginTop: 3 }} />
+          <span>
+            <span className="pm-b7">All areas</span>
+            <span className="pm-dim" style={{ display: "block", fontSize: 12 }}>Everything a member can use today, plus any area added later.</span>
+          </span>
+        </label>
+
+        <div style={{ opacity: all ? 0.45 : 1 }}>
+          {MODULES.map((m) => (
+            <label key={m.key} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "9px 0", cursor: all ? "default" : "pointer" }}>
+              <input
+                type="checkbox"
+                disabled={all}
+                checked={all || picked.has(m.key)}
+                onChange={() => toggle(m.key)}
+                style={{ marginTop: 3 }}
+              />
+              <span>
+                <span className="pm-b7">{m.label}</span>
+                <span className="pm-dim" style={{ display: "block", fontSize: 12 }}>{m.hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+          <button type="button" className="btn primary" onClick={save} disabled={busy} style={{ justifyContent: "center" }}>
+            {busy ? "Saving…" : "Save access"}
+          </button>
+          <button type="button" className="btn" onClick={onClose} disabled={busy} style={{ justifyContent: "center" }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

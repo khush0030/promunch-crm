@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { Attention } from "@/lib/metrics/attention";
+import { canOpenHref, type Access } from "@/lib/access";
 
 export type Hub = "Today" | "Sales" | "Inbox" | "Marketing" | "Partners" | "System";
 export type AttentionCounts = Omit<Attention["counts"], "byHub">;
@@ -140,6 +141,16 @@ export function visibleItems(h: NavHub): NavItem[] {
   return h.items.filter((it) => !it.hidden);
 }
 
+// NAV trimmed to the areas a member can open (lib/access.ts); hubs left with
+// no items drop out. Null access (still loading) shows nothing, so a
+// restricted member never sees a flash of areas they can't open.
+export function navFor(access: Access | null): NavHub[] {
+  if (access && !access.restricted) return NAV;
+  return NAV.map((h) => ({ ...h, items: h.items.filter((it) => access && canOpenHref(access, it.href)) })).filter(
+    (h) => h.items.length > 0,
+  );
+}
+
 // Short preview of a collapsed hub: the first few item names, plus how many
 // more it holds.
 export const PREVIEW_ITEMS = 3;
@@ -182,8 +193,8 @@ export function findActive(pathname: string, tab: string | null, hash: string): 
 // Where a hub-level link (phone tab bar) goes: the first item in the hub that
 // actually resolves to that hub. While Sales Overview still shares
 // /dashboard with Home, the Sales tab opens Web store instead.
-export function hubHref(hub: Hub): string {
-  const h = NAV.find((x) => x.hub === hub)!;
+export function hubHref(hub: Hub, nav: NavHub[] = NAV): string {
+  const h = nav.find((x) => x.hub === hub) ?? NAV.find((x) => x.hub === hub)!;
   for (const item of visibleItems(h)) {
     const p = parseHref(item.href);
     if (findActive(p.path, p.tab, p.hash)?.hub === hub) return item.href;

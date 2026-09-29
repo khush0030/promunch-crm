@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { Search, User, MessageCircle, CornerDownLeft } from "lucide-react";
 import { NAV } from "./nav";
 import { useMediaPhone } from "./useMediaPhone";
+import { useAccess } from "./useAccess";
+import { canOpenHref } from "@/lib/access";
 
 type Result = { key: string; group: "Pages" | "Customers" | "Conversations"; label: string; sub?: string; href: string };
 type Remote = { q: string; customers: Result[]; conversations: Result[] };
@@ -43,6 +45,10 @@ export default function CommandPalette({ onClose }: { onClose: (navigated: boole
   const [sel, setSel] = useState(0);
   const [remote, setRemote] = useState<Remote | null>(null);
   const term = q.trim();
+  // Only pages this teammate can open. Customer / conversation lookups that
+  // their access refuses come back 403 and are simply left out.
+  const access = useAccess();
+  const allowed = useMemo(() => PAGES.filter((p) => access && canOpenHref(access, p.href)), [access]);
 
   useEffect(() => {
     input.current?.focus();
@@ -85,11 +91,11 @@ export default function CommandPalette({ onClose }: { onClose: (navigated: boole
   const results = useMemo(() => {
     const needle = term.toLowerCase();
     const pages = needle
-      ? PAGES.filter((p) => p.label.toLowerCase().includes(needle) || p.sub!.toLowerCase().includes(needle))
-      : PAGES;
+      ? allowed.filter((p) => p.label.toLowerCase().includes(needle) || p.sub!.toLowerCase().includes(needle))
+      : allowed;
     const live = term.length >= 2 && remote?.q === term ? remote : null;
     return [...pages, ...(live?.customers ?? []), ...(live?.conversations ?? [])];
-  }, [term, remote]);
+  }, [term, remote, allowed]);
 
   const selIndex = Math.min(sel, Math.max(results.length - 1, 0));
 

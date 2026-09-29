@@ -95,6 +95,7 @@ Untracked local secrets that must stay at root and never be committed: `.env.loc
 
 - `src/middleware.ts` gates all `/api/*` except webhooks and cron routes, which **fail closed**: `CRON_SECRET`, `RESEND_WEBHOOK_SECRET` (and `SHOPIFY_WEBHOOK_SECRET` where used) are REQUIRED or the route 401s by design. A 401 there usually means a missing secret, not a bug.
 - Dashboard auth: Supabase Auth with email-domain allowlist (`trypromunch.in` included); branded invite emails via Resend `generateLink`.
+- Per-area access: Agents can be limited to chosen areas (Settings → Team → Access, `app_metadata.modules`; no list = every area). Map every new dashboard page and `/api/*` route in `src/lib/access.ts`; the middleware enforces it and `access.test.ts` fails on unmapped paths.
 - API key management (Settings → API keys) is owner-only (`kmutha@vippysoya.com`), backed by `app_secrets` + `getSecret()` live rotation. Edge functions and routes read provider keys through `getSecret()`, not env, where wired.
 - gitleaks runs in CI (`.gitleaks.toml`). Never commit `.env*`, `PM-CRM_GKeys.json`, or anything matching those patterns. A Google SA key was leaked once and had to be purged from history; do not repeat it.
 - All AI code is on **OpenAI** (migrated from Anthropic). If an edge function throws provider auth errors, it is probably running a stale deploy: redeploy the AI functions.

@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { MoreHorizontal, Sparkles, X } from "lucide-react";
-import { NAV, hubHref, visibleItems, type ActiveNav, type AttentionCounts, type Hub } from "./nav";
+import { hubHref, navFor, visibleItems, type ActiveNav, type AttentionCounts, type Hub, type NavHub } from "./nav";
+import { useAccess } from "./useAccess";
 import { Badge } from "./Sidebar";
 
 const TABS: Hub[] = ["Today", "Sales", "Inbox", "Marketing"];
@@ -14,6 +15,7 @@ type Props = { active: ActiveNav | null; counts: AttentionCounts | null; onNavig
 export default function TabBar({ active, counts, onNavigate }: Props) {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreBtn = useRef<HTMLButtonElement>(null);
+  const nav = navFor(useAccess());
   const activeHub = active?.hub ?? "Today";
   const moreOn = MORE_HUBS.includes(activeHub);
 
@@ -22,12 +24,12 @@ export default function TabBar({ active, counts, onNavigate }: Props) {
   return (
     <>
       <nav className="pm2-tabbar" aria-label="Hubs">
-        {TABS.map((hub) => {
-          const h = NAV.find((x) => x.hub === hub)!;
+        {TABS.filter((hub) => nav.some((x) => x.hub === hub)).map((hub) => {
+          const h = nav.find((x) => x.hub === hub)!;
           const Icon = h.icon;
           const on = hub === activeHub;
           return (
-            <Link key={hub} href={hubHref(hub)} className={on ? "on" : undefined} aria-current={on ? "page" : undefined} onClick={onNavigate}>
+            <Link key={hub} href={hubHref(hub, nav)} className={on ? "on" : undefined} aria-current={on ? "page" : undefined} onClick={onNavigate}>
               <span className="ico">
                 <Icon aria-hidden />
                 <Badge n={badgeFor(hub)} />
@@ -52,6 +54,7 @@ export default function TabBar({ active, counts, onNavigate }: Props) {
       </nav>
       {moreOpen && (
         <MoreSheet
+          nav={nav}
           active={active}
           onClose={() => {
             setMoreOpen(false);
@@ -67,7 +70,17 @@ export default function TabBar({ active, counts, onNavigate }: Props) {
   );
 }
 
-function MoreSheet({ active, onClose, onNavigate }: { active: ActiveNav | null; onClose: () => void; onNavigate: () => void }) {
+function MoreSheet({
+  nav,
+  active,
+  onClose,
+  onNavigate,
+}: {
+  nav: NavHub[];
+  active: ActiveNav | null;
+  onClose: () => void;
+  onNavigate: () => void;
+}) {
   const sheet = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   useEffect(() => {
@@ -83,8 +96,7 @@ function MoreSheet({ active, onClose, onNavigate }: { active: ActiveNav | null; 
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const today = NAV.find((h) => h.hub === "Today")!;
-  const maya = today.items.find((it) => it.href === "/dashboard/assistant")!;
+  const maya = nav.find((h) => h.hub === "Today")?.items.find((it) => it.href === "/dashboard/assistant");
 
   return (
     <div className="pm2-sheet-backdrop" onClick={onClose}>
@@ -102,7 +114,7 @@ function MoreSheet({ active, onClose, onNavigate }: { active: ActiveNav | null; 
             <X aria-hidden />
           </button>
         </div>
-        {NAV.filter((h) => MORE_HUBS.includes(h.hub)).map((h) => {
+        {nav.filter((h) => MORE_HUBS.includes(h.hub)).map((h) => {
           const Icon = h.icon;
           return (
             <section key={h.hub} style={{ "--hc": h.color } as React.CSSProperties}>
@@ -124,12 +136,14 @@ function MoreSheet({ active, onClose, onNavigate }: { active: ActiveNav | null; 
             </section>
           );
         })}
-        <section>
-          <Link href={maya.href} className={`pm2-sheet-item${active?.item === maya ? " on" : ""}`} onClick={onNavigate}>
-            <Sparkles aria-hidden />
-            {maya.label}
-          </Link>
-        </section>
+        {maya && (
+          <section>
+            <Link href={maya.href} className={`pm2-sheet-item${active?.item === maya ? " on" : ""}`} onClick={onNavigate}>
+              <Sparkles aria-hidden />
+              {maya.label}
+            </Link>
+          </section>
+        )}
       </div>
     </div>
   );
