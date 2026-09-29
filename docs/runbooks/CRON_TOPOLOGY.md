@@ -163,3 +163,20 @@ Added by `promunch-email-agent/supabase/migrations/20260826200000_voice_cart_rec
 Ships with `wa_flow_settings.voice_call_enabled=false`, so this job runs
 against an empty or near-empty table until the feature is turned on — see
 [docs/whatsapp/VOICE_AGENT_SETUP.md](../whatsapp/VOICE_AGENT_SETUP.md).
+
+## 2026-09-29 update (WhatsApp template approval pipeline)
+
+One new job, scheduled inside the feature migration (not yet applied as of
+this writing; paste it into the SQL editor, then verify with the queries at
+the bottom of the migration):
+
+| Job | Schedule | Target |
+|---|---|---|
+| `wa-template-sync` | `7-59/15 * * * *` | edge `wa-template-create` with body `{"action":"sync"}`. The job's SQL only fires the HTTP call when a `wa_templates` row is `pending` (in Meta review) or no sync has run for 6 hours, so most ticks are a single SELECT. Mirrors Meta status, quality rating, rejection reason, re-categorisation and re-hosts header media for templates made in WhatsApp Manager. |
+
+Offset to `:07/:22/:37/:52` to stay clear of the `:X0` stampede (see the
+2026-09-12 `wa-watchdog` note). Added by
+`promunch-email-agent/supabase/migrations/20260929110000_wa_templates_v2.sql`.
+The Templates tab still runs an immediate sync when it is opened with
+anything in review; this job is what makes approvals land without anyone
+opening the tab.

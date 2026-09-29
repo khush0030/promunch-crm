@@ -6,6 +6,7 @@
 
 import { requireInternal } from "../_shared/require-internal.ts";
 import { getAppSecret } from "../_shared/app-secrets.ts";
+import { fetchWaTier } from "../_shared/wa-quota.ts";
 
 const GRAPH = `https://graph.facebook.com/${Deno.env.get("WHATSAPP_GRAPH_VERSION") ?? "v21.0"}`;
 
@@ -20,10 +21,19 @@ Deno.serve(async (req) => {
   }
 
   const phoneRes = await fetch(
-    `${GRAPH}/${phoneId}?fields=verified_name,display_phone_number,quality_rating,messaging_limit_tier,throughput,name_status,code_verification_status,platform_type`,
+    `${GRAPH}/${phoneId}?fields=verified_name,display_phone_number,quality_rating,throughput,name_status,code_verification_status,platform_type`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
   const phone = await phoneRes.json();
+  // Messaging tier on its own request: Meta deprecated messaging_limit_tier in
+  // favour of whatsapp_business_manager_messaging_limit, and an unknown field
+  // fails the whole Graph request. Both keys are reported (same value) so older
+  // dashboard readers keep working.
+  const tier = await fetchWaTier(token, phoneId);
+  if (phone && typeof phone === "object" && !phone.error) {
+    phone.whatsapp_business_manager_messaging_limit = tier;
+    phone.messaging_limit_tier = tier;
+  }
 
   let account: unknown = null;
   let phoneNumbers: unknown = null;
@@ -33,9 +43,8 @@ Deno.serve(async (req) => {
       { headers: { Authorization: `Bearer ${token}` } },
     );
     account = await accRes.json();
-    // The WABA phone_numbers edge reliably returns messaging_limit_tier.
     const pnRes = await fetch(
-      `${GRAPH}/${waba}/phone_numbers?fields=display_phone_number,verified_name,quality_rating,messaging_limit_tier`,
+      `${GRAPH}/${waba}/phone_numbers?fields=display_phone_number,verified_name,quality_rating`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     phoneNumbers = await pnRes.json();
@@ -48,7 +57,7 @@ Deno.serve(async (req) => {
   const override = Number(rawOverride);
   const daily_limit_override = Number.isFinite(override) && override > 0 ? Math.floor(override) : null;
 
-  return j({ ok: phoneRes.ok, phone, account, phoneNumbers, daily_limit_override,
+  return j({ ok: phoneRes.ok, phone, messaging_limit_tier: tier, account, phoneNumbers, daily_limit_override,
     marketing_routing: {
       mm_lite_enabled: ["true", "1"].includes((Deno.env.get("WA_MM_LITE_ENABLED") ?? "").trim().toLowerCase()),
       graph_version: Deno.env.get("WA_MM_LITE_GRAPH_VERSION") ?? Deno.env.get("WHATSAPP_GRAPH_VERSION") ?? "v21.0",

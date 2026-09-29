@@ -33,8 +33,10 @@ Deno.serve(async (req) => {
     const { count } = await apply(baseQuery());
     return count ?? 0;
   };
+  // Outbound only: inbound replies also carry campaign_id (reply attribution).
   const baseQuery = () =>
-    sb.from("wa_messages").select("*", { count: "exact", head: true }).eq("campaign_id", campaignId);
+    sb.from("wa_messages").select("*", { count: "exact", head: true })
+      .eq("campaign_id", campaignId).eq("direction", "outbound");
 
   const total = await countOf((q) => q);
   const received = await countOf((q) => q.in("status", ["delivered", "read"]));
@@ -50,6 +52,7 @@ Deno.serve(async (req) => {
     .from("wa_messages")
     .select("error")
     .eq("campaign_id", campaignId)
+    .eq("direction", "outbound")
     .eq("status", "failed")
     .not("error", "ilike", "%ecosystem%")
     .limit(1000);

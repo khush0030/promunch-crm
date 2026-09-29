@@ -11,6 +11,9 @@ const PRICE: Record<string, number> = {
   marketing: 0.78, offer: 0.78, utility: 0.115, authentication: 0.115, service: 0,
 };
 const BILLED = ["sent", "delivered", "read"];
+// An order is credited to a campaign only if it lands within this window after
+// that recipient's OWN send (and the send was delivered or read).
+const ATTRIBUTION_WINDOW_DAYS = 7;
 
 // Pull every row of a query, 1000 at a time (PostgREST page cap). `mk` returns
 // a fresh query builder each call so .range() applies cleanly.
@@ -43,11 +46,11 @@ export async function GET(req: NextRequest) {
   const campaigns = camps ?? [];
 
   // One scan of campaign messages → per-campaign status counts + audience sets.
-  type Msg = { campaign_id: string; contact_id: string | null; status: string };
+  type Msg = { campaign_id: string; contact_id: string | null; status: string; created_at: string };
   const msgs = await pageAll<Msg>(() =>
     supabaseAdmin
       .from("wa_messages")
-      .select("campaign_id,contact_id,status")
+      .select("campaign_id,contact_id,status,created_at")
       .eq("direction", "outbound")
       .not("campaign_id", "is", null)
       .gte("created_at", since)
@@ -85,28 +88,28 @@ export async function GET(req: NextRequest) {
       .not("customer_phone", "is", null)
   )).filter((o) => !o.is_creator && o.financial_status !== "refunded" && o.financial_status !== "voided");
   // Last-touch attribution: credit each order to the ONE most recent campaign
-  // that messaged that customer before the order. The old "every campaign that
-  // ever messaged them" approach counted the same order (and its revenue) on
-  // multiple report cards at once.
-  const campStart = new Map<string, number>(
-    campaigns.map((c: any) => [c.id, new Date(c.started_at || c.created_at).getTime()]),
-  );
+  // touch before it, where a "touch" is THAT recipient's own delivered/read
+  // send (not the campaign's start time — a multi-day campaign reaches people
+  // days apart) and the order lands within ATTRIBUTION_WINDOW_DAYS of it.
+  // Sent-but-undelivered and failed messages never earn credit.
+  const campInWindow = new Set<string>(campaigns.map((c: { id: string }) => c.id));
   const phoneCamps = new Map<string, { id: string; at: number }[]>();
-  for (const [cid, s] of stat) {
-    const at = campStart.get(cid);
-    if (at == null) continue; // campaign row outside the window — no card to credit
-    s.contacts.forEach((waContactId) => {
-      const phone = waMeta.get(waContactId)?.phone;
-      if (!phone) return;
-      const list = phoneCamps.get(phone) ?? [];
-      list.push({ id: cid, at });
-      phoneCamps.set(phone, list);
-    });
+  for (const m of msgs) {
+    if (!campInWindow.has(m.campaign_id)) continue; // no card to credit
+    if (m.status !== "delivered" && m.status !== "read") continue;
+    if (!m.contact_id) continue;
+    const phone = waMeta.get(m.contact_id)?.phone;
+    if (!phone) continue;
+    const list = phoneCamps.get(phone) ?? [];
+    list.push({ id: m.campaign_id, at: new Date(m.created_at).getTime() });
+    phoneCamps.set(phone, list);
   }
+  const windowMs = ATTRIBUTION_WINDOW_DAYS * 86400000;
   const revByCamp = new Map<string, { revenue: number; orders: number }>();
   for (const o of orders) {
     const orderedAt = new Date(o.shopify_created_at).getTime();
-    const before = (phoneCamps.get(o.customer_phone) ?? []).filter((c) => c.at <= orderedAt);
+    const before = (phoneCamps.get(o.customer_phone) ?? [])
+      .filter((c) => c.at <= orderedAt && orderedAt - c.at <= windowMs);
     if (!before.length) continue;
     const winner = before.reduce((a, b) => (a.at >= b.at ? a : b));
     const r = revByCamp.get(winner.id) ?? { revenue: 0, orders: 0 };

@@ -1,0 +1,147 @@
+"use client";
+
+// Step 5: everything on one card, a test send, and (for risky audiences) a
+// typed confirmation. The launch button lives in the wizard footer.
+
+import type { ReactNode } from "react";
+import { Card } from "@/components/pm";
+import type { AudiencePreview } from "../api";
+import { CampaignPreview } from "../bits";
+import {
+  RETARGET_STAGES,
+  SEGMENTS,
+  estimateOutcome,
+  fmtInr,
+  fmtInt,
+  fmtIst,
+  fmtIstDate,
+  isMarketing,
+  type AudienceState,
+  type CampaignTemplate,
+  type ScheduleState,
+} from "../logic";
+import { TestSendPanel } from "./TestSendPanel";
+import s from "../campaigns.module.css";
+import { useNow } from "../useNow";
+
+export function describeAudience(a: AudienceState, campaignName?: (id: string) => string | undefined): string {
+  switch (a.mode) {
+    case "warm":
+      return "Warm: replied, read or bought recently";
+    case "engaged":
+      return "Engaged only: messaged us in the last 90 days";
+    case "segment":
+      return `Customer groups: ${SEGMENTS.filter((x) => a.segments.includes(x.key)).map((x) => x.label).join(", ") || "none picked"}`;
+    case "tags": {
+      const parts = [
+        a.tagsAny.length ? `has any of ${a.tagsAny.join(", ")}` : "",
+        a.tagsAll.length ? `has all of ${a.tagsAll.join(", ")}` : "",
+        a.excludeTags.length ? `leaving out ${a.excludeTags.join(", ")}` : "",
+      ].filter(Boolean);
+      return `Tags: ${parts.join("; ")}`;
+    }
+    case "retarget": {
+      const st = RETARGET_STAGES.find((x) => x.key === a.retargetStage)?.label ?? a.retargetStage;
+      return `Follow-up of "${campaignName?.(a.retargetCampaignId) ?? "a past campaign"}": ${st.toLowerCase()}`;
+    }
+    case "csv":
+      return `Uploaded list ${a.csvTag?.replace(/^list:/, "") ?? ""}`;
+    case "everyone":
+      return "Everyone opted in";
+  }
+}
+
+export function StepReview({
+  name,
+  tpl,
+  vars,
+  mediaUrl,
+  ai,
+  audience,
+  audienceLabel,
+  schedule,
+  startMs,
+  preview,
+  coldShare,
+  risky,
+  typed,
+  onTyped,
+  testDraft,
+  testDisabled,
+  pace,
+}: {
+  name: string;
+  tpl: CampaignTemplate;
+  vars: Record<string, string>;
+  mediaUrl: string | null;
+  ai: boolean;
+  audience: AudienceState;
+  audienceLabel: string;
+  schedule: ScheduleState;
+  startMs: number;
+  preview: AudiencePreview | undefined;
+  coldShare: number | null;
+  risky: boolean;
+  typed: string;
+  onTyped: (v: string) => void;
+  testDraft: Parameters<typeof TestSendPanel>[0]["draft"];
+  testDisabled: string | null;
+  pace: { perDay: number | null; finishMs: number | null };
+}) {
+  const people = preview?.counts.eligible_total ?? 0;
+  const now = useNow();
+  const est = estimateOutcome(people, audience.mode, coldShare);
+  const rows: [string, ReactNode][] = [
+    ["Name", name],
+    ["Template", `${tpl.name} (${isMarketing(tpl) ? "Marketing" : "Utility"})`],
+    ["Picture", mediaUrl ? "A new file just for this campaign" : tpl.header_media_url ? "The template's own file" : "None"],
+    ["AI personalisation", ai ? "On" : "Off"],
+    ["Audience", audienceLabel],
+    ["Will get it", `${fmtInt(people)} people`],
+    ["Expected", `about ${fmtInt(est.delivered)} arrive, about ${fmtInt(est.heldBack)} held back by Meta`],
+    ["Estimated cost", `about ${fmtInr(est.costInr)} (delivered only, incl. GST)`],
+    [
+      "When",
+      schedule.when === "now"
+        ? `Now${startMs > now + 60_000 ? `, first messages at ${fmtIst(startMs)} (after quiet hours)` : ""}`
+        : `${fmtIst(startMs)} India time${schedule.repeat ? `, repeats ${schedule.repeat}${schedule.until ? ` until ${schedule.until}` : ""}` : ""}`,
+    ],
+    ["Pace", `${pace.perDay != null ? `about ${fmtInt(pace.perDay)} a day` : "depends on today's budget"}${pace.finishMs ? `, done about ${fmtIstDate(pace.finishMs)}` : ""}`],
+  ];
+
+  return (
+    <div className={s.stack}>
+      <div>
+        <h2 style={{ margin: "0 0 4px", fontSize: 18 }}>Review and launch</h2>
+        <p className={s.help} style={{ margin: 0 }}>Check everything once more. Nothing is sent until you press the button below and confirm.</p>
+      </div>
+
+      <div className="pm2-g21">
+        <Card title="Summary">
+          <dl className={s.summary}>
+            {rows.map(([k, v]) => (
+              <div key={k} style={{ display: "contents" }}>
+                <dt>{k}</dt>
+                <dd>{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </Card>
+        <CampaignPreview tpl={tpl} vars={vars} mediaUrl={mediaUrl} />
+      </div>
+
+      <TestSendPanel draft={testDraft} disabledReason={testDisabled} />
+
+      {risky && (
+        <div className={s.danger}>
+          <b>This is a risky audience.</b> Most of these people never messaged PROMUNCH, so Meta will hold back most messages and our number&apos;s
+          standing can drop. If the owner has okayed it, type the number of people (<b>{fmtInt(people)}</b>) to confirm.
+          <label className={s.field} style={{ marginTop: 8, maxWidth: 220 }}>
+            <span className="pm2-sr">Type the number of people</span>
+            <input className={s.input} inputMode="numeric" value={typed} onChange={(e) => onTyped(e.target.value)} placeholder={String(people)} />
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}

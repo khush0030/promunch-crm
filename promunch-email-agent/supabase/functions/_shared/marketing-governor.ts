@@ -384,20 +384,44 @@ export async function marketingHoldSet(
     const marketingNames = await marketingTemplateNames();
     const since7d = new Date(Date.now() - 7 * DAY_MS).toISOString();
     const perContact = new Map<string, number[]>();
+    // v2 ledger columns (migration 20260929120000). A failed row with no wamid
+    // whose error_class is structural/transient was rejected synchronously by
+    // the API (bad params, token, network) and never entered Meta's delivery
+    // pipeline, so it is not a fatigue-relevant attempt. Counting it would hold
+    // every contact of a halted campaign out of its own retry-after-fix for
+    // 24h. Falls back to the legacy column set if the migration is missing.
+    let withClass = true;
     for (let from = 0; ; from += 1000) {
+      const cols = withClass
+        ? "contact_id, template_name, created_at, status, wa_message_id, error_class"
+        : "contact_id, template_name, created_at";
       const { data, error } = await sb
         .from("wa_messages")
-        .select("contact_id, template_name, created_at")
+        .select(cols)
         .eq("direction", "outbound")
         .eq("type", "template")
         .in("status", ATTEMPT_STATUSES as unknown as string[])
         .gte("created_at", since7d)
         .range(from, from + 999);
+      if (error && withClass && from === 0) { withClass = false; from = -1000; continue; }
       if (error) return held; // fail open — keep whatever suppression holds we have
       if (!data || data.length === 0) break;
-      for (const r of data as { contact_id: string | null; template_name: string | null; created_at: string }[]) {
+      for (
+        const r of data as unknown as {
+          contact_id: string | null;
+          template_name: string | null;
+          created_at: string;
+          status?: string;
+          wa_message_id?: string | null;
+          error_class?: string | null;
+        }[]
+      ) {
         if (!r.contact_id || !r.template_name) continue;
         if (!marketingNames.has(r.template_name)) continue;
+        if (
+          r.status === "failed" && !r.wa_message_id &&
+          (r.error_class === "structural" || r.error_class === "transient")
+        ) continue;
         const t = Date.parse(r.created_at);
         if (!Number.isFinite(t)) continue;
         const list = perContact.get(r.contact_id) ?? [];

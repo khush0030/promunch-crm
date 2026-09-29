@@ -1,4 +1,5 @@
-// Create & sync WhatsApp message templates at Meta.
+// deno-lint-ignore-file no-explicit-any -- raw Meta Graph JSON is untyped
+// Create, edit, delete & sync WhatsApp message templates at Meta.
 //
 // The wa_templates table is only a LOCAL registry — marking a row
 // status='approved' there does nothing. A template must also exist and be
@@ -7,27 +8,52 @@
 //
 // POST modes (JSON body):
 //   { names?: string[] }   — create one/all of the predefined journey set
-//   { template: {...} }    — create one arbitrary template (dashboard builder)
-//   { edit: true, names? } — resubmit existing templates' content (e.g. copy
+//   { template: {...} }    — create one arbitrary template (dashboard builder);
+//                            also { action: "create", template }
+//   { action: "edit", template: {...} }
+//                          — edit a dashboard template at Meta (POST
+//                            /{meta_template_id}) with its FULL component set.
+//                            Works for rejected, paused and approved templates.
+//                            Approved: category can't change; Meta allows
+//                            roughly 1 edit / 24h and 10 / 30 days.
+//   { action: "delete", name, language }
+//                          — delete at Meta (by name + hsm_id, so only this
+//                            language) and then locally. If Meta refuses, the
+//                            local row is kept.
+//   { edit: true, names? } — resubmit PREDEFINED templates' content (e.g. copy
 //                            changes) to Meta by their stored meta_template_id
-//   { sync: true }         — pull every template from Meta, mirror real
-//                            status/body/category back into wa_templates
+//   { editDb: true, name, language?, button_url? }
+//                          — legacy: rebuild a dashboard template from its row,
+//                            optionally swapping the URL button link
+//   { sync: true } | { action: "sync" }
+//                          — pull every template from Meta, mirror real
+//                            status/body/category/quality back into wa_templates
+//                            (pg_cron runs this every 15 min, see migration
+//                            20260929110000_wa_templates_v2.sql)
 //   { waba?: "..." }       — optional explicit WABA id (else secret/discovery)
+//
+// Dashboard templates are re-validated server-side with the same rules the
+// builder uses (_shared/template-rules.ts, twin of the app's
+// src/lib/whatsapp/template-rules-core.ts). Failures return
+//   400 { ok:false, error, issues:[{field,message,fix?}] }
+// Meta API failures return { ok:false, error, meta_error:{code,subcode,...} }.
 //
 // GET ?debug=1 — dump token + WABA discovery diagnostics.
 //
 // Auth: service-role bearer via requireInternal (verify_jwt alone is NOT
 // authorization — the public anon key passes it). Called by the Next.js API
-// routes with the service-role bearer.
+// routes and pg_cron with the service-role bearer.
 
 import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { uploadResumable, fetchMediaBytes } from "../_shared/whatsapp.ts";
 import { intentLabel, quickRepliesFor } from "../_shared/quick-replies.ts";
+import { finalFooter, validateCore, type CoreIssue } from "../_shared/template-rules.ts";
 
 type HeaderFormat = "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT";
 
 const GRAPH = `https://graph.facebook.com/${Deno.env.get("WHATSAPP_GRAPH_VERSION") ?? "v21.0"}`;
+const WA_MEDIA_BUCKET = Deno.env.get("WA_MEDIA_BUCKET") ?? "wa-media";
 
 function token(): string {
   const t = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
@@ -37,8 +63,10 @@ function token(): string {
 
 type MetaCategory = "UTILITY" | "MARKETING" | "AUTHENTICATION";
 
+// `example` is a string when authored in the dashboard, but Meta returns it as
+// a one-element array on synced rows; buildComponents normalises both.
 type TplButton =
-  | { type: "URL"; text: string; url: string; example?: string }
+  | { type: "URL"; text: string; url: string; example?: string | string[] }
   | { type: "QUICK_REPLY"; text: string }
   | { type: "PHONE_NUMBER"; text: string; phone_number: string };
 
@@ -57,8 +85,23 @@ interface TemplateDef {
   // {{1}} (filled per send), in which case `example` provides a sample URL.
   // Kept for the predefined journey set; the dashboard builder uses `buttons`.
   button?: { text: string; url: string; example?: string };
-  // optional typed button set from the dashboard builder (up to 3).
+  // optional typed button set from the dashboard builder (up to 10).
   buttons?: TplButton[];
+}
+
+type MetaErr = {
+  code?: number;
+  subcode?: number;
+  message?: string;
+  user_title?: string;
+  user_msg?: string;
+  details?: string;
+};
+
+class ValidationFailed extends Error {
+  constructor(public issues: CoreIssue[]) {
+    super(issues[0]?.message ?? "template is not valid");
+  }
 }
 
 // Predefined journey set — variable contracts mirror what shopify-wa /
@@ -332,6 +375,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return j({ error: "POST only" }, 405);
 
   const b = await req.json().catch(() => ({} as Record<string, unknown>));
+  const action = typeof b?.action === "string" ? b.action : null;
 
   // Resolve the WhatsApp Business Account id: explicit body > secret > discovery.
   let waba: string | null =
@@ -351,13 +395,103 @@ Deno.serve(async (req) => {
   const sb = db();
 
   // --- sync mode: pull Meta's templates into wa_templates --------------------
-  if (b?.sync === true) {
+  if (b?.sync === true || action === "sync") {
     try {
       const synced = await syncFromMeta(waba, sb);
       return j({ ok: true, mode: "sync", waba, synced });
     } catch (e) {
       return j({ ok: false, error: String(e) }, 500);
     }
+  }
+
+  // --- delete: at Meta first, then locally ---------------------------------
+  if (action === "delete") {
+    const name = typeof b?.name === "string" ? b.name : null;
+    const language = typeof b?.language === "string" ? b.language : "en";
+    if (!name) return j({ ok: false, error: "delete requires name" }, 400);
+    const { data: row } = await sb.from("wa_templates").select("id, meta_template_id")
+      .eq("name", name).eq("language", language).maybeSingle();
+    if (!row) return j({ ok: false, error: `template '${name}' (${language}) not found` }, 404);
+    // Campaigns reference templates (FK, no cascade). A live campaign would
+    // fail mid-send, so refuse BEFORE touching Meta. A template only used by
+    // finished campaigns is deleted at Meta but its row is kept (disabled) so
+    // campaign history stays intact and the FK can't strand a half-delete.
+    const { data: users, error: usersErr } = await sb.from("wa_campaigns").select("id, name, status")
+      .eq("template_id", row.id).limit(1000);
+    if (usersErr) return j({ ok: false, mode: "delete", error: `could not check campaigns: ${usersErr.message}` }, 500);
+    const live = (users ?? []).filter((c) => ["draft", "scheduled", "sending", "paused"].includes(String(c.status)));
+    if (live.length) {
+      return j({
+        ok: false,
+        mode: "delete",
+        error: `This template is used by ${live.length} campaign(s) that have not finished (${
+          live.slice(0, 3).map((c) => `"${c.name}"`).join(", ")
+        }). Cancel them or switch their template first.`,
+      }, 409);
+    }
+    if (row.meta_template_id) {
+      const deleted = await deleteAtMeta(waba, name, String(row.meta_template_id));
+      if (!deleted.ok) return j({ mode: "delete", ...deleted });
+    }
+    if ((users ?? []).length) {
+      const { error } = await sb.from("wa_templates").update({ status: "disabled" }).eq("id", row.id);
+      if (error) return j({ ok: false, mode: "delete", error: `deleted at Meta but local update failed: ${error.message}` }, 500);
+      return j({ ok: true, mode: "delete", name, language, meta_deleted: !!row.meta_template_id, kept_for_history: true });
+    }
+    const { error } = await sb.from("wa_templates").delete().eq("id", row.id);
+    if (error) return j({ ok: false, mode: "delete", error: `deleted at Meta but local delete failed: ${error.message}` }, 500);
+    return j({ ok: true, mode: "delete", name, language, meta_deleted: !!row.meta_template_id });
+  }
+
+  // --- edit: full-component edit of a dashboard template -------------------
+  if (action === "edit") {
+    let def: TemplateDef;
+    try {
+      def = normalizeIncoming((b?.template ?? {}) as Record<string, unknown>);
+    } catch (e) {
+      return invalid(e);
+    }
+    const { data: row } = await sb.from("wa_templates").select("*")
+      .eq("name", def.name).eq("language", def.language).maybeSingle();
+    if (!row) return j({ ok: false, error: `template '${def.name}' (${def.language}) not found` }, 404);
+    if (!row.meta_template_id) {
+      return j({ ok: false, error: "This template was never submitted to Meta, so submit it as new instead of editing." }, 400);
+    }
+    // Meta only edits APPROVED, REJECTED or PAUSED templates; one still in
+    // review is refused, so say so instead of relaying a cryptic Graph error.
+    if (row.status === "pending") {
+      return j({ ok: false, error: "Meta is still reviewing this template. Wait for the verdict, then edit it." }, 409);
+    }
+    const oldCat = metaCategory(String(row.category ?? "marketing"));
+    const categoryChanged = oldCat !== def.category;
+    if (categoryChanged && row.status === "approved") {
+      return j({
+        ok: false,
+        error: "Category cannot be changed on an approved template. Use Duplicate as new version to submit it under the new category.",
+        issues: [{ field: "category", message: "Category cannot be changed on an approved template.", fix: "Use Duplicate as new version instead." }],
+      }, 400);
+    }
+    const edited = await editTemplate(String(row.meta_template_id), def, categoryChanged ? def.category : undefined);
+    if (edited.ok) {
+      await writeTolerant((r) => sb.from("wa_templates").update(r).eq("id", row.id), {
+        status: "pending",
+        // Keep the CRM-only 'offer' bucket when Meta's category is unchanged.
+        category: categoryChanged ? localCategory(def.category) : row.category,
+        header_type: def.headerFormat ?? null,
+        header_text: def.header ?? null,
+        header_media_url: def.headerFormat && def.headerFormat !== "TEXT" ? def.headerMediaUrl ?? null : null,
+        body: def.body,
+        footer: def.footer ?? null,
+        buttons: def.buttons ?? null,
+        variables: def.bodyExample.map((sample, i) => ({ name: String(i + 1), sample })),
+        header_samples: def.headerExample?.length ? def.headerExample : null,
+        rejection_reason: null,
+        rejected_reason_detail: null,
+        pending_edit: null,
+        needs_media: false,
+      });
+    }
+    return j({ mode: "edit", name: def.name, language: def.language, ...edited });
   }
 
   // --- edit mode: resubmit existing templates' content to Meta --------------
@@ -420,7 +554,9 @@ Deno.serve(async (req) => {
     const def: TemplateDef = {
       name: row.name,
       language: row.language ?? language,
-      category: String(row.category ?? "marketing").toUpperCase() as MetaCategory,
+      category: String(row.category ?? "marketing").toUpperCase() === "OFFER"
+        ? "MARKETING"
+        : String(row.category ?? "marketing").toUpperCase() as MetaCategory,
       headerFormat: (row.header_type ?? "TEXT") as HeaderFormat,
       headerMediaUrl: row.header_media_url ?? undefined,
       header: row.header_text ?? undefined,
@@ -429,6 +565,7 @@ Deno.serve(async (req) => {
       bodyExample: Array.isArray(row.variables)
         ? row.variables.map((v: { sample?: string }) => v.sample ?? "")
         : [],
+      headerExample: Array.isArray(row.header_samples) ? row.header_samples.map(String) : undefined,
       buttons: buttons.length ? buttons : undefined,
     };
     const edited = await editTemplate(String(row.meta_template_id), def);
@@ -448,7 +585,7 @@ Deno.serve(async (req) => {
     try {
       defs = [normalizeIncoming(b.template as Record<string, unknown>)];
     } catch (e) {
-      return j({ error: String(e instanceof Error ? e.message : e) }, 400);
+      return invalid(e);
     }
   } else {
     const names: string[] | undefined = Array.isArray(b?.names) && b.names.length
@@ -465,10 +602,12 @@ Deno.serve(async (req) => {
 
     // Mirror Meta's response into the local registry.
     if (created.ok) {
-      await sb.from("wa_templates").upsert({
+      // Keep the CRM-only 'offer' bucket if the dashboard sent it.
+      const incomingCat = b?.template ? String((b.template as Record<string, unknown>).category ?? "").toLowerCase() : "";
+      await writeTolerant((r) => sb.from("wa_templates").upsert(r, { onConflict: "name,language" }), {
         name: def.name,
         language: def.language,
-        category: localCategory(def.category),
+        category: incomingCat === "offer" ? "offer" : localCategory(def.category),
         status: localStatus(created.status),
         meta_template_id: created.id ?? null,
         header_type: def.headerFormat ?? (def.header ? "TEXT" : null),
@@ -478,23 +617,30 @@ Deno.serve(async (req) => {
         footer: def.footer ?? null,
         buttons: def.buttons ?? (def.button ? [{ type: "URL", ...def.button }] : null),
         variables: def.bodyExample.map((sample, i) => ({ name: String(i + 1), sample })),
+        header_samples: def.headerExample?.length ? def.headerExample : null,
         rejection_reason: null,
-      }, { onConflict: "name,language" });
+        rejected_reason_detail: null,
+        needs_media: false,
+      });
     }
   }
 
   return j({ ok: results.every((r) => r.ok), waba, results });
 });
 
+function invalid(e: unknown): Response {
+  if (e instanceof ValidationFailed) {
+    return j({ ok: false, error: e.message, issues: e.issues }, 400);
+  }
+  return j({ ok: false, error: String(e instanceof Error ? e.message : e) }, 400);
+}
+
 // Accept a dashboard-builder template object and shape it into a TemplateDef.
+// Re-validates with the same core rules as the dashboard builder; throws
+// ValidationFailed with every issue so the UI can show them all at once.
 function normalizeIncoming(t: Record<string, unknown>): TemplateDef {
   const name = String(t.name ?? "").trim();
-  if (!/^[a-z0-9_]+$/.test(name)) {
-    throw new Error("name must be lowercase letters, digits and underscores only");
-  }
   const body = String(t.body ?? "").trim();
-  if (!body) throw new Error("body is required");
-
   const header = t.header_text ? String(t.header_text).trim() : undefined;
   const footer = t.footer ? String(t.footer).trim() : undefined;
 
@@ -504,59 +650,57 @@ function normalizeIncoming(t: Record<string, unknown>): TemplateDef {
   const headerFormat: HeaderFormat | undefined =
     hf === "IMAGE" || hf === "VIDEO" || hf === "DOCUMENT" ? hf : (header ? "TEXT" : undefined);
   const headerMediaUrl = t.header_media_url ? String(t.header_media_url).trim() : undefined;
-  if (headerFormat && headerFormat !== "TEXT" && !headerMediaUrl) {
-    throw new Error(`${headerFormat} header requires header_media_url (a public image/video/document URL)`);
-  }
 
-  // body_samples / header_samples: one value per {{n}}, in order.
-  const bodyVars = countVars(body);
   const bodyExample = (Array.isArray(t.body_samples) ? t.body_samples : []).map(String);
-  if (bodyExample.length < bodyVars) {
-    throw new Error(`body has ${bodyVars} variable(s) — provide a sample value for each`);
-  }
-  const headerVars = header ? countVars(header) : 0;
   const headerExample = (Array.isArray(t.header_samples) ? t.header_samples : []).map(String);
-  if (headerVars && headerExample.length < headerVars) {
-    throw new Error(`header has ${headerVars} variable(s) — provide a sample value for each`);
-  }
 
-  // optional URL button: { text, url, example? }. example required only when
-  // the url carries a {{1}} variable suffix.
-  let button: TemplateDef["button"] | undefined;
-  if (t.button && typeof t.button === "object") {
-    const bt = t.button as Record<string, unknown>;
-    const btText = String(bt.text ?? "").trim();
-    const btUrl = String(bt.url ?? "").trim();
-    if (btText && btUrl) {
-      const btExample = bt.example ? String(bt.example).trim() : undefined;
-      if (countVars(btUrl) > 0 && !btExample) {
-        throw new Error("button url has a {{1}} variable — provide button.example (a sample URL)");
-      }
-      button = { text: btText, url: btUrl, example: btExample };
-    }
-  }
+  // Legacy single `button` shape → typed buttons for validation.
+  const legacyButton = t.button && typeof t.button === "object" ? t.button as Record<string, unknown> : null;
+  const rawButtons: Record<string, unknown>[] = Array.isArray(t.buttons) && t.buttons.length
+    ? t.buttons as Record<string, unknown>[]
+    : legacyButton && legacyButton.text && legacyButton.url
+    ? [{ type: "URL", ...legacyButton }]
+    : [];
 
-  // optional typed button set: [{type:URL,text,url,example?} | {type:QUICK_REPLY,text} | {type:PHONE_NUMBER,text,phone_number}]
+  const issues = validateCore({
+    name,
+    category: String(t.category ?? "utility"),
+    header_type: headerFormat ?? null,
+    header_text: header ?? null,
+    header_media_url: headerMediaUrl ?? null,
+    body,
+    footer: footer ?? null,
+    buttons: rawButtons.map((raw) => ({
+      type: String(raw.type ?? ""),
+      text: String(raw.text ?? ""),
+      url: raw.url === undefined ? undefined : String(raw.url),
+      example: Array.isArray(raw.example) ? raw.example.map(String) : raw.example ? String(raw.example) : undefined,
+      phone_number: raw.phone_number === undefined ? undefined : String(raw.phone_number),
+    })),
+    body_samples: bodyExample,
+    header_samples: headerExample,
+  });
+  if (issues.length) throw new ValidationFailed(issues);
+
+  const bodyVars = countVars(body);
+  const headerVars = header ? countVars(header) : 0;
+
   let buttons: TplButton[] | undefined;
-  if (Array.isArray(t.buttons) && t.buttons.length) {
-    buttons = (t.buttons as Record<string, unknown>[]).slice(0, 3).map((raw) => {
+  if (rawButtons.length) {
+    buttons = rawButtons.map((raw) => {
       const type = String(raw.type ?? "").toUpperCase();
       const text = String(raw.text ?? "").trim();
-      if (!text) throw new Error("each button needs a label");
       if (type === "URL") {
         const url = String(raw.url ?? "").trim();
-        if (!url) throw new Error(`button "${text}" needs a URL`);
-        const example = raw.example ? String(raw.example).trim() : undefined;
-        if (countVars(url) > 0 && !example) throw new Error(`button "${text}" url has {{1}} — provide a sample URL`);
-        return { type: "URL", text, url, example };
+        const ex = Array.isArray(raw.example) ? raw.example[0] : raw.example;
+        const example = ex ? String(ex).trim() : undefined;
+        return { type: "URL", text, url, example: countVars(url) > 0 ? example : undefined };
       }
       if (type === "PHONE_NUMBER") {
-        const phone = String(raw.phone_number ?? "").trim();
-        if (!phone) throw new Error(`button "${text}" needs a phone number`);
+        const phone = String(raw.phone_number ?? "").replace(/[\s-]/g, "");
         return { type: "PHONE_NUMBER", text, phone_number: phone };
       }
-      if (type === "QUICK_REPLY") return { type: "QUICK_REPLY", text };
-      throw new Error(`unknown button type "${type}"`);
+      return { type: "QUICK_REPLY", text };
     });
   }
 
@@ -566,12 +710,11 @@ function normalizeIncoming(t: Record<string, unknown>): TemplateDef {
     category: metaCategory(String(t.category ?? "utility")),
     header: headerFormat === "TEXT" ? header : undefined,
     headerFormat,
-    headerMediaUrl,
+    headerMediaUrl: headerFormat && headerFormat !== "TEXT" ? headerMediaUrl : undefined,
     body,
     footer,
     bodyExample: bodyExample.slice(0, bodyVars),
     headerExample: headerExample.slice(0, headerVars),
-    button,
     buttons,
   };
 }
@@ -591,13 +734,37 @@ function metaCategory(c: string): MetaCategory {
 function localCategory(c: MetaCategory): string {
   return c.toLowerCase();
 }
-// Meta template status → wa_templates.status check set.
+// Meta template status → wa_templates.status check set
+// ('draft','pending','approved','rejected','disabled'; the UI shows
+// 'disabled' as Paused).
 function localStatus(s?: string): string {
   const v = String(s ?? "PENDING").toUpperCase();
   if (v === "APPROVED") return "approved";
   if (v === "REJECTED") return "rejected";
   if (v === "PAUSED" || v === "DISABLED") return "disabled";
   return "pending";
+}
+
+// Columns added by migration 20260929110000_wa_templates_v2.sql. If the edge
+// function is deployed before that migration is applied, writes that include
+// them fail with "column does not exist"; retry without them so create, edit
+// and sync keep working (deploy-order safe).
+const V2_COLUMNS = [
+  "quality_score", "rejected_reason_detail", "previous_category", "header_samples",
+  "needs_media", "pending_edit", "last_synced_at",
+];
+
+async function writeTolerant(
+  run: (row: Record<string, unknown>) => PromiseLike<{ error: { message?: string; code?: string } | null }>,
+  row: Record<string, unknown>,
+): Promise<string | null> {
+  const first = await run(row);
+  if (!first.error) return null;
+  const msg = `${first.error.code ?? ""} ${first.error.message ?? ""}`;
+  if (!/42703|PGRST204|column/i.test(msg)) return first.error.message ?? "write failed";
+  const stripped = Object.fromEntries(Object.entries(row).filter(([k]) => !V2_COLUMNS.includes(k)));
+  const second = await run(stripped);
+  return second.error ? second.error.message ?? "write failed" : null;
 }
 
 // debug_token on the token itself exposes granular_scopes; the WhatsApp scopes
@@ -658,23 +825,21 @@ function buildComponents(def: TemplateDef, headerHandle?: string): Array<Record<
   components.push(bodyComp);
 
   // Marketing templates MUST carry an unsubscribe notice — Meta best practice,
-  // and our opt-out flow (wa-webhook) keys on a bare "STOP". Guarantee it even
-  // if the author (e.g. the dashboard builder) left the footer blank or wrote
-  // one without STOP. Meta caps footers at 60 chars.
-  let footer = def.footer?.trim();
-  if (def.category === "MARKETING") {
-    const STOP_NOTICE = "Reply STOP to unsubscribe";
-    if (!footer) footer = STOP_NOTICE;
-    else if (!/stop/i.test(footer)) footer = `${footer} · ${STOP_NOTICE}`.slice(0, 60);
-  }
+  // and our opt-out flow (wa-webhook) keys on a bare "STOP". finalFooter (shared
+  // with the dashboard preview) appends it unless the footer already has the
+  // whole word STOP. It never truncates; over-long footers are rejected by
+  // validateCore before we get here.
+  const footer = finalFooter(def.category, def.footer);
   if (footer) components.push({ type: "FOOTER", text: footer });
 
   if (def.buttons && def.buttons.length) {
-    // Typed multi-button set from the dashboard builder.
+    // Typed multi-button set from the dashboard builder (or a synced row).
     const buttons = def.buttons.map((b) => {
       if (b.type === "URL") {
         const o: Record<string, unknown> = { type: "URL", text: b.text, url: b.url };
-        if (countVars(b.url) > 0 && b.example) o.example = [b.example];
+        // Synced rows already hold Meta's array shape; never double-wrap.
+        const ex = Array.isArray(b.example) ? b.example[0] : b.example;
+        if (countVars(b.url) > 0 && ex) o.example = [ex];
         return o;
       }
       if (b.type === "PHONE_NUMBER") return { type: "PHONE_NUMBER", text: b.text, phone_number: b.phone_number };
@@ -696,20 +861,43 @@ function buildComponents(def: TemplateDef, headerHandle?: string): Array<Record<
   return components;
 }
 
+function metaError(json: any, status: number): { error: string; meta_error: MetaErr } {
+  const e = json?.error ?? {};
+  const meta_error: MetaErr = {
+    code: typeof e.code === "number" ? e.code : undefined,
+    subcode: typeof e.error_subcode === "number" ? e.error_subcode : undefined,
+    message: e.message,
+    user_title: e.error_user_title,
+    user_msg: e.error_user_msg,
+    details: e.error_data?.details,
+  };
+  const error = [
+    e.message,
+    e.error_user_title,
+    e.error_user_msg,
+    e.error_data?.details,
+    e.error_subcode ? `subcode ${e.error_subcode}` : null,
+  ].filter(Boolean).join(" | ") || `HTTP ${status}`;
+  return { error, meta_error };
+}
+
+async function headerHandleFor(def: TemplateDef): Promise<{ handle?: string; error?: string }> {
+  if (!(def.headerFormat && def.headerFormat !== "TEXT" && def.headerMediaUrl)) return {};
+  try {
+    const media = await fetchMediaBytes(def.headerMediaUrl);
+    return { handle: await uploadResumable(media.bytes, media.mime) };
+  } catch (e) {
+    return { error: `header media upload failed: ${e instanceof Error ? e.message : e}` };
+  }
+}
+
 async function createTemplate(
   waba: string,
   def: TemplateDef,
-): Promise<{ ok: boolean; id?: string; status?: string; error?: string; meta?: unknown }> {
-  let headerHandle: string | undefined;
-  if (def.headerFormat && def.headerFormat !== "TEXT" && def.headerMediaUrl) {
-    try {
-      const media = await fetchMediaBytes(def.headerMediaUrl);
-      headerHandle = await uploadResumable(media.bytes, media.mime);
-    } catch (e) {
-      return { ok: false, error: `header media upload failed: ${e instanceof Error ? e.message : e}` };
-    }
-  }
-  const components = buildComponents(def, headerHandle);
+): Promise<{ ok: boolean; id?: string; status?: string; error?: string; meta_error?: MetaErr; meta?: unknown }> {
+  const hh = await headerHandleFor(def);
+  if (hh.error) return { ok: false, error: hh.error };
+  const components = buildComponents(def, hh.handle);
 
   const reqBody = {
     name: def.name,
@@ -724,38 +912,28 @@ async function createTemplate(
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const e = json?.error ?? {};
-    const error = [
-      e.message,
-      e.error_user_title,
-      e.error_user_msg,
-      e.error_data?.details,
-      e.error_subcode ? `subcode ${e.error_subcode}` : null,
-    ].filter(Boolean).join(" | ") || `HTTP ${res.status}`;
     // surface the full Meta error AND the request we sent, for diagnosis
-    return { ok: false, error, meta: { status: res.status, error: e, sent: reqBody } };
+    const { error, meta_error } = metaError(json, res.status);
+    return { ok: false, error, meta_error, meta: { status: res.status, error: json?.error, sent: reqBody } };
   }
   return { ok: true, id: json?.id, status: json?.status ?? "PENDING" };
 }
 
-// Edit an EXISTING approved template at Meta (POST /{template_id}). Category and
-// name can't change on an edit — only components. Meta puts the template back
-// into PENDING review; it keeps delivering with the OLD content until approved,
-// so an edit never causes a send gap (unlike a delete+recreate).
+// Edit an EXISTING template at Meta (POST /{template_id}). Name and language
+// can't change. Category can change only while the template is NOT approved
+// (pass `category` only then). Meta puts the template back into review;
+// an approved template keeps delivering its OLD content until the edit is
+// approved, so an edit never causes a send gap (unlike a delete+recreate).
+// Meta limits edits of approved templates (~1 per 24h, 10 per 30 days).
 async function editTemplate(
   templateId: string,
   def: TemplateDef,
-): Promise<{ ok: boolean; status?: string; error?: string; meta?: unknown }> {
-  let headerHandle: string | undefined;
-  if (def.headerFormat && def.headerFormat !== "TEXT" && def.headerMediaUrl) {
-    try {
-      const media = await fetchMediaBytes(def.headerMediaUrl);
-      headerHandle = await uploadResumable(media.bytes, media.mime);
-    } catch (e) {
-      return { ok: false, error: `header media upload failed: ${e instanceof Error ? e.message : e}` };
-    }
-  }
-  const reqBody = { components: buildComponents(def, headerHandle) };
+  category?: MetaCategory,
+): Promise<{ ok: boolean; status?: string; error?: string; meta_error?: MetaErr; meta?: unknown }> {
+  const hh = await headerHandleFor(def);
+  if (hh.error) return { ok: false, error: hh.error };
+  const reqBody: Record<string, unknown> = { components: buildComponents(def, hh.handle) };
+  if (category) reqBody.category = category;
   const res = await fetch(`${GRAPH}/${templateId}`, {
     method: "POST",
     headers: { "Authorization": `Bearer ${token()}`, "Content-Type": "application/json" },
@@ -763,17 +941,99 @@ async function editTemplate(
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const e = json?.error ?? {};
-    const error = [
-      e.message,
-      e.error_user_title,
-      e.error_user_msg,
-      e.error_data?.details,
-      e.error_subcode ? `subcode ${e.error_subcode}` : null,
-    ].filter(Boolean).join(" | ") || `HTTP ${res.status}`;
-    return { ok: false, error, meta: { status: res.status, error: e, sent: reqBody } };
+    const { error, meta_error } = metaError(json, res.status);
+    return { ok: false, error, meta_error, meta: { status: res.status, error: json?.error, sent: reqBody } };
   }
   return { ok: true, status: "PENDING" };
+}
+
+// Delete ONE language of a template at Meta: DELETE
+// /{waba}/message_templates?name=...&hsm_id=... (name alone would delete every
+// language). A template Meta no longer has counts as deleted.
+async function deleteAtMeta(
+  waba: string,
+  name: string,
+  hsmId: string,
+): Promise<{ ok: boolean; error?: string; meta_error?: MetaErr }> {
+  const url = `${GRAPH}/${waba}/message_templates?name=${encodeURIComponent(name)}&hsm_id=${encodeURIComponent(hsmId)}`;
+  const res = await fetch(url, { method: "DELETE", headers: { "Authorization": `Bearer ${token()}` } });
+  const json = await res.json().catch(() => ({}));
+  if (res.ok && json?.success !== false) return { ok: true };
+  const { error, meta_error } = metaError(json, res.status);
+  if (/does not exist|not found|no template|nonexist/i.test(error)) return { ok: true };
+  return { ok: false, error, meta_error };
+}
+
+// Short readable text per review rejection code, stored as
+// rejected_reason_detail when Meta itself gives no detail. The dashboard has a
+// fuller explanation (src/lib/whatsapp/template-errors.ts).
+const REJECTION_TEXT: Record<string, string> = {
+  INVALID_FORMAT: "Formatting problem (placeholders, emojis in header/footer/buttons, or layout).",
+  TAG_CONTENT_MISMATCH: "The category does not match the message content.",
+  INCORRECT_CATEGORY: "Meta thinks the template belongs in a different category.",
+  PROMOTIONAL: "Promotional content in a Utility template.",
+  ABUSIVE_CONTENT: "Content breaks WhatsApp's business or commerce policy.",
+  SCAM: "Meta thinks the message could mislead people.",
+  INVALID_URL: "One of the links was not accepted.",
+};
+
+// Fetch every template (all pages). Asks for quality_score + previous_category
+// first; if this Graph version rejects those fields (#100), retries without.
+async function fetchAllTemplates(waba: string): Promise<any[]> {
+  const base = "name,language,status,category,components,rejected_reason,id";
+  const attempts = [`${base},quality_score,previous_category`, base];
+  for (let a = 0; a < attempts.length; a++) {
+    const items: any[] = [];
+    let url: string | null = `${GRAPH}/${waba}/message_templates?fields=${attempts[a]}&limit=200`;
+    let fieldError = false;
+    let pages = 0;
+    while (url && pages < 20) {
+      pages++;
+      const res: Response = await fetch(url, { headers: { "Authorization": `Bearer ${token()}` } });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (a === 0 && json?.error?.code === 100) { fieldError = true; break; }
+        throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
+      }
+      if (Array.isArray(json?.data)) items.push(...json.data);
+      url = typeof json?.paging?.next === "string" ? json.paging.next : null;
+    }
+    if (!fieldError) return items;
+  }
+  return [];
+}
+
+// Re-host a Meta example header file (Meta CDN URLs expire) into wa-media so
+// campaigns can send it. Returns the public URL, or null if it can't be fetched.
+async function rehostHeaderMedia(
+  sb: ReturnType<typeof db>,
+  srcUrl: string,
+  name: string,
+  language: string,
+  format: string,
+): Promise<string | null> {
+  try {
+    const r = await fetch(srcUrl);
+    if (!r.ok) return null;
+    const mime = (r.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+    const ext = mime === "image/png" ? "png"
+      : mime === "image/jpeg" ? "jpg"
+      : mime === "video/mp4" ? "mp4"
+      : mime === "video/3gpp" ? "3gp"
+      : mime === "application/pdf" ? "pdf"
+      : format === "IMAGE" ? "jpg" : format === "VIDEO" ? "mp4" : "pdf";
+    const bytes = new Uint8Array(await r.arrayBuffer());
+    if (!bytes.length) return null;
+    const path = `templates/${name}-${language}-${crypto.randomUUID()}.${ext}`;
+    const { error } = await sb.storage.from(WA_MEDIA_BUCKET).upload(path, bytes, {
+      contentType: mime || undefined,
+      upsert: false,
+    });
+    if (error) return null;
+    return sb.storage.from(WA_MEDIA_BUCKET).getPublicUrl(path).data.publicUrl ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // Pull every template Meta has for this WABA and mirror it into wa_templates.
@@ -781,17 +1041,22 @@ async function syncFromMeta(
   waba: string,
   sb: ReturnType<typeof db>,
 ): Promise<Array<{ name: string; status: string }>> {
-  const url = `${GRAPH}/${waba}/message_templates` +
-    `?fields=name,language,status,category,components,rejected_reason,id` +
-    `&limit=200&access_token=${encodeURIComponent(token())}`;
-  const res = await fetch(url);
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
+  const list = await fetchAllTemplates(waba);
 
-  const list: any[] = Array.isArray(json?.data) ? json.data : [];
+  // Current local rows, to detect category changes and keep local-only data.
+  // select("*") so this works before AND after the v2 migration.
+  const { data: localRows } = await sb.from("wa_templates").select("*");
+  const local = new Map<string, Record<string, any>>();
+  for (const r of localRows ?? []) local.set(`${r.name}:${r.language}`, r);
+
   const out: Array<{ name: string; status: string }> = [];
+  const now = new Date().toISOString();
 
   for (const t of list) {
+    const metaStatus = String(t.status ?? "").toUpperCase();
+    // Being deleted at Meta: never resurrect it locally.
+    if (metaStatus === "PENDING_DELETION" || metaStatus === "DELETED") continue;
+
     const comps: any[] = Array.isArray(t.components) ? t.components : [];
     const find = (type: string) => comps.find((c) => c?.type === type);
     const bodyC = find("BODY");
@@ -799,13 +1064,18 @@ async function syncFromMeta(
     const footerC = find("FOOTER");
     const buttonsC = find("BUTTONS");
 
+    const language = t.language ?? "en";
+    const existing = local.get(`${t.name}:${language}`);
     const status = localStatus(t.status);
-    const cat = String(t.category ?? "marketing").toLowerCase();
+    const metaCat = String(t.category ?? "marketing").toLowerCase();
+    let cat = ["marketing", "utility", "authentication"].includes(metaCat) ? metaCat : "marketing";
+    // 'offer' is a CRM-only flavour of marketing; keep it.
+    if (existing?.category === "offer" && cat === "marketing") cat = "offer";
 
-    await sb.from("wa_templates").upsert({
+    const row: Record<string, unknown> = {
       name: t.name,
-      language: t.language ?? "en",
-      category: ["marketing", "utility", "authentication", "offer"].includes(cat) ? cat : "marketing",
+      language,
+      category: cat,
       status,
       meta_template_id: t.id ?? null,
       header_type: headerC?.format ?? null,
@@ -813,8 +1083,60 @@ async function syncFromMeta(
       body: bodyC?.text ?? "",
       footer: footerC?.text ?? null,
       buttons: buttonsC?.buttons ?? null,
-      rejection_reason: t.rejected_reason && t.rejected_reason !== "NONE" ? t.rejected_reason : null,
-    }, { onConflict: "name,language" });
+      rejection_reason: t.rejected_reason && t.rejected_reason !== "NONE" ? t.rejected_reason : (status === "rejected" ? "NONE" : null),
+      quality_score: t.quality_score?.score ?? null,
+      last_synced_at: now,
+    };
+
+    // Meta's approved example values: keep samples in step for edits.
+    const bodyEx = bodyC?.example?.body_text?.[0];
+    if (Array.isArray(bodyEx) && bodyEx.length) {
+      row.variables = bodyEx.map((sample: unknown, i: number) => ({ name: String(i + 1), sample: String(sample ?? "") }));
+    }
+    const headerEx = headerC?.example?.header_text;
+    if (Array.isArray(headerEx) && headerEx.length) row.header_samples = headerEx.map(String);
+
+    // Readable rejection detail. Don't overwrite a richer one (wa-webhook
+    // writes Meta's own text there when the status event arrives).
+    if (status === "rejected") {
+      if (!existing?.rejected_reason_detail) {
+        row.rejected_reason_detail = REJECTION_TEXT[String(t.rejected_reason ?? "").toUpperCase()] ?? null;
+      }
+    } else {
+      row.rejected_reason_detail = null;
+    }
+
+    // Category changes: remember where it came from so the UI can say
+    // "Meta changed this from Utility to Marketing".
+    const metaPrev = typeof t.previous_category === "string" ? t.previous_category.toLowerCase() : null;
+    const oldCat = existing?.category === "offer" ? "marketing" : existing?.category;
+    if (metaPrev && metaPrev !== metaCat) row.previous_category = metaPrev;
+    else if (existing && existing.status !== "draft" && oldCat && oldCat !== metaCat) row.previous_category = existing.category;
+
+    // Media headers created in WhatsApp Manager have no header_media_url here,
+    // which makes them unusable in campaigns. Re-host Meta's example file.
+    const fmt = String(headerC?.format ?? "").toUpperCase();
+    if (fmt === "IMAGE" || fmt === "VIDEO" || fmt === "DOCUMENT") {
+      if (!existing?.header_media_url) {
+        const handle = headerC?.example?.header_handle?.[0];
+        const hosted = typeof handle === "string" && /^https?:\/\//.test(handle)
+          ? await rehostHeaderMedia(sb, handle, t.name, language, fmt)
+          : null;
+        if (hosted) {
+          row.header_media_url = hosted;
+          row.needs_media = false;
+        } else {
+          row.needs_media = true;
+        }
+      } else if (existing.needs_media) {
+        row.needs_media = false;
+      }
+    } else {
+      row.needs_media = false;
+    }
+
+    const err = await writeTolerant((r) => sb.from("wa_templates").upsert(r, { onConflict: "name,language" }), row);
+    if (err) console.error("wa-template-create sync upsert failed", t.name, err);
 
     out.push({ name: t.name, status });
   }

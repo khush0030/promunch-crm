@@ -85,6 +85,12 @@ export const NAV: NavHub[] = [
       { label: "Audience", href: "/dashboard/contacts", tour: "contacts" },
       { label: "WhatsApp templates", href: "/dashboard/whatsapp?tab=templates" },
       { label: "WhatsApp popup", href: "/dashboard/whatsapp?tab=growth" },
+      { label: "WhatsApp analytics", href: "/dashboard/whatsapp?tab=analytics" },
+      // Full-page campaign screens: the wizard and each campaign's report.
+      // Hidden from the sidebar, but they keep Marketing highlighted and
+      // "New WhatsApp campaign" is one keystroke away in the command palette.
+      { label: "New WhatsApp campaign", href: "/dashboard/whatsapp/campaigns/new", hidden: true },
+      { label: "WhatsApp campaign report", href: "/dashboard/whatsapp/campaigns", hidden: true },
       // Brevo hub (retiring at Email Studio cutover) and the old in-house
       // email pages. Reachable by URL and the command palette only.
       { label: "Email (Brevo)", href: "/dashboard/marketing/email", hidden: true },

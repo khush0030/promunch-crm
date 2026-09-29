@@ -17,6 +17,8 @@ import {
 } from "../_shared/quick-replies.ts";
 import { sessionOpen } from "../_shared/window-asks.ts";
 import { releaseSend } from "../_shared/confirmations.ts";
+import { allowedPriorStatuses, classifySendError } from "../_shared/campaign-engine.ts";
+import { isStartText, isStopTap, isStopText } from "../_shared/opt-keywords.ts";
 import {
   isCapError,
   isMarketingTemplate,
@@ -122,15 +124,36 @@ async function handleStatus(status: any) {
   if (!next) return;
   const sb = db();
   const errTitle = status?.errors?.[0]?.title ?? null;
-  const { data: updated } = await sb.from("wa_messages").update({
-    status: next,
-    error: errTitle,
-  }).eq("wa_message_id", wamid).select("campaign_id, template_name, type, sent_by, journey_run_id").maybeSingle();
+  const errCode0 = status?.errors?.[0]?.code;
+  // MONOTONIC (B7): sent < delivered < read, and 'failed' may only replace
+  // queued/sent. Meta delivers callbacks out of order; an unguarded update let a
+  // late 'sent' overwrite 'read' (and a stray 'failed' un-deliver a message,
+  // which would even make the contact eligible for a campaign re-send). The
+  // guard is in the WHERE clause, so it is atomic. A callback that would
+  // regress matches nothing and every downstream side effect is skipped.
+  const patch: Record<string, unknown> = { status: next };
+  if (next === "failed") {
+    patch.error = errTitle;
+    patch.error_class = classifySendError(typeof errCode0 === "number" ? errCode0 : null, errTitle);
+  } else {
+    patch.error = null;
+  }
+  let upd = await sb.from("wa_messages").update(patch)
+    .eq("wa_message_id", wamid).in("status", allowedPriorStatuses(next))
+    .select("campaign_id, template_name, type, sent_by, journey_run_id").maybeSingle();
+  if (upd.error && next === "failed" && /error_class/.test(upd.error.message ?? "")) {
+    // v2 migration not applied yet — same guarded update without the new column.
+    delete patch.error_class;
+    upd = await sb.from("wa_messages").update(patch)
+      .eq("wa_message_id", wamid).in("status", allowedPriorStatuses(next))
+      .select("campaign_id, template_name, type, sent_by, journey_run_id").maybeSingle();
+  }
+  const updated = upd.data;
 
-  // roll up delivery stats if this message belongs to a marketing campaign
+  // Roll up delivery stats, debounced (B11): at most one full recount per 30s
+  // per campaign; the wa-campaign-worker heartbeat does the final recount.
   if (updated?.campaign_id) {
-    await sb.rpc("wa_campaign_recount", { p_campaign: updated.campaign_id })
-      .then(() => {}, () => {});
+    await recountCampaign(sb, updated.campaign_id);
   }
 
   // CART DELIVERY GUARANTEE — confirm or reopen the journey run that sent this.
@@ -404,6 +427,20 @@ async function handleInboundMessage(msg: any, profile: any) {
   // returns before ANY side effect (STOP/START confirms, COD gate, checkout
   // links, AI enqueue) so nothing sends twice (§0).
   type = safeMessageType(type);
+
+  // REPLY ATTRIBUTION: a reply or quick-reply tap quotes the message it answers
+  // in context.id. If that is one of our campaign sends, stamp the campaign on
+  // this inbound row so replied_count and "who replied" are real. One indexed
+  // lookup, only when a context is present. Best-effort: never blocks capture.
+  let replyCampaignId: string | null = null;
+  const ctxId = typeof msg.context?.id === "string" ? msg.context.id : null;
+  if (ctxId) {
+    const { data: quoted } = await sb.from("wa_messages").select("campaign_id")
+      .eq("wa_message_id", ctxId).eq("direction", "outbound").maybeSingle()
+      .then((r) => r, () => ({ data: null }));
+    replyCampaignId = (quoted?.campaign_id as string | null | undefined) ?? null;
+  }
+
   const { error: insErr } = await sb.from("wa_messages").insert({
     thread_id: thread.id,
     contact_id: contact.id,
@@ -414,6 +451,7 @@ async function handleInboundMessage(msg: any, profile: any) {
     media_mime: mediaMime,
     wa_message_id: wamid,
     status: "received",
+    ...(replyCampaignId ? { campaign_id: replyCampaignId } : {}),
   });
   if (insErr) {
     if (insErr.code === "23505") return; // concurrent duplicate delivery — the other one owns the side effects
@@ -442,6 +480,8 @@ async function handleInboundMessage(msg: any, profile: any) {
       detail: { type, wamid },
     }).catch(() => {});
   }
+
+  if (replyCampaignId) await recountCampaign(sb, replyCampaignId);
 
   // update thread snippet — a new inbound also un-archives the chat so it
   // resurfaces in the inbox (archiving only hides quiet conversations).
@@ -494,7 +534,11 @@ async function handleInboundMessage(msg: any, profile: any) {
   // UNSUBSCRIBE, never a message: confirm it, then RETURN so the AI never sees it
   // and never mistakes it for "cancel my order". A cancellation is only ever an
   // explicit "cancel my order" request, handled by the AI's request_order_change.
-  if (type === "text" && /^\s*(stop|unsubscribe|stop promotions?|opt[\s-]?out)\s*$/i.test(body)) {
+  //
+  // The marketing templates' "Stop promotions" quick-reply button arrives as a
+  // button / interactive tap, not text; isStopTap() makes that tap exactly
+  // equivalent to typing STOP (exact match on "stop promotions" / "stop" only).
+  if ((type === "text" && isStopText(body)) || isStopTap(msg)) {
     await sb.from("wa_contacts").update({ opted_in: false }).eq("id", contact.id);
     await callSend({
       thread_id: thread.id,
@@ -506,7 +550,7 @@ async function handleInboundMessage(msg: any, profile: any) {
   }
 
   // honour opt-IN — let an unsubscribed contact come back
-  if (type === "text" && /^\s*(start|unstop|subscribe|opt[\s-]?in)\s*$/i.test(body)) {
+  if (type === "text" && isStartText(body)) {
     await sb.from("wa_contacts").update({ opted_in: true }).eq("id", contact.id);
     await callSend({
       thread_id: thread.id,
@@ -586,6 +630,15 @@ async function handleInboundMessage(msg: any, profile: any) {
   if (thread.status === "bot" && type !== "reaction" && (hasRealText || isImage)) {
     await enqueueAiReply(thread.id, aiMessage, isImage ? mediaUrl : null, suppressAsk)
       .catch((e) => console.error("[wa-webhook] ai enqueue failed", e));
+  }
+}
+
+// Debounced campaign recount; falls back to the plain recount when the v2
+// migration (wa_campaign_recount_debounced) is not applied yet.
+async function recountCampaign(sb: ReturnType<typeof db>, campaignId: string): Promise<void> {
+  const { error } = await sb.rpc("wa_campaign_recount_debounced", { p_campaign: campaignId, p_min_seconds: 30 });
+  if (error) {
+    await sb.rpc("wa_campaign_recount", { p_campaign: campaignId }).then(() => {}, () => {});
   }
 }
 
@@ -694,6 +747,27 @@ async function enqueueAiReply(
   } catch { /* not on the edge runtime — fall through */ }
 }
 
+// Best human-readable reason Meta gave for a template status change. Meta sends
+// a terse enum in `reason` (e.g. INCORRECT_CATEGORY, NONE) and sometimes a
+// sentence in other_info.title / other_info.description or disable_info.
+// deno-lint-ignore no-explicit-any
+function templateReasonText(value: any): string | null {
+  const parts: string[] = [];
+  const push = (v: unknown) => {
+    const t = typeof v === "string" ? v.trim() : "";
+    if (t && t.toUpperCase() !== "NONE" && !parts.includes(t)) parts.push(t);
+  };
+  push(value?.other_info?.title);
+  push(value?.other_info?.description);
+  push(value?.disable_info?.disable_reason ?? value?.disable_info?.reason);
+  const enumReason = typeof value?.reason === "string" ? value.reason.trim() : "";
+  if (enumReason && enumReason.toUpperCase() !== "NONE") {
+    const readable = enumReason.replace(/_/g, " ").toLowerCase();
+    push(readable.charAt(0).toUpperCase() + readable.slice(1));
+  }
+  return parts.length ? parts.join(" · ").slice(0, 1000) : null;
+}
+
 // Map a WhatsApp media MIME type to a file extension for the storage path.
 function mimeExt(mime: string): string {
   const base = (mime ?? "").split(";")[0].trim();
@@ -747,24 +821,76 @@ async function handleFieldEvent(field: string, value: any) {
       const lang = value?.message_template_language;
       const ev = String(value?.event ?? "").toUpperCase();
       const statusMap: Record<string, string> = {
-        APPROVED: "approved", REJECTED: "rejected", PENDING: "pending",
+        APPROVED: "approved", REINSTATED: "approved", REJECTED: "rejected", PENDING: "pending",
         PENDING_DELETION: "disabled", PAUSED: "disabled", DISABLED: "disabled", FLAGGED: "disabled",
+        ARCHIVED: "disabled", LIMIT_EXCEEDED: "disabled",
       };
       const next = statusMap[ev];
+      const detail = templateReasonText(value);
       if (name && next) {
+        const reason = ev === "REJECTED" ? (value?.reason ?? "Rejected by Meta") : null;
         let upd = sb.from("wa_templates").update({
           status: next,
           meta_template_id: value?.message_template_id ?? null,
-          rejection_reason: ev === "REJECTED" ? (value?.reason ?? "Rejected by Meta") : null,
+          rejection_reason: reason,
         }).eq("name", name);
         if (lang) upd = upd.eq("language", lang);
         await upd;
+        // Readable reason (Phase 1 column). Separate write so a missing column
+        // can never block the status sync itself.
+        let upd2 = sb.from("wa_templates").update({
+          rejected_reason_detail: next === "approved" ? null : detail,
+        }).eq("name", name);
+        if (lang) upd2 = upd2.eq("language", lang);
+        await upd2.then(() => {}, () => {});
       }
       await logConnector({
         connector: "whatsapp",
-        level: ev === "REJECTED" ? "warn" : "info",
+        level: ev === "REJECTED" || next === "disabled" ? "warn" : "info",
         event: "template_status",
-        message: `Template '${name ?? "?"}' → ${ev || "update"}.`,
+        message: `Template '${name ?? "?"}' → ${ev || "update"}${detail ? `: ${detail.slice(0, 160)}` : ""}.`,
+        detail: value,
+      });
+    } else if (field === "message_template_quality_update") {
+      const name = value?.message_template_name;
+      const lang = value?.message_template_language;
+      const score = String(value?.new_quality_score ?? "").toUpperCase() || null;
+      if (name && score) {
+        let upd = sb.from("wa_templates").update({ quality_score: score }).eq("name", name);
+        if (lang) upd = upd.eq("language", lang);
+        await upd.then(() => {}, () => {});
+      }
+      await logConnector({
+        connector: "whatsapp",
+        level: score === "RED" ? "warn" : "info",
+        event: "template_quality",
+        message: `Template '${name ?? "?"}' quality ${value?.previous_quality_score ?? "?"} → ${score ?? "?"}.`,
+        detail: value,
+      });
+    } else if (field === "template_category_update") {
+      const name = value?.message_template_name;
+      const lang = value?.message_template_language;
+      const toLocal = (c: unknown) => {
+        const v = String(c ?? "").toLowerCase();
+        return ["marketing", "utility", "authentication"].includes(v) ? v : null;
+      };
+      const nextCat = toLocal(value?.new_category ?? value?.correct_category);
+      const prevCat = toLocal(value?.previous_category);
+      if (name && nextCat) {
+        let upd = sb.from("wa_templates").update({ category: nextCat }).eq("name", name);
+        if (lang) upd = upd.eq("language", lang);
+        await upd;
+        if (prevCat) {
+          let upd2 = sb.from("wa_templates").update({ previous_category: prevCat }).eq("name", name);
+          if (lang) upd2 = upd2.eq("language", lang);
+          await upd2.then(() => {}, () => {});
+        }
+      }
+      await logConnector({
+        connector: "whatsapp",
+        level: "warn",
+        event: "template_category",
+        message: `Template '${name ?? "?"}' category ${prevCat ?? "?"} → ${nextCat ?? "?"} (Meta recategorised it).`,
         detail: value,
       });
     } else if (field === "phone_number_quality_update" || field === "phone_number_name_update") {

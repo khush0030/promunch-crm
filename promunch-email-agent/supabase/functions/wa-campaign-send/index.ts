@@ -1,14 +1,27 @@
-// Bulk WhatsApp marketing broadcast — static or AI-personalised.
+// Bulk WhatsApp marketing broadcast — static or AI-personalised (engine v2).
 //
 // POST { campaign_id, _continue? }  (service-role bearer)
-//   - Resolves the audience: opted-in wa_contacts, optional tag filter.
-//   - Sends the campaign's APPROVED template to each recipient.
-//   - Static mode: the same template_vars for everyone.
-//   - AI mode (template_vars._ai_brief set): Claude fills the template
-//     variables per recipient from the brief + that contact's profile.
-//   - Records one wa_messages row per recipient (campaign_id-linked).
-//   - Resumable + self-chaining: a batch that leaves recipients re-invokes
-//     itself with _continue:true until the whole campaign is sent.
+//   One batch of a campaign. Resumable + self-chaining: a productive batch
+//   re-invokes itself with _continue:true; the pg_cron wa-campaign-worker
+//   resurrects a dead chain and wakes deferred campaigns at resume_at.
+//
+// POST { test_to, campaign_id? | draft?: {template_id, template_vars,
+//        header_media_url?, name?}, test_name? }
+//   Test send to ONE number through the exact same component builder (header
+//   media override, header text, buttons, UTM, AI). Writes NO wa_contacts row,
+//   NO wa_messages row and NO claims, so it can never opt anyone in, never
+//   count against the governor and never block the real campaign.
+//
+// NEVER MESSAGE A CUSTOMER TWICE (promunch-email-agent/CLAUDE.md §0). Layers:
+//   1. wa_messages_campaign_recipient_uniq: at most one queued/sent/delivered/
+//      read row per (campaign, contact). The per-recipient claim is an INSERT of
+//      a 'queued' row BEFORE Meta is called; losing it = skip.
+//   2. wa_marketing_daily_claims (PK contact+IST day): at most one CAMPAIGN
+//      marketing message per contact per IST day across all campaigns.
+//   3. Per-campaign send lock (send_lock_at, heartbeat-refreshed, owner-checked).
+//   4. Only failures Meta EXPLICITLY refused (coded error) are ever retried.
+//      A failure without a code, or a claim orphaned mid-send, is 'ambiguous'
+//      and never re-sent.
 
 import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
@@ -16,44 +29,61 @@ import { requireInternal } from "../_shared/require-internal.ts";
 import { SendResult, sendTemplate, TemplateComponent } from "../_shared/whatsapp.ts";
 import { appendUtm, mintCode } from "../_shared/links.ts";
 import { alertWaSendFailure, explainWaError, logConnector, postSlack, slackChannelFor } from "../_shared/connector-log.ts";
-import { countBusinessInitiated24h, fetchWaStanding } from "../_shared/wa-quota.ts";
+import { businessInitiatedUsage24h, fetchWaStanding } from "../_shared/wa-quota.ts";
 import {
   MARKETING_PER_24H,
   MARKETING_PER_7D,
-  isCapError,
   marketingHoldSet,
   recordMarketingCap,
+  recordMarketingOptOut,
 } from "../_shared/marketing-governor.ts";
+import {
+  AMBIGUOUS_STOP_STREAK,
+  budgetResumeAt,
+  buildTemplateComponents,
+  classifySyncFailure,
+  contactVerdict,
+  dynamicUrlButtons,
+  HOLD_RECHECK_MS,
+  inQuietHours,
+  isShortLinkBase,
+  istDay,
+  istDayStartMs,
+  LedgerRow,
+  MAX_CAMPAIGN_LIFETIME_MS,
+  nextAllowedAt,
+  nextWaveAt,
+  shouldTripBreaker,
+  SkipReason,
+  TemplateSchema,
+  templateVarKeys,
+  validateCampaignSetup,
+  WaErrorClass,
+  waveMinute,
+} from "../_shared/campaign-engine.ts";
 
 const THROTTLE_MS = 120;
-// Per-invocation caps — kept well under the edge-function wall-clock limit so
-// a batch always returns and chains its successor. 300 static sends ≈ 96s of
-// throttle + send; 20 personalised sends ≈ 20 Claude calls. The campaign
-// self-chains, so a lower cap just means more (safer) hops.
-const MAX_STATIC = 50;         // per-invocation cap, static send — kept small so a
-                              // batch (~0.8s/send via Meta) finishes well within the
-                              // function's wall-clock budget and reliably self-chains.
-const MAX_PERSONALIZED = 20;   // per-invocation cap, AI send (a Claude call each)
+const MAX_STATIC = 50; //       per-invocation cap, static send
+const MAX_PERSONALIZED = 20; // per-invocation cap, AI send (an OpenAI call each)
 const STALE_MS = 10 * 60_000;
-
-// Meta's per-user marketing cap (#131049 / #131050). A contact who fails with
-// this is NOT permanently lost — their cap resets, so we retry them on a later
-// day. Detection lives in the governor (isCapError): it prefers Meta's numeric
-// error code and only falls back to matching the English error text, which is
-// all we have when re-reading a stored wa_messages.error row.
-
-// Next daily send slot = next 12:00 IST (06:30 UTC) strictly in the future.
-function nextSendSlotISO(): string {
-  const IST = 5.5 * 60 * 60 * 1000;
-  const now = Date.now();
-  const ist = new Date(now + IST);
-  let slot = Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate(), 12, 0, 0) - IST;
-  if (slot <= now) slot = Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate() + 1, 12, 0, 0) - IST;
-  return new Date(slot).toISOString();
-}
+// The lock must outlive the longest gap between heartbeats (HEARTBEAT_EVERY
+// AI sends ≈ 5 × ~4s) by a wide margin; it is refreshed, never just trusted.
+const LOCK_TTL_MS = 180_000;
+const HEARTBEAT_EVERY = 5;
+const STALE_CLAIM_MS = 5 * 60_000;
+const AI_RETRY_MS = 30 * 60_000;
 const PERSONALIZE_MODEL = Deno.env.get("WA_PERSONALIZE_MODEL") ?? "gpt-4o-mini";
 
-interface Body { campaign_id?: string; _continue?: boolean }
+type Sb = ReturnType<typeof db>;
+type Contact = { id: string; wa_id: string; name: string | null; email: string | null; tags: string[] | null };
+
+interface Body {
+  campaign_id?: string;
+  _continue?: boolean;
+  test_to?: string;
+  test_name?: string;
+  draft?: { template_id?: string; template_vars?: Record<string, unknown>; header_media_url?: string | null; name?: string };
+}
 
 Deno.serve(async (req) => {
   const gate = requireInternal(req);
@@ -61,521 +91,682 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return j({ error: "method" }, 405);
 
   const body = (await req.json().catch(() => ({}))) as Body;
-  const campaignId = body.campaign_id;
-  if (!campaignId) return j({ error: "campaign_id required" }, 400);
+  if (body.test_to) return await handleTestSend(body);
+
+  if (!body.campaign_id) return j({ error: "campaign_id required" }, 400);
+  const campaignId: string = body.campaign_id;
 
   const sb = db();
   const { data: campaign } = await sb.from("wa_campaigns").select("*").eq("id", campaignId).single();
   if (!campaign) return j({ error: "campaign not found" }, 404);
+
+  // v2 schema gate: refuse to run half-migrated (nothing is sent or changed).
+  if (!("total_audience" in campaign) || !("header_media_url" in campaign)) {
+    return j({ error: "campaign engine v2 migration (20260929120000) not applied — nothing sent" }, 500);
+  }
   if (campaign.status === "completed") return j({ error: "campaign already completed" }, 409);
   if (campaign.status === "cancelled") return j({ error: "campaign is cancelled" }, 409);
+  if (campaign.status === "paused") return j({ error: "campaign is paused — resume it first", paused: true }, 409);
+  // A recurring series definition never sends itself; each occurrence is a child.
+  if (campaign.repeat_rule) return j({ error: "recurring series: each occurrence sends as its own campaign" }, 409);
   if (campaign.status === "sending" && !body._continue) {
     const age = Date.now() - new Date(campaign.started_at ?? 0).getTime();
-    if (age < STALE_MS) return j({ error: "campaign send already in progress" }, 409);
+    if (age < STALE_MS && !campaign.resume_at) return j({ error: "campaign send already in progress" }, 409);
   }
-  // Authoritative dormancy: a campaign deferred to a future daily wave must NOT
-  // send until resume_at passes — for ANY caller (worker, self-chain, a stale
-  // pre-deploy cron tick, manual kick). resume_at was previously honoured only
-  // by the worker, so a single stray kick would clear it (productive-batch path)
-  // and run a full out-of-slot wave into an exhausted cap. Gate it here too so
-  // resume_at is the single source of truth everywhere. (At the real slot it has
-  // just passed, so > now is false and the wave proceeds normally.)
+  // resume_at is the single source of truth for dormancy, for ANY caller.
   if (campaign.resume_at && new Date(campaign.resume_at).getTime() > Date.now()) {
     return j({ ok: true, status: "sending", deferred: true, note: `dormant until ${campaign.resume_at}` });
   }
-  if (!campaign.template_id) return j({ error: "campaign has no template" }, 400);
 
+  // ---- start-time validation (B5/B8/B10): fail the campaign ONCE with a clear
+  // reason instead of spraying a failure per recipient or looping alerts ----
+  if (!campaign.template_id) return await failCampaign(sb, campaignId, "Campaign has no template.");
   const { data: tpl } = await sb.from("wa_templates").select("*").eq("id", campaign.template_id).single();
-  if (!tpl) return j({ error: "template not found" }, 404);
+  if (!tpl) return await failCampaign(sb, campaignId, "Template not found (deleted?). Pick another template.");
   if (tpl.status !== "approved") {
-    return j({ error: `template '${tpl.name}' is '${tpl.status}' — must be 'approved' by Meta first` }, 400);
+    return await failCampaign(
+      sb,
+      campaignId,
+      `Template '${tpl.name}' is '${tpl.status}' at Meta — it must be approved before this campaign can send.`,
+    );
   }
-
-  // ---- atomic send lock ----
-  // Only ONE sender may run a campaign at a time. A guarded UPDATE: we win the
-  // lock only if it's free or stale (TTL). Without this, concurrent invocations
-  // (manual resume + self-chain + worker) re-send to the same people — the
-  // duplicate incident. Released before chaining the next batch.
-  const LOCK_TTL_MS = 100_000;
-  const lockCutoff = new Date(Date.now() - LOCK_TTL_MS).toISOString();
-  const { data: lockRow, error: lockErr } = await sb
-    .from("wa_campaigns")
-    .update({ send_lock_at: new Date().toISOString() })
-    .eq("id", campaignId)
-    .or(`send_lock_at.is.null,send_lock_at.lt.${lockCutoff}`)
-    .select("id")
-    .maybeSingle();
-  if (lockErr) {
-    return j({ error: "send lock unavailable — run the send_lock migration", detail: lockErr.message }, 500);
+  const baseVars: Record<string, unknown> = campaign.template_vars ?? {};
+  const setupErrors = validateCampaignSetup(tpl as TemplateSchema, baseVars, campaign.header_media_url);
+  if (setupErrors.length) {
+    return await failCampaign(sb, campaignId, `Can't start: ${setupErrors.join("; ")}.`);
   }
-  if (!lockRow) {
-    // Another sender holds the lock — bail quietly (NOT an error). The holder
-    // will finish + chain; the worker re-kicks if it ever dies.
-    return j({ ok: true, skipped: "another sender holds the lock for this campaign" });
-  }
-  const releaseLock = () => sb.from("wa_campaigns").update({ send_lock_at: null }).eq("id", campaignId);
-
-  // Reclaim claims orphaned by a crashed/timed-out prior batch (sender died
-  // between the claim insert and its finalize). Anything still 'queued' older
-  // than the lock TTL can't be a live in-flight claim, so demote it to 'failed'
-  // (which is outside the unique index) → eligible to retry. Without this a
-  // crash would permanently block that contact.
-  await sb.from("wa_messages").update({ status: "failed", error: "stale claim reclaimed" })
-    .eq("campaign_id", campaignId).eq("status", "queued")
-    .lt("created_at", new Date(Date.now() - 5 * 60_000).toISOString());
-
-  // ---- audience ----
-  // Page through the FULL audience: PostgREST caps a single response at 1000
-  // rows, and an unpaginated read silently truncates — contacts past the cap
-  // would never be messaged while the campaign still marked itself completed
-  // (same 1000-row class as the ledger read below, fixed after Edamame).
-  const tags: string[] = Array.isArray(campaign.audience_filter?.tags) ? campaign.audience_filter.tags : [];
-  const contacts: { id: string; wa_id: string; name: string | null; email: string | null; tags: string[] | null }[] = [];
-  for (let from = 0; ; from += 1000) {
-    let q = sb.from("wa_contacts").select("id, wa_id, name, email, tags")
-      .eq("opted_in", true)
-      // NEVER broadcast to a suppressed contact, whatever audience was picked.
-      // 'tier:suppressed' is stamped by the engagement tiering job on contacts
-      // who opted out or who Meta has blocked 3+ times in 90 days (336 of 1,413
-      // today). Without this the tag was advisory only: those contacts are still
-      // opted_in = true, so an "everyone opted-in" campaign reached all of them
-      // and burned a marketing slot per person on a send Meta was always going
-      // to refuse. Applied as an exclusion rather than a tag filter so it holds
-      // no matter which audience the campaign selected.
-      //
-      // NULL-SAFE ON PURPOSE. A bare .not("tags","cs",…) compiles to
-      // NOT (tags @> '{...}'), and in SQL that is NULL - not true - when tags
-      // itself is NULL, so every contact with no tags would be silently dropped
-      // from every campaign. Zero contacts have NULL tags today, but a future
-      // insert path that forgets to stamp one would quietly stop being
-      // messaged, which is the same silent-truncation class as the 1000-row cap
-      // above. The or() makes "no tags" explicitly mean "not suppressed".
-      .or('tags.is.null,tags.not.cs.{"tier:suppressed"}')
-      .order("id").range(from, from + 999);
-    if (tags.length) q = q.overlaps("tags", tags);
-    const { data: page, error: cErr } = await q;
-    if (cErr) return j({ error: cErr.message }, 500);
-    if (!page || page.length === 0) break;
-    contacts.push(...(page as typeof contacts));
-    if (page.length < 1000) break;
-  }
-  if (!contacts || contacts.length === 0) {
-    await sb.from("wa_campaigns").update({
-      status: "completed", completed_at: new Date().toISOString(), last_error: "no opted-in recipients matched",
-      send_lock_at: null,
-    }).eq("id", campaignId);
-    return j({ ok: true, sent: 0, failed: 0, remaining: 0, status: "completed", note: "no recipients" });
-  }
-
-  // Classify the ledger so multi-day cap-aware sending works:
-  //   reached       = got a sent/delivered/read row (NEVER message again)
-  //   permanentFail = failed for a non-cap reason (not on WhatsApp, etc.) — give up
-  //   triedToday    = any attempt since 00:00 IST (so we attempt each contact at
-  //                   most once per day; cap-failed ones become eligible again
-  //                   tomorrow, never re-sent to the reached)
-  // Page through the FULL ledger. PostgREST caps a single response at 1000 rows;
-  // a campaign with >1000 message rows was silently deduped against only the
-  // first 1000, so everyone past that window was re-sent every batch (the 195-
-  // duplicate Edamame incident). Paginate so the reached/triedToday sets are
-  // complete. (The DB unique index is the hard guarantee; this keeps the
-  // wave/completion logic correct so a campaign actually finishes.)
-  const done: { contact_id: string | null; status: string; error: string | null; created_at: string }[] = [];
-  for (let from = 0; ; from += 1000) {
-    const { data: page } = await sb.from("wa_messages")
-      .select("contact_id,status,error,created_at").eq("campaign_id", campaignId)
-      .range(from, from + 999);
-    if (!page || page.length === 0) break;
-    done.push(...(page as typeof done));
-    if (page.length < 1000) break;
-  }
-  const IST_MS = 5.5 * 60 * 60 * 1000;
-  const istNow = new Date(Date.now() + IST_MS);
-  const todayStartUTC = Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - IST_MS;
-  const reached = new Set<string>(), permanentFail = new Set<string>(), triedToday = new Set<string>();
-  for (const r of (done ?? []) as { contact_id: string | null; status: string; error: string | null; created_at: string }[]) {
-    if (!r.contact_id) continue;
-    if (["sent", "delivered", "read"].includes(r.status)) reached.add(r.contact_id);
-    else if (r.status === "failed" && !isCapError(null, r.error)) permanentFail.add(r.contact_id);
-    if (new Date(r.created_at).getTime() >= todayStartUTC) triedToday.add(r.contact_id);
-  }
-
-  // Never market to a customer with a LIVE support ticket. Blasting "leave a
-  // review" / "restock now" at someone mid-complaint reads as tone-deaf. They
-  // re-enter automatically once the ticket is resolved.
-  const { data: ticketed } = await sb.from("wa_threads")
-    .select("contact_id")
-    .in("ticket_status", ["open", "pending"])
-    .not("contact_id", "is", null);
-  const blockedSet = new Set((ticketed ?? []).map((t) => t.contact_id));
-
-  // CART PRIORITY. Meta throttles MARKETING templates per recipient (#131049),
-  // so every broadcast we send to someone burns the delivery slot their
-  // abandoned-cart nudge needs. Measured over 60 days: campaigns spent 4,487
-  // sends and lost 2,564 of them (57%) to that cap, while cart recovery — a
-  // customer who put items in a basket minutes ago — failed 77% of the time and
-  // recovered exactly one cart. The broadcast is worth a fraction of the cart.
-  //
-  // So anyone with an in-flight cart run is HELD OUT of the broadcast until
-  // their cart sequence finishes (delivered, converted, or expired at the 72h
-  // deadline). They are deferred, not dropped: they fall into trulyRemaining
-  // again on a later batch, exactly like the open-ticket hold above.
-  const cartHeld = new Set<string>();
-  {
-    const activeCartWaIds = new Set<string>();
-    for (let from = 0; ; from += 1000) {
-      const { data: page } = await sb.from("wa_journey_runs")
-        .select("wa_id")
-        .eq("journey_key", "abandoned_checkout")
-        .eq("status", "active")
-        .range(from, from + 999);
-      if (!page || page.length === 0) break;
-      for (const r of page) if (r.wa_id) activeCartWaIds.add(String(r.wa_id));
-      if (page.length < 1000) break;
-    }
-    if (activeCartWaIds.size) {
-      for (const c of contacts) if (activeCartWaIds.has(c.wa_id)) cartHeld.add(c.id);
-    }
-  }
-  for (const id of cartHeld) blockedSet.add(id);
-
-  // ---- MARKETING FREQUENCY GOVERNOR ----
-  // Meta's #131049 is a PER-RECIPIENT marketing fatigue cap, and it is terminal
-  // for that recipient — not a transient error to retry into. Measured over 60
-  // days: 84% of marketing template attempts were rejected this way, while
-  // utility templates and in-window free text delivered at 98-99%. Blasting a
-  // contact who already took a marketing message today simply converts their
-  // remaining goodwill into another rejection.
-  //
-  // So hold out anyone who is suppressed, or who has already had
-  // MARKETING_PER_24H attempts in the last 24h / MARKETING_PER_7D in the last 7
-  // days. They are DEFERRED exactly like the cart and open-ticket holds above:
-  // not marked reached, not marked permanently failed, and they fall back into
-  // the eligible pool on a later batch once their window rolls forward.
-  const governorHeld = await marketingHoldSet(sb, contacts);
-  for (const id of governorHeld) blockedSet.add(id);
-
-  const baseVars: Record<string, string> = campaign.template_vars ?? {};
   const aiBrief = typeof baseVars._ai_brief === "string" ? baseVars._ai_brief.trim() : "";
   const personalized = aiBrief.length > 0;
   const cap = personalized ? MAX_PERSONALIZED : MAX_STATIC;
+  const waveMin = waveMinute(campaign.scheduled_at, campaign.started_at);
 
-  // everyone still owed a message (not reached, not permanently failed, not in a ticket)
-  const trulyRemaining = contacts.filter((c) => !reached.has(c.id) && !permanentFail.has(c.id) && !blockedSet.has(c.id));
-  if (trulyRemaining.length === 0) {
-    await sb.from("wa_campaigns").update({
-      status: "completed", completed_at: new Date().toISOString(), send_lock_at: null, resume_at: null,
-    }).eq("id", campaignId);
-    fireReport(campaignId);
-    return j({ ok: true, status: "completed", reached: reached.size, note: "all eligible contacts reached or permanently failed" });
-  }
-  // today's wave already attempted everyone left → wait for tomorrow's reset
-  const eligibleToday = trulyRemaining.filter((c) => !triedToday.has(c.id));
-  if (eligibleToday.length === 0) {
-    await sb.from("wa_campaigns").update({
-      status: "sending", send_lock_at: null, resume_at: nextSendSlotISO(),
-    }).eq("id", campaignId);
-    return j({ ok: true, status: "sending", deferred: true, remaining: trulyRemaining.length, note: "daily cap reached — resuming next day" });
-  }
-  const held = contacts.filter((c) => !reached.has(c.id) && !permanentFail.has(c.id) && blockedSet.has(c.id));
-  const cartSkipped = held.filter((c) => cartHeld.has(c.id)).length;
-  const governorSkipped = held.filter((c) => !cartHeld.has(c.id) && governorHeld.has(c.id)).length;
-  const ticketSkipped = held.length - cartSkipped - governorSkipped;
+  // ---- atomic, owner-checked send lock ----
+  let lockStamp = new Date().toISOString();
+  const lockCutoff = new Date(Date.now() - LOCK_TTL_MS).toISOString();
+  const { data: lockRow, error: lockErr } = await sb
+    .from("wa_campaigns")
+    .update({ send_lock_at: lockStamp })
+    .eq("id", campaignId)
+    .in("status", ["draft", "scheduled", "sending", "failed"])
+    .or(`send_lock_at.is.null,send_lock_at.lt.${lockCutoff}`)
+    .select("id")
+    .maybeSingle();
+  if (lockErr) return j({ error: "send lock unavailable", detail: lockErr.message }, 500);
+  if (!lockRow) return j({ ok: true, skipped: "another sender holds the lock (or the campaign was paused/cancelled)" });
 
-  // ---- proactive daily budget (account standing) ----
-  // Meta's messaging tier caps UNIQUE recipients of business-initiated sends
-  // per rolling 24h. Stop at the budget instead of blasting into #131049
-  // rejections (which burn quality rating and read as "2,705 failed" to staff).
-  // Both lookups are defensive: if standing OR usage is unknown, skip the gate
-  // and fall back to the reactive cap-defer below — never block on a quota
-  // check, and never invent a budget from a partial count.
-  let dailyRemaining: number | null = null;
-  const standing = await fetchWaStanding();
-  if (standing?.limit != null) {
-    const used = await countBusinessInitiated24h(sb);
-    if (used != null) dailyRemaining = Math.max(0, standing.limit - used);
-  }
-  if (dailyRemaining !== null && dailyRemaining === 0) {
-    await sb.from("wa_campaigns").update({
-      status: "sending", send_lock_at: null, resume_at: nextSendSlotISO(),
-    }).eq("id", campaignId);
-    return j({
-      ok: true, status: "sending", deferred: true, remaining: trulyRemaining.length,
-      note: `daily limit reached (${standing?.tier ?? "?"} = ${standing?.limit}/24h unique recipients) — resuming next day`,
-    });
-  }
-  const queue = eligibleToday.slice(0, Math.min(cap, dailyRemaining ?? cap));
-
-  await sb.from("wa_campaigns").update({
-    status: "sending",
-    started_at: campaign.started_at ?? new Date().toISOString(),
-    last_error: null,
-  }).eq("id", campaignId);
-
-  const varKeys = extractVarKeys(tpl.body ?? "");
-  const openai = personalized ? new OpenAI({ apiKey: Deno.env.get("OPENAI_API_KEY")! }) : null;
-
-  let sent = 0, failed = 0, capFails = 0, skipped = 0;
-  let firstError: string | null = null;
-
-  // ---- MM Lite path observability (batch-aggregated) ----------------------
-  // Campaigns call sendTemplate() directly instead of going through wa-send, so
-  // they inherit MM Lite routing (which is exactly where #131049 hurts most:
-  // 57% of campaign sends died on it) but NOT wa-send's send-path logging. With
-  // no visibility we could switch MM Lite on and never learn whether it helped.
-  //
-  // Aggregated PER BATCH, not per recipient, on purpose. A wave is up to 50
-  // sends; one connector_events row per send is exactly the unbounded per-send
-  // logging that caused the Aug 2026 Disk IO incident. Counters cost nothing and
-  // answer the only question that matters ("did MM Lite deliver better than
-  // Cloud API?"). All of this stays zero while WA_MM_LITE_ENABLED is unset,
-  // because sendTemplate() only sets send_path when the flag is on.
-  const pathStats = {
-    mm_lite_sent: 0,
-    mm_lite_failed: 0,
-    cloud_api_sent: 0,
-    cloud_api_failed: 0,
-    fallbacks: 0,
+  let lockHeld = true;
+  const releaseLock = async () => {
+    if (!lockHeld) return;
+    lockHeld = false;
+    await sb.from("wa_campaigns").update({ send_lock_at: null }).eq("id", campaignId).eq("send_lock_at", lockStamp);
   };
-  let firstMmLiteError: string | null = null;
-  for (const c of queue) {
-    let contactVars = baseVars;
-    if (personalized && openai && varKeys.length) {
-      const ai = await personalizeVars(openai, tpl.body ?? "", aiBrief, c, varKeys).catch(() => null);
-      if (ai) contactVars = { ...baseVars, ...ai };
+  // Refresh the lock (only if we still own it) and read the live status, so a
+  // pause/cancel stops the batch within HEARTBEAT_EVERY sends.
+  const heartbeat = async (): Promise<string | null> => {
+    const next = new Date().toISOString();
+    const { data } = await sb.from("wa_campaigns").update({ send_lock_at: next })
+      .eq("id", campaignId).eq("send_lock_at", lockStamp).select("status").maybeSingle();
+    if (!data) {
+      lockHeld = false;
+      return null;
     }
-    // Any link riding in a body variable gets utm_source=whatsapp + this
-    // campaign's name, so Shopify attributes the resulting order to it.
-    contactVars = Object.fromEntries(
-      Object.entries(contactVars).map(([k, v]) => [
-        k,
-        typeof v === "string" ? appendUtm(v, { medium: "campaign", campaign: campaign.name }) : v,
-      ]),
-    ) as Record<string, string>;
+    lockStamp = next;
+    return data.status as string;
+  };
 
-    // ---- CLAIM BEFORE SEND (the hard no-duplicate guarantee) ----
-    // Insert a 'queued' row FIRST. The partial unique index
-    // wa_messages_campaign_recipient_uniq on (campaign_id, contact_id) WHERE
-    // status IN (queued,sent,delivered,read) makes a second row impossible — so
-    // if this contact was already messaged (or is being messaged by a racing
-    // sender) the insert fails and we SKIP, never calling Meta twice. This holds
-    // regardless of query caps, lock TTLs, concurrent schedulers, or future code
-    // bugs: correctness lives in the database, not in this loop. 'failed' rows
-    // are outside the index so a cap-deferred contact is still retried tomorrow.
-    const { data: thread } = await sb.from("wa_threads")
-      .upsert({ contact_id: c.id, wa_id: c.wa_id }, { onConflict: "contact_id" })
-      .select("id").single();
-    const { data: claim, error: claimErr } = await sb.from("wa_messages").insert({
-      thread_id: thread?.id ?? null,
-      contact_id: c.id,
-      campaign_id: campaignId,
-      direction: "outbound",
-      type: "template",
-      status: "queued",
-      template_name: tpl.name,
-      template_lang: tpl.language,
-      sent_by: personalized ? "campaign-ai" : "campaign",
-    }).select("id").maybeSingle();
-    if (claimErr || !claim) { skipped++; continue; } // lost the claim → already handled, do NOT send
+  try {
+    return await runBatch();
+  } finally {
+    await releaseLock().catch(() => {});
+  }
 
-    const components = buildComponents(tpl, contactVars, c.name);
-    // Per-recipient click tracking: if the template has a dynamic URL button
-    // (base SITE_URL/r/, needs Meta approval) and the campaign carries a
-    // destination in _track_url, append a tracked code so clicks are
-    // attributable to this campaign + contact. Inert (no-op) otherwise.
-    const trackUrl = typeof contactVars._track_url === "string" ? contactVars._track_url
-      : (typeof baseVars._track_url === "string" ? baseVars._track_url : null);
-    const btn = await buildTrackedButton(sb, tpl, trackUrl, { contact_id: c.id, campaign_id: campaignId });
-    if (btn) components.push(btn);
-    let res: SendResult;
-    try {
-      res = await sendTemplate(c.wa_id, tpl.name, tpl.language, components);
-    } catch (e) {
-      res = { ok: false, message_id: null, raw: null, error: String(e) };
+  async function runBatch(): Promise<Response> {
+    const now = Date.now();
+
+    // Quiet hours (21:00-09:00 IST): no marketing sends. Park until morning.
+    if (inQuietHours(now)) {
+      const at = new Date(nextAllowedAt(now, waveMin)).toISOString();
+      await sb.from("wa_campaigns").update({
+        status: "sending",
+        started_at: campaign.started_at ?? new Date().toISOString(),
+        resume_at: at,
+        last_error: null,
+      }).eq("id", campaignId).in("status", ["draft", "scheduled", "sending", "failed"]);
+      return j({ ok: true, status: "sending", deferred: true, resume_at: at, note: "quiet hours (21:00-09:00 IST)" });
     }
 
-    // Tally which Meta endpoint carried this one. send_path is undefined on
-    // every send made with the MM Lite flag off, so this block is inert today.
-    if (res.send_path === "mm_lite") {
-      res.ok ? pathStats.mm_lite_sent++ : pathStats.mm_lite_failed++;
-    } else if (res.send_path === "cloud_api") {
-      res.ok ? pathStats.cloud_api_sent++ : pathStats.cloud_api_failed++;
-    }
-    if (res.mm_lite_fallback) {
-      pathStats.fallbacks++;
-      if (!firstMmLiteError) firstMmLiteError = res.mm_lite_error ?? "unknown";
-    }
-
-    // Finalize the claimed row IN PLACE (update, never a second insert). On
-    // failure, persist the classification into ai_meta — the Analytics
-    // "Delivery problems" panel groups by ai_meta.category, which nothing
-    // wrote before (every campaign failure showed as "unknown").
-    const explain = res.ok
-      ? null
-      : explainWaError(res.error_code, res.error ?? undefined);
+    // B9: a claim still 'queued' long after its sender died is AMBIGUOUS: Meta
+    // may or may not have accepted it. Never re-send it; record it visibly.
     await sb.from("wa_messages").update({
-      body: `[campaign:${campaign.name}]`,
-      template_vars: contactVars,
-      wa_message_id: res.message_id,
-      status: res.ok ? "sent" : "failed",
-      error: res.ok ? null : res.error,
-      ...(explain ? {
-        ai_meta: {
-          category: explain.category,
-          cause: explain.cause,
-          code: res.error_code ?? null,
-        },
-      } : {}),
-    }).eq("id", claim.id);
+      status: "failed",
+      error: "ambiguous: claim left queued by a sender that stopped mid-send; delivery unknown, not re-sent",
+      error_class: "ambiguous",
+    })
+      .eq("campaign_id", campaignId).eq("direction", "outbound").eq("status", "queued")
+      .lt("created_at", new Date(now - STALE_CLAIM_MS).toISOString());
 
-    // NOTE: we deliberately do NOT bump the thread's last_outbound_at or
-    // last_message_snippet here. A marketing broadcast is not a support
-    // conversation — bumping these would shove every recipient to the top of the
-    // human support inbox (which sorts by last_activity_at = greatest(inbound,
-    // outbound)) and bury real queries. Campaign performance lives in the
-    // Analytics tab + the per-campaign Recipients view, not the chat inbox. The
-    // send is still fully recorded in wa_messages (campaign_id set); if the
-    // customer REPLIES, their inbound bumps the thread and it surfaces normally.
+    // ---- audience: the shared SQL definition (same as the dashboard preview) ----
+    const contacts: Contact[] = [];
+    for (let from = 0;; from += 1000) {
+      const { data: page, error } = await sb
+        .rpc("wa_campaign_audience", { p_filter: campaign.audience_filter ?? {}, p_campaign_id: campaignId })
+        .order("id")
+        .range(from, from + 999);
+      if (error) return j({ error: `audience query failed: ${error.message}` }, 500);
+      if (!page || page.length === 0) break;
+      contacts.push(...(page as Contact[]));
+      if (page.length < 1000) break;
+    }
+    if (contacts.length === 0) {
+      await sb.from("wa_campaigns").update({
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        last_error: "no opted-in recipients matched",
+        resume_at: null,
+        total_audience: campaign.total_audience ?? 0,
+      }).eq("id", campaignId);
+      return j({ ok: true, sent: 0, failed: 0, remaining: 0, status: "completed", note: "no recipients" });
+    }
+    if (campaign.total_audience == null) {
+      await sb.from("wa_campaigns").update({ total_audience: contacts.length }).eq("id", campaignId);
+    }
 
-    if (!res.ok) {
-      const capHit = isCapError(res.error_code, res.error);
-      if (capHit) capFails++;
-      // Feed the per-recipient governor: three consecutive #131049 verdicts and
-      // we stop marketing to this number for 30 days. Delivery (reported later
-      // by wa-webhook) clears the strikes again.
-      if (capHit) {
-        await recordMarketingCap(sb, c.wa_id, res.error_code, res.error).catch(() => {});
+    // ---- ledger → per-contact verdicts ----
+    const byContact = new Map<string, LedgerRow[]>();
+    for (let from = 0;; from += 1000) {
+      const { data: page, error } = await sb.from("wa_messages")
+        .select("contact_id,status,error,error_class,created_at,ai_meta")
+        .eq("campaign_id", campaignId).eq("direction", "outbound")
+        .order("id").range(from, from + 999);
+      if (error) return j({ error: `ledger read failed: ${error.message}` }, 500);
+      if (!page || page.length === 0) break;
+      for (const r of page as (LedgerRow & { contact_id: string | null; ai_meta: { code?: unknown } | null })[]) {
+        if (!r.contact_id) continue;
+        const list = byContact.get(r.contact_id) ?? [];
+        list.push({ ...r, code: (r.ai_meta?.code as number | string | null | undefined) ?? null });
+        byContact.set(r.contact_id, list);
       }
-      if (!firstError) firstError = res.error ?? "unknown";
-      // Per-recipient alert (throttled to one Slack ping per error-code per 5 min,
-      // so a wholesale-failing blast pings once — not once per recipient).
-      await alertWaSendFailure({
-        to: c.wa_id,
-        kind: "template",
-        templateName: tpl.name,
-        error: res.error,
-        errorCode: res.error_code,
-        errorDetail: res.error_detail,
-        sentBy: personalized ? "campaign-ai" : "campaign",
+      if (page.length < 1000) break;
+    }
+    const todayStart = istDayStartMs(now);
+    const skipped: Partial<Record<SkipReason, number>> = {};
+    const candidates: Contact[] = [];
+    const waitingNextDay: Contact[] = [];
+    let reached = 0, inFlight = 0;
+    for (const c of contacts) {
+      const v = contactVerdict(byContact.get(c.id) ?? [], todayStart);
+      if (v.kind === "reached") reached++;
+      else if (v.kind === "in_flight") inFlight++;
+      else if (v.kind === "done") skipped[v.reason] = (skipped[v.reason] ?? 0) + 1;
+      else if (v.kind === "retry" && v.waitNextDay) waitingNextDay.push(c);
+      else candidates.push(c);
+    }
+
+    // ---- temporary holds (deferred, never dropped) ----
+    const held = new Map<string, "ticket" | "cart" | "governor" | "daily_claim">();
+    if (candidates.length) {
+      const { data: ticketed } = await sb.from("wa_threads").select("contact_id")
+        .in("ticket_status", ["open", "pending"]).not("contact_id", "is", null);
+      const ticketSet = new Set((ticketed ?? []).map((t) => t.contact_id as string));
+
+      // CART PRIORITY: an in-flight abandoned-cart run outranks a broadcast.
+      const activeCartWaIds = new Set<string>();
+      for (let from = 0;; from += 1000) {
+        const { data: page } = await sb.from("wa_journey_runs").select("wa_id")
+          .eq("journey_key", "abandoned_checkout").eq("status", "active").range(from, from + 999);
+        if (!page || page.length === 0) break;
+        for (const r of page) if (r.wa_id) activeCartWaIds.add(String(r.wa_id));
+        if (page.length < 1000) break;
+      }
+
+      // Per-recipient marketing frequency governor (rolling 24h / 7d, suppressions).
+      // Also the ONLY coupling to journeys: their marketing template attempts
+      // count here, so a campaign never lands on the same day as a journey send.
+      const governorHeld = await marketingHoldSet(sb, candidates);
+
+      // B6: another campaign already took this contact's marketing slot today.
+      const today = istDay(now);
+      const claimedElsewhere = new Set<string>();
+      for (let from = 0;; from += 1000) {
+        const { data: page, error } = await sb.from("wa_marketing_daily_claims")
+          .select("contact_id,source_id").eq("ist_day", today).range(from, from + 999);
+        if (error) return j({ error: `daily claim read failed: ${error.message}` }, 500);
+        if (!page || page.length === 0) break;
+        for (const r of page) if (r.source_id !== campaignId) claimedElsewhere.add(r.contact_id as string);
+        if (page.length < 1000) break;
+      }
+
+      for (const c of candidates) {
+        if (ticketSet.has(c.id)) held.set(c.id, "ticket");
+        else if (activeCartWaIds.has(c.wa_id)) held.set(c.id, "cart");
+        else if (governorHeld.has(c.id)) held.set(c.id, "governor");
+        else if (claimedElsewhere.has(c.id)) held.set(c.id, "daily_claim");
+      }
+    }
+    const heldBreakdown: Record<string, number> = { ticket: 0, cart: 0, governor: 0, daily_claim: 0 };
+    for (const r of held.values()) heldBreakdown[r]++;
+    const eligibleNow = candidates.filter((c) => !held.has(c.id));
+
+    const skippedCount = Object.values(skipped).reduce((a, b) => a + (b ?? 0), 0);
+    await sb.from("wa_campaigns").update({
+      skipped_breakdown: skipped,
+      skipped_count: skippedCount,
+      held_breakdown: heldBreakdown,
+    }).eq("id", campaignId);
+
+    const startedMs = Date.parse(campaign.started_at ?? new Date(now).toISOString());
+    const lifetimeOver = now - startedMs > MAX_CAMPAIGN_LIFETIME_MS;
+
+    // ---- nothing sendable right now ----
+    if (eligibleNow.length === 0) {
+      const onlyHeldLeft = waitingNextDay.length === 0 && inFlight === 0;
+      if (held.size === 0 && onlyHeldLeft) {
+        return await complete({ reached, skipped });
+      }
+      if (onlyHeldLeft && lifetimeOver) {
+        // B4: held past the campaign lifetime → recorded as skipped, by reason.
+        const final: Record<string, number> = { ...skipped };
+        for (const [r, n] of Object.entries(heldBreakdown)) if (n) final[`held_${r}`] = n;
+        return await complete({ reached, skipped: final, note: "campaign lifetime reached; held contacts skipped" });
+      }
+      const options: number[] = [];
+      if (waitingNextDay.length) options.push(nextWaveAt(now, waveMin));
+      if (held.size) options.push(nextAllowedAt(now + HOLD_RECHECK_MS, waveMin));
+      if (inFlight) options.push(now + STALE_CLAIM_MS + 60_000);
+      const at = new Date(Math.min(...options)).toISOString();
+      await defer(at);
+      return j({
+        ok: true, status: "sending", deferred: true, resume_at: at,
+        waiting_next_day: waitingNextDay.length, held: heldBreakdown, in_flight: inFlight,
+        note: waitingNextDay.length ? "today's wave done — resuming at the next wave" : "only held contacts remain — re-checking",
+      });
+    }
+
+    // ---- proactive daily budget (rolling 24h unique recipients) ----
+    let dailyRemaining: number | null = null;
+    let oldestAt: number | null = null;
+    const standing = await fetchWaStanding();
+    if (standing?.limit != null) {
+      const usage = await businessInitiatedUsage24h(sb);
+      if (usage) {
+        dailyRemaining = Math.max(0, standing.limit - usage.count);
+        oldestAt = usage.oldestAt;
+      }
+    }
+    if (dailyRemaining === 0) {
+      const at = new Date(budgetResumeAt(now, oldestAt, waveMin)).toISOString();
+      await defer(at);
+      return j({
+        ok: true, status: "sending", deferred: true, resume_at: at, remaining: eligibleNow.length,
+        note: `daily limit reached (${standing?.tier ?? "?"} = ${standing?.limit}/24h unique recipients) — resuming when the rolling window frees`,
+      });
+    }
+    const queue = eligibleNow.slice(0, Math.min(cap, dailyRemaining ?? cap));
+
+    const { data: live } = await sb.from("wa_campaigns").update({
+      status: "sending",
+      started_at: campaign.started_at ?? new Date().toISOString(),
+      last_error: null,
+      resume_at: null,
+    }).eq("id", campaignId).in("status", ["draft", "scheduled", "sending", "failed"]).select("id").maybeSingle();
+    if (!live) return j({ ok: true, stopped: "campaign was paused or cancelled" });
+
+    const openai = personalized ? new OpenAI({ apiKey: Deno.env.get("OPENAI_API_KEY")! }) : null;
+    const bodyKeys = templateVarKeys(tpl.body);
+    const trackUrl = typeof baseVars._track_url === "string" && baseVars._track_url.trim()
+      ? baseVars._track_url.trim()
+      : null;
+    const shortLinkButtons = dynamicUrlButtons(tpl as TemplateSchema).filter((b) => isShortLinkBase(b.base));
+    const tagUrl = (u: string) => appendUtm(u, { medium: "campaign", campaign: campaign.name });
+    const today = istDay(now);
+    const sentBy = personalized ? "campaign-ai" : "campaign";
+
+    let sent = 0, failed = 0, attempted = 0, claimSkipped = 0, aiSkipped = 0, dailyLost = 0, claimErrors = 0;
+    const byClass: Record<WaErrorClass, number> = {
+      cap: 0, optout: 0, terminal: 0, structural: 0, transient: 0, ambiguous: 0, unknown: 0,
+    };
+    let firstError: string | null = null;
+    let stopReason: string | null = null;
+    let ambiguousStreak = 0;
+    const pathStats = { mm_lite_sent: 0, mm_lite_failed: 0, cloud_api_sent: 0, cloud_api_failed: 0, fallbacks: 0 };
+    let firstMmLiteError: string | null = null;
+
+    for (let i = 0; i < queue.length; i++) {
+      const c = queue[i];
+      if (i > 0 && i % HEARTBEAT_EVERY === 0) {
+        const st = await heartbeat();
+        if (st === null) { stopReason = "lock_lost"; break; }
+        if (st !== "sending") { stopReason = st; break; }
+        if (inQuietHours(Date.now())) { stopReason = "quiet_hours"; break; }
+      }
+
+      // 1. values for this recipient (AI first: a failed personalisation must
+      //    never burn a claim or send a half-filled template)
+      let contactVars: Record<string, unknown> = { ...baseVars };
+      if (personalized && openai && bodyKeys.length) {
+        const ai = await personalizeVars(openai, tpl.body ?? "", aiBrief, c, bodyKeys).catch(() => null);
+        if (ai) contactVars = { ...contactVars, ...ai };
+      }
+      contactVars = Object.fromEntries(
+        Object.entries(contactVars).map(([k, v]) => [k, typeof v === "string" && !k.startsWith("_") ? tagUrl(v) : v]),
+      );
+      const precheck = buildTemplateComponents(tpl as TemplateSchema, {
+        vars: contactVars,
+        contactName: c.name,
+        headerMediaOverride: campaign.header_media_url,
+        tagUrl,
+        validationOnly: true,
+      });
+      if (precheck.errors.length) {
+        // Nothing is sent. Record a failed (structural, no wamid) attempt so a
+        // contact the model keeps failing on is retried at most
+        // MAX_STRUCTURAL_ATTEMPTS times instead of blocking the queue forever.
+        // Failed rows sit outside the per-campaign unique index and are ignored
+        // by the governor, so this never blocks a later real send.
+        aiSkipped++;
+        const { data: th } = await sb.from("wa_threads")
+          .upsert({ contact_id: c.id, wa_id: c.wa_id }, { onConflict: "contact_id" }).select("id").single();
+        await sb.from("wa_messages").insert({
+          thread_id: th?.id ?? null, contact_id: c.id, campaign_id: campaignId, direction: "outbound",
+          type: "template", status: "failed", template_name: tpl.name, template_lang: tpl.language, sent_by: sentBy,
+          error: `not sent: ${precheck.errors.join("; ")}`, error_class: "structural",
+        });
+        continue;
+      }
+
+      // 2. cross-campaign daily marketing claim (B6) — fail CLOSED on error
+      const { data: gotDaily, error: dailyErr } = await sb.rpc("wa_take_marketing_daily_claim", {
+        p_contact: c.id, p_day: today, p_source: "campaign", p_source_id: campaignId,
+      });
+      if (dailyErr) { claimErrors++; continue; }
+      if (gotDaily !== true) { dailyLost++; continue; }
+
+      // 3. per-campaign recipient claim (the hard per-campaign guarantee)
+      const { data: thread } = await sb.from("wa_threads")
+        .upsert({ contact_id: c.id, wa_id: c.wa_id }, { onConflict: "contact_id" })
+        .select("id").single();
+      const { data: claim, error: claimErr } = await sb.from("wa_messages").insert({
+        thread_id: thread?.id ?? null,
+        contact_id: c.id,
+        campaign_id: campaignId,
+        direction: "outbound",
+        type: "template",
+        status: "queued",
+        template_name: tpl.name,
+        template_lang: tpl.language,
+        sent_by: sentBy,
+      }).select("id").maybeSingle();
+      if (claimErr || !claim) { claimSkipped++; continue; } // already handled → do NOT send
+
+      // 4. tracked short links (only for /r/{{1}} buttons), then final build
+      const trackedCodes: Record<number, string> = {};
+      if (trackUrl) {
+        for (const b of shortLinkButtons) {
+          const code = await mintCode(sb, tagUrl(trackUrl), { contact_id: c.id, campaign_id: campaignId });
+          if (code) trackedCodes[b.index] = code;
+        }
+      }
+      const built = buildTemplateComponents(tpl as TemplateSchema, {
+        vars: contactVars,
+        contactName: c.name,
+        headerMediaOverride: campaign.header_media_url,
+        trackedCodes,
+        tagUrl,
+      });
+
+      let res: SendResult;
+      // Set when WE decided not to call Meta: the class is certain (nothing sent).
+      let localClass: WaErrorClass | null = null;
+      if (built.errors.length) {
+        // Only reachable if tracked-link minting failed. Nothing was sent.
+        res = { ok: false, message_id: null, raw: null, error: `not sent: ${built.errors.join("; ")}` };
+        localClass = "transient";
+      } else {
+        try {
+          res = await sendTemplate(c.wa_id, tpl.name, tpl.language, built.components as TemplateComponent[]);
+        } catch (e) {
+          res = { ok: false, message_id: null, raw: null, error: String(e) };
+        }
+      }
+      attempted++;
+
+      if (res.send_path === "mm_lite") res.ok ? pathStats.mm_lite_sent++ : pathStats.mm_lite_failed++;
+      else if (res.send_path === "cloud_api") res.ok ? pathStats.cloud_api_sent++ : pathStats.cloud_api_failed++;
+      if (res.mm_lite_fallback) {
+        pathStats.fallbacks++;
+        if (!firstMmLiteError) firstMmLiteError = res.mm_lite_error ?? "unknown";
+      }
+
+      const cls: WaErrorClass | null = res.ok
+        ? null
+        : localClass ?? classifySyncFailure(res.error_code, res.error, res.http_status ?? null);
+      const explain = res.ok ? null : explainWaError(res.error_code, res.error ?? undefined);
+      await sb.from("wa_messages").update({
+        body: `[campaign:${campaign.name}]`,
+        template_vars: contactVars,
+        wa_message_id: res.message_id,
+        status: res.ok ? "sent" : "failed",
+        error: res.ok ? null : res.error,
+        error_class: cls,
+        ...(explain
+          ? { ai_meta: { category: explain.category, cause: explain.cause, code: res.error_code ?? null, class: cls } }
+          : {}),
+      }).eq("id", claim.id);
+      // NOTE: thread last_outbound_at / snippet deliberately untouched (a
+      // broadcast must not flood the support inbox).
+
+      ambiguousStreak = cls === "ambiguous" ? ambiguousStreak + 1 : 0;
+      if (res.ok) {
+        sent++;
+      } else {
+        failed++;
+        byClass[cls!]++;
+        // Meta refused synchronously with a code → nothing was delivered, so
+        // give the contact's daily marketing slot back. Ambiguous keeps it.
+        if (cls !== "ambiguous" && !res.message_id) {
+          await sb.from("wa_marketing_daily_claims").delete()
+            .eq("contact_id", c.id).eq("ist_day", today).eq("source_id", campaignId);
+        }
+        if (cls === "cap") await recordMarketingCap(sb, c.wa_id, res.error_code, res.error).catch(() => {});
+        if (cls === "optout") await recordMarketingOptOut(sb, c.wa_id, res.error_code, res.error).catch(() => {});
+        if (!firstError) firstError = res.error ?? "unknown";
+        await alertWaSendFailure({
+          to: c.wa_id,
+          kind: "template",
+          templateName: tpl.name,
+          error: res.error,
+          errorCode: res.error_code,
+          errorDetail: res.error_detail,
+          sentBy,
+        }).catch(() => {});
+      }
+      if (ambiguousStreak >= AMBIGUOUS_STOP_STREAK) { stopReason = "ambiguous_streak"; break; }
+      if (THROTTLE_MS) await sleep(THROTTLE_MS);
+    }
+
+    await emitPathStats(pathStats, firstMmLiteError, queue.length);
+    await sb.rpc("wa_campaign_recount", { p_campaign: campaignId });
+    await releaseLock();
+
+    const summary = {
+      sent, failed, attempted, processed: queue.length, claim_skipped: claimSkipped, ai_skipped: aiSkipped,
+      daily_claim_lost: dailyLost, claim_errors: claimErrors, failures_by_class: byClass, personalized,
+      held: heldBreakdown, skipped, governor_limits: `${MARKETING_PER_24H}/24h, ${MARKETING_PER_7D}/7d`,
+    };
+
+    if (stopReason === "paused" || stopReason === "cancelled" || stopReason === "lock_lost") {
+      return j({ ok: true, status: stopReason, stopped: true, ...summary });
+    }
+    if (stopReason === "ambiguous_streak") {
+      // Meta/network outage: stop so it can't strand the rest of the audience
+      // as "delivery unknown". The stranded ones are never re-sent (§0).
+      const at = new Date(nextAllowedAt(Date.now() + AI_RETRY_MS, waveMin)).toISOString();
+      await sb.from("wa_campaigns").update({
+        resume_at: at,
+        last_error: `Paused sending: ${AMBIGUOUS_STOP_STREAK} sends in a row got no clear answer from Meta ` +
+          `(${firstError ?? "network error"}). Those people are not re-sent. Retrying the rest at ${at}.`,
+      }).eq("id", campaignId).eq("status", "sending");
+      return j({ ok: true, status: "sending", deferred: true, resume_at: at, note: "ambiguous streak", ...summary });
+    }
+    if (stopReason === "quiet_hours") {
+      const at = new Date(nextAllowedAt(Date.now(), waveMin)).toISOString();
+      await defer(at);
+      return j({ ok: true, status: "sending", deferred: true, resume_at: at, note: "quiet hours", ...summary });
+    }
+
+    // B1: wholesale-failure breaker — structural errors only, zero successes.
+    if (shouldTripBreaker({ sent, structural: byClass.structural, attempted })) {
+      await sb.from("wa_campaigns").update({
+        status: "failed",
+        last_error: `Halted: ${byClass.structural} send(s) failed with a template/account error and none went out. ` +
+          `Meta said: ${firstError ?? "unknown"}. Fix it, then press Send — those recipients will be retried.`,
+      }).eq("id", campaignId).eq("status", "sending");
+      await postSlack(
+        slackChannelFor("whatsapp"),
+        `🚨 *Campaign halted — template/account error*\n*Campaign:* ${campaign.name}\n` +
+          `*Result:* 0 delivered, ${byClass.structural} structural failures in this batch.\n` +
+          `*Meta said:* ${firstError ?? "unknown"}\nFix the template/params/token, then re-send. ` +
+          `The affected recipients are retried; nobody who got it will get it again.`,
+      ).catch(() => {});
+      fireReport(campaignId);
+      return j({ ok: false, status: "failed", error: firstError, ...summary });
+    }
+
+    // Everything attempted hit the per-user marketing cap → today's wave is spent.
+    if (attempted > 0 && sent === 0 && byClass.cap === attempted) {
+      const at = new Date(nextWaveAt(Date.now(), waveMin)).toISOString();
+      await defer(at);
+      return j({ ok: true, status: "sending", deferred: true, resume_at: at, note: "marketing cap — next wave", ...summary });
+    }
+
+    // Nothing could even be attempted (AI personalisation failing, claim store
+    // unreachable): back off instead of hot-looping the chain.
+    if (attempted === 0 && (aiSkipped > 0 || claimErrors > 0)) {
+      const at = new Date(nextAllowedAt(Date.now() + AI_RETRY_MS, waveMin)).toISOString();
+      await sb.from("wa_campaigns").update({
+        resume_at: at,
+        last_error: aiSkipped
+          ? `AI personalisation failed for ${aiSkipped} recipient(s); retrying at ${at}.`
+          : `Daily claim store unavailable; nothing sent. Retrying at ${at}.`,
+      }).eq("id", campaignId).eq("status", "sending");
+      return j({ ok: true, status: "sending", deferred: true, resume_at: at, ...summary });
+    }
+
+    // Productive (or partially skipped) batch → chain; the next invocation
+    // re-classifies and completes / defers / continues.
+    const chain = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-campaign-send`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ campaign_id: campaignId, _continue: true }),
+    }).catch(() => {});
+    try {
+      (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil?.(chain);
+    } catch { /* not on edge runtime */ }
+
+    return j({ ok: true, status: "sending", remaining: eligibleNow.length - queue.length, ...summary });
+  }
+
+  async function defer(at: string) {
+    await sb.from("wa_campaigns").update({
+      status: "sending",
+      started_at: campaign.started_at ?? new Date().toISOString(),
+      resume_at: at,
+    }).eq("id", campaignId).in("status", ["draft", "scheduled", "sending", "failed"]);
+  }
+
+  async function complete(o: { reached: number; skipped: Record<string, number>; note?: string }) {
+    const total = Object.values(o.skipped).reduce((a, b) => a + (b ?? 0), 0);
+    await sb.rpc("wa_campaign_recount", { p_campaign: campaignId });
+    await sb.from("wa_campaigns").update({
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      resume_at: null,
+      skipped_breakdown: o.skipped,
+      skipped_count: total,
+      held_breakdown: null,
+    }).eq("id", campaignId).in("status", ["draft", "scheduled", "sending", "failed"]);
+    fireReport(campaignId);
+    return j({ ok: true, status: "completed", reached: o.reached, skipped: o.skipped, note: o.note ?? "all eligible contacts handled" });
+  }
+
+  async function emitPathStats(stats: typeof pathStatsShape, firstMm: string | null, batchSize: number) {
+    const touched = stats.mm_lite_sent + stats.mm_lite_failed + stats.cloud_api_sent + stats.cloud_api_failed > 0;
+    if (touched) {
+      console.log(JSON.stringify({
+        evt: "wa_send_path", scope: "campaign_batch", campaign_id: campaignId, campaign: campaign.name,
+        template: tpl.name, batch_size: batchSize, ...stats, sent_by: personalized ? "campaign-ai" : "campaign",
+      }));
+    }
+    if (stats.fallbacks > 0) {
+      await logConnector({
+        connector: "whatsapp",
+        level: "warn",
+        event: "mm_lite_fallback",
+        message: `MM Lite refused ${stats.fallbacks}/${batchSize} campaign send(s) of "${tpl.name}" ` +
+          `and Cloud API delivered them instead: ${firstMm ?? "unknown"}`,
+        detail: { scope: "campaign_batch", campaign_id: campaignId, campaign: campaign.name, template: tpl.name, mm_lite_error: firstMm, ...stats },
+        throttleMinutes: 60,
       }).catch(() => {});
     }
-
-    res.ok ? sent++ : failed++;
-    if (THROTTLE_MS) await sleep(THROTTLE_MS);
   }
-
-  // ---- emit the batch's MM Lite summary ----------------------------------
-  // Mirrors wa-send's observability block, one level up: a single structured
-  // console line per BATCH (joinable to wa_messages by campaign_id + template),
-  // plus at most one throttled connector event when MM Lite refused sends and
-  // Cloud API carried them instead. Nothing is written when the flag is off.
-  const touchedAnyPath = pathStats.mm_lite_sent + pathStats.mm_lite_failed +
-    pathStats.cloud_api_sent + pathStats.cloud_api_failed > 0;
-  if (touchedAnyPath) {
-    console.log(JSON.stringify({
-      evt: "wa_send_path",
-      scope: "campaign_batch",
-      campaign_id: campaignId,
-      campaign: campaign.name,
-      template: tpl.name,
-      batch_size: queue.length,
-      ...pathStats,
-      sent_by: personalized ? "campaign-ai" : "campaign",
-    }));
-  }
-
-  // A fallback means MM Lite refused the send (not enabled, not permitted, or
-  // template ineligible) and Cloud API carried it instead. Customers were not
-  // affected, but the rollout is misconfigured. One warn per batch, throttled to
-  // one row per hour, so a 2,700-recipient blast cannot flood connector_events.
-  if (pathStats.fallbacks > 0) {
-    await logConnector({
-      connector: "whatsapp",
-      level: "warn",
-      event: "mm_lite_fallback",
-      message:
-        `MM Lite refused ${pathStats.fallbacks}/${queue.length} campaign send(s) of "${tpl.name}" ` +
-        `and Cloud API delivered them instead: ${firstMmLiteError ?? "unknown"}`,
-      detail: {
-        scope: "campaign_batch",
-        campaign_id: campaignId,
-        campaign: campaign.name,
-        template: tpl.name,
-        mm_lite_error: firstMmLiteError,
-        ...pathStats,
-      },
-      throttleMinutes: 60,
-    }).catch(() => {});
-  }
-
-  await sb.rpc("wa_campaign_recount", { p_campaign: campaignId });
-
-  // Release the lock now that this batch's rows are committed. The next batch
-  // (chain) or the worker will re-claim it cleanly. Done before any return below
-  // so the lock is never left held.
-  await releaseLock();
-
-  const realFails = failed - capFails;
-
-  // Structural-failure circuit breaker: nothing delivered and the failures are
-  // NOT the marketing cap — a bad template / params / token. Halt loudly so a
-  // launch blast can never fail silently.
-  if (sent === 0 && realFails > 0) {
-    await sb.from("wa_campaigns").update({
-      status: "failed",
-      last_error: `Halted: ${failed}/${queue.length} sends failed, 0 delivered. First error: ${firstError ?? "unknown"}`,
-    }).eq("id", campaignId);
-    await postSlack(
-      slackChannelFor("whatsapp"),
-      `🚨 *Campaign halted — wholesale send failure*\n` +
-      `*Campaign:* ${campaign.name}\n` +
-      `*Result:* 0 delivered, ${failed} failed in this batch (campaign paused before blasting the rest).\n` +
-      `*Meta said:* ${firstError ?? "unknown"}\n` +
-      `Fix the template/params, then re-run. Nobody else was messaged.`,
-    ).catch(() => {});
-    fireReport(campaignId);
-    return j({ ok: false, sent, failed, processed: queue.length, status: "failed", error: firstError });
-  }
-
-  // Whole batch hit the per-user marketing cap (#131049) → today's daily limit
-  // is exhausted. Defer the rest to the next daily wave (no re-sends; the capped
-  // contacts retry tomorrow because they're not marked reached).
-  if (sent === 0 && capFails > 0) {
-    await sb.from("wa_campaigns").update({ status: "sending", resume_at: nextSendSlotISO() }).eq("id", campaignId);
-    return j({ ok: true, status: "sending", deferred: true, sent, failed, note: "daily marketing cap reached — resuming next day" });
-  }
-
-  // Productive batch → chain. The next invocation re-classifies the ledger and
-  // will COMPLETE (everyone reached), DEFER (only cap-failed remain today), or
-  // CONTINUE (more eligible today). resume_at cleared = wave active.
-  await sb.from("wa_campaigns").update({ resume_at: null }).eq("id", campaignId);
-  const chain = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-campaign-send`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ campaign_id: campaignId, _continue: true }),
-  }).catch(() => {});
-  try { (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil?.(chain); } catch { /* not on edge runtime */ }
-
-  return j({
-    ok: true, sent, failed, claim_skipped: skipped, processed: queue.length, personalized,
-    ticket_skipped: ticketSkipped, cart_skipped: cartSkipped,
-    governor_skipped: governorSkipped,
-    governor_limits: `${MARKETING_PER_24H}/24h, ${MARKETING_PER_7D}/7d`,
-    // Omitted entirely (not zero-filled) while WA_MM_LITE_ENABLED is unset, so
-    // the response shape is unchanged for every caller reading it today.
-    ...(touchedAnyPath ? { send_paths: pathStats } : {}),
-    status: "sending",
-  });
 });
 
-function extractVarKeys(body: string): string[] {
-  const m = body.match(/\{\{(\d+)\}\}/g) ?? [];
-  return Array.from(new Set(m.map((s) => s.replace(/[^\d]/g, "")))).sort((a, b) => Number(a) - Number(b));
+const pathStatsShape = { mm_lite_sent: 0, mm_lite_failed: 0, cloud_api_sent: 0, cloud_api_failed: 0, fallbacks: 0 };
+
+// Mark a campaign failed with a human reason (idempotent; never touches a
+// completed/cancelled campaign). Used for start-time problems so the worker
+// and the Vercel tick stop re-kicking it and Slack is not spammed (B8).
+async function failCampaign(sb: Sb, campaignId: string, reason: string): Promise<Response> {
+  await sb.from("wa_campaigns").update({ status: "failed", last_error: reason, resume_at: null })
+    .eq("id", campaignId).in("status", ["draft", "scheduled", "sending", "failed"]);
+  return j({ ok: false, status: "failed", error: reason }, 400);
 }
 
-// Ask Claude for this contact's template variable values.
+// ---------------------------------------------------------------------------
+// Test send — same builder, no ledger, no claims, no contact creation.
+// ---------------------------------------------------------------------------
+async function handleTestSend(body: Body): Promise<Response> {
+  const to = String(body.test_to ?? "").replace(/\D/g, "");
+  if (to.length < 10) return j({ ok: false, error: "test_to must be a full phone number with country code" }, 400);
+  const sb = db();
+
+  let src: { template_id?: string | null; template_vars?: Record<string, unknown> | null; header_media_url?: string | null; name?: string | null } | null = null;
+  if (body.campaign_id) {
+    const { data } = await sb.from("wa_campaigns").select("template_id,template_vars,header_media_url,name")
+      .eq("id", body.campaign_id).maybeSingle();
+    if (!data) return j({ ok: false, error: "campaign not found" }, 404);
+    src = data;
+  } else if (body.draft) {
+    src = body.draft;
+  }
+  if (!src?.template_id) return j({ ok: false, error: "template_id required (campaign_id or draft)" }, 400);
+
+  const { data: tpl } = await sb.from("wa_templates").select("*").eq("id", src.template_id).maybeSingle();
+  if (!tpl) return j({ ok: false, error: "template not found" }, 404);
+  if (tpl.status !== "approved") {
+    return j({ ok: false, error: `template '${tpl.name}' is '${tpl.status}' — Meta only delivers approved templates` }, 400);
+  }
+  let vars: Record<string, unknown> = { ...(src.template_vars ?? {}) };
+  const errors = validateCampaignSetup(tpl as TemplateSchema, vars, src.header_media_url ?? null);
+  if (errors.length) return j({ ok: false, error: errors.join("; "), errors }, 400);
+
+  const brief = typeof vars._ai_brief === "string" ? vars._ai_brief.trim() : "";
+  const keys = templateVarKeys(tpl.body);
+  let aiUsed = false;
+  if (brief && keys.length) {
+    const openai = new OpenAI({ apiKey: Deno.env.get("OPENAI_API_KEY")! });
+    const ai = await personalizeVars(openai, tpl.body ?? "", brief, { name: body.test_name ?? null }, keys).catch(() => null);
+    if (!ai) return j({ ok: false, error: "AI personalisation failed for the test — try again or check the brief" }, 502);
+    vars = { ...vars, ...ai };
+    aiUsed = true;
+  }
+  const campaignName = src.name ?? "test";
+  const tagUrl = (u: string) => appendUtm(u, { medium: "campaign", campaign: campaignName });
+  vars = Object.fromEntries(
+    Object.entries(vars).map(([k, v]) => [k, typeof v === "string" && !k.startsWith("_") ? tagUrl(v) : v]),
+  );
+  const trackedCodes: Record<number, string> = {};
+  const trackUrl = typeof vars._track_url === "string" && vars._track_url.trim() ? vars._track_url.trim() : null;
+  if (trackUrl) {
+    for (const b of dynamicUrlButtons(tpl as TemplateSchema).filter((x) => isShortLinkBase(x.base))) {
+      const code = await mintCode(sb, tagUrl(trackUrl), { sent_by: "campaign_test" });
+      if (code) trackedCodes[b.index] = code;
+    }
+  }
+  const built = buildTemplateComponents(tpl as TemplateSchema, {
+    vars,
+    contactName: body.test_name ?? null,
+    headerMediaOverride: src.header_media_url ?? null,
+    trackedCodes,
+    tagUrl,
+  });
+  if (built.errors.length) return j({ ok: false, error: built.errors.join("; "), errors: built.errors }, 400);
+
+  let res: SendResult;
+  try {
+    res = await sendTemplate(to, tpl.name, tpl.language, built.components as TemplateComponent[]);
+  } catch (e) {
+    res = { ok: false, message_id: null, raw: null, error: String(e) };
+  }
+  const explain = res.ok ? null : explainWaError(res.error_code, res.error ?? undefined);
+  return j({
+    ok: res.ok,
+    to,
+    template: tpl.name,
+    message_id: res.message_id,
+    error: res.ok ? null : res.error ?? "unknown",
+    error_code: res.error_code ?? null,
+    error_class: res.ok ? null : classifySyncFailure(res.error_code, res.error, res.http_status ?? null),
+    explanation: explain ? { category: explain.category, cause: explain.cause } : null,
+    ai_personalized: aiUsed,
+    components: built.components,
+  }, res.ok ? 200 : 502);
+}
+
+// Ask the model for this contact's template variable values.
 async function personalizeVars(
   client: OpenAI,
   templateBody: string,
@@ -587,11 +778,13 @@ async function personalizeVars(
     "You write WhatsApp marketing template variable values for PROMUNCH (snack brand — protein munchies, edamame). " +
     "Given a template and one customer, output ONLY a JSON object mapping each numbered variable to a short, natural " +
     "value tailored to that customer. Values are template variables, not paragraphs — keep them short. " +
-    "India-English, warm. Never include {{ }} braces in the values.";
+    "India-English, warm. Never include {{ }} braces in the values. Never use em dashes. Always write the brand as PROMUNCH.";
   const user = [
     `TEMPLATE BODY:\n${templateBody}`,
     `\nCAMPAIGN BRIEF:\n${brief}`,
-    `\nCUSTOMER:\nname: ${contact.name ?? "(unknown)"}\ntags: ${(contact.tags ?? []).join(", ") || "(none)"}\nemail: ${contact.email ?? "(none)"}`,
+    `\nCUSTOMER:\nname: ${contact.name ?? "(unknown)"}\ntags: ${(contact.tags ?? []).join(", ") || "(none)"}\nemail: ${
+      contact.email ?? "(none)"
+    }`,
     `\nReturn JSON only — keys ${varKeys.map((k) => `"${k}"`).join(", ")}. Example: {"1":"...","2":"..."}`,
   ].join("\n");
   const resp = await client.chat.completions.create({
@@ -609,67 +802,11 @@ async function personalizeVars(
   try {
     const obj = JSON.parse(m[0]);
     const out: Record<string, string> = {};
-    for (const k of varKeys) if (obj[k] != null) out[k] = String(obj[k]);
-    return Object.keys(out).length ? out : null;
+    for (const k of varKeys) if (obj[k] != null && String(obj[k]).trim()) out[k] = String(obj[k]).replace(/—/g, ",");
+    return Object.keys(out).length === varKeys.length ? out : null;
   } catch {
     return null;
   }
-}
-
-// Build the template's components: a media header (when the template was created
-// with an IMAGE/VIDEO/DOCUMENT header) plus the body from numbered variables.
-// Meta error #132012 ("Parameter format does not match") fires when we OMIT the
-// header component for a media-header template — so it must always be sent.
-// A value containing the {name} token is personalised with the contact's name.
-// Build a tracked dynamic-URL button component for one recipient. Returns null
-// unless the template has a URL button whose stored URL is dynamic (contains a
-// {{n}} placeholder or our /r/ base) AND a track destination is given.
-async function buildTrackedButton(
-  sb: ReturnType<typeof db>,
-  tpl: { buttons?: unknown },
-  trackUrl: string | null,
-  meta: { contact_id: string; campaign_id: string },
-): Promise<TemplateComponent | null> {
-  if (!trackUrl) return null;
-  const buttons = Array.isArray(tpl.buttons) ? (tpl.buttons as { type?: string; url?: string }[]) : [];
-  const idx = buttons.findIndex(
-    (b) => (b.type ?? "").toUpperCase() === "URL" && typeof b.url === "string" && (b.url.includes("/r/") || b.url.includes("{{")),
-  );
-  if (idx < 0) return null;
-  const c = await mintCode(sb, trackUrl, meta);
-  if (!c) return null;
-  return { type: "button", sub_type: "url", index: String(idx), parameters: [{ type: "text", text: c }] } as unknown as TemplateComponent;
-}
-
-function buildComponents(
-  tpl: { header_type?: string | null; header_media_url?: string | null },
-  vars: Record<string, string>,
-  contactName?: string | null,
-): TemplateComponent[] {
-  const comps: TemplateComponent[] = [];
-
-  // Media header — required whenever the template carries one, even with no body vars.
-  const ht = (tpl.header_type ?? "").toUpperCase();
-  const link = tpl.header_media_url ?? null;
-  if (link && ht === "IMAGE") {
-    comps.push({ type: "header", parameters: [{ type: "image", image: { link } }] });
-  } else if (link && ht === "VIDEO") {
-    comps.push({ type: "header", parameters: [{ type: "video", video: { link } }] });
-  } else if (link && ht === "DOCUMENT") {
-    comps.push({ type: "header", parameters: [{ type: "document", document: { link } }] });
-  }
-
-  // Body — only when the template has numbered {{n}} placeholders.
-  const keys = Object.keys(vars).filter((k) => /^\d+$/.test(k)).sort((a, b) => Number(a) - Number(b));
-  if (keys.length > 0) {
-    const name = (contactName ?? "").trim() || "there";
-    comps.push({
-      type: "body",
-      parameters: keys.map((k) => ({ type: "text", text: String(vars[k] ?? "").replace(/\{name\}/gi, name) })),
-    });
-  }
-
-  return comps;
 }
 
 // Fire-and-forget: post the analytics report to Slack the moment the campaign

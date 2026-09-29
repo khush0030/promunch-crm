@@ -75,13 +75,27 @@ export type KbDoc = {
 
 export type TeamMember = { id: string; email: string | null; name: string; role: string };
 
+export type CampaignStatus = "draft" | "scheduled" | "sending" | "paused" | "completed" | "failed" | "cancelled";
+
+export type RetargetStage = "not_read" | "not_delivered" | "read_no_reply" | "failed_cap";
+
+// Mirrors the shapes wa_campaign_filter_match() understands (engine v2
+// migration 20260929120100 + 20260929130000 for `engagement`). All keys AND.
+export type CampaignAudienceFilter = {
+  tags?: string[];
+  tags_all?: string[];
+  exclude_tags?: string[];
+  retarget?: { campaign_id: string; stage: RetargetStage };
+  engagement?: "warm";
+};
+
 export type Campaign = {
   id: string;
   name: string;
-  status: "draft" | "scheduled" | "sending" | "completed" | "failed" | "cancelled";
+  status: CampaignStatus;
   template_id: string | null;
   template_vars: Record<string, string> | null;
-  audience_filter: { tags?: string[] } | null;
+  audience_filter: CampaignAudienceFilter | null;
   sent_count: number;
   delivered_count: number;
   read_count: number;
@@ -97,7 +111,22 @@ export type Campaign = {
   started_at?: string | null;
   completed_at?: string | null;
   created_at: string;
-  template?: { id: string; name: string; language: string; category: string; status: string } | null;
+  // Engine v2 columns (migration 20260929120100). Optional so the page still
+  // renders before the migration is applied.
+  header_media_url?: string | null;
+  total_audience?: number | null;
+  replied_count?: number | null;
+  clicked_count?: number | null;
+  skipped_count?: number | null;
+  skipped_breakdown?: Record<string, number> | null;
+  held_breakdown?: Record<string, number> | null;
+  paused_at?: string | null;
+  cancelled_at?: string | null;
+  template?: {
+    id: string; name: string; language: string; category: string; status: string;
+    body?: string | null; header_type?: Template["header_type"]; header_text?: string | null;
+    header_media_url?: string | null; buttons?: TemplateButton[] | null;
+  } | null;
 };
 
 export type Recipient = { contact_id: string; name: string | null; wa_id: string | null; status: string; attempts: number; duplicate: boolean; error: string | null; at: string };

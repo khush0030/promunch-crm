@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { requireSession } from "@/lib/leads/auth";
+import { validateMediaFile, type MediaKind } from "@/lib/whatsapp/template-rules";
 
+// Two modes:
+//
+// 1. JSON  { kind: "image"|"video"|"document", mime, size, name }
+//    -> { path, token, signedUrl, publicUrl }
+//    Direct-to-storage upload (preferred). The browser uploads the bytes
+//    straight to Supabase Storage with supabase-js uploadToSignedUrl, so large
+//    videos/PDFs never pass through Vercel (whose request bodies cap at 4.5 MB
+//    and 413 before this route even runs). Used by
+//    src/components/whatsapp/MediaUploader.tsx via src/lib/whatsapp/media-upload-client.ts.
+//
+// 2. multipart/form-data  (legacy byte proxy, below). Still used by the inbox
+//    composer and Growth tab for small images; bodies over ~4.5 MB fail on Vercel.
+//
 // Upload a template header asset (image / video / document) to the public
 // `wa-media` Supabase Storage bucket and return its public URL. The template
 // builder hands this URL to Meta as the sample media when submitting for
@@ -24,7 +39,36 @@ function slugify(name: string): string {
   return (stem || "asset") + ext;
 }
 
+const SIGNED_KINDS: MediaKind[] = ["image", "video", "document"];
+
+async function signUpload(req: NextRequest): Promise<NextResponse> {
+  const denied = await requireSession();
+  if (denied) return denied;
+  let body: { kind?: string; mime?: string; size?: number; name?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Could not read the upload request." }, { status: 400 });
+  }
+  const kind = String(body.kind ?? "").toLowerCase() as MediaKind;
+  if (!SIGNED_KINDS.includes(kind)) {
+    return NextResponse.json({ error: "Choose an image, video or PDF." }, { status: 400 });
+  }
+  const problem = validateMediaFile(kind, { type: body.mime, size: Number(body.size) });
+  if (problem) return NextResponse.json({ error: problem }, { status: 400 });
+
+  const path = `campaigns/${crypto.randomUUID()}-${slugify(String(body.name ?? "file"))}`;
+  const { data, error } = await supabaseAdmin.storage.from("wa-media").createSignedUploadUrl(path);
+  if (error || !data) {
+    return NextResponse.json({ error: `Could not prepare the upload: ${error?.message ?? "unknown error"}` }, { status: 500 });
+  }
+  const { data: pub } = supabaseAdmin.storage.from("wa-media").getPublicUrl(path);
+  return NextResponse.json({ path: data.path, token: data.token, signedUrl: data.signedUrl, publicUrl: pub.publicUrl });
+}
+
 export async function POST(req: NextRequest) {
+  if ((req.headers.get("content-type") ?? "").includes("application/json")) return signUpload(req);
+
   let form: FormData;
   try {
     form = await req.formData();

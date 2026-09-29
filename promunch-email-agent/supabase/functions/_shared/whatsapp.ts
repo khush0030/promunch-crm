@@ -35,6 +35,7 @@ export interface SendResult {
   error?: string;
   error_code?: number;   // Meta error.code — drives the failure-alert explainer
   error_detail?: string; // Meta error_data.details / error_user_msg, if present
+  http_status?: number;  // Graph HTTP status on failure (5xx = outcome unknown)
   // ---- MM Lite observability (all optional; absent on every non-template send
   // and on every send made while WA_MM_LITE_ENABLED is unset) ----------------
   send_path?: WaSendPath;      // "mm_lite" when /marketing_messages carried it
@@ -72,6 +73,7 @@ function toSendResult(r: { status: number; ok: boolean; json: any }): SendResult
       error: e?.message ?? `HTTP ${r.status}`,
       error_code: typeof e?.code === "number" ? e.code : undefined,
       error_detail: e?.error_data?.details ?? e?.error_user_msg ?? undefined,
+      http_status: r.status,
     };
   }
   // Both /messages and /marketing_messages return the wamid in the same place:

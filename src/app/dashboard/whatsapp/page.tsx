@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown } from "lucide-react";
+import { PageHeader } from "@/components/pm";
 import AnalyticsView from "@/components/whatsapp/AnalyticsView";
 import { timeAgo } from "./format";
 import type { Tab } from "@/components/whatsapp/types";
@@ -13,87 +14,75 @@ import CampaignsView from "@/components/whatsapp/CampaignsView";
 import FlowsView from "@/components/whatsapp/FlowsView";
 import VoiceView from "@/components/whatsapp/VoiceView";
 import GrowthView from "@/components/whatsapp/GrowthView";
-import InboxView from "@/components/whatsapp/InboxView";
-import { AlertsToggle } from "@/components/whatsapp/InboxNotifier";
 import { useAccess } from "@/components/shell/useAccess";
 import { canUse, whatsappTabModule } from "@/lib/access";
 
-
-
-const TABS: Tab[] = ["inbox", "tickets", "templates", "campaigns", "flows", "voice", "growth", "analytics", "kb"];
+// WhatsApp marketing hub. Chats and tickets moved to /dashboard/inbox
+// (next.config.ts redirects ?tab=inbox / ?tab=tickets / no tab there), so they
+// are not tabs here any more.
+type PageTab = Exclude<Tab, "inbox" | "tickets">;
+const ITEMS: Array<{ key: PageTab; label: string }> = [
+  { key: "campaigns", label: "Campaigns" },
+  { key: "templates", label: "Templates" },
+  { key: "flows", label: "Automations" },
+  { key: "analytics", label: "Analytics" },
+  { key: "growth", label: "Popup" },
+  { key: "voice", label: "Voice" },
+  { key: "kb", label: "Bot knowledge" },
+];
+const TABS: PageTab[] = ITEMS.map((i) => i.key);
 
 // useSearchParams needs a Suspense boundary in the App Router.
 export default function WhatsAppPage() {
   return (
-    <Suspense fallback={<div className="pm-page" />}>
+    <Suspense fallback={<div className="pm2-body"><div className="pm2-skel" /></div>}>
       <WhatsAppPageInner />
     </Suspense>
   );
 }
 
-// Tab + selected thread live in the URL (?tab=inbox&thread=<id>) so a chat
-// can be shared with a teammate as a plain link.
 function WhatsAppPageInner() {
   const router = useRouter();
   const params = useSearchParams();
-  const urlTab = params.get("tab") as Tab | null;
-  const tab: Tab = urlTab && TABS.includes(urlTab) ? urlTab : "inbox";
-  const threadParam = params.get("thread");
+  const urlTab = params.get("tab") as PageTab | null;
+  const tab: PageTab = urlTab && TABS.includes(urlTab) ? urlTab : "campaigns";
   // Tabs outside this teammate's areas are hidden (the middleware refuses
   // them too). Null while access loads: nothing renders yet.
   const access = useAccess();
   const allowedTabs = useMemo(() => TABS.filter((t) => access && canUse(access, whatsappTabModule(t))), [access]);
   const tabAllowed = allowedTabs.includes(tab);
 
-  const setTab = useCallback((t: Tab) => {
-    const q = new URLSearchParams();
-    if (t !== "inbox") q.set("tab", t);
-    // Keep the selected thread when hopping between Inbox and Tickets.
-    if ((t === "inbox" || t === "tickets") && threadParam) q.set("thread", threadParam);
-    router.replace(`/dashboard/whatsapp${q.toString() ? `?${q}` : ""}`);
-  }, [router, threadParam]);
+  const setTab = useCallback((t: PageTab) => {
+    router.replace(`/dashboard/whatsapp?tab=${t}`);
+  }, [router]);
 
-  const setThread = useCallback((id: string | null) => {
-    const q = new URLSearchParams();
-    if (tab !== "inbox") q.set("tab", tab);
-    if (id) q.set("thread", id);
-    router.replace(`/dashboard/whatsapp${q.toString() ? `?${q}` : ""}`);
-  }, [router, tab]);
-
-  // Landed on a tab they can't use (old link, shared chat): hop to one they can.
+  // Landed on a tab they can't use (old link): hop to one they can.
   useEffect(() => {
     if (access && !tabAllowed && allowedTabs.length) setTab(allowedTabs[0]);
   }, [access, tabAllowed, allowedTabs, setTab]);
 
   return (
-    <div className="pm-page">
-      <Header />
-      <StatusMeter />
-      <Tabs tab={tab} allowed={allowedTabs} onChange={setTab} />
-      {tabAllowed && <div>
-        {tab === "inbox" && <InboxView ticketsOnly={false} threadId={threadParam} onThreadChange={setThread} />}
-        {tab === "tickets" && <InboxView ticketsOnly={true} threadId={threadParam} onThreadChange={setThread} />}
-        {tab === "templates" && <TemplatesView />}
-        {tab === "campaigns" && <CampaignsView />}
-        {tab === "flows" && <FlowsView />}
-        {tab === "voice" && <VoiceView />}
-        {tab === "growth" && <GrowthView />}
-        {tab === "analytics" && <AnalyticsView />}
-        {tab === "kb" && <KbView />}
-      </div>}
-    </div>
-  );
-}
-
-function Header() {
-  return (
-    <div className="pm-head">
-      <div>
-        <h1>WhatsApp</h1>
-        <p>Inbox, AI agent, templates &amp; tickets</p>
+    <>
+      <PageHeader
+        crumb="Marketing · WhatsApp"
+        title="WhatsApp marketing"
+        tabs={ITEMS.filter((it) => allowedTabs.includes(it.key))}
+        activeTab={tab}
+        onTab={(k) => setTab(k as PageTab)}
+      />
+      <div className="pm2-body">
+        <StatusMeter />
+        {tabAllowed && <div>
+          {tab === "templates" && <TemplatesView />}
+          {tab === "campaigns" && <CampaignsView />}
+          {tab === "flows" && <FlowsView />}
+          {tab === "voice" && <VoiceView />}
+          {tab === "growth" && <GrowthView />}
+          {tab === "analytics" && <AnalyticsView />}
+          {tab === "kb" && <KbView />}
+        </div>}
       </div>
-      <AlertsToggle />
-    </div>
+    </>
   );
 }
 
@@ -133,7 +122,7 @@ function StatusMeter() {
   ];
 
   return (
-    <div style={{ margin: "2px 0 14px" }}>
+    <div style={{ margin: "-4px 0 0" }}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -179,30 +168,3 @@ function StatusMeter() {
 }
 
 
-function Tabs({ tab, allowed, onChange }: { tab: Tab; allowed: Tab[]; onChange: (t: Tab) => void }) {
-  const items: Array<{ key: Tab; label: string }> = [
-    { key: "inbox", label: "Inbox" },
-    { key: "tickets", label: "Tickets" },
-    { key: "templates", label: "Templates" },
-    { key: "campaigns", label: "Campaigns" },
-    { key: "flows", label: "Flows" },
-    { key: "voice", label: "Voice" },
-    { key: "growth", label: "Growth" },
-    { key: "analytics", label: "Analytics" },
-    { key: "kb", label: "Knowledge Base" },
-  ];
-  return (
-    <div className="pm-tabs">
-      {items.filter((it) => allowed.includes(it.key)).map((it) => (
-        <button
-          key={it.key}
-          type="button"
-          className={`pm-tab${tab === it.key ? " on" : ""}`}
-          onClick={() => onChange(it.key)}
-        >
-          {it.label}
-        </button>
-      ))}
-    </div>
-  );
-}

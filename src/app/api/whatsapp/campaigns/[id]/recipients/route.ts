@@ -21,6 +21,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       .from("wa_messages")
       .select("contact_id,status,error,created_at")
       .eq("campaign_id", id)
+      .eq("direction", "outbound") // replies also carry campaign_id (reply attribution)
       .range(from, from + 999);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!data?.length) break;

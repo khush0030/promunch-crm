@@ -120,6 +120,9 @@ const under = (path: string, prefix: string) => path === prefix || path.startsWi
 export function pageModule(path: string, tab: string | null): ModuleKey | "open" | null {
   if (under(path, NO_ACCESS_PATH)) return "open";
   if (path === "/dashboard") return "home";
+  // Full-page campaign screens (wizard, campaign report) live under the
+  // WhatsApp path but belong to WhatsApp marketing, not the inbox.
+  if (under(path, "/dashboard/whatsapp/campaigns")) return "wa_marketing";
   if (under(path, "/dashboard/whatsapp")) return whatsappTabModule(tab);
   for (const [prefix, m] of PAGE_PREFIXES) if (under(path, prefix)) return m;
   return null;
@@ -182,6 +185,8 @@ export const API_RULES: ApiRule[] = [
   { prefix: "/api/whatsapp/engagement", modules: ["wa_marketing"] },
   { prefix: "/api/whatsapp/import-contacts", modules: ["wa_marketing"] },
   { prefix: "/api/whatsapp/import-csv", modules: ["wa_marketing"] },
+  { prefix: "/api/whatsapp/tags", modules: ["wa_marketing"] },
+  { prefix: "/api/whatsapp/lists", modules: ["wa_marketing"] },
 
   { prefix: "/api/whatsapp/kb", modules: ["bot_knowledge"] },
 

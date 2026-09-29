@@ -20,6 +20,7 @@ const TIER_LIMIT: Record<string, number> = {
   TIER_50: 50,
   TIER_250: 250,
   TIER_1K: 1000,
+  TIER_2K: 2000,
   TIER_10K: 10000,
   TIER_100K: 100000,
 };
@@ -31,6 +32,9 @@ export async function GET() {
   let quality: string | null = null;
   let override: number | null = null;
   let standingError: string | null = null;
+  // Marketing Messages API (MM Lite) routing flag, as the edge side sees it.
+  // Only says the local switch is on, not that Meta onboarding is complete.
+  let mmLite: boolean | null = null;
   try {
     const r = await fetch(`${SUPABASE_URL}/functions/v1/wa-meta-info`, {
       headers: { Authorization: `Bearer ${SERVICE_KEY}` },
@@ -39,9 +43,11 @@ export async function GET() {
     const j = await r.json();
     const phone = j?.phone ?? {};
     const edge = Array.isArray(j?.phoneNumbers?.data) ? j.phoneNumbers.data[0] : null;
-    tier = phone.messaging_limit_tier ?? edge?.messaging_limit_tier ?? null;
+    tier = j?.messaging_limit_tier ?? phone.whatsapp_business_manager_messaging_limit ??
+      phone.messaging_limit_tier ?? edge?.whatsapp_business_manager_messaging_limit ?? edge?.messaging_limit_tier ?? null;
     quality = phone.quality_rating ?? edge?.quality_rating ?? null;
     override = typeof j?.daily_limit_override === "number" ? j.daily_limit_override : null;
+    mmLite = typeof j?.marketing_routing?.mm_lite_enabled === "boolean" ? j.marketing_routing.mm_lite_enabled : null;
     if (!r.ok) standingError = phone?.error?.message ?? `wa-meta-info HTTP ${r.status}`;
   } catch (e) {
     standingError = String(e);
@@ -89,6 +95,7 @@ export async function GET() {
     used24h: used,
     remaining: limit != null ? Math.max(0, limit - used) : null,
     standing_error: standingError,
+    mm_lite_enabled: mmLite,
     checked_at: new Date().toISOString(),
   });
 }

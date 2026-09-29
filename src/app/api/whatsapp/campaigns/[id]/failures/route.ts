@@ -18,6 +18,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       .from("wa_messages")
       .select("error")
       .eq("campaign_id", id)
+      .eq("direction", "outbound")
       .eq("status", "failed")
       .range(from, from + 999);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

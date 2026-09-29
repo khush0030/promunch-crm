@@ -44,6 +44,9 @@ describe("pages", () => {
     expect(pageModule("/dashboard/whatsapp", "growth")).toBe("wa_marketing");
     expect(pageModule("/dashboard/whatsapp", "kb")).toBe("bot_knowledge");
     expect(pageModule("/dashboard/whatsapp", "nonsense")).toBe("inbox");
+    expect(pageModule("/dashboard/whatsapp/campaigns/new", null)).toBe("wa_marketing");
+    expect(pageModule("/dashboard/whatsapp/campaigns/abc/edit", null)).toBe("wa_marketing");
+    expect(canOpenPage(marketer, "/dashboard/whatsapp/campaigns/abc", null)).toBe(true);
   });
   it("the marketer can open campaigns, popup and email, nothing else", () => {
     expect(canOpenHref(marketer, "/dashboard/whatsapp?tab=campaigns")).toBe(true);
@@ -77,6 +80,9 @@ describe("api", () => {
     expect(canCallApi(marketer, "/api/whatsapp/campaigns/abc/send", "POST")).toBe(true);
     expect(canCallApi(marketer, "/api/whatsapp/growth", "PUT")).toBe(true);
     expect(canCallApi(marketer, "/api/whatsapp/templates/submit", "POST")).toBe(true);
+    expect(canCallApi(marketer, "/api/whatsapp/tags", "GET")).toBe(true);
+    expect(canCallApi(marketer, "/api/whatsapp/lists", "POST")).toBe(true);
+    expect(canCallApi(marketer, "/api/whatsapp/campaigns/audience-preview", "POST")).toBe(true);
     expect(canCallApi(marketer, "/api/brevo/campaigns/1/actions", "POST")).toBe(true);
     expect(canCallApi(marketer, "/api/metrics/attention", "GET")).toBe(true);
   });

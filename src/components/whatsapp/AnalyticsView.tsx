@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Send, CheckCheck, Eye, CornerUpLeft, ShoppingBag, IndianRupee,
   TrendingUp, Activity, AlertTriangle, RefreshCw, Info, Clock, Users, Megaphone, Radio,
@@ -271,7 +272,7 @@ function CampaignCards({ cards }: { cards: Card[] }) {
         {cards.map((c) => (
           <div key={c.id} style={{ border: "1px solid var(--pm-border)", borderRadius: "var(--pm-r2)", padding: "14px 15px", background: "var(--pm-card)" }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.3, minWidth: 0 }}>{c.name}</div>
+              <Link href={`/dashboard/whatsapp/campaigns/${c.id}`} style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.3, minWidth: 0, color: "var(--pm-ink)" }}>{c.name}</Link>
               <span style={{
                 flexShrink: 0, width: 30, height: 30, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center",
                 fontWeight: 800, fontSize: 15, color: "#fff",

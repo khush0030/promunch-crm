@@ -13,6 +13,14 @@
 //                 the next heartbeat resurrects it within a couple of minutes.
 //   3. WATCHDOG — a campaign stalled past ALERT_MS pings Slack (so a freeze can
 //                 never again go unnoticed).
+//   4. RECOUNT  — final, undebounced counter recount for live + recently
+//                 finished campaigns. The status webhook recounts at most once
+//                 per 30s per campaign (O(n) not O(n²)); this heartbeat makes
+//                 sure the last callbacks of a burst still land in the counts.
+//
+// 'paused' / 'failed' / 'cancelled' campaigns are never kicked: only 'sending'
+// is driven. A campaign the engine failed at start (template not approved,
+// missing params) therefore stops here instead of looping Slack alerts.
 //
 // Dedup is guaranteed by the wa_messages(campaign_id, contact_id) ledger inside
 // wa-campaign-send — honouring the hard "never message a customer twice" rule.
@@ -37,14 +45,20 @@ Deno.serve(async (req) => {
   // 1. PROMOTE due scheduled campaigns ---------------------------------------
   const { data: due } = await sb
     .from("wa_campaigns")
-    .select("id,name,scheduled_at,repeat_rule,repeat_until,template_id,template_vars,audience_filter,created_by")
+    .select("id,name,scheduled_at,repeat_rule,repeat_until,template_id,template_vars,audience_filter,created_by,header_media_url")
     .eq("status", "scheduled")
     .lte("scheduled_at", nowIso);
 
   for (const c of due ?? []) {
     if (c.repeat_rule) {
-      const next = nextOccurrence(c.scheduled_at, c.repeat_rule);
-      const stop = c.repeat_until != null && next.getTime() > new Date(c.repeat_until).getTime();
+      // Skip occurrences missed while the scheduler was down: ONE child for the
+      // overdue slot, never a burst of catch-up children re-sending the same
+      // message on consecutive days.
+      let next = nextOccurrence(c.scheduled_at, c.repeat_rule);
+      for (let i = 0; i < 400 && next.getTime() <= now; i++) next = nextOccurrence(next.toISOString(), c.repeat_rule);
+      // An unknown rule cannot advance: end the series instead of spawning a child every tick.
+      const stuck = next.getTime() <= new Date(c.scheduled_at).getTime();
+      const stop = stuck || (c.repeat_until != null && next.getTime() > new Date(c.repeat_until).getTime());
       // Guarded advance: only the run that flips scheduled_at proceeds (no double-spawn).
       const { data: adv } = await sb.from("wa_campaigns")
         .update(stop ? { status: "completed", completed_at: nowIso } : { scheduled_at: next.toISOString() })
@@ -56,6 +70,7 @@ Deno.serve(async (req) => {
         name: `${c.name} · ${occ}`, template_id: c.template_id, template_vars: c.template_vars ?? {},
         audience_filter: c.audience_filter ?? {}, status: "sending", started_at: nowIso,
         parent_campaign_id: c.id, created_by: c.created_by ?? null,
+        header_media_url: c.header_media_url ?? null,
       }).select("id").single();
       if (child) kick(child.id);
       log.push(`recurring "${c.name}" → child ${child?.id ?? "?"}${stop ? " (series ended)" : ""}`);
@@ -83,12 +98,16 @@ Deno.serve(async (req) => {
       continue;
     }
     const { data: last } = await sb.from("wa_messages")
-      .select("created_at").eq("campaign_id", c.id)
+      .select("created_at").eq("campaign_id", c.id).eq("direction", "outbound")
       .order("created_at", { ascending: false }).limit(1);
     const lastAt = last?.[0]?.created_at
       ? new Date(last[0].created_at).getTime()
       : new Date(c.started_at ?? nowIso).getTime();
-    const idle = now - lastAt;
+    // A campaign waking from a deferral has not "stalled" for the dormant
+    // hours: measure idleness from whichever is later, the last send or the
+    // moment it was allowed to resume (no false "stalled 14h" alert per wave).
+    const wokeAt = c.resume_at ? new Date(c.resume_at).getTime() : 0;
+    const idle = now - Math.max(lastAt, wokeAt);
     if (idle > STALL_MS) {
       kick(c.id);
       log.push(`re-kicked stalled "${c.name}" (idle ${Math.round(idle / 1000)}s)`);
@@ -100,6 +119,15 @@ Deno.serve(async (req) => {
         ).catch(() => {});
       }
     }
+  }
+
+  // 4. RECOUNT live + recently finished campaigns (cheap: indexed per campaign)
+  const recentIso = new Date(now - 3 * 24 * 3600_000).toISOString();
+  const { data: live } = await sb.from("wa_campaigns").select("id")
+    .or(`status.in.(sending,paused),completed_at.gte.${recentIso}`)
+    .limit(50);
+  for (const c of live ?? []) {
+    await sb.rpc("wa_campaign_recount", { p_campaign: c.id }).then(() => {}, () => {});
   }
 
   return new Response(JSON.stringify({ ok: true, at: nowIso, log }), {

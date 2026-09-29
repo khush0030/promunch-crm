@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   const nowIso = new Date().toISOString();
   const { data: due, error } = await supabaseAdmin
     .from("wa_campaigns")
-    .select("id, name, scheduled_at, repeat_rule, repeat_until, template_id, template_vars, audience_filter, created_by")
+    .select("id, name, scheduled_at, repeat_rule, repeat_until, template_id, template_vars, audience_filter, created_by, header_media_url")
     .eq("status", "scheduled")
     .lte("scheduled_at", nowIso);
   if (error) {
@@ -51,8 +51,14 @@ export async function GET(req: NextRequest) {
     // Recurring campaign: spawn a one-time CHILD for this occurrence and advance
     // the parent to the next slot. The parent itself never sends.
     if (c.repeat_rule) {
-      const next = nextOccurrence(c.scheduled_at, c.repeat_rule);
-      const stop = c.repeat_until != null && next.getTime() > new Date(c.repeat_until).getTime();
+      // Skip occurrences missed while the scheduler was down: ONE child for the
+      // overdue slot, never a burst of catch-up children re-sending the same
+      // message on consecutive days.
+      let next = nextOccurrence(c.scheduled_at, c.repeat_rule);
+      for (let i = 0; i < 400 && next.getTime() <= Date.now(); i++) next = nextOccurrence(next.toISOString(), c.repeat_rule);
+      // An unknown rule cannot advance: end the series instead of spawning a child every tick.
+      const stuck = next.getTime() <= new Date(c.scheduled_at).getTime();
+      const stop = stuck || (c.repeat_until != null && next.getTime() > new Date(c.repeat_until).getTime());
       // Atomic claim: advance scheduled_at guarded on its current value so two
       // overlapping ticks can't both spawn this occurrence.
       const { data: advanced } = await supabaseAdmin
@@ -79,6 +85,7 @@ export async function GET(req: NextRequest) {
           started_at: nowIso,
           parent_campaign_id: c.id,
           created_by: c.created_by ?? null,
+          header_media_url: c.header_media_url ?? null,
         })
         .select("id")
         .single();
@@ -86,27 +93,13 @@ export async function GET(req: NextRequest) {
         fired.push({ id: c.id, name: c.name, ok: false, note: `spawn failed: ${childErr?.message ?? "?"}` });
         continue;
       }
-      try {
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/wa-campaign-send`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ campaign_id: child.id, _continue: true }),
-        });
-        const j = await res.json().catch(() => ({}));
-        if (!res.ok || j.error) {
-          await supabaseAdmin.from("wa_campaigns")
-            .update({ status: "failed", last_error: String(j.error ?? `send HTTP ${res.status}`) })
-            .eq("id", child.id);
-          fired.push({ id: child.id, name: `${c.name} (occurrence)`, ok: false, note: String(j.error ?? res.status) });
-        } else {
-          fired.push({ id: child.id, name: `${c.name} (occurrence)`, ok: true, note: `${j.sent ?? 0} sent${stop ? " · series ended" : " · next " + next.toISOString().slice(0, 10)}` });
-        }
-      } catch (e) {
-        await supabaseAdmin.from("wa_campaigns")
-          .update({ status: "failed", last_error: e instanceof Error ? e.message : String(e) })
-          .eq("id", child.id);
-        fired.push({ id: child.id, name: `${c.name} (occurrence)`, ok: false, note: e instanceof Error ? e.message : String(e) });
-      }
+      const r = await kick(child.id);
+      fired.push({
+        id: child.id,
+        name: `${c.name} (occurrence)`,
+        ok: r.ok,
+        note: `${r.note}${stop ? " · series ended" : " · next " + next.toISOString().slice(0, 10)}`,
+      });
       continue;
     }
 
@@ -120,35 +113,35 @@ export async function GET(req: NextRequest) {
       .maybeSingle();
     if (!claimed) continue;
 
-    try {
-      // _continue:true so the send doesn't reject our pre-set 'sending' status.
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/wa-campaign-send`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ campaign_id: c.id, _continue: true }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok || j.error) {
-        // Roll back to 'scheduled' so a transient failure (e.g. template not yet
-        // approved) retries on the next tick rather than getting stuck 'sending'.
-        await supabaseAdmin
-          .from("wa_campaigns")
-          .update({ status: "scheduled", last_error: String(j.error ?? `send HTTP ${res.status}`) })
-          .eq("id", c.id);
-        fired.push({ id: c.id, name: c.name, ok: false, note: String(j.error ?? res.status) });
-      } else {
-        fired.push({ id: c.id, name: c.name, ok: true, note: `${j.sent ?? 0} sent, ${j.remaining ?? 0} remaining` });
-      }
-    } catch (e) {
-      await supabaseAdmin
-        .from("wa_campaigns")
-        .update({ status: "scheduled", last_error: e instanceof Error ? e.message : String(e) })
-        .eq("id", c.id);
-      fired.push({ id: c.id, name: c.name, ok: false, note: e instanceof Error ? e.message : String(e) });
-    }
+    const r = await kick(c.id);
+    fired.push({ id: c.id, name: c.name, ok: r.ok, note: r.note });
   }
 
   return NextResponse.json({ ok: true, checked: (due ?? []).length, fired });
+}
+
+// Kick one batch of wa-campaign-send and report what happened. Status is NOT
+// touched here, on purpose (B8): the engine owns campaign state. A start-time
+// problem (template not approved, missing params) makes the ENGINE mark the
+// campaign 'failed' with a readable last_error, which stops both this tick and
+// the pg_cron worker from re-firing it. A network error leaves it 'sending',
+// and the worker re-drives it within minutes. (The old rollback to 'scheduled'
+// re-fired an unapprovable campaign every tick, looping Slack alerts.)
+async function kick(campaignId: string): Promise<{ ok: boolean; note: string }> {
+  try {
+    // _continue:true so the send doesn't reject our pre-set 'sending' status.
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/wa-campaign-send`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ campaign_id: campaignId, _continue: true }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || j.error) return { ok: false, note: String(j.error ?? `send HTTP ${res.status}`) };
+    if (j.deferred) return { ok: true, note: `deferred until ${j.resume_at ?? "later"}` };
+    return { ok: true, note: `${j.sent ?? 0} sent, ${j.remaining ?? 0} remaining` };
+  } catch (e) {
+    return { ok: false, note: `${e instanceof Error ? e.message : String(e)} (worker will retry)` };
+  }
 }
 
 // Next occurrence from a given time for a repeat rule. Monthly clamps to the
