@@ -4,6 +4,7 @@
 // four compact tiles above the campaign list.
 
 import { Pill } from "@/components/pm";
+import { HelpTip } from "@/components/guide";
 import { useQuota } from "./api";
 import { fmtInt, inQuietHours } from "./logic";
 import s from "./campaigns.module.css";
@@ -27,9 +28,12 @@ export function StatusStrip() {
   return (
     <div className={s.strip} aria-label="Sending status">
       <div className={s.stripItem}>
-        <div className={s.stripLabel}>Today&apos;s budget</div>
+        <div className={s.stripHead}>
+          <div className={s.stripLabel}>Today&apos;s budget</div>
+          <HelpTip term="daily_budget" />
+        </div>
         <div className={s.stripValue}>
-          {isLoading ? "…" : limit != null ? `${fmtInt(q?.remaining ?? 0)} left` : "Not set"}
+          {isLoading ? "…" : limit != null ? `${fmtInt(q?.remaining ?? 0)} left` : "No daily cap"}
         </div>
         {limit != null ? (
           <>
@@ -41,21 +45,28 @@ export function StatusStrip() {
             </div>
           </>
         ) : (
-          <div className={s.stripSub}>We couldn&apos;t read a daily limit. Set one under Audience insights below.</div>
+          <div className={s.stripSub}>
+            {isLoading
+              ? "Checking…"
+              : `${fmtInt(used)} people messaged in the last 24 hours. Campaigns go out in small batches and Meta decides how many arrive (about 250 marketing messages a day for our number so far). You can set our own cap under Audience insights below.`}
+          </div>
         )}
       </div>
 
       <div className={s.stripItem}>
-        <div className={s.stripLabel}>Meta standing</div>
+        <div className={s.stripHead}>
+          <div className={s.stripLabel}>Meta standing</div>
+          <HelpTip term="meta_tier" text="Set by Meta from how customers react to our messages. Nobody at PROMUNCH can change it directly; good messages to warm audiences keep it healthy." />
+        </div>
         <div className={s.stripValue} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {quality ? <Pill tone={quality.tone}>{quality.label}</Pill> : <span>Unknown</span>}
+          {quality ? <Pill tone={quality.tone}>{quality.label}</Pill> : <span>Not rated yet</span>}
         </div>
         <div className={s.stripSub}>
           {q?.limit_source === "manual"
             ? `Our own daily cap of ${fmtInt(limit)} is in charge.`
             : q?.tier
               ? `Meta allows ${q.tier.replace("TIER_", "").toLowerCase()} people a day.`
-              : "Meta hasn't given our number a daily tier yet."}
+              : "Meta hasn't given our number a daily tier yet. That's normal for us and nothing you need to do."}
         </div>
         {q?.mm_lite_enabled != null && (
           <div style={{ marginTop: 6 }}>
@@ -74,7 +85,10 @@ export function StatusStrip() {
       </div>
 
       <div className={s.stripItem}>
-        <div className={s.stripLabel}>Quiet hours</div>
+        <div className={s.stripHead}>
+          <div className={s.stripLabel}>Quiet hours</div>
+          <HelpTip term="quiet_hours" />
+        </div>
         <div className={s.stripValue}>{quiet ? "On now" : "9 PM to 9 AM"}</div>
         <div className={s.stripSub}>
           {quiet
@@ -84,7 +98,10 @@ export function StatusStrip() {
       </div>
 
       <div className={s.stripItem}>
-        <div className={s.stripLabel}>Fair use</div>
+        <div className={s.stripHead}>
+          <div className={s.stripLabel}>Fair use</div>
+          <HelpTip term="fair_use" />
+        </div>
         <div className={s.stripValue}>1 a day per person</div>
         <div className={s.stripSub}>
           Across all campaigns. People with an open support chat, a cart reminder or a recent promo are held and tried again later.

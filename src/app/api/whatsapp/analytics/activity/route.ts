@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { orderLabel } from "./label";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +61,8 @@ export async function GET() {
     if (o.is_creator) return;
     items.push({
       at: o.shopify_created_at, type: "order", tone: "g",
-      title: `New order ${o.order_number ? "#" + o.order_number : ""}`.trim(),
+      // order_number is stored as "#1234" for some orders and 1234 for others.
+      title: `New order ${orderLabel(o.order_number)}`.trim(),
       sub: `${inr(Number(o.total_price || 0))}${o.customer_name ? " · " + o.customer_name : ""}`,
     });
   });

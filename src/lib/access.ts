@@ -21,7 +21,7 @@ export const MODULES = [
     key: "wa_marketing",
     label: "WhatsApp marketing",
     hint: "Campaigns, automations, templates, popup, analytics",
-    landing: "/dashboard/whatsapp?tab=campaigns",
+    landing: "/dashboard/whatsapp?tab=home",
   },
   {
     key: "email_marketing",
@@ -78,6 +78,8 @@ const WHATSAPP_TABS: Record<string, ModuleKey> = {
   inbox: "inbox",
   tickets: "inbox",
   voice: "inbox",
+  // "Start here" landing tab of WhatsApp marketing.
+  home: "wa_marketing",
   templates: "wa_marketing",
   campaigns: "wa_marketing",
   flows: "wa_marketing",

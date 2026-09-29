@@ -1,24 +1,32 @@
 "use client";
 
-// Knowledge-base tab of the WhatsApp dashboard: KB document list, upload and
-// paste-text flows. Extracted from dashboard/whatsapp/page.tsx (audit R5).
+// Bot knowledge tab: the Master KB the WhatsApp bot (and email and B2B drafts)
+// answer from. Documents are uploaded or pasted here; the kb-ingest edge
+// function splits each one into sections and indexes them for search.
+// Plain-words UI: "sections" not chunks, "Refresh what the bot knows" not
+// re-ingest. The technical terms live in the HelpTips.
 
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, FileText, RefreshCw, Trash2, Upload } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { ConfirmDialog } from "@/components/pm";
+import { HelpTip } from "@/components/guide";
 import { timeAgo } from "@/app/dashboard/whatsapp/format";
 import type { KbDoc } from "./types";
-import { inputStyle, cardStyle, primaryBtn, smallBtn } from "./styles";
+import { inputStyle, cardStyle } from "./styles";
 import { Modal, Field } from "./primitives";
+
+const SOURCE_LABEL: Record<string, string> = { upload: "Uploaded file", manual: "Pasted text", text: "Pasted text", url: "Web page" };
 
 export default function KbView() {
   const toast = useToast();
   const [uploading, setUploading] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  const [toDelete, setToDelete] = useState<KbDoc | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Replaces the old load() + mount effect + 6s setInterval poll.
   const { data: docs = [], refetch } = useQuery({
     queryKey: ["wa-kb-documents"],
     queryFn: async (): Promise<KbDoc[]> => {
@@ -39,82 +47,102 @@ export default function KbView() {
       const r = await fetch("/api/whatsapp/kb", { method: "POST", body: fd });
       const j = await r.json();
       if (j.error) toast.push({ kind: "error", text: j.error });
+      else toast.push({ kind: "success", text: `Added "${f.name}". The bot can use it in a minute or two.` });
       load();
     } finally { setUploading(false); }
   }
 
-  async function reingest(id: string) {
-    await fetch(`/api/whatsapp/kb/${id}`, { method: "POST" });
+  async function refresh(d: KbDoc) {
+    await fetch(`/api/whatsapp/kb/${d.id}`, { method: "POST" });
+    toast.push({ kind: "success", text: `Refreshing "${d.name}". This takes a minute or two.` });
     load();
   }
-  async function remove(id: string) {
-    if (!confirm("Delete document and all embeddings?")) return;
-    await fetch(`/api/whatsapp/kb/${id}`, { method: "DELETE" });
-    load();
+  async function remove(d: KbDoc) {
+    setDeleting(true);
+    try {
+      await fetch(`/api/whatsapp/kb/${d.id}`, { method: "DELETE" });
+      load();
+    } finally {
+      setDeleting(false);
+      setToDelete(null);
+    }
   }
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
-        <div style={{ fontSize: 13, color: "var(--pm-muted)" }}>
-          Documents feed the AI agent. Upload PDFs/TXT or paste content. PDFs are parsed, chunked, and embedded.
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+        <div style={{ fontSize: 13, color: "var(--pm-muted)", maxWidth: 640, lineHeight: 1.5, minWidth: 0, flex: "1 1 280px" }}>
+          <strong style={{ color: "var(--pm-ink)" }}>What the WhatsApp bot knows.</strong> The bot only answers from these
+          documents, never from guesswork. Upload a PDF or text file, or paste text like a policy or FAQ. The bot can use it a
+          minute or two later.
+          <HelpTip text="Each document is split into short sections and indexed (embedded) so the bot can find the right part of it for each question. Email and B2B drafts use the same knowledge." />
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" onClick={() => setManualOpen(true)} style={smallBtn}><FileText size={14} /> Paste text</button>
-          <button type="button" onClick={() => fileRef.current?.click()} style={primaryBtn} disabled={uploading}>
-            <Upload size={14} /> {uploading ? "Uploading…" : "Upload PDF"}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button type="button" onClick={() => setManualOpen(true)} className="pm2-btn"><FileText size={14} /> Paste text</button>
+          <button type="button" onClick={() => fileRef.current?.click()} className="pm2-btn pri" disabled={uploading}>
+            <Upload size={14} /> {uploading ? "Uploading…" : "Upload a file"}
           </button>
           <input ref={fileRef} type="file" accept=".pdf,.txt,.md" hidden
             onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ""; }} />
         </div>
       </div>
 
-      <div className="pm-autogrid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 12 }}>
+      <div className="pm-autogrid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(100%,280px),1fr))", gap: 12 }}>
         {docs.length === 0 && (
           <div style={{ gridColumn: "1/-1", padding: 32, textAlign: "center", color: "var(--pm-hint)", fontSize: 13 }}>
-            No documents yet. Upload to start training the AI agent.
+            Nothing here yet. Upload a file or paste text so the bot has something to answer from.
           </div>
         )}
         {docs.map((d) => (
           <div key={d.id} style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{d.name}</div>
               <KbStatus s={d.status} />
             </div>
             <div style={{ fontSize: 12, color: "var(--pm-muted)", marginBottom: 8 }}>
-              {d.source_type} · {d.mime_type ?? "—"}
+              {SOURCE_LABEL[d.source_type] ?? d.source_type} · added {timeAgo(d.created_at)} ago
             </div>
-            <div style={{ fontSize: 12, color: "var(--pm-ink)" }}>
-              {d.chunk_count} chunks · {timeAgo(d.created_at)} ago
+            <div style={{ fontSize: 12, color: "var(--pm-ink)", display: "flex", alignItems: "center", gap: 2 }}>
+              {d.chunk_count} section{d.chunk_count === 1 ? "" : "s"} the bot can search
+              <HelpTip text="The document is split into short sections (chunks) so the bot can pick the exact part that answers a question." />
             </div>
-            {d.error && <div style={{ fontSize: 11, color: "var(--pm-terra)", marginTop: 6 }}>{d.error}</div>}
-            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-              <button type="button" onClick={() => reingest(d.id)} style={smallBtn}><RefreshCw size={12} /> Re-ingest</button>
-              <button type="button" aria-label="Delete document" onClick={() => remove(d.id)} style={{ ...smallBtn, color: "var(--pm-terra)" }}><Trash2 size={12} /></button>
+            {d.error && <div style={{ fontSize: 11, color: "var(--pm-terra)", marginTop: 6 }}>Couldn&apos;t read it: {d.error}</div>}
+            <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+              <button type="button" onClick={() => refresh(d)} className="pm2-btn sm">
+                <RefreshCw size={12} /> Refresh what the bot knows
+              </button>
+              <HelpTip text="Reads this document again from the start. Use it if the bot seems to give old answers, or if reading failed." />
+              <button type="button" aria-label={`Delete ${d.name}`} onClick={() => setToDelete(d)} className="pm2-btn sm ghost">
+                <Trash2 size={12} />
+              </button>
             </div>
           </div>
         ))}
       </div>
 
       {manualOpen && <ManualKbModal onClose={() => { setManualOpen(false); load(); }} />}
+      {toDelete && (
+        <ConfirmDialog
+          title={`Delete "${toDelete.name}"?`}
+          body="The bot will stop using this document straight away. Customers asking about it may get a less complete answer. This can't be undone."
+          confirmLabel="Delete" keepLabel="Cancel" danger busy={deleting}
+          onClose={() => setToDelete(null)}
+          onConfirm={() => remove(toDelete)}
+        />
+      )}
     </div>
   );
 }
 
 function KbStatus({ s }: { s: KbDoc["status"] }) {
-  const map: Record<KbDoc["status"], { c: string; bg: string; icon: any }> = {
-    ready:      { c: "var(--pm-green)", bg: "rgba(16,185,129,0.12)", icon: CheckCircle2 },
-    processing: { c: "#1d4ed8", bg: "rgba(59,130,246,0.12)", icon: RefreshCw },
-    pending:    { c: "#92400e", bg: "rgba(245,183,49,0.12)", icon: RefreshCw },
-    failed:     { c: "var(--pm-terra)", bg: "rgba(239,68,68,0.12)",  icon: AlertTriangle },
+  const map: Record<KbDoc["status"], { cls: string; icon: typeof CheckCircle2; label: string }> = {
+    ready: { cls: "good", icon: CheckCircle2, label: "Bot knows this" },
+    processing: { cls: "info", icon: RefreshCw, label: "Reading it…" },
+    pending: { cls: "warn", icon: RefreshCw, label: "Waiting to read" },
+    failed: { cls: "crit", icon: AlertTriangle, label: "Couldn't read" },
   };
-  const m = map[s];
-  const I = m.icon;
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: m.bg, color: m.c, fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 999 }}>
-      <I size={11} /> {s}
-    </span>
-  );
+  const m = map[s] ?? map.pending;
+  return <span className={`pm2-pill plain ${m.cls}`}><m.icon size={11} aria-hidden="true" /> {m.label}</span>;
 }
 
 function ManualKbModal({ onClose }: { onClose: () => void }) {
@@ -140,16 +168,16 @@ function ManualKbModal({ onClose }: { onClose: () => void }) {
     }
   }
   return (
-    <Modal onClose={onClose} title="Paste knowledge">
-      <Field label="Title"><input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="Return policy" /></Field>
-      <Field label="Content">
+    <Modal onClose={onClose} title="Paste something the bot should know">
+      <Field label="Title (so your team can find it)"><input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="Return policy" /></Field>
+      <Field label="Text">
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={12}
           style={{ ...inputStyle, fontFamily: "inherit", resize: "vertical" }}
-          placeholder="Paste FAQ, policy, product info…" />
+          placeholder="Paste an FAQ, a policy, or product facts exactly as they are on the pack" />
       </Field>
       <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
-        <button type="button" onClick={onClose} style={smallBtn}>Cancel</button>
-        <button type="button" onClick={save} disabled={saving} style={primaryBtn}>{saving ? "Saving…" : "Ingest"}</button>
+        <button type="button" onClick={onClose} className="pm2-btn">Cancel</button>
+        <button type="button" onClick={save} disabled={saving || !text.trim()} className="pm2-btn pri">{saving ? "Adding…" : "Add to bot knowledge"}</button>
       </div>
     </Modal>
   );

@@ -14,13 +14,12 @@ describe("shell nav", () => {
     expect(label("/dashboard/unknown")).toBeNull();
   });
 
-  it("resolves WhatsApp tabs", () => {
-    expect(label("/dashboard/whatsapp", "campaigns")).toBe("WhatsApp campaigns");
-    expect(label("/dashboard/whatsapp", "flows")).toBe("WhatsApp automations");
-    expect(label("/dashboard/whatsapp", "templates")).toBe("WhatsApp templates");
-    expect(label("/dashboard/whatsapp", "growth")).toBe("WhatsApp popup");
-    expect(label("/dashboard/whatsapp", "analytics")).toBe("WhatsApp analytics");
-    expect(label("/dashboard/whatsapp/campaigns/new")).toBe("New WhatsApp campaign");
+  it("keeps the one WhatsApp marketing entry highlighted on every marketing tab", () => {
+    for (const t of ["home", "campaigns", "flows", "templates", "growth", "analytics"]) {
+      expect(label("/dashboard/whatsapp", t)).toBe("WhatsApp marketing");
+    }
+    expect(label("/dashboard/whatsapp/campaigns/new")).toBe("WhatsApp marketing");
+    expect(label("/dashboard/whatsapp/campaigns/abc")).toBe("WhatsApp marketing");
     expect(findActive("/dashboard/whatsapp/campaigns/abc", null, "")?.hub).toBe("Marketing");
     expect(label("/dashboard/whatsapp", "kb")).toBe("Bot knowledge");
     expect(findActive("/dashboard/whatsapp", "kb", "")?.hub).toBe("System");
@@ -47,10 +46,7 @@ describe("shell nav", () => {
     expect(label("/dashboard/flows/abc")).toBe("Legacy email automations");
     expect(findActive("/dashboard/campaigns", null, "")?.hub).toBe("Marketing");
     const marketing = NAV.find((h) => h.hub === "Marketing")!;
-    expect(visibleItems(marketing).map((it) => it.label)).toEqual([
-      "WhatsApp campaigns", "WhatsApp automations", "Email Studio", "Audience", "WhatsApp templates", "WhatsApp popup",
-      "WhatsApp analytics",
-    ]);
+    expect(visibleItems(marketing).map((it) => it.label)).toEqual(["WhatsApp marketing", "Email Studio", "Audience"]);
     // Partners is down to 2 while Creators (Instagram) is hidden; restore it
     // to the >= 3 rule when Creators comes back.
     for (const h of NAV) {
@@ -66,9 +62,17 @@ describe("shell nav", () => {
 
   it("previews the first few visible items of a hub", () => {
     const marketing = NAV.find((h) => h.hub === "Marketing")!;
-    expect(hubPreview(marketing)).toEqual({ names: ["WhatsApp campaigns", "WhatsApp automations", "Email Studio"], more: 4 });
+    expect(hubPreview(marketing)).toEqual({ names: ["WhatsApp marketing", "Email Studio", "Audience"], more: 0 });
     const today = NAV.find((h) => h.hub === "Today")!;
     expect(hubPreview(today).more).toBe(0);
+  });
+
+  it("keeps WhatsApp pages findable in the command palette", () => {
+    const hrefs = NAV.flatMap((h) => h.items).map((it) => it.href);
+    for (const t of ["campaigns", "templates", "flows", "analytics", "growth"]) {
+      expect(hrefs).toContain(`/dashboard/whatsapp?tab=${t}`);
+    }
+    expect(hrefs).toContain("/dashboard/whatsapp/campaigns/new");
   });
 
   it("hub links land inside their hub", () => {

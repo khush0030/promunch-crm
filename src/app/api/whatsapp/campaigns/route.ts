@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { parseBody } from "@/lib/api-helpers";
 import { basicInputErrors, normalizeAudienceFilter, templateInputErrors } from "@/lib/wa-campaigns";
 import { warmAudienceError } from "@/lib/wa-warm-guard";
+import { campaignTemplateError } from "@/lib/wa-campaign-template-guard";
 
 const TEMPLATE_JOIN =
   "*, template:wa_templates(id,name,language,category,status,body,header_type,header_text,header_media_url,buttons)";
@@ -31,6 +32,8 @@ export async function POST(req: NextRequest) {
   if (!body) return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
   if (!body.name) return NextResponse.json({ error: "name required" }, { status: 400 });
   if (!body.template_id) return NextResponse.json({ error: "template_id required" }, { status: 400 });
+  const kindErr = await campaignTemplateError(body.template_id);
+  if (kindErr) return NextResponse.json({ error: kindErr }, { status: 400 });
 
   const aud = normalizeAudienceFilter(body.audience_filter ?? {});
   if (!aud.ok) return NextResponse.json({ error: aud.error }, { status: 400 });

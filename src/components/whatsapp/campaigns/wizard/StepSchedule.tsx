@@ -3,6 +3,7 @@
 // Step 4: send now, at a set time (India time), or on repeat.
 
 import { Card } from "@/components/pm";
+import { GlossaryTerm, StepHeader } from "@/components/guide";
 import {
   effectiveStart,
   fmtInt,
@@ -22,7 +23,11 @@ export function StepSchedule({
   problems,
   showErrors,
   pace,
+  step,
+  total,
 }: {
+  step: number;
+  total: number;
   value: ScheduleState;
   onChange: (p: Partial<ScheduleState>) => void;
   problems: string[];
@@ -40,12 +45,19 @@ export function StepSchedule({
 
   return (
     <div className={s.stack}>
-      <div>
-        <h2 style={{ margin: "0 0 4px", fontSize: 18 }}>When should it go out?</h2>
-        <p className={s.help} style={{ margin: 0 }}>
-          Big audiences go out over several days: the campaign sends up to today&apos;s budget, then continues by itself every morning.
-        </p>
-      </div>
+      <StepHeader
+        step={step}
+        total={total}
+        title="When should it go out?"
+        why={
+          <>
+            Big audiences go out over several days: the campaign sends up to today&apos;s{" "}
+            <GlossaryTerm k="daily_budget">daily budget</GlossaryTerm>, then continues by itself every morning. Nothing goes out during{" "}
+            <GlossaryTerm k="quiet_hours">quiet hours</GlossaryTerm> (9 PM to 9 AM).
+          </>
+        }
+        glossary={["daily_budget", "quiet_hours", "fair_use"]}
+      />
 
       <div className={s.optionGrid} role="radiogroup" aria-label="When to send">
         {options.map((o) => (

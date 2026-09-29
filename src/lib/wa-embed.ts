@@ -87,7 +87,7 @@ export function fontHref(key: string): string | null {
 export const GROWTH_DEFAULTS: GrowthConfig = {
   popup: {
     enabled: true,
-    headline: "Get 50% protein snacks + WhatsApp-only offers",
+    headline: "Get PROMUNCH offers on WhatsApp",
     sub: "Join PROMUNCH for launch drops and member deals. Your Munchy Pal is one text away.",
     cta: "Join on WhatsApp",
     successTitle: "You're in! 🎉",

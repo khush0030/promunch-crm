@@ -5,6 +5,8 @@
 
 import type { ReactNode } from "react";
 import { Card } from "@/components/pm";
+import { GlossaryTerm, PlainSummary, StepHeader } from "@/components/guide";
+import { friendlyTemplateName } from "@/lib/whatsapp/templateKind";
 import type { AudiencePreview } from "../api";
 import { CampaignPreview } from "../bits";
 import {
@@ -15,8 +17,9 @@ import {
   fmtInt,
   fmtIst,
   fmtIstDate,
-  isMarketing,
+  mediaKindOf,
   type AudienceState,
+  type VarField,
   type CampaignTemplate,
   type ScheduleState,
 } from "../logic";
@@ -69,7 +72,18 @@ export function StepReview({
   testDraft,
   testDisabled,
   pace,
+  step,
+  total,
+  sampleFields,
+  sampleOk,
+  onSampleOk,
 }: {
+  step: number;
+  total: number;
+  /** Blanks whose value is exactly Meta's sample text. */
+  sampleFields: VarField[];
+  sampleOk: boolean;
+  onSampleOk: (v: boolean) => void;
   name: string;
   tpl: CampaignTemplate;
   vars: Record<string, string>;
@@ -93,13 +107,18 @@ export function StepReview({
   const est = estimateOutcome(people, audience.mode, coldShare);
   const rows: [string, ReactNode][] = [
     ["Name", name],
-    ["Template", `${tpl.name} (${isMarketing(tpl) ? "Marketing" : "Utility"})`],
+    ["Message", friendlyTemplateName(tpl.name)],
     ["Picture", mediaUrl ? "A new file just for this campaign" : tpl.header_media_url ? "The template's own file" : "None"],
     ["AI personalisation", ai ? "On" : "Off"],
     ["Audience", audienceLabel],
     ["Will get it", `${fmtInt(people)} people`],
-    ["Expected", `about ${fmtInt(est.delivered)} arrive, about ${fmtInt(est.heldBack)} held back by Meta`],
-    ["Estimated cost", `about ${fmtInr(est.costInr)} (delivered only, incl. GST)`],
+    [
+      "Expected",
+      <>
+        about {fmtInt(est.delivered)} arrive, about {fmtInt(est.heldBack)} <GlossaryTerm k="held_back">held back by Meta</GlossaryTerm>
+      </>,
+    ],
+    ["Estimated cost", `about ${fmtInr(est.costInr)} (only delivered messages are charged, incl. GST)`],
     [
       "When",
       schedule.when === "now"
@@ -109,12 +128,44 @@ export function StepReview({
     ["Pace", `${pace.perDay != null ? `about ${fmtInt(pace.perDay)} a day` : "depends on today's budget"}${pace.finishMs ? `, done about ${fmtIstDate(pace.finishMs)}` : ""}`],
   ];
 
+  const kind = mediaKindOf(tpl);
+  const mediaWord = kind === "image" ? "picture" : kind === "video" ? "video" : kind === "document" ? "PDF" : null;
+  const withMedia = mediaUrl && mediaWord ? ` with your new ${mediaWord}` : "";
+  const startText =
+    schedule.when === "now"
+      ? startMs > now + 60_000
+        ? `starting ${fmtIst(startMs)} (after quiet hours)`
+        : "starting now"
+      : `starting ${fmtIst(startMs)} India time`;
+  const finishText = pace.finishMs ? `, finishing around ${fmtIstDate(pace.finishMs)}` : "";
+  const sentences: ReactNode[] = [
+    `This will send the "${friendlyTemplateName(tpl.name)}" message${withMedia} to about ${fmtInt(people)} people, ${startText}${finishText}. It will cost about ${fmtInr(est.costInr)}.`,
+    `About ${fmtInt(est.heldBack)} will probably be held back by Meta. That is normal, costs nothing, and we try them again later.`,
+    "Nothing is sent until you press the button below and confirm. You can pause or cancel it any time after.",
+  ];
+
   return (
     <div className={s.stack}>
-      <div>
-        <h2 style={{ margin: "0 0 4px", fontSize: 18 }}>Review and launch</h2>
-        <p className={s.help} style={{ margin: 0 }}>Check everything once more. Nothing is sent until you press the button below and confirm.</p>
-      </div>
+      <StepHeader
+        step={step}
+        total={total}
+        title="Check and send"
+        why="Read the summary once, send yourself a test, then launch."
+        glossary={["test_send", "held_back", "delivered", "daily_budget"]}
+      />
+
+      <PlainSummary title="What will happen" sentences={sentences} />
+
+      {sampleFields.length > 0 && (
+        <div className={s.danger} role="alert">
+          <b>Some blanks still have Meta&apos;s example text.</b> {sampleFields.map((f) => `"${f.label}" says "${f.sample}"`).join("; ")}. Customers
+          would see exactly that. Go back to step 2 and type your own words, or tick the box if you really mean it.
+          <label className={s.check} style={{ marginTop: 8 }}>
+            <input type="checkbox" checked={sampleOk} onChange={(e) => onSampleOk(e.target.checked)} />
+            <span>Yes, send this exact text</span>
+          </label>
+        </div>
+      )}
 
       <div className="pm2-g21">
         <Card title="Summary">

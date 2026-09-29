@@ -14,6 +14,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Rocket } from "lucide-react";
 import { Callout, ConfirmDialog, PageHeader } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
+import { friendlyTemplateName } from "@/lib/whatsapp/templateKind";
 import type { Campaign, RetargetStage } from "../../types";
 import {
   api,
@@ -36,6 +37,7 @@ import {
   audienceProblems,
   buildAudienceFilter,
   buildTemplateVars,
+  campaignTemplates,
   contentProblems,
   effectiveStart,
   filterKey,
@@ -44,6 +46,7 @@ import {
   isColdAudience,
   pacing,
   parseIstInput,
+  samplesUsed,
   sameFilter,
   scheduleProblems,
   toIstInput,
@@ -131,9 +134,15 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
   const [confirmLaunch, setConfirmLaunch] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [launching, setLaunching] = useState(false);
+  const [sampleOk, setSampleOk] = useState(false);
 
   const templates = useMemo(() => templatesQ.data ?? [], [templatesQ.data]);
-  const tpl = useMemo(() => templates.find((t) => t.id === form.templateId) ?? null, [templates, form.templateId]);
+  // Only marketing templates can be sent as a campaign (an old draft pointing
+  // at an internal or customer-service template has to pick again).
+  const tpl = useMemo(
+    () => campaignTemplates(templates).find((t) => t.id === form.templateId) ?? null,
+    [templates, form.templateId],
+  );
 
   /* ---------- audience + live preview ---------- */
   const filter = useMemo(() => buildAudienceFilter(form.audience), [form.audience]);
@@ -195,7 +204,7 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
       startStep = next.templateId ? 1 : 0;
     }
     const tId = params.get("template");
-    const t = tId ? templates.find((x) => x.id === tId) : null;
+    const t = tId ? campaignTemplates(templates).find((x) => x.id === tId) : null;
     if (t) {
       next = { ...next, templateId: t.id, vars: initialVars(t), mediaUrl: null };
       startStep = 1;
@@ -225,8 +234,9 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
   /* ---------- per-step problems ---------- */
   const content = contentProblems(tpl, form.vars, { mediaUrl: form.mediaUrl, ai: form.ai, brief: form.brief, name: form.name });
   const schedProblems = scheduleProblems(form.schedule);
+  const sampleFields = samplesUsed(tpl, form.ai ? {} : form.vars);
   const stepProblems: string[][] = [
-    tpl ? [] : [form.templateId ? "That template isn't approved any more. Pick another one." : "Pick a template to continue."],
+    tpl ? [] : [form.templateId ? "That message can't be used for a campaign any more (not approved, or not a marketing template). Pick another one." : "Pick a message to continue."],
     content.map((p) => p.message),
     [
       ...audProblems,
@@ -243,7 +253,10 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
                 : []),
     ],
     schedProblems,
-    risky && !typedCountMatches(typed, people ?? -1) ? [`Type ${fmtInt(people ?? 0)} to confirm this risky audience.`] : [],
+    [
+      ...(risky && !typedCountMatches(typed, people ?? -1) ? [`Type ${fmtInt(people ?? 0)} to confirm this risky audience.`] : []),
+      ...(sampleFields.length && !sampleOk ? ["Some blanks still have Meta's example text. Change them in step 2, or tick \"Yes, send this exact text\"."] : []),
+    ],
   ];
   const firstBlocked = stepProblems.findIndex((p) => p.length > 0);
 
@@ -272,6 +285,7 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
 
   function pickTemplate(t: CampaignTemplate) {
     setForm((f) => (f.templateId === t.id ? f : { ...f, templateId: t.id, vars: initialVars(t), mediaUrl: null }));
+    setSampleOk(false);
     setStep(1);
     setMaxStep((m) => Math.max(m, 1));
     setShowErrors(false);
@@ -342,7 +356,7 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
   const title = editId ? `Edit: ${form.name || "campaign"}` : "New WhatsApp campaign";
   const header = (
     <PageHeader
-      crumb={<>Marketing · <Link href={BACK_HREF}>WhatsApp campaigns</Link></>}
+      crumb={<>Marketing · <Link href={BACK_HREF}>WhatsApp marketing</Link></>}
       title={title}
       actions={
         <button type="button" className="pm2-btn sm" onClick={() => (autosave.dirty ? setConfirmLeave(true) : leave(false))}>
@@ -411,12 +425,14 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
 
         <div className={s.wizard}>
           <div className={s.stack}>
-            {stepKey === "template" && <StepTemplate value={form.templateId} onPick={pickTemplate} />}
+            {stepKey === "template" && <StepTemplate value={form.templateId} onPick={pickTemplate} step={step + 1} total={STEPS.length} />}
             {stepKey === "content" && tpl && (
-              <StepContent tpl={tpl} value={form} onChange={(p) => setForm((f) => ({ ...f, ...p }))} problems={content} showErrors={showErrors} />
+              <StepContent step={step + 1} total={STEPS.length} tpl={tpl} value={form} onChange={(p) => setForm((f) => ({ ...f, ...p }))} problems={content} showErrors={showErrors} />
             )}
             {stepKey === "audience" && (
               <StepAudience
+                step={step + 1}
+                total={STEPS.length}
                 value={form.audience}
                 onChange={(p) => setForm((f) => ({ ...f, audience: { ...f.audience, ...p } }))}
                 problems={audProblems}
@@ -426,6 +442,8 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
             )}
             {stepKey === "schedule" && (
               <StepSchedule
+                step={step + 1}
+                total={STEPS.length}
                 value={form.schedule}
                 onChange={(p) => setForm((f) => ({ ...f, schedule: { ...f.schedule, ...p } }))}
                 problems={schedProblems}
@@ -435,6 +453,11 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
             )}
             {stepKey === "review" && tpl && (
               <StepReview
+                step={step + 1}
+                total={STEPS.length}
+                sampleFields={sampleFields}
+                sampleOk={sampleOk}
+                onSampleOk={setSampleOk}
                 name={form.name.trim() || "Untitled campaign"}
                 tpl={tpl}
                 vars={form.vars}
@@ -473,7 +496,7 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
               </div>
               {stepKey !== "review" ? (
                 <button type="button" className="pm2-btn pri" onClick={next} disabled={stepKey === "template" && !tpl}>
-                  Next: {STEPS[step + 1].label} <ArrowRight size={14} aria-hidden />
+                  {STEPS[step + 1].next} <ArrowRight size={14} aria-hidden />
                 </button>
               ) : (
                 <button
@@ -521,7 +544,7 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
           title={form.schedule.when === "schedule" ? `Schedule for ${fmtInt(people ?? 0)} people?` : `Send to ${fmtInt(people ?? 0)} people now?`}
           body={
             <>
-              <b>{form.name.trim() || "Untitled campaign"}</b> with template <b>{tpl?.name}</b> goes to {describeAudience(form.audience, campaignName).toLowerCase()}.
+              <b>{form.name.trim() || "Untitled campaign"}</b>{" "}with the message <b>{tpl ? friendlyTemplateName(tpl.name) : ""}</b> goes to {describeAudience(form.audience, campaignName).toLowerCase()}.
               {" "}Meta charges for each delivered message. You can pause or cancel it any time from its page.
             </>
           }

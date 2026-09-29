@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Clock, Repeat } from "lucide-react";
 import type { Campaign } from "../types";
+import { friendlyTemplateName } from "@/lib/whatsapp/templateKind";
 import { useFailures } from "./api";
 import { StatusPill, TemplateThumb } from "./bits";
 import { fmtInt, fmtIst, fmtPct, pct, progressOf, type CampaignAction } from "./logic";
@@ -43,7 +44,7 @@ export function CampaignRow({
           </Link>
           <div className={s.rowSub}>
             <StatusPill status={c.status} />
-            <span>{c.template?.name ?? "No template"}</span>
+            <span>{c.template?.name ? friendlyTemplateName(c.template.name) : "No message picked yet"}</span>
           </div>
           {c.status === "scheduled" && c.scheduled_at && (
             <div className={s.rowSub}>
@@ -63,6 +64,7 @@ export function CampaignRow({
         </div>
       </div>
 
+      <div className={s.rowStats}>
       <div className={s.progress}>
         <div className={s.track} aria-hidden>
           <div className={s.fill} style={{ width: `${prog.percent ?? 0}%` }} />
@@ -91,8 +93,9 @@ export function CampaignRow({
         </div>
         <div className={s.metric} title="Meta's limit on marketing messages per person. Not a fault; retried later.">
           <b>{held == null ? "…" : fmtInt(held)}</b>
-          <span>Held by Meta</span>
+          <span>Held back by Meta</span>
         </div>
+      </div>
       </div>
 
       <div className={s.rowActions}>

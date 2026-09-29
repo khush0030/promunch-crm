@@ -169,8 +169,8 @@
 .btn:hover:not(:disabled) { border-color: var(--pm-muted); }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:disabled { opacity: .5; cursor: default; }
-.primary { background: var(--pm-green); border-color: var(--pm-green); color: #fff; }
-.primary:hover:not(:disabled) { filter: brightness(.95); border-color: var(--pm-green); }
+.primary { background: var(--pm-brand); border-color: var(--pm-brand); color: var(--pm-brand-ink); }
+.primary:hover:not(:disabled) { filter: brightness(.95); border-color: var(--pm-brand); }
 .ghost { background: none; }
 .danger { color: var(--pm-terra); }
 
@@ -198,3 +198,18 @@
 }
 .dirty { font-size: 12px; font-weight: 600; color: var(--pm-gold); display: flex; align-items: center; gap: 5px; }
 .check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; -webkit-user-select: none; user-select: none; }
+
+/* ---- guided header, off badge, phone-width fixes ---- */
+.intro { min-width: 0; max-width: 720px; }
+.intro .subtitle { margin: 4px 0 0; font-size: var(--pm-label); color: var(--pm-muted); line-height: 1.5; }
+.wrap > section { margin-bottom: 16px; }
+.switchSub { display: block; font-size: 11.5px; color: var(--pm-hint); margin-top: 2px; }
+.fieldHint { margin: -4px 0 12px; font-size: 11.5px; color: var(--pm-hint); line-height: 1.45; }
+.offBadge { position: absolute; top: 10px; left: 10px; z-index: 6; }
+.loading { padding: 40px; text-align: center; color: var(--pm-hint); }
+/* Grid children default to min-width:auto, so the 640px desktop frame used to
+   push the page 266px wider than a 390px phone. Let columns shrink. */
+.shell > * { min-width: 0; }
+@media (max-width: 900px) { .shell { grid-template-columns: minmax(0, 1fr); } }
+.device { max-width: 100%; }
+.switchRow > span { min-width: 0; }

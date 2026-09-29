@@ -5,6 +5,7 @@
 
 import type { UseQueryResult } from "@tanstack/react-query";
 import { Callout } from "@/components/pm";
+import { GlossaryTerm } from "@/components/guide";
 import { errorMessage, type AudiencePreview } from "../api";
 import { estimateOutcome, fmtInr, fmtInt, fmtIstDate, pacing, type AudienceMode } from "../logic";
 import s from "../campaigns.module.css";
@@ -56,7 +57,7 @@ export function AudiencePreviewPanel({
         {heldLater > 0 && (
           <div className={s.bdRow}>
             <span>
-              Waiting their turn (sent later, not dropped): open support chat {fmtInt(c.excluded_ticket)}, cart reminder {fmtInt(c.excluded_cart)},
+              Waiting their turn because of <GlossaryTerm k="fair_use">fair use</GlossaryTerm> (sent later, not dropped): open support chat {fmtInt(c.excluded_ticket)}, cart reminder {fmtInt(c.excluded_cart)},
               recent promo {fmtInt(c.excluded_governor)}, already messaged today {fmtInt(c.excluded_daily_claim)}
             </span>
             <b>{fmtInt(heldLater)}</b>
@@ -66,9 +67,9 @@ export function AudiencePreviewPanel({
       </div>
       {people > 0 && (
         <div>
-          <div className={s.bdRow}><span>Expected to arrive</span><b>about {fmtInt(est.delivered)}</b></div>
+          <div className={s.bdRow}><span>Expected to <GlossaryTerm k="delivered">arrive</GlossaryTerm></span><b>about {fmtInt(est.delivered)}</b></div>
           <div className={s.bdRow}>
-            <span>Expected to be held back by Meta (its per-person marketing limit, not a fault)</span>
+            <span>Expected to be <GlossaryTerm k="held_back">held back by Meta</GlossaryTerm> (its per-person marketing limit, not a fault)</span>
             <b>about {fmtInt(est.heldBack)}</b>
           </div>
           <div className={s.bdRow}><span>Estimated cost, delivered only, incl. GST</span><b>about {fmtInr(est.costInr)}</b></div>

@@ -14,6 +14,8 @@ import {
   Monitor, MousePointerClick, Power, RefreshCw, Smartphone, Store, Trash2, Upload, Users, Zap,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { ConfirmDialog } from "@/components/pm";
+import { GlossaryTerm, GuideChecklist, HelpTip } from "@/components/guide";
 import {
   FONTS, GROWTH_DEFAULTS, LAYOUTS_NEEDING_IMAGE, fontHref, renderPopupInner, widgetBubbleInner, widgetButtonInner,
   type GrowthConfig, type PopupConfig, type PopupLayout, type PopupPosition, type WidgetConfig,
@@ -29,6 +31,8 @@ type GrowthData = {
   widget: { code: string; clicks: number } | null;
 };
 type Probe = { state: "connected" | "no_scope" | "no_token" | "error"; shop: string; reason?: string };
+
+const PROBE_TIMEOUT_MS = 12_000;
 
 const THEMES: { name: string; t: PopupConfig["theme"] }[] = [
   { name: "Warm", t: { bg: "#FFF8F0", text: "#2B2118", accent: "#25D366", accentText: "#FFFFFF", font: "poppins", radius: 16 } },
@@ -162,8 +166,11 @@ function Preview({ cfg, tab, device }: { cfg: GrowthConfig; tab: "popup" | "widg
   }, [cfg.popup.theme.font]);
 
   const frameW = device === "mobile" ? 320 : 640;
-  const showPopup = tab === "popup" && cfg.popup.enabled;
-  const showWidget = tab === "widget" && cfg.widget.enabled;
+  // Always preview the design, even while it is switched off, so people can
+  // work on it before going live. An "Off" badge says it isn't showing yet.
+  const showPopup = tab === "popup";
+  const showWidget = tab === "widget";
+  const isOff = tab === "popup" ? !cfg.popup.enabled : !cfg.widget.enabled;
   const side = cfg.widget.side === "left" ? { left: 14 } : { right: 14 };
   const pos = cfg.popup.position;
   const wrap: React.CSSProperties =
@@ -203,11 +210,15 @@ function Preview({ cfg, tab, device }: { cfg: GrowthConfig; tab: "popup" | "widg
               {cfg.widget.greeting && <div style={{ position: "absolute", bottom: 80, ...side, zIndex: 5 }} dangerouslySetInnerHTML={{ __html: widgetBubbleInner(cfg.widget) }} />}
             </>
           )}
-          {!showPopup && !showWidget && <div className={s.stageOff}>This {tab === "popup" ? "popup" : "chat button"} is turned off.</div>}
+          {isOff && (
+            <span className={`pm2-pill neu ${s.offBadge}`}>
+              Off: not showing on your website
+            </span>
+          )}
         </div>
       </div>
       <div className={s.stageBar} style={{ marginTop: 8, justifyContent: "center" }}>
-        <span className={s.stageHint}>Live preview — exactly what visitors see on trypromunch.in</span>
+        <span className={s.stageHint}>Preview: what visitors see on your website</span>
       </div>
     </div>
   );
@@ -225,7 +236,7 @@ function ConnectionCard({ data, probe, busy, onInstall, onRemove, onRecheck }: {
 
   if (probe?.state === "connected" && installed) {
     cls = `${s.conn} ${s.live}`; dot = "var(--pm-green)";
-    title = "Live on your store"; note = `Running on ${shop}. Every change you publish appears automatically — no theme editing.`;
+    title = "Live on your store"; note = `Running on ${shop}. Every change you save appears there automatically. No theme editing.`;
     actions = (
       <>
         <a className={s.btn} href="https://trypromunch.in" target="_blank" rel="noopener noreferrer"><ExternalLink size={13} /> View live</a>
@@ -238,7 +249,7 @@ function ConnectionCard({ data, probe, busy, onInstall, onRemove, onRecheck }: {
     actions = <button type="button" className={`${s.btn} ${s.primary}`} onClick={onInstall} disabled={busy}><Power size={14} /> {busy ? "Publishing…" : "Publish to store"}</button>;
   } else if (probe?.state === "no_scope") {
     cls = `${s.conn} ${s.warn}`; dot = "var(--pm-gold)";
-    title = "Almost there — one permission needed"; note = "The Shopify app is connected but can't add scripts yet.";
+    title = "Almost there: one permission needed"; note = "The Shopify app is connected but can't add scripts yet.";
     fix = <div className={s.connFix}>In Shopify: <strong>Settings → Apps → Develop apps → your app → API scopes</strong>, enable <code>write_script_tags</code>, then reinstall the app and update the token in <strong>Settings → API keys</strong>.</div>;
     actions = <button type="button" className={s.btn} onClick={onRecheck} disabled={busy}><RefreshCw size={13} /> Re-check</button>;
   } else if (probe?.state === "no_token") {
@@ -248,7 +259,7 @@ function ConnectionCard({ data, probe, busy, onInstall, onRemove, onRecheck }: {
     actions = <button type="button" className={s.btn} onClick={onRecheck} disabled={busy}><RefreshCw size={13} /> Re-check</button>;
   } else if (probe?.state === "error") {
     cls = `${s.conn} ${s.warn}`; dot = "var(--pm-gold)";
-    title = "Couldn't reach Shopify"; note = probe.reason ?? "Try again in a moment.";
+    title = "Couldn't check your Shopify store"; note = probe.reason ?? "Try again in a moment.";
     actions = <button type="button" className={s.btn} onClick={onRecheck} disabled={busy}><RefreshCw size={13} /> Re-check</button>;
   }
 
@@ -286,16 +297,30 @@ export default function GrowthView() {
   const [installBusy, setInstallBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [probe, setProbe] = useState<Probe | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { if (data?.config && !dirty) setCfg(data.config); }, [data?.config, dirty]);
 
+  // Never leave the card on "Checking Shopify…": a failed, slow or odd
+  // answer resolves to a friendly "couldn't check" state with a retry.
   async function runProbe() {
+    setProbe(null);
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), PROBE_TIMEOUT_MS);
     try {
-      const r = await fetch("/api/whatsapp/growth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "probe" }) });
+      const r = await fetch("/api/whatsapp/growth", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "probe" }), signal: ctl.signal,
+      });
       const j = await r.json().catch(() => null);
       if (j?.state) setProbe(j);
-    } catch { /* leave as loading */ }
+      else setProbe({ state: "error", shop: "", reason: r.status === 403 ? "Only some teammates can check the store connection. You can still design the popup here." : "We couldn't check your store right now. You can still design the popup here." });
+    } catch {
+      setProbe({ state: "error", shop: "", reason: "Checking your store took too long. You can still design the popup here." });
+    } finally {
+      clearTimeout(timer);
+    }
   }
   useEffect(() => { runProbe(); }, []);
 
@@ -310,19 +335,18 @@ export default function GrowthView() {
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.error) { toast.push({ kind: "error", text: j.error ?? `HTTP ${r.status}` }); return; }
       setDirty(false);
-      toast.push({ kind: "success", text: data?.installed ? "Saved — live on your store within ~5 minutes." : "Saved." });
+      toast.push({ kind: "success", text: data?.installed ? "Saved. Live on your store within about 5 minutes." : "Saved." });
       refetch();
     } finally { setSaving(false); }
   }
 
   async function toggleInstall(install: boolean) {
-    if (!install && !confirm("Remove the WhatsApp popup and chat button from trypromunch.in?")) return;
     setInstallBusy(true);
     try {
       const r = await fetch("/api/whatsapp/growth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: install ? "install" : "uninstall" }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.error) { toast.push({ kind: "error", text: j.error ?? `HTTP ${r.status}` }); return; }
-      toast.push({ kind: "success", text: install ? "Published — it's live on your store now." : "Removed from your store." });
+      toast.push({ kind: "success", text: install ? "Published. It's live on your store now." : "Removed from your store." });
       refetch(); runProbe();
     } finally { setInstallBusy(false); }
   }
@@ -340,19 +364,56 @@ export default function GrowthView() {
     } finally { setUploading(false); }
   }
 
-  if (!cfg) return <div style={{ padding: 40, textAlign: "center", color: "var(--pm-hint)" }}>Loading…</div>;
+  if (!cfg) return <div className={s.loading}>Loading…</div>;
   const p = cfg.popup, w = cfg.widget;
   const needsImage = LAYOUTS_NEEDING_IMAGE.includes(p.layout);
+  // "Designed" once the saved popup differs from the starting design.
+  const designed = !!data?.config && JSON.stringify(data.config.popup) !== JSON.stringify(GROWTH_DEFAULTS.popup);
 
   return (
     <div className={s.wrap}>
       {/* header */}
       <div className={s.topbar}>
-        <div>
+        <div className={s.intro}>
           <div className={s.title}>Grow your WhatsApp list</div>
-          <div className={s.subtitle}>Design the popup and chat button, then publish to your store in one click.</div>
+          <p className={s.subtitle}>
+            The signup popup is a small box on your website that invites visitors to get PROMUNCH offers on WhatsApp.
+            When someone types their number, they join your list and agree to hear from you
+            (<GlossaryTerm k="opted_in">opted in</GlossaryTerm>). The chat button lets visitors message you on WhatsApp in one tap.
+          </p>
         </div>
       </div>
+
+      <GuideChecklist
+        id="wa-growth-popup"
+        title="Get the popup on your website"
+        subtitle="Three steps. Nothing shows on your website until the last one."
+        dismissible
+        items={[
+          {
+            key: "design",
+            label: "Design it",
+            done: designed,
+            help: "Write the headline and button, pick a layout and colours, and check the preview on the right. Press Save when you are happy.",
+          },
+          {
+            key: "install",
+            label: "Install it on Shopify",
+            done: !!data?.installed,
+            help: probe?.state === "connected"
+              ? "One click adds it to your store. No theme editing."
+              : "Your Shopify store needs to be connected first. See the store card below, or ask an admin.",
+            cta: probe?.state === "connected" ? { label: "Publish to store", onClick: () => toggleInstall(true) } : undefined,
+          },
+          {
+            key: "on",
+            label: "Turn it on",
+            done: !!data?.config.popup.enabled,
+            help: "Switch on \"Show the signup popup\" below, then press Save. It appears on your website within about 5 minutes.",
+            cta: { label: "Switch it on", onClick: () => { setTab("popup"); setPopup((x) => ({ ...x, enabled: true })); } },
+          },
+        ]}
+      />
 
       {/* stats */}
       <div className={s.stats}>
@@ -368,26 +429,42 @@ export default function GrowthView() {
 
       {/* Shopify connection */}
       <ConnectionCard data={data ?? null} probe={probe} busy={installBusy}
-        onInstall={() => toggleInstall(true)} onRemove={() => toggleInstall(false)} onRecheck={runProbe} />
+        onInstall={() => toggleInstall(true)} onRemove={() => setConfirmRemove(true)} onRecheck={runProbe} />
+      {confirmRemove && (
+        <ConfirmDialog
+          title="Remove from your website?"
+          body="The signup popup and chat button stop showing on your store. Your design and sign-ups are kept, and you can publish again any time."
+          confirmLabel="Remove" keepLabel="Cancel" danger busy={installBusy}
+          onClose={() => setConfirmRemove(false)}
+          onConfirm={async () => { await toggleInstall(false); setConfirmRemove(false); }}
+        />
+      )}
 
       {/* editor */}
       <div className={s.shell}>
         {/* controls */}
         <div>
           <div className={s.seg} style={{ marginBottom: 14, width: "100%" }}>
-            <button type="button" className={`${s.segBtn} ${tab === "popup" ? s.on : ""}`} style={{ flex: 1, justifyContent: "center" }} onClick={() => setTab("popup")}>Opt-in popup</button>
+            <button type="button" className={`${s.segBtn} ${tab === "popup" ? s.on : ""}`} style={{ flex: 1, justifyContent: "center" }} onClick={() => setTab("popup")}>Signup popup</button>
             <button type="button" className={`${s.segBtn} ${tab === "widget" ? s.on : ""}`} style={{ flex: 1, justifyContent: "center" }} onClick={() => setTab("widget")}>Chat button</button>
           </div>
 
           {tab === "popup" ? (
             <>
               <div className={s.switchRow}>
-                <strong>Show the opt-in popup</strong>
+                <span>
+                  <strong>Show the signup popup</strong>
+                  <span className={s.switchSub}>{p.enabled ? "On: shows on your website once installed" : "Off: not showing on your website"}</span>
+                </span>
                 <Switch checked={p.enabled} onChange={(v) => setPopup((x) => ({ ...x, enabled: v }))} label="Enable popup" />
               </div>
 
               <Section title="Content">
                 <Field label="Headline"><input className={s.input} value={p.headline} onChange={(e) => setPopup((x) => ({ ...x, headline: e.target.value }))} /></Field>
+                <p className={s.fieldHint}>
+                  Keep product claims (like protein numbers or health benefits) exactly as they appear on the pack.
+                  <HelpTip text="Anything the popup promises must match the pack label and your offers. If unsure, keep it to the offer itself." />
+                </p>
                 <Field label="Sub text"><textarea className={s.textarea} value={p.sub} onChange={(e) => setPopup((x) => ({ ...x, sub: e.target.value }))} /></Field>
                 <Field label="Button label"><input className={s.input} value={p.cta} onChange={(e) => setPopup((x) => ({ ...x, cta: e.target.value }))} /></Field>
                 <div className={s.row2}>
@@ -411,7 +488,7 @@ export default function GrowthView() {
                 </div>
                 {needsImage && !p.imageUrl ? (
                   <div style={{ fontSize: 11.5, color: "var(--pm-terra)", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}>
-                    <ImageIcon size={12} /> This layout needs an image — upload one, or it shows as text-only on your site.
+                    <ImageIcon size={12} /> This layout needs an image. Upload one, or it shows as text only on your site.
                   </div>
                 ) : (
                   <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}><ImageIcon size={11} /> JPG or PNG, up to 5 MB. Used by image and background layouts.</div>
@@ -480,7 +557,10 @@ export default function GrowthView() {
           ) : (
             <>
               <div className={s.switchRow}>
-                <strong>Show the chat button</strong>
+                <span>
+                  <strong>Show the chat button</strong>
+                  <span className={s.switchSub}>{w.enabled ? "On: shows on your website once installed" : "Off: not showing on your website"}</span>
+                </span>
                 <Switch checked={w.enabled} onChange={(v) => setWidget((x) => ({ ...x, enabled: v }))} label="Enable chat button" />
               </div>
               <Section title="Content">

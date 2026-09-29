@@ -47,6 +47,10 @@ export type NavItem = {
   hidden?: boolean;
   // Owners / admins only (the page's APIs refuse everyone else too).
   adminOnly?: boolean;
+  // Other hrefs this (visible) item stands for, so it stays highlighted on
+  // them: one "WhatsApp marketing" entry covers every marketing tab and the
+  // campaign pages. A match through `covers` beats any other item.
+  covers?: string[];
 };
 export type NavHub = { hub: Hub; color: string; accent?: string; icon: LucideIcon; items: NavItem[] };
 
@@ -79,16 +83,30 @@ export const NAV: NavHub[] = [
   {
     hub: "Marketing", color: "#FFC905", icon: Megaphone,
     items: [
-      { label: "WhatsApp campaigns", href: "/dashboard/whatsapp?tab=campaigns", tour: "campaigns" },
-      { label: "WhatsApp automations", href: "/dashboard/whatsapp?tab=flows" },
-      { label: "Email Studio", href: "/dashboard/email" },
+      // One entry for all of WhatsApp marketing (mirrors Email Studio). It
+      // lands on the "Start here" tab; the other tabs live on the page.
+      {
+        label: "WhatsApp marketing",
+        href: "/dashboard/whatsapp?tab=home",
+        tour: "wa-marketing",
+        covers: [
+          "/dashboard/whatsapp?tab=campaigns",
+          "/dashboard/whatsapp?tab=templates",
+          "/dashboard/whatsapp?tab=flows",
+          "/dashboard/whatsapp?tab=analytics",
+          "/dashboard/whatsapp?tab=growth",
+          "/dashboard/whatsapp/campaigns",
+        ],
+      },
+      { label: "Email Studio", href: "/dashboard/email", tour: "email-studio" },
       { label: "Audience", href: "/dashboard/contacts", tour: "contacts" },
-      { label: "WhatsApp templates", href: "/dashboard/whatsapp?tab=templates" },
-      { label: "WhatsApp popup", href: "/dashboard/whatsapp?tab=growth" },
-      { label: "WhatsApp analytics", href: "/dashboard/whatsapp?tab=analytics" },
-      // Full-page campaign screens: the wizard and each campaign's report.
-      // Hidden from the sidebar, but they keep Marketing highlighted and
-      // "New WhatsApp campaign" is one keystroke away in the command palette.
+      // Direct jumps for the command palette (hidden from the sidebar; the
+      // WhatsApp marketing entry stays highlighted on all of them).
+      { label: "WhatsApp campaigns", href: "/dashboard/whatsapp?tab=campaigns", hidden: true },
+      { label: "WhatsApp message templates", href: "/dashboard/whatsapp?tab=templates", hidden: true },
+      { label: "WhatsApp automations", href: "/dashboard/whatsapp?tab=flows", hidden: true },
+      { label: "WhatsApp results", href: "/dashboard/whatsapp?tab=analytics", hidden: true },
+      { label: "WhatsApp signup popup", href: "/dashboard/whatsapp?tab=growth", hidden: true },
       { label: "New WhatsApp campaign", href: "/dashboard/whatsapp/campaigns/new", hidden: true },
       { label: "WhatsApp campaign report", href: "/dashboard/whatsapp/campaigns", hidden: true },
       // Brevo hub (retiring at Email Studio cutover) and the old in-house
@@ -135,9 +153,11 @@ const claimed = (() => {
   const hashes = new Map<string, Set<string>>();
   for (const h of NAV) {
     for (const it of h.items) {
-      const p = parseHref(it.href);
-      if (p.tab) tabs.set(p.path, (tabs.get(p.path) ?? new Set()).add(p.tab));
-      if (p.hash) hashes.set(p.path, (hashes.get(p.path) ?? new Set()).add(p.hash));
+      for (const href of [it.href, ...(it.covers ?? [])]) {
+        const p = parseHref(href);
+        if (p.tab) tabs.set(p.path, (tabs.get(p.path) ?? new Set()).add(p.tab));
+        if (p.hash) hashes.set(p.path, (hashes.get(p.path) ?? new Set()).add(p.hash));
+      }
     }
   }
   return { tabs, hashes };
@@ -178,19 +198,11 @@ export function findActive(pathname: string, tab: string | null, hash: string): 
   let bestScore = -1;
   for (const h of NAV) {
     for (const item of h.items) {
-      const p = parseHref(item.href);
-      let score: number;
-      if (pathname === p.path) score = 1000;
-      else if (p.path !== "/dashboard" && pathname.startsWith(p.path + "/")) score = p.path.length;
-      else continue;
-      if (p.tab) {
-        if (tab !== p.tab) continue;
-        score += 10;
-      } else if (tab && claimed.tabs.get(p.path)?.has(tab)) continue;
-      if (p.hash) {
-        if (hash !== p.hash) continue;
-        score += 10;
-      } else if (hash && claimed.hashes.get(p.path)?.has(hash)) continue;
+      let score = hrefScore(item.href, pathname, tab, hash);
+      for (const c of item.covers ?? []) {
+        const cs = hrefScore(c, pathname, tab, hash);
+        if (cs >= 0) score = Math.max(score, COVER_BONUS + cs);
+      }
       if (score > bestScore) {
         best = { hub: h.hub, item };
         bestScore = score;
@@ -198,6 +210,26 @@ export function findActive(pathname: string, tab: string | null, hash: string): 
     }
   }
   return best;
+}
+
+const COVER_BONUS = 5000;
+
+// How well one href matches the location; -1 = no match.
+function hrefScore(href: string, pathname: string, tab: string | null, hash: string): number {
+  const p = parseHref(href);
+  let score: number;
+  if (pathname === p.path) score = 1000;
+  else if (p.path !== "/dashboard" && pathname.startsWith(p.path + "/")) score = p.path.length;
+  else return -1;
+  if (p.tab) {
+    if (tab !== p.tab) return -1;
+    score += 10;
+  } else if (tab && claimed.tabs.get(p.path)?.has(tab)) return -1;
+  if (p.hash) {
+    if (hash !== p.hash) return -1;
+    score += 10;
+  } else if (hash && claimed.hashes.get(p.path)?.has(hash)) return -1;
+  return score;
 }
 
 // Where a hub-level link (phone tab bar) goes: the first item in the hub that

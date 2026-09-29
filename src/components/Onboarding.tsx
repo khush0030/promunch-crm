@@ -9,7 +9,7 @@
 // over the target element. On mobile (no persistent sidebar) it falls back to a
 // simple centered quick-guide card.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   LayoutDashboard,
   Mail,
@@ -24,53 +24,72 @@ import {
   Sparkles,
 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { canOpenHref } from "@/lib/access";
+import { useAccess } from "@/components/shell/useAccess";
 
 type Step = {
   tour: string; // matches data-tour="..." on the sidebar nav item
+  href: string; // the page it points at; steps the teammate can't open are skipped
   title: string;
   body: string;
   icon: React.ReactNode;
 };
 
-const STEPS: Step[] = [
+// Every step is checked against the teammate's areas (lib/access.ts), so a
+// marketer with only WhatsApp + email marketing sees just those two.
+const ALL_STEPS: Step[] = [
   {
     tour: "dashboard",
+    href: "/dashboard",
     title: "Your home base",
     body: "Revenue, key numbers and anything that needs attention, all on one screen.",
     icon: <LayoutDashboard size={16} />,
   },
   {
-    tour: "support-emails",
-    title: "Support Emails",
-    body: "Customer emails land here. Reply directly or let the AI draft a response for you.",
-    icon: <Mail size={16} />,
-  },
-  {
     tour: "whatsapp",
-    title: "WhatsApp",
-    body: "The live WhatsApp inbox and chatbot, orders, support and campaigns in one thread view.",
+    href: "/dashboard/inbox",
+    title: "Inbox",
+    body: "Customer WhatsApp chats and tickets in one place. The bot answers most questions and hands over to you when it needs a person.",
     icon: <MessageCircle size={16} />,
   },
   {
+    tour: "support-emails",
+    href: "/dashboard/inbox/email",
+    title: "Email drafts",
+    body: "Customer emails land here with an AI-drafted reply. Check it, edit if needed, and send.",
+    icon: <Mail size={16} />,
+  },
+  {
     tour: "order-confirmations",
-    title: "Order Confirmations",
+    href: "/dashboard/sales/orders",
+    title: "Orders & COD",
     body: "See which orders still need a confirmation message so none slip through.",
     icon: <CircleCheck size={16} />,
   },
   {
+    tour: "wa-marketing",
+    href: "/dashboard/whatsapp?tab=home",
+    title: "WhatsApp marketing",
+    body: "Open it and start with the Start here tab: a short checklist, then big buttons to send a campaign, create a message template or set up an automation. Every step explains itself.",
+    icon: <Megaphone size={16} />,
+  },
+  {
+    tour: "email-studio",
+    href: "/dashboard/email",
+    title: "Email Studio",
+    body: "Email campaigns, templates, audiences and automations for PROMUNCH customers, all in one place.",
+    icon: <Mail size={16} />,
+  },
+  {
     tour: "contacts",
+    href: "/dashboard/contacts",
     title: "Audience",
     body: "Every customer, enriched and segmented, ready to target.",
     icon: <Users size={16} />,
   },
   {
-    tour: "campaigns",
-    title: "WhatsApp campaigns",
-    body: "Build and send WhatsApp broadcasts to the right segment. Email campaigns live under Email (Brevo).",
-    icon: <Megaphone size={16} />,
-  },
-  {
     tour: "settings",
+    href: "/dashboard/settings",
     title: "Settings & your team",
     body: "Connect Shopify and email, set your brand, and invite teammates from the Team tab.",
     icon: <SettingsIcon size={16} />,
@@ -87,6 +106,9 @@ export default function Onboarding() {
   const [storageKey, setStorageKey] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
+  const access = useAccess();
+  const STEPS = useMemo(() => (access ? ALL_STEPS.filter((st) => canOpenHref(access, st.href)) : []), [access]);
+  const marketingOnly = STEPS.length > 0 && STEPS.every((st) => st.tour === "wa-marketing" || st.tour === "email-studio");
 
   const isMobile = () => typeof window !== "undefined" && window.innerWidth <= 768;
 
@@ -137,7 +159,7 @@ export default function Onboarding() {
 
   // Track the spotlight target's position while the tour runs.
   useEffect(() => {
-    if (phase !== "tour") return;
+    if (phase !== "tour" || !STEPS[step]) return;
     const update = () => {
       const sel = `[data-tour="${STEPS[step].tour}"]`;
       const el = document.querySelector(sel) as HTMLElement | null;
@@ -155,7 +177,7 @@ export default function Onboarding() {
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
-  }, [phase, step]);
+  }, [phase, step, STEPS]);
 
   function startTour() {
     setStep(0);
@@ -170,7 +192,8 @@ export default function Onboarding() {
     setStep((s) => Math.max(0, s - 1));
   }
 
-  if (phase === "idle") return null;
+  // Nothing to show until access is known (and never an empty tour).
+  if (phase === "idle" || STEPS.length === 0) return null;
 
   // --- Welcome modal -------------------------------------------------------
   if (phase === "welcome") {
@@ -189,8 +212,9 @@ export default function Onboarding() {
             Hi {name || "there"} 👋
           </h2>
           <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text-2)", margin: "0 0 20px" }}>
-            This is where the team runs orders, support, WhatsApp and campaigns. Take a 60-second tour
-            and we&apos;ll show you around the dashboard.
+            {marketingOnly
+              ? "This is where you run PROMUNCH's WhatsApp and email marketing. Take a 30-second tour and we'll show you where to start."
+              : "This is where the team runs orders, support, WhatsApp and campaigns. Take a 60-second tour and we'll show you around the dashboard."}
           </p>
           <div style={{ display: "flex", gap: 10 }}>
             <button className="btn primary" style={{ justifyContent: "center" }} onClick={startTour}>
@@ -240,7 +264,7 @@ export default function Onboarding() {
   }
 
   // --- Desktop spotlight tour ---------------------------------------------
-  const s = STEPS[step];
+  const s = STEPS[Math.min(step, STEPS.length - 1)];
   const tipTop = rect ? Math.max(12, Math.min(rect.top, window.innerHeight - 220)) : 80;
   const tipLeft = rect ? rect.right + 16 : 96;
 

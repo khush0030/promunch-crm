@@ -135,7 +135,8 @@ export function ActionButtons({
   return (
     <>
       {actions.map((a) => {
-        const iconOnly = compact && (a === "delete" || a === "duplicate");
+        // Duplicate stays labelled (it's the easy way to send something similar).
+        const iconOnly = compact && a === "delete";
         return (
           <button
             key={a}

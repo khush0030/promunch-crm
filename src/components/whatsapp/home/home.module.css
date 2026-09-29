@@ -1,0 +1,74 @@
+/* WhatsApp marketing "Start here" tab + page chrome. pm tokens only. */
+
+.page { display: grid; gap: 18px; min-width: 0; }
+.section { display: grid; gap: 10px; min-width: 0; }
+.sectionTitle { margin: 0; font-size: 16px; font-weight: 700; color: var(--pm-ink); }
+
+.welcome { display: grid; gap: 4px; }
+.welcomeTitle { margin: 0; font-family: var(--pm-display); font-size: 22px; color: var(--pm-ink); }
+.welcomeText { margin: 0; font-size: 14px; line-height: 1.55; color: var(--pm-muted); max-width: 70ch; }
+
+/* ---------- three big action cards ---------- */
+.actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.action {
+  display: grid; gap: 6px; align-content: start; text-decoration: none; color: var(--pm-ink);
+  background: var(--pm-card); border: 1.5px solid var(--pm-border); border-radius: 14px; padding: 16px; min-width: 0;
+  transition: border-color .15s, box-shadow .15s;
+}
+.action:hover { border-color: var(--pm-hint); box-shadow: var(--pm-shadow); }
+.action:focus-visible { outline: 2px solid var(--pm-brand); outline-offset: 2px; }
+.actionPrimary { border-color: var(--pm-brand-line); background: var(--pm-brand-soft); }
+.actionIcon {
+  width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center;
+  background: var(--pm-card2); color: var(--pm-brand); border: 1px solid var(--pm-border);
+}
+.actionIcon svg { width: 19px; height: 19px; }
+.actionTitle { font-size: 16px; font-weight: 700; }
+.actionText { font-size: 13.5px; line-height: 1.5; color: var(--pm-muted); }
+.actionCta { justify-self: start; margin-top: 6px; pointer-events: none; }
+
+/* ---------- explainer ---------- */
+.explainer { border: 1px solid var(--pm-border); border-radius: 12px; background: var(--pm-card); }
+.explainer > summary {
+  list-style: none; cursor: pointer; padding: 13px 16px; font-weight: 650; display: flex; gap: 8px; align-items: center;
+}
+.explainer > summary::-webkit-details-marker { display: none; }
+.explainer > summary:focus-visible { outline: 2px solid var(--pm-brand); outline-offset: -2px; border-radius: 12px; }
+.explainList { margin: 0; padding: 0 16px 16px 36px; display: grid; gap: 10px; font-size: 14px; line-height: 1.55; color: var(--pm-ink); }
+
+/* ---------- glossary panel ---------- */
+.words { display: grid; gap: 12px; background: var(--pm-card); border: 1px solid var(--pm-border); border-radius: 12px; padding: 14px 16px; }
+.wordsHead { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.wordsList { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.word { border: 1px solid var(--pm-line); border-radius: 10px; padding: 10px 12px; background: var(--pm-card2); min-width: 0; }
+.word dt { font-weight: 700; font-size: 14px; margin-bottom: 3px; }
+.word dd { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--pm-muted); }
+.wordCustomer { display: block; margin-top: 4px; color: var(--pm-ink); }
+
+/* ---------- health notice (only when something is wrong) ---------- */
+.health { display: grid; gap: 8px; justify-items: start; min-width: 0; }
+.healthPill {
+  display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap; max-width: 100%;
+  background: var(--pm-sun-soft); border: 1px solid var(--pm-border); border-radius: 999px; padding: 6px 13px;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--pm-ink); cursor: pointer; text-align: left;
+}
+.healthPillBad { background: var(--pm-terra-soft); border-color: var(--pm-terra); }
+.healthPill:focus-visible { outline: 2px solid var(--pm-brand); outline-offset: 2px; }
+.healthWhat { font-weight: 500; color: var(--pm-muted); text-decoration: underline dotted; text-underline-offset: 3px; }
+.chev { color: var(--pm-hint); transition: transform .15s; }
+.chevOpen { color: var(--pm-hint); transition: transform .15s; transform: rotate(180deg); }
+.health > div { width: 100%; }
+
+/* ---------- tab strip: visibly scrollable on phones ---------- */
+@media (max-width: 720px) {
+  .tabsFade :global(.pm2-tabs) {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+    padding-right: 40px;
+  }
+  .actions { grid-template-columns: minmax(0, 1fr); }
+  .welcomeTitle { font-size: 19px; }
+}
+@media (min-width: 721px) and (max-width: 1000px) {
+  .actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

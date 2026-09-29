@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { CheckCircle2, Send } from "lucide-react";
 import { Card } from "@/components/pm";
+import { HelpTip } from "@/components/guide";
 import { classifyWaError } from "../../waErrors";
 import { api, type TestSendResult } from "../api";
 import { TechDetails } from "../bits";
@@ -70,7 +71,7 @@ export function TestSendPanel({
   const info = result && !result.ok ? classifyWaError(`${result.error_code ?? ""} ${result.error ?? ""}`) : null;
 
   return (
-    <Card title="Send yourself a test" basis="strongly recommended">
+    <Card title="Send yourself a test" basis="strongly recommended" right={<HelpTip term="test_send" />}>
       <div className={s.stack}>
         <p className={s.help} style={{ margin: 0 }}>
           Check the picture, the text and every button on your own phone. A test doesn&apos;t count as a campaign message and never blocks the real send.

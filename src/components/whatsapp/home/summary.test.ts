@@ -1,0 +1,58 @@
+import { describe, expect, it } from "vitest";
+import { campaignNextStep, campaignSentence, latestCampaign } from "./summary";
+
+const base = {
+  name: "Diwali",
+  status: "completed" as const,
+  sent_count: 500,
+  delivered_count: 480,
+  read_count: 300,
+  replied_count: 12,
+  total_audience: 500,
+};
+
+describe("campaignSentence", () => {
+  it("reads like a sentence", () => {
+    expect(campaignSentence(base, 4)).toBe(
+      'Your last campaign "Diwali" went to 500 people. 480 got it, 300 read it (63%), 12 replied and 4 ordered.',
+    );
+    expect(campaignSentence(base, null)).toBe('Your last campaign "Diwali" went to 500 people. 480 got it, 300 read it (63%) and 12 replied.');
+  });
+  it("handles live, draft and unsent campaigns", () => {
+    expect(campaignSentence({ ...base, status: "sending" }, null)).toMatch(/has gone to 500 people so far/);
+    expect(campaignSentence({ ...base, status: "draft", sent_count: 0 }, null)).toMatch(/still a draft/);
+    expect(campaignSentence({ ...base, sent_count: 1, delivered_count: 0, read_count: 0 }, null, { lead: "It" })).toMatch(/^It went to 1 person\./);
+  });
+  it("never uses em dashes", () => {
+    expect(campaignSentence(base, 1)).not.toMatch(/—/);
+  });
+});
+
+describe("campaignNextStep", () => {
+  it("suggests following up people who didn't read", () => {
+    const s = campaignNextStep(base)!;
+    expect(s.stage).toBe("not_read");
+    expect(s.title).toMatch(/^180 people got it but didn't read it/);
+  });
+  it("then people who read but didn't reply", () => {
+    expect(campaignNextStep({ ...base, read_count: 470 })!.stage).toBe("read_no_reply");
+  });
+  it("is calm while sending and silent before anything went out", () => {
+    expect(campaignNextStep({ ...base, status: "sending" })!.stage).toBeUndefined();
+    expect(campaignNextStep({ ...base, sent_count: 0 })).toBeNull();
+    expect(campaignNextStep({ ...base, read_count: 475, replied_count: 470 })!.tone).toBe("success");
+  });
+});
+
+describe("latestCampaign", () => {
+  it("prefers the newest campaign that reached someone", () => {
+    const list = [
+      { id: "a", created_at: "2026-09-01T00:00:00Z", sent_count: 10 },
+      { id: "b", created_at: "2026-09-20T00:00:00Z", sent_count: 0 },
+      { id: "c", created_at: "2026-09-10T00:00:00Z", sent_count: 5 },
+    ];
+    expect(latestCampaign(list)?.id).toBe("c");
+    expect(latestCampaign([list[1]])?.id).toBe("b");
+    expect(latestCampaign([])).toBeNull();
+  });
+});

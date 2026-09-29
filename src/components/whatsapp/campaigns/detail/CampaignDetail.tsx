@@ -7,6 +7,9 @@
 import Link from "next/link";
 import { ArrowLeft, Clock, Repeat } from "lucide-react";
 import { Callout, Card, Funnel, Kpi, KpiStrip, PageHeader } from "@/components/pm";
+import { GlossaryTerm, HelpTip, NextStepCallout, PlainSummary } from "@/components/guide";
+import { friendlyTemplateName } from "@/lib/whatsapp/templateKind";
+import { campaignNextStep, campaignSentence } from "../../home/summary";
 import type { Campaign } from "../../types";
 import { classifyWaError, explainWaError } from "../../waErrors";
 import { errorMessage, useApprovedTemplates, useCampaign, useCampaignAnalytics, useFailures } from "../api";
@@ -20,6 +23,7 @@ import s from "../campaigns.module.css";
 import { useNow } from "../useNow";
 
 const LIST_HREF = "/dashboard/whatsapp?tab=campaigns";
+const crumb = <>Marketing · <Link href={LIST_HREF}>WhatsApp marketing</Link></>;
 
 export default function CampaignDetail({ id }: { id: string }) {
   const q = useCampaign(id);
@@ -33,7 +37,7 @@ export default function CampaignDetail({ id }: { id: string }) {
   if (q.isLoading || q.isError || !q.data) {
     return (
       <>
-        <PageHeader crumb={<>Marketing · <Link href={LIST_HREF}>WhatsApp campaigns</Link></>} title="Campaign" actions={back} />
+        <PageHeader crumb={crumb} title="Campaign" actions={back} />
         <div className="pm2-body">
           {q.isError ? (
             <Callout tone="crit" title="Couldn't load this campaign" body={errorMessage(q.error)} action={<button type="button" className="pm2-btn sm pri" onClick={() => q.refetch()}>Try again</button>} />
@@ -49,7 +53,7 @@ export default function CampaignDetail({ id }: { id: string }) {
   return (
     <>
       <PageHeader
-        crumb={<>Marketing · <Link href={LIST_HREF}>WhatsApp campaigns</Link></>}
+        crumb={crumb}
         title={c.name}
         actions={
           <div className="pm2-actions" style={{ flexWrap: "wrap" }}>
@@ -86,6 +90,8 @@ function Detail({ c }: { c: Campaign }) {
   const resumeFuture = c.resume_at && Date.parse(c.resume_at) > now;
   const lastErr = c.last_error ? classifyWaError(c.last_error) : null;
   const audience = audienceFromFilter(c.audience_filter);
+  const next = campaignNextStep(c);
+  const followHref = (stage: string) => `/dashboard/whatsapp/campaigns/new?retarget=${c.id}&stage=${stage}`;
 
   return (
     <>
@@ -115,11 +121,21 @@ function Detail({ c }: { c: Campaign }) {
         <Callout tone="plain" title="Not sent yet" body="This is a draft. Open it to finish the steps and launch." action={<Link className="pm2-btn sm pri" href={`/dashboard/whatsapp/campaigns/${c.id}/edit`}>Continue editing</Link>} />
       )}
 
+      {sent > 0 && <PlainSummary sentences={[campaignSentence(c, card ? card.orders : null, { lead: `"${c.name}"` })]} />}
+      {next && (
+        <NextStepCallout
+          tone={next.tone}
+          title={next.title}
+          body={next.body}
+          primary={next.stage ? { label: "Set up a follow-up", href: followHref(next.stage) } : undefined}
+        />
+      )}
+
       <KpiStrip>
         <Kpi label="Reached" value={fmtInt(sent)} sub={prog.total != null ? `of ${fmtInt(prog.total)} in the audience` : "people"} />
-        <Kpi label="Delivered" value={fmtPct(pct(c.delivered_count, sent))} sub={`${fmtInt(c.delivered_count)} people`} />
-        <Kpi label="Read" value={fmtPct(pct(c.read_count, sent))} sub={`${fmtInt(c.read_count)} people`} />
-        <Kpi label="Replies" value={fmtInt(c.replied_count ?? 0)} sub={`${fmtInt(c.clicked_count ?? 0)} link clicks`} />
+        <Kpi label={<>Delivered <HelpTip term="delivered" /></>} value={fmtPct(pct(c.delivered_count, sent))} sub={`${fmtInt(c.delivered_count)} people`} />
+        <Kpi label={<>Read <HelpTip term="read" /></>} value={fmtPct(pct(c.read_count, sent))} sub={`${fmtInt(c.read_count)} people`} />
+        <Kpi label={<>Replies <HelpTip term="reply" /></>} value={fmtInt(c.replied_count ?? 0)} sub={`${fmtInt(c.clicked_count ?? 0)} link clicks`} />
       </KpiStrip>
 
       <div className="pm2-g21">
@@ -164,7 +180,7 @@ function Detail({ c }: { c: Campaign }) {
       </div>
 
       <div className="pm2-g2">
-        <Card title="Funnel" basis="people, orders within 7 days of their own message">
+        <Card title="Funnel" basis="people, orders within 7 days of their own message" right={<HelpTip term="attributed_order" />}>
           {sent === 0 ? (
             <div className="pm2-empty">Numbers appear once the first messages go out.</div>
           ) : (
@@ -199,7 +215,7 @@ function Detail({ c }: { c: Campaign }) {
             <div className={s.stack}>
               {heldByMeta != null && heldByMeta > 0 && (
                 <div>
-                  <div className={s.bdRow}><span><b style={{ color: "var(--pm-ink)" }}>Held back by Meta</b></span><b>{fmtInt(heldByMeta)}</b></div>
+                  <div className={s.bdRow}><span><b style={{ color: "var(--pm-ink)" }}><GlossaryTerm k="held_back">Held back by Meta</GlossaryTerm></b></span><b>{fmtInt(heldByMeta)}</b></div>
                   <div className={s.help}>
                     Meta limits how many marketing messages each person gets from all businesses. Not a fault and not charged. We try them again after a day, up to 3 times.
                   </div>
@@ -219,7 +235,7 @@ function Detail({ c }: { c: Campaign }) {
       </div>
 
       {sent > 0 && (
-        <Card title="Follow up" basis="opens a new campaign with this audience">
+        <Card title="Follow up" basis="opens a new campaign with this audience" right={<HelpTip term="retarget" />}>
           <div className={s.inline}>
             <Link className="pm2-btn sm pri" href={`/dashboard/whatsapp/campaigns/new?retarget=${c.id}&stage=not_read`}>Retarget people who didn&apos;t read</Link>
             <Link className="pm2-btn sm" href={`/dashboard/whatsapp/campaigns/new?retarget=${c.id}&stage=read_no_reply`}>Read but didn&apos;t reply</Link>
@@ -234,7 +250,7 @@ function Detail({ c }: { c: Campaign }) {
 
       <Card title="Details">
         <dl className={s.summary}>
-          <dt>Template</dt><dd>{c.template?.name ?? "–"}</dd>
+          <dt>Message</dt><dd>{c.template?.name ? friendlyTemplateName(c.template.name) : "–"}</dd>
           <dt>Audience</dt><dd>{describeAudience(audience)}</dd>
           <dt>Picture</dt><dd>{c.header_media_url ? "A file just for this campaign" : "The template's own"}</dd>
           <dt>AI personalisation</dt><dd>{c.template_vars?._ai_brief ? "On" : "Off"}</dd>

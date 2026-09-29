@@ -66,7 +66,8 @@ export function validateCustomFlow(body: unknown):
   return {
     flow: {
       name,
-      enabled: b.enabled === undefined ? true : Boolean(b.enabled),
+      // Safety: a flow is off unless explicitly switched on.
+      enabled: b.enabled === true,
       trigger_event: trigger as TriggerEvent,
       steps,
     },
