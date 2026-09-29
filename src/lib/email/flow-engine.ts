@@ -123,6 +123,25 @@ function personalizeSubject(
     .replace(/\{\{\s*coupon_code\s*\}\}/g, coupon);
 }
 
+/**
+ * One flow step exactly as tick() sends it (subject + full HTML). Shared with
+ * the "send me a test" route so a test is byte-for-byte the customer email.
+ */
+export function renderFlowStep(
+  step: FlowStep,
+  opts: { contactId: string; context: Record<string, unknown> | null; firstName: string | null; stepIndex: number },
+): { subject: string; html: string } {
+  const coupon = step.coupon_code ?? "";
+  const html = renderMarketingEmail({
+    contactId: opts.contactId,
+    bodyHtml: personalize(step.body_html, opts.context, opts.firstName, opts.stepIndex, coupon),
+    previewText: step.preview_text
+      ? personalizeSubject(step.preview_text, opts.context, opts.firstName, coupon)
+      : undefined,
+  });
+  return { subject: personalizeSubject(step.subject, opts.context, opts.firstName, coupon), html };
+}
+
 async function fetchSuppressedSet(): Promise<Set<string>> {
   const set = new Set<string>();
   for (let from = 0; ; from += PAGE) {
@@ -247,18 +266,15 @@ export async function tick(): Promise<FlowTickResult> {
     }
 
     try {
-      const first = (contact?.first_name as string | null) ?? null;
-      const coupon = step.coupon_code ?? "";
-      const html = renderMarketingEmail({
+      const { subject, html } = renderFlowStep(step, {
         contactId: e.contact_id,
-        bodyHtml: personalize(step.body_html, e.context, first, e.current_step, coupon),
-        previewText: step.preview_text
-          ? personalizeSubject(step.preview_text, e.context, first, coupon)
-          : undefined,
+        context: e.context,
+        firstName: (contact?.first_name as string | null) ?? null,
+        stepIndex: e.current_step,
       });
       const r = await sendEmail({
         to: contact!.email as string,
-        subject: personalizeSubject(step.subject, e.context, first, coupon),
+        subject,
         html,
         from: DEFAULT_FROM,
         headers: marketingHeaders(e.contact_id),
