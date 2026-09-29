@@ -2,26 +2,25 @@
 // cron, so the atomic claim lives here (never double-blast the audience).
 //
 // Invariants (AGENTS.md §4): claim-before-send per recipient (one
-// campaign_emails row is the claim), email IS NOT NULL on every audience read,
-// 1000-row pagination on every list read (PostgREST truncates at 1000 — that
-// caused a duplicate incident on the WhatsApp side), and the suppression list
-// is honored even when a contact still reads 'active'.
+// campaign_emails row is the claim, unique per (campaign, contact) since
+// migration 016), email IS NOT NULL + marketing consent + suppression list on
+// every audience (Email Studio segments.ts), 1000-row pagination on every
+// list read, and the Email Studio guardrails (approval, warm-up cap) are
+// re-checked here so the cron path can't skip them.
 
 import { supabaseAdmin as supabase } from "@/lib/supabase-admin";
 import { sendEmail, DEFAULT_FROM } from "@/lib/resend";
 import { renderMarketingEmail } from "@/lib/email/layout";
 import { marketingHeaders } from "@/lib/email/unsubscribe";
+import { parseDesign, productIds } from "@/lib/email-studio/design";
+import { parseRules, rulesFromLegacy, type AudienceRules } from "@/lib/email-studio/segments";
+import { resolveAudience, type ResolvedContact } from "@/lib/email-studio/audience-server";
+import { getStudioSettings, productMap, renderForContact, utmSlug } from "@/lib/email-studio/server";
+import { mergeText } from "@/lib/email-studio/render";
 
 const PAGE = 1000; // PostgREST hard cap per response
 const CONCURRENCY = 5;
 const RATE_MS = 120; // ~8 sends/sec, comfortably under Resend's default 10/s
-
-type Contact = {
-  id: string;
-  email: string | null;
-  first_name: string | null;
-  last_name: string | null;
-};
 
 export type CampaignSendResult = {
   ok: boolean;
@@ -32,75 +31,8 @@ export type CampaignSendResult = {
   total_failed?: number;
 };
 
-function isoDaysAgo(days: number): string {
-  return new Date(Date.now() - days * 86_400_000).toISOString();
-}
-
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
-}
-
-/** Apply the campaign's segment_filter (audience preset + explicit filters). */
-type Filters = Record<string, unknown>;
-function contactPage(filter: Filters | null, from: number) {
-  let q = supabase
-    .from("contacts")
-    .select("id, email, first_name, last_name")
-    .eq("status", "active")
-    .not("email", "is", null)
-    .order("id", { ascending: true })
-    .range(from, from + PAGE - 1);
-
-  const f = filter ?? {};
-
-  // Audience presets from the New Campaign picker (all | vip | new | lapsed).
-  switch (f.audience) {
-    case "vip":
-      q = q.gte("total_orders", 3);
-      break;
-    case "new":
-      q = q.gte("first_purchase_date", isoDaysAgo(30));
-      break;
-    case "lapsed":
-      q = q.lte("last_purchase_date", isoDaysAgo(90)).gte("total_orders", 1);
-      break;
-    // "all" or unset → no extra constraint
-  }
-
-  // Explicit filters (compose with the preset).
-  if (Array.isArray(f.tags) && f.tags.length > 0) q = q.overlaps("tags", f.tags as string[]);
-  if (typeof f.min_orders === "number") q = q.gte("total_orders", f.min_orders);
-  if (typeof f.min_spent === "number") q = q.gte("total_spent", f.min_spent);
-
-  return q;
-}
-
-async function fetchAllContacts(filter: Filters | null): Promise<Contact[]> {
-  const out: Contact[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await contactPage(filter, from);
-    if (error) throw new Error(error.message);
-    const rows = (data ?? []) as Contact[];
-    out.push(...rows);
-    if (rows.length < PAGE) break;
-  }
-  return out;
-}
-
-async function fetchSuppressedSet(): Promise<Set<string>> {
-  const set = new Set<string>();
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
-      .from("suppressions")
-      .select("email")
-      .order("email", { ascending: true })
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error(error.message);
-    const rows = data ?? [];
-    for (const r of rows) set.add((r.email as string).toLowerCase());
-    if (rows.length < PAGE) break;
-  }
-  return set;
 }
 
 async function fetchClaimedContactIds(campaignId: string): Promise<Set<string>> {
@@ -120,9 +52,43 @@ async function fetchClaimedContactIds(campaignId: string): Promise<Set<string>> 
   return set;
 }
 
+/** The campaign's audience rules: saved segment > inline rules > legacy filter. */
+export async function campaignRules(campaign: Record<string, unknown>): Promise<AudienceRules> {
+  if (campaign.segment_id) {
+    const { data } = await supabase.from("email_segments").select("rules").eq("id", campaign.segment_id).maybeSingle();
+    if (data?.rules) return parseRules(data.rules);
+  }
+  if (campaign.audience_rules) return parseRules(campaign.audience_rules);
+  return rulesFromLegacy(campaign.segment_filter);
+}
+
 /**
- * Claim, resolve the audience, and send. Idempotent to resume: a paused/failed
- * campaign can be re-run and only un-claimed recipients are emailed.
+ * Why this campaign may not go out right now (null = clear to send).
+ * Same rules the Review step shows; re-checked at send time.
+ */
+export function sendBlocker(
+  campaign: Record<string, unknown>,
+  recipients: number,
+  settings: { approval_threshold: number; warmup_max_recipients: number | null },
+): string | null {
+  const approved = campaign.approval_status === "approved";
+  if (campaign.approval_status === "rejected") return "This campaign was rejected by an admin.";
+  if (settings.warmup_max_recipients != null) {
+    if (recipients > settings.warmup_max_recipients) {
+      return `Domain warm-up is on: campaigns are limited to ${settings.warmup_max_recipients} recipients (this one has ${recipients}). Narrow the audience or ask an admin to raise the limit.`;
+    }
+    if (!approved) return "Domain warm-up is on: every campaign needs an admin's approval.";
+  }
+  if (recipients > settings.approval_threshold && !approved) {
+    return `Campaigns over ${settings.approval_threshold} recipients need an admin's approval.`;
+  }
+  return null;
+}
+
+/**
+ * Resolve the audience, check guardrails, claim, and send. Idempotent to
+ * resume: a paused campaign can be re-run and only un-claimed recipients are
+ * emailed.
  */
 export async function sendCampaign(campaignId: string): Promise<CampaignSendResult> {
   const { data: campaign, error: campaignError } = await supabase
@@ -133,8 +99,28 @@ export async function sendCampaign(campaignId: string): Promise<CampaignSendResu
 
   if (campaignError || !campaign) return { ok: false, status: 404, error: "Campaign not found" };
   if (campaign.status === "sent") return { ok: false, status: 400, error: "Campaign already sent" };
-  if (!campaign.subject || !campaign.body_html) {
-    return { ok: false, status: 400, error: "Campaign must have subject and body_html before sending" };
+
+  const design = campaign.design ? parseDesign(campaign.design) : null;
+  if (!campaign.subject || (!design && !campaign.body_html)) {
+    return { ok: false, status: 400, error: "Campaign needs a subject and content before sending" };
+  }
+
+  let audience: ResolvedContact[];
+  let settings: Awaited<ReturnType<typeof getStudioSettings>>;
+  try {
+    const rules = await campaignRules(campaign);
+    [audience, settings] = await Promise.all([resolveAudience(rules), getStudioSettings()]);
+  } catch (e) {
+    return { ok: false, status: 500, error: e instanceof Error ? e.message : "audience read failed" };
+  }
+
+  const blocker = sendBlocker(campaign, audience.length, settings);
+  if (blocker) {
+    // A scheduled campaign that fails a guardrail stops retrying every tick.
+    if (campaign.status === "scheduled") {
+      await supabase.from("campaigns").update({ status: "paused" }).eq("id", campaignId).eq("status", "scheduled");
+    }
+    return { ok: false, status: 403, error: blocker };
   }
 
   // Atomic claim: exactly one caller moves draft|scheduled|paused → sending.
@@ -150,50 +136,50 @@ export async function sendCampaign(campaignId: string): Promise<CampaignSendResu
     return { ok: false, status: 409, error: "campaign already sending or sent" };
   }
 
-  let contacts: Contact[];
-  let suppressed: Set<string>;
+  if (audience.length === 0) {
+    await supabase.from("campaigns").update({ status: "draft" }).eq("id", campaignId);
+    return { ok: false, status: 400, error: "Nobody subscribed matches this audience" };
+  }
+
   let alreadyClaimed: Set<string>;
   try {
-    [contacts, suppressed, alreadyClaimed] = await Promise.all([
-      fetchAllContacts(campaign.segment_filter as Filters | null),
-      fetchSuppressedSet(),
-      fetchClaimedContactIds(campaignId),
-    ]);
+    alreadyClaimed = await fetchClaimedContactIds(campaignId);
   } catch (e) {
     await supabase.from("campaigns").update({ status: "paused" }).eq("id", campaignId);
-    return { ok: false, status: 500, error: e instanceof Error ? e.message : "audience read failed" };
+    return { ok: false, status: 500, error: e instanceof Error ? e.message : "claim read failed" };
   }
 
-  if (contacts.length === 0) {
-    await supabase.from("campaigns").update({ status: "draft" }).eq("id", campaignId);
-    return { ok: false, status: 400, error: "No contacts match the segment filter" };
-  }
-
-  const recipients = contacts.filter(
-    (c) => c.email && !suppressed.has(c.email.toLowerCase()) && !alreadyClaimed.has(c.id),
-  );
-
+  const recipients = audience.filter((c) => !alreadyClaimed.has(c.id));
   if (recipients.length === 0) {
-    // Everyone is suppressed or was already claimed by a prior attempt.
     await supabase.from("campaigns").update({ status: "paused" }).eq("id", campaignId);
-    return { ok: false, status: 409, error: "no new eligible recipients (all suppressed or already sent)" };
+    return { ok: false, status: 409, error: "no new eligible recipients (all already sent)" };
   }
 
-  // Per-recipient claim rows.
-  const { data: campaignEmails, error: insertError } = await supabase
+  // Per-recipient claim rows. With the (campaign_id, contact_id) unique index
+  // a racing insert can only drop duplicates, never send twice. Before
+  // migration 016 the index is missing, so fall back to a plain insert.
+  const claimRows = recipients.map((c) => ({ campaign_id: campaignId, contact_id: c.id, status: "queued" }));
+  let { data: campaignEmails, error: insertError } = await supabase
     .from("campaign_emails")
-    .insert(recipients.map((c) => ({ campaign_id: campaignId, contact_id: c.id, status: "queued" })))
+    .upsert(claimRows, { onConflict: "campaign_id,contact_id", ignoreDuplicates: true })
     .select("id, contact_id");
+  if (insertError && /no unique or exclusion constraint/i.test(insertError.message)) {
+    ({ data: campaignEmails, error: insertError } = await supabase
+      .from("campaign_emails")
+      .insert(claimRows)
+      .select("id, contact_id"));
+  }
 
   if (insertError) {
     await supabase.from("campaigns").update({ status: "paused" }).eq("id", campaignId);
     return { ok: false, status: 500, error: insertError.message };
   }
 
-  const contactMap = new Map(contacts.map((c) => [c.id, c]));
+  const contactMap = new Map(audience.map((c) => [c.id, c]));
   const subject = campaign.subject as string;
-  const bodyHtml = campaign.body_html as string;
   const previewText = (campaign.preview_text as string | null) ?? undefined;
+  const utmCampaign = (campaign.utm_campaign as string | null) || utmSlug(String(campaign.name ?? "email"), campaignId);
+  const products = design ? await productMap(productIds(design)).catch(() => ({})) : {};
 
   let totalSent = 0;
   let totalFailed = 0;
@@ -215,10 +201,14 @@ export async function sendCampaign(campaignId: string): Promise<CampaignSendResu
     }
     await paceGate();
     try {
-      const html = renderMarketingEmail({ contactId: contact.id, bodyHtml, previewText });
+      const merge = { first_name: contact.first_name, last_name: contact.last_name, email: contact.email };
+      const pre = previewText ? mergeText(previewText, merge) : undefined;
+      const html = design
+        ? renderForContact(design, { brand: settings.brand, products, contact, previewText: pre, utmCampaign })
+        : renderMarketingEmail({ contactId: contact.id, bodyHtml: campaign.body_html as string, previewText: pre });
       const res = await sendEmail({
         to: contact.email,
-        subject,
+        subject: mergeText(subject, merge),
         html,
         from: DEFAULT_FROM,
         headers: marketingHeaders(contact.id),
@@ -261,9 +251,9 @@ export async function sendCampaign(campaignId: string): Promise<CampaignSendResu
   if (totalSent === 0 && totalFailed > 0) {
     await supabase
       .from("campaigns")
-      .update({ status: "paused", total_recipients: contacts.length })
+      .update({ status: "paused", total_recipients: audience.length })
       .eq("id", campaignId);
-    return { ok: false, status: 502, error: "every send failed — campaign paused", total_failed: totalFailed };
+    return { ok: false, status: 502, error: "every send failed, campaign paused", total_failed: totalFailed };
   }
 
   await supabase
@@ -271,15 +261,15 @@ export async function sendCampaign(campaignId: string): Promise<CampaignSendResu
     .update({
       status: "sent",
       sent_at: new Date().toISOString(),
-      total_recipients: contacts.length,
-      total_sent: totalSent,
+      total_recipients: audience.length,
+      total_sent: totalSent + ((campaign.total_sent as number | null) ?? 0),
     })
     .eq("id", campaignId);
 
   return {
     ok: true,
     status: 200,
-    total_recipients: contacts.length,
+    total_recipients: audience.length,
     total_sent: totalSent,
     total_failed: totalFailed,
   };

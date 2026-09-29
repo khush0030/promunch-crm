@@ -26,8 +26,8 @@ export const MODULES = [
   {
     key: "email_marketing",
     label: "Email marketing",
-    hint: "Brevo campaigns, automations, reports, legacy email",
-    landing: "/dashboard/marketing/email",
+    hint: "Email Studio: campaigns, builder, templates, audiences, reports",
+    landing: "/dashboard/email",
   },
   { key: "audience", label: "Audience", hint: "Contacts list, import & export", landing: "/dashboard/contacts" },
   { key: "partners", label: "B2B leads & deals", hint: "Lead lists, outreach, deals, creators", landing: "/dashboard/leads" },
@@ -95,6 +95,7 @@ const PAGE_PREFIXES: Array<[string, ModuleKey]> = [
   ["/dashboard/sales", "sales"],
   ["/dashboard/inbox", "inbox"],
   ["/dashboard/support-emails", "inbox"],
+  ["/dashboard/email", "email_marketing"],
   ["/dashboard/marketing", "email_marketing"],
   ["/dashboard/campaigns", "email_marketing"],
   ["/dashboard/flows", "email_marketing"],
@@ -184,6 +185,7 @@ export const API_RULES: ApiRule[] = [
 
   { prefix: "/api/whatsapp/kb", modules: ["bot_knowledge"] },
 
+  { prefix: "/api/email-studio", modules: ["email_marketing"] },
   { prefix: "/api/brevo", modules: ["email_marketing"] },
   { prefix: "/api/campaigns", modules: ["email_marketing"] },
   { prefix: "/api/flows", modules: ["email_marketing"] },

@@ -49,6 +49,8 @@ describe("pages", () => {
     expect(canOpenHref(marketer, "/dashboard/whatsapp?tab=campaigns")).toBe(true);
     expect(canOpenHref(marketer, "/dashboard/whatsapp?tab=growth")).toBe(true);
     expect(canOpenHref(marketer, "/dashboard/marketing/email/123/edit")).toBe(true);
+    expect(canOpenHref(marketer, "/dashboard/email/campaigns/abc")).toBe(true);
+    expect(canCallApi(marketer, "/api/email-studio/campaigns/abc/send", "POST")).toBe(true);
     expect(canOpenPage(marketer, "/dashboard", null)).toBe(false);
     expect(canOpenPage(marketer, "/dashboard/whatsapp", null)).toBe(false);
     expect(canOpenPage(marketer, "/dashboard/contacts", null)).toBe(false);

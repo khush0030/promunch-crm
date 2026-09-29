@@ -22,7 +22,13 @@ const EVENT_TO_STATUS: Record<string, string> = {
   'email.opened': 'opened',
   'email.clicked': 'clicked',
   'email.bounced': 'bounced',
-  'email.complained': 'bounced',
+  'email.complained': 'complained',
+};
+
+// Resend events can arrive out of order (a late "delivered" after "clicked").
+// A campaign_emails.status only ever moves forward, so reports stay right.
+const STATUS_RANK: Record<string, number> = {
+  queued: 0, sent: 1, delivered: 2, opened: 3, clicked: 4, bounced: 5, complained: 6,
 };
 
 const EVENT_TO_TYPE: Record<string, string> = {
@@ -31,7 +37,7 @@ const EVENT_TO_TYPE: Record<string, string> = {
   'email.opened': 'opened',
   'email.clicked': 'clicked',
   'email.bounced': 'bounced',
-  'email.complained': 'bounced',
+  'email.complained': 'complained',
 };
 
 
@@ -72,12 +78,15 @@ export async function POST(request: NextRequest) {
   // sends share this webhook and have no campaign_emails row)
   const { data: campaignEmail } = await supabase
     .from('campaign_emails')
-    .select('id, contact_id, campaign_id')
+    .select('id, contact_id, campaign_id, status')
     .eq('resend_id', resendEmailId)
     .maybeSingle();
 
   if (campaignEmail) {
-    const updateFields: Record<string, unknown> = { status };
+    const updateFields: Record<string, unknown> = {};
+    if ((STATUS_RANK[status] ?? 0) > (STATUS_RANK[campaignEmail.status as string] ?? 0)) {
+      updateFields.status = status;
+    }
 
     if (type === 'email.opened') {
       updateFields.opened_at = new Date().toISOString();
@@ -86,10 +95,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Update campaign_email status
-    await supabase
-      .from('campaign_emails')
-      .update(updateFields)
-      .eq('id', campaignEmail.id);
+    if (Object.keys(updateFields).length > 0) {
+      await supabase
+        .from('campaign_emails')
+        .update(updateFields)
+        .eq('id', campaignEmail.id);
+    }
 
     // Create email_event record
     await supabase.from('email_events').insert({

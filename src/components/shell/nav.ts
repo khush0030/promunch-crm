@@ -81,12 +81,13 @@ export const NAV: NavHub[] = [
     items: [
       { label: "WhatsApp campaigns", href: "/dashboard/whatsapp?tab=campaigns", tour: "campaigns" },
       { label: "WhatsApp automations", href: "/dashboard/whatsapp?tab=flows" },
-      { label: "Email (Brevo)", href: "/dashboard/marketing/email" },
+      { label: "Email Studio", href: "/dashboard/email" },
       { label: "Audience", href: "/dashboard/contacts", tour: "contacts" },
       { label: "WhatsApp templates", href: "/dashboard/whatsapp?tab=templates" },
       { label: "WhatsApp popup", href: "/dashboard/whatsapp?tab=growth" },
-      // Old in-house email engine, superseded by Brevo. Reachable by URL and
-      // through the command palette only.
+      // Brevo hub (retiring at Email Studio cutover) and the old in-house
+      // email pages. Reachable by URL and the command palette only.
+      { label: "Email (Brevo)", href: "/dashboard/marketing/email", hidden: true },
       { label: "Legacy email campaigns", href: "/dashboard/campaigns", hidden: true },
       { label: "Legacy email automations", href: "/dashboard/flows", hidden: true },
     ],
