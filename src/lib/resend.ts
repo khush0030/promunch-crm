@@ -17,12 +17,12 @@ async function getClient(): Promise<Resend> {
   return _client;
 }
 
-// Customer-facing marketing/campaign sender. Must be a Resend-verified domain
-// (trypromunch.in is verified). Override via env to point at a dedicated
-// marketing subdomain (e.g. PROMUNCH <hello@news.trypromunch.in>) once it's
-// added in Resend, to isolate reputation from B2B cold outreach.
+// Customer-facing sender (campaigns, flows, invites): ALWAYS hello@promunch.in
+// (owner decision, Sep 29 2026; promunch.in is verified in Resend). B2B cold
+// outreach never uses this: it sends as parth@trypromunch.in from
+// outreach_settings, keeping cold-email complaints off the customer domain.
 export const DEFAULT_FROM =
-  process.env.EMAIL_MARKETING_FROM || 'PROMUNCH <hello@trypromunch.in>';
+  process.env.EMAIL_MARKETING_FROM || 'PROMUNCH <hello@promunch.in>';
 
 // Where customer replies should land. The recovery copy invites people to reply
 // ("reply to this email and we will sort it out"), so this must be a mailbox a

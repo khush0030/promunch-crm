@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabase-admin";
 import { getStudioSettings } from "@/lib/email-studio/server";
 import { resolveAudience } from "@/lib/email-studio/audience-server";
+import { DEFAULT_FROM } from "@/lib/resend";
 
 // Email Studio home: last-30-day results, subscriber count, what's queued,
 // what's waiting for approval, and deliverability health.
@@ -73,6 +74,6 @@ export async function GET() {
     pending: pending ?? [],
     warmupMax: settings.warmup_max_recipients,
     approvalThreshold: settings.approval_threshold,
-    domain: (process.env.EMAIL_MARKETING_FROM || "").match(/@([^>\s]+)/)?.[1] ?? null,
+    domain: DEFAULT_FROM.match(/@([^>\s]+)/)?.[1] ?? null,
   });
 }

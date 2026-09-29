@@ -21,14 +21,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Spoofing guard: only the verified sending domain may appear as the from
+  // Spoofing guard: only our verified sending domains may appear as the from
   // address. Accepts bare addresses and "Name <addr>" forms; omitting `from`
   // falls back to DEFAULT_FROM inside sendEmail.
   if (from !== undefined) {
     const addr = (String(from).match(/<([^>]+)>/)?.[1] ?? String(from)).trim().toLowerCase();
-    if (!addr.endsWith('@trypromunch.in')) {
+    if (!addr.endsWith('@promunch.in') && !addr.endsWith('@trypromunch.in')) {
       return NextResponse.json(
-        { error: 'from must be a @trypromunch.in address' },
+        { error: 'from must be a @promunch.in or @trypromunch.in address' },
         { status: 400 }
       );
     }
