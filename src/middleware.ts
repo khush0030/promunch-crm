@@ -13,7 +13,7 @@ const PUBLIC_PATHS = ["/login", "/auth", "/r", "/u"];
 //   /api/cron/*     → CRON_SECRET (Vercel sends it as a Bearer token)
 //   /api/webhooks/* → provider signature (Shopify HMAC / Resend secret)
 //   /api/public/*   → storefront-facing intake (origin-allowlisted + honeypot,
-//                     e.g. the WhatsApp opt-in popup on trypromunch.in)
+//                     e.g. the WhatsApp opt-in popup on promunch.in)
 // Every other /api/* route is a dashboard backend and MUST be gated here.
 const PUBLIC_API_PREFIXES = ["/api/webhooks/", "/api/cron/", "/api/public/"];
 

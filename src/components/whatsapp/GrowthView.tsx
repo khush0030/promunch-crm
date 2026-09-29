@@ -190,7 +190,7 @@ function Preview({ cfg, tab, device }: { cfg: GrowthConfig; tab: "popup" | "widg
           <span className={s.chromeDot} style={{ background: "#E36B5C" }} />
           <span className={s.chromeDot} style={{ background: "#E5B94E" }} />
           <span className={s.chromeDot} style={{ background: "#5FB878" }} />
-          <span className={s.chromeUrl}>trypromunch.in</span>
+          <span className={s.chromeUrl}>promunch.in</span>
         </div>
         <div className={s.viewport} style={{ height: device === "mobile" ? 500 : 420 }}>
           <div className={s.faux}>
@@ -239,7 +239,7 @@ function ConnectionCard({ data, probe, busy, onInstall, onRemove, onRecheck }: {
     title = "Live on your store"; note = `Running on ${shop}. Every change you save appears there automatically. No theme editing.`;
     actions = (
       <>
-        <a className={s.btn} href="https://trypromunch.in" target="_blank" rel="noopener noreferrer"><ExternalLink size={13} /> View live</a>
+        <a className={s.btn} href="https://promunch.in" target="_blank" rel="noopener noreferrer"><ExternalLink size={13} /> View live</a>
         <button type="button" className={`${s.btn} ${s.danger}`} onClick={onRemove} disabled={busy}>{busy ? "…" : "Remove"}</button>
       </>
     );

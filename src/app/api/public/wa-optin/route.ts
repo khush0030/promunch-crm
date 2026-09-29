@@ -29,7 +29,7 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 function corsHeaders(origin: string | null): Record<string, string> {
-  const allow = origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://trypromunch.in";
+  const allow = origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://promunch.in";
   return {
     "Access-Control-Allow-Origin": allow,
     "Access-Control-Allow-Methods": "POST, OPTIONS",

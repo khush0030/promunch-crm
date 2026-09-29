@@ -1,7 +1,7 @@
 // WhatsApp growth embed: the opt-in popup + chat widget shown on the storefront.
 // Config is edited in the dashboard visual editor (WhatsApp → Growth) and served
 // live by /api/public/wa-embed, so copy/colour/targeting changes go live on
-// trypromunch.in within minutes — no theme edit, ever.
+// promunch.in within minutes — no theme edit, ever.
 //
 // The SAME markup functions (renderPopupInner / renderWidgetInner) power both
 // the storefront embed and the dashboard live preview, so what staff see is
