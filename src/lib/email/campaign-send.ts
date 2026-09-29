@@ -14,9 +14,11 @@ import { renderMarketingEmail } from "@/lib/email/layout";
 import { marketingHeaders } from "@/lib/email/unsubscribe";
 import { parseDesign, productIds } from "@/lib/email-studio/design";
 import { parseRules, rulesFromLegacy, type AudienceRules } from "@/lib/email-studio/segments";
-import { resolveAudience, type ResolvedContact } from "@/lib/email-studio/audience-server";
+import { getFreqCapHours, resolveAudience, type ResolvedContact } from "@/lib/email-studio/audience-server";
 import { getStudioSettings, productMap, renderForContact, utmSlug } from "@/lib/email-studio/server";
 import { mergeText } from "@/lib/email-studio/render";
+import { tokenizeStorefrontLinks } from "@/lib/email/link-tokens";
+import { withContactToken } from "@/lib/email/browse-abandon";
 
 const PAGE = 1000; // PostgREST hard cap per response
 const CONCURRENCY = 5;
@@ -90,7 +92,19 @@ export function sendBlocker(
  * resume: a paused campaign can be re-run and only un-claimed recipients are
  * emailed.
  */
-export async function sendCampaign(campaignId: string): Promise<CampaignSendResult> {
+export async function sendCampaign(
+  campaignId: string,
+  opts: {
+    /**
+     * Frequency cap (default ON): skip contacts who got any other marketing
+     * email (a flow step or another campaign) within the cap window
+     * (getFreqCapHours, default 16h). Pass false for a deliberate override,
+     * e.g. an urgent recall notice. This campaign's own earlier sends never
+     * count against it, so a paused campaign resumes cleanly.
+     */
+    respectFreqCap?: boolean;
+  } = {},
+): Promise<CampaignSendResult> {
   const { data: campaign, error: campaignError } = await supabase
     .from("campaigns")
     .select("*")
@@ -109,7 +123,11 @@ export async function sendCampaign(campaignId: string): Promise<CampaignSendResu
   let settings: Awaited<ReturnType<typeof getStudioSettings>>;
   try {
     const rules = await campaignRules(campaign);
-    [audience, settings] = await Promise.all([resolveAudience(rules), getStudioSettings()]);
+    const capHours = opts.respectFreqCap === false ? 0 : await getFreqCapHours();
+    [audience, settings] = await Promise.all([
+      resolveAudience(rules, capHours > 0 ? { freqCap: { hours: capHours, excludeCampaignId: campaignId } } : {}),
+      getStudioSettings(),
+    ]);
   } catch (e) {
     return { ok: false, status: 500, error: e instanceof Error ? e.message : "audience read failed" };
   }
@@ -203,9 +221,13 @@ export async function sendCampaign(campaignId: string): Promise<CampaignSendResu
     try {
       const merge = { first_name: contact.first_name, last_name: contact.last_name, email: contact.email };
       const pre = previewText ? mergeText(previewText, merge) : undefined;
-      const html = design
+      const rendered = design
         ? renderForContact(design, { brand: settings.brand, products, contact, previewText: pre, utmCampaign })
         : renderMarketingEmail({ contactId: contact.id, bodyHtml: campaign.body_html as string, previewText: pre });
+      // Signed pm_c on promunch.in links only (storefront pixel identity for
+      // browse abandonment). UTMs are kept; the CRM-hosted unsubscribe link
+      // is a different host and is never touched.
+      const html = tokenizeStorefrontLinks(rendered, (u) => withContactToken(u, contact.id));
       const res = await sendEmail({
         to: contact.email,
         subject: mergeText(subject, merge),

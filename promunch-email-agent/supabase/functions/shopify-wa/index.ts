@@ -18,7 +18,7 @@ import { getFlowSettings } from "../_shared/flow-settings.ts";
 import { handleOrderCreated } from "../_shared/order-confirmation.ts";
 import { claimSend, markSendSent, releaseSend } from "../_shared/confirmations.ts";
 import { enrolCustomFlows } from "../_shared/custom-flows.ts";
-import { enrolEmailFlow } from "../_shared/email-flows.ts";
+import { enrolEmailFlow, exitFlowsOnCheckout, exitOrderEmailFlows } from "../_shared/email-flows.ts";
 import { VOICE_TEMPLATE } from "../_shared/voice-eligibility.ts";
 
 Deno.serve(async (req) => {
@@ -138,6 +138,14 @@ async function handleOrderCancelled(order: any) {
     .eq("order_ref", orderRef).eq("status", "active")
     .select("id");
 
+  // Same for email: stop post-purchase / review / replenishment email flows
+  // for this order. Isolated so an email error cannot affect the WA path.
+  try {
+    await exitOrderEmailFlows(orderRef, "cancelled");
+  } catch (e) {
+    console.warn("[shopify-wa] email flow cancel-exit:", e);
+  }
+
   await logConnector({
     connector: "shopify_wa", level: "info", event: "order_cancelled",
     message: `Order ${orderRef} cancelled — stopped ${stopped?.length ?? 0} pending journey message(s).`,
@@ -248,7 +256,10 @@ async function handleCheckout(checkout: any) {
         quantity: Number(li?.quantity ?? 1),
         price: Number(li?.price ?? 0),
       }));
-    await enrolEmailFlow("checkout_abandoned", {
+    // One live cart sequence per contact: a new checkout refreshes the running
+    // one in place (see _shared/email-flows.ts). Once the cart flow owns this
+    // shopper, their welcome series stands down.
+    const cartEnrolled = await enrolEmailFlow("checkout_abandoned", {
       email,
       entityRef: token,
       dedupPrefix: "abandoned",
@@ -259,6 +270,7 @@ async function handleCheckout(checkout: any) {
         total: Number(checkout.total_price ?? 0),
       },
     });
+    if (cartEnrolled > 0) await exitFlowsOnCheckout(email);
   } catch (e) {
     console.warn("[shopify-wa] email cart enrol:", e);
   }

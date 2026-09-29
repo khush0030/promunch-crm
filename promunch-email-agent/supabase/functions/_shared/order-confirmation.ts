@@ -20,7 +20,7 @@ import {
 import { REVIEW_URL, SITE_URL, firstName, toWaId } from "./journeys.ts";
 import { getFlowSettings, type FlowSettings } from "./flow-settings.ts";
 import { enrolCustomFlows } from "./custom-flows.ts";
-import { enrolEmailFlow, convertAbandonedEmailFlows, convertAbandonedEmailFlowsByCheckout } from "./email-flows.ts";
+import { enrolEmailFlow, exitFlowsOnOrder, convertAbandonedEmailFlowsByCheckout } from "./email-flows.ts";
 import {
   buildVerifyComponents,
   buildVerifyVars,
@@ -49,18 +49,30 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
   if (fin === "voided" || fin === "refunded") return { orderRef, status: "not_active", detail: fin };
 
   // Email flows (independent of WhatsApp; enrol on the order's EMAIL even when
-  // there is no phone). DB-only: post-purchase enrols, and this buyer's active
-  // abandoned-cart email flows stop (they converted). No-op unless a matching
-  // Active flow exists; idempotent per order.
+  // there is no phone). DB-only: this buyer's active cart / welcome / win-back
+  // style email flows stop (they converted), then every Active order_placed
+  // flow enrols (post-purchase, review, replenishment; first_order_only flows
+  // skip repeat buyers). Idempotent per order. Each step is isolated in its own
+  // try/catch, and none of it can affect the WhatsApp confirmation below.
+  const email = order.email ?? order.customer?.email ?? null;
+  const nm = firstName(order.customer?.first_name, order.shipping_address?.first_name, order.billing_address?.first_name);
   try {
-    const email = order.email ?? order.customer?.email ?? null;
-    const nm = firstName(order.customer?.first_name, order.shipping_address?.first_name, order.billing_address?.first_name);
     // Stop by checkout token FIRST: it works even when the order has no email
     // (most PROMUNCH orders are phone-only), where the email-keyed stop below
     // silently no-ops and would leave the cart sequence running post-purchase.
     await convertAbandonedEmailFlowsByCheckout(order.checkout_token ?? order.cart_token ?? null);
-    await convertAbandonedEmailFlows(email);
-    await enrolEmailFlow("order_placed", { email, entityRef: orderRef, dedupPrefix: "postpurchase", firstName: nm });
+  } catch (e) {
+    console.warn(`[order-confirmation] email flow checkout-exit failed for ${orderRef}:`, e);
+  }
+  try {
+    await exitFlowsOnOrder(email);
+  } catch (e) {
+    console.warn(`[order-confirmation] email flow order-exit failed for ${orderRef}:`, e);
+  }
+  try {
+    await enrolEmailFlow("order_placed", {
+      email, entityRef: orderRef, dedupPrefix: "postpurchase", firstName: nm, orderId: order.id ?? null,
+    });
   } catch (e) {
     console.warn(`[order-confirmation] email flow enrol failed for ${orderRef}:`, e);
   }

@@ -5,6 +5,7 @@
 import { db } from "../_shared/supabase.ts";
 import { fmtMoney, postSlackBlocks, verifyShopifyHmac } from "../_shared/shopify.ts";
 import { logConnector } from "../_shared/connector-log.ts";
+import { exitOrderEmailFlows } from "../_shared/email-flows.ts";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
@@ -52,6 +53,16 @@ Deno.serve(async (req) => {
   }
 
   await db().from("shopify_orders").update(update).eq("id", row.id);
+
+  // Cancelled or refunded (any refund: bias to silence) → stop this order's
+  // post-purchase / review / replenishment email flows. DB-only, isolated.
+  if (topic === "orders/cancelled" || topic === "refunds/create") {
+    try {
+      await exitOrderEmailFlows(row.order_number, topic === "orders/cancelled" ? "cancelled" : "refunded");
+    } catch (e) {
+      console.warn("[shopify-status] email flow exit:", e);
+    }
+  }
 
   const channel = Deno.env.get("SHOPIFY_SLACK_CHANNEL_ID");
   if (channel && row.slack_thread_ts) {

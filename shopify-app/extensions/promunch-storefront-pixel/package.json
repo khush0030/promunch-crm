@@ -1,0 +1,10 @@
+{
+  "name": "promunch-storefront-pixel",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/main.js",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@shopify/web-pixels-extension": "^2.10.0"
+  }
+}

@@ -10,6 +10,7 @@ import {
   type AudienceRules,
   type MatchContext,
 } from "@/lib/email-studio/segments";
+import { parseCapHours, type RecentSend } from "@/lib/email/send-guards";
 
 const PAGE = 1000;
 
@@ -98,9 +99,87 @@ async function fetchContacts(): Promise<ResolvedContact[]> {
   );
 }
 
+// ---- Frequency cap ("smart sending") ---------------------------------------
+// One cap shared by flows (src/lib/email/flow-engine.ts) and campaigns: a
+// contact who got ANY marketing email in the last N hours is not emailed again
+// by a different program until the window clears.
+
+/**
+ * Cap hours: email_studio_settings.freq_cap_hours (migration
+ * 20260930110000) > env EMAIL_FREQ_CAP_HOURS > 16. 0 disables. A missing
+ * column (migration not applied yet) quietly falls through to env/default.
+ */
+export async function getFreqCapHours(): Promise<number> {
+  const envHours = parseCapHours(process.env.EMAIL_FREQ_CAP_HOURS);
+  const { data, error } = await supabase.from("email_studio_settings").select("freq_cap_hours").eq("id", 1).maybeSingle();
+  if (error || !data) return envHours;
+  return parseCapHours((data as { freq_cap_hours?: unknown }).freq_cap_hours, envHours);
+}
+
+/**
+ * Every marketing email sent (or claimed and in flight) since `sinceIso`:
+ * flow steps (email_sends) + campaign sends (campaign_emails, which covers
+ * both Studio and legacy campaigns). Queued campaign rows count because a
+ * running campaign claims its whole audience up front and sends over minutes.
+ * Optionally narrowed to some contacts (chunked `in` filters). Throws on read
+ * errors: callers must fail toward NOT sending.
+ */
+export async function recentMarketingSends(sinceIso: string, contactIds?: string[]): Promise<RecentSend[]> {
+  const out: RecentSend[] = [];
+  const chunks: (string[] | null)[] = [];
+  if (contactIds) {
+    const uniq = [...new Set(contactIds)];
+    for (let i = 0; i < uniq.length; i += 150) chunks.push(uniq.slice(i, i + 150));
+  } else {
+    chunks.push(null);
+  }
+  for (const ids of chunks) {
+    const flowRows = await pageAll<{ contact_id: string | null; enrollment_id: string | null; sent_at: string | null; created_at: string | null; status: string }>((a, b) => {
+      let q = supabase
+        .from("email_sends")
+        .select("contact_id, enrollment_id, sent_at, created_at, status")
+        .or(`sent_at.gte."${sinceIso}",and(status.eq.queued,created_at.gte."${sinceIso}")`);
+      if (ids) q = q.in("contact_id", ids);
+      return q.order("id").range(a, b);
+    });
+    for (const r of flowRows) {
+      const at = Date.parse(r.sent_at ?? r.created_at ?? "");
+      if (r.contact_id && Number.isFinite(at)) out.push({ contact_id: r.contact_id, at, enrollment_id: r.enrollment_id });
+    }
+    const campRows = await pageAll<{ contact_id: string | null; campaign_id: string | null; sent_at: string | null; created_at: string | null; status: string }>((a, b) => {
+      let q = supabase
+        .from("campaign_emails")
+        .select("contact_id, campaign_id, sent_at, created_at, status")
+        .or(`sent_at.gte."${sinceIso}",and(status.eq.queued,created_at.gte."${sinceIso}")`);
+      if (ids) q = q.in("contact_id", ids);
+      return q.order("id").range(a, b);
+    });
+    for (const r of campRows) {
+      const at = Date.parse(r.sent_at ?? r.created_at ?? "");
+      if (r.contact_id && Number.isFinite(at)) out.push({ contact_id: r.contact_id, at, campaign_id: r.campaign_id });
+    }
+  }
+  return out;
+}
+
+/** Contacts emailed (by anything except `excludeCampaignId`) within the cap. */
+export async function recentlyEmailedContactIds(capHours: number, excludeCampaignId?: string): Promise<Set<string>> {
+  if (!(capHours > 0)) return new Set();
+  const since = new Date(Date.now() - capHours * 3_600_000).toISOString();
+  const rows = await recentMarketingSends(since);
+  return new Set(rows.filter((r) => !excludeCampaignId || r.campaign_id !== excludeCampaignId).map((r) => r.contact_id));
+}
+
 /** Everyone the rules select, after consent + suppression. */
-export async function resolveAudience(rules: AudienceRules): Promise<ResolvedContact[]> {
-  const [contacts, suppressed] = await Promise.all([fetchContacts(), fetchSuppressed()]);
+export async function resolveAudience(
+  rules: AudienceRules,
+  opts: { freqCap?: { hours: number; excludeCampaignId?: string } } = {},
+): Promise<ResolvedContact[]> {
+  const [contacts, suppressed, recent] = await Promise.all([
+    fetchContacts(),
+    fetchSuppressed(),
+    opts.freqCap ? recentlyEmailedContactIds(opts.freqCap.hours, opts.freqCap.excludeCampaignId) : Promise.resolve(null),
+  ]);
   const ctx: MatchContext = { now: Date.now(), suppressed };
 
   const engagedWindows = [...new Set(rules.conditions.filter((c) => c.field === "engaged_days").map((c) => c.value as number))];
@@ -111,7 +190,7 @@ export async function resolveAudience(rules: AudienceRules): Promise<ResolvedCon
   const needles = rules.conditions.filter((c) => c.field === "bought").map((c) => String(c.value));
   if (needles.length) ctx.buyers = await buyersOf(needles, contacts);
 
-  return contacts.filter((c) => matchesAudience(c, rules, ctx));
+  return contacts.filter((c) => matchesAudience(c, rules, ctx) && !(recent && recent.has(c.id)));
 }
 
 /** Count + a few sample names for the live audience preview. */

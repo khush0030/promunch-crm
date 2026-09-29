@@ -180,3 +180,16 @@ Offset to `:07/:22/:37/:52` to stay clear of the `:X0` stampede (see the
 The Templates tab still runs an immediate sync when it is opened with
 anything in review; this job is what makes approvals land without anyone
 opening the tab.
+
+## 2026-09-30 update (email browse abandonment)
+
+One new job, scheduled inside the feature migration (apply by hand after
+`vercel --prod`, or the job hits a 404):
+
+| Job | Schedule | Target |
+|---|---|---|
+| `email-browse-tick` | `23 * * * *` | Next route `/api/cron/email-browse-tick` (CRON_SECRET bearer). Enrols identified, consenting shoppers who viewed a product 1-24h ago and did not add to cart, check out or order into the active `segment_entry` flow with `trigger_config.segment = 'browse_abandon'`. It only enrols; `email-flow-tick` sends. It also purges `storefront_events` rows older than 90 days. |
+
+Added by `promunch-email-agent/supabase/migrations/20260930130000_storefront_events.sql`.
+Events come from the Shopify Web Pixel in `shopify-app/extensions/promunch-storefront-pixel`
+via `/api/public/track`.

@@ -1,0 +1,32 @@
+# PROMUNCH storefront pixel: product views, add-to-cart and checkout starts
+# -> https://admin.promunch.in/api/public/track (browse-abandonment email flow).
+# NOT deployed. To ship (owner):
+#   1. cd shopify-app/extensions/promunch-storefront-pixel && npm install
+#   2. cd shopify-app && shopify app deploy   (also pushes the write_pixels scope)
+#   3. Re-approve the app on the store so it gains write_pixels.
+#   4. Activate once with the app's Admin token:
+#      mutation { webPixelCreate(webPixel: { settings: "{\"trackUrl\":\"https://admin.promunch.in/api/public/track\"}" })
+#        { webPixel { id } userErrors { field message } } }
+#   5. Check Settings > Customer events in Shopify admin shows the app pixel as Connected.
+type = "web_pixel_extension"
+name = "promunch-storefront-pixel"
+runtime_context = "strict"
+
+# The pixel only runs for visitors whose consent covers analytics + marketing
+# (where the store's privacy settings require consent at all).
+[customer_privacy]
+analytics = true
+marketing = true
+preferences = false
+sale_of_data = "disabled"
+
+[settings]
+type = "object"
+
+# Set at activation time (webPixelCreate). Lets us point at a preview
+# deployment without redeploying the extension.
+[settings.fields.trackUrl]
+name = "Tracking endpoint"
+description = "Full URL of the PROMUNCH CRM /api/public/track endpoint"
+type = "single_line_text_field"
+validations = [{ name = "min", value = "10" }]

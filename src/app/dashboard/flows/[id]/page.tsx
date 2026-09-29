@@ -15,7 +15,27 @@ type Step = {
   subject: string;
   body_html: string;
   coupon_code?: string;
+  preview_text?: string;
+  subject_variants?: string[];
+  preview_variants?: string[];
+  format?: "designed" | "plain";
+  signature?: string;
+  from_name?: string;
 };
+
+type VariantStat = {
+  step_index: number;
+  variant: string;
+  sends: number;
+  opens: number;
+  clicks: number;
+  open_rate: number;
+  click_rate: number;
+};
+
+function pct(n: number): string {
+  return `${(n * 100).toFixed(1)}%`;
+}
 
 type Flow = {
   id: string;
@@ -62,6 +82,14 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
   const [triggerType, setTriggerType] = useState("");
   const [coupon, setCoupon] = useState("");
   const [steps, setSteps] = useState<Step[]>([]);
+  const [variantStats, setVariantStats] = useState<VariantStat[]>([]);
+
+  useEffect(() => {
+    fetch(`/api/flows/${id}/variants`)
+      .then((r) => (r.ok ? r.json() : { stats: [] }))
+      .then((j) => setVariantStats(Array.isArray(j.stats) ? j.stats : []))
+      .catch(() => setVariantStats([]));
+  }, [id]);
 
   useEffect(() => {
     async function load() {
@@ -86,6 +114,18 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
   }
   function addStep() {
     setSteps((prev) => [...prev, emptyStep()]);
+  }
+  /** Variant B lives at index 0 of subject_variants / preview_variants. */
+  function setVariantB(i: number, field: "subject_variants" | "preview_variants", value: string) {
+    setSteps((prev) =>
+      prev.map((s, idx) => {
+        if (idx !== i) return s;
+        const list = [...(s[field] ?? [])];
+        list[0] = value;
+        const trimmed = list.some((v) => v && v.trim()) ? list : undefined;
+        return { ...s, [field]: trimmed };
+      }),
+    );
   }
   function removeStep(i: number) {
     setSteps((prev) => prev.filter((_, idx) => idx !== i));
@@ -245,6 +285,43 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
                       <label>Subject</label>
                       <input value={s.subject} onChange={(e) => updateStep(i, { subject: e.target.value })} placeholder="Your PROMUNCH cart is waiting" title="Subject" />
                     </div>
+                    <div className="pm-field">
+                      <label>Preview text</label>
+                      <input value={s.preview_text ?? ""} onChange={(e) => updateStep(i, { preview_text: e.target.value || undefined })} placeholder="The grey line after the subject in the inbox" title="Preview text" />
+                    </div>
+                    <details style={{ marginBottom: 12 }} open={!!(s.subject_variants?.[0] || s.preview_variants?.[0])}>
+                      <summary style={{ cursor: "pointer", fontSize: 12, color: "var(--pm-muted)" }}>A/B test (variant B)</summary>
+                      <div style={{ marginTop: 8 }}>
+                        <div className="pm-field">
+                          <label>Variant B subject</label>
+                          <input value={s.subject_variants?.[0] ?? ""} onChange={(e) => setVariantB(i, "subject_variants", e.target.value)} placeholder="Leave blank to reuse the subject above" title="Variant B subject" />
+                        </div>
+                        <div className="pm-field" style={{ marginBottom: 4 }}>
+                          <label>Variant B preview text</label>
+                          <input value={s.preview_variants?.[0] ?? ""} onChange={(e) => setVariantB(i, "preview_variants", e.target.value)} placeholder="Leave blank to reuse the preview above" title="Variant B preview text" />
+                        </div>
+                        <span className="pm-dim" style={{ fontSize: 11, display: "block" }}>Each customer gets A or B, split roughly 50/50. Results appear under A/B results below.</span>
+                      </div>
+                    </details>
+                    <div className="pm-field">
+                      <label>Format</label>
+                      <select value={s.format ?? "designed"} onChange={(e) => updateStep(i, { format: e.target.value === "plain" ? "plain" : undefined })} title="Email format">
+                        <option value="designed">Designed (PROMUNCH branded layout)</option>
+                        <option value="plain">Plain (personal note, no banner)</option>
+                      </select>
+                    </div>
+                    {s.format === "plain" && (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        <div className="pm-field">
+                          <label>From name</label>
+                          <input value={s.from_name ?? ""} onChange={(e) => updateStep(i, { from_name: e.target.value || undefined })} placeholder="Parth from PROMUNCH" title="From name" />
+                        </div>
+                        <div className="pm-field">
+                          <label>Signature</label>
+                          <textarea value={s.signature ?? ""} onChange={(e) => updateStep(i, { signature: e.target.value || undefined })} placeholder={"Parth\nFounder, PROMUNCH"} title="Signature" style={{ minHeight: 38, resize: "vertical" }} />
+                        </div>
+                      </div>
+                    )}
                     <div className="pm-field" style={{ marginBottom: 0 }}>
                       <label>Body (HTML)</label>
                       <textarea
@@ -253,7 +330,7 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
                         title="Email body HTML"
                         style={{ minHeight: 120, fontFamily: "var(--pm-mono)", fontSize: 12.5, resize: "vertical" }}
                       />
-                      <span className="pm-dim" style={{ fontSize: 11, marginTop: 4, display: "block" }}>Wrapped in the PROMUNCH branded layout with an unsubscribe footer at send. Use {"{{first_name}}"} and {"{{checkout_url}}"} where relevant.</span>
+                      <span className="pm-dim" style={{ fontSize: 11, marginTop: 4, display: "block" }}>{s.format === "plain" ? "Sent as a plain personal note" : "Wrapped in the PROMUNCH branded layout"} with an unsubscribe footer at send. Use {"{{first_name}}"} and {"{{checkout_url}}"} where relevant. Emails only go out 9am to 9pm IST, and wait if the customer got another marketing email in the last 16 hours.</span>
                     </div>
                   </div>
                 </div>
@@ -262,6 +339,27 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
           )}
         </Panel>
       </div>
+
+      {variantStats.some((v) => v.variant !== "A") && (
+        <Panel title="A/B results" caption="Sends, opens and clicks per subject variant. Opens are approximate (Apple Mail pre-loads images).">
+          <table className="pm-table" style={{ width: "100%", fontSize: 12.5 }}>
+            <thead>
+              <tr><th style={{ textAlign: "left" }}>Email</th><th style={{ textAlign: "left" }}>Variant</th><th style={{ textAlign: "right" }}>Sent</th><th style={{ textAlign: "right" }}>Open rate</th><th style={{ textAlign: "right" }}>Click rate</th></tr>
+            </thead>
+            <tbody>
+              {variantStats.map((v) => (
+                <tr key={`${v.step_index}:${v.variant}`}>
+                  <td>Email {v.step_index + 1}</td>
+                  <td>{v.variant}</td>
+                  <td style={{ textAlign: "right" }}>{v.sends.toLocaleString("en-IN")}</td>
+                  <td style={{ textAlign: "right" }}>{pct(v.open_rate)}</td>
+                  <td style={{ textAlign: "right" }}>{pct(v.click_rate)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Panel>
+      )}
     </div>
   );
 }
