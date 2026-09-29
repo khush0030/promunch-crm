@@ -217,7 +217,7 @@ function blockHtml(b: Block, ctx: RenderContext, t: Theme, font: string): string
 }
 
 function footerHtml(ctx: RenderContext): string {
-  const address = ctx.brand.footerAddress || "PROMUNCH, India";
+  const address = ctx.brand.footerAddress || "PROMUNCH, 28, AB Rd, Industrial Area No. 1, Dewas, Madhya Pradesh 455001";
   return `<tr><td style="padding:22px ${PAD}px 26px;border-top:1px solid #EFECEA;font-size:12px;line-height:1.6;color:#8A7F83;text-align:center;">
 You are receiving this because you subscribed to PROMUNCH email.<br>
 <a href="${esc(ctx.unsubscribeUrl)}" style="color:#5C5155;text-decoration:underline;">Unsubscribe</a> at any time.<br>

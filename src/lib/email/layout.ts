@@ -23,7 +23,7 @@ const C = {
 
 /** Full postal address for the footer. Set the real address in env. */
 function footerAddress(): string {
-  return process.env.EMAIL_FOOTER_ADDRESS || "PROMUNCH, Vippy Industries Ltd, Mumbai, India";
+  return process.env.EMAIL_FOOTER_ADDRESS || "PROMUNCH, 28, AB Rd, Industrial Area No. 1, Dewas, Madhya Pradesh 455001";
 }
 
 function esc(s: string): string {
