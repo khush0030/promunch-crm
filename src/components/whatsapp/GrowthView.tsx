@@ -468,6 +468,19 @@ export default function GrowthView() {
                 <Field label="Sub text"><textarea className={s.textarea} value={p.sub} onChange={(e) => setPopup((x) => ({ ...x, sub: e.target.value }))} /></Field>
                 <Field label="Button label"><input className={s.input} value={p.cta} onChange={(e) => setPopup((x) => ({ ...x, cta: e.target.value }))} /></Field>
                 <div className={s.row2}>
+                  <Field label="Also ask for email">
+                    <select className={s.select} value={p.email} onChange={(e) => setPopup((x) => ({ ...x, email: e.target.value as PopupConfig["email"] }))} aria-label="Email field">
+                      <option value="optional">Yes, optional</option>
+                      <option value="required">Yes, required</option>
+                      <option value="off">No, phone only</option>
+                    </select>
+                  </Field>
+                  <Field label="Discount code shown after signup">
+                    <input className={s.input} value={p.discountCode} placeholder="e.g. PROMUNCH10" onChange={(e) => setPopup((x) => ({ ...x, discountCode: e.target.value.toUpperCase() }))} />
+                  </Field>
+                </div>
+                <p className={s.fieldHint}>The code must already exist in Shopify (Discounts). Leave it empty for no code.</p>
+                <div className={s.row2}>
                   <Field label="After-signup title"><input className={s.input} value={p.successTitle} onChange={(e) => setPopup((x) => ({ ...x, successTitle: e.target.value }))} /></Field>
                   <Field label="After-signup text"><input className={s.input} value={p.successBody} onChange={(e) => setPopup((x) => ({ ...x, successBody: e.target.value }))} /></Field>
                 </div>

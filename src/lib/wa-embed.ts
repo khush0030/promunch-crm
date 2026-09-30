@@ -8,7 +8,7 @@
 // exactly what a visitor sees. buildEmbedJs wraps that markup with behaviour
 // (targeting triggers, form submit, frequency cap).
 
-import { POPUP_CONSENT_TEXT } from "./wa-engagement";
+import { POPUP_CONSENT_TEXT, POPUP_EMAIL_CONSENT_TEXT } from "./wa-engagement";
 import { buildCartRequestEmbed } from "./wa-cart-embed";
 
 /* ----------------------------- types ----------------------------- */
@@ -25,8 +25,14 @@ export type PopupPosition = "center" | "bottom-right" | "bottom-left" | "bottom-
 export type PopupLayout = "text" | "image-top" | "image-left" | "image-right" | "background" | "compact";
 export const LAYOUTS_NEEDING_IMAGE: PopupLayout[] = ["image-top", "image-left", "image-right", "background"];
 
+/** Email field on the popup: hidden, optional next to the phone, or required. */
+export type PopupEmailMode = "off" | "optional" | "required";
+
 export type PopupConfig = {
   enabled: boolean;
+  email: PopupEmailMode;
+  /** Shown with a copy button after sign-up. Must exist in Shopify. */
+  discountCode: string;
   headline: string;
   sub: string;
   cta: string;
@@ -87,6 +93,8 @@ export function fontHref(key: string): string | null {
 export const GROWTH_DEFAULTS: GrowthConfig = {
   popup: {
     enabled: true,
+    email: "optional",
+    discountCode: "",
     headline: "Get PROMUNCH offers on WhatsApp",
     sub: "Join PROMUNCH for launch drops and member deals. Your Munchy Pal is one text away.",
     cta: "Join on WhatsApp",
@@ -151,6 +159,8 @@ export function normalizeGrowthConfig(raw: unknown): GrowthConfig {
   return {
     popup: {
       enabled: !!p.enabled,
+      email: p.email === "off" || p.email === "required" ? p.email : "optional",
+      discountCode: str(p.discountCode, "", 40).trim().toUpperCase().replace(/[^A-Z0-9_-]/g, ""),
       headline: str(p.headline, GROWTH_DEFAULTS.popup.headline, 120),
       sub: str(p.sub, GROWTH_DEFAULTS.popup.sub, 240),
       cta: str(p.cta, GROWTH_DEFAULTS.popup.cta, 40) || "Join",
@@ -188,6 +198,11 @@ export function normalizeGrowthConfig(raw: unknown): GrowthConfig {
 
 /* ---------------------------- markup ---------------------------- */
 
+/** The exact consent sentence a visitor sees (and that we store with the opt-in). */
+export function popupConsentText(cfg: Pick<PopupConfig, "email">): string {
+  return cfg.email === "off" ? POPUP_CONSENT_TEXT : POPUP_EMAIL_CONSENT_TEXT;
+}
+
 const esc = (s: string) =>
   String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
@@ -216,14 +231,15 @@ export function renderPopupInner(cfg: PopupConfig, opts?: { placeholderImage?: b
       <span style="font-size:14px;color:#8a7a66">+91</span>
       <input data-pmwa="phone" type="tel" inputmode="numeric" maxlength="10" placeholder="98765 43210" style="border:0;outline:0;padding:12px 8px;font-size:15px;width:100%;background:none;color:#2B2118;font-family:inherit">
     </div>
-    <button type="submit" style="background:${t.accent};color:${t.accentText};border:0;border-radius:10px;padding:0 18px;min-height:44px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;white-space:nowrap">${esc(cfg.cta)}</button>
+    ${cfg.email === "off" ? "" : `<input data-pmwa="email" type="email" autocomplete="email" ${cfg.email === "required" ? "required " : ""}placeholder="${cfg.email === "required" ? "Email" : "Email (optional)"}" style="order:2;flex:1 1 100%;box-sizing:border-box;border:1px solid rgba(0,0,0,.14);border-radius:10px;padding:12px 10px;font-size:15px;background:#fff;color:#2B2118;font-family:inherit;outline:0">`}
+    <button type="submit" style="order:3;background:${t.accent};color:${t.accentText};border:0;border-radius:10px;padding:0 18px;min-height:44px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;white-space:nowrap${cfg.email === "off" ? "" : ";flex:1 1 100%"}">${esc(cfg.cta)}</button>
   </form>`;
 
   // The wording a shopper agrees to. It is ALSO posted to /api/public/wa-optin
   // and stored verbatim on the contact, so the consent record and what they read
   // can never drift apart. Every layout must show it — a captured opt-in with no
   // visible consent line is not an opt-in.
-  const consent = `<div data-pmwa="consent" style="font-size:10.5px;color:${t.text};opacity:.6;margin-top:9px">${esc(POPUP_CONSENT_TEXT)}</div>`;
+  const consent = `<div data-pmwa="consent" style="font-size:10.5px;color:${t.text};opacity:.6;margin-top:9px">${esc(popupConsentText(cfg))}</div>`;
 
   const headline = (size: number, center = false) => `<div style="font-weight:800;font-size:${size}px;line-height:1.2;color:${t.text}${center ? ";text-align:center" : ""}">${esc(cfg.headline)}</div>`;
   const sub = (center = false) => cfg.sub ? `<div style="font-size:13px;color:${t.text};opacity:.72;margin:6px 0 14px${center ? ";text-align:center" : ""}">${esc(cfg.sub)}</div>` : `<div style="height:10px"></div>`;
@@ -271,8 +287,13 @@ export function renderPopupInner(cfg: PopupConfig, opts?: { placeholderImage?: b
 export function popupSuccessInner(cfg: PopupConfig, waNumber: string): string {
   const t = cfg.theme;
   return `<div data-pmwa="card" style="position:relative;background:${t.bg};border-radius:${cfg.position === "bottom-bar" ? 0 : t.radius}px;padding:22px;font-family:${fontStack(t.font)};box-shadow:0 12px 40px rgba(0,0,0,.2)">
-    <div style="font-weight:800;font-size:18px;color:${t.text}">${esc(cfg.successTitle)}</div>
+    <button data-pmwa="close" aria-label="Close" style="position:absolute;top:10px;right:12px;border:0;background:none;font-size:20px;line-height:1;cursor:pointer;color:${t.text};opacity:.5">&#215;</button>
+    <div style="font-weight:800;font-size:18px;color:${t.text};padding-right:24px">${esc(cfg.successTitle)}</div>
     <div style="font-size:13px;color:${t.text};opacity:.72;margin:6px 0 12px">${esc(cfg.successBody)}</div>
+    ${cfg.discountCode ? `<div style="display:flex;align-items:center;gap:8px;margin:0 0 12px;border:2px dashed ${t.accent};border-radius:10px;padding:10px 12px;background:#fff">
+      <div style="flex:1;min-width:0"><div style="font-size:11px;color:#8a7a66">Your code</div><div data-pmwa="code" style="font-weight:800;font-size:20px;letter-spacing:1px;color:#2B2118">${esc(cfg.discountCode)}</div></div>
+      <button type="button" data-pmwa="copy" style="background:${t.accent};color:${t.accentText};border:0;border-radius:8px;padding:9px 14px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit">Copy</button>
+    </div>` : ""}
     <a href="https://wa.me/${waNumber}?text=${encodeURIComponent("Hi PROMUNCH! Just joined your list 🌱")}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;background:${t.accent};color:${t.accentText};border-radius:10px;padding:11px 16px;font-weight:700;font-size:14px;text-decoration:none">${WA_ICON}<span>Say hi on WhatsApp</span></a>
   </div>`;
 }
@@ -318,7 +339,8 @@ export function buildEmbedJs(cfg: GrowthConfig, opts: { appOrigin: string; widge
       api: `${opts.appOrigin}/api/public/wa-optin`,
       // Posted back with every opt-in so the stored consent record is the exact
       // sentence this visitor saw, not whatever the copy says months later.
-      consentText: POPUP_CONSENT_TEXT,
+      consentText: popupConsentText(cfg.popup),
+      emailMode: cfg.popup.email,
       wrap: popupWrapStyle(cfg.popup.position),
       cardMax: popupCardMax(cfg.popup.position, cfg.popup.layout),
       html: renderPopupInner(cfg.popup),
@@ -346,11 +368,14 @@ export function buildEmbedJs(cfg: GrowthConfig, opts: { appOrigin: string; widge
     var f=box.querySelector('[data-pmwa="form"]');
     if(f)f.onsubmit=function(ev){ev.preventDefault();
       var pn=box.querySelector('[data-pmwa="phone"]');var p=(pn.value||"").replace(/\\D/g,"");
-      if(p.length!==10){pn.style.color="#c0392b";return}
+      if(p.length!==10||!/^[6-9]/.test(p)){pn.style.color="#c0392b";pn.focus();return}
+      var en=box.querySelector('[data-pmwa="email"]');var em=en?(en.value||"").trim():"";
+      if(en&&(em||C.emailMode==="required")&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){en.style.borderColor="#c0392b";en.focus();return}
       var hp=f.querySelector('input[name="hp"]');
-      fetch(C.api,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:p,source:"website_popup",consent_text:C.consentText,page_url:location.href,hp:hp?hp.value:""})})
+      var sb=f.querySelector('button[type="submit"]');if(sb){sb.disabled=true;sb.style.opacity=".6"}
+      fetch(C.api,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:p,email:em||undefined,source:"website_popup",consent_text:C.consentText,page_url:location.href,hp:hp?hp.value:""})})
         .then(function(r){return r.json()}).catch(function(){return{ok:false}})
-        .then(function(j){done();box.innerHTML=j&&j.ok?C.success:'<div style="background:#fff;border-radius:12px;padding:20px;font-family:sans-serif;font-size:13px;color:#6d5d4b">Something went wrong. Message us directly on WhatsApp: +91 99813 10247</div>';setTimeout(function(){wrap.remove()},15000)});
+        .then(function(j){done();box.innerHTML=j&&j.ok?C.success:'<div style="background:#fff;border-radius:12px;padding:20px;font-family:sans-serif;font-size:13px;color:#6d5d4b">Something went wrong. Message us directly on WhatsApp: +91 99813 10247</div>';var cp=box.querySelector('[data-pmwa="copy"]');if(cp)cp.onclick=function(){var c=box.querySelector('[data-pmwa="code"]');var v=c?c.textContent:"";try{navigator.clipboard.writeText(v);cp.textContent="Copied"}catch(e){}};var cx=box.querySelector('[data-pmwa="close"]');if(cx)cx.onclick=function(){wrap.remove()};if(!(j&&j.ok))setTimeout(function(){wrap.remove()},15000)});
     };
   }
   var T=C.trigger||{type:"delay",seconds:6};

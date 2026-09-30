@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { POPUP_CONSENT_TEXT, TIER_TAGS } from "@/lib/wa-engagement";
+import { EMAIL_RE, recordEmailOptIn } from "@/lib/email/popup-optin";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null) as
-    | { phone?: string; name?: string; source?: string; hp?: string; consent_text?: string; page_url?: string }
+    | { phone?: string; email?: string; name?: string; source?: string; hp?: string; consent_text?: string; page_url?: string }
     | null;
   if (!body) return NextResponse.json({ ok: false, error: "bad json" }, { status: 400, headers });
   if (body.hp) return NextResponse.json({ ok: true }, { headers }); // honeypot: pretend success
@@ -74,6 +75,12 @@ export async function POST(req: NextRequest) {
   // Indian mobiles start 6-9.
   if (!waId || !/^91[6-9]\d{9}$/.test(waId)) {
     return NextResponse.json({ ok: false, error: "invalid phone" }, { status: 400, headers });
+  }
+  // Optional email from the same popup. A bad email fails the whole sign-up so
+  // the shopper can fix it, rather than silently dropping it.
+  const email = String(body.email ?? "").trim().toLowerCase().slice(0, 200);
+  if (email && !EMAIL_RE.test(email)) {
+    return NextResponse.json({ ok: false, error: "invalid email" }, { status: 400, headers });
   }
   const name = String(body.name ?? "").trim().slice(0, 80) || null;
   const source = body.source === "website_widget" ? "website_widget" : "website_popup";
@@ -129,6 +136,12 @@ export async function POST(req: NextRequest) {
     user_agent: (req.headers.get("user-agent") ?? "").slice(0, 300) || null,
     ip_hash: hashIp(req),
   });
+
+  // Email opt-in, recorded like the email popup does. Best effort: the
+  // WhatsApp opt-in above already succeeded and must not be reported as failed.
+  if (email) {
+    await recordEmailOptIn({ email, firstName: name, phone: `+${waId}`, source, consentText }).catch(() => {});
+  }
 
   return NextResponse.json({ ok: true, already: !!existing }, { headers });
 }
