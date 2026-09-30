@@ -117,7 +117,9 @@ export const CATEGORY_LABELS: Record<FlowCategory, string> = {
 //     Crunchies are roasted; Soya Sticks and Chips are FRIED; free shipping over
 //     ₹599 (₹99 below), COD +₹50, prepaid 5% off.
 //   - Roasted Edamame: 3 flavours, "roasted in olive oil" (Shopify product titles),
-//     42.9 to 45.3 g protein per 100 g (KB pack labels), so copy says "over 40g".
+//     Protein per 100g (owner, 2026-09-30; matches KB pack labels): Himalayan
+//     Rock Salt Edamame 45g, Indori Chatka + Masala Mania 42g. Across Edamame say
+//     "42 to 45g". Olive oil = Edamame only.
 //   - Assorted Flavored Pack 150g x 4 = Tangy Pudina, Peri Peri, Cheese & Onion,
 //     Noodle Masala (Shopify product description).
 //   - Serving ideas (salads, soups, wraps, sandwiches, ready to eat): promunch.in/pages/faqs.
@@ -326,51 +328,63 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     key: "browse_abandonment",
     name: "Browse abandonment",
     category: "recover",
-    description: "Viewed a product but did not buy. 3 emails: the product + a 15% unique code, a founder note, then a last call before that code expires. 15% only. Needs the storefront pixel.",
+    description: "Viewed a product but did not buy. 3 emails: a no-discount reminder of the product, a founder note that introduces a 15% unique code, then a last call before it expires. Needs the storefront pixel.",
     trigger_type: "segment_entry",
     // Enrolled by email-browse-tick (>= 1h after the view), not the daily
     // segment tick. Copy uses {{product.title}}, {{product.url}} (fallback: Best
-    // Sellers) and {{product_image}} (dropped when there is no image).
+    // Sellers) and {{product_card}} (image dropped when there is none).
     trigger_config: { segment: "browse_abandon", exit_on_order: true },
     needsSetup: true,
     steps: [
       {
+        // Owner, 2026-09-30: no discount in email 1. A viewer is colder than a
+        // carter; many buy from the plain reminder, and an instant code trains
+        // browse-and-wait. The 15% arrives in email 2.
         type: "email",
         format: "designed",
         delay_hours: 0,
         subject: "{{first_name}}, still thinking it over?",
-        subject_variants: ["You had your eye on this one", "15% off the snack you were checking out"],
-        preview_text: "{{product.title}}, now 15% off with your own code.",
-        preview_variants: ["Here it is again, with 15% off for the next 3 days."],
-        coupon: { percent_off: 15, expires_in_days: 4, prefix: "LOOK15" },
-        coupon_code: "",
+        subject_variants: ["You had your eye on this one", "{{product.title}} is still here for you"],
+        preview_text: "Here it is again, in case you want another look.",
+        preview_variants: ["The snack you were checking out, and why people love it."],
         body_html:
           h1("Still thinking it over?") +
-          hi("you were checking out <strong>{{product.title}}</strong>. Here it is again, with 15% off if you want it.") +
-          couponBox(CODE, "15% off, just for you", "One use. Valid for 3 days.") +
-          button("Take another look", "{{product.url}}") +
-          "{{product_image}}" +
-          SHIPPING,
+          hi("you were checking out this one. Here it is again, in case you want another look.") +
+          "{{product_card}}" +
+          button("Take another look", "{{product.url}}", "solid", { full: true }) +
+          p("<strong>Why people love PROMUNCH:</strong> high-protein snacks that actually fill you up, honest labels (our Edamame is roasted in olive oil, our Soya Crunchies are roasted, our Sticks and Chips are fried, and we always tell you which is which), and free shipping on orders over ₹599.") +
+          reviewQuote(
+            "Wish this was mainstream. Excellent flavour, excellent crunch, excellent macros. What more do you want?",
+            "Sujay Thomas, on Noodle Masala Soya Crunchies",
+            5,
+          ) +
+          trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]),
       },
       {
+        // Founder letter (approved style, cart email 2) that INTRODUCES the
+        // 15% code. Minted here on day 1, valid 3 days, so email 3 on day 3
+        // can truthfully say "ends tomorrow".
         type: "email",
-        format: "plain",
+        format: "designed",
         from_name: PARTH_FROM,
-        signature: PARTH_SIG,
         delay_hours: 24,
-        subject: "Why people pick PROMUNCH",
-        subject_variants: ["{{first_name}}, a quick note from our founder", "The honest version of what we make"],
-        preview_text: "Roasted where it matters, and a lot of protein per bite.",
-        preview_variants: ["Your 15% code is still active."],
-        coupon: { percent_off: 15, expires_in_days: 4, prefix: "LOOK15" },
+        subject: "A quick note from PROMUNCH's founder",
+        subject_variants: ["{{first_name}}, a little something from our founder", "15% off {{product.title}}, from me"],
+        preview_text: "I saw you looking at {{product.title}}. Here is 15% off it.",
+        preview_variants: ["A personal note, and 15% off just for you."],
+        coupon: { percent_off: 15, expires_in_days: 3, prefix: "LOOK15" },
         coupon_code: "",
-        body_html: PLAIN(
-          "Hi {{first_name}},",
-          "Parth here, founder of PROMUNCH. I saw you looking at {{product.title}}, so here is the honest version of what we make.",
-          "Our Roasted Edamame is roasted in olive oil and has over 40g of protein per 100g. Our Soya Crunchies are roasted too. Our Soya Sticks and Chips are fried, for when you want that classic chip crunch.",
-          "If you are unsure about a flavour, reply and tell me what you like, spicy, tangy or light and salty, and I will point you to the right pack.",
-          `Your 15% code is still active: <b>{{coupon_code}}</b>. <a href="{{product.url}}">Here is the product again</a>.`,
-        ),
+        body_html:
+          eyebrow("A note from our founder") +
+          h1("Here is 15% off, from me") +
+          p("Hi {{first_name}},") +
+          p("I'm Parth, founder of PROMUNCH. I saw you looking at <strong>{{product.title}}</strong>, so I wanted to write to you myself.") +
+          p("We started PROMUNCH because a snack in India usually meant fried namkeen or chips with very little protein. We wanted something crunchy that actually fills you up, and we are honest about how each one is made: our Edamame is roasted in olive oil, our Soya Crunchies are roasted, and our Sticks and Chips are fried.") +
+          p("Not sure about a flavour? <strong>Just hit reply</strong> and tell me what you like, spicy, tangy or light and salty, and I will point you to the right pack. To make it easy to try, here is 15% off, just for you.") +
+          founderSignoff() +
+          "{{product_card}}" +
+          couponBox(CODE, "Your 15% off code", "One use only. Valid for 3 days.") +
+          button("Get it for 15% off", "{{product.url}}", "solid", { full: true }),
       },
       {
         type: "email",
@@ -380,17 +394,19 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         subject_variants: ["{{first_name}}, your 15% code expires tomorrow", "Still thinking about {{product.title}}?"],
         preview_text: "Your 15% code still works, but only until tomorrow.",
         preview_variants: ["This is the last email about it."],
-        // 15% only (owner, 2026-09-30): reuses email 1's code, minted at day 0
-        // and valid 4 days, so at day 3 "ends tomorrow" is true.
-        coupon: { percent_off: 15, expires_in_days: 4, prefix: "LOOK15" },
+        // Same percent as email 2, so the engine reuses THAT code (minted day
+        // 1, valid 3 days): at day 3 "ends tomorrow" is true.
+        coupon: { percent_off: 15, expires_in_days: 3, prefix: "LOOK15" },
         coupon_code: "",
         body_html:
           h1("Your 15% off ends tomorrow") +
-          hi("this is the last email about {{product.title}}. Your 15% code still works, but only until tomorrow.") +
+          hi("this is the last email about it. Your 15% code still works, but only until tomorrow.") +
+          "{{product_card}}" +
+          button("Get it for 15% off", "{{product.url}}", "solid", { full: true }) +
           couponBox(CODE, "Your 15% off code", "One use only. Expires tomorrow.") +
-          button("Take me back", "{{product.url}}", "solid", { full: true }) +
           REVIEWS +
-          p(`Not quite right? <a href="${link(PATHS.bestSellers, "browse_abandon", 3)}">See our Best Sellers</a>.`),
+          p(`Not quite right? <a href="${link(PATHS.bestSellers, "browse_abandon", 3)}">See our Best Sellers</a>.`) +
+          trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]),
       },
     ],
   },
@@ -423,7 +439,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           hi("we make high-protein snacks for people who want their snack to actually do something for them. Here is 15% off your first order.") +
           couponBox(CODE, "15% off your first order", "One use. Valid for 7 days.") +
           button("Shop Best Sellers", link(PATHS.bestSellers, "welcome", 1)) +
-          p("<strong>Our promise:</strong> real protein (our Roasted Edamame has over 40g per 100g), honest labels (our Soya Crunchies and Edamame are roasted, our Sticks and Chips are fried, and we always tell you which is which), and free shipping on orders over ₹599.") +
+          p("<strong>Our promise:</strong> real protein (our Roasted Edamame packs 42 to 45g per 100g), honest labels (our Edamame is roasted in olive oil, our Soya Crunchies are roasted, our Sticks and Chips are fried, and we always tell you which is which), and free shipping on orders over ₹599.") +
           p("One small thing: add <strong>hello@promunch.in</strong> to your contacts so our emails, and your code, land in your inbox and not in spam.") +
           socialRow(),
       },
@@ -496,7 +512,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           hi("your welcome offer is ending, so here is our best one: 20% off your first order, good for the next 48 hours. This is the last reminder we will send about it.") +
           couponBox(CODE, "20% off your first order", "One use. Valid for 48 hours.") +
           button("Use my 20% now", link(PATHS.all, "welcome", 5)) +
-          p("Why people stick with PROMUNCH: over 40g of protein per 100g in our Roasted Edamame, ready to eat straight from the pack, and great on salads and soups too."),
+          p("Why people stick with PROMUNCH: 42 to 45g of protein per 100g in our Roasted Edamame, ready to eat straight from the pack, and great on salads and soups too."),
       },
     ],
   },
@@ -541,7 +557,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           button("Read our FAQs", link(PATHS.faqs, "post_purchase", 2)) +
           p("<strong>Keep it crunchy.</strong> Once a pack is open, seal it tight or tip it into an airtight jar, and keep it somewhere cool and dry.") +
           p("<strong>Ways to enjoy it.</strong> Straight from the pack, on a salad or a bowl of soup, tucked into wraps and sandwiches, or in your bag for the office and after a workout.") +
-          p("<strong>What is in the pack.</strong> Roasted Edamame: over 40g of protein per 100g, roasted in olive oil. Soya Crunchies: roasted, not fried. Soya Sticks and Chips: fried, for a classic chip crunch.") +
+          p("<strong>What is in the pack.</strong> Roasted Edamame: roasted in olive oil, with 42 to 45g of protein per 100g depending on the flavour. Soya Crunchies: roasted, not fried. Soya Sticks and Chips: fried, for a classic chip crunch.") +
           p("Anything else? Reply to this email and a real person will answer.") +
           socialRow(),
       },
@@ -621,7 +637,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           hi("thanks again for your first PROMUNCH order. If you liked it, here are three different ways to crunch.") +
           button("Shop all snacks", link(PATHS.all, "cross_sell", 1)) +
           grid(["edamameCombo", "crunchies4", "sticksChips"], "cross_sell", 1) +
-          p("<strong>Roasted Edamame:</strong> over 40g of protein per 100g, roasted in olive oil. <strong>Soya Crunchies:</strong> roasted, in Tangy Pudina, Peri Peri, Cheese &amp; Onion and Noodle Masala. <strong>Soya Sticks and Chips:</strong> fried, for a classic chip crunch.") +
+          p("<strong>Roasted Edamame:</strong> roasted in olive oil, with 42 to 45g of protein per 100g depending on the flavour. <strong>Soya Crunchies:</strong> roasted, in Tangy Pudina, Peri Peri, Cheese &amp; Onion and Noodle Masala. <strong>Soya Sticks and Chips:</strong> fried, for a classic chip crunch.") +
           SHIPPING,
       },
     ],
@@ -651,7 +667,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           hi("it has been a couple of months since your last PROMUNCH order. Come back for 20% off, on us.") +
           couponBox(CODE, "20% off, welcome back", "One use. Valid for 7 days.") +
           button("Shop Best Sellers", link(PATHS.bestSellers, "winback", 1)) +
-          p(`Have you tried our <a href="${link(PATHS.edamame, "winback", 1)}">Roasted Edamame</a>? Himalayan Rock Salt, Indori Chatka and Masala Mania, roasted in olive oil, with over 40g of protein per 100g.`) +
+          p(`Have you tried our <a href="${link(PATHS.edamame, "winback", 1)}">Roasted Edamame</a>? Himalayan Rock Salt (45g of protein per 100g), Indori Chatka and Masala Mania (42g each), all roasted in olive oil.`) +
           SHIPPING,
       },
       {

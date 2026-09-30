@@ -49,6 +49,13 @@ describe("flow templates", () => {
     expect(w[w.length - 1].coupon?.percent_off).toBe(20);
   });
 
+  it("browse email 1 is a no-discount reminder; the 15% starts at email 2", () => {
+    const [first, second] = templateByKey("browse_abandonment")!.steps;
+    expect(first.coupon).toBeUndefined();
+    expect(`${first.subject} ${first.preview_text} ${first.body_html}`).not.toMatch(/\b(5|10|15|20|25)% off|off \d+%|coupon_code/i);
+    expect(second.coupon?.percent_off).toBe(15);
+  });
+
   it("review and replenishment emails defer to WhatsApp", () => {
     for (const s of templateByKey("review_request")!.steps) expect(s.skip_if_wa_journey).toBe("review");
     for (const s of templateByKey("replenishment")!.steps) expect(s.skip_if_wa_journey).toBe("replenishment");

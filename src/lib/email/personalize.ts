@@ -3,6 +3,7 @@
 // Body tokens:   {{first_name}} {{checkout_url}} {{cart_items}} {{cart_summary}} {{cart_total}}
 //                {{coupon_code}} {{product.title}} {{product.url}}
 //                {{product.image}} {{product.price}} {{product_image}} (full <img>)
+//                {{product_card}} (image + name + price with the code applied)
 // Subject/preview: same minus the HTML-only ones (cart_items, checkout_url,
 //                product.url, product.image).
 //
@@ -10,8 +11,8 @@
 // price|null}. Null fallbacks: url -> the all-products collection, image ->
 // the <img> is dropped entirely, price -> empty, title -> "your pick".
 
-import { EMAIL_COLORS } from "./brand-tokens";
-import { cartItemsHtml, cartSummaryHtml, money, type ImageLookup } from "./cart-items";
+import { EMAIL_COLORS, EMAIL_FONT } from "./brand-tokens";
+import { cartItemsHtml, cartSummaryHtml, cleanTitle, money, type ImageLookup } from "./cart-items";
 
 export const PRODUCT_URL_FALLBACK = "https://promunch.in/collections/best-sellers";
 export const PRODUCT_TITLE_FALLBACK = "your pick";
@@ -49,12 +50,40 @@ export function productFromContext(ctx: Record<string, unknown> | null | undefin
   const url = str(p?.url);
   const image = str(p?.image);
   const priceNum = p?.price == null || p?.price === "" ? NaN : Number(p.price);
+  const rawTitle = str(p?.title);
   return {
-    title: str(p?.title),
+    title: rawTitle ? cleanTitle(rawTitle) : null,
     url: url && /^https?:\/\//i.test(url) ? url : null,
     image: image && /^https?:\/\//i.test(image) ? image : null,
     price: Number.isFinite(priceNum) && priceNum > 0 ? priceNum : null,
   };
+}
+
+/**
+ * Browse-abandonment hero ({{product_card}}): the product they viewed, big and
+ * linked, its clean name, and the price with their code applied, so "15% off"
+ * becomes "₹260, ₹221 with your code". The discounted price only shows when a
+ * code was actually issued for this send.
+ */
+export function productCardHtml(p: Product, percentOff = 0, hasCoupon = false): string {
+  const href = esc(p.url ?? PRODUCT_URL_FALLBACK);
+  const title = esc(p.title ?? PRODUCT_TITLE_FALLBACK);
+  const img = p.image
+    ? `<tr><td align="center" style="padding:0 0 14px;"><a href="${href}" style="text-decoration:none;"><img src="${esc(p.image)}" width="320" alt="${title}" style="display:block;width:320px;max-width:100%;height:auto;border-radius:14px;border:1px solid ${EMAIL_COLORS.line};"></a></td></tr>`
+    : "";
+  const pct = Math.max(0, Math.min(100, Number(percentOff) || 0));
+  let price = "";
+  if (p.price != null) {
+    const after = Math.round(p.price * (1 - pct / 100));
+    price = hasCoupon && pct > 0
+      ? `<span style="color:${EMAIL_COLORS.muted};text-decoration:line-through;">${money(p.price)}</span>&nbsp;&nbsp;<strong style="color:${EMAIL_COLORS.brand};font-size:20px;">${money(after)}</strong> <span style="color:${EMAIL_COLORS.muted};font-size:14px;">with your code</span>`
+      : `<strong style="font-size:20px;">${money(p.price)}</strong>`;
+  }
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 20px;">` +
+    img +
+    `<tr><td align="center" style="font-family:${EMAIL_FONT};font-size:18px;line-height:1.4;font-weight:700;color:${EMAIL_COLORS.ink};text-align:center;padding:0 0 6px;"><a href="${href}" style="color:${EMAIL_COLORS.ink};text-decoration:none;">${title}</a></td></tr>` +
+    (price ? `<tr><td align="center" style="font-family:${EMAIL_FONT};font-size:16px;line-height:1.4;color:${EMAIL_COLORS.ink};text-align:center;">${price}</td></tr>` : "") +
+    `</table>`;
 }
 
 /** Email-safe product image block linked to the product; "" when no image. */
@@ -95,6 +124,7 @@ export function personalize(
     .replace(T("coupon_code"), esc(coupon))
     .replace(T("product.title"), esc(product.title ?? PRODUCT_TITLE_FALLBACK))
     .replace(T("product.url"), esc(product.url ?? PRODUCT_URL_FALLBACK))
+    .replace(T("product_card"), productCardHtml(product, percentOff, !!coupon))
     .replace(T("product_image"), productImageHtml(product))
     .replace(T("product.image"), product.image ? esc(product.image) : "")
     .replace(T("product.price"), product.price != null ? money(product.price) : "");
