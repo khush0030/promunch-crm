@@ -509,21 +509,26 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]),
       },
       {
+        // Day 6: free shipping + combos (reviews were day 4). Code minted day
+        // 0 lives 8 days, so "2 days left" is true with a retry margin. Every
+        // product shown must itself be >= ₹599 (checked 2026-09-30: Edamame
+        // Combo ₹600, Big Bite ₹1050, Rock Salt pack of 3 ₹600).
         type: "email",
         format: "designed",
         delay_hours: 48,
         subject: "Free shipping on orders over ₹599",
-        subject_variants: ["{{first_name}}, here is how to get free shipping", "What PROMUNCH customers are saying"],
-        preview_text: "Plus what real customers say about the crunch.",
-        preview_variants: ["A combo gets you there in one go."],
+        subject_variants: ["{{first_name}}, here is how to get free shipping", "Try more flavours, pay no shipping"],
+        preview_text: "A combo gets you there in one go. 2 days left on your 15% code.",
+        preview_variants: ["2 days left on your welcome code."],
         coupon: { percent_off: 15, expires_in_days: 8, prefix: "WELCOME15" },
         coupon_code: "",
         body_html:
           h1("Free shipping over ₹599") +
           hi("every order over ₹599 ships free. A combo is the easiest way to get there, and you get to try more flavours in one go.") +
-          button("See combos", link(PATHS.combos, "welcome", 4)) +
-          REVIEWS +
-          p("Your 15% welcome code <strong>{{coupon_code}}</strong> is still active for about a day."),
+          button("Shop combos", link(PATHS.combos, "welcome", 4), "solid", { full: true }) +
+          grid(["edamameCombo", "bigBite", "edamameRockSalt"], "welcome", 4) +
+          couponBox(CODE, "Your 15% welcome code", "One use only. 2 days left.") +
+          trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]),
       },
       {
         type: "email",
