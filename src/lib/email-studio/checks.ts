@@ -27,7 +27,7 @@ function blockCopy(b: Block): string[] {
   }
 }
 
-function copyIssues(label: string, text: string, blockId?: string): Issue[] {
+export function copyIssues(label: string, text: string, blockId?: string): Issue[] {
   const out: Issue[] = [];
   if (/[—–]/.test(text)) out.push({ level: "block", message: `${label}: remove the dash (— or –). Use a comma, full stop or "to".`, blockId });
   if (/oltaflock/i.test(text)) out.push({ level: "block", message: `${label}: never mention Oltaflock in PROMUNCH copy.`, blockId });

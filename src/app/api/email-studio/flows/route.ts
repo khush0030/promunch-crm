@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { parseBody } from "@/lib/api-helpers";
+import { recordAudit } from "@/lib/audit";
 import { supabaseAdmin as supabase } from "@/lib/supabase-admin";
 import { caller, isResponse, bad } from "@/lib/email-studio/route-helpers";
 import { describeFlowRules, type FlowStats } from "@/lib/email-studio/automations";
@@ -49,4 +51,44 @@ export async function GET() {
     }),
   );
   return NextResponse.json({ flows: out, admin: me.admin });
+}
+
+// New automation, always a DRAFT: blank, or a copy of an existing one (its
+// emails, trigger and rules). Nothing sends until an admin switches it on.
+export async function POST(req: NextRequest) {
+  const me = await caller();
+  if (isResponse(me)) return me;
+  const body = (await parseBody<{ copyFrom?: string }>(req)) ?? {};
+
+  let row: Record<string, unknown> = {
+    name: "New automation",
+    description: "",
+    trigger_type: "order_placed",
+    trigger_config: {},
+    steps: [],
+  };
+  if (body.copyFrom) {
+    const { data: src } = await supabase
+      .from("flows")
+      .select("name, description, trigger_type, trigger_config, steps")
+      .eq("id", body.copyFrom)
+      .maybeSingle();
+    if (!src) return bad("automation to copy not found", 404);
+    row = { ...src, name: `Copy of ${src.name}`.slice(0, 120) };
+  }
+  const { data, error } = await supabase
+    .from("flows")
+    .insert({ ...row, status: "draft" })
+    .select("id")
+    .single();
+  if (error) return bad(error.message, 500);
+  await recordAudit({
+    action: "email_studio.flow_create",
+    entityType: "flow",
+    entityId: data.id as string,
+    summary: `Automation "${row.name}" created as a draft`,
+    actor: me.user,
+    request: req,
+  });
+  return NextResponse.json({ id: data.id }, { status: 201 });
 }

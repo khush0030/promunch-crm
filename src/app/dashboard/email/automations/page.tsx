@@ -3,11 +3,12 @@
 // Automations: the always-on email flows (abandoned cart, welcome,
 // post-purchase, replenishment). See each flow's rules and stats, send
 // yourself a test of every email, and (admins) switch a flow on or off.
-// Editing copy still lives in the legacy flow builder for now.
+// Each automation opens in the editor at /dashboard/email/automations/[id].
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Send, Pencil } from "lucide-react";
+import { Send, Pencil, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Callout, ConfirmDialog, Pill } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
 import { StudioHeader } from "@/components/email-studio/StudioHeader";
@@ -42,6 +43,19 @@ export default function AutomationsPage() {
   });
   const [confirm, setConfirm] = useState<{ flow: FlowDto; to: "active" | "paused" } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const router = useRouter();
+
+  const create = async (copyFrom?: string) => {
+    setBusy("create");
+    try {
+      const r = await sendJson<{ id: string }>("/api/email-studio/flows", "POST", copyFrom ? { copyFrom } : {});
+      router.push(`/dashboard/email/automations/${r.id}`);
+    } catch (e) {
+      toast.push({ kind: "error", text: (e as Error).message });
+      setBusy(null);
+    }
+  };
 
   const test = async (f: FlowDto) => {
     setBusy(`test:${f.id}`);
@@ -60,7 +74,15 @@ export default function AutomationsPage() {
 
   return (
     <>
-      <StudioHeader tab="automations" title="Automations" />
+      <StudioHeader
+        tab="automations"
+        title="Automations"
+        actions={
+          <button type="button" className="pm2-btn pri" disabled={busy !== null} onClick={() => setCreating((v) => !v)}>
+            <Plus size={14} /> New automation
+          </button>
+        }
+      />
       <div className="pm2-body">
         {q.error && <Callout tone="sun" title="Could not load automations" body={(q.error as Error).message} />}
         <Callout
@@ -68,6 +90,18 @@ export default function AutomationsPage() {
           title="Always-on emails"
           body="Each automation emails people when something happens (a cart left behind, an order placed). Drafts send nothing. Send yourself a test before switching one on. Only people with an email who have not unsubscribed get these."
         />
+        {creating && (
+          <div className="pm2-panel" style={{ padding: 16, display: "grid", gap: 10 }}>
+            <h3 style={{ margin: 0, fontSize: 15 }}>Start a new automation</h3>
+            <span className={s.hint}>It starts as a draft. Nothing sends until an admin switches it on.</span>
+            <div className={s.row}>
+              <button type="button" className="pm2-btn ghost" disabled={busy !== null} onClick={() => create()}>Start blank</button>
+              {flows.map((f) => (
+                <button key={f.id} type="button" className="pm2-btn ghost" disabled={busy !== null} onClick={() => create(f.id)}>Copy “{f.name}”</button>
+              ))}
+            </div>
+          </div>
+        )}
         {q.isLoading && <div className="pm2-panel" style={{ padding: 16 }}><span className={s.hint}>Loading…</span></div>}
         {flows.map((f) => {
           const st = STATUS[f.status] ?? { tone: "neu" as const, label: f.status };
@@ -77,7 +111,7 @@ export default function AutomationsPage() {
               <div className={s.row} style={{ justifyContent: "space-between" }}>
                 <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
                   <div className={s.row}>
-                    <b style={{ fontSize: 15.5 }}>{f.name}</b>
+                    <a href={`/dashboard/email/automations/${f.id}`} style={{ fontSize: 15.5, fontWeight: 700, color: "var(--pm-ink)", textDecoration: "none" }}>{f.name}</a>
                     <Pill tone={st.tone}>{st.label}</Pill>
                   </div>
                   {f.description && <span className={s.hint}>{f.description}</span>}
@@ -86,7 +120,7 @@ export default function AutomationsPage() {
                   <button type="button" className="pm2-btn ghost" disabled={busy !== null} onClick={() => test(f)}>
                     <Send size={14} /> {busy === `test:${f.id}` ? "Sending…" : "Send me a test"}
                   </button>
-                  <a className="pm2-btn ghost" href={`/dashboard/flows/${f.id}`}><Pencil size={14} /> Edit emails</a>
+                  <a className="pm2-btn ghost" href={`/dashboard/email/automations/${f.id}`}><Pencil size={14} /> Open</a>
                   {admin && (
                     <button
                       type="button"
