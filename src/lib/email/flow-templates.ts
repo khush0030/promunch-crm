@@ -565,22 +565,25 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     steps: [
       {
         type: "email",
-        format: "plain",
+        // Founder-letter style (owner rejected bare plain text, 2026-09-30).
+        // Pure thank-you: no selling, no order details (Shopify + WhatsApp
+        // already confirm the order).
+        format: "designed",
         from_name: PARTH_FROM,
-        signature: PARTH_SIG,
         delay_hours: 0.25,
         bypass_freq_cap: true,
         subject: "Thank you, {{first_name}} (this is not a receipt)",
         subject_variants: ["A quick thank you from a real human at PROMUNCH", "You just made our day, {{first_name}}"],
         preview_text: "No order details here, just a thank you.",
         preview_variants: ["Parth here, founder of PROMUNCH."],
-        body_html: PLAIN(
-          "Hi {{first_name}},",
-          "Parth here, I'm the founder of PROMUNCH. Your order confirmation is already with you, so this is not another receipt. I just wanted to say thank you.",
-          "You picked a small Indian snack brand to try, and that genuinely means a lot to us.",
-          "One tip while you wait: once a pack is open, seal it tight so the crunch stays crunchy.",
-          "If anything is not right with your order, just reply to this email and we will sort it out.",
-        ),
+        body_html:
+          eyebrow("A note from our founder") +
+          h1("Thank you, {{first_name}}") +
+          p("Parth here, I'm the founder of PROMUNCH. Your order confirmation is already with you, so this is not another receipt. I just wanted to say thank you.") +
+          p("You picked a small Indian snack brand to try, and that genuinely means a lot to us. We built PROMUNCH because savoury snacks with real protein were so hard to find, and every order helps us make more of them.") +
+          p("<strong>One tip while you wait:</strong> once a pack is open, seal it tight so the crunch stays crunchy.") +
+          p("If anything is not right with your order, <strong>just reply to this email</strong> and we will sort it out.") +
+          founderSignoff(),
       },
       {
         type: "email",
