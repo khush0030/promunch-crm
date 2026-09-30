@@ -460,24 +460,32 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           socialRow(),
       },
       {
+        // Owner, 2026-09-30: welcome 1 already tells the founder story, so day
+        // 2 is Parth's "what to try first" guide (founder-letter style). Sorted
+        // by what you want, facts only (protein figures owner-confirmed).
         type: "email",
-        format: "plain",
+        format: "designed",
         from_name: PARTH_FROM,
-        signature: PARTH_SIG,
         delay_hours: 48,
-        subject: "Hi {{first_name}}, it's Parth from PROMUNCH",
-        subject_variants: ["A quick hello from our founder", "Thanks for joining us, {{first_name}}"],
-        preview_text: "Why we make PROMUNCH, in a few lines.",
-        preview_variants: ["Not sure what to try first? Ask me."],
+        subject: "Not sure what to try first? Here is my pick",
+        subject_variants: ["{{first_name}}, which PROMUNCH is right for you?", "A quick guide from our founder"],
+        preview_text: "Pick by what you are in the mood for. Your 15% code is still active.",
+        preview_variants: ["Most protein, namkeen crunch or chip cravings? Start here."],
         coupon: { percent_off: 15, expires_in_days: 8, prefix: "WELCOME15" },
         coupon_code: "",
-        body_html: PLAIN(
-          "Hi {{first_name}},",
-          "I'm Parth, the founder of PROMUNCH. Thank you for joining us.",
-          "Quick story. We started PROMUNCH because snacking in India mostly meant fried namkeen and chips. Tasty, but with very little protein. We wanted a crunchy snack you could reach for every day and feel good about.",
-          "If you are not sure where to start, reply and tell me what you like, spicy, tangy or light and salty, and I will point you to the right pack.",
-          `And if you just want to dive in, your 15% code <b>{{coupon_code}}</b> is still active. <a href="${link(PATHS.bestSellers, "welcome", 2)}">Here are our Best Sellers</a>.`,
-        ),
+        body_html:
+          eyebrow("A note from our founder") +
+          h1("Not sure what to try first?") +
+          p("Hi {{first_name}}, Parth here. The question I get most is \"where do I start?\" So here is how I would pick:") +
+          p(`<strong>Want the most protein?</strong> Go for our <a href="${link(PRODUCTS.edamameRockSalt.path, "welcome", 2)}">Roasted Edamame</a>, roasted in olive oil, with 42 to 45g of protein per 100g.`) +
+          p(`<strong>Love a namkeen-style crunch?</strong> Try our <a href="${link(PRODUCTS.crunchies4.path, "welcome", 2)}">Soya Crunchies</a>, roasted, in Noodle Masala, Peri Peri, Tangy Pudina and Cheese &amp; Onion.`) +
+          p(`<strong>Craving chips?</strong> Our <a href="${link(PRODUCTS.sticksChips.path, "welcome", 2)}">Soya Sticks and Chips</a> are fried, for that classic chip crunch.`) +
+          p(`<strong>Can't decide?</strong> The <a href="${link(PRODUCTS.edamameCombo.path, "welcome", 2)}">Roasted Edamame Combo</a> has all three flavours. Or just hit reply and tell me what you like, I will point you to the right pack.`) +
+          founderSignoff() +
+          divider() +
+          grid(["edamameCombo", "crunchies4", "sticksChips"], "welcome", 2) +
+          couponBox(CODE, "Your 15% welcome code is still active", "One use only. Valid for 5 more days.") +
+          button("Shop Best Sellers", link(PATHS.bestSellers, "welcome", 2), "solid", { full: true }),
       },
       {
         type: "email",
