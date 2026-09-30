@@ -85,6 +85,7 @@ describe("api", () => {
     expect(canCallApi(marketer, "/api/whatsapp/tags", "GET")).toBe(true);
     expect(canCallApi(marketer, "/api/whatsapp/lists", "POST")).toBe(true);
     expect(canCallApi(marketer, "/api/whatsapp/campaigns/audience-preview", "POST")).toBe(true);
+    expect(canCallApi(marketer, "/api/whatsapp/campaigns/abc/journey", "GET")).toBe(true);
     expect(canCallApi(marketer, "/api/brevo/campaigns/1/actions", "POST")).toBe(true);
     expect(canCallApi(marketer, "/api/metrics/attention", "GET")).toBe(true);
   });

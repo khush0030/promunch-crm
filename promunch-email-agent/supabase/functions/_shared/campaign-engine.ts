@@ -11,6 +11,9 @@
 //   pacing helpers         IST day, quiet hours, next allowed wave slot
 //   buildTemplateComponents / validateCampaignSetup
 //                          template-schema-driven component builder
+//   followupGate / followupFinish / followupFilterError
+//                          campaign journeys: when a follow-up may run, and
+//                          when it may complete (never early) or must wait
 //
 // SAFETY DIRECTION (promunch-email-agent/CLAUDE.md §0): every uncertain branch
 // resolves toward NOT sending. An unknown error is terminal, an ambiguous claim
@@ -255,6 +258,137 @@ export function budgetResumeAt(nowMs: number, oldestCountedMs: number | null, wa
   if (oldestCountedMs == null || !Number.isFinite(oldestCountedMs)) return nextWaveAt(nowMs, waveMin);
   const frees = Math.max(nowMs + 60_000, oldestCountedMs + DAY_MS + BUDGET_MARGIN_MS);
   return nextAllowedAt(frees, waveMin);
+}
+
+// ---------------------------------------------------------------------------
+// Follow-ups (campaign journeys)
+// ---------------------------------------------------------------------------
+// A follow-up is a wa_campaigns row with followup_of = parent id. Its audience
+// is always { retarget: { campaign_id: parent, stage, min_hours_since } }; the
+// SQL makes each contact eligible `min_hours_since` hours after the parent
+// first reached them. These verdicts decide when the engine may STOP looking
+// (never early: someone still waiting for their time must get their chance)
+// and when it should look again.
+
+export const FOLLOWUP_STAGES = [
+  "delivered", "read", "not_read", "read_no_reply", "replied",
+  "clicked", "not_clicked", "ordered", "not_ordered",
+] as const;
+export type FollowupStage = (typeof FOLLOWUP_STAGES)[number];
+export const FOLLOWUP_MIN_HOURS = 1;
+export const FOLLOWUP_MAX_HOURS = 720;
+// Hard stop: 30 days after the parent started PLUS the follow-up's own delay.
+// (Without the delay a 30-day follow-up could never fire, and a 14-day one
+// would silently miss everyone the parent reached after day 16.)
+export const FOLLOWUP_LIFETIME_MS = 30 * DAY_MS;
+export function followupLifetimeEndMs(startedMs: number, delayHours = 0): number {
+  const h = Number.isFinite(delayHours) && delayHours > 0 ? delayHours : 0;
+  return startedMs + FOLLOWUP_LIFETIME_MS + h * 3600_000;
+}
+export const FOLLOWUP_PARENT_RECHECK_MS = 60 * 60_000; // parent still sending: look again hourly
+export const FOLLOWUP_MIN_DEFER_MS = 60_000; //        never hot-loop
+export const PARENT_TERMINAL_STATUSES: ReadonlySet<string> = new Set(["completed", "cancelled", "failed"]);
+
+export interface FollowupParent {
+  status: string;
+  started_at: string | null;
+}
+export interface FollowupTiming {
+  next_due_at?: string | null; // earliest future "anchor + hours" over all parent contacts
+  last_due_at?: string | null; //  latest "anchor + hours" over all parent contacts
+}
+
+// Before a batch: may this follow-up run at all?
+//   cancel             parent was cancelled: the whole journey stops
+//   wait_parent_start  parent not launched yet: do nothing (stay armed)
+//   expired            30 days + the delay since the parent started: finish now
+//   open               run the normal batch
+export type FollowupGate = "cancel" | "wait_parent_start" | "expired" | "open";
+
+export function followupGate(parent: FollowupParent | null, nowMs: number, delayHours = 0): FollowupGate {
+  // Parent row gone (deleted): its messages lost campaign_id, the retarget
+  // matches nobody, so the normal flow completes it. Nothing to wait for.
+  if (!parent) return "open";
+  if (parent.status === "cancelled") return "cancel";
+  const started = parent.started_at ? Date.parse(parent.started_at) : NaN;
+  if (!Number.isFinite(started)) return "wait_parent_start";
+  if (nowMs >= followupLifetimeEndMs(started, delayHours)) return "expired";
+  return "open";
+}
+
+// When the batch found nobody left to send to right now: complete, or park
+// until the next person's time (or re-check while the parent still runs).
+export type FollowupFinish =
+  | { kind: "complete" }
+  | { kind: "expired" }
+  | { kind: "cancel" }
+  | { kind: "defer"; resumeAtMs: number; reason: "parent_running" | "waiting_for_time" };
+
+export function followupFinish(
+  parent: FollowupParent | null,
+  timing: FollowupTiming | null,
+  nowMs: number,
+  waveMin = DEFAULT_WAVE_MIN,
+  delayHours = 0,
+): FollowupFinish {
+  const gate = followupGate(parent, nowMs, delayHours);
+  if (gate === "cancel") return { kind: "cancel" };
+  if (gate === "expired") return { kind: "expired" };
+  if (!parent) return { kind: "complete" };
+  const startedMs = Date.parse(parent.started_at ?? "");
+  const parentRunning = gate === "wait_parent_start" || !PARENT_TERMINAL_STATUSES.has(parent.status);
+  const next = timing?.next_due_at ? Date.parse(timing.next_due_at) : NaN;
+  const last = timing?.last_due_at ? Date.parse(timing.last_due_at) : NaN;
+  const timePending = Number.isFinite(last) && last > nowMs;
+  if (!parentRunning && !timePending) return { kind: "complete" };
+
+  let at = Number.POSITIVE_INFINITY;
+  if (Number.isFinite(next) && next > nowMs) at = next;
+  if (parentRunning) at = Math.min(at, nowMs + FOLLOWUP_PARENT_RECHECK_MS);
+  if (!Number.isFinite(at)) at = nowMs + FOLLOWUP_PARENT_RECHECK_MS; // pending but no next: look again
+  at = Math.max(at, nowMs + FOLLOWUP_MIN_DEFER_MS);
+  if (Number.isFinite(startedMs)) at = Math.min(at, followupLifetimeEndMs(startedMs, delayHours));
+  at = nextAllowedAt(at, waveMin);
+  return { kind: "defer", resumeAtMs: at, reason: parentRunning ? "parent_running" : "waiting_for_time" };
+}
+
+// True when any of `cols` differs between the row read before the send lock
+// and the row returned by the lock update (jsonb values come back from
+// PostgREST in one canonical serialization, so JSON equality is exact).
+export function contentChanged(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+  cols: readonly string[],
+): boolean {
+  return cols.some((k) => JSON.stringify(before[k] ?? null) !== JSON.stringify(after[k] ?? null));
+}
+
+// The engine trusts audience_filter, but a follow-up whose filter does not
+// point at its own parent with its own timing is refused (fail closed: a
+// hand-edited row must not broadcast to a different audience).
+export function followupFilterError(c: {
+  followup_of?: string | null;
+  followup_after_hours?: number | null;
+  followup_stage?: string | null;
+  audience_filter?: unknown;
+}): string | null {
+  if (!c.followup_of) return null;
+  const f = (c.audience_filter ?? {}) as Record<string, unknown>;
+  const rt = (f.retarget ?? null) as Record<string, unknown> | null;
+  const extra = Object.keys(f).filter((k) => k !== "retarget");
+  if (
+    !rt || extra.length ||
+    String(rt.campaign_id ?? "").toLowerCase() !== String(c.followup_of).toLowerCase() ||
+    rt.stage !== c.followup_stage ||
+    Number(rt.min_hours_since) !== Number(c.followup_after_hours) ||
+    !(FOLLOWUP_STAGES as readonly string[]).includes(String(c.followup_stage)) ||
+    !Number.isInteger(c.followup_after_hours) ||
+    (c.followup_after_hours as number) < FOLLOWUP_MIN_HOURS ||
+    (c.followup_after_hours as number) > FOLLOWUP_MAX_HOURS
+  ) {
+    return "This follow-up's audience does not match its parent and timing. Edit the follow-up to fix it.";
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------

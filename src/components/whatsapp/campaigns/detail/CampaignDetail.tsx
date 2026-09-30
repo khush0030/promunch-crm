@@ -4,6 +4,7 @@
 // orders, who is held back and why, failures in plain English, recipients,
 // one-click follow-ups, and the message as sent. Polls every 10s while sending.
 
+import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Clock, Repeat } from "lucide-react";
 import { Callout, Card, Funnel, Kpi, KpiStrip, PageHeader } from "@/components/pm";
@@ -12,12 +13,16 @@ import { friendlyTemplateName } from "@/lib/whatsapp/templateKind";
 import { campaignNextStep, campaignSentence } from "../../home/summary";
 import type { Campaign } from "../../types";
 import { classifyWaError, explainWaError } from "../../waErrors";
-import { errorMessage, useApprovedTemplates, useCampaign, useCampaignAnalytics, useFailures } from "../api";
+import { errorMessage, useApprovedTemplates, useCampaign, useCampaignAnalytics, useFailures, useJourney } from "../api";
+import { FollowupDrawer, type DrawerTarget } from "../followups/FollowupDrawer";
+import { descendantCount, followupShortLabel } from "../journey";
+import type { CampaignAction } from "../logic";
+import { JourneyCard } from "./JourneyCard";
 import { CampaignPreview, StatusPill, TechDetails } from "../bits";
 import { breakdownRows, fmtInr, fmtInt, fmtIst, fmtPct, inQuietHours, pct, progressOf, statusMeta } from "../logic";
 import { describeAudience } from "../wizard/StepReview";
 import { audienceFromFilter } from "../logic";
-import { ActionButtons, useCampaignActions } from "../useCampaignActions";
+import { ActionButtons, campaignHref, useCampaignActions } from "../useCampaignActions";
 import { RecipientsCard } from "./RecipientsCard";
 import s from "../campaigns.module.css";
 import { useNow } from "../useNow";
@@ -27,7 +32,12 @@ const crumb = <>Marketing · <Link href={LIST_HREF}>WhatsApp marketing</Link></>
 
 export default function CampaignDetail({ id }: { id: string }) {
   const q = useCampaign(id);
-  const { run, dialog, busy } = useCampaignActions({ afterDelete: () => window.location.assign(LIST_HREF) });
+  const journey = useJourney(id);
+  const steps = (journey.data?.steps ?? []).map((st) => ({ ...st, followup_of: st.parent_id ?? st.followup_of ?? null }));
+  const { run, dialog, busy } = useCampaignActions({
+    afterDelete: () => window.location.assign(LIST_HREF),
+    followupCount: (c) => descendantCount(steps, c.id),
+  });
   const back = (
     <Link className="pm2-btn sm" href={LIST_HREF}>
       <ArrowLeft size={14} aria-hidden /> All campaigns
@@ -57,21 +67,30 @@ export default function CampaignDetail({ id }: { id: string }) {
         title={c.name}
         actions={
           <div className="pm2-actions" style={{ flexWrap: "wrap" }}>
-            <StatusPill status={c.status} />
+            <StatusPill status={c.status} followup={!!c.followup_of} />
             <ActionButtons campaign={c} run={run} busy={busy} hide={["open"]} />
             {back}
           </div>
         }
       />
       <div className="pm2-body">
-        <Detail c={c} />
+        {c.followup_of && (
+          <div className={s.help} style={{ marginBottom: 12 }}>
+            {followupShortLabel(c.followup_after_hours, c.followup_stage)} ·{" "}
+            <Link href={campaignHref(c.followup_of)}>Open the first message</Link>
+          </div>
+        )}
+        <Detail c={c} run={run} busy={busy} />
       </div>
       {dialog}
     </>
   );
 }
 
-function Detail({ c }: { c: Campaign }) {
+function Detail({ c, run, busy }: { c: Campaign; run: (a: CampaignAction, c: Campaign) => void; busy: string | null }) {
+  const [drawer, setDrawer] = useState<DrawerTarget | null>(null);
+  const journey = useJourney(c.id);
+  const directKids = (journey.data?.steps ?? []).filter((st) => (st.parent_id ?? st.followup_of) === c.id).length;
   const live = c.status === "sending";
   const now = useNow(30_000);
   const failures = useFailures(c.id, (c.failed_count ?? 0) > 0, live);
@@ -127,7 +146,21 @@ function Detail({ c }: { c: Campaign }) {
           tone={next.tone}
           title={next.title}
           body={next.body}
-          primary={next.stage ? { label: "Set up a follow-up", href: followHref(next.stage) } : undefined}
+          primary={
+            next.stage && c.status !== "cancelled" && c.status !== "failed"
+              ? {
+                  label: "Set up a follow-up",
+                  onClick: () =>
+                    setDrawer({
+                      mode: "add",
+                      parent: { id: c.id, name: c.name, status: c.status, sent_count: c.sent_count, template: c.template },
+                      siblings: directKids,
+                      stage: next.stage,
+                    }),
+                }
+              : undefined
+          }
+          secondary={next.stage ? { label: "Send something now instead", href: followHref(next.stage) } : undefined}
         />
       )}
 
@@ -137,6 +170,8 @@ function Detail({ c }: { c: Campaign }) {
         <Kpi label={<>Read <HelpTip term="read" /></>} value={fmtPct(pct(c.read_count, sent))} sub={`${fmtInt(c.read_count)} people`} />
         <Kpi label={<>Replies <HelpTip term="reply" /></>} value={fmtInt(c.replied_count ?? 0)} sub={`${fmtInt(c.clicked_count ?? 0)} link clicks`} />
       </KpiStrip>
+
+      <JourneyCard c={c} run={run} busy={busy} onOpenDrawer={setDrawer} />
 
       <div className="pm2-g21">
         <Card title="Progress" basis={statusMeta(c.status).hint}>
@@ -235,9 +270,12 @@ function Detail({ c }: { c: Campaign }) {
       </div>
 
       {sent > 0 && (
-        <Card title="Follow up" basis="opens a new campaign with this audience" right={<HelpTip term="retarget" />}>
+        <Card title="Send something now to…" basis="a separate campaign that goes out right away" right={<HelpTip term="retarget" />}>
+          <p className={s.help} style={{ marginTop: 0 }}>
+            For a message that waits for each person&apos;s time, use <b>Add a follow-up</b> in the Journey above instead.
+          </p>
           <div className={s.inline}>
-            <Link className="pm2-btn sm pri" href={`/dashboard/whatsapp/campaigns/new?retarget=${c.id}&stage=not_read`}>Retarget people who didn&apos;t read</Link>
+            <Link className="pm2-btn sm" href={`/dashboard/whatsapp/campaigns/new?retarget=${c.id}&stage=not_read`}>People who didn&apos;t read</Link>
             <Link className="pm2-btn sm" href={`/dashboard/whatsapp/campaigns/new?retarget=${c.id}&stage=read_no_reply`}>Read but didn&apos;t reply</Link>
             {(heldByMeta ?? 0) > 0 && (
               <Link className="pm2-btn sm" href={`/dashboard/whatsapp/campaigns/new?retarget=${c.id}&stage=failed_cap`}>Held back by Meta</Link>
@@ -247,11 +285,12 @@ function Detail({ c }: { c: Campaign }) {
       )}
 
       <RecipientsCard id={c.id} name={c.name} live={live} />
+      {drawer && <FollowupDrawer target={drawer} onClose={() => setDrawer(null)} />}
 
       <Card title="Details">
         <dl className={s.summary}>
           <dt>Message</dt><dd>{c.template?.name ? friendlyTemplateName(c.template.name) : "–"}</dd>
-          <dt>Audience</dt><dd>{describeAudience(audience)}</dd>
+          <dt>Audience</dt><dd>{c.followup_of ? followupShortLabel(c.followup_after_hours, c.followup_stage) : describeAudience(audience)}</dd>
           <dt>Picture</dt><dd>{c.header_media_url ? "A file just for this campaign" : "The template's own"}</dd>
           <dt>AI personalisation</dt><dd>{c.template_vars?._ai_brief ? "On" : "Off"}</dd>
           <dt>Created</dt><dd>{fmtIst(c.created_at)}</dd>

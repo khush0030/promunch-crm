@@ -38,7 +38,9 @@ export async function GET(req: NextRequest) {
   const nowIso = new Date().toISOString();
   const { data: due, error } = await supabaseAdmin
     .from("wa_campaigns")
-    .select("id, name, scheduled_at, repeat_rule, repeat_until, template_id, template_vars, audience_filter, created_by, header_media_url")
+    // "*" (not a column list) so this keeps working before the follow-up
+    // migration adds followup_of.
+    .select("*")
     .eq("status", "scheduled")
     .lte("scheduled_at", nowIso);
   if (error) {
@@ -48,6 +50,9 @@ export async function GET(req: NextRequest) {
 
   const fired: { id: string; name: string; ok: boolean; note?: string }[] = [];
   for (const c of due ?? []) {
+    // A follow-up (journey step) never starts on a clock: the pg_cron
+    // wa-campaign-worker starts it from its parent.
+    if (c.followup_of) continue;
     // Recurring campaign: spawn a one-time CHILD for this occurrence and advance
     // the parent to the next slot. The parent itself never sends.
     if (c.repeat_rule) {

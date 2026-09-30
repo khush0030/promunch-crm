@@ -8,6 +8,7 @@ import { FileText, ImageIcon, MessageSquareText, Video } from "lucide-react";
 import { Pill } from "@/components/pm";
 import { WhatsAppPreview } from "../WhatsAppPreview";
 import type { TemplateButton } from "../types";
+import { followupStatusMeta } from "./journey";
 import { fillText, SAMPLE_NAME, statusMeta } from "./logic";
 import s from "./campaigns.module.css";
 
@@ -75,8 +76,8 @@ export function CampaignPreview({
   );
 }
 
-export function StatusPill({ status }: { status: string }) {
-  const m = statusMeta(status);
+export function StatusPill({ status, followup = false }: { status: string; followup?: boolean }) {
+  const m = followup ? followupStatusMeta(status) : statusMeta(status);
   return (
     <Pill tone={m.tone} tip={m.hint}>
       {m.label}

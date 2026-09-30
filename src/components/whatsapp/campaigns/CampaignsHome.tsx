@@ -12,6 +12,7 @@ import { GlossaryTerm } from "@/components/guide";
 import { errorMessage, useCampaigns } from "./api";
 import { AudienceInsights } from "./AudienceInsights";
 import { CampaignRow } from "./CampaignRow";
+import { descendantCount, filterJourneyList } from "./journey";
 import { LIST_FILTERS, matchesListFilter, matchesSearch, type ListFilter } from "./logic";
 import { StatusStrip } from "./StatusStrip";
 import { useCampaignActions } from "./useCampaignActions";
@@ -21,7 +22,7 @@ export const NEW_CAMPAIGN_HREF = "/dashboard/whatsapp/campaigns/new";
 
 export default function CampaignsHome() {
   const q = useCampaigns();
-  const { run, dialog, busy } = useCampaignActions();
+  const { run, dialog, busy } = useCampaignActions({ followupCount: (c) => descendantCount(q.data ?? [], c.id) });
   const [filter, setFilter] = useState<ListFilter>("all");
   const [search, setSearch] = useState("");
 
@@ -30,7 +31,9 @@ export default function CampaignsHome() {
     () => Object.fromEntries(LIST_FILTERS.map((f) => [f.key, list.filter((c) => matchesListFilter(c.status, f.key)).length])),
     [list],
   );
-  const shown = list.filter((c) => matchesListFilter(c.status, filter) && matchesSearch(c, search));
+  // Follow-ups sit under their parent; a match anywhere keeps the journey
+  // (with the parents a matching follow-up hangs from).
+  const shown = filterJourneyList(list, (c) => matchesListFilter(c.status, filter) && matchesSearch(c, search));
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -38,8 +41,8 @@ export default function CampaignsHome() {
         <div>
           <h2 style={{ margin: 0, fontSize: 20, fontFamily: "var(--pm-display)" }}>Campaigns</h2>
           <div className={s.help}>
-            A campaign sends one approved <GlossaryTerm k="template">template</GlossaryTerm> to a group of customers. Meta charges only for{" "}
-            <GlossaryTerm k="delivered">delivered</GlossaryTerm> messages.
+            A campaign sends one approved <GlossaryTerm k="template">template</GlossaryTerm> to a group of customers, plus optional{" "}
+            <GlossaryTerm k="followup">follow-ups</GlossaryTerm> later. Meta charges only for <GlossaryTerm k="delivered">delivered</GlossaryTerm> messages.
           </div>
         </div>
         <Link href={NEW_CAMPAIGN_HREF} className="pm2-btn pri">
@@ -100,8 +103,10 @@ export default function CampaignsHome() {
       )}
 
       <div className={s.list}>
-        {shown.map((c) => (
-          <CampaignRow key={c.id} c={c} run={run} busy={busy} />
+        {shown.map(({ item: c, depth }) => (
+          <div key={c.id} className={depth > 0 ? s.fuChild : undefined} style={depth > 1 ? { marginLeft: 22 * depth } : undefined}>
+            <CampaignRow c={c} run={run} busy={busy} />
+          </div>
         ))}
       </div>
 

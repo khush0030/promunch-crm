@@ -114,7 +114,7 @@ export default function StartHere() {
             href={NEW_CAMPAIGN_HREF}
             icon={<Megaphone aria-hidden />}
             title="Send a campaign"
-            text="Send one approved message to a group of customers, now or at a time you pick."
+            text="Send one approved message to a group of customers, now or at a time you pick. Add follow-ups too, like a reminder 2 days later to people who didn't read it."
             cta="Start a campaign"
             primary
           />
@@ -150,6 +150,11 @@ export default function StartHere() {
           <li>
             <b>A campaign sends a template to an audience.</b> You choose who gets it, fill in the blanks (like the offer or the picture) and
             pick when it goes out.
+          </li>
+          <li>
+            <b>Follow-ups go out later, by themselves.</b> Add a <GlossaryTerm k="followup">follow-up</GlossaryTerm> to any campaign, for
+            example 2 days after each person gets it, only to the people who read it. A campaign with its follow-ups is a{" "}
+            <GlossaryTerm k="journey">journey</GlossaryTerm>.
           </li>
           <li>
             <b>At most 1 marketing message per person per day, never at night.</b> This is our <GlossaryTerm k="fair_use">fair use</GlossaryTerm>{" "}

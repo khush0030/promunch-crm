@@ -71,7 +71,16 @@ export function matchesSearch(c: Pick<Campaign, "name"> & { template?: { name?: 
 // Which buttons a campaign row offers. The API still has the final say (it
 // answers 409 with a plain reason); this only hides buttons that can't work.
 export type CampaignAction = "open" | "edit" | "duplicate" | "pause" | "resume" | "cancel" | "delete";
-export function allowedActions(c: Pick<Campaign, "status" | "sent_count" | "failed_count">): CampaignAction[] {
+// Follow-ups never offer Duplicate (a copy would lose its link to the parent);
+// their Edit opens the Journey on the campaign page.
+export function allowedActions(
+  c: Pick<Campaign, "status" | "sent_count" | "failed_count"> & { followup_of?: string | null },
+): CampaignAction[] {
+  const out = baseActions(c);
+  return c.followup_of ? out.filter((a) => a !== "duplicate") : out;
+}
+
+function baseActions(c: Pick<Campaign, "status" | "sent_count" | "failed_count">): CampaignAction[] {
   const untouched = (c.sent_count ?? 0) === 0 && (c.failed_count ?? 0) === 0;
   const out: CampaignAction[] = ["open"];
   switch (c.status) {
@@ -242,7 +251,11 @@ export function audienceFromFilter(f: CampaignAudienceFilter | null | undefined)
   if (tags.includes(UNCHOSEN_AUDIENCE_TAG)) return base;
   if (f.engagement === "warm") return { ...base, mode: "warm" };
   if (f.retarget?.campaign_id) {
-    return { ...base, mode: "retarget", retargetCampaignId: f.retarget.campaign_id, retargetStage: f.retarget.stage };
+    // A follow-up's own stages (read, ordered, ...) have no "send now" twin;
+    // copying one as a plain campaign starts from the safe default instead.
+    const known = RETARGET_STAGES.find((x) => x.key === f.retarget!.stage);
+    if (!known || f.retarget.min_hours_since != null) return base;
+    return { ...base, mode: "retarget", retargetCampaignId: f.retarget.campaign_id, retargetStage: known.key };
   }
   const onlyTags = !f.tags_all?.length && !f.exclude_tags?.length;
   if (onlyTags && tags.length === 0) return { ...base, mode: "everyone" };
@@ -638,6 +651,7 @@ export const STEPS = [
   { key: "content", label: "Fill in", next: "Next: fill in the message" },
   { key: "audience", label: "Who gets it", next: "Next: choose who gets it" },
   { key: "schedule", label: "When", next: "Next: pick when it goes out" },
+  { key: "followups", label: "Follow-ups", next: "Next: follow-ups (optional)" },
   { key: "review", label: "Check and send", next: "Next: check and send" },
 ] as const;
 export type StepKey = (typeof STEPS)[number]["key"];

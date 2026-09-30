@@ -36,7 +36,9 @@ export type GlossaryKey =
   | "test_send"
   | "header_media"
   | "quality_rating"
-  | "retarget";
+  | "retarget"
+  | "followup"
+  | "journey";
 
 export type GlossaryEntry = {
   /** Display name of the term, sentence case. */
@@ -211,6 +213,19 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
     plain:
       "Send a follow-up to people from an earlier campaign based on what they did, for example those who read it but did not order.",
     customerEffect: "They get a gentle, relevant nudge rather than the same message again.",
+  },
+  followup: {
+    term: "Follow-up",
+    plain:
+      "A second message that goes out by itself some time after a campaign, only to the people it fits, for example 2 days later to people who read it. The wait counts from when each person got the first message.",
+    customerEffect:
+      "They get a timely next message that matches what they did, never the same one twice, and still at most 1 marketing message a day.",
+  },
+  journey: {
+    term: "Journey",
+    plain:
+      "A campaign together with its follow-ups: the first message, then the messages that go out later depending on what each person did.",
+    customerEffect: "A short, sensible series of messages instead of one-off blasts.",
   },
 };
 

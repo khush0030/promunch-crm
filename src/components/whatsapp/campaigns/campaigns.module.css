@@ -187,3 +187,57 @@
 .recTools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .emptySteps { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; line-height: 1.5; color: var(--pm-muted); }
 .stripHead { display: flex; gap: 6px; align-items: center; justify-content: space-between; }
+
+/* ---------- journeys (follow-ups) ---------- */
+.subBlock { display: grid; gap: 8px; min-width: 0; padding-top: 12px; border-top: 1px solid var(--pm-line); }
+.sentence {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 8px; font-size: 15px; line-height: 1.6; min-width: 0;
+}
+.sentence > span { white-space: nowrap; }
+.sentence .input, .sentence .select { width: auto; padding: 6px 9px; font-size: 14px; }
+.sentNum { width: 64px !important; text-align: center; }
+.sentTpl { max-width: 100%; min-width: 0; flex: 1 1 180px; }
+.sentStage { max-width: 100%; min-width: 0; flex: 1 1 220px; }
+.fuCard { border: 1px solid var(--pm-border); border-radius: 12px; background: var(--pm-card); padding: 14px; display: grid; gap: 12px; min-width: 0; }
+.fuHead { display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; }
+.fuTitle { font-weight: 650; font-size: 14.5px; }
+.fuBody { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 14px; align-items: start; min-width: 0; }
+.warn { border: 1px solid var(--pm-sun, #d9a441); background: var(--pm-sun-soft, #fdf5e3); border-radius: 10px; padding: 9px 12px; font-size: 13px; line-height: 1.5; }
+.suggestGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.branches { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 12px; padding-left: 14px; border-left: 2px dashed var(--pm-border); }
+.branch { border: 1px solid var(--pm-line); border-radius: 10px; padding: 10px; background: var(--pm-card2); min-width: 0; }
+.branchLabel { font-family: var(--pm-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--pm-hint); margin-bottom: 8px; }
+
+.jList { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.jStep { border: 1px solid var(--pm-border); border-radius: 12px; padding: 12px 13px; background: var(--pm-card); display: grid; gap: 8px; min-width: 0; position: relative; }
+.jStepCurrent { border-color: var(--pm-brand); box-shadow: 0 0 0 2px var(--pm-brand-soft); }
+.jIndent { position: relative; }
+.jIndent::before { content: ""; position: absolute; left: -12px; top: -10px; bottom: 50%; width: 10px; border-left: 2px solid var(--pm-border); border-bottom: 2px solid var(--pm-border); border-bottom-left-radius: 8px; }
+.jHead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: space-between; }
+.jTitle { font-weight: 650; font-size: 14px; line-height: 1.4; min-width: 0; overflow-wrap: anywhere; }
+.jCounts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.jActions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.fuChild { margin-left: 22px; position: relative; }
+.fuChild::before { content: ""; position: absolute; left: -14px; top: -10px; height: 34px; width: 10px; border-left: 2px solid var(--pm-border); border-bottom: 2px solid var(--pm-border); border-bottom-left-radius: 8px; }
+.fuTag { font-size: 12.5px; color: var(--pm-brand); font-weight: 600; }
+
+.drawerBack { position: fixed; inset: 0; z-index: 300; background: rgba(20, 14, 16, .45); display: flex; justify-content: flex-end; }
+.drawer {
+  width: min(560px, 100vw); max-width: 100vw; height: 100%; box-sizing: border-box; overflow-y: auto; overflow-x: hidden;
+  background: var(--pm-app); color: var(--pm-ink); box-shadow: -12px 0 40px rgba(0, 0, 0, .25); display: grid; grid-template-rows: auto 1fr auto;
+}
+.drawerHead { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; padding: 16px 16px 10px; border-bottom: 1px solid var(--pm-border); background: var(--pm-card); }
+.drawerTitle { margin: 0; font-size: 17px; font-family: var(--pm-display); }
+.drawerBody { padding: 16px; display: grid; gap: 14px; align-content: start; min-width: 0; }
+.drawerFoot { position: sticky; bottom: 0; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--pm-border); background: var(--pm-card); }
+
+@media (max-width: 900px) {
+  .fuBody { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .jCounts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .fuChild { margin-left: 14px; }
+  .fuChild::before { left: -10px; width: 7px; }
+  .branches { padding-left: 10px; }
+}

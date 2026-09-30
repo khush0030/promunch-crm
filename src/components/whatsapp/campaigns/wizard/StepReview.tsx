@@ -77,7 +77,10 @@ export function StepReview({
   sampleFields,
   sampleOk,
   onSampleOk,
+  followupSentences = [],
 }: {
+  /** One plain sentence per follow-up. */
+  followupSentences?: string[];
   step: number;
   total: number;
   /** Blanks whose value is exactly Meta's sample text. */
@@ -125,6 +128,16 @@ export function StepReview({
         ? `Now${startMs > now + 60_000 ? `, first messages at ${fmtIst(startMs)} (after quiet hours)` : ""}`
         : `${fmtIst(startMs)} India time${schedule.repeat ? `, repeats ${schedule.repeat}${schedule.until ? ` until ${schedule.until}` : ""}` : ""}`,
     ],
+    [
+      "Follow-ups",
+      followupSentences.length ? (
+        <ul style={{ margin: 0, paddingLeft: 18 }}>
+          {followupSentences.map((x) => <li key={x}>{x}</li>)}
+        </ul>
+      ) : (
+        "None"
+      ),
+    ],
     ["Pace", `${pace.perDay != null ? `about ${fmtInt(pace.perDay)} a day` : "depends on today's budget"}${pace.finishMs ? `, done about ${fmtIstDate(pace.finishMs)}` : ""}`],
   ];
 
@@ -140,6 +153,7 @@ export function StepReview({
   const finishText = pace.finishMs ? `, finishing around ${fmtIstDate(pace.finishMs)}` : "";
   const sentences: ReactNode[] = [
     `This will send the "${friendlyTemplateName(tpl.name)}" message${withMedia} to about ${fmtInt(people)} people, ${startText}${finishText}. It will cost about ${fmtInr(est.costInr)}.`,
+    ...followupSentences.map((x) => `Follow-up: ${x}`),
     `About ${fmtInt(est.heldBack)} will probably be held back by Meta. That is normal, costs nothing, and we try them again later.`,
     "Nothing is sent until you press the button below and confirm. You can pause or cancel it any time after.",
   ];

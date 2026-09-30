@@ -3,6 +3,7 @@
 // Step 2: campaign name, this campaign's picture/video/PDF, the template's
 // blanks and buttons, optional AI personalisation.
 
+import type { ReactNode } from "react";
 import { Sparkles, UserRound } from "lucide-react";
 import { Card } from "@/components/pm";
 import { GlossaryTerm, HelpTip, StepHeader } from "@/components/guide";
@@ -35,12 +36,8 @@ export function StepContent({
   problems: { field: string; message: string }[];
   showErrors: boolean;
 }) {
-  const fields = templateFields(tpl);
   const kind = mediaKindOf(tpl);
   const errFor = (f: string) => (showErrors ? problems.filter((p) => p.field === f) : []);
-  const setVar = (k: string, v: string) => onChange({ vars: { ...value.vars, [k]: v } });
-  const bodyFields = fields.filter((f) => f.kind === "body");
-  const otherFields = fields.filter((f) => f.kind !== "body");
   const engineErrs = errFor("engine");
 
   return (
@@ -72,8 +69,50 @@ export function StepContent({
         </label>
       </Card>
 
+      <ContentFields tpl={tpl} value={value} onChange={onChange} problems={problems} showErrors={showErrors} />
+
+      {engineErrs.length > 0 && (
+        <div className={s.danger} role="alert">
+          {engineErrs.map((p) => <div key={p.message}>{p.message}</div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The picture and the blanks (plus optional AI personalisation). Used by the
+// content step and, compact and without AI, by each follow-up.
+export function ContentFields({
+  tpl,
+  value,
+  onChange,
+  problems,
+  showErrors,
+  allowAi = true,
+  compact = false,
+}: {
+  tpl: CampaignTemplate;
+  value: Pick<ContentValue, "vars" | "mediaUrl"> & Partial<Pick<ContentValue, "ai" | "brief">>;
+  onChange: (patch: Partial<ContentValue>) => void;
+  problems: { field: string; message: string }[];
+  showErrors: boolean;
+  allowAi?: boolean;
+  compact?: boolean;
+}) {
+  const fields = templateFields(tpl);
+  const kind = mediaKindOf(tpl);
+  const errFor = (f: string) => (showErrors ? problems.filter((p) => p.field === f) : []);
+  const setVar = (k: string, v: string) => onChange({ vars: { ...value.vars, [k]: v } });
+  const bodyFields = fields.filter((f) => f.kind === "body");
+  const otherFields = fields.filter((f) => f.kind !== "body");
+  if (!kind && fields.length === 0) {
+    return compact ? <p className={s.help} style={{ margin: 0 }}>This message has nothing to fill in.</p> : null;
+  }
+  return (
+    <>
       {kind && (
-        <Card
+        <Box
+          compact={compact}
           title={kind === "image" ? "Picture" : kind === "video" ? "Video" : "PDF"}
           basis="shown at the top of the message"
           right={<HelpTip term="header_media" />}
@@ -91,11 +130,11 @@ export function StepContent({
             )}
             {errFor("media").map((p) => <span key={p.message} className={s.err}>{p.message}</span>)}
           </div>
-        </Card>
+        </Box>
       )}
 
       {(bodyFields.length > 0 || otherFields.length > 0) && (
-        <Card title="Fill in the blanks" basis={`${fields.length} to fill`} right={<HelpTip term="blank_variable" />}>
+        <Box compact={compact} title="Fill in the blanks" basis={`${fields.length} to fill`} right={<HelpTip term="blank_variable" />}>
           <div className={s.stack}>
             {[...otherFields.filter((f) => f.kind === "header"), ...bodyFields, ...otherFields.filter((f) => f.kind !== "header")].map((f) => {
               const errs = errFor(f.key);
@@ -138,14 +177,14 @@ export function StepContent({
               <b>{"{name}"}</b> becomes each customer&apos;s first name, or &quot;there&quot; when we don&apos;t know it.
             </p>
           </div>
-        </Card>
+        </Box>
       )}
 
-      {bodyFields.length > 0 && (
+      {allowAi && bodyFields.length > 0 && (
         <Card title="AI personalisation" basis="optional, most campaigns leave this off">
           <div className={s.stack}>
             <label className={s.check}>
-              <input type="checkbox" checked={value.ai} onChange={(e) => onChange({ ai: e.target.checked })} />
+              <input type="checkbox" checked={!!value.ai} onChange={(e) => onChange({ ai: e.target.checked })} />
               <span>
                 <Sparkles size={14} aria-hidden style={{ verticalAlign: -2, color: "var(--pm-brand)" }} /> Let AI write the blanks for each person
                 <span className={s.help} style={{ display: "block" }}>
@@ -159,7 +198,7 @@ export function StepContent({
                 <textarea
                   className={`${s.textarea} ${errFor("brief").length ? s.inputErr : ""}`}
                   rows={3}
-                  value={value.brief}
+                  value={value.brief ?? ""}
                   onChange={(e) => onChange({ brief: e.target.value })}
                   placeholder="e.g. Suggest a snack based on what they bought before, mention the Diwali 15% offer, keep it short and warm."
                 />
@@ -170,11 +209,32 @@ export function StepContent({
         </Card>
       )}
 
-      {engineErrs.length > 0 && (
-        <div className={s.danger} role="alert">
-          {engineErrs.map((p) => <div key={p.message}>{p.message}</div>)}
-        </div>
-      )}
+    </>
+  );
+}
+
+function Box({
+  compact,
+  title,
+  basis,
+  right,
+  children,
+}: {
+  compact: boolean;
+  title: string;
+  basis?: string;
+  right?: ReactNode;
+  children: ReactNode;
+}) {
+  if (!compact) return <Card title={title} basis={basis} right={right}>{children}</Card>;
+  return (
+    <div className={s.subBlock}>
+      <div className={s.fieldHead}>
+        <span className={s.label}>{title}</span>
+        {basis && <span className={s.muted} style={{ fontSize: 12 }}>{basis}</span>}
+        {right}
+      </div>
+      {children}
     </div>
   );
 }

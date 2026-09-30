@@ -5,7 +5,7 @@
 // login redirect and a JSON {error} into a thrown Error with that message.
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Campaign, CampaignAudienceFilter, Recipient, RecipientSummary } from "../types";
+import type { Campaign, CampaignAudienceFilter, FollowupStage, Recipient, RecipientSummary } from "../types";
 import type { CampaignTemplate } from "./logic";
 
 export class RequestError extends Error {
@@ -62,6 +62,8 @@ export type PreviewCounts = {
   excluded_daily_claim: number;
   eligible_total: number;
   eligible: number;
+  /** Follow-ups: reached by the parent but not yet past their wait. */
+  waiting_for_time?: number;
 };
 
 export type AudiencePreview = {
@@ -79,6 +81,20 @@ export type TestSendResult = {
   error_class?: string | null;
   explanation?: { category?: string; cause?: string } | null;
 };
+
+// One step of a journey (GET /api/whatsapp/campaigns/[id]/journey), parent
+// first. `ordered_count` is optional until the API sends it.
+export type JourneyStep = Campaign & {
+  depth: number;
+  parent_id: string | null;
+  eligible_now?: number | null;
+  waiting_for_time?: number | null;
+  next_eligible_at?: string | null;
+  ordered_count?: number | null;
+};
+export type Journey = { root_id: string; steps: JourneyStep[] };
+
+export type FollowupRule = { followup_of: string; followup_after_hours: number; followup_stage: FollowupStage };
 
 export type Segment = { rfm_tier: string; customers: number; spend: number; avg_recency: number };
 export type TagCount = { tag: string; count: number };
@@ -107,6 +123,9 @@ export const qk = {
   analytics: (days: number) => ["wa-campaign-analytics", days] as const,
   preview: (key: string, id: string | null) => ["wa-audience-preview", key, id] as const,
   audienceTiers: (tags: string) => ["wa-audience-tiers", tags] as const,
+  journeyAll: ["wa-campaign-journey"] as const,
+  journey: (id: string) => ["wa-campaign-journey", id] as const,
+  followupPreview: (key: string) => ["wa-followup-preview", key] as const,
 };
 
 /* ------------------------------------------------------------------------ */
@@ -207,6 +226,29 @@ export function useAudiencePreview(filter: CampaignAudienceFilter | null, key: s
   });
 }
 
+export function useJourney(id: string | null) {
+  return useQuery({
+    queryKey: qk.journey(id ?? ""),
+    enabled: !!id,
+    queryFn: () => request<Journey>(`/api/whatsapp/campaigns/${id}/journey`),
+    refetchInterval: (q) => ((q.state.data?.steps ?? []).some((st) => isLive(st.status)) ? 15_000 : 60_000),
+    retry: 1,
+  });
+}
+
+// Who a follow-up would reach right now, and how many are still waiting for
+// their time. Only meaningful once the parent has reached people.
+export function useFollowupPreview(rule: FollowupRule | null) {
+  const key = rule ? `${rule.followup_of}|${rule.followup_after_hours}|${rule.followup_stage}` : "";
+  return useQuery({
+    queryKey: qk.followupPreview(key),
+    enabled: rule != null,
+    queryFn: () => request<AudiencePreview>("/api/whatsapp/campaigns/audience-preview", { method: "POST", json: rule }),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
 // Engagement mix for a tag-overlap audience (cold share). Only meaningful for
 // plain `tags` filters, which is exactly what /api/whatsapp/audience counts.
 export function useTierMix(tags: string[] | null) {
@@ -236,6 +278,10 @@ export type CampaignWrite = {
   repeat_rule?: string | null;
   repeat_until?: string | null;
   status?: "draft" | "scheduled";
+  // Follow-ups: all three together. The server builds the audience itself.
+  followup_of?: string;
+  followup_after_hours?: number;
+  followup_stage?: FollowupStage;
 };
 
 export const api = {
@@ -281,6 +327,7 @@ export function useInvalidateCampaigns() {
       qc.invalidateQueries({ queryKey: qk.campaigns }),
       id ? qc.invalidateQueries({ queryKey: qk.campaign(id) }) : null,
       id ? qc.invalidateQueries({ queryKey: qk.recipients(id) }) : null,
+      qc.invalidateQueries({ queryKey: qk.journeyAll }),
     ]);
 }
 

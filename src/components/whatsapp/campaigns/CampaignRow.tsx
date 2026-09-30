@@ -6,6 +6,7 @@ import type { Campaign } from "../types";
 import { friendlyTemplateName } from "@/lib/whatsapp/templateKind";
 import { useFailures } from "./api";
 import { StatusPill, TemplateThumb } from "./bits";
+import { followupShortLabel } from "./journey";
 import { fmtInt, fmtIst, fmtPct, pct, progressOf, type CampaignAction } from "./logic";
 import { ActionButtons, campaignHref } from "./useCampaignActions";
 import s from "./campaigns.module.css";
@@ -42,10 +43,12 @@ export function CampaignRow({
           <Link href={campaignHref(c.id)} className={s.rowTitle}>
             {c.name}
           </Link>
+          {c.followup_of && <div className={s.fuTag}>{followupShortLabel(c.followup_after_hours, c.followup_stage)}</div>}
           <div className={s.rowSub}>
-            <StatusPill status={c.status} />
+            <StatusPill status={c.status} followup={!!c.followup_of} />
             <span>{c.template?.name ? friendlyTemplateName(c.template.name) : "No message picked yet"}</span>
           </div>
+          {c.followup_of && c.status === "draft" && <div className={s.rowSub}>Turns on when the first message is launched</div>}
           {c.status === "scheduled" && c.scheduled_at && (
             <div className={s.rowSub}>
               <Clock size={12} aria-hidden /> Starts {fmtIst(c.scheduled_at)}
@@ -70,7 +73,13 @@ export function CampaignRow({
           <div className={s.fill} style={{ width: `${prog.percent ?? 0}%` }} />
         </div>
         <div className={s.progressText}>
-          {prog.total != null ? `${fmtInt(prog.reached)} of ${fmtInt(prog.total)} reached` : sent ? `${fmtInt(sent)} reached` : "Not started"}
+          {prog.total != null
+            ? `${fmtInt(prog.reached)} of ${fmtInt(prog.total)} reached`
+            : sent
+              ? `${fmtInt(sent)} reached`
+              : c.followup_of && c.status === "scheduled"
+                ? "Waiting for people to reach their time"
+                : "Not started"}
         </div>
       </div>
 

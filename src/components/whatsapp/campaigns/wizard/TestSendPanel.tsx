@@ -35,9 +35,12 @@ function saveNumbers(list: string[]) {
 export function TestSendPanel({
   draft,
   disabledReason,
+  bare = false,
 }: {
   draft: { template_id: string; template_vars: Record<string, string>; header_media_url: string | null; name: string } | null;
   disabledReason: string | null;
+  /** Without the card frame (inside a follow-up). */
+  bare?: boolean;
 }) {
   const [phone, setPhone] = useState("");
   const [testName, setTestName] = useState(SAMPLE_NAME);
@@ -70,8 +73,7 @@ export function TestSendPanel({
 
   const info = result && !result.ok ? classifyWaError(`${result.error_code ?? ""} ${result.error ?? ""}`) : null;
 
-  return (
-    <Card title="Send yourself a test" basis="strongly recommended" right={<HelpTip term="test_send" />}>
+  const inner = (
       <div className={s.stack}>
         <p className={s.help} style={{ margin: 0 }}>
           Check the picture, the text and every button on your own phone. A test doesn&apos;t count as a campaign message and never blocks the real send.
@@ -121,6 +123,11 @@ export function TestSendPanel({
           </div>
         )}
       </div>
+  );
+  if (bare) return inner;
+  return (
+    <Card title="Send yourself a test" basis="strongly recommended" right={<HelpTip term="test_send" />}>
+      {inner}
     </Card>
   );
 }
