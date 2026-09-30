@@ -488,21 +488,25 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           button("Shop Best Sellers", link(PATHS.bestSellers, "welcome", 2), "solid", { full: true }),
       },
       {
+        // Day 4: social proof (welcome 2 already covers "what to try first").
+        // Code minted day 0 lives 8 days, so "3 days left" is conservative.
         type: "email",
         format: "designed",
         delay_hours: 48,
-        subject: "Not sure what to try first?",
-        subject_variants: ["The PROMUNCH packs people start with", "{{first_name}}, your 15% code has 3 days left"],
-        preview_text: "Three easy first picks, and your code {{coupon_code}}.",
+        subject: "What people are saying about PROMUNCH",
+        subject_variants: ["\"Excellent flavour, excellent crunch, excellent macros\"", "{{first_name}}, your 15% code has 3 days left"],
+        preview_text: "Real reviews, our Best Sellers, and 3 days left on your 15% code.",
         preview_variants: ["3 days left on your welcome code."],
         coupon: { percent_off: 15, expires_in_days: 8, prefix: "WELCOME15" },
         coupon_code: "",
         body_html:
-          h1("Three easy first picks") +
-          hi("not sure where to start? These are a good first order. Your 15% code has 3 days left.") +
-          button("Shop Best Sellers", link(PATHS.bestSellers, "welcome", 3)) +
-          grid(["edamameCombo", "crunchies4", "edamameTravel"], "welcome", 3) +
-          couponBox(CODE, "Your welcome code", "15% off. 3 days left."),
+          h1("Don't just take our word for it") +
+          hi("here is what people say about PROMUNCH. Your 15% welcome code has 3 days left.") +
+          REVIEWS +
+          button("Shop Best Sellers", link(PATHS.bestSellers, "welcome", 3), "solid", { full: true }) +
+          grid(["noodleMasala", "edamameCombo", "bigBite"], "welcome", 3) +
+          couponBox(CODE, "Your 15% welcome code", "One use only. 3 days left.") +
+          trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]),
       },
       {
         type: "email",
