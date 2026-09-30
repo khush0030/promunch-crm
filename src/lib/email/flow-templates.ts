@@ -1,13 +1,17 @@
 // Pre-built flow templates for the "Create flow" gallery (Klaviyo-style).
 // "Use template" inserts a flows row pre-filled with these steps; everything is
-// editable afterwards in the builder. The four v1 flows (abandoned cart,
-// welcome, post-purchase, win-back) carry full branded copy; the rest ship as
-// editable starting points.
+// editable afterwards in the builder. Every template carries full branded
+// copy; docs/plans/2026-09-30-email-flow-content.sql is generated from this
+// file (regenerate it when copy changes).
 //
 // Copy rules (AGENTS.md §5): PROMUNCH all caps, no em dashes, tagline
 // "Your Munchy Pal", never mention Oltaflock. Body HTML here is the INNER
 // content; renderMarketingEmail() wraps it with the header + unsubscribe footer
 // at send time. Shipping: free over ₹599.
+//
+// Keep imports relative: vitest has no "@/" alias.
+
+import { button, couponBox, h1, p, productGrid, reviewQuote } from "./brand-blocks";
 
 // flows.trigger_type CHECK: checkout_abandoned | order_placed | customer_created
 // | segment_entry | date_based.
@@ -53,7 +57,9 @@ export type FlowStep = {
   from_name?: string;
   /**
    * Unique single-use Shopify code per enrolment (src/lib/email/coupons.ts).
-   * Falls back to coupon_code if minting fails. {{coupon_code}} in copy.
+   * Falls back to coupon_code if minting fails; an empty coupon_code means no
+   * fallback exists (the engine defers the step and retries instead of
+   * sending without a code). {{coupon_code}} in copy.
    */
   coupon?: { percent_off: number; expires_in_days?: number; prefix?: string };
   /**
@@ -62,6 +68,15 @@ export type FlowStep = {
    * other marketing email for EMAIL_FREQ_CAP_HOURS (default 16h).
    */
   bypass_freq_cap?: boolean;
+  /**
+   * WhatsApp overlap guard. When set, the engine skips this email step (it
+   * advances without sending) if WhatsApp already SENT the matching journey
+   * to this customer: "review" = review_request, "replenishment" =
+   * replenishment_reminder, "cart" = abandoned_checkout (wa_journey_runs).
+   * Matched on the same order / checkout when the enrolment knows it, else any
+   * such WhatsApp send in the last 30 days. See waJourneyOverlap in send-guards.ts.
+   */
+  skip_if_wa_journey?: "review" | "replenishment" | "cart";
 };
 
 export type FlowCategory =
@@ -91,22 +106,36 @@ export const CATEGORY_LABELS: Record<FlowCategory, string> = {
   deliverability: "Protect deliverability",
 };
 
-const p = (html: string) => html; // readability helper
-
-// ---- Copy building blocks for the v1 sequences --------------------------------
-// Styles are inline (email clients strip <style>). Palette mirrors layout.ts.
+// ---- Copy building blocks ------------------------------------------------------
+// Every designed body is built from brand-blocks.ts so all flows share one
+// black-and-white PROMUNCH style: headline, short copy, ONE main button in the
+// first screen, few images, never an image-only email. Founder notes use
+// format:"plain" (text + the step's signature, rendered by plain-layout.ts).
 //
 // Facts used in copy, and where they were verified (2026-09-30):
 //   - Master KB rules (AGENTS.md §5, docs/plans/2026-09-05-wa-bot-quality-audit.md):
-//     Crunchies are roasted; Soya Sticks and Chips are FRIED; only Tangy Pudina
-//     Crunchies is Jain; free shipping over ₹599 (₹99 below), COD +₹50, prepaid 5% off.
+//     Crunchies are roasted; Soya Sticks and Chips are FRIED; free shipping over
+//     ₹599 (₹99 below), COD +₹50, prepaid 5% off.
 //   - Roasted Edamame: 3 flavours, "roasted in olive oil" (Shopify product titles),
 //     42.9 to 45.3 g protein per 100 g (KB pack labels), so copy says "over 40g".
+//   - Assorted Flavored Pack 150g x 4 = Tangy Pudina, Peri Peri, Cheese & Onion,
+//     Noodle Masala (Shopify product description).
 //   - Serving ideas (salads, soups, wraps, sandwiches, ready to eat): promunch.in/pages/faqs.
 //   - Reviews: real Judge.me reviews published on promunch.in, quoted verbatim.
-//   - Every link below returned HTTP 200. Never link the bare home page.
-// Tokens rendered by flow-engine.ts: {{first_name}}, {{checkout_url}} (cart only),
-// {{cart_items}}, {{cart_total}}, {{coupon_code}}.
+//   - Every link and product image below returned HTTP 200 (curl -sI). Never
+//     link the bare home page.
+//
+// Offers (owner, 2026-09-30): lead with 15%, escalate to 20% in the last-chance
+// email; win-back is 20% throughout. Every offer is a unique single-use Shopify
+// code per enrolment (coupon field; idempotent per (enrolment, percent), so the
+// 15% and 20% codes differ). coupon_code is "" on purpose: no static fallback
+// code exists at 15/20%, so when minting fails the engine defers the step and
+// retries rather than sending a wrong or missing code.
+// Truthful expiry: every code lives about a day longer than the copy says.
+//
+// Tokens rendered by personalize.ts: {{first_name}}, {{checkout_url}} (cart only),
+// {{cart_items}}, {{cart_total}}, {{coupon_code}}, {{product.title}},
+// {{product.url}}, {{product_image}} (browse only).
 
 const SITE = "https://promunch.in";
 /** Link with UTM so flow revenue is attributable per flow + step. */
@@ -118,78 +147,112 @@ const PATHS = {
   bestSellers: "/collections/best-sellers",
   combos: "/collections/combos-and-gift-packs",
   edamame: "/collections/roasted-edamame-beans-high-protein-healthy-snacks-for-weight-loss",
-  crunchies: "/collections/soya-crunchies",
   faqs: "/pages/faqs",
   review: "/pages/review-submission",
-  edamameCombo: "/products/promunch-roasted-edamame-beans-assorted-combo-42-45g-high-protein-snack",
-  edamameTravel: "/products/promunch-roasted-edamame-beans-mini-combo-pack-of-9-25g-x-9-all-3-flavours",
-  noodleMasala: "/products/promunch-roasted-soya-snack-vegan-high-protein-healthy-gluten-free-flavor-noodle-masala-300-g-pack-of-1",
-  assorted4: "/products/promunch-roasted-soya-snack-high-protein-healthy-gluten-free-combo-of-3-packs-flavour-cheese-onion-tangy-pudina-and-peri-peri-150-g-each",
 } as const;
 
-const P = (t: string) => `<p style="font-size:16px;line-height:1.6;margin:0 0 14px;color:#1A1714;">${t}</p>`;
-const MUTED = (t: string) => `<p style="font-size:14px;line-height:1.6;color:#6E665A;margin:0 0 10px;">${t}</p>`;
-const H = (t: string) => `<p style="font-size:18px;font-weight:800;line-height:1.3;margin:22px 0 10px;color:#1B2A20;">${t}</p>`;
-const LIST = (items: string[]) =>
-  `<ul style="font-size:16px;line-height:1.7;margin:0 0 16px;padding-left:20px;color:#1A1714;">${items.map((i) => `<li style="margin:0 0 6px;">${i}</li>`).join("")}</ul>`;
-const BTN = (href: string, label: string, accent = false) =>
-  `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0;"><tr><td style="background:${accent ? "#E0A24E" : "#1B2A20"};border-radius:10px;"><a href="${href}" style="display:inline-block;padding:14px 28px;color:${accent ? "#1B2A20" : "#ffffff"};font-size:16px;font-weight:800;text-decoration:none;">${label}</a></td></tr></table>`;
-const CODE = (headline: string, note: string) =>
-  `<div style="margin:20px 0;padding:16px;border:2px dashed #E0A24E;border-radius:12px;text-align:center;"><div style="font-size:12px;color:#6E665A;letter-spacing:1px;">${headline}</div><div style="font-size:26px;font-weight:800;color:#1B2A20;letter-spacing:2px;margin-top:4px;">{{coupon_code}}</div><div style="font-size:12px;color:#6E665A;margin-top:6px;">${note}</div></div>`;
-const QUOTE = (text: string, who: string) =>
-  `<div style="margin:0 0 12px;padding:14px 16px;background:#F8F4EC;border-left:3px solid #E0A24E;border-radius:8px;"><div style="font-size:13px;color:#E0A24E;letter-spacing:2px;">★★★★★</div><div style="font-size:15px;line-height:1.6;color:#1A1714;margin:4px 0 6px;">"${text}"</div><div style="font-size:13px;color:#6E665A;">${who}</div></div>`;
-/** Plain founder-style paragraphs (format: "plain"); plain-layout.ts adds the footer. */
+const CDN = "https://cdn.shopify.com/s/files/1/0794/6731/5501/files";
+
+/** Real products (handles + first image from promunch.in/products.json). */
+const PRODUCTS = {
+  edamameCombo: {
+    title: "Roasted Edamame Combo",
+    path: "/products/promunch-roasted-edamame-beans-assorted-combo-42-45g-high-protein-snack",
+    image: `${CDN}/AssortedCombo1.png?v=1781094598`,
+  },
+  edamameTravel: {
+    title: "Edamame Travel Combo, 9 x 25g",
+    path: "/products/promunch-roasted-edamame-beans-mini-combo-pack-of-9-25g-x-9-all-3-flavours",
+    image: `${CDN}/ChatGPTImageJun16_2026_04_48_28PM_1.png?v=1788435089`,
+  },
+  edamameRockSalt: {
+    title: "Himalayan Rock Salt Roasted Edamame",
+    path: "/products/promunch-roasted-edamame-beans-himalayan-rock-salt-45g-high-protein-snack-no-added-sugar-rich-in-fiber-roasted-in-olive-oil-gluten-free",
+    image: `${CDN}/HRS_Pack_of_3.jpg?v=1781850238`,
+  },
+  crunchies4: {
+    title: "Soya Crunchies, 4 flavours",
+    path: "/products/promunch-roasted-soya-snack-high-protein-healthy-gluten-free-combo-of-3-packs-flavour-cheese-onion-tangy-pudina-and-peri-peri-150-g-each",
+    image: `${CDN}/Image_4_jpg.jpg?v=1773731385`,
+  },
+  noodleMasala: {
+    title: "Noodle Masala Soya Crunchies",
+    path: "/products/promunch-roasted-soya-snack-vegan-high-protein-healthy-gluten-free-flavor-noodle-masala-300-g-pack-of-1",
+    image: `${CDN}/Noodle_Masala_270g.png?v=1771656794`,
+  },
+  sticksChips: {
+    title: "Soya Sticks + Chips Combo",
+    path: "/products/promunch-combo-pack-soya-sticks-chatpata-masala-cream-onion-soya-chips-peri-peri-pack-of-3-80g-each",
+    image: `${CDN}/Image_36_jpg.jpg?v=1773731324`,
+  },
+  bigBite: {
+    title: "Big Bite Munch Combo",
+    path: "/products/promunch-combo-pack-soya-sticks-soya-chips-80gm-assorted-flavored-soya-snack-150-gm-pack-of-7",
+    image: `${CDN}/Image_46_jpg.jpg?v=1773731284`,
+  },
+} as const;
+
+type ProductKey = keyof typeof PRODUCTS;
+/** productGrid items with UTM links (no prices: they change, the page is the truth). */
+const grid = (keys: ProductKey[], campaign: string, step: number) =>
+  productGrid(keys.map((k) => ({ title: PRODUCTS[k].title, url: link(PRODUCTS[k].path, campaign, step), image: PRODUCTS[k].image })));
+
+const hi = (rest: string) => p(`Hi {{first_name}}, ${rest}`);
+/** Plain founder-style paragraphs (format: "plain"); plain-layout.ts adds the signature + footer. */
 const PLAIN = (...paras: string[]) => paras.map((t) => `<p style="margin:0 0 14px;">${t}</p>`).join("");
 const PARTH_SIG = "Parth\nFounder, PROMUNCH";
 const PARTH_FROM = "Parth from PROMUNCH";
+const CODE = "{{coupon_code}}";
 
 // Real 5-star reviews from promunch.in (Judge.me widget on the Noodle Masala Soya
 // Crunchies 270gm page), quoted exactly as published, names as displayed.
 // Chosen over the Sep 12-16 2026 batch, see flag in the SQL plan doc.
-const REVIEWS = QUOTE(
-  "Wish this was mainstream. Excellent flavour, excellent crunch, excellent macros. What more do you want?",
-  "Sujay Thomas, on Noodle Masala Soya Crunchies",
-) + QUOTE(
-  "Glad that some companies are there who are selling protein snacks at affordable price and that also tastes good. Finding healthy option in snacks is really tiresome but you made it easy.",
-  "Naresh Saw, on Noodle Masala Soya Crunchies",
-);
-const REVIEWS_BLOCK = H("What snackers say") + REVIEWS + MUTED("Real reviews from promunch.in.");
+const REVIEWS =
+  reviewQuote(
+    "Wish this was mainstream. Excellent flavour, excellent crunch, excellent macros. What more do you want?",
+    "Sujay Thomas, on Noodle Masala Soya Crunchies",
+    5,
+  ) +
+  reviewQuote(
+    "Glad that some companies are there who are selling protein snacks at affordable price and that also tastes good. Finding healthy option in snacks is really tiresome but you made it easy.",
+    "Naresh Saw, on Noodle Masala Soya Crunchies",
+    5,
+  );
+const SHIPPING = p("Free shipping on orders over ₹599.");
 
 export const FLOW_TEMPLATES: FlowTemplate[] = [
-  // ---- Recover lost sales ---------------------------------------------------
+  // ==== Recover lost sales =====================================================
   {
     key: "abandoned_cart",
     name: "Abandoned cart",
     category: "recover",
-    description: "Checkout started but not paid. 3 emails over 2 days: cart + 10% unique code, a founder note, then a last call before the code expires. Uses the Super Money Breeze recovery link.",
+    description: "Checkout started but not paid. 3 emails over 2 days: cart + 15% unique code, a founder note, then a last call at 20%. Uses the Super Money Breeze recovery link.",
     trigger_type: "checkout_abandoned",
-    // deadline 54h: the last email lands at ~46h. The unique code is minted at
-    // email 1 (~45 min) and lives 3 days, so "expires in about a day" in email 3
-    // stays true even after a 6h retry backoff.
-    trigger_config: { coupon_code: "PROMUNCH10", deadline_hours: 54 },
+    // deadline 54h: the last email lands at ~46h. 15% code minted at email 1
+    // lives 3 days (copy: 2 days); 20% code minted at email 3 lives 3 days
+    // (copy: 48 hours), so both claims stay true through a retry backoff.
+    trigger_config: { deadline_hours: 54 },
     steps: [
       {
         type: "email",
         format: "designed",
         delay_hours: 0.75,
-        subject: "{{first_name}}, your cart is saved (plus 10% off)",
+        subject: "{{first_name}}, your cart is saved (plus 15% off)",
         subject_variants: [
-          "You left something behind. Here is 10% off it",
-          "[Saved for you] Your PROMUNCH cart and a 10% code",
+          "You left something behind. Here is 15% off it",
+          "[Saved for you] Your PROMUNCH cart and a 15% code",
         ],
-        preview_text: "Your code {{coupon_code}} takes 10% off. Good for 3 days.",
-        preview_variants: ["Pick up right where you left off, 10% off is on us."],
-        coupon: { percent_off: 10, expires_in_days: 3, prefix: "CART" },
-        coupon_code: "PROMUNCH10",
-        body_html: p(
-          P("Hi {{first_name}},") +
-          P("You were one step away from your snacks, so we saved your cart for you. Here is what is in it:") +
+        preview_text: "Your code {{coupon_code}} takes 15% off. Good for 2 days.",
+        preview_variants: ["Pick up right where you left off, with 15% off."],
+        coupon: { percent_off: 15, expires_in_days: 3, prefix: "CART15" },
+        coupon_code: "",
+        body_html:
+          h1("Your cart is saved") +
+          hi("you were one step away from your snacks, so we kept everything for you.") +
+          couponBox(CODE, "15% off your cart", "One use. Enter it at checkout within 2 days.") +
+          button("Finish my order", "{{checkout_url}}") +
           "{{cart_items}}" +
-          CODE("10% OFF, JUST FOR YOU", "One use. Enter it at checkout within 3 days.") +
-          BTN("{{checkout_url}}", "Finish my order") +
-          MUTED("Free shipping on orders over ₹599.") +
-          MUTED("Stuck at checkout? Just reply to this email and a real person will help."),
-        ),
+          p("Free shipping on orders over ₹599. Stuck at checkout? Reply to this email and a real person will help."),
       },
       {
         type: "email",
@@ -199,54 +262,40 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         delay_hours: 21.25,
         subject: "A quick note from PROMUNCH's founder",
         subject_variants: ["{{first_name}}, can I ask you something?", "Why I started PROMUNCH (30 second read)"],
-        preview_text: "And your 10% code is still waiting for you.",
+        preview_text: "And your 15% code is still waiting for you.",
         preview_variants: ["What stopped you? Honest answers welcome."],
-        coupon: { percent_off: 10, expires_in_days: 3, prefix: "CART" },
-        coupon_code: "PROMUNCH10",
-        body_html: p(PLAIN(
+        coupon: { percent_off: 15, expires_in_days: 3, prefix: "CART15" },
+        coupon_code: "",
+        body_html: PLAIN(
           "Hi {{first_name}},",
           "I'm Parth, I started PROMUNCH. I noticed your cart is still sitting there, so I wanted to write to you myself.",
-          "We started PROMUNCH because a snack in India usually meant fried namkeen or chips with very little protein. We wanted something crunchy that actually fills you up. That is what is waiting in your cart: high-protein soya and edamame snacks.",
+          "We started PROMUNCH because a snack in India usually meant fried namkeen or chips with very little protein. We wanted something crunchy that actually fills you up. That is what is waiting in your cart.",
           "If something stopped you, a price question, a flavour doubt, a glitch at checkout, just hit reply and tell me. The team and I read every reply.",
-          "Your 10% code still works: <b>{{coupon_code}}</b>",
-          "<a href=\"{{checkout_url}}\">Here is your cart</a> whenever you are ready.",
-        )),
+          "Your 15% code still works: <b>{{coupon_code}}</b>",
+          `<a href="{{checkout_url}}">Here is your cart</a> whenever you are ready.`,
+        ),
       },
       {
         type: "email",
         format: "designed",
         delay_hours: 24,
-        subject: "Last chance: your 10% code expires soon",
-        subject_variants: ["{{first_name}}, your 10% code runs out in about a day", "Final reminder about your PROMUNCH cart"],
-        preview_text: "This is the last email we will send about your cart.",
-        preview_variants: ["After this, your code stops working."],
-        coupon: { percent_off: 10, expires_in_days: 3, prefix: "CART" },
-        coupon_code: "PROMUNCH10",
-        body_html: p(
-          P("Hi {{first_name}},") +
-          P("This is the last email we will send about your cart. Your 10% code expires in about a day, and after that it will not work.") +
-          CODE("YOUR CODE, EXPIRING SOON", "10% off. One use.") +
+        subject: "Last chance: 20% off your cart",
+        subject_variants: [
+          "{{first_name}}, we made it 20% off. Last call",
+          "Final reminder: your PROMUNCH cart, now 20% off",
+        ],
+        preview_text: "Our best offer, good for the next 48 hours.",
+        preview_variants: ["This is the last email we will send about your cart."],
+        coupon: { percent_off: 20, expires_in_days: 3, prefix: "CART20" },
+        coupon_code: "",
+        body_html:
+          h1("Last call: 20% off your cart") +
+          hi("this is the last email we will send about your cart. We bumped your discount to 20%, our best offer, and it is good for the next 48 hours.") +
+          couponBox(CODE, "20% off your cart", "One use. Valid for 48 hours.") +
+          button("Grab my snacks", "{{checkout_url}}") +
           "{{cart_items}}" +
-          BTN("{{checkout_url}}", "Grab my snacks", true) +
-          REVIEWS_BLOCK +
-          MUTED("Free shipping on orders over ₹599. Questions? Reply and we will help."),
-        ),
-      },
-    ],
-  },
-  {
-    key: "cart_reminder",
-    name: "Cart reminder, no discount",
-    category: "recover",
-    description: "A single gentle nudge that protects your margin. No coupon.",
-    trigger_type: "checkout_abandoned",
-    trigger_config: { deadline_hours: 48 },
-    steps: [
-      {
-        type: "email",
-        delay_hours: 3,
-        subject: "You left your munchies behind",
-        body_html: p("<p>Your PROMUNCH cart is still saved. Ready when you are.</p><p><a href=\"{{checkout_url}}\">Finish checkout</a></p>"),
+          REVIEWS +
+          p("Free shipping on orders over ₹599. Questions? Reply and we will help."),
       },
     ],
   },
@@ -254,13 +303,12 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     key: "browse_abandonment",
     name: "Browse abandonment",
     category: "recover",
-    description: "Viewed a product but did not buy. 3 emails: the product + 10% unique code, a founder note, then a last call with bestsellers.",
+    description: "Viewed a product but did not buy. 3 emails: the product + 15% unique code, a founder note, then a last call at 20%. Needs the storefront pixel.",
     trigger_type: "segment_entry",
-    // email-browse-tick already waits >= 1h after the view, so step 1 is instant.
-    // Context tokens {{product.title}} / {{product.url}} / {{product_image}} are
-    // rendered by the engine with fallbacks (url -> best-sellers collection,
-    // image -> nothing). The code lives 4 days so email 3 (~72h) is honest.
-    trigger_config: { segment: "browse_abandon", coupon_code: "PROMUNCH10" },
+    // Enrolled by email-browse-tick (>= 1h after the view), not the daily
+    // segment tick. Copy uses {{product.title}}, {{product.url}} (fallback: Best
+    // Sellers) and {{product_image}} (dropped when there is no image).
+    trigger_config: { segment: "browse_abandon", exit_on_order: true },
     needsSetup: true,
     steps: [
       {
@@ -268,19 +316,18 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         format: "designed",
         delay_hours: 0,
         subject: "{{first_name}}, still thinking it over?",
-        subject_variants: ["You had your eye on this one", "A 10% code for the snack you were checking out"],
-        preview_text: "{{product.title}}, now 10% off with your own code.",
-        preview_variants: ["Here it is again, with 10% off for the next 4 days."],
-        coupon: { percent_off: 10, expires_in_days: 4, prefix: "LOOK" },
-        coupon_code: "PROMUNCH10",
-        body_html: p(
-          P("Hi {{first_name}},") +
-          P("You were checking out <b>{{product.title}}</b>. Here it is again, in case you want another look.") +
+        subject_variants: ["You had your eye on this one", "15% off the snack you were checking out"],
+        preview_text: "{{product.title}}, now 15% off with your own code.",
+        preview_variants: ["Here it is again, with 15% off for the next 3 days."],
+        coupon: { percent_off: 15, expires_in_days: 4, prefix: "LOOK15" },
+        coupon_code: "",
+        body_html:
+          h1("Still thinking it over?") +
+          hi("you were checking out <strong>{{product.title}}</strong>. Here it is again, with 15% off if you want it.") +
+          couponBox(CODE, "15% off, just for you", "One use. Valid for 3 days.") +
+          button("Take another look", "{{product.url}}") +
           "{{product_image}}" +
-          CODE("10% OFF, JUST FOR YOU", "One use. Valid for 4 days.") +
-          BTN("{{product.url}}", "Take another look") +
-          MUTED("Free shipping on orders over ₹599."),
-        ),
+          SHIPPING,
       },
       {
         type: "email",
@@ -291,94 +338,68 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         subject: "Why people pick PROMUNCH",
         subject_variants: ["{{first_name}}, a quick note from our founder", "The honest version of what we make"],
         preview_text: "Roasted where it matters, and a lot of protein per bite.",
-        preview_variants: ["Your 10% code is still active."],
-        coupon: { percent_off: 10, expires_in_days: 4, prefix: "LOOK" },
-        coupon_code: "PROMUNCH10",
-        body_html: p(PLAIN(
+        preview_variants: ["Your 15% code is still active."],
+        coupon: { percent_off: 15, expires_in_days: 4, prefix: "LOOK15" },
+        coupon_code: "",
+        body_html: PLAIN(
           "Hi {{first_name}},",
           "Parth here, founder of PROMUNCH. I saw you looking at {{product.title}}, so here is the honest version of what we make.",
           "Our Roasted Edamame is roasted in olive oil and has over 40g of protein per 100g. Our Soya Crunchies are roasted too. Our Soya Sticks and Chips are fried, for when you want that classic chip crunch.",
-          "All of it is ready to eat straight from the pack, and it works on salads and soups too.",
           "If you are unsure about a flavour, reply and tell me what you like, spicy, tangy or light and salty, and I will point you to the right pack.",
-          "Your 10% code is still active: <b>{{coupon_code}}</b>. <a href=\"{{product.url}}\">Here is the product again</a>.",
-        )),
+          `Your 15% code is still active: <b>{{coupon_code}}</b>. <a href="{{product.url}}">Here is the product again</a>.`,
+        ),
       },
       {
         type: "email",
         format: "designed",
         delay_hours: 48,
-        subject: "Last chance: your 10% code expires soon",
-        subject_variants: ["{{first_name}}, your code runs out in about a day", "Before your 10% goes, see our Best Sellers"],
-        preview_text: "After this, your code stops working.",
-        preview_variants: ["Plus the packs people keep coming back for."],
-        coupon: { percent_off: 10, expires_in_days: 4, prefix: "LOOK" },
-        coupon_code: "PROMUNCH10",
-        body_html: p(
-          P("Hi {{first_name}},") +
-          P("Your 10% code expires in about a day. This is the last email about it.") +
-          CODE("YOUR CODE, EXPIRING SOON", "10% off. One use.") +
-          BTN("{{product.url}}", "Back to {{product.title}}", true) +
-          H("Or start with our Best Sellers") +
-          LIST([
-            `<a href="${link(PATHS.edamameCombo, "browse_abandon", 3)}" style="color:#1B2A20;font-weight:700;">Roasted Edamame Combo</a>: all three flavours, roasted in olive oil`,
-            `<a href="${link(PATHS.assorted4, "browse_abandon", 3)}" style="color:#1B2A20;font-weight:700;">Assorted Flavored Pack, 150g x 4</a>: roasted Soya Crunchies in four flavours`,
-          ]) +
-          BTN(link(PATHS.bestSellers, "browse_abandon", 3), "Shop Best Sellers") +
-          REVIEWS_BLOCK,
-        ),
+        subject: "Last chance: we made it 20% off",
+        subject_variants: ["{{first_name}}, 20% off for the next 48 hours", "Our best offer on {{product.title}}"],
+        preview_text: "Our best offer, good for 48 hours. This is the last email about it.",
+        preview_variants: ["20% off, then this offer is gone."],
+        coupon: { percent_off: 20, expires_in_days: 3, prefix: "LOOK20" },
+        coupon_code: "",
+        body_html:
+          h1("We made it 20% off") +
+          hi("this is the last email about {{product.title}}. Here is our best offer: 20% off your order, good for the next 48 hours.") +
+          couponBox(CODE, "20% off your order", "One use. Valid for 48 hours.") +
+          button("Take me back", "{{product.url}}") +
+          REVIEWS +
+          p(`Not quite right? <a href="${link(PATHS.bestSellers, "browse_abandon", 3)}">See our Best Sellers</a>.`),
       },
     ],
   },
-  {
-    key: "price_drop",
-    name: "Price drop alert",
-    category: "recover",
-    description: "An item they viewed just got cheaper. Fires when the price changes.",
-    trigger_type: "segment_entry",
-    trigger_config: {},
-    needsSetup: true,
-    steps: [
-      { type: "email", delay_hours: 0, subject: "Good news, the price just dropped", body_html: p("<p>Something you had your eye on is now cheaper. Grab it before it is gone.</p>") },
-    ],
-  },
 
-  // ---- Welcome & convert ----------------------------------------------------
+  // ==== Welcome & convert ======================================================
   {
     key: "welcome",
     name: "Welcome series",
     category: "welcome",
-    description: "Popup signup to first order: 5 emails over 8 days. 10% unique code, founder note, Best Sellers, free-shipping angle with reviews, final reminder. Stops the moment they order.",
+    description: "Popup signup to first order: 5 emails over 8 days. 15% unique code, founder note, first picks, free shipping + reviews, then a final 20% offer. Stops the moment they order.",
     trigger_type: "customer_created",
-    // The unique code is minted in email 1 and lives 9 days, so every expiry
-    // line below is true: "5 days left" on day 4, "expires tomorrow" on day 8.
-    trigger_config: { coupon_code: "WELCOME10", exit_on_order: true },
+    // 15% code minted in email 1 lives 8 days (copy: 7). Email 5 (day 8)
+    // mints a separate 20% code that lives 3 days (copy: 48 hours).
+    // exit_on_checkout defaults to true here: the cart flow takes over.
+    trigger_config: { exit_on_order: true },
     steps: [
       {
         type: "email",
         format: "designed",
         delay_hours: 0,
-        // They just asked for the code on the popup: never hold it behind the cap.
         bypass_freq_cap: true,
-        subject: "Welcome to PROMUNCH, here is 10% off",
-        subject_variants: ["Your 10% welcome code is inside", "{{first_name}}, welcome to the crunchy side"],
-        preview_text: "Your code {{coupon_code}} is ready, plus our promise to you.",
-        preview_variants: ["10% off your first order, good for 9 days."],
-        coupon: { percent_off: 10, expires_in_days: 9, prefix: "WELCOME" },
-        coupon_code: "WELCOME10",
-        body_html: p(
-          P("Hi {{first_name}},") +
-          P("Welcome to PROMUNCH. We make high-protein snacks for people who want their snack to actually do something for them. Here is your welcome gift:") +
-          CODE("10% OFF YOUR FIRST ORDER", "One use. Valid for 9 days.") +
-          BTN(link(PATHS.bestSellers, "welcome", 1), "Shop Best Sellers") +
-          H("Our promise to you") +
-          LIST([
-            "<b>Real protein.</b> Our Roasted Edamame has over 40g of protein per 100g.",
-            "<b>Honest labels.</b> Our Soya Crunchies and Edamame are roasted. Our Sticks and Chips are fried, and we will always tell you which is which.",
-            "<b>Big flavour.</b> Noodle Masala, Tangy Pudina, Peri Peri and Cheese &amp; Onion Crunchies, plus Edamame in Himalayan Rock Salt, Indori Chatka and Masala Mania.",
-            "<b>Fair shipping.</b> Free on orders over ₹599.",
-          ]) +
-          MUTED("One small thing: add <b>hello@promunch.in</b> to your contacts so our emails, and your code, land in your inbox and not in spam."),
-        ),
+        subject: "Welcome to PROMUNCH, here is 15% off",
+        subject_variants: ["Your 15% welcome code is inside", "{{first_name}}, welcome to the crunchy side"],
+        preview_text: "Your code {{coupon_code}} is ready. Good for 7 days.",
+        preview_variants: ["15% off your first order, plus our promise to you."],
+        coupon: { percent_off: 15, expires_in_days: 8, prefix: "WELCOME15" },
+        coupon_code: "",
+        body_html:
+          h1("Welcome to PROMUNCH") +
+          hi("we make high-protein snacks for people who want their snack to actually do something for them. Here is 15% off your first order.") +
+          couponBox(CODE, "15% off your first order", "One use. Valid for 7 days.") +
+          button("Shop Best Sellers", link(PATHS.bestSellers, "welcome", 1)) +
+          p("<strong>Our promise:</strong> real protein (our Roasted Edamame has over 40g per 100g), honest labels (our Soya Crunchies and Edamame are roasted, our Sticks and Chips are fried, and we always tell you which is which), and free shipping on orders over ₹599.") +
+          p("One small thing: add <strong>hello@promunch.in</strong> to your contacts so our emails, and your code, land in your inbox and not in spam."),
       },
       {
         type: "email",
@@ -390,37 +411,32 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         subject_variants: ["A quick hello from our founder", "Thanks for joining us, {{first_name}}"],
         preview_text: "Why we make PROMUNCH, in a few lines.",
         preview_variants: ["Not sure what to try first? Ask me."],
-        coupon: { percent_off: 10, expires_in_days: 9, prefix: "WELCOME" },
-        coupon_code: "WELCOME10",
-        body_html: p(PLAIN(
+        coupon: { percent_off: 15, expires_in_days: 8, prefix: "WELCOME15" },
+        coupon_code: "",
+        body_html: PLAIN(
           "Hi {{first_name}},",
           "I'm Parth, the founder of PROMUNCH. Thank you for joining us.",
           "Quick story. We started PROMUNCH because snacking in India mostly meant fried namkeen and chips. Tasty, but with very little protein. We wanted a crunchy snack you could reach for every day and feel good about.",
           "If you are not sure where to start, reply and tell me what you like, spicy, tangy or light and salty, and I will point you to the right pack.",
-          `And if you just want to dive in, your 10% code <b>{{coupon_code}}</b> is still active. <a href="${link(PATHS.bestSellers, "welcome", 2)}">Here are our Best Sellers</a>.`,
-        )),
+          `And if you just want to dive in, your 15% code <b>{{coupon_code}}</b> is still active. <a href="${link(PATHS.bestSellers, "welcome", 2)}">Here are our Best Sellers</a>.`,
+        ),
       },
       {
         type: "email",
         format: "designed",
         delay_hours: 48,
-        subject: "Your 10% code is still waiting (5 days left)",
-        subject_variants: ["The PROMUNCH packs people start with", "{{first_name}}, do not let your 10% go to waste"],
-        preview_text: "Our Best Sellers, and your code {{coupon_code}}.",
-        preview_variants: ["5 days left on your welcome code."],
-        coupon: { percent_off: 10, expires_in_days: 9, prefix: "WELCOME" },
-        coupon_code: "WELCOME10",
-        body_html: p(
-          P("Hi {{first_name}},") +
-          P("Not sure what to try first? Start with a pick from our Best Sellers. Your welcome code has 5 days left.") +
-          LIST([
-            `<a href="${link(PATHS.edamameCombo, "welcome", 3)}" style="color:#1B2A20;font-weight:700;">Roasted Edamame Combo</a>: all three flavours, roasted in olive oil, over 40g protein per 100g`,
-            `<a href="${link(PATHS.assorted4, "welcome", 3)}" style="color:#1B2A20;font-weight:700;">Assorted Flavored Pack, 150g x 4</a>: roasted Soya Crunchies in four flavours`,
-            `<a href="${link(PATHS.edamameTravel, "welcome", 3)}" style="color:#1B2A20;font-weight:700;">Edamame Travel Combo, pack of 9</a>: 25g packs made for your bag`,
-          ]) +
-          CODE("YOUR WELCOME CODE", "10% off. 5 days left.") +
-          BTN(link(PATHS.bestSellers, "welcome", 3), "Shop Best Sellers", true),
-        ),
+        subject: "Not sure what to try first?",
+        subject_variants: ["The PROMUNCH packs people start with", "{{first_name}}, your 15% code has 3 days left"],
+        preview_text: "Three easy first picks, and your code {{coupon_code}}.",
+        preview_variants: ["3 days left on your welcome code."],
+        coupon: { percent_off: 15, expires_in_days: 8, prefix: "WELCOME15" },
+        coupon_code: "",
+        body_html:
+          h1("Three easy first picks") +
+          hi("not sure where to start? These are a good first order. Your 15% code has 3 days left.") +
+          button("Shop Best Sellers", link(PATHS.bestSellers, "welcome", 3)) +
+          grid(["edamameCombo", "crunchies4", "edamameTravel"], "welcome", 3) +
+          couponBox(CODE, "Your welcome code", "15% off. 3 days left."),
       },
       {
         type: "email",
@@ -430,86 +446,39 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         subject_variants: ["{{first_name}}, here is how to get free shipping", "What PROMUNCH customers are saying"],
         preview_text: "Plus what real customers say about the crunch.",
         preview_variants: ["A combo gets you there in one go."],
-        coupon: { percent_off: 10, expires_in_days: 9, prefix: "WELCOME" },
-        coupon_code: "WELCOME10",
-        body_html: p(
-          P("Hi {{first_name}},") +
-          P("Every order over ₹599 ships free. The easiest way to get there is a combo, so you get to try more flavours in one go.") +
-          BTN(link(PATHS.combos, "welcome", 4), "See combos") +
-          REVIEWS_BLOCK +
-          MUTED("Your welcome code <b>{{coupon_code}}</b> has 3 days left."),
-        ),
+        coupon: { percent_off: 15, expires_in_days: 8, prefix: "WELCOME15" },
+        coupon_code: "",
+        body_html:
+          h1("Free shipping over ₹599") +
+          hi("every order over ₹599 ships free. A combo is the easiest way to get there, and you get to try more flavours in one go.") +
+          button("See combos", link(PATHS.combos, "welcome", 4)) +
+          REVIEWS +
+          p("Your 15% welcome code <strong>{{coupon_code}}</strong> is still active for about a day."),
       },
       {
         type: "email",
         format: "designed",
         delay_hours: 48,
-        subject: "Last chance: your 10% code expires tomorrow",
-        subject_variants: ["{{first_name}}, your welcome code ends tomorrow", "One last thing before your code expires"],
-        preview_text: "After tomorrow it stops working. Here is why people stick with PROMUNCH.",
-        preview_variants: ["This is the last reminder about your code."],
-        coupon: { percent_off: 10, expires_in_days: 9, prefix: "WELCOME" },
-        coupon_code: "WELCOME10",
-        body_html: p(
-          P("Hi {{first_name}},") +
-          P("Your 10% welcome code expires tomorrow. This is the last reminder we will send about it.") +
-          CODE("LAST DAY TOMORROW", "10% off your first order. One use.") +
-          H("Why people stick with PROMUNCH") +
-          LIST([
-            "Over 40g of protein per 100g in our Roasted Edamame, roasted in olive oil.",
-            "Ready to eat straight from the pack, at your desk, in the car or after a workout.",
-            "Great on salads and soups, or tucked into wraps and sandwiches.",
-            "Free shipping on every order over ₹599.",
-          ]) +
-          P("We started PROMUNCH to make a crunchy snack you can feel good about every day. We would love for you to try it.") +
-          BTN(link(PATHS.all, "welcome", 5), "Use my 10% now", true) +
-          MUTED("Parth and the PROMUNCH team"),
-        ),
+        subject: "Last chance: we made it 20% off",
+        subject_variants: ["{{first_name}}, one last welcome gift: 20% off", "Your final welcome offer: 20% off"],
+        preview_text: "Our best welcome offer, good for 48 hours.",
+        preview_variants: ["This is the last reminder about your welcome offer."],
+        coupon: { percent_off: 20, expires_in_days: 3, prefix: "WELCOME20" },
+        coupon_code: "",
+        body_html:
+          h1("One last welcome gift: 20% off") +
+          hi("your welcome offer is ending, so here is our best one: 20% off your first order, good for the next 48 hours. This is the last reminder we will send about it.") +
+          couponBox(CODE, "20% off your first order", "One use. Valid for 48 hours.") +
+          button("Use my 20% now", link(PATHS.all, "welcome", 5)) +
+          p("Why people stick with PROMUNCH: over 40g of protein per 100g in our Roasted Edamame, ready to eat straight from the pack, and great on salads and soups too."),
       },
     ],
   },
   {
-    key: "first_order_thanks",
-    name: "First-order thank you",
-    category: "welcome",
-    description: "Welcome a brand new customer and make them feel part of the club.",
-    trigger_type: "order_placed",
-    trigger_config: { first_order_only: true },
-    steps: [
-      { type: "email", delay_hours: 2, subject: "Thank you for your first PROMUNCH order", body_html: p("<p>Your munchies are on the way. Welcome to the PROMUNCH family.</p>") },
-    ],
-  },
-  {
-    key: "second_purchase",
-    name: "Second-purchase nudge",
-    category: "welcome",
-    description: "Turn a one-time buyer into a repeat customer.",
-    trigger_type: "segment_entry",
-    trigger_config: {},
-    needsSetup: true,
-    steps: [
-      { type: "email", delay_hours: 240, subject: "Ready for round two?", body_html: p("<p>Hope you loved your munchies. Here is an easy way to restock your favourites.</p>") },
-    ],
-  },
-  {
-    key: "free_shipping_nudge",
-    name: "Free-shipping nudge",
-    category: "welcome",
-    description: "Cart under ₹599. Show how close they are to free shipping.",
-    trigger_type: "checkout_abandoned",
-    trigger_config: {},
-    needsSetup: true,
-    steps: [
-      { type: "email", delay_hours: 2, subject: "You are almost at free shipping", body_html: p("<p>Add a little more to your cart and shipping is on us over ₹599.</p><p><a href=\"{{checkout_url}}\">Back to my cart</a></p>") },
-    ],
-  },
-
-  // ---- Retain & grow --------------------------------------------------------
-  {
     key: "post_purchase",
     name: "Post-purchase",
-    category: "retain",
-    description: "First order only. A human thank-you (no order details, Shopify and WhatsApp already confirm), a how-to guide, a review ask, then a 3-question reply survey.",
+    category: "welcome",
+    description: "First order only. A human thank-you (no order details, Shopify and WhatsApp already confirm), then a how-to guide with the FAQ. Reviews have their own flow.",
     trigger_type: "order_placed",
     trigger_config: { first_order_only: true },
     steps: [
@@ -519,19 +488,18 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         from_name: PARTH_FROM,
         signature: PARTH_SIG,
         delay_hours: 0.25,
-        // Often follows a cart email by minutes; the thank-you should not wait 16h.
         bypass_freq_cap: true,
         subject: "Thank you, {{first_name}} (this is not a receipt)",
         subject_variants: ["A quick thank you from a real human at PROMUNCH", "You just made our day, {{first_name}}"],
         preview_text: "No order details here, just a thank you.",
         preview_variants: ["Parth here, founder of PROMUNCH."],
-        body_html: p(PLAIN(
+        body_html: PLAIN(
           "Hi {{first_name}},",
           "Parth here, I'm the founder of PROMUNCH. Your order confirmation is already with you, so this is not another receipt. I just wanted to say thank you.",
-          "You picked a small Indian snack brand to try, and that genuinely means a lot to us. Somewhere in our office a small cheer just went up. (Okay, it was me.)",
+          "You picked a small Indian snack brand to try, and that genuinely means a lot to us.",
           "One tip while you wait: once a pack is open, seal it tight so the crunch stays crunchy.",
           "If anything is not right with your order, just reply to this email and we will sort it out.",
-        )),
+        ),
       },
       {
         type: "email",
@@ -541,109 +509,123 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         subject_variants: ["5 ways to enjoy your PROMUNCH snacks", "Your PROMUNCH questions, answered"],
         preview_text: "Storage, serving ideas and the protein facts.",
         preview_variants: ["A 1 minute guide to your snacks."],
-        body_html: p(
-          P("Hi {{first_name}},") +
-          P("Your snacks are on their way or already open. Here is the short guide.") +
-          H("Keep it crunchy") +
-          LIST([
-            "Once a pack is open, seal it tight or tip it into an airtight jar.",
-            "Keep it somewhere cool and dry, away from direct sunlight.",
-          ]) +
-          H("Ways to enjoy it") +
-          LIST([
-            "Straight from the pack. It is ready to eat, no cooking needed.",
-            "On a salad or a bowl of soup for extra crunch.",
-            "Tucked into wraps and sandwiches.",
-            "In your bag for travel, the office or after a workout.",
-          ]) +
-          H("The protein facts") +
-          LIST([
-            "<b>Roasted Edamame:</b> over 40g of protein per 100g, roasted in olive oil.",
-            "<b>Soya Crunchies:</b> roasted, not fried. Only Tangy Pudina is Jain friendly.",
-            "<b>Soya Sticks and Chips:</b> fried, for when you want a classic chip crunch.",
-          ]) +
-          BTN(link(PATHS.faqs, "post_purchase", 2), "Read our FAQs") +
-          MUTED("Anything else? Reply to this email and a real person will answer."),
-        ),
+        body_html:
+          h1("Your 1 minute snack guide") +
+          hi("here is how to get the most out of your PROMUNCH.") +
+          button("Read our FAQs", link(PATHS.faqs, "post_purchase", 2)) +
+          p("<strong>Keep it crunchy.</strong> Once a pack is open, seal it tight or tip it into an airtight jar, and keep it somewhere cool and dry.") +
+          p("<strong>Ways to enjoy it.</strong> Straight from the pack, on a salad or a bowl of soup, tucked into wraps and sandwiches, or in your bag for the office and after a workout.") +
+          p("<strong>What is in the pack.</strong> Roasted Edamame: over 40g of protein per 100g, roasted in olive oil. Soya Crunchies: roasted, not fried. Soya Sticks and Chips: fried, for a classic chip crunch.") +
+          p("Anything else? Reply to this email and a real person will answer."),
+      },
+    ],
+  },
+
+  // ==== Retain & grow ==========================================================
+  {
+    key: "replenishment",
+    name: "Replenishment",
+    category: "retain",
+    description: "Every order. Around day 25, a running-low reminder with Best Sellers and a 15% unique code, then one reminder on day 32. Skipped when WhatsApp already sent the refill reminder.",
+    trigger_type: "order_placed",
+    // A new order exits the running reminder (then enrols a fresh one for the
+    // new order). 15% code lives 9 days (copy: 7), email 2 says "tomorrow".
+    // WhatsApp's replenishment_reminder fires at day 30, after email 1.
+    trigger_config: { exit_on_order: true },
+    steps: [
+      {
+        type: "email",
+        format: "designed",
+        delay_hours: 600,
+        skip_if_wa_journey: "replenishment",
+        subject: "Running low on PROMUNCH?",
+        subject_variants: ["{{first_name}}, time for a refill?", "Restock before you run out (15% off)"],
+        preview_text: "15% off your refill with code {{coupon_code}}. Good for 7 days.",
+        preview_variants: ["Your favourites, 15% off this week."],
+        coupon: { percent_off: 15, expires_in_days: 9, prefix: "REFILL15" },
+        coupon_code: "",
+        body_html:
+          h1("Running low?") +
+          hi("it has been a few weeks since your order, so your stash might be getting light. Here is 15% off your refill.") +
+          couponBox(CODE, "15% off your refill", "One use. Valid for 7 days.") +
+          button("Restock now", link(PATHS.bestSellers, "replenishment", 1)) +
+          p("<strong>From our Best Sellers</strong>") +
+          grid(["edamameRockSalt", "crunchies4", "bigBite"], "replenishment", 1) +
+          SHIPPING,
       },
       {
         type: "email",
         format: "designed",
         delay_hours: 168,
-        subject: "{{first_name}}, how were your snacks?",
-        subject_variants: ["Got a minute? We would love your review", "Be honest: what did you think?"],
-        preview_text: "Your review helps other snackers pick the right pack.",
-        preview_variants: ["Good or bad, we want to hear it."],
-        body_html: p(
-          P("Hi {{first_name}},") +
-          P("You have had your PROMUNCH for a little while now. How was it? A short review takes about a minute and helps other snackers pick the right pack.") +
-          BTN(link(PATHS.review, "post_purchase", 3), "Leave a review", true) +
-          P("Got a photo of your snacks? Post it on Instagram and tag <b>@promunch.snacks</b>. We love seeing where PROMUNCH ends up.") +
-          MUTED("Something not right? Reply to this email instead and we will fix it."),
-        ),
-      },
-      {
-        type: "email",
-        format: "plain",
-        from_name: PARTH_FROM,
-        signature: PARTH_SIG,
-        delay_hours: 96,
-        subject: "3 quick questions (just hit reply)",
-        subject_variants: ["Can I ask you 3 things, {{first_name}}?", "Help us make PROMUNCH better"],
-        preview_text: "A word or two for each is plenty.",
-        preview_variants: ["Parth here, 30 seconds of your time?"],
-        body_html: p(PLAIN(
-          "Hi {{first_name}},",
-          "Parth again. Now that you have tried PROMUNCH, could you answer three quick questions? Just hit reply, a word or two each is plenty.",
-          "1. How did you first hear about PROMUNCH?<br>2. What almost stopped you from ordering?<br>3. Which flavour or product should we make next?",
-          "The team reads every reply, and your answers shape what we make next.",
-          "Thank you.",
-        )),
+        skip_if_wa_journey: "replenishment",
+        subject: "Your 15% refill code ends tomorrow",
+        subject_variants: ["{{first_name}}, last day tomorrow for 15% off", "A quick reminder about your refill code"],
+        preview_text: "Code {{coupon_code}} stops working after tomorrow.",
+        preview_variants: ["This is the last reminder about it."],
+        coupon: { percent_off: 15, expires_in_days: 9, prefix: "REFILL15" },
+        coupon_code: "",
+        body_html:
+          h1("Your refill code ends tomorrow") +
+          hi("just a heads up: your 15% code stops working after tomorrow. This is the last reminder about it.") +
+          couponBox(CODE, "15% off your refill", "One use. Ends tomorrow.") +
+          button("Restock now", link(PATHS.bestSellers, "replenishment", 2)) +
+          SHIPPING,
       },
     ],
   },
   {
-    key: "replenishment",
-    name: "Replenishment reminder",
+    key: "cross_sell",
+    name: "Cross-sell",
     category: "retain",
-    description: "Nudge a reorder around the typical refill cycle.",
+    description: "First order only. Around day 18, suggest another kind of PROMUNCH to try. No discount. Stops if they order again first.",
     trigger_type: "order_placed",
-    trigger_config: {},
+    trigger_config: { first_order_only: true, exit_on_order: true },
     steps: [
-      { type: "email", delay_hours: 720, subject: "Running low on munchies?", body_html: p("<p>It has been about a month. Time to restock your PROMUNCH before you run out.</p><p><a href=\"https://promunch.in/collections/all?utm_source=email&utm_medium=flow&utm_campaign=replenishment\">Reorder now</a></p>") },
+      {
+        type: "email",
+        format: "designed",
+        delay_hours: 432,
+        subject: "Ready to try another flavour?",
+        subject_variants: ["{{first_name}}, your next favourite might be here", "Three PROMUNCH snacks worth a try"],
+        preview_text: "Roasted edamame, roasted crunchies, or fried sticks and chips.",
+        preview_variants: ["Three different ways to crunch."],
+        body_html:
+          h1("Try something new next time") +
+          hi("thanks again for your first PROMUNCH order. If you liked it, here are three different ways to crunch.") +
+          button("Shop all snacks", link(PATHS.all, "cross_sell", 1)) +
+          grid(["edamameCombo", "crunchies4", "sticksChips"], "cross_sell", 1) +
+          p("<strong>Roasted Edamame:</strong> over 40g of protein per 100g, roasted in olive oil. <strong>Soya Crunchies:</strong> roasted, in Tangy Pudina, Peri Peri, Cheese &amp; Onion and Noodle Masala. <strong>Soya Sticks and Chips:</strong> fried, for a classic chip crunch.") +
+          SHIPPING,
+      },
     ],
   },
   {
     key: "win_back",
     name: "Win-back",
     category: "retain",
-    description: "No order in 60 days. We-miss-you + 15% unique code and what is new, a founder follow-up, then a last call before the code expires. Stops on order.",
+    description: "No order in 60 days. We-miss-you + 20% unique code, a founder follow-up, then a last call before the code expires. Stops on order.",
     trigger_type: "segment_entry",
-    // Code minted in email 1 lives 8 days; email 3 lands on day 7 ("tomorrow").
-    trigger_config: { segment: "winback", days_since_last_order: 60, coupon_code: "COMEBACK15", exit_on_order: true },
+    // 20% code minted in email 1 lives 9 days (copy: 7); email 3 lands on day 7
+    // and says "tomorrow".
+    trigger_config: { segment: "winback", days_since_last_order: 60, exit_on_order: true },
     steps: [
       {
         type: "email",
         format: "designed",
         delay_hours: 0,
-        subject: "We miss you, {{first_name}}. Here is 15% off",
-        subject_variants: ["It has been a while. 15% off to come back", "What is new at PROMUNCH (and 15% off)"],
-        preview_text: "Your code {{coupon_code}} is good for 8 days.",
+        subject: "We miss you, {{first_name}}. Here is 20% off",
+        subject_variants: ["It has been a while. 20% off to come back", "Come back to PROMUNCH (20% off inside)"],
+        preview_text: "Your code {{coupon_code}} is good for 7 days.",
         preview_variants: ["A comeback code, just for you."],
-        coupon: { percent_off: 15, expires_in_days: 8, prefix: "COMEBACK" },
-        coupon_code: "COMEBACK15",
-        body_html: p(
-          P("Hi {{first_name}},") +
-          P("It has been a couple of months since your last PROMUNCH order, and we miss you. So here is a bigger thank you than usual:") +
-          CODE("15% OFF, WELCOME BACK", "One use. Valid for 8 days.") +
-          H("What is new") +
-          LIST([
-            `<a href="${link(PATHS.edamame, "winback", 1)}" style="color:#1B2A20;font-weight:700;">Roasted Edamame</a> in Himalayan Rock Salt, Indori Chatka and Masala Mania. Roasted in olive oil, over 40g of protein per 100g.`,
-            `<a href="${link(PATHS.edamameTravel, "winback", 1)}" style="color:#1B2A20;font-weight:700;">Edamame Travel Combo</a>: nine 25g packs across all three flavours, made for your bag.`,
-          ]) +
-          BTN(link(PATHS.edamame, "winback", 1), "See what is new") +
-          MUTED("Free shipping on orders over ₹599."),
-        ),
+        coupon: { percent_off: 20, expires_in_days: 9, prefix: "COMEBACK20" },
+        coupon_code: "",
+        body_html:
+          h1("We miss you") +
+          hi("it has been a couple of months since your last PROMUNCH order. Come back for 20% off, on us.") +
+          couponBox(CODE, "20% off, welcome back", "One use. Valid for 7 days.") +
+          button("Shop Best Sellers", link(PATHS.bestSellers, "winback", 1)) +
+          p(`Have you tried our <a href="${link(PATHS.edamame, "winback", 1)}">Roasted Edamame</a>? Himalayan Rock Salt, Indori Chatka and Masala Mania, roasted in olive oil, with over 40g of protein per 100g.`) +
+          SHIPPING,
       },
       {
         type: "email",
@@ -653,150 +635,203 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         delay_hours: 72,
         subject: "Did we do something wrong, {{first_name}}?",
         subject_variants: ["A quick question from PROMUNCH's founder", "{{first_name}}, can I ask why?"],
-        preview_text: "Honest feedback welcome. Your 15% code is still active.",
+        preview_text: "Honest feedback welcome. Your 20% code is still active.",
         preview_variants: ["One line is enough."],
-        coupon: { percent_off: 15, expires_in_days: 8, prefix: "COMEBACK" },
-        coupon_code: "COMEBACK15",
-        body_html: p(PLAIN(
+        coupon: { percent_off: 20, expires_in_days: 9, prefix: "COMEBACK20" },
+        coupon_code: "",
+        body_html: PLAIN(
           "Hi {{first_name}},",
           "Parth here, founder of PROMUNCH. You have not ordered in a while, and I would genuinely like to know why.",
           "Was it the taste, the price, the delivery, or did you just forget about us? Reply with one line. The team and I read every reply, and it helps us fix things.",
-          `If you just forgot, your 15% code <b>{{coupon_code}}</b> is still active for a few more days. <a href="${link(PATHS.all, "winback", 2)}">Here is everything we make</a>.`,
-        )),
+          `If you just forgot, your 20% code <b>{{coupon_code}}</b> is still active for a few more days. <a href="${link(PATHS.all, "winback", 2)}">Here is everything we make</a>.`,
+        ),
       },
       {
         type: "email",
         format: "designed",
         delay_hours: 96,
-        subject: "Last chance: your 15% off ends tomorrow",
-        subject_variants: ["{{first_name}}, your comeback code expires tomorrow", "Final reminder: 15% off PROMUNCH"],
+        subject: "Last chance: your 20% off ends tomorrow",
+        subject_variants: ["{{first_name}}, your comeback code expires tomorrow", "Final reminder: 20% off PROMUNCH"],
         preview_text: "After tomorrow this code stops working.",
         preview_variants: ["This is the last email about this offer."],
-        coupon: { percent_off: 15, expires_in_days: 8, prefix: "COMEBACK" },
-        coupon_code: "COMEBACK15",
-        body_html: p(
-          P("Hi {{first_name}},") +
-          P("Your 15% comeback code expires tomorrow. This is the last email we will send about it.") +
-          CODE("LAST DAY TOMORROW", "15% off. One use.") +
-          BTN(link(PATHS.bestSellers, "winback", 3), "Shop Best Sellers", true) +
-          REVIEWS_BLOCK,
-        ),
+        coupon: { percent_off: 20, expires_in_days: 9, prefix: "COMEBACK20" },
+        coupon_code: "",
+        body_html:
+          h1("Your 20% off ends tomorrow") +
+          hi("your comeback code stops working after tomorrow. This is the last email we will send about it.") +
+          couponBox(CODE, "20% off, last day tomorrow", "One use.") +
+          button("Shop Best Sellers", link(PATHS.bestSellers, "winback", 3)) +
+          REVIEWS,
       },
     ],
   },
   {
     key: "vip_reward",
-    name: "VIP reward",
+    name: "VIP thank-you",
     category: "retain",
-    description: "Recognise your 3+ order customers with a members-only perk.",
+    description: "Customers with ₹2,000+ lifetime spend or 3+ orders. A founder thank-you, then the full range and an invite to shape the next flavour. No discount. Keeps running if they order.",
     trigger_type: "segment_entry",
-    trigger_config: {},
+    // Once ever per contact (dedup vip:<contact>). exit_on_order:false, or the
+    // VIP's next order would cut their thank-you short.
+    trigger_config: { segment: "vip", min_spend: 2000, min_orders: 3, exit_on_order: false },
     steps: [
-      { type: "email", delay_hours: 0, subject: "A little thank you, from us to you", body_html: p("<p>You are one of our favourite munchers. Here is an early look and a members-only treat.</p>") },
-    ],
-  },
-  {
-    key: "back_in_stock",
-    name: "Back-in-stock alert",
-    category: "retain",
-    description: "Customer asked to be notified when a sold-out flavour returns.",
-    trigger_type: "segment_entry",
-    trigger_config: {},
-    needsSetup: true,
-    steps: [
-      { type: "email", delay_hours: 0, subject: "It is back in stock", body_html: p("<p>Good news, the flavour you wanted is back. Grab it before it sells out again.</p>") },
-    ],
-  },
-  {
-    key: "referral",
-    name: "Referral invite",
-    category: "retain",
-    description: "Ask happy customers to share PROMUNCH with a friend.",
-    trigger_type: "segment_entry",
-    trigger_config: {},
-    steps: [
-      { type: "email", delay_hours: 0, subject: "Share the crunch with a friend", body_html: p("<p>Love your munchies? Share PROMUNCH with a friend and you both get a treat.</p>") },
+      {
+        type: "email",
+        format: "plain",
+        from_name: PARTH_FROM,
+        signature: PARTH_SIG,
+        delay_hours: 0,
+        subject: "Thank you, {{first_name}}. Really.",
+        subject_variants: ["You are one of our regulars", "A thank you from PROMUNCH's founder"],
+        preview_text: "No sale, no code. Just a thank you.",
+        preview_variants: ["Parth here, founder of PROMUNCH."],
+        body_html: PLAIN(
+          "Hi {{first_name}},",
+          "Parth here, founder of PROMUNCH. You are one of the people who keeps coming back to PROMUNCH, and I wanted to say thank you personally.",
+          "A small brand like ours lives on regulars like you. Every reorder tells us we are getting something right.",
+          "Since you know our snacks better than most, I would love your take: which flavour should we make next, and what would you change? Just hit reply. The team and I read every reply, and it shapes what we make next.",
+        ),
+      },
+      {
+        type: "email",
+        format: "designed",
+        delay_hours: 168,
+        subject: "For our regulars: the full PROMUNCH range",
+        subject_variants: ["{{first_name}}, have you tried the whole range?", "Your next favourite, from PROMUNCH"],
+        preview_text: "Edamame, Crunchies, Sticks and Chips, all in one place.",
+        preview_variants: ["And a chance to pick our next flavour."],
+        body_html:
+          h1("Have you tried the whole range?") +
+          hi("as one of our regulars, here is everything PROMUNCH makes, in one place.") +
+          button("See the full range", link(PATHS.all, "vip", 2)) +
+          grid(["edamameCombo", "crunchies4", "sticksChips"], "vip", 2) +
+          p("Got a flavour idea? Reply to this email and tell us. Ideas from our regulars go straight to the team."),
+      },
     ],
   },
 
-  // ---- Engage & seasonal ----------------------------------------------------
+  // ==== Engage =================================================================
   {
     key: "review_request",
     name: "Review request",
     category: "engage",
-    description: "A few days after delivery, ask for a rating.",
+    description: "Every order. Around day 8, ask for a review on promunch.in, with one reminder on day 12. Skipped when WhatsApp already sent the review ask.",
     trigger_type: "order_placed",
-    trigger_config: {},
+    // WhatsApp review_request fires at day 7; skip_if_wa_journey makes the
+    // email the fallback for customers WhatsApp did not reach. A new order
+    // exits the pending ask (and enrols a fresh one for the new order).
+    trigger_config: { exit_on_order: true },
     steps: [
-      { type: "email", delay_hours: 120, subject: "How were your munchies?", body_html: p("<p>We would love to hear what you thought.</p><p><a href=\"https://promunch.in/pages/review-submission\">Leave a quick review</a></p>") },
+      {
+        type: "email",
+        format: "designed",
+        delay_hours: 192,
+        skip_if_wa_journey: "review",
+        subject: "{{first_name}}, how were your snacks?",
+        subject_variants: ["Got a minute? We would love your review", "Be honest: what did you think?"],
+        preview_text: "A short review takes about a minute.",
+        preview_variants: ["Good or bad, we want to hear it."],
+        body_html:
+          h1("How were your snacks?") +
+          hi("your PROMUNCH should be with you by now. How was it? A short review takes about a minute and helps other snackers pick the right pack.") +
+          button("Leave a review", link(PATHS.review, "review_request", 1)) +
+          p("Something not right? Reply to this email instead and we will fix it."),
+      },
+      {
+        type: "email",
+        format: "plain",
+        from_name: PARTH_FROM,
+        signature: PARTH_SIG,
+        delay_hours: 96,
+        skip_if_wa_journey: "review",
+        subject: "One small favour, {{first_name}}?",
+        subject_variants: ["Would you rate your PROMUNCH?", "A minute of your time?"],
+        preview_text: "A quick review helps a small brand a lot.",
+        preview_variants: ["Parth here, one quick ask."],
+        body_html: PLAIN(
+          "Hi {{first_name}},",
+          "Parth here, founder of PROMUNCH. If you have a minute, would you leave a quick review of your order? Reviews are how new snackers find us, and they help us a lot.",
+          `<a href="${link(PATHS.review, "review_request", 2)}">Leave a review here</a>.`,
+          "Already did it? Thank you, you can ignore this email.",
+        ),
+      },
     ],
   },
   {
-    key: "delivered_followup",
-    name: "Order delivered follow-up",
+    key: "first_order_anniversary",
+    name: "First-order anniversary",
     category: "engage",
-    description: "Confirm it arrived and open the door to support.",
-    trigger_type: "order_placed",
-    trigger_config: {},
-    needsSetup: true,
-    steps: [
-      { type: "email", delay_hours: 24, subject: "Did your munchies arrive safely?", body_html: p("<p>Your order should have arrived. If anything is not right, just reply and we will sort it out.</p>") },
-    ],
-  },
-  {
-    key: "birthday",
-    name: "Birthday treat",
-    category: "engage",
-    description: "A small discount on their birthday.",
+    description: "On the anniversary of a customer's first order, a thank-you with a 15% unique code.",
     trigger_type: "date_based",
-    trigger_config: {},
-    needsSetup: true,
+    // 15% code lives 8 days (copy: 7).
+    trigger_config: { kind: "first_order_anniversary" },
     steps: [
-      { type: "email", delay_hours: 0, subject: "Happy birthday from PROMUNCH", body_html: p("<p>Happy birthday! Here is a little treat to celebrate. Enjoy on us.</p>") },
-    ],
-  },
-  {
-    key: "seasonal",
-    name: "Festival & seasonal",
-    category: "engage",
-    description: "Diwali, Republic Day, gifting hampers. Clone each occasion.",
-    trigger_type: "segment_entry",
-    trigger_config: {},
-    steps: [
-      { type: "email", delay_hours: 0, subject: "A seasonal treat from PROMUNCH", body_html: p("<p>Celebrate the season with our gifting hampers and festive favourites.</p>") },
-      { type: "email", delay_hours: 72, subject: "Last chance for the festive munchies", body_html: p("<p>The season is almost over. Grab your hampers before they are gone.</p>") },
-    ],
-  },
-  {
-    key: "product_education",
-    name: "Product education",
-    category: "engage",
-    description: "How to enjoy PROMUNCH, pairings and recipes.",
-    trigger_type: "customer_created",
-    trigger_config: {},
-    steps: [
-      { type: "email", delay_hours: 96, subject: "5 ways to enjoy your munchies", body_html: p("<p>From salad toppers to on-the-go protein, here are our favourite ways to munch.</p>") },
-      { type: "email", delay_hours: 168, subject: "Did you know our Crunchies are roasted?", body_html: p("<p>Our Crunchies are roasted, not fried. Here is what makes them different.</p>") },
+      {
+        type: "email",
+        format: "designed",
+        delay_hours: 0,
+        subject: "Happy PROMUNCH anniversary, {{first_name}}",
+        subject_variants: ["On this day, you placed your first PROMUNCH order", "{{first_name}}, it is our anniversary (15% off inside)"],
+        preview_text: "15% off to celebrate. Good for 7 days.",
+        preview_variants: ["A thank you, and a code to celebrate."],
+        coupon: { percent_off: 15, expires_in_days: 8, prefix: "ANNIV15" },
+        coupon_code: "",
+        body_html:
+          h1("Happy PROMUNCH anniversary") +
+          hi("on this day you placed your first PROMUNCH order. Thank you for snacking with us. Here is 15% off to celebrate.") +
+          couponBox(CODE, "15% off, to celebrate", "One use. Valid for 7 days.") +
+          button("Treat myself", link(PATHS.bestSellers, "anniversary", 1)) +
+          SHIPPING,
+      },
     ],
   },
 
-  // ---- Protect deliverability ----------------------------------------------
+  // ==== Protect deliverability =================================================
   {
     key: "sunset_unengaged",
     name: "Sunset unengaged",
     category: "deliverability",
-    description: "Ask subscribers who have not opened in months to re-confirm, then suppress the rest. Keeps sender reputation clean.",
+    description: "5+ marketing emails in 90 days and no open or click. One email: keep me subscribed, or unsubscribe. No discount. Protects sender reputation.",
     trigger_type: "segment_entry",
-    trigger_config: {},
+    // A click on "keep me subscribed" counts as engagement, so they drop out
+    // of the sunset segment. Auto-suppressing non-responders is NOT wired yet
+    // (shouldSuppressAfterSunset in segment-triggers.ts), so copy promises
+    // nothing about removing them.
+    trigger_config: { segment: "sunset", min_sends: 5, lookback_days: 90 },
     steps: [
-      { type: "email", delay_hours: 0, subject: "Do you still want to hear from us?", body_html: p("<p>We have not seen you open our emails in a while. Want to keep getting PROMUNCH news and offers?</p><p><a href=\"https://promunch.in/collections/best-sellers?utm_source=email&utm_medium=flow&utm_campaign=sunset\">Yes, keep me in</a></p>") },
-      { type: "email", delay_hours: 168, subject: "Last call before we say goodbye", body_html: p("<p>If we do not hear from you, we will stop emailing to respect your inbox. You can always rejoin from our website.</p>") },
+      {
+        type: "email",
+        format: "designed",
+        delay_hours: 0,
+        subject: "Should we stop emailing you, {{first_name}}?",
+        subject_variants: ["Do you still want to hear from PROMUNCH?", "Quick question about your inbox"],
+        preview_text: "One tap to stay. Or unsubscribe, no hard feelings.",
+        preview_variants: ["We only want to be in your inbox if you want us there."],
+        body_html:
+          h1("Should we stop emailing you?") +
+          hi("we noticed you have not opened our emails in a while. We only want to be in your inbox if you want us there.") +
+          button("Yes, keep me subscribed", link(PATHS.all, "sunset", 1)) +
+          p("Tap the button and you stay on the list. It opens our store, no need to buy anything.") +
+          p("Not for you anymore? Use the unsubscribe link at the bottom of this email. One tap and you are off the list, no hard feelings."),
+      },
     ],
   },
 ];
 
-/** The four flows shipped live in v1. */
-export const V1_FLOW_KEYS = ["abandoned_cart", "welcome", "post_purchase", "win_back"] as const;
+/** The flows shipped in the 2026-09-30 content pack (docs/plans/2026-09-30-email-flow-content.sql). */
+export const V1_FLOW_KEYS = [
+  "abandoned_cart",
+  "welcome",
+  "browse_abandonment",
+  "post_purchase",
+  "review_request",
+  "replenishment",
+  "cross_sell",
+  "win_back",
+  "vip_reward",
+  "sunset_unengaged",
+  "first_order_anniversary",
+] as const;
 
 export function templateByKey(key: string): FlowTemplate | undefined {
   return FLOW_TEMPLATES.find((t) => t.key === key);

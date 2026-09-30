@@ -10,13 +10,24 @@
 // Pure: takes the unsubscribe URL instead of signing it, so it is unit-testable
 // without UNSUBSCRIBE_SECRET.
 
-function esc(s: string): string {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
+import {
+  EMAIL_COLORS as C,
+  EMAIL_FONT,
+  EMAIL_LAYOUT as L,
+  EMAIL_TYPE as T,
+  emailFooterAddress,
+  emailHead,
+  escHtml as esc,
+  footerInnerHtml,
+  preheaderHtml,
+} from "./brand-tokens";
 
-/** Same env + fallback as layout.ts footerAddress(); keep the two in sync. */
+// Same tokens as the designed layout (brand-tokens.ts): same font, 16px body,
+// #111 text, grey footer. Only the logo banner, card and grey page are dropped.
+
+/** Same env + fallback as layout.ts (both read brand-tokens.ts). */
 export function plainFooterAddress(): string {
-  return process.env.EMAIL_FOOTER_ADDRESS || "PROMUNCH, 28, AB Rd, Industrial Area No. 1, Dewas, Madhya Pradesh 455001";
+  return emailFooterAddress();
 }
 
 export interface PlainEmailOptions {
@@ -29,32 +40,27 @@ export interface PlainEmailOptions {
 }
 
 export function renderPlainMarketingEmail(o: PlainEmailOptions): string {
-  const preheader = o.previewText
-    ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(o.previewText)}</div>`
-    : "";
   const sig = o.signature?.trim()
-    ? `<p style="margin:18px 0 0 0;">${o.signature.trim().split(/\r?\n/).map(esc).join("<br>")}</p>`
+    ? `<p style="margin:24px 0 0 0;">${o.signature.trim().split(/\r?\n/).map(esc).join("<br>")}</p>`
     : "";
   const address = o.footerAddress ?? plainFooterAddress();
   return `<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#ffffff;">
-${preheader}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;">
-  <tr><td align="left" style="padding:16px;">
-    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+${emailHead()}
+<body style="margin:0;padding:0;background:${C.card};font-family:${EMAIL_FONT};color:${C.ink};-webkit-text-size-adjust:100%;">
+${preheaderHtml(o.previewText)}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${C.card}" style="background:${C.card};">
+  <tr><td align="left" style="padding:20px 16px;">
+    <table role="presentation" width="${L.width}" cellpadding="0" cellspacing="0" border="0" style="max-width:${L.width}px;width:100%;">
       <tr>
-        <td align="left" style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#222222;text-align:left;">
+        <td align="left" style="font-family:${EMAIL_FONT};font-size:${T.body}px;line-height:${T.lineHeight};color:${C.ink};text-align:left;">
           ${o.bodyHtml}
           ${sig}
         </td>
       </tr>
       <tr>
-        <td align="left" style="padding-top:28px;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.6;color:#999999;text-align:left;">
-          You are receiving this because you subscribed to PROMUNCH email.
-          <a href="${esc(o.unsubscribeUrl)}" style="color:#999999;text-decoration:underline;">Unsubscribe</a>.<br>
-          ${esc(address)}
+        <td align="left" style="padding-top:32px;">
+          <div style="border-top:1px solid ${C.line};padding-top:16px;">${footerInnerHtml(o.unsubscribeUrl, address, "left")}</div>
         </td>
       </tr>
     </table>

@@ -6,6 +6,8 @@
 // waiting" is theirs. A thumbnail makes it unmistakable. Titles come from
 // Shopify, so they are escaped; image URLs must be http(s) or are dropped.
 
+import { EMAIL_COLORS as C, EMAIL_FONT } from "./brand-tokens";
+
 export type CartItem = Record<string, unknown>;
 
 /** Lookup keys: Shopify variant id (== wa_catalog_items.retailer_id) or lowercased title. */
@@ -48,16 +50,16 @@ export function cartItemsHtml(ctx: Record<string, unknown>, images?: ImageLookup
     const qty = Number(it.quantity ?? 1) || 1;
     const line = (Number(it.price ?? 0) || 0) * qty;
     const img = itemImage(it, images);
-    const cell = "padding:10px 0;border-bottom:1px solid #EFE8DB;vertical-align:middle;";
+    const cell = `padding:12px 0;border-bottom:1px solid ${C.line};vertical-align:middle;font-family:${EMAIL_FONT};`;
     const imgCell = img
-      ? `<td width="76" style="${cell}width:76px;"><img src="${esc(img)}" width="64" height="64" alt="${title}" style="display:block;width:64px;height:64px;border-radius:8px;border:1px solid #EFE8DB;object-fit:cover;"></td>`
+      ? `<td width="76" style="${cell}width:76px;"><img src="${esc(img)}" width="64" height="64" alt="${title}" style="display:block;width:64px;height:64px;border-radius:4px;border:1px solid ${C.line};object-fit:cover;"></td>`
       : "";
     return `<tr>
-      ${imgCell}<td style="${cell}font-size:15px;color:#1A1714;">${title}${qty > 1 ? ` <span style="color:#6E665A;">x${qty}</span>` : ""}</td>
-      <td style="${cell}font-size:15px;color:#1A1714;text-align:right;white-space:nowrap;">${money(line)}</td>
+      ${imgCell}<td style="${cell}font-size:16px;line-height:1.4;color:${C.ink};">${title}${qty > 1 ? ` <span style="color:${C.muted};">x${qty}</span>` : ""}</td>
+      <td style="${cell}font-size:16px;font-weight:700;color:${C.ink};text-align:right;white-space:nowrap;">${money(line)}</td>
     </tr>`;
   }).join("");
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;">${rows}</table>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;border-top:1px solid ${C.line};">${rows}</table>`;
 }
 
 /** True when any item still needs a catalog lookup for its image. */

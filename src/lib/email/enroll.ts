@@ -192,11 +192,30 @@ async function contactIdForEmail(email: string): Promise<string | null> {
   return lookupContactId(email);
 }
 
+/**
+ * Pick one contact for an email from case-insensitive matches. contacts.email
+ * is UNIQUE but case-sensitive, so "Foo@x.com" and "foo@x.com" can both exist:
+ * prefer the lowercase row, else the first row returned (oldest).
+ */
+export function pickContactId(rows: Array<{ id: unknown; email?: unknown }> | null | undefined, email: string): string | null {
+  const list = rows ?? [];
+  if (list.length === 0) return null;
+  const lc = email.trim().toLowerCase();
+  const exact = list.find((r) => String(r.email ?? "") === lc);
+  return String((exact ?? list[0]).id);
+}
+
+/** Case-insensitive contact lookup (stored emails may be mixed-case). */
 async function lookupContactId(email?: string | null): Promise<string | null> {
   const e = email?.trim().toLowerCase();
   if (!e) return null;
-  const { data } = await db().from("contacts").select("id").eq("email", e).maybeSingle();
-  return (data?.id as string | undefined) ?? null;
+  const { data } = await db()
+    .from("contacts")
+    .select("id, email")
+    .ilike("email", escapeLike(e))
+    .order("created_at", { ascending: true })
+    .limit(10);
+  return pickContactId(data as Array<{ id: unknown; email?: unknown }> | null, e);
 }
 
 /** Bias to silence: a lookup error counts as "has a prior order". */

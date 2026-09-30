@@ -11,6 +11,7 @@
 // Keep imports relative: vitest has no "@/" alias.
 
 import { makeBlock, type Block, type EmailDesign, type Theme, DEFAULT_THEME } from "./design";
+import { EMAIL_COLORS } from "../email/brand-tokens";
 
 export type SystemTemplate = {
   key: string;
@@ -35,17 +36,15 @@ const P = {
   travelCombo: "49556437827885",
 };
 
-const FESTIVE: Theme = {
-  background: "#5A1016",
-  content: "#FFF8EC",
-  text: "#2A1A12",
-  accent: "#AF272F",
-  button: "#AF272F",
-  buttonText: "#FFFFFF",
-  font: "serif",
-};
-
-const GOLD: Theme = { ...FESTIVE, background: "#1D1517", accent: "#A95C00", button: "#1D1517" };
+// Every template uses the PROMUNCH storefront look (DEFAULT_THEME, from
+// email/brand-tokens.ts: promunch.in colours, fonts and logo), so Studio
+// campaigns match flow emails. Diwali templates keep a festive deep-red page
+// (the site's --accent-deep) around the same white card, a sibling of the
+// Sep 29 Diwali email. Layout rules (Porcellia checklist): plain, one red CTA
+// near the top (first scroll), products below it as quiet text links, no
+// social row.
+const BRAND_THEME: Theme = { ...DEFAULT_THEME };
+const FESTIVE_THEME: Theme = { ...DEFAULT_THEME, background: EMAIL_COLORS.brandDeep };
 
 // Block helpers that take overrides (ids stay fresh on every build).
 function b<T extends Block["type"]>(type: T, over: Partial<Extract<Block, { type: T }>> = {}): Block {
@@ -62,7 +61,7 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     previewText: "Festive protein snacks for the whole family, with 15% off.",
     build: () => ({
       version: 1,
-      theme: { ...FESTIVE },
+      theme: { ...FESTIVE_THEME },
       blocks: [
         b("logo", { showTagline: true }),
         b("heading", { text: "Happy Diwali from PROMUNCH", size: "xl" }),
@@ -71,10 +70,9 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
           text: "Hi {{first_name|there}},\n\nThis Diwali, swap the mithai overload for snacks everyone can keep reaching for. High in protein, big on flavour, made for sharing.",
         }),
         b("coupon", { code: "DIWALI15", headline: "15% off your Diwali order", note: "Apply at checkout. Valid till Nov 8." }),
-        b("products", { items: [P.diwaliBox, P.bigBite, P.assorted270, P.corporateHamper], columns: 2, buttonLabel: "Add to cart" }),
         b("button", { label: "Shop the Diwali range", href: "https://promunch.in/collections/all" }),
+        b("products", { items: [P.diwaliBox, P.bigBite, P.assorted270, P.corporateHamper], columns: 2, buttonLabel: "Add to cart" }),
         b("text", { align: "center", text: "Wishing you and your family a bright, happy and munchy Diwali." }),
-        b("social"),
       ],
     }),
   },
@@ -87,7 +85,7 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     previewText: "Protein snack boxes from ₹555. Easy gifting for family, friends and teams.",
     build: () => ({
       version: 1,
-      theme: { ...GOLD },
+      theme: { ...FESTIVE_THEME },
       blocks: [
         b("logo"),
         b("heading", { text: "The Diwali gift guide", size: "xl" }),
@@ -95,6 +93,7 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
           align: "center",
           text: "Hi {{first_name|there}},\n\nSweets get passed around. PROMUNCH gets finished. Here are our favourite gifts this festive season.",
         }),
+        b("button", { label: "Shop Diwali gifts", href: "https://promunch.in/collections/all" }),
         b("divider"),
         b("heading", { text: "Under ₹600", size: "md" }),
         b("products", { items: [P.diwaliBox, P.assorted150], columns: 2, buttonLabel: "Gift this" }),
@@ -106,7 +105,6 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
           align: "center",
           text: "Ordering 10 or more hampers? Just reply to this email and we will help you with bulk pricing.",
         }),
-        b("social"),
       ],
     }),
   },
@@ -119,7 +117,7 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     previewText: "Our festive offer opens for you 48 hours before everyone else.",
     build: () => ({
       version: 1,
-      theme: { ...FESTIVE },
+      theme: { ...FESTIVE_THEME },
       blocks: [
         b("logo"),
         b("heading", { text: "You're on the early list", size: "xl" }),
@@ -128,9 +126,8 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
           text: "Hi {{first_name|there}},\n\nThank you for munching with us this year. As a thank you, our Diwali offer opens for you **48 hours before everyone else**.",
         }),
         b("coupon", { code: "EARLYDIWALI", headline: "20% off, only for you", note: "Valid for 48 hours. One use per customer." }),
-        b("products", { items: [P.diwaliBox, P.bigBite], columns: 2, buttonLabel: "Shop early" }),
         b("button", { label: "Use my early access", href: "https://promunch.in/collections/all" }),
-        b("social"),
+        b("products", { items: [P.diwaliBox, P.bigBite], columns: 2, buttonLabel: "Shop early" }),
       ],
     }),
   },
@@ -143,7 +140,7 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     previewText: "Order today so your snack box arrives before the festivities.",
     build: () => ({
       version: 1,
-      theme: { ...FESTIVE },
+      theme: { ...FESTIVE_THEME },
       blocks: [
         b("logo", { showTagline: false }),
         b("heading", { text: "Last chance for Diwali", size: "xl" }),
@@ -166,7 +163,7 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     previewText: "Roasted Edamame in three bold flavours. Now live.",
     build: () => ({
       version: 1,
-      theme: { ...DEFAULT_THEME },
+      theme: { ...BRAND_THEME },
       blocks: [
         b("logo"),
         b("image", { alt: "New from PROMUNCH", padded: true }),
@@ -175,9 +172,8 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
           align: "center",
           text: "Hi {{first_name|there}},\n\nCrunchy, roasted and packed with plant protein. Pick your flavour.",
         }),
-        b("products", { items: [P.edamameRockSalt, P.edamameIndori, P.edamameMasala], columns: 3, buttonLabel: "Try it" }),
         b("button", { label: "Shop the launch", href: "https://promunch.in/collections/all" }),
-        b("social"),
+        b("products", { items: [P.edamameRockSalt, P.edamameIndori, P.edamameMasala], columns: 3, buttonLabel: "Try it" }),
       ],
     }),
   },
@@ -190,15 +186,14 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     previewText: "A little something off your next order.",
     build: () => ({
       version: 1,
-      theme: { ...DEFAULT_THEME },
+      theme: { ...BRAND_THEME },
       blocks: [
         b("logo"),
         b("heading", { text: "A treat for you", size: "xl" }),
         b("text", { align: "center", text: "Hi {{first_name|there}},\n\nStock up on your favourites for less this week." }),
         b("coupon", { code: "MUNCH10", headline: "10% off everything", note: "Apply at checkout." }),
-        b("products", { items: [P.assorted270, P.bigBite, P.travelCombo, P.edamameCombo], columns: 2, buttonLabel: "Add to cart" }),
         b("button", { label: "Shop now", href: "https://promunch.in/collections/all" }),
-        b("social"),
+        b("products", { items: [P.assorted270, P.bigBite, P.travelCombo, P.edamameCombo], columns: 2, buttonLabel: "Add to cart" }),
       ],
     }),
   },
@@ -211,17 +206,17 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     previewText: "New flavours, snack ideas and what our community is munching.",
     build: () => ({
       version: 1,
-      theme: { ...DEFAULT_THEME },
+      theme: { ...BRAND_THEME },
       blocks: [
         b("logo"),
         b("image", { alt: "PROMUNCH this month", padded: false }),
         b("heading", { text: "This month at PROMUNCH", size: "lg", align: "left" }),
         b("text", { text: "Hi {{first_name|there}},\n\nWrite a short intro here. What happened this month, and why it matters to your customers." }),
+        b("button", { label: "Shop PROMUNCH", href: "https://promunch.in/collections/all", align: "left" }),
         b("divider"),
         b("heading", { text: "Snack idea of the month", size: "md", align: "left" }),
         b("text", { text: "Share a recipe or a snacking tip. Keep it short and useful." }),
         b("products", { items: [P.assorted150], columns: 1, buttonLabel: "Shop the pick" }),
-        b("social"),
       ],
     }),
   },
@@ -234,7 +229,7 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     previewText: "It's been a while. Here is something to welcome you back.",
     build: () => ({
       version: 1,
-      theme: { ...DEFAULT_THEME },
+      theme: { ...BRAND_THEME },
       blocks: [
         b("logo"),
         b("heading", { text: "It's been a while", size: "xl" }),
@@ -243,8 +238,8 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
           text: "Hi {{first_name|there}},\n\nWe noticed you haven't stocked up in a bit. Your snack drawer misses you, and so do we.",
         }),
         b("coupon", { code: "COMEBACK15", headline: "15% off your next order", note: "Valid for 7 days." }),
-        b("products", { items: [P.assorted270, P.edamameCombo], columns: 2, buttonLabel: "Reorder" }),
         b("button", { label: "Come back and munch", href: "https://promunch.in/collections/all" }),
+        b("products", { items: [P.assorted270, P.edamameCombo], columns: 2, buttonLabel: "Reorder" }),
       ],
     }),
   },
@@ -257,7 +252,7 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     previewText: "",
     build: () => ({
       version: 1,
-      theme: { ...DEFAULT_THEME },
+      theme: { ...BRAND_THEME },
       blocks: [b("logo"), b("heading"), b("text"), b("button")],
     }),
   },

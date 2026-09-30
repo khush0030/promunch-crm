@@ -10,6 +10,7 @@
 // price|null}. Null fallbacks: url -> the all-products collection, image ->
 // the <img> is dropped entirely, price -> empty, title -> "your pick".
 
+import { EMAIL_COLORS } from "./brand-tokens";
 import { cartItemsHtml, money, type ImageLookup } from "./cart-items";
 
 export const PRODUCT_URL_FALLBACK = "https://promunch.in/collections/best-sellers";
@@ -61,7 +62,7 @@ export function productImageHtml(p: { title: string | null; url: string | null; 
   if (!p.image) return "";
   const alt = esc(p.title ?? "PROMUNCH");
   const href = esc(p.url ?? PRODUCT_URL_FALLBACK);
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;"><tr><td align="center"><a href="${href}" style="text-decoration:none;"><img src="${esc(p.image)}" width="280" alt="${alt}" style="display:block;width:280px;max-width:100%;height:auto;border-radius:12px;border:0;"></a></td></tr></table>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 24px;"><tr><td align="center"><a href="${href}" style="text-decoration:none;"><img src="${esc(p.image)}" width="280" alt="${alt}" style="display:block;width:280px;max-width:100%;height:auto;border-radius:4px;border:1px solid ${EMAIL_COLORS.line};"></a></td></tr></table>`;
 }
 
 const T = (name: string) => new RegExp(`\\{\\{\\s*${name.replace(".", "\\.")}\\s*\\}\\}`, "g");

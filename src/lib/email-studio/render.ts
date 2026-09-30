@@ -7,6 +7,22 @@
 // Keep imports relative: vitest has no "@/" alias.
 
 import type { Block, BrandKit, EmailDesign, ProductInfo, Theme } from "./design";
+import {
+  EMAIL_BRAND,
+  EMAIL_COLORS as BC,
+  EMAIL_FONT,
+  EMAIL_FONT_LINK,
+  EMAIL_HEADING_FONT,
+  EMAIL_LAYOUT,
+  EMAIL_MONO,
+  EMAIL_TYPE,
+  footerInnerHtml,
+  logoHtml,
+} from "../email/brand-tokens";
+
+// Look: the shared PROMUNCH storefront style (email/brand-tokens.ts, from promunch.in).
+// Colours come from the design's theme (default = brand tokens); greys,
+// radii, font and spacing come from the tokens so Studio and flow emails match.
 
 export type RenderContext = {
   brand: BrandKit;
@@ -21,8 +37,9 @@ export type RenderContext = {
   annotate?: { selected?: string | null };
 };
 
-const WIDTH = 600;
-const PAD = 28;
+const WIDTH = EMAIL_LAYOUT.width;
+const PAD = EMAIL_LAYOUT.pad;
+const R = EMAIL_LAYOUT.buttonRadius;
 
 export function esc(s: string): string {
   return String(s)
@@ -32,10 +49,15 @@ export function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/** Headings + buttons: the site's Archivo Black (sans themes) or Georgia (serif). */
+function headingStack(t: Theme): string {
+  return t.font === "serif" ? "Georgia,'Times New Roman',serif" : EMAIL_HEADING_FONT;
+}
+
 function fontStack(t: Theme): string {
   return t.font === "serif"
     ? "Georgia,'Times New Roman',serif"
-    : "'Helvetica Neue',Helvetica,Arial,sans-serif";
+    : EMAIL_FONT;
 }
 
 /** Only http(s)/mailto links survive; anything else becomes "#". */
@@ -104,44 +126,53 @@ function buttonHtml(label: string, href: string, t: Theme, variant: "solid" | "o
   const solid = variant === "solid";
   const bg = solid ? t.button : "transparent";
   const fg = solid ? t.buttonText : t.button;
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="display:inline-table;"><tr><td style="border-radius:8px;background:${bg};border:2px solid ${t.button};"><a href="${esc(href)}" style="display:inline-block;padding:13px 26px;font-family:${font};font-size:16px;font-weight:700;color:${fg};text-decoration:none;border-radius:8px;">${esc(label)}</a></td></tr></table>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="display:inline-table;"><tr><td${solid ? ` bgcolor="${bg}"` : ""} style="border-radius:${R}px;background:${bg};border:2px solid ${t.button};"><a href="${esc(href)}" style="display:inline-block;padding:15px 28px;font-family:${font};font-size:15px;line-height:1.2;font-weight:${t.font === "serif" ? 700 : 400};letter-spacing:1px;text-transform:uppercase;color:${fg};text-decoration:none;border-radius:${R}px;">${esc(label)}</a></td></tr></table>`;
 }
 
+/**
+ * Product card: image, title, price, then a quiet underlined text link. The
+ * per-product link is deliberately NOT a solid button so the email keeps one
+ * primary call to action (the button block).
+ */
 function productCell(p: ProductInfo, b: Extract<Block, { type: "products" }>, t: Theme, font: string, ctx: RenderContext): string {
   const href = esc(tagUrl(p.url, ctx.utm));
   const img = p.image
-    ? `<a href="${href}"><img src="${esc(p.image)}" alt="${esc(p.title)}" width="100%" style="display:block;width:100%;height:auto;border:0;border-radius:10px;"></a>`
+    ? `<a href="${href}"><img src="${esc(p.image)}" alt="${esc(p.title)}" width="100%" style="display:block;width:100%;height:auto;border:1px solid ${BC.line};border-radius:${R}px;"></a>`
     : "";
   const price =
     b.showPrice && p.price != null
-      ? `<div style="margin:6px 0 10px;font-size:15px;font-weight:700;color:${t.text};">${inr(p.price)}${
+      ? `<div style="margin:4px 0 0;font-size:15px;font-weight:700;color:${t.text};">${inr(p.price)}${
           p.compareAt && p.compareAt > p.price
-            ? ` <span style="font-weight:400;color:#8A7F83;text-decoration:line-through;font-size:13px;">${inr(p.compareAt)}</span>`
+            ? ` <span style="font-weight:400;color:${BC.hint};text-decoration:line-through;font-size:13px;">${inr(p.compareAt)}</span>`
             : ""
         }</div>`
-      : `<div style="height:10px;"></div>`;
-  const btn = b.buttonLabel ? buttonHtml(b.buttonLabel, tagUrl(p.url, ctx.utm), t, "solid", font) : "";
-  return `${img}<div style="margin-top:10px;font-size:14px;line-height:1.4;font-weight:600;color:${t.text};">${esc(p.title)}</div>${price}${btn}`;
+      : "";
+  const link = b.buttonLabel
+    ? `<div style="margin:8px 0 0;font-size:15px;font-weight:700;"><a href="${href}" style="color:${t.text};text-decoration:underline;">${esc(b.buttonLabel)}</a></div>`
+    : "";
+  return `${img}<div style="margin-top:10px;font-family:${font};font-size:16px;line-height:1.4;font-weight:700;color:${t.text};">${esc(p.title)}</div>${price}${link}`;
 }
 
 function blockHtml(b: Block, ctx: RenderContext, t: Theme, font: string): string {
   const { brand, utm } = ctx;
   switch (b.type) {
     case "logo": {
-      const logo = brand.logoUrl
-        ? `<img src="${esc(brand.logoUrl)}" alt="PROMUNCH" width="${brand.logoWidth}" style="display:inline-block;width:${brand.logoWidth}px;max-width:100%;height:auto;border:0;">`
-        : `<div style="font-size:28px;font-weight:900;letter-spacing:1px;color:${t.accent};">PROMUNCH</div>`;
-      const tag =
-        b.showTagline && brand.tagline
-          ? `<div style="margin-top:4px;font-size:13px;font-style:italic;color:#8A7F83;">${esc(brand.tagline)}</div>`
-          : "";
-      const linked = brand.website ? `<a href="${esc(tagUrl(brand.website, utm))}" style="text-decoration:none;">${logo}</a>` : logo;
-      return row(`<div style="text-align:${b.align};">${linked}${tag}</div>`, `24px ${PAD}px 8px`);
+      // Storefront logo (brand kit override, else promunch.in's header logo)
+      // on a white rounded backing so the transparent PNG never vanishes in
+      // dark mode; alt text in brand red covers image-off clients.
+      const html = logoHtml({
+        tagline: b.showTagline ? brand.tagline : null,
+        href: brand.website ? tagUrl(brand.website, utm) : null,
+        align: b.align,
+        logoUrl: brand.logoUrl || EMAIL_BRAND.logoUrl,
+        logoWidth: brand.logoWidth,
+      });
+      return row(html, `24px ${PAD}px 8px`);
     }
     case "heading": {
-      const size = b.size === "xl" ? 32 : b.size === "lg" ? 26 : 20;
+      const size = b.size === "xl" ? 28 : b.size === "lg" ? 22 : 18;
       return row(
-        `<h1 style="margin:0;font-family:${font};font-size:${size}px;line-height:1.25;font-weight:800;color:${t.text};text-align:${b.align};">${inlineText(b.text, t.accent, utm)}</h1>`,
+        `<h1 style="margin:0;font-family:${headingStack(t)};font-size:${size}px;line-height:1.2;font-weight:${t.font === "serif" ? 700 : EMAIL_TYPE.headingWeight};color:${t.text};text-align:${b.align};">${inlineText(b.text, t.accent, utm)}</h1>`,
         `16px ${PAD}px 8px`,
       );
     }
@@ -150,13 +181,13 @@ function blockHtml(b: Block, ctx: RenderContext, t: Theme, font: string): string
     case "image": {
       if (!b.src) return "";
       const w = b.padded ? WIDTH - PAD * 2 : WIDTH;
-      const img = `<img src="${esc(b.src)}" alt="${esc(b.alt)}" width="${w}" style="display:block;width:100%;max-width:${w}px;height:auto;border:0;${b.padded ? "border-radius:12px;" : ""}">`;
+      const img = `<img src="${esc(b.src)}" alt="${esc(b.alt)}" width="${w}" style="display:block;width:100%;max-width:${w}px;height:auto;border:0;${b.padded ? "border-radius:${R}px;" : ""}">`;
       const inner = b.href ? `<a href="${esc(tagUrl(b.href, utm))}">${img}</a>` : img;
       return row(inner, b.padded ? `12px ${PAD}px` : "0");
     }
     case "button":
       return row(
-        `<div style="text-align:${b.align};">${buttonHtml(b.label, tagUrl(b.href, utm), t, b.variant, font)}</div>`,
+        `<div style="text-align:${b.align};">${buttonHtml(b.label, tagUrl(b.href, utm), t, b.variant, headingStack(t))}</div>`,
         `14px ${PAD}px 18px`,
       );
     case "products": {
@@ -184,15 +215,15 @@ function blockHtml(b: Block, ctx: RenderContext, t: Theme, font: string): string
     }
     case "coupon":
       return row(
-        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border:2px dashed ${t.accent};border-radius:12px;padding:20px;text-align:center;">` +
-          `<div style="font-size:17px;font-weight:700;color:${t.text};">${esc(b.headline)}</div>` +
-          `<div style="margin:10px 0;font-family:'Courier New',Courier,monospace;font-size:26px;font-weight:700;letter-spacing:3px;color:${t.accent};">${esc(b.code)}</div>` +
-          (b.note ? `<div style="font-size:13px;color:#5C5155;">${esc(b.note)}</div>` : "") +
+        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="${BC.panel}" style="background:${BC.panel};border:2px dashed ${t.accent};border-radius:${R}px;padding:20px;text-align:center;">` +
+          `<div style="font-family:${headingStack(t)};font-size:18px;line-height:1.3;font-weight:${t.font === "serif" ? 700 : 400};color:${t.text};">${esc(b.headline)}</div>` +
+          `<div style="margin:10px 0;font-family:${EMAIL_MONO};font-size:26px;font-weight:700;letter-spacing:3px;color:${t.accent};">${esc(b.code)}</div>` +
+          (b.note ? `<div style="font-size:13px;color:${BC.muted};">${esc(b.note)}</div>` : "") +
           `</td></tr></table>`,
         `14px ${PAD}px`,
       );
     case "divider":
-      return row(`<div style="border-top:1px solid #E4DFDD;height:1px;line-height:1px;font-size:0;">&nbsp;</div>`, `16px ${PAD}px`);
+      return row(`<div style="border-top:1px solid ${BC.line};height:1px;line-height:1px;font-size:0;">&nbsp;</div>`, `16px ${PAD}px`);
     case "spacer": {
       const h = Math.max(4, Math.min(96, Number(b.size) || 24));
       return `<tr><td style="height:${h}px;line-height:${h}px;font-size:0;">&nbsp;</td></tr>`;
@@ -208,7 +239,7 @@ function blockHtml(b: Block, ctx: RenderContext, t: Theme, font: string): string
       const html = links
         .map(
           ([label, u]) =>
-            `<a href="${esc(tagUrl(u, utm))}" style="display:inline-block;margin:0 6px 6px;padding:7px 14px;border:1px solid #E4DFDD;border-radius:999px;font-size:13px;font-weight:600;color:${t.text};text-decoration:none;">${label}</a>`,
+            `<a href="${esc(tagUrl(u, utm))}" style="display:inline-block;margin:0 8px 6px;font-size:13px;color:${BC.muted};text-decoration:underline;">${label}</a>`,
         )
         .join("");
       return row(`<div style="text-align:${b.align};">${html}</div>`, `12px ${PAD}px`);
@@ -217,12 +248,8 @@ function blockHtml(b: Block, ctx: RenderContext, t: Theme, font: string): string
 }
 
 function footerHtml(ctx: RenderContext): string {
-  const address = ctx.brand.footerAddress || "PROMUNCH, 28, AB Rd, Industrial Area No. 1, Dewas, Madhya Pradesh 455001";
-  return `<tr><td style="padding:22px ${PAD}px 26px;border-top:1px solid #EFECEA;font-size:12px;line-height:1.6;color:#8A7F83;text-align:center;">
-You are receiving this because you subscribed to PROMUNCH email.<br>
-<a href="${esc(ctx.unsubscribeUrl)}" style="color:#5C5155;text-decoration:underline;">Unsubscribe</a> at any time.<br>
-${esc(address)}
-</td></tr>`;
+  const address = ctx.brand.footerAddress || EMAIL_BRAND.defaultFooterAddress;
+  return `<tr><td style="padding:20px ${PAD}px 24px;border-top:1px solid ${BC.line};">${footerInnerHtml(ctx.unsubscribeUrl, address)}</td></tr>`;
 }
 
 /** Replace {{name|fallback}} tags. Values are HTML-escaped. */
@@ -254,13 +281,13 @@ export function renderDesign(design: EmailDesign, ctx: RenderContext): string {
       const html = blockHtml(b, ctx, t, font);
       if (!ctx.annotate) return html;
       // Empty blocks (no image yet, no products) still need a clickable row.
-      const shown = html || `<tr><td style="padding:14px ${PAD}px;"><div style="border:1px dashed #C9C0BC;border-radius:8px;padding:14px;text-align:center;font-size:13px;color:#8A7F83;">Empty ${esc(b.type)} block: pick it on the left to fill it in</div></td></tr>`;
+      const shown = html || `<tr><td style="padding:14px ${PAD}px;"><div style="border:1px dashed #BBBBBB;border-radius:8px;padding:14px;text-align:center;font-size:13px;color:#767676;">Empty ${esc(b.type)} block: pick it on the left to fill it in</div></td></tr>`;
       return shown.replace(/^<tr>/, `<tr data-bid="${esc(b.id)}">`);
     })
     .join("\n");
   const annotateCss = ctx.annotate
-    ? `[data-bid]{cursor:pointer}[data-bid]:hover{outline:1px dashed #AF272F;outline-offset:-1px}${
-        ctx.annotate.selected ? `[data-bid="${esc(ctx.annotate.selected)}"]{outline:2px solid #AF272F!important;outline-offset:-2px}` : ""
+    ? `[data-bid]{cursor:pointer}[data-bid]:hover{outline:1px dashed #111111;outline-offset:-1px}${
+        ctx.annotate.selected ? `[data-bid="${esc(ctx.annotate.selected)}"]{outline:2px solid #111111!important;outline-offset:-2px}` : ""
       }`
     : "";
   const pre = ctx.previewText
@@ -273,9 +300,11 @@ export function renderDesign(design: EmailDesign, ctx: RenderContext): string {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
 <meta name="supported-color-schemes" content="light">
+<link href="${EMAIL_FONT_LINK}" rel="stylesheet">
 <style>
+:root{color-scheme:light;supported-color-schemes:light}
 @media only screen and (max-width:620px){
-  .pm-card{width:100%!important;border-radius:0!important}
+  .pm-card{width:100%!important;border-radius:0!important;border-left:0!important;border-right:0!important}
   .pm-col{display:block!important;width:100%!important;padding-right:0!important}
 }
 ${annotateCss}
@@ -283,9 +312,9 @@ ${annotateCss}
 </head>
 <body style="margin:0;padding:0;background:${t.background};font-family:${font};color:${t.text};-webkit-text-size-adjust:100%;">
 ${pre}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${t.background};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${t.background}" style="background:${t.background};">
 <tr><td align="center" style="padding:24px 0;">
-<table role="presentation" class="pm-card" width="${WIDTH}" cellpadding="0" cellspacing="0" border="0" style="width:${WIDTH}px;max-width:${WIDTH}px;background:${t.content};border-radius:16px;overflow:hidden;font-family:${font};">
+<table role="presentation" class="pm-card" width="${WIDTH}" cellpadding="0" cellspacing="0" border="0" bgcolor="${t.content}" style="width:${WIDTH}px;max-width:${WIDTH}px;background:${t.content};border:1px solid ${BC.line};border-radius:${EMAIL_LAYOUT.cardRadius}px;overflow:hidden;font-family:${font};">
 ${body}
 ${footerHtml(ctx)}
 </table>

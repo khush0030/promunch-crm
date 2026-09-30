@@ -1,5 +1,58 @@
 // Pure helpers behind the email flow engine's send guards and renderers.
-import { describe, expect, it, beforeAll } from "vitest";
+import { describe, expect, it, beforeAll, beforeEach, afterEach, vi } from "vitest";
+
+// ---------------------------------------------------------------------------
+// DB / provider seams for the tick() tests at the bottom. Only the modules that
+// touch Supabase, Resend, Shopify or env are mocked; the pure helpers tested
+// above are the real ones.
+// ---------------------------------------------------------------------------
+type Row = Record<string, unknown>;
+const db: Record<string, Row[]> = {};
+let rowSeq = 0;
+class FakeQ {
+  private f: Array<(r: Row) => boolean> = [];
+  private op: "select" | "update" | "insert" = "select";
+  private patch: Row = {};
+  private one = false;
+  private lim = Infinity;
+  constructor(private t: string) { db[t] ??= []; }
+  select() { return this; }
+  eq(c: string, v: unknown) { this.f.push((r) => r[c] === v); return this; }
+  lte(c: string, v: string) { this.f.push((r) => String(r[c]) <= v); return this; }
+  in(c: string, vs: unknown[]) { this.f.push((r) => vs.includes(r[c])); return this; }
+  not() { return this; }
+  or() { return this; }
+  order() { return this; }
+  range() { return this; }
+  limit(n: number) { this.lim = n; return this; }
+  maybeSingle() { this.one = true; return this; }
+  update(p: Row) { this.op = "update"; this.patch = p; return this; }
+  insert(r: Row) { this.op = "insert"; this.patch = r; return this; }
+  private run() {
+    const t = db[this.t];
+    if (this.op === "insert") {
+      const row: Row = { id: `r${++rowSeq}`, ...this.patch };
+      if (this.t === "email_sends" && t.some((x) => x.enrollment_id === row.enrollment_id && x.step_index === row.step_index && x.status !== "failed")) {
+        return { data: null, error: { code: "23505", message: "duplicate" } };
+      }
+      t.push(row);
+      return { data: [row], error: null };
+    }
+    const rows = t.filter((r) => this.f.every((fn) => fn(r)));
+    if (this.op === "update") { rows.forEach((r) => Object.assign(r, this.patch)); return { data: rows, error: null }; }
+    const out = rows.slice(0, this.lim);
+    return { data: this.one ? (out[0] ?? null) : out, error: null };
+  }
+  then<T>(res: (v: { data: unknown; error: unknown }) => T, rej?: (e: unknown) => T) {
+    return Promise.resolve(this.run()).then(res, rej);
+  }
+}
+const sendEmailMock = vi.fn(async (_opts: { to: string; subject: string; html: string }) => ({ data: { id: "re_1" }, error: null }));
+const couponMock = vi.fn(async (_o: unknown) => "");
+vi.mock("@/lib/supabase-admin", () => ({ supabaseAdmin: { from: (t: string) => new FakeQ(t) } }));
+vi.mock("@/lib/resend", () => ({ sendEmail: (o: { to: string; subject: string; html: string }) => sendEmailMock(o), DEFAULT_FROM: "PROMUNCH <hello@promunch.in>" }));
+vi.mock("./coupons", () => ({ getOrCreateFlowCoupon: (o: unknown) => couponMock(o) }));
+vi.mock("@/lib/email-studio/audience-server", () => ({ getFreqCapHours: async () => 0, recentMarketingSends: async () => [] }));
 import {
   bypassesFreqCap,
   computeSendDeferral,
@@ -14,7 +67,16 @@ import {
   summarizeVariants,
   variantFor,
   withFromName,
+  couponProblem,
+  mentionsCouponToken,
+  waJourneyOverlap,
+  waRunWasSent,
+  enrolmentRefs,
+  toWaId,
+  type WaJourneyRunRow,
 } from "./send-guards";
+import { tick } from "./flow-engine";
+import { pickContactId } from "./enroll";
 import { renderPlainMarketingEmail } from "./plain-layout";
 import { cartItemsHtml, itemImage, needsImageLookup } from "./cart-items";
 import { personalize, personalizeSubject, PRODUCT_URL_FALLBACK } from "./personalize";
@@ -284,5 +346,195 @@ describe("storefront pm_c link tokens", () => {
     const u = new URL(href);
     expect(u.searchParams.get("utm_source")).toBe("email");
     expect(u.searchParams.get("pm_c")).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Coupon safety
+// ---------------------------------------------------------------------------
+describe("couponProblem", () => {
+  const ok = { subject: "Hi", html: "<p>Your code PM-ABCD2345</p>" };
+  it("blocks a minting step whose code came back empty", () => {
+    expect(couponProblem({ step: { coupon: { percent_off: 15 }, body_html: "<p>{{coupon_code}}</p>" }, coupon: "", rendered: { subject: "Hi", html: "<p></p>" } })).toBe("coupon unavailable");
+    expect(couponProblem({ step: { coupon: { percent_off: 15 }, body_html: "<p>no tag</p>" }, coupon: "  ", rendered: ok })).toBe("coupon unavailable");
+  });
+  it("blocks an empty coupon slot in any copy field even without step.coupon", () => {
+    expect(couponProblem({ step: { subject: "{{coupon_code}} inside", body_html: "x" }, coupon: "", rendered: ok })).toBe("coupon unavailable");
+    expect(couponProblem({ step: { subject: "s", body_html: "x", subject_variants: ["Use {{ coupon_code }}"] }, coupon: "", rendered: ok })).toBe("coupon unavailable");
+  });
+  it("blocks a coupon tag that survived rendering", () => {
+    expect(couponProblem({ step: { subject: "s", body_html: "{{coupon}}" }, coupon: "", rendered: { subject: "s", html: "<p>{{coupon}}</p>" } })).toMatch(/coupon unavailable/);
+    expect(couponProblem({ step: { coupon: { percent_off: 20 }, body_html: "x" }, coupon: "PM-X", rendered: { subject: "Code {{COUPON_CODE}}", html: "" } })).toMatch(/unrendered/);
+  });
+  it("passes a minted code and coupon-free steps", () => {
+    expect(couponProblem({ step: { coupon: { percent_off: 15 }, body_html: "{{coupon_code}}" }, coupon: "PM-ABCD2345", rendered: ok })).toBeNull();
+    expect(couponProblem({ step: { subject: "Welcome", body_html: "<p>hello</p>" }, coupon: "", rendered: ok })).toBeNull();
+    expect(couponProblem({ step: { coupon: { percent_off: 0 }, body_html: "hi" }, coupon: "", rendered: ok })).toBeNull();
+    expect(mentionsCouponToken("{{ first_name }}")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WhatsApp overlap guard
+// ---------------------------------------------------------------------------
+describe("WhatsApp overlap guard", () => {
+  const now = new Date("2026-09-30T06:30:00Z");
+  const run = (o: Partial<WaJourneyRunRow>): WaJourneyRunRow => ({
+    journey_key: "review_request", status: "completed", order_ref: "#2050",
+    delivered_at: null, updated_at: "2026-09-25T06:00:00Z", next_action_at: "2026-09-25T06:00:00Z", ...o,
+  });
+
+  it("normalises phones like the WA code", () => {
+    expect(toWaId("98765 43210")).toBe("919876543210");
+    expect(toWaId("+91-98765-43210")).toBe("919876543210");
+    expect(toWaId("09876543210")).toBe("919876543210");
+    expect(toWaId("12345")).toBeNull();
+    expect(toWaId(null)).toBeNull();
+  });
+
+  it("only completed or delivered runs count as sent", () => {
+    expect(waRunWasSent({ status: "completed", delivered_at: null })).toBe(true);
+    expect(waRunWasSent({ status: "active", delivered_at: "2026-09-25T06:00:00Z" })).toBe(true);
+    for (const st of ["active", "cancelled", "failed", "expired", "converted"]) {
+      expect(waRunWasSent({ status: st, delivered_at: null })).toBe(false);
+    }
+  });
+
+  it("collects order and checkout refs from the enrolment context", () => {
+    expect(enrolmentRefs({ order_ref: "#2050", checkout_token: "t1", checkout_tokens: ["t0", "t1"] }).sort()).toEqual(["#2050", "t0", "t1"]);
+    expect(enrolmentRefs(null)).toEqual([]);
+  });
+
+  it("same order: skips only when WA sent for THAT order", () => {
+    expect(waJourneyOverlap({ kind: "review", runs: [run({})], refs: ["#2050"], now })).toEqual({ ref: "#2050" });
+    expect(waJourneyOverlap({ kind: "review", runs: [run({ order_ref: "#2049" })], refs: ["#2050"], now })).toBeNull();
+    // Old send for the same order still counts (the window is for ref-less enrolments).
+    expect(waJourneyOverlap({ kind: "review", runs: [run({ updated_at: "2026-01-01T00:00:00Z" })], refs: ["#2050"], now })).toEqual({ ref: "#2050" });
+  });
+
+  it("unsent / other-journey runs never cause a skip", () => {
+    expect(waJourneyOverlap({ kind: "review", runs: [run({ status: "active" })], refs: ["#2050"], now })).toBeNull();
+    expect(waJourneyOverlap({ kind: "review", runs: [run({ status: "cancelled" })], refs: [], now })).toBeNull();
+    expect(waJourneyOverlap({ kind: "replenishment", runs: [run({})], refs: ["#2050"], now })).toBeNull();
+  });
+
+  it("cart matches by checkout token", () => {
+    const cart = run({ journey_key: "abandoned_checkout", order_ref: "tok-9" });
+    expect(waJourneyOverlap({ kind: "cart", runs: [cart], refs: ["tok-8", "tok-9"], now })).toEqual({ ref: "tok-9" });
+    expect(waJourneyOverlap({ kind: "cart", runs: [cart], refs: ["tok-1"], now })).toBeNull();
+  });
+
+  it("no refs: any matching send in the last 30 days", () => {
+    const rep = (at: string) => run({ journey_key: "replenishment_reminder", updated_at: at, next_action_at: at });
+    expect(waJourneyOverlap({ kind: "replenishment", runs: [rep("2026-09-10T00:00:00Z")], refs: [], now })).toEqual({ ref: "#2050" });
+    expect(waJourneyOverlap({ kind: "replenishment", runs: [rep("2026-08-20T00:00:00Z")], refs: [], now })).toBeNull();
+    // delivered_at wins over updated_at as the send time
+    expect(waJourneyOverlap({ kind: "replenishment", runs: [run({ journey_key: "replenishment_reminder", status: "active", delivered_at: "2026-09-29T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" })], refs: [], now })).not.toBeNull();
+  });
+});
+
+describe("pickContactId (case-insensitive enrol lookup)", () => {
+  it("prefers the lowercase row, else the first match", () => {
+    expect(pickContactId([{ id: "a", email: "Foo@X.com" }, { id: "b", email: "foo@x.com" }], "FOO@x.com")).toBe("b");
+    expect(pickContactId([{ id: "a", email: "Foo@X.com" }], "foo@x.com")).toBe("a");
+    expect(pickContactId([], "foo@x.com")).toBeNull();
+    expect(pickContactId(null, "foo@x.com")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// tick(): coupon safety + WA overlap, end to end against the fake DB
+// ---------------------------------------------------------------------------
+describe("tick()", () => {
+  const NOW = new Date("2026-09-30T06:30:00Z"); // 12:00 IST, inside the send window
+  const H = 3_600_000;
+  const offerStep = { type: "email", delay_hours: 0, subject: "Your 15% code", body_html: "<p>Use {{coupon_code}}</p>", coupon: { percent_off: 15 }, coupon_code: "" };
+
+  function seed(steps: Row[], enr: Partial<Row> = {}, contact: Partial<Row> = {}) {
+    for (const k of Object.keys(db)) delete db[k];
+    db.flows = [{ id: "f1", status: "active", steps, trigger_type: "order_placed" }];
+    db.flow_enrollments = [{ id: "e1", flow_id: "f1", contact_id: "c1", current_step: 0, context: { order_ref: "#2050" }, deadline_at: null, attempts: 0, status: "active", next_action_at: new Date(NOW.getTime() - 1000).toISOString(), ...enr }];
+    db.contacts = [{ id: "c1", email: "buyer@x.com", phone: "98765 43210", first_name: "Asha", status: "active", accepts_marketing: true, ...contact }];
+    db.suppressions = [];
+    db.email_sends = [];
+    db.wa_journey_runs = [];
+  }
+
+  beforeAll(() => {
+    process.env.UNSUBSCRIBE_SECRET = process.env.UNSUBSCRIBE_SECRET || "test-secret";
+  });
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    sendEmailMock.mockClear();
+    couponMock.mockReset();
+    couponMock.mockResolvedValue("");
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("never sends an offer with no code: releases the claim, retries in 1h, counts the attempt", async () => {
+    seed([offerStep]);
+    const r = await tick();
+    expect(sendEmailMock).not.toHaveBeenCalled();
+    expect(r.failed).toBe(1);
+    expect(db.email_sends).toHaveLength(1);
+    expect(db.email_sends[0]).toMatchObject({ status: "failed", error: "coupon unavailable" });
+    const e = db.flow_enrollments[0];
+    expect(e).toMatchObject({ status: "active", current_step: 0, attempts: 1, last_error: "coupon unavailable" });
+    expect(Date.parse(e.next_action_at as string)).toBe(NOW.getTime() + H);
+
+    // An hour later the mint works: the released claim is re-taken and ONE email goes out.
+    vi.setSystemTime(new Date(NOW.getTime() + H + 1000));
+    couponMock.mockResolvedValue("PM-ABCD2345");
+    const r2 = await tick();
+    expect(r2.sent).toBe(1);
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendEmailMock.mock.calls[0][0].html).toContain("PM-ABCD2345");
+    expect(db.email_sends.filter((s) => s.status === "sent")).toHaveLength(1);
+    expect(db.flow_enrollments[0].status).toBe("completed");
+
+    // A third tick has nothing due and sends nothing.
+    await tick();
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails the enrolment with 'coupon unavailable' after MAX_ATTEMPTS", async () => {
+    seed([offerStep], { attempts: 4 });
+    await tick();
+    expect(sendEmailMock).not.toHaveBeenCalled();
+    expect(db.flow_enrollments[0]).toMatchObject({ status: "failed", last_error: "coupon unavailable", attempts: 5 });
+  });
+
+  it("blocks an unsupported coupon tag that would render literally", async () => {
+    seed([{ type: "email", delay_hours: 0, subject: "Hi", body_html: "<p>Code: {{coupon}}</p>" }]);
+    await tick();
+    expect(sendEmailMock).not.toHaveBeenCalled();
+    expect(db.email_sends[0]).toMatchObject({ status: "failed" });
+    expect(String(db.email_sends[0].error)).toMatch(/coupon unavailable/);
+  });
+
+  it("skips a review step WhatsApp already sent for the same order (no send, no claim)", async () => {
+    const review = { type: "email", delay_hours: 0, subject: "How was it?", body_html: "<p>Review</p>", skip_if_wa_journey: "review" };
+    const next = { type: "email", delay_hours: 48, subject: "Later", body_html: "<p>x</p>" };
+    seed([review, next]);
+    db.wa_journey_runs = [{ journey_key: "review_request", wa_id: "919876543210", status: "completed", order_ref: "#2050", delivered_at: null, updated_at: "2026-09-29T00:00:00Z", next_action_at: "2026-09-29T00:00:00Z" }];
+    const r = await tick();
+    expect(sendEmailMock).not.toHaveBeenCalled();
+    expect(r.skipped).toBe(1);
+    expect(db.email_sends).toHaveLength(0);
+    expect(db.flow_enrollments[0]).toMatchObject({ status: "active", current_step: 1 });
+    expect(Date.parse(db.flow_enrollments[0].next_action_at as string)).toBe(NOW.getTime() + 48 * H);
+  });
+
+  it("sends the review email when WhatsApp's ask was for a different order or not sent", async () => {
+    const review = { type: "email", delay_hours: 0, subject: "How was it?", body_html: "<p>Review</p>", skip_if_wa_journey: "review" };
+    seed([review]);
+    db.wa_journey_runs = [
+      { journey_key: "review_request", wa_id: "919876543210", status: "completed", order_ref: "#2049", delivered_at: null, updated_at: "2026-09-29T00:00:00Z", next_action_at: null },
+      { journey_key: "review_request", wa_id: "919876543210", status: "active", order_ref: "#2050", delivered_at: null, updated_at: "2026-09-29T00:00:00Z", next_action_at: null },
+    ];
+    const r = await tick();
+    expect(r.sent).toBe(1);
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
   });
 });

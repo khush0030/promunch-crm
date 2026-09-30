@@ -192,24 +192,45 @@ async function activeFlowsFor(trigger: string): Promise<FlowRow[]> {
 
 async function contactIdForEmail(email: string, firstName?: string | null): Promise<string | null> {
   const lc = email.toLowerCase();
-  const sb = db();
+  // Case-insensitive lookup FIRST: contacts.email is UNIQUE but case-sensitive,
+  // so upserting "foo@x.com" next to a stored "Foo@x.com" would not conflict and
+  // would create a duplicate contact.
+  const existing = await lookupContactId(lc);
+  if (existing) return existing;
   // Upsert on the unique email so a checkout-only shopper still gets a contact
   // row. Keep it minimal; the Shopify order webhook enriches it later.
-  const { data } = await sb
+  const { data } = await db()
     .from("contacts")
     .upsert({ email: lc, first_name: firstName ?? null, status: "active", source: "shopify" }, { onConflict: "email", ignoreDuplicates: true })
     .select("id")
     .maybeSingle();
   if (data?.id) return data.id as string;
-  const { data: got } = await sb.from("contacts").select("id").eq("email", lc).maybeSingle();
-  return (got?.id as string | undefined) ?? null;
+  return lookupContactId(lc);
 }
 
+/**
+ * Pick one contact for an email from case-insensitive matches: prefer the
+ * lowercase row, else the first row returned (oldest). Mirrors enroll.ts.
+ */
+export function pickContactId(rows: Array<{ id: unknown; email?: unknown }> | null | undefined, email: string): string | null {
+  const list = rows ?? [];
+  if (list.length === 0) return null;
+  const lc = email.trim().toLowerCase();
+  const exact = list.find((r) => String(r.email ?? "") === lc);
+  return String((exact ?? list[0]).id);
+}
+
+/** Case-insensitive contact lookup (stored emails may be mixed-case). */
 async function lookupContactId(email?: string | null): Promise<string | null> {
   const e = email?.trim().toLowerCase();
   if (!e) return null;
-  const { data } = await db().from("contacts").select("id").eq("email", e).maybeSingle();
-  return (data?.id as string | undefined) ?? null;
+  const { data } = await db()
+    .from("contacts")
+    .select("id, email")
+    .ilike("email", escapeLike(e))
+    .order("created_at", { ascending: true })
+    .limit(10);
+  return pickContactId(data as Array<{ id: unknown; email?: unknown }> | null, e);
 }
 
 /** Bias to silence: a lookup error counts as "has a prior order". */

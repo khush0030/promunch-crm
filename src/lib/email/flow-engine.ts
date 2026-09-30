@@ -26,10 +26,17 @@ import type { FlowStep } from "./flow-templates";
 import {
   bypassesFreqCap,
   computeSendDeferral,
+  couponProblem,
+  enrolmentRefs,
   lastOtherMarketingAt,
+  toWaId,
   variantFor,
+  WA_JOURNEY_KEYS,
+  waJourneyOverlap,
   withFromName,
   type RecentSend,
+  type WaJourneyKind,
+  type WaJourneyRunRow,
 } from "./send-guards";
 import { getFreqCapHours, recentMarketingSends } from "@/lib/email-studio/audience-server";
 import { personalize, personalizeSubject } from "./personalize";
@@ -42,6 +49,38 @@ const PAGE = 1000;
 const MAX_ATTEMPTS = 5;
 const BACKOFF_HOURS = 6;
 const PAUSE_DEFER_HOURS = 6;
+/** Retry spacing when an offer step has no usable coupon code. */
+const COUPON_RETRY_HOURS = 1;
+/** Re-check spacing when the WhatsApp overlap lookup itself fails. */
+const WA_OVERLAP_ERROR_DEFER_HOURS = 1;
+
+/** Thrown before sendEmail when an offer email would go out without its code. */
+class CouponUnavailableError extends Error {}
+
+/**
+ * Did WhatsApp already send this customer the matching journey? Returns the
+ * overlap (skip), null (send), or "error" (lookup failed: defer, do not send).
+ */
+async function waOverlapFor(
+  kind: WaJourneyKind,
+  phone: string | null | undefined,
+  context: Record<string, unknown> | null,
+): Promise<{ ref: string } | null | "error"> {
+  const waId = toWaId(phone);
+  if (!waId) return null; // no phone on file → WhatsApp can't have reached them via a journey we can see
+  const { data, error } = await supabase
+    .from("wa_journey_runs")
+    .select("journey_key, status, order_ref, delivered_at, updated_at, next_action_at")
+    .eq("wa_id", waId)
+    .eq("journey_key", WA_JOURNEY_KEYS[kind])
+    .order("updated_at", { ascending: false })
+    .limit(100);
+  if (error) {
+    console.error("[email-flow-tick] wa_journey_runs lookup failed:", error.message);
+    return "error";
+  }
+  return waJourneyOverlap({ kind, runs: (data ?? []) as WaJourneyRunRow[], refs: enrolmentRefs(context), now: new Date() });
+}
 
 type Enrollment = {
   id: string;
@@ -219,7 +258,7 @@ export async function tick(): Promise<FlowTickResult> {
     // Eligibility: reachable, still subscribed, not suppressed.
     const { data: contact } = await supabase
       .from("contacts")
-      .select("email, first_name, status, accepts_marketing")
+      .select("email, phone, first_name, status, accepts_marketing")
       .eq("id", e.contact_id)
       .maybeSingle();
     const email = (contact?.email as string | undefined)?.toLowerCase();
@@ -227,6 +266,32 @@ export async function tick(): Promise<FlowTickResult> {
       await setStatus(e.id, "cancelled", { last_error: "contact not marketable" });
       res.cancelled++;
       continue;
+    }
+
+    // WhatsApp overlap: if WA already sent this customer the same ask (review /
+    // replenishment / cart), skip this email step and move on. No claim row is
+    // written (email_sends.status allows only queued/sent/failed). A lookup
+    // error defers the step (when in doubt, do not send).
+    if (step.skip_if_wa_journey && WA_JOURNEY_KEYS[step.skip_if_wa_journey]) {
+      const overlap = await waOverlapFor(step.skip_if_wa_journey, contact?.phone as string | null, e.context);
+      if (overlap === "error") {
+        await supabase
+          .from("flow_enrollments")
+          .update({ next_action_at: hoursFromNow(WA_OVERLAP_ERROR_DEFER_HOURS), updated_at: new Date().toISOString() })
+          .eq("id", e.id)
+          .eq("status", "active")
+          .eq("current_step", e.current_step);
+        res.deferred++;
+        continue;
+      }
+      if (overlap) {
+        console.info(
+          `[email-flow-tick] skip enrolment ${e.id} step ${e.current_step}: WhatsApp ${step.skip_if_wa_journey} already sent (${overlap.ref})`,
+        );
+        await advance(e, steps);
+        res.skipped++;
+        continue;
+      }
     }
 
     // Send guards, BEFORE the claim: quiet hours + frequency cap. A deferral
@@ -282,7 +347,9 @@ export async function tick(): Promise<FlowTickResult> {
     try {
       const first = (contact?.first_name as string | null) ?? null;
       // Unique per-enrolment code when the step asks for one; the static
-      // coupon_code is the fallback (getOrCreateFlowCoupon never throws).
+      // coupon_code is the fallback (getOrCreateFlowCoupon never throws). With
+      // no fallback a failed mint returns "", which couponProblem() below
+      // catches before anything is sent.
       const coupon = step.coupon && Number(step.coupon.percent_off) > 0
         ? await getOrCreateFlowCoupon({
             enrollmentId: e.id,
@@ -313,9 +380,16 @@ export async function tick(): Promise<FlowTickResult> {
       // Storefront links carry the signed pm_c token so the pixel can identify
       // a click-through shopper (browse abandonment). Unsubscribe is untouched.
       const html = tokenizeStorefrontLinks(rendered, (u) => withContactToken(u, e.contact_id));
+      const subject = personalizeSubject(variant.subject, e.context, first, coupon);
+      // Coupon safety, AFTER the claim and BEFORE any send: an offer email with
+      // no code (mint failed, no static fallback) or a raw {{coupon_code}} tag
+      // never goes out. The catch below fails the queued claim (re-claimable)
+      // and retries in COUPON_RETRY_HOURS; MAX_ATTEMPTS then fails the enrolment.
+      const couponIssue = couponProblem({ step, coupon, rendered: { subject, html, previewText } });
+      if (couponIssue) throw new CouponUnavailableError(couponIssue);
       const r = await sendEmail({
         to: contact!.email as string,
-        subject: personalizeSubject(variant.subject, e.context, first, coupon),
+        subject,
         html,
         from: withFromName(DEFAULT_FROM, step.from_name),
         headers: marketingHeaders(e.contact_id),
@@ -332,21 +406,35 @@ export async function tick(): Promise<FlowTickResult> {
       res.sent++;
       await advance(e, steps);
     } catch (err) {
+      const couponFail = err instanceof CouponUnavailableError;
       const msg = err instanceof Error ? err.message : "send error";
       // Fail the queued claim so a retry can re-insert (row leaves the index).
+      // Only rows still 'queued' are touched, so a step that did send is never
+      // reopened.
       await supabase
         .from("email_sends")
         .update({ status: "failed", error: msg })
         .eq("enrollment_id", e.id)
         .eq("step_index", e.current_step)
         .eq("status", "queued");
+      if (couponFail) {
+        // Nothing went out: drop this batch's cap entry for the enrolment so a
+        // sibling enrolment for the same contact is not deferred by a non-send.
+        const mine = recentByContact.get(e.contact_id);
+        if (mine) recentByContact.set(e.contact_id, mine.filter((s) => s.enrollment_id !== e.id));
+      }
       const attempts = (e.attempts ?? 0) + 1;
       if (attempts >= MAX_ATTEMPTS) {
-        await setStatus(e.id, "failed", { last_error: msg, attempts });
+        await setStatus(e.id, "failed", { last_error: couponFail ? "coupon unavailable" : msg, attempts });
       } else {
         await supabase
           .from("flow_enrollments")
-          .update({ attempts, next_action_at: hoursFromNow(BACKOFF_HOURS), last_error: msg, updated_at: new Date().toISOString() })
+          .update({
+            attempts,
+            next_action_at: hoursFromNow(couponFail ? COUPON_RETRY_HOURS : BACKOFF_HOURS),
+            last_error: msg,
+            updated_at: new Date().toISOString(),
+          })
           .eq("id", e.id);
       }
       res.failed++;

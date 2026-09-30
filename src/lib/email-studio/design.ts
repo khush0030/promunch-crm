@@ -5,6 +5,8 @@
 //
 // Keep imports relative: vitest has no "@/" alias.
 
+import { EMAIL_BRAND, EMAIL_COLORS } from "../email/brand-tokens";
+
 export type Align = "left" | "center";
 
 export type Block =
@@ -60,21 +62,26 @@ export type ProductInfo = {
   inStock: boolean;
 };
 
+/**
+ * The one PROMUNCH email look, taken from the promunch.in storefront (see
+ * email/brand-tokens.ts): cream page, white card, ink text, brand-red CTA.
+ * Shared with flow emails. Every built-in template uses it.
+ */
 export const DEFAULT_THEME: Theme = {
-  background: "#F2F1EF",
-  content: "#FFFFFF",
-  text: "#1D1517",
-  accent: "#AF272F",
-  button: "#AF272F",
-  buttonText: "#FFFFFF",
+  background: EMAIL_COLORS.page,
+  content: EMAIL_COLORS.card,
+  text: EMAIL_COLORS.ink,
+  accent: EMAIL_COLORS.brand,
+  button: EMAIL_COLORS.brand,
+  buttonText: EMAIL_COLORS.onBrand,
   font: "sans",
 };
 
 export const DEFAULT_BRAND: BrandKit = {
-  logoUrl: "",
-  logoWidth: 160,
-  tagline: "Your Munchy Pal",
-  website: "https://promunch.in",
+  logoUrl: EMAIL_BRAND.logoUrl,
+  logoWidth: EMAIL_BRAND.logoWidth,
+  tagline: EMAIL_BRAND.tagline,
+  website: EMAIL_BRAND.website,
   instagram: "",
   facebook: "",
   youtube: "",

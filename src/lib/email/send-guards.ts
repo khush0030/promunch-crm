@@ -261,3 +261,149 @@ export function summarizeVariants(rows: VariantSendRow[]): VariantStat[] {
     .map((s) => ({ ...s, open_rate: s.sends ? s.opens / s.sends : 0, click_rate: s.sends ? s.clicks / s.sends : 0 }))
     .sort((a, b) => a.step_index - b.step_index || a.variant.localeCompare(b.variant));
 }
+
+// ---- Coupon safety ----------------------------------------------------------
+//
+// Offers use unique minted codes with NO static fallback (coupon_code ""), so
+// a Shopify mint failure returns "". An email that promises "your code:" and
+// shows nothing (or a literal "{{coupon_code}}") must never go out. The engine
+// runs this AFTER rendering and BEFORE sendEmail; a non-null result means
+// "do not send, release the claim, retry later".
+
+/** Any coupon-ish merge tag, including unsupported spellings like {{coupon}}. */
+const COUPON_TOKEN_RE = /\{\{\s*coupon[a-z_]*\s*\}\}/i;
+
+export function mentionsCouponToken(text: string | null | undefined): boolean {
+  return COUPON_TOKEN_RE.test(String(text ?? ""));
+}
+
+/** True when the step mints a unique code (percent_off > 0). */
+export function stepWantsCoupon(step: { coupon?: { percent_off?: number } | null }): boolean {
+  return !!step.coupon && Number(step.coupon.percent_off) > 0;
+}
+
+/**
+ * Why this rendered email is unsafe to send because of its coupon, or null.
+ *   - the step mints a code and the mint came back empty
+ *   - the copy (subject / preview / body, any variant) uses a coupon merge tag
+ *     and the code is empty (the slot would render blank)
+ *   - a coupon merge tag survived rendering (e.g. an unsupported {{coupon}})
+ */
+export function couponProblem(opts: {
+  step: {
+    coupon?: { percent_off?: number } | null;
+    subject?: string;
+    preview_text?: string;
+    body_html?: string;
+    subject_variants?: string[];
+    preview_variants?: string[];
+  };
+  coupon: string;
+  rendered: { subject: string; html: string; previewText?: string };
+}): string | null {
+  const code = String(opts.coupon ?? "").trim();
+  const s = opts.step;
+  if (stepWantsCoupon(s) && !code) return "coupon unavailable";
+  const sources = [s.subject, s.preview_text, s.body_html, ...(s.subject_variants ?? []), ...(s.preview_variants ?? [])];
+  if (!code && sources.some(mentionsCouponToken)) return "coupon unavailable";
+  const r = opts.rendered;
+  if ([r.subject, r.html, r.previewText].some(mentionsCouponToken)) return "coupon unavailable (unrendered coupon tag)";
+  return null;
+}
+
+// ---- WhatsApp overlap guard ---------------------------------------------------
+//
+// WhatsApp already runs review / replenishment / cart journeys
+// (wa_journey_runs, promunch-email-agent/supabase/functions/_shared/journeys.ts).
+// A step with skip_if_wa_journey stands down when WhatsApp already SENT the
+// matching ask to this customer, so they don't get the same nudge twice on
+// two channels.
+
+export type WaJourneyKind = "review" | "replenishment" | "cart";
+
+export const WA_JOURNEY_KEYS: Record<WaJourneyKind, string> = {
+  review: "review_request",
+  replenishment: "replenishment_reminder",
+  cart: "abandoned_checkout",
+};
+
+export const WA_OVERLAP_WINDOW_DAYS = 30;
+
+/**
+ * Raw phone → Meta wa_id digits (India default). Same rules as toWaId in
+ * promunch-email-agent/supabase/functions/_shared/journeys.ts; keep in sync.
+ */
+export function toWaId(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let d = String(raw).replace(/\D/g, "");
+  if (!d) return null;
+  if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
+  if (d.length === 10) d = "91" + d;
+  if (d.length < 11 || d.length > 15) return null;
+  return d;
+}
+
+export type WaJourneyRunRow = {
+  journey_key: string;
+  status: string;
+  order_ref: string | null;
+  delivered_at: string | null;
+  updated_at: string | null;
+  next_action_at: string | null;
+};
+
+/**
+ * A run counts as SENT when wa-journey-tick marked it 'completed' (Meta
+ * accepted the send; an async failure reopens it to 'active') or the status
+ * webhook recorded delivered_at. active / cancelled / failed / expired /
+ * converted-without-delivery are not sends.
+ */
+export function waRunWasSent(r: Pick<WaJourneyRunRow, "status" | "delivered_at">): boolean {
+  return r.status === "completed" || !!r.delivered_at;
+}
+
+/** Order / checkout refs an email enrolment is about (order_ref, checkout tokens). */
+export function enrolmentRefs(ctx: Record<string, unknown> | null | undefined): string[] {
+  const c = ctx ?? {};
+  const out = new Set<string>();
+  const add = (v: unknown) => {
+    const s = v == null ? "" : String(v).trim();
+    if (s) out.add(s);
+  };
+  add(c.order_ref);
+  add(c.order_name);
+  add(c.checkout_token);
+  if (Array.isArray(c.checkout_tokens)) c.checkout_tokens.forEach(add);
+  return [...out];
+}
+
+/**
+ * The pure decision: did WhatsApp already send this kind of ask?
+ *   - refs known (the enrolment carries its order / checkout): only a sent run
+ *     for one of THOSE refs counts (a review ask about a different order is a
+ *     different ask).
+ *   - no refs: any sent run of that journey within the last windowDays.
+ * Returns the matching run's ref (or "recent") for logging, or null.
+ */
+export function waJourneyOverlap(opts: {
+  kind: WaJourneyKind;
+  runs: WaJourneyRunRow[];
+  refs: string[];
+  now: Date;
+  windowDays?: number;
+}): { ref: string } | null {
+  const key = WA_JOURNEY_KEYS[opts.kind];
+  if (!key) return null;
+  const sent = opts.runs.filter((r) => r.journey_key === key && waRunWasSent(r));
+  if (opts.refs.length) {
+    const refs = new Set(opts.refs);
+    const hit = sent.find((r) => r.order_ref != null && refs.has(String(r.order_ref)));
+    return hit ? { ref: String(hit.order_ref) } : null;
+  }
+  const since = opts.now.getTime() - (opts.windowDays ?? WA_OVERLAP_WINDOW_DAYS) * 24 * HOUR_MS;
+  const hit = sent.find((r) => {
+    const at = Date.parse(r.delivered_at ?? r.updated_at ?? r.next_action_at ?? "");
+    return Number.isFinite(at) && at >= since;
+  });
+  return hit ? { ref: hit.order_ref ? String(hit.order_ref) : "recent" } : null;
+}
