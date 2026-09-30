@@ -382,6 +382,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           p("We started PROMUNCH because a snack in India usually meant fried namkeen or chips with very little protein. We wanted something crunchy that actually fills you up, and we are honest about how each one is made: our Edamame is roasted in olive oil, our Soya Crunchies are roasted, and our Sticks and Chips are fried.") +
           p("Not sure about a flavour? <strong>Just hit reply</strong> and tell me what you like, spicy, tangy or light and salty, and I will point you to the right pack. To make it easy to try, here is 15% off, just for you.") +
           founderSignoff() +
+          divider() +
           "{{product_card}}" +
           couponBox(CODE, "Your 15% off code", "One use only. Valid for 3 days.") +
           button("Get it for 15% off", "{{product.url}}", "solid", { full: true }),
