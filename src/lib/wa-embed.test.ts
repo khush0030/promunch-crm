@@ -31,3 +31,14 @@ describe("popup email + code", () => {
     expect(js).toContain(JSON.stringify(POPUP_EMAIL_CONSENT_TEXT).slice(1, -1));
   });
 });
+
+describe("embed email check (runs in the shopper's browser)", () => {
+  it("keeps its regex escapes, so ordinary emails pass and junk fails", () => {
+    const js = buildEmbedJs(on(), { appOrigin: "https://admin.promunch.in", widgetLink: null, waNumber: "919981310247" });
+    const src = js.match(/!(\/\^\[\^\\s@\]\+@.*?\$\/)\.test\(em\)/)?.[1];
+    expect(src).toBeTruthy();
+    const re = new Function(`return ${src}`)() as RegExp;
+    for (const ok of ["sam@gmail.com", "kmutha@vippysoya.com", "a.b+s@site.co.in"]) expect(re.test(ok)).toBe(true);
+    for (const bad of ["sam@gmail", "sam gmail.com", "@x.com", "a b@c.com"]) expect(re.test(bad)).toBe(false);
+  });
+});

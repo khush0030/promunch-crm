@@ -18,8 +18,7 @@ import { ConfirmDialog } from "@/components/pm";
 import { GlossaryTerm, GuideChecklist, HelpTip } from "@/components/guide";
 import {
   FONTS, GROWTH_DEFAULTS, LAYOUTS_NEEDING_IMAGE, fontHref, renderPopupInner, widgetBubbleInner, widgetButtonInner,
-  type GrowthConfig, type PopupConfig, type PopupLayout, type PopupPosition, type WidgetConfig,
-} from "@/lib/wa-embed";
+  type GrowthConfig, type PopupConfig, type PopupLayout, type PopupPosition, type WidgetConfig, BRAND_FONT_HREF } from "@/lib/wa-embed";
 import s from "./GrowthView.module.css";
 
 type GrowthData = {
@@ -85,6 +84,7 @@ function Stepper({ value, onChange, min = 0, max = 999 }: { value: number; onCha
 function LayoutGallery({ value, onChange }: { value: PopupLayout; onChange: (v: PopupLayout) => void }) {
   // Schematic thumbnails (not the real render) so the gallery reads instantly.
   const thumbs: Record<PopupLayout, React.ReactNode> = {
+    promunch: <div className={s.lt} style={{ padding: 0, borderRadius: 0, overflow: "hidden" }}><span style={{ width: "42%", background: "#AF272F", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 9, fontWeight: 900, letterSpacing: -.3 }}>10%</span><div className={s.ltBody} style={{ padding: 5 }}><span className={s.ltLine} /><span className={s.ltLine} /><span className={s.ltBtn} style={{ background: "#AF272F", borderRadius: 0 }} /></div></div>,
     text: <div className={`${s.lt} ${s.center}`}><div className={s.ltBody}><span className={s.ltLine} /><span className={s.ltLine} /><span className={s.ltBtn} style={{ alignSelf: "center" }} /></div></div>,
     "image-top": <div className={`${s.lt} ${s.col}`}><span className={s.ltImg} style={{ height: 16 }} /><div className={s.ltBody}><span className={s.ltLine} /><span className={s.ltBtn} /></div></div>,
     "image-left": <div className={s.lt}><span className={s.ltImg} style={{ width: 20 }} /><div className={s.ltBody}><span className={s.ltLine} /><span className={s.ltLine} /><span className={s.ltBtn} /></div></div>,
@@ -93,10 +93,10 @@ function LayoutGallery({ value, onChange }: { value: PopupLayout; onChange: (v: 
     compact: <div className={s.lt} style={{ alignItems: "center" }}><span className={s.ltLine} style={{ flex: 1 }} /><span className={s.ltBtn} style={{ width: 24, marginTop: 0 }} /></div>,
   };
   const names: Record<PopupLayout, string> = {
-    text: "Text only", "image-top": "Image on top", "image-left": "Image left",
+    promunch: "PROMUNCH (site style)", text: "Text only", "image-top": "Image on top", "image-left": "Image left",
     "image-right": "Image right", background: "Full background", compact: "Compact bar",
   };
-  const order: PopupLayout[] = ["text", "image-top", "image-left", "image-right", "background", "compact"];
+  const order: PopupLayout[] = ["promunch", "text", "image-top", "image-left", "image-right", "background", "compact"];
   return (
     <div className={s.layoutGrid}>
       {order.map((k) => (
@@ -158,12 +158,12 @@ function TriggerPresets({ value, onChange }: { value: PopupConfig["trigger"]; on
 
 function Preview({ cfg, tab, device }: { cfg: GrowthConfig; tab: "popup" | "widget"; device: "desktop" | "mobile" }) {
   useEffect(() => {
-    const href = fontHref(cfg.popup.theme.font);
+    const href = cfg.popup.layout === "promunch" ? BRAND_FONT_HREF : fontHref(cfg.popup.theme.font);
     if (!href || document.querySelector(`link[data-pmfont="${href}"]`)) return;
     const l = document.createElement("link");
     l.rel = "stylesheet"; l.href = href; l.setAttribute("data-pmfont", href);
     document.head.appendChild(l);
-  }, [cfg.popup.theme.font]);
+  }, [cfg.popup.theme.font, cfg.popup.layout]);
 
   const frameW = device === "mobile" ? 320 : 640;
   // Always preview the design, even while it is switched off, so people can
@@ -179,8 +179,9 @@ function Preview({ cfg, tab, device }: { cfg: GrowthConfig; tab: "popup" | "widg
     : pos === "bottom-left" ? { left: 14, bottom: 14, maxWidth: 300 }
     : { right: 14, bottom: 14, maxWidth: 300 };
   const wide = cfg.popup.layout === "image-left" || cfg.popup.layout === "image-right";
+  const brand = cfg.popup.layout === "promunch";
   const cardW = pos === "bottom-bar" ? frameW
-    : pos === "center" ? Math.min(wide ? 440 : 360, frameW - 32)
+    : pos === "center" ? Math.min(brand ? 640 : wide ? 440 : 360, frameW - 32)
     : wide ? Math.min(400, frameW - 24) : 290;
 
   return (
@@ -460,6 +461,12 @@ export default function GrowthView() {
               </div>
 
               <Section title="Content">
+                {p.layout === "promunch" && (
+                  <div className={s.row2}>
+                    <Field label="Big offer text"><input className={s.input} value={p.badge} placeholder="10% off" onChange={(e) => setPopup((x) => ({ ...x, badge: e.target.value }))} /></Field>
+                    <Field label="Small label above it"><input className={s.input} value={p.eyebrow} placeholder="★ Members only" onChange={(e) => setPopup((x) => ({ ...x, eyebrow: e.target.value }))} /></Field>
+                  </div>
+                )}
                 <Field label="Headline"><input className={s.input} value={p.headline} onChange={(e) => setPopup((x) => ({ ...x, headline: e.target.value }))} /></Field>
                 <p className={s.fieldHint}>
                   Keep product claims (like protein numbers or health benefits) exactly as they appear on the pack.

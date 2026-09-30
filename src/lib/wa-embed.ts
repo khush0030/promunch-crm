@@ -22,7 +22,7 @@ export type PopupTrigger =
 export type PageRule = "all" | "home" | "product" | "cart";
 export type PopupPosition = "center" | "bottom-right" | "bottom-left" | "bottom-bar";
 // Ready-made card layouts the user picks from a gallery.
-export type PopupLayout = "text" | "image-top" | "image-left" | "image-right" | "background" | "compact";
+export type PopupLayout = "promunch" | "text" | "image-top" | "image-left" | "image-right" | "background" | "compact";
 export const LAYOUTS_NEEDING_IMAGE: PopupLayout[] = ["image-top", "image-left", "image-right", "background"];
 
 /** Email field on the popup: hidden, optional next to the phone, or required. */
@@ -33,6 +33,9 @@ export type PopupConfig = {
   email: PopupEmailMode;
   /** Shown with a copy button after sign-up. Must exist in Shopify. */
   discountCode: string;
+  /** PROMUNCH layout: small mono label ("★ MEMBERS ONLY") and the big offer ("10% OFF"). */
+  eyebrow: string;
+  badge: string;
   headline: string;
   sub: string;
   cta: string;
@@ -78,6 +81,7 @@ export const FONTS: Record<string, { label: string; stack: string; google: strin
   nunito: { label: "Nunito (rounded)", stack: `'Nunito',sans-serif`, google: "Nunito:wght@400;700;800" },
   playfair: { label: "Playfair (elegant serif)", stack: `'Playfair Display',Georgia,serif`, google: "Playfair+Display:wght@500;700;800" },
   georgia: { label: "Georgia (serif)", stack: `Georgia,'Times New Roman',serif`, google: null },
+  archivo: { label: "Archivo Black (promunch.in)", stack: `'Archivo Black','Archivo',Impact,sans-serif`, google: "Archivo+Black" },
 };
 
 export function fontStack(key: string): string {
@@ -95,14 +99,17 @@ export const GROWTH_DEFAULTS: GrowthConfig = {
     enabled: true,
     email: "optional",
     discountCode: "",
+    eyebrow: "★ Members only",
+    badge: "10% off",
     headline: "Get PROMUNCH offers on WhatsApp",
     sub: "Join PROMUNCH for launch drops and member deals. Your Munchy Pal is one text away.",
     cta: "Join on WhatsApp",
     successTitle: "You're in! 🎉",
     successBody: "Offers and new launches, straight from Your Munchy Pal.",
     imageUrl: null,
-    layout: "text",
-    theme: { bg: "#FFF8F0", text: "#2B2118", accent: "#25D366", accentText: "#FFFFFF", font: "poppins", radius: 16 },
+    layout: "promunch",
+    // promunch.in's own palette: brick red, white, near-black ink.
+    theme: { bg: "#FFFFFF", text: "#121212", accent: "#AF272F", accentText: "#FFFFFF", font: "archivo", radius: 0 },
     position: "center",
     trigger: { type: "delay", seconds: 6 },
     frequencyDays: 15,
@@ -151,7 +158,7 @@ export function normalizeGrowthConfig(raw: unknown): GrowthConfig {
   const imageUrl = typeof p.imageUrl === "string" && /^https?:\/\//.test(p.imageUrl) ? p.imageUrl : null;
 
   // Layout: validate; migrate the old imageLayout (none|top|side) if present.
-  const LAYOUTS: PopupLayout[] = ["text", "image-top", "image-left", "image-right", "background", "compact"];
+  const LAYOUTS: PopupLayout[] = ["promunch", "text", "image-top", "image-left", "image-right", "background", "compact"];
   const legacy = (p as { imageLayout?: string }).imageLayout;
   const layout: PopupLayout = LAYOUTS.includes(p.layout) ? p.layout
     : legacy === "top" ? "image-top" : legacy === "side" ? "image-left" : "text";
@@ -161,6 +168,8 @@ export function normalizeGrowthConfig(raw: unknown): GrowthConfig {
       enabled: !!p.enabled,
       email: p.email === "off" || p.email === "required" ? p.email : "optional",
       discountCode: str(p.discountCode, "", 40).trim().toUpperCase().replace(/[^A-Z0-9_-]/g, ""),
+      eyebrow: str(p.eyebrow, GROWTH_DEFAULTS.popup.eyebrow, 40),
+      badge: str(p.badge, GROWTH_DEFAULTS.popup.badge, 16),
       headline: str(p.headline, GROWTH_DEFAULTS.popup.headline, 120),
       sub: str(p.sub, GROWTH_DEFAULTS.popup.sub, 240),
       cta: str(p.cta, GROWTH_DEFAULTS.popup.cta, 40) || "Join",
@@ -173,8 +182,8 @@ export function normalizeGrowthConfig(raw: unknown): GrowthConfig {
         text: color(pt.text, "#2B2118"),
         accent: color(pt.accent, "#25D366"),
         accentText: color(pt.accentText, "#FFFFFF"),
-        font: FONTS[pt.font] ? pt.font : "poppins",
-        radius: clampNum(pt.radius, 0, 32, 16),
+        font: FONTS[pt.font] ? pt.font : "archivo",
+        radius: clampNum(pt.radius, 0, 32, 0),
       },
       position: pos,
       trigger: normTrigger(p.trigger),
@@ -208,12 +217,82 @@ const esc = (s: string) =>
 
 const WA_ICON = `<svg viewBox="0 0 32 32" width="26" height="26" fill="currentColor"><path d="M16 3C9.4 3 4 8.3 4 14.9c0 2.1.6 4.1 1.6 5.9L4 29l8.4-1.6c1.7.9 3.6 1.4 5.6 1.4 6.6 0 12-5.3 12-11.9S22.6 3 16 3zm0 21.8c-1.8 0-3.5-.5-5-1.3l-.4-.2-5 1 1-4.8-.3-.4c-1-1.6-1.5-3.4-1.5-5.2 0-5.5 4.6-10 10.2-10s10.2 4.5 10.2 10-4.6 9.9-10.2 9.9zm5.6-7.4c-.3-.2-1.8-.9-2.1-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.2-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.2-.2.2-.3.3-.5.1-.2 0-.4 0-.6-.1-.2-.7-1.7-1-2.3-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1.1 1-1.1 2.5s1.1 2.9 1.3 3.1c.2.2 2.2 3.4 5.4 4.7.8.3 1.4.5 1.8.7.8.2 1.5.2 2 .1.6-.1 1.8-.7 2.1-1.5.3-.7.3-1.3.2-1.5-.1-.1-.3-.2-.6-.3z"/></svg>`;
 
+/* ------------------ PROMUNCH layout (matches promunch.in) ------------------ */
+
+// Site typography: Archivo Black headlines (uppercase, tight), JetBrains Mono
+// labels (uppercase, wide tracking, ★), Assistant body copy, square corners.
+export const BRAND_FONT_HREF =
+  "https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap";
+const B_HEAD = `'Archivo Black','Archivo',Impact,sans-serif`;
+const B_MONO = `'JetBrains Mono',ui-monospace,Menlo,monospace`;
+const B_BODY = `'Assistant',system-ui,-apple-system,'Segoe UI',sans-serif`;
+
+// The hero's diagonal pinstripe, as a background over the accent colour.
+function brandPanelBg(accent: string): string {
+  return `background-color:${accent};background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px),radial-gradient(120% 90% at 15% 10%,rgba(255,255,255,.16),transparent 55%)`;
+}
+
+function brandShell(cfg: PopupConfig, left: string, right: string): string {
+  const t = cfg.theme;
+  return `<div data-pmwa="card" style="position:relative;display:flex;flex-wrap:wrap;align-items:stretch;background:${t.bg};border-radius:${t.radius}px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.35);font-family:${B_BODY};color:${t.text}">
+    <button data-pmwa="close" aria-label="Close" style="position:absolute;top:10px;right:10px;z-index:3;width:34px;height:34px;border:0;background:${t.bg};color:${t.text};font:400 22px/1 ${B_MONO};cursor:pointer">&#215;</button>
+    <div style="flex:1 1 260px;min-width:0;${brandPanelBg(t.accent)};color:#fff;padding:26px 26px 22px;display:flex;flex-direction:column;justify-content:space-between;gap:14px;min-height:150px">${left}</div>
+    <div style="flex:1.25 1 300px;min-width:0;padding:30px 28px 24px">${right}</div>
+  </div>`;
+}
+
+const brandEyebrow = (txt: string, color: string) =>
+  txt ? `<div style="font:500 12px/1.2 ${B_MONO};letter-spacing:3px;text-transform:uppercase;color:${color}">${esc(txt)}</div>` : "";
+
+function brandOfferPanel(cfg: PopupConfig): string {
+  return `${brandEyebrow(cfg.eyebrow, "rgba(255,255,255,.82)")}
+    <div style="font:400 clamp(56px,11vw,92px)/.88 ${B_HEAD};text-transform:uppercase;letter-spacing:-1px;color:#fff;word-break:break-word">${esc(cfg.badge || "Join")}</div>
+    <div style="font:500 11px/1.3 ${B_MONO};letter-spacing:2.5px;text-transform:uppercase;color:rgba(255,255,255,.7)">Your Munchy Pal</div>`;
+}
+
+export function renderBrandPopup(cfg: PopupConfig): string {
+  const t = cfg.theme;
+  const input = `width:100%;box-sizing:border-box;height:48px;border:1.5px solid ${t.text};border-radius:0;background:#fff;color:#121212;font:400 16px ${B_BODY};padding:0 12px;outline:0`;
+  const right = `
+    <div style="font:400 26px/1.05 ${B_HEAD};text-transform:uppercase;letter-spacing:-.3px;color:${t.text};padding-right:30px">${esc(cfg.headline)}</div>
+    ${cfg.sub ? `<div style="font:400 15px/1.5 ${B_BODY};color:${t.text};opacity:.72;margin:10px 0 18px">${esc(cfg.sub)}</div>` : `<div style="height:16px"></div>`}
+    <form data-pmwa="form" style="display:grid;gap:10px;margin:0">
+      <input name="hp" tabindex="-1" autocomplete="off" style="display:none">
+      <div style="display:flex;align-items:center;${input};padding:0">
+        <span style="font:500 13px ${B_MONO};letter-spacing:1px;color:${t.text};opacity:.6;padding:0 10px 0 12px;border-right:1.5px solid rgba(18,18,18,.15);align-self:stretch;display:flex;align-items:center">+91</span>
+        <input data-pmwa="phone" type="tel" inputmode="numeric" autocomplete="tel-national" maxlength="10" placeholder="Mobile number" style="flex:1;min-width:0;border:0;outline:0;background:none;height:100%;padding:0 12px;font:400 16px ${B_BODY};color:#121212">
+      </div>
+      ${cfg.email === "off" ? "" : `<input data-pmwa="email" type="email" autocomplete="email" ${cfg.email === "required" ? "required " : ""}placeholder="${cfg.email === "required" ? "Email" : "Email (optional)"}" style="${input}">`}
+      <button type="submit" style="height:52px;border:0;border-radius:0;background:${t.accent};color:${t.accentText};font:400 16px/1 ${B_HEAD};text-transform:uppercase;letter-spacing:1px;cursor:pointer">${esc(cfg.cta)}</button>
+    </form>
+    <div data-pmwa="consent" style="font:400 11.5px/1.45 ${B_BODY};color:${t.text};opacity:.55;margin-top:12px">${esc(popupConsentText(cfg))}</div>`;
+  return brandShell(cfg, brandOfferPanel(cfg), right);
+}
+
+export function renderBrandSuccess(cfg: PopupConfig): string {
+  const t = cfg.theme;
+  const left = `${brandEyebrow("★ Welcome to the family", "rgba(255,255,255,.82)")}
+    <div style="font:400 clamp(40px,8vw,58px)/.92 ${B_HEAD};text-transform:uppercase;letter-spacing:-1px;color:#fff;word-break:break-word">${esc(cfg.successTitle.replace(/[^\p{L}\p{N}\s!.,'’&-]/gu, "").trim() || "You're in")}</div>
+    <div style="font:500 11px/1.3 ${B_MONO};letter-spacing:2.5px;text-transform:uppercase;color:rgba(255,255,255,.7)">Your Munchy Pal</div>`;
+  const code = cfg.discountCode ? `
+    <div style="font:500 11px/1 ${B_MONO};letter-spacing:2.5px;text-transform:uppercase;color:${t.text};opacity:.6;margin:0 0 8px">Your code</div>
+    <div style="display:flex;align-items:stretch;border:2px dashed ${t.accent};margin-bottom:14px">
+      <div data-pmwa="code" style="flex:1;min-width:0;font:400 clamp(17px,5.2vw,24px)/1 ${B_HEAD};letter-spacing:1px;color:${t.accent};padding:14px 12px;display:flex;align-items:center;white-space:nowrap;overflow:hidden">${esc(cfg.discountCode)}</div>
+      <button type="button" data-pmwa="copy" style="border:0;border-radius:0;background:${t.accent};color:${t.accentText};font:400 14px/1 ${B_HEAD};text-transform:uppercase;letter-spacing:1px;padding:0 14px;cursor:pointer;flex:none">Copy</button>
+    </div>` : "";
+  const right = `${code}
+    <div style="font:400 15px/1.5 ${B_BODY};color:${t.text};opacity:.75;margin:0 0 18px;padding-right:${cfg.discountCode ? 0 : 30}px">${esc(cfg.successBody)}</div>
+    <a href="/collections/all" style="display:flex;align-items:center;justify-content:center;height:52px;background:${t.text};color:#fff;font:400 16px/1 ${B_HEAD};text-transform:uppercase;letter-spacing:1px;text-decoration:none">Shop now &#8594;</a>`;
+  return brandShell(cfg, left, right);
+}
+
 // The popup card, minus outer positioning (the wrapper positions it). Shared by
 // the storefront embed and the dashboard preview, so both stay identical.
 // Pass { placeholderImage } from the dashboard so an image layout still shows
 // its structure before a photo is uploaded; the live embed instead falls back
 // to text-only until a real image exists (never a broken image to a shopper).
 export function renderPopupInner(cfg: PopupConfig, opts?: { placeholderImage?: boolean }): string {
+  if (cfg.layout === "promunch" && cfg.position !== "bottom-bar") return renderBrandPopup(cfg);
   const t = cfg.theme;
   const font = fontStack(t.font);
   const compact = cfg.layout === "compact" || cfg.position === "bottom-bar";
@@ -285,6 +364,7 @@ export function renderPopupInner(cfg: PopupConfig, opts?: { placeholderImage?: b
 }
 
 export function popupSuccessInner(cfg: PopupConfig, waNumber: string): string {
+  if (cfg.layout === "promunch" && cfg.position !== "bottom-bar") return renderBrandSuccess(cfg);
   const t = cfg.theme;
   return `<div data-pmwa="card" style="position:relative;background:${t.bg};border-radius:${cfg.position === "bottom-bar" ? 0 : t.radius}px;padding:22px;font-family:${fontStack(t.font)};box-shadow:0 12px 40px rgba(0,0,0,.2)">
     <button data-pmwa="close" aria-label="Close" style="position:absolute;top:10px;right:12px;border:0;background:none;font-size:20px;line-height:1;cursor:pointer;color:${t.text};opacity:.5">&#215;</button>
@@ -310,7 +390,7 @@ export function widgetBubbleInner(cfg: WidgetConfig): string {
 
 // Wrapper style for the popup at each position (used by embed + preview).
 export function popupWrapStyle(pos: PopupPosition): string {
-  if (pos === "center") return "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.45);z-index:99999";
+  if (pos === "center") return "position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(18,18,18,.6);z-index:99999;overflow-y:auto";
   if (pos === "bottom-bar") return "position:fixed;left:0;right:0;bottom:0;z-index:99999";
   const side = pos === "bottom-left" ? "left:16px" : "right:16px";
   return `position:fixed;bottom:16px;${side};max-width:360px;z-index:99999`;
@@ -318,6 +398,8 @@ export function popupWrapStyle(pos: PopupPosition): string {
 export function popupCardMax(pos: PopupPosition, layout: PopupLayout = "text"): string {
   const wide = layout === "image-left" || layout === "image-right";
   if (pos === "bottom-bar") return "max-width:100%";
+  if (layout === "promunch" && pos === "center") return "width:min(720px,100%);margin:auto";
+  if (layout === "promunch") return "width:420px;max-width:calc(100vw - 32px)";
   if (pos === "center") return `width:min(${wide ? 480 : 400}px,100%)`;
   return `width:${wide ? 420 : 360}px;max-width:calc(100vw - 32px)`;
 }
@@ -329,7 +411,8 @@ export function buildEmbedJs(cfg: GrowthConfig, opts: { appOrigin: string; widge
   if (opts.cartRequestEnabled) parts.push(buildCartRequestEmbed(opts.appOrigin));
   const fontLinks = new Set<string>();
   const pf = fontHref(cfg.popup.theme.font);
-  if (cfg.popup.enabled && pf) fontLinks.add(pf);
+  if (cfg.popup.enabled && cfg.popup.layout === "promunch") fontLinks.add(BRAND_FONT_HREF);
+  else if (cfg.popup.enabled && pf) fontLinks.add(pf);
   if (fontLinks.size) {
     parts.push(`(function(){var L=${JSON.stringify([...fontLinks])};L.forEach(function(h){var l=document.createElement("link");l.rel="stylesheet";l.href=h;document.head.appendChild(l)})})();`);
   }
@@ -370,7 +453,7 @@ export function buildEmbedJs(cfg: GrowthConfig, opts: { appOrigin: string; widge
       var pn=box.querySelector('[data-pmwa="phone"]');var p=(pn.value||"").replace(/\\D/g,"");
       if(p.length!==10||!/^[6-9]/.test(p)){pn.style.color="#c0392b";pn.focus();return}
       var en=box.querySelector('[data-pmwa="email"]');var em=en?(en.value||"").trim():"";
-      if(en&&(em||C.emailMode==="required")&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){en.style.borderColor="#c0392b";en.focus();return}
+      if(en&&(em||C.emailMode==="required")&&!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(em)){en.style.borderColor="#c0392b";en.focus();return}
       var hp=f.querySelector('input[name="hp"]');
       var sb=f.querySelector('button[type="submit"]');if(sb){sb.disabled=true;sb.style.opacity=".6"}
       fetch(C.api,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:p,email:em||undefined,source:"website_popup",consent_text:C.consentText,page_url:location.href,hp:hp?hp.value:""})})
