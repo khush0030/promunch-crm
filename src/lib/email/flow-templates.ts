@@ -11,7 +11,7 @@
 //
 // Keep imports relative: vitest has no "@/" alias.
 
-import { button, couponBox, divider, eyebrow, founderSignoff, h1, p, productGrid, reviewQuote, socialRow, trustRow } from "./brand-blocks";
+import { button, couponBox, divider, eyebrow, founderSignoff, h1, p, photo, productGrid, reviewQuote, socialRow, trustRow } from "./brand-blocks";
 
 // flows.trigger_type CHECK: checkout_abandoned | order_placed | customer_created
 // | segment_entry | date_based.
@@ -436,11 +436,26 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         coupon: { percent_off: 15, expires_in_days: 8, prefix: "WELCOME15" },
         coupon_code: "",
         body_html:
+          // Same finish as the approved cart/browse emails: offer + full-width
+          // CTA in the first screen, then the founder story (Forbes photo) and
+          // the promise, then whitelisting + socials (relationship email).
           h1("Welcome to PROMUNCH") +
-          hi("we make high-protein snacks for people who want their snack to actually do something for them. Here is 15% off your first order.") +
-          couponBox(CODE, "15% off your first order", "One use. Valid for 7 days.") +
-          button("Shop Best Sellers", link(PATHS.bestSellers, "welcome", 1)) +
-          p("<strong>Our promise:</strong> real protein (our Roasted Edamame packs 42 to 45g per 100g), honest labels (our Edamame is roasted in olive oil, our Soya Crunchies are roasted, our Sticks and Chips are fried, and we always tell you which is which), and free shipping on orders over ₹599.") +
+          hi("welcome to savoury snacks with real protein in them. To say hello, here is 15% off your first order.") +
+          couponBox(CODE, "15% off your first order", "One use only. Valid for 7 days.") +
+          button("Shop Best Sellers", link(PATHS.bestSellers, "welcome", 1), "solid", { full: true }) +
+          divider() +
+          eyebrow("Why we started PROMUNCH") +
+          photo("https://admin.promunch.in/email/parth-forbes.jpg", "Parth Mutha, founder of PROMUNCH, at the Forbes Under 30 Summit Asia", "Me at the Forbes Under 30 Summit Asia in Bangkok") +
+          // Brand story (owner, 2026-09-30): the problem is the savoury snack
+          // aisle, plenty of options, almost none with real protein. Say
+          // "almost none", never "no snack has as much" (ASCI: absolute
+          // comparative claims must be provable).
+          // First person, Parth's voice (owner, 2026-09-30). No sign-off block
+          // here (owner): the photo + "Hi, I'm Parth" already say who it is.
+          p("Hi, I'm Parth. Walk down any snack aisle in India and you will find plenty of savoury snacks, but almost none that give you real protein. Most are fried namkeen and chips that taste great for ten minutes and do nothing for your body.") +
+          p("I started PROMUNCH in 2021 to fix that: savoury, crunchy snacks with serious protein in every pack. Our Roasted Edamame packs <strong>42 to 45g of protein per 100g</strong>. In 2025, building it put me on the <strong>Forbes 30 Under 30 Asia</strong> list, but the best part is still hearing from people who finally found a snack they do not feel guilty about.") +
+          p("<strong>My promise to you:</strong> real protein, honest labels (our Edamame is roasted in olive oil, our Soya Crunchies are roasted, our Sticks and Chips are fried, and we always tell you which is which), and free shipping on orders over ₹599.") +
+          divider() +
           p("One small thing: add <strong>hello@promunch.in</strong> to your contacts so our emails, and your code, land in your inbox and not in spam.") +
           socialRow(),
       },

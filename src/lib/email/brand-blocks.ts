@@ -52,6 +52,14 @@ export function founderSignoff(opts: { photoUrl?: string } = {}): string {
     `</td></tr></table>`;
 }
 
+/** Rounded feature photo with an optional small caption (e.g. founder story). */
+export function photo(src: string, alt: string, caption?: string, width = 400): string {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 20px;"><tr><td align="center">` +
+    `<img src="${escHtml(src)}" width="${width}" alt="${escHtml(alt)}" style="display:block;width:${width}px;max-width:100%;height:auto;border-radius:14px;">` +
+    (caption ? `<div style="${FONT}font-size:13px;line-height:1.5;color:${C.muted};margin-top:8px;text-align:center;">${escHtml(caption)}</div>` : "") +
+    `</td></tr></table>`;
+}
+
 /** Small uppercase red label above a headline, e.g. "A note from our founder". */
 export function eyebrow(text: string): string {
   return `<p style="margin:0 0 8px;${FONT}font-size:13px;line-height:1.4;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:${C.brand};">${escHtml(text)}</p>`;
