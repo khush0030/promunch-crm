@@ -37,16 +37,21 @@ describe("flow templates", () => {
     });
   }
 
-  it("abandonment flows stay at 15% (never 20%); welcome escalates to 20%", () => {
-    for (const k of ["abandoned_cart", "browse_abandonment"]) {
-      for (const s of templateByKey(k)!.steps) {
-        if (s.coupon) expect(s.coupon.percent_off, k).toBe(15);
-        expect(`${s.subject} ${s.body_html}`, k).not.toContain("20%");
+  it("cart, browse and welcome are 15% only; win-back is the only 20%", () => {
+    for (const k of ["abandoned_cart", "browse_abandonment", "welcome"]) {
+      for (const st of templateByKey(k)!.steps) {
+        if (st.coupon) expect(st.coupon.percent_off, k).toBe(15);
+        expect(`${st.subject} ${st.body_html}`, k).not.toContain("20%");
       }
     }
-    const w = templateByKey("welcome")!.steps;
-    expect(w[0].coupon?.percent_off).toBe(15);
-    expect(w[w.length - 1].coupon?.percent_off).toBe(20);
+    expect(templateByKey("win_back")!.steps[0].coupon?.percent_off).toBe(20);
+  });
+
+  it("welcome countdown ends before the code does", () => {
+    const steps = templateByKey("welcome")!.steps;
+    const lastDay = steps.reduce((d, st) => d + st.delay_hours, 0) / 24;
+    expect(lastDay).toBe(7);
+    expect(steps[0].coupon!.expires_in_days).toBeGreaterThanOrEqual(lastDay + 2);
   });
 
   it("browse email 1 is a no-discount reminder; the 15% starts at email 2", () => {

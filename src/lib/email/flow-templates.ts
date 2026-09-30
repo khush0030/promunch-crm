@@ -130,8 +130,8 @@ export const CATEGORY_LABELS: Record<FlowCategory, string> = {
 // Offers (owner, 2026-09-30): 15% is the floor (the public PROMUNCH10 already
 // gives 10%). Abandoned cart and browse stay at 15% for the whole sequence,
 // never 20% (it trains people to abandon, and on ₹599-749 carts 20% drops them
-// below free shipping so they pay MORE). Welcome escalates to 20% at the end;
-// win-back is 20% throughout. Every offer is a unique single-use Shopify
+// below free shipping so they pay MORE). Welcome is 15% start to finish too;
+// win-back is the only 20% offer. Every offer is a unique single-use Shopify
 // code per enrolment (coupon field; idempotent per (enrolment, percent), so the
 // 15% and 20% codes differ). coupon_code is "" on purpose: no static fallback
 // code exists at 15/20%, so when minting fails the engine defers the step and
@@ -417,10 +417,10 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     key: "welcome",
     name: "Welcome series",
     category: "welcome",
-    description: "Popup signup to first order: 5 emails over 8 days. 15% unique code, founder note, first picks, free shipping + reviews, then a final 20% offer. Stops the moment they order.",
+    description: "Popup signup to first order: 5 emails over 7 days. One 15% unique code (good for 8 days), founder story, founder picks, reviews, free shipping, then a last call before it expires. Stops the moment they order.",
     trigger_type: "customer_created",
-    // 15% code minted in email 1 lives 8 days (copy: 7). Email 5 (day 8)
-    // mints a separate 20% code that lives 3 days (copy: 48 hours).
+    // One 15% code, minted in email 1, good for 8 days in the copy (lives 9).
+    // Emails on days 0/2/4/6/7 count down 8/6/4/2 days, then "ends tomorrow".
     // exit_on_checkout defaults to true here: the cart flow takes over.
     trigger_config: { exit_on_order: true },
     steps: [
@@ -431,9 +431,9 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         bypass_freq_cap: true,
         subject: "Welcome to PROMUNCH, here is 15% off",
         subject_variants: ["Your 15% welcome code is inside", "{{first_name}}, welcome to the crunchy side"],
-        preview_text: "Your code {{coupon_code}} is ready. Good for 7 days.",
+        preview_text: "Your code {{coupon_code}} is ready. Good for 8 days.",
         preview_variants: ["15% off your first order, plus our promise to you."],
-        coupon: { percent_off: 15, expires_in_days: 8, prefix: "WELCOME15" },
+        coupon: { percent_off: 15, expires_in_days: 9, prefix: "WELCOME15" },
         coupon_code: "",
         body_html:
           // Same finish as the approved cart/browse emails: offer + full-width
@@ -441,7 +441,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           // the promise, then whitelisting + socials (relationship email).
           h1("Welcome to PROMUNCH") +
           hi("welcome to savoury snacks with real protein in them. To say hello, here is 15% off your first order.") +
-          couponBox(CODE, "15% off your first order", "One use only. Valid for 7 days.") +
+          couponBox(CODE, "15% off your first order", "One use only. Valid for 8 days.") +
           button("Shop Best Sellers", link(PATHS.bestSellers, "welcome", 1), "solid", { full: true }) +
           divider() +
           eyebrow("Why we started PROMUNCH") +
@@ -471,7 +471,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         subject_variants: ["{{first_name}}, which PROMUNCH is right for you?", "A quick guide from our founder"],
         preview_text: "Pick by what you are in the mood for. Your 15% code is still active.",
         preview_variants: ["Most protein, namkeen crunch or chip cravings? Start here."],
-        coupon: { percent_off: 15, expires_in_days: 8, prefix: "WELCOME15" },
+        coupon: { percent_off: 15, expires_in_days: 9, prefix: "WELCOME15" },
         coupon_code: "",
         body_html:
           eyebrow("A note from our founder") +
@@ -484,68 +484,74 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           founderSignoff() +
           divider() +
           grid(["edamameCombo", "crunchies4", "sticksChips"], "welcome", 2) +
-          couponBox(CODE, "Your 15% welcome code is still active", "One use only. Valid for 5 more days.") +
+          couponBox(CODE, "Your 15% welcome code is still active", "One use only. Valid for 6 more days.") +
           button("Shop Best Sellers", link(PATHS.bestSellers, "welcome", 2), "solid", { full: true }),
       },
       {
         // Day 4: social proof (welcome 2 already covers "what to try first").
-        // Code minted day 0 lives 8 days, so "3 days left" is conservative.
+        // Code good for 8 days (lives 9), so on day 4 "4 days left" is true.
         type: "email",
         format: "designed",
         delay_hours: 48,
         subject: "What people are saying about PROMUNCH",
-        subject_variants: ["\"Excellent flavour, excellent crunch, excellent macros\"", "{{first_name}}, your 15% code has 3 days left"],
-        preview_text: "Real reviews, our Best Sellers, and 3 days left on your 15% code.",
-        preview_variants: ["3 days left on your welcome code."],
-        coupon: { percent_off: 15, expires_in_days: 8, prefix: "WELCOME15" },
+        subject_variants: ["\"Excellent flavour, excellent crunch, excellent macros\"", "{{first_name}}, your 15% code has 4 days left"],
+        preview_text: "Real reviews, our Best Sellers, and 4 days left on your 15% code.",
+        preview_variants: ["4 days left on your welcome code."],
+        coupon: { percent_off: 15, expires_in_days: 9, prefix: "WELCOME15" },
         coupon_code: "",
         body_html:
           h1("Don't just take our word for it") +
-          hi("here is what people say about PROMUNCH. Your 15% welcome code has 3 days left.") +
+          hi("here is what people say about PROMUNCH. Your 15% welcome code has 4 days left.") +
           REVIEWS +
           button("Shop Best Sellers", link(PATHS.bestSellers, "welcome", 3), "solid", { full: true }) +
           grid(["noodleMasala", "edamameCombo", "bigBite"], "welcome", 3) +
-          couponBox(CODE, "Your 15% welcome code", "One use only. 3 days left.") +
+          couponBox(CODE, "Your 15% welcome code", "One use only. 4 days left.") +
           trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]),
       },
       {
         // Day 6: free shipping + combos (reviews were day 4). Code minted day
-        // 0 lives 8 days, so "2 days left" is true with a retry margin. Every
-        // product shown must itself be >= ₹599 (checked 2026-09-30: Edamame
-        // Combo ₹600, Big Bite ₹1050, Rock Salt pack of 3 ₹600).
+        // 0 is good for 8 days (lives 9): on day 6 "2 days left" is true. Every
+        // free-shipping line must stay true AFTER the 15% code (Shopify applies the
+        // ₹599 threshold after discounts): Big Bite ₹1050 -> ₹892 qualifies
+        // alone; Edamame Combo / Rock Salt x3 ₹600 -> ₹510 need a second pack.
         type: "email",
         format: "designed",
         delay_hours: 48,
         subject: "Free shipping on orders over ₹599",
         subject_variants: ["{{first_name}}, here is how to get free shipping", "Try more flavours, pay no shipping"],
-        preview_text: "A combo gets you there in one go. 2 days left on your 15% code.",
+        preview_text: "How to get free shipping, and 2 days left on your 15% code.",
         preview_variants: ["2 days left on your welcome code."],
-        coupon: { percent_off: 15, expires_in_days: 8, prefix: "WELCOME15" },
+        coupon: { percent_off: 15, expires_in_days: 9, prefix: "WELCOME15" },
         coupon_code: "",
         body_html:
           h1("Free shipping over ₹599") +
-          hi("every order over ₹599 ships free. A combo is the easiest way to get there, and you get to try more flavours in one go.") +
+          hi("every order over ₹599 ships free, counted after your 15% off. The Big Bite Munch Combo gets you there on its own, or pair any two packs and try more flavours in one go.") +
           button("Shop combos", link(PATHS.combos, "welcome", 4), "solid", { full: true }) +
           grid(["edamameCombo", "bigBite", "edamameRockSalt"], "welcome", 4) +
           couponBox(CODE, "Your 15% welcome code", "One use only. 2 days left.") +
           trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]),
       },
       {
+        // Owner, 2026-09-30: finale stays 15% (no 20%). Day 7, 24h after
+        // email 4; the code is good for 8 days (lives 9), so "ends tomorrow"
+        // is true with a day of margin. Hook: combos also get free shipping.
         type: "email",
         format: "designed",
-        delay_hours: 48,
-        subject: "Last chance: we made it 20% off",
-        subject_variants: ["{{first_name}}, one last welcome gift: 20% off", "Your final welcome offer: 20% off"],
-        preview_text: "Our best welcome offer, good for 48 hours.",
+        delay_hours: 24,
+        subject: "Last chance: your 15% welcome code ends tomorrow",
+        subject_variants: ["{{first_name}}, your welcome code expires tomorrow", "Final reminder: 15% off your first PROMUNCH order"],
+        preview_text: "Your 15% code {{coupon_code}} ends tomorrow. This is the last reminder.",
         preview_variants: ["This is the last reminder about your welcome offer."],
-        coupon: { percent_off: 20, expires_in_days: 3, prefix: "WELCOME20" },
+        coupon: { percent_off: 15, expires_in_days: 9, prefix: "WELCOME15" },
         coupon_code: "",
         body_html:
-          h1("One last welcome gift: 20% off") +
-          hi("your welcome offer is ending, so here is our best one: 20% off your first order, good for the next 48 hours. This is the last reminder we will send about it.") +
-          couponBox(CODE, "20% off your first order", "One use. Valid for 48 hours.") +
-          button("Use my 20% now", link(PATHS.all, "welcome", 5)) +
-          p("Why people stick with PROMUNCH: 42 to 45g of protein per 100g in our Roasted Edamame, ready to eat straight from the pack, and great on salads and soups too."),
+          h1("Your 15% off ends tomorrow") +
+          hi("this is the last reminder about your welcome code. It still takes 15% off your first order, but only until tomorrow.") +
+          couponBox(CODE, "Your 15% welcome code", "One use only. Expires tomorrow.") +
+          button("Use my 15% now", link(PATHS.bestSellers, "welcome", 5), "solid", { full: true }) +
+          p("<strong>Tip:</strong> orders over ₹599 ship free, counted after your 15% off. The Big Bite Munch Combo gets you there on its own, or pair any two packs.") +
+          grid(["edamameCombo", "bigBite", "edamameRockSalt"], "welcome", 5) +
+          trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]),
       },
     ],
   },
