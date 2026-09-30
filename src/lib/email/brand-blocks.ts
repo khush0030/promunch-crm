@@ -80,6 +80,15 @@ export function tipCard(n: number, title: string, html: string, img?: { src: str
     `</td></tr></table></td></tr></table>`;
 }
 
+/** Big tappable ★★★★★ row (each star links to the review page) with a caption. */
+export function starRating(href: string, caption = "Tap the stars to leave your rating"): string {
+  const star = `<a href="${escHtml(href)}" style="display:inline-block;padding:0 4px;font-size:40px;line-height:1;color:${C.brand};text-decoration:none;">&#9733;</a>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 20px;"><tr><td align="center" style="text-align:center;">` +
+    star.repeat(5) +
+    `<div style="${FONT}font-size:${EMAIL_TYPE.small}px;line-height:1.5;color:${C.muted};margin-top:8px;">${escHtml(caption)}</div>` +
+    `</td></tr></table>`;
+}
+
 /** Small uppercase red label above a headline, e.g. "A note from our founder". */
 export function eyebrow(text: string): string {
   return `<p style="margin:0 0 8px;${FONT}font-size:13px;line-height:1.4;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:${C.brand};">${escHtml(text)}</p>`;

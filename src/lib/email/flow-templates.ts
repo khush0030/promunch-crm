@@ -11,7 +11,7 @@
 //
 // Keep imports relative: vitest has no "@/" alias.
 
-import { button, couponBox, divider, eyebrow, founderSignoff, h1, p, photo, productGrid, reviewQuote, socialRow, tipCard, trustRow } from "./brand-blocks";
+import { button, couponBox, divider, eyebrow, founderSignoff, h1, p, photo, productGrid, reviewQuote, socialRow, starRating, tipCard, trustRow } from "./brand-blocks";
 
 // flows.trigger_type CHECK: checkout_abandoned | order_placed | customer_created
 // | segment_entry | date_based.
@@ -833,10 +833,14 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         preview_text: "A short review takes about a minute.",
         preview_variants: ["Good or bad, we want to hear it."],
         body_html:
+          // Visual review ask (owner, 2026-09-30): real store lifestyle shot,
+          // tappable stars, one full-width button. Short on purpose.
+          photo(cdnImg("Can_you_update_this_image_202606060937.jpg?v=1781094699"), "PROMUNCH Roasted Edamame on a picnic blanket", undefined, 520) +
           h1("How were your snacks?") +
           hi("your PROMUNCH should be with you by now. How was it? A short review takes about a minute and helps other snackers pick the right pack.") +
-          button("Leave a review", link(PATHS.review, "review_request", 1)) +
-          p("Something not right? Reply to this email instead and we will fix it.") +
+          starRating(link(PATHS.review, "review_request", 1)) +
+          button("Leave a review", link(PATHS.review, "review_request", 1), "solid", { full: true }) +
+          p("Something not right? <strong>Reply to this email</strong> instead and we will fix it. And if you snapped a photo, tag us on Instagram.") +
           socialRow(),
       },
       {
