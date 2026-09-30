@@ -104,13 +104,16 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
     await convertAbandonedEmailFlowsByCheckout(order.checkout_token ?? order.cart_token ?? null);
     await convertAbandonedEmailFlows(email);
     const phone10 = last10(order.customer?.phone ?? order.phone ?? order.shipping_address?.phone ?? order.billing_address?.phone);
-    const items = (Array.isArray(order.line_items) ? order.line_items : [])
-      .slice(0, 8)
-      .map((li: any) => ({
-        title: String(li?.title ?? li?.name ?? "Item"),
-        quantity: Number(li?.quantity ?? 1),
-        price: Number(li?.price ?? 0),
-      }));
+    // Shopify can split one product over several lines; show it once.
+    const byTitle = new Map<string, { title: string; quantity: number; price: number }>();
+    for (const li of Array.isArray(order.line_items) ? order.line_items : []) {
+      const title = String(li?.title ?? li?.name ?? "Item");
+      const prev = byTitle.get(title);
+      const quantity = Number(li?.quantity ?? 1);
+      if (prev) prev.quantity += quantity;
+      else byTitle.set(title, { title, quantity, price: Number(li?.price ?? 0) });
+    }
+    const items = [...byTitle.values()].slice(0, 8);
     // One-tap reorder link for the replenishment email: a cart permalink of
     // the same variants, landing on the storefront cart so Breeze owns checkout.
     // Paid lines only (a free gift must not come back at full price), and

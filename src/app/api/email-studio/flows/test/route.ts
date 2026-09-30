@@ -69,11 +69,17 @@ export async function POST(req: NextRequest) {
       }
       const perma = [...qty].map(([v, q]) => `${v}:${q}`).join(",");
       context = {
-        items: lines.slice(0, 8).map((li) => ({
-          title: String(li.title ?? li.name ?? "Item"),
-          quantity: Number(li.quantity ?? 1),
-          price: Number(li.price ?? 0),
-        })),
+        items: [
+          ...lines
+            .reduce((m, li) => {
+              const title = String(li.title ?? li.name ?? "Item");
+              const prev = m.get(title);
+              if (prev) prev.quantity += Number(li.quantity ?? 1);
+              else m.set(title, { title, quantity: Number(li.quantity ?? 1), price: Number(li.price ?? 0) });
+              return m;
+            }, new Map<string, { title: string; quantity: number; price: number }>())
+            .values(),
+        ].slice(0, 8),
         reorder_url: perma ? `https://promunch.in/cart/${perma}?storefront=true` : "",
       };
       source = `latest real order ${recent![0].order_number} (${String(recent![0].shopify_created_at).slice(0, 10)})`;
