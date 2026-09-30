@@ -16,10 +16,13 @@ import s from "../campaigns.module.css";
 
 export const NEW_TEMPLATE_HREF = "/dashboard/whatsapp?tab=templates&new=1";
 
-// Chip labels for a template's blanks: "First name" for name blanks, else "Blank 2".
+// Chip labels for a template's blanks: the name the marketer gave it in the
+// creator, else "First name" for name blanks, else "Blank 2".
 function blankLabels(t: CampaignTemplate): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const f of templateFields(t)) if (f.kind === "body") out[f.key] = f.isName ? "First name" : `Blank ${f.key}`;
+  for (const f of templateFields(t)) {
+    if (f.kind === "body") out[f.key] = f.blankLabel ?? (f.isName ? "First name" : `Blank ${f.key}`);
+  }
   return out;
 }
 

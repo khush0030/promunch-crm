@@ -1,14 +1,18 @@
 "use client";
 
-// One template card. Marketing ("For campaigns") cards carry the actions;
-// automatic-message and team-alert cards are read-only.
+// One template card. Marketing ("For campaigns") cards carry the actions.
+// Automatic-message cards are editable by the Owner/Admin only (Edit &
+// resubmit, Duplicate as new version; no delete, no campaigns). Team-alert
+// cards are read-only for everyone. The API routes enforce the same rule
+// (lib/whatsapp/template-access.ts).
 
 import Link from "next/link";
 import { Copy, Lock, Pencil, Send, Trash2, Wrench } from "lucide-react";
 import { HelpTip } from "@/components/guide";
 import { friendlyTemplateName, type TemplateKind } from "@/lib/whatsapp/templateKind";
 import { CATEGORY_LABEL, qualityInfo } from "@/lib/whatsapp/template-display";
-import { guessBlankLabels } from "@/lib/whatsapp/template-draft";
+import { guessBlankLabels, storedBlankLabels } from "@/lib/whatsapp/template-draft";
+import { AUTOMATIC_OWNER_ONLY, canChangeTemplate } from "@/lib/whatsapp/template-access";
 import { explainRejection } from "@/lib/whatsapp/template-errors";
 import { languageLabel, mediaKindForHeader } from "@/lib/whatsapp/template-rules";
 import { MediaUploader } from "../MediaUploader";
@@ -16,19 +20,15 @@ import type { TemplateRow } from "./api";
 import { BlankText, HeaderThumb, ProblemBox, StatusPill } from "./bits";
 import s from "./templates.module.css";
 
+// Stored label first (the name the marketer gave the blank), else a guess.
 function labelsOf(t: TemplateRow): Record<string, string> {
-  const known: Record<string, string> = {};
-  if (Array.isArray(t.variables)) {
-    for (const v of t.variables as { name?: unknown; label?: unknown }[]) {
-      if (v?.name && typeof v.label === "string") known[String(v.name)] = v.label;
-    }
-  }
-  return guessBlankLabels(t.body ?? "", known);
+  return guessBlankLabels(t.body ?? "", storedBlankLabels(t.variables));
 }
 
 export function TemplateCard({
   t,
   kind,
+  isAdmin,
   onEdit,
   onDuplicate,
   onDelete,
@@ -36,6 +36,8 @@ export function TemplateCard({
 }: {
   t: TemplateRow;
   kind: TemplateKind;
+  /** Owner/Admin: may change automatic (customer_service) templates. */
+  isAdmin: boolean;
   onEdit: (t: TemplateRow) => void;
   onDuplicate: (t: TemplateRow) => void;
   onDelete: (t: TemplateRow) => void;
@@ -44,12 +46,13 @@ export function TemplateCard({
   const friendly = friendlyTemplateName(t.name);
   const q = qualityInfo(t.quality_score);
   const media = mediaKindForHeader(t.header_type);
-  const editable = kind === "marketing";
+  const editable = canChangeTemplate(kind, isAdmin);
+  const automatic = kind === "customer_service";
   const atMeta = !!t.meta_template_id;
   const rejected = t.status === "rejected" ? explainRejection(t.rejection_reason, t.rejected_reason_detail) : null;
   const paused = t.status === "disabled" || t.status === "paused";
   const missingFile = !!media && (!!t.needs_media || !t.header_media_url);
-  const showAttach = kind !== "internal" && missingFile && t.status !== "draft";
+  const showAttach = editable && missingFile && t.status !== "draft";
 
   return (
     <article className={`${s.card} ${editable ? "" : s.cardReadonly}`} aria-label={friendly}>
@@ -112,7 +115,7 @@ export function TemplateCard({
               <Wrench aria-hidden="true" /> Fix and resubmit
             </button>
           )}
-          {t.status === "approved" && (
+          {t.status === "approved" && !automatic && (
             <Link href={`/dashboard/whatsapp/campaigns/new?template=${t.id}`} className="pm2-btn sm pri">
               <Send aria-hidden="true" /> Use in campaign
             </Link>
@@ -130,9 +133,11 @@ export function TemplateCard({
           <button type="button" className="pm2-btn sm" onClick={() => onDuplicate(t)} title="Copy into a new template with a _v2 style name">
             <Copy aria-hidden="true" /> Duplicate as new version
           </button>
-          <button type="button" className={`pm2-btn sm ${s.iconOnly} ${s.danger}`} onClick={() => onDelete(t)} aria-label={`Delete ${friendly}`}>
-            <Trash2 aria-hidden="true" />
-          </button>
+          {!automatic && (
+            <button type="button" className={`pm2-btn sm ${s.iconOnly} ${s.danger}`} onClick={() => onDelete(t)} aria-label={`Delete ${friendly}`}>
+              <Trash2 aria-hidden="true" />
+            </button>
+          )}
         </div>
       ) : (
         <div className={s.readonly}>
@@ -140,7 +145,7 @@ export function TemplateCard({
           <span>
             {kind === "internal"
               ? "Used by the system to alert the team. View only."
-              : "Sent automatically by Automations, for example order updates. View only, not for campaigns."}
+              : `Sent automatically by Automations, for example order updates. View only, not for campaigns. ${AUTOMATIC_OWNER_ONLY}`}
           </span>
         </div>
       )}

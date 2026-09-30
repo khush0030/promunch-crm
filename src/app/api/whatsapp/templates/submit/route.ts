@@ -3,6 +3,10 @@ import { tagUrlForWhatsApp } from "@/lib/utm";
 import { parseBody } from "@/lib/api-helpers";
 import { validateTemplate } from "@/lib/whatsapp/template-rules";
 import { callTemplateFn } from "@/lib/whatsapp/template-edge";
+import { templateChangeRefusal } from "@/lib/whatsapp/template-access";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getCaller } from "@/lib/rbac-server";
+import { isAdminUser } from "@/lib/rbac";
 
 // Submit a template to Meta for approval (via the wa-template-create edge
 // function). Meta — not this dashboard — owns the template's real status;
@@ -22,6 +26,23 @@ export async function POST(req: NextRequest) {
   if (!template) return NextResponse.json({ ok: false, error: "invalid JSON body" }, { status: 400 });
   const mode = template.mode === "edit" ? "edit" : "create";
   delete template.mode;
+
+  // Editing a live template: automatic (utility) messages go to every
+  // customer, so only the Owner/Admin may resubmit them; team alerts are
+  // never changed from here. Classified by the STORED row and the incoming
+  // body, strictest wins (a body can't relabel itself as marketing).
+  if (mode === "edit") {
+    const name = String(template.name ?? "");
+    const language = String(template.language ?? "en");
+    const { data: row, error: rowErr } = await supabaseAdmin
+      .from("wa_templates").select("name, category").eq("name", name).eq("language", language).maybeSingle();
+    if (rowErr) return NextResponse.json({ ok: false, error: rowErr.message }, { status: 500 });
+    const refusal = templateChangeRefusal(
+      [row, { name, category: template.category as string | null }],
+      isAdminUser(await getCaller()),
+    );
+    if (refusal) return NextResponse.json({ ok: false, error: refusal }, { status: 403 });
+  }
 
   const { errors } = validateTemplate({
     name: template.name,

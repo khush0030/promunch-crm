@@ -156,6 +156,14 @@ describe("template content", () => {
     // Name blanks start as {name}; every other blank starts empty (sample is only a placeholder).
     expect(initialVars(tpl())).toEqual({ "1": "{name}", "2": "", _button_0: "" });
     expect(f[1].placeholder).toBe("e.g. 15%");
+    expect(f[1].label).toBe("Blank 2 in the message");
+    expect(f[1].blankLabel).toBeUndefined();
+  });
+
+  it("uses the label the marketer gave the blank in the template creator", () => {
+    const f = templateFields(tpl({ variables: [{ name: "1", sample: "Priya", label: "First name" }, { name: "2", sample: "15%", label: "Offer details" }] }));
+    expect(f[1].label).toBe("Blank 2: Offer details");
+    expect(f[1].blankLabel).toBe("Offer details");
   });
 
   it("spots name blanks from a capitalised sample or a greeting", () => {

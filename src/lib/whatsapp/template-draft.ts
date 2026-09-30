@@ -81,6 +81,43 @@ export function uniqueName(slug: string, taken: Iterable<string>): string {
   return nextVersionName(slug, used);
 }
 
+/** Longest blank label we store (it is a UI hint, never sent to Meta). */
+export const MAX_BLANK_LABEL = 60;
+
+/**
+ * The labels the marketer gave each body blank, as stored on a wa_templates
+ * row: variables = [{ name: "1", sample, label? }]. Rows written before labels
+ * were kept (or synced from Meta) simply have none.
+ */
+export function storedBlankLabels(variables: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!Array.isArray(variables)) return out;
+  for (const v of variables as { name?: unknown; label?: unknown }[]) {
+    if (v?.name == null || typeof v.label !== "string") continue;
+    const label = v.label.trim();
+    if (label) out[String(v.name)] = label;
+  }
+  return out;
+}
+
+/** "Blank 3" is our own placeholder, not a name the marketer chose: never store it. */
+function isPlaceholderLabel(label: string, n: number): boolean {
+  return label === `Blank ${n}`;
+}
+
+/**
+ * Labels worth saving for this body: one per blank, trimmed, capped, and
+ * without our "Blank n" placeholder (so a later, better guess can still win).
+ */
+export function labelsToSave(body: string, labels: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const n of varNumbers(body)) {
+    const l = (labels[String(n)] ?? "").trim().slice(0, MAX_BLANK_LABEL);
+    if (l && !isPlaceholderLabel(l, n)) out[String(n)] = l;
+  }
+  return out;
+}
+
 /**
  * Guess a friendly label for each blank in a body we did not write
  * ("Hi {{1}}" -> First name). Anything else stays "Blank n".
@@ -128,14 +165,13 @@ export function editableFooter(category: string, footer: string): string {
  */
 export function draftFromRow(t: TemplateRowLike, asNewName?: string): EditorDraft {
   const bs: Record<string, string> = {};
-  const labels: Record<string, string> = {};
   if (Array.isArray(t.variables)) {
-    for (const v of t.variables as { name?: unknown; sample?: unknown; label?: unknown }[]) {
+    for (const v of t.variables as { name?: unknown; sample?: unknown }[]) {
       if (!v?.name) continue;
       bs[String(v.name)] = String(v.sample ?? "");
-      if (typeof v.label === "string" && v.label.trim()) labels[String(v.name)] = v.label;
     }
   }
+  const labels = storedBlankLabels(t.variables);
   const hs: Record<string, string> = {};
   (t.header_samples ?? []).forEach((s, i) => { hs[String(i + 1)] = String(s ?? ""); });
   const submitted = !!t.meta_template_id;
@@ -210,11 +246,14 @@ export function saveDraftBody(d: EditorDraft) {
     body: d.body,
     footer: d.footer || null,
     buttons: d.buttons.length ? buttonsForApi(d.buttons) : null,
-    variables: varNumbers(d.body).map((n) => ({
-      name: String(n),
-      sample: d.bodySamples[String(n)] ?? "",
-      ...(d.blankLabels[String(n)] ? { label: d.blankLabels[String(n)] } : {}),
-    })),
+    variables: (() => {
+      const labels = labelsToSave(d.body, d.blankLabels);
+      return varNumbers(d.body).map((n) => ({
+        name: String(n),
+        sample: d.bodySamples[String(n)] ?? "",
+        ...(labels[String(n)] ? { label: labels[String(n)] } : {}),
+      }));
+    })(),
     header_samples: d.header_type === "TEXT" ? samplesArray(d.header_text, d.headerSamples) : null,
   };
 }
@@ -233,6 +272,10 @@ export function submitBody(d: EditorDraft) {
     body: d.body,
     footer: d.footer || undefined,
     body_samples: samplesArray(d.body, d.bodySamples),
+    // One label per blank ({{1}} first), "" where the marketer named none.
+    // wa-template-create stores them as variables[i].label so they survive
+    // the round trip through Meta (Meta itself never sees them).
+    body_labels: samplesArray(d.body, labelsToSave(d.body, d.blankLabels)),
     header_samples: d.header_type === "TEXT" ? samplesArray(d.header_text, d.headerSamples) : [],
     buttons: d.buttons.length ? buttonsForApi(d.buttons) : undefined,
   };

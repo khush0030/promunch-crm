@@ -254,3 +254,8 @@
   .cReason:empty { display: none; }
   .steps .step { min-width: 64px; font-size: 12px; }
 }
+
+/* Automatic-message warning in the creator (+ type-the-name confirm). */
+.typeConfirmBody { display: grid; gap: 6px; }
+.typeConfirm { display: grid; gap: 6px; margin-top: 4px; }
+.typeConfirm .input { max-width: 360px; }

@@ -16,6 +16,7 @@ import {
   type TemplateSchema,
 } from "../../../../promunch-email-agent/supabase/functions/_shared/campaign-engine";
 import { templateKind } from "@/lib/whatsapp/templateKind";
+import { storedBlankLabels } from "@/lib/whatsapp/template-draft";
 import type { Campaign, CampaignAudienceFilter, CampaignStatus, RetargetStage, Template, TemplateButton } from "../types";
 import { COLD_SHARE_DANGER, GST_RATE, HELD_BACK_RATE, MARKETING_RATE_INR } from "./rates";
 
@@ -368,6 +369,8 @@ export type VarField = {
   placeholder: string;
   /** True when the blank is the customer's first name (starts as {name}). */
   isName: boolean;
+  /** The name the marketer gave this blank in the template creator, if any. */
+  blankLabel?: string;
 };
 
 // A blank "looks like a name" when Meta's sample is a single capitalised word
@@ -427,13 +430,16 @@ export function templateFields(t: CampaignTemplate): VarField[] {
       isName,
     });
   }
+  const stored = storedBlankLabels(t.variables);
   for (const n of templateVarKeys(t.body)) {
     const sample = bodySample(t, n);
     const isName = looksLikeNameBlank(t.body, n, sample);
+    const blankLabel = stored[n];
     out.push({
       key: n,
       kind: "body",
-      label: isName ? `Blank ${n}: customer's first name` : `Blank ${n} in the message`,
+      label: isName ? `Blank ${n}: customer's first name` : blankLabel ? `Blank ${n}: ${blankLabel}` : `Blank ${n} in the message`,
+      ...(blankLabel ? { blankLabel } : {}),
       help: isName
         ? "Leave it as {name} and each customer sees their own first name."
         : "Same text for everyone. Type your own words, the grey example is only Meta's sample.",

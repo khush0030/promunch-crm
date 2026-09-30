@@ -2,7 +2,7 @@
 
 // Template list grouped the way a marketer thinks about it:
 //   For campaigns        marketing templates, full actions (primary)
-//   Automatic messages   customer-service (utility) templates, read-only
+//   Automatic messages   customer-service (utility) templates, Owner/Admin may edit
 //   Team alerts          internal system templates, collapsed, read-only
 
 import { ChevronRight, Plus, Search } from "lucide-react";
@@ -17,6 +17,7 @@ import { TemplateCard } from "./TemplateCard";
 import s from "./templates.module.css";
 
 type CardHandlers = {
+  isAdmin: boolean;
   onEdit: (t: TemplateRow) => void;
   onDuplicate: (t: TemplateRow) => void;
   onDelete: (t: TemplateRow) => void;
@@ -135,6 +136,7 @@ export function TemplateList({
             <span className={s.groupSub}>
               Sent automatically by Automations, for example order updates. These are{" "}
               <GlossaryTerm k="utility">utility</GlossaryTerm> messages, so they can&apos;t be used in campaigns.
+              {h.isAdmin ? " Changes go to every customer, so edit with care." : " Only the owner can change them."}
             </span>
           </summary>
           <div className={s.foldBody}>

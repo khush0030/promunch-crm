@@ -8,12 +8,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { Plus, RefreshCw } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { GlossaryTerm } from "@/components/guide";
 import { nextVersionName } from "@/lib/whatsapp/template-rules";
 import { draftFromRow, type EditorDraft } from "@/lib/whatsapp/template-draft";
-import { friendlyTemplateName } from "@/lib/whatsapp/templateKind";
+import { friendlyTemplateName, templateKind } from "@/lib/whatsapp/templateKind";
+import {
+  automaticEditWarning, automaticUse, type AutomaticWarning, type CustomFlowLike, type FlowSettingsLike,
+} from "@/lib/whatsapp/template-access";
+import { useAccess } from "@/components/shell/useAccess";
 import { attachHeaderFile, syncFromMeta, useTemplates, type TemplateRow } from "./templates/api";
 import { ProblemBox } from "./templates/bits";
 import { DeleteTemplateDialog } from "./templates/DeleteTemplateDialog";
@@ -21,13 +26,26 @@ import { TemplateList } from "./templates/TemplateList";
 import { TemplateCreator } from "./templates/creator/TemplateCreator";
 import s from "./templates/templates.module.css";
 
-type Editing = { initial: EditorDraft | null; key: number };
+type Editing = { initial: EditorDraft | null; key: number; automatic?: AutomaticWarning | null };
+
+// Which automations use which template (order confirmation slots + custom
+// flows), so editing an automatic message can warn truthfully. Admin only:
+// only admins can edit those templates.
+async function fetchFlowUsage(): Promise<{ settings: FlowSettingsLike; custom: CustomFlowLike[] }> {
+  const r = await fetch("/api/whatsapp/flows");
+  if (!r.ok) throw new Error(`Could not load automations (${r.status}).`);
+  const j = (await r.json()) as { settings?: FlowSettingsLike; custom?: CustomFlowLike[] };
+  return { settings: j.settings ?? null, custom: j.custom ?? [] };
+}
 
 export default function TemplatesView() {
   const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { q, list, refresh } = useTemplates();
+  const access = useAccess();
+  const isAdmin = access?.admin === true;
+  const usageQ = useQuery({ queryKey: ["wa-template-usage"], queryFn: fetchFlowUsage, enabled: isAdmin, staleTime: 60_000 });
   const openCount = useRef(0);
   // ?new=1 (from the campaign wizard's "Create a new template") opens the
   // creator straight away; the effect below drops the flag from the URL.
@@ -38,7 +56,17 @@ export default function TemplatesView() {
   const [syncing, setSyncing] = useState(false);
   const takenNames = useMemo(() => new Set(list.map((t) => t.name)), [list]);
 
-  const open = (initial: EditorDraft | null) => setEditing({ initial, key: ++openCount.current });
+  const open = (initial: EditorDraft | null, automatic: AutomaticWarning | null = null) =>
+    setEditing({ initial, key: ++openCount.current, automatic });
+
+  // Automatic (utility) templates get a warning in the creator; marketing and
+  // never-submitted drafts don't need one.
+  function warningFor(t: TemplateRow, mode: "edit" | "copy", draftMode: EditorDraft["mode"]): AutomaticWarning | null {
+    if (templateKind(t) !== "customer_service") return null;
+    if (mode === "edit" && draftMode !== "edit") return null;
+    const use = automaticUse(t.name, usageQ.data?.settings, usageQ.data?.custom);
+    return automaticEditWarning(t.name, use, mode, usageQ.isSuccess);
+  }
 
   // Drop ?new=1 so a reload doesn't reopen the creator. If the link is
   // followed again while this tab is mounted, open it then.
@@ -105,8 +133,9 @@ export default function TemplatesView() {
           list={list}
           loading={q.isLoading}
           onCreate={() => open(null)}
-          onEdit={(t) => open(draftFromRow(t))}
-          onDuplicate={(t) => open(draftFromRow(t, nextVersionName(t.name, takenNames)))}
+          isAdmin={isAdmin}
+          onEdit={(t) => { const d = draftFromRow(t); open(d, warningFor(t, "edit", d.mode)); }}
+          onDuplicate={(t) => { const d = draftFromRow(t, nextVersionName(t.name, takenNames)); open(d, warningFor(t, "copy", d.mode)); }}
           onDelete={(t) => setDeleting(t)}
           onAttachMedia={onAttachMedia}
         />
@@ -128,6 +157,7 @@ export default function TemplatesView() {
         <TemplateCreator
           key={editing.key}
           initial={editing.initial}
+          automatic={editing.automatic ?? null}
           takenNames={takenNames}
           onClose={() => setEditing(null)}
           onDone={() => { setEditing(null); refresh(); }}

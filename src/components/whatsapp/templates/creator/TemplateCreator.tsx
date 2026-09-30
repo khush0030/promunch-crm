@@ -19,6 +19,7 @@ import {
 } from "@/lib/whatsapp/template-draft";
 import { draftFromStarter } from "@/lib/whatsapp/template-starters";
 import type { TemplateProblem } from "@/lib/whatsapp/template-errors";
+import type { AutomaticWarning } from "@/lib/whatsapp/template-access";
 import { saveDraft, submitToMeta } from "../api";
 import { autosaveSlot, clearAutosave, readAutosave, savedAgo, useAutosave, type Autosaved } from "./autosave";
 import { STEP_FIELDS, stepOfField } from "./fieldTypes";
@@ -35,12 +36,18 @@ const PREVIEW_ID = "tpl-live-preview";
 
 export function TemplateCreator({
   initial,
+  automatic = null,
   takenNames,
   onClose,
   onDone,
 }: {
   /** null = brand-new template (starts at "Pick a starting point"). */
   initial: EditorDraft | null;
+  /**
+   * Set when editing or duplicating an automatic (utility) message: the
+   * warning to show, and for order confirmations the name to type first.
+   */
+  automatic?: AutomaticWarning | null;
   /** Meta names already used by other templates. */
   takenNames: Set<string>;
   onClose: () => void;
@@ -59,6 +66,7 @@ export function TemplateCreator({
   const [busy, setBusy] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
+  const [typedName, setTypedName] = useState("");
 
   // Offer to resume unfinished work: for a new template (only when opened
   // fresh, not from Duplicate) or for the same template being edited.
@@ -103,7 +111,9 @@ export function TemplateCreator({
     return errs;
   };
   const blocking = step > 0 && step < TOTAL - 1 ? stepErrors(step) : [];
-  const canSubmit = errors.length === 0 && !nameClash && !busy;
+  const needsTypedName = !!automatic?.confirmName && draft.mode === "edit";
+  const typedOk = !needsTypedName || typedName.trim() === automatic?.confirmName;
+  const canSubmit = errors.length === 0 && !nameClash && !busy && typedOk;
 
   /* ---------- editing ---------- */
   const update = useCallback((patch: Partial<EditorDraft>) => {
@@ -219,7 +229,8 @@ export function TemplateCreator({
     : draft.mode === "draft" ? `Continue: ${friendlyTemplateName(draft.name)}` : "New WhatsApp template";
   const stepProps = { d: draft, update, errorsFor, warningsFor, touch };
   const reason = blocking[0] ? `To continue: ${blocking[0].message}` : step === TOTAL - 1 && !canSubmit && !busy
-    ? "Fix the items in the checklist to send it." : "";
+    ? (!typedOk && errors.length === 0 && !nameClash ? `Type ${automatic?.confirmName} above to confirm.` : "Fix the items in the checklist to send it.")
+    : "";
 
   return (
     <div className={s.overlay} role="dialog" aria-modal="true" aria-labelledby="tpl-creator-title">
@@ -250,6 +261,35 @@ export function TemplateCreator({
       <div className={s.cScroll} ref={scrollRef}>
         <div className={s.cInner}>
           <div className={s.cFull}>
+            {automatic && (
+              <div
+                className={`${s.box} ${automatic.tone === "danger" ? s.boxBad : automatic.tone === "warn" ? s.boxWarn : s.boxInfo}`}
+                role="note"
+              >
+                <div className={s.boxTitle}>{automatic.title}</div>
+                <div className={s.typeConfirmBody}>
+                  {automatic.lines.map((line) => <div key={line}>{line}</div>)}
+                  {needsTypedName && step === TOTAL - 1 && (
+                    <label className={s.typeConfirm}>
+                      <span>
+                        To resubmit, type the template name <b className={s.mono}>{automatic.confirmName}</b>
+                      </span>
+                      <input
+                        className={s.input}
+                        value={typedName}
+                        onChange={(e) => setTypedName(e.target.value)}
+                        autoComplete="off"
+                        spellCheck={false}
+                        aria-label={`Type ${automatic.confirmName} to confirm`}
+                      />
+                    </label>
+                  )}
+                  {needsTypedName && step !== TOTAL - 1 && (
+                    <div>You will be asked to type the template name before it is resubmitted.</div>
+                  )}
+                </div>
+              </div>
+            )}
             {resume && (
               <NextStepCallout
                 tone="info"
@@ -363,8 +403,17 @@ export function TemplateCreator({
           onConfirm={doSubmit}
           body={
             <>
-              Nothing is sent to customers now. Meta usually reviews it in a few minutes to 24 hours, and you can use it in campaigns once it
-              shows Approved.
+              {automatic && draft.mode === "edit" ? (
+                <>
+                  This is an automatic message. Meta usually reviews it in a few minutes to 24 hours, and while it is in review it is not sent
+                  to customers, not even the old wording.
+                </>
+              ) : (
+                <>
+                  Nothing is sent to customers now. Meta usually reviews it in a few minutes to 24 hours, and you can use it
+                  {automatic ? " in its automation" : " in campaigns"} once it shows Approved.
+                </>
+              )}
               {approvedEdit && " This counts toward Meta's limit of about 1 edit a day and 10 a month."}
             </>
           }

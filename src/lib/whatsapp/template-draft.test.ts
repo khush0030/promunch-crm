@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   applyTitle, blanksNeedRenumber, buttonsForApi, draftFingerprint, draftFromRow, editableFooter, emptyDraft,
-  guessBlankLabels, insertBlank, renumberBlanks, saveDraftBody, submitBody, uniqueName, type TemplateRowLike,
+  guessBlankLabels, insertBlank, labelsToSave, renumberBlanks, saveDraftBody, storedBlankLabels, submitBody, uniqueName,
+  type TemplateRowLike,
 } from "./template-draft";
 import { groupTemplates, matchesStatus, qualityInfo, statusInfo, videoPosterSrc } from "./template-display";
 
@@ -122,5 +123,35 @@ describe("display", () => {
   it("videoPosterSrc seeks to the first frame", () => {
     expect(videoPosterSrc("https://x/v.mp4")).toBe("https://x/v.mp4#t=0.1");
     expect(videoPosterSrc("https://x/v.mp4#t=2")).toBe("https://x/v.mp4#t=2");
+  });
+});
+
+describe("blank labels survive a Meta submit", () => {
+  it("submitBody sends one label per blank, blank where none was chosen", () => {
+    const d = { ...emptyDraft(), name: "x", body: "Hi {{1}}, get {{2}} on {{3}}", blankLabels: { "1": "First name", "2": "Offer details", "3": "Blank 3" } };
+    expect(submitBody(d).body_labels).toEqual(["First name", "Offer details", ""]);
+  });
+
+  it("labelsToSave drops our Blank n placeholder, trims and caps", () => {
+    expect(labelsToSave("{{1}} {{2}} {{3}}", { "1": " Code ", "2": "Blank 2", "3": "x".repeat(99), "9": "gone" }))
+      .toEqual({ "1": "Code", "3": "x".repeat(60) });
+  });
+
+  it("saveDraftBody does not store the placeholder as a label", () => {
+    const d = { ...emptyDraft(), name: "x", body: "Hi {{1}} {{2}}", bodySamples: { "1": "A", "2": "B" }, blankLabels: { "1": "First name", "2": "Blank 2" } };
+    expect(saveDraftBody(d).variables).toEqual([{ name: "1", sample: "A", label: "First name" }, { name: "2", sample: "B" }]);
+  });
+
+  it("storedBlankLabels reads labels and tolerates old rows", () => {
+    expect(storedBlankLabels([{ name: "1", sample: "a", label: "Offer details" }, { name: "2", sample: "b" }])).toEqual({ "1": "Offer details" });
+    expect(storedBlankLabels(null)).toEqual({});
+    expect(storedBlankLabels([{ name: "1", label: "  " }])).toEqual({});
+  });
+
+  it("a stored label beats the guess; unlabelled rows still get the guess", () => {
+    const labelled = draftFromRow({ ...row, body: "Hi {{1}}, {{2}}", variables: [{ name: "1", sample: "A", label: "Customer" }, { name: "2", sample: "B" }] });
+    expect(labelled.blankLabels).toEqual({ "1": "Customer", "2": "Blank 2" });
+    const legacy = draftFromRow({ ...row, body: "Hi {{1}}, {{2}}", variables: [{ name: "1", sample: "A" }, { name: "2", sample: "B" }] });
+    expect(legacy.blankLabels).toEqual({ "1": "First name", "2": "Blank 2" });
   });
 });
