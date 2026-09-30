@@ -11,7 +11,7 @@
 //
 // Keep imports relative: vitest has no "@/" alias.
 
-import { button, couponBox, h1, p, productGrid, reviewQuote } from "./brand-blocks";
+import { button, couponBox, divider, eyebrow, founderSignoff, h1, p, productGrid, reviewQuote, socialRow, trustRow } from "./brand-blocks";
 
 // flows.trigger_type CHECK: checkout_abandoned | order_placed | customer_created
 // | segment_entry | date_based.
@@ -125,8 +125,11 @@ export const CATEGORY_LABELS: Record<FlowCategory, string> = {
 //   - Every link and product image below returned HTTP 200 (curl -sI). Never
 //     link the bare home page.
 //
-// Offers (owner, 2026-09-30): lead with 15%, escalate to 20% in the last-chance
-// email; win-back is 20% throughout. Every offer is a unique single-use Shopify
+// Offers (owner, 2026-09-30): 15% is the floor (the public PROMUNCH10 already
+// gives 10%). Abandoned cart and browse stay at 15% for the whole sequence,
+// never 20% (it trains people to abandon, and on ₹599-749 carts 20% drops them
+// below free shipping so they pay MORE). Welcome escalates to 20% at the end;
+// win-back is 20% throughout. Every offer is a unique single-use Shopify
 // code per enrolment (coupon field; idempotent per (enrolment, percent), so the
 // 15% and 20% codes differ). coupon_code is "" on purpose: no static fallback
 // code exists at 15/20%, so when minting fails the engine defers the step and
@@ -226,76 +229,96 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     key: "abandoned_cart",
     name: "Abandoned cart",
     category: "recover",
-    description: "Checkout started but not paid. 3 emails over 2 days: cart + 15% unique code, a founder note, then a last call at 20%. Uses the Super Money Breeze recovery link.",
+    description: "Checkout started but not paid. 3 emails over 2 days: cart + a 15% unique code, a founder note, then a last call before that code expires. 15% only, never 20%. Uses the Super Money Breeze recovery link.",
     trigger_type: "checkout_abandoned",
-    // deadline 54h: the last email lands at ~46h. 15% code minted at email 1
-    // lives 3 days (copy: 2 days); 20% code minted at email 3 lives 3 days
-    // (copy: 48 hours), so both claims stay true through a retry backoff.
+    // deadline 54h: the last email lands at ~46h. The one 15% code, minted at
+    // email 1, lives 3 days: "2 days" in email 1 and "ends tomorrow" in email 3
+    // both stay true through a retry backoff.
     trigger_config: { deadline_hours: 54 },
     steps: [
       {
         type: "email",
         format: "designed",
         delay_hours: 0.75,
-        subject: "{{first_name}}, your cart is saved (plus 15% off)",
+        subject: "{{first_name}}, your snacks are still waiting (15% off inside)",
         subject_variants: [
-          "You left something behind. Here is 15% off it",
-          "[Saved for you] Your PROMUNCH cart and a 15% code",
+          "You left something crunchy behind. Here is 15% off",
+          "{{first_name}}, we saved your cart and took 15% off",
         ],
-        preview_text: "Your code {{coupon_code}} takes 15% off. Good for 2 days.",
+        preview_text: "Your cart is saved and your own 15% code is inside. Good for 2 days.",
         preview_variants: ["Pick up right where you left off, with 15% off."],
         coupon: { percent_off: 15, expires_in_days: 3, prefix: "CART15" },
         coupon_code: "",
+        // Order: why (headline) -> first-screen CTA -> what they left (big
+        // photos) -> the saving in rupees -> the code -> CTA again -> proof.
         body_html:
-          h1("Your cart is saved") +
-          hi("you were one step away from your snacks, so we kept everything for you.") +
-          couponBox(CODE, "15% off your cart", "One use. Enter it at checkout within 2 days.") +
-          button("Finish my order", "{{checkout_url}}") +
+          h1("Still craving that crunch?") +
+          hi("your snacks are still in your cart. Finish your order in the next 2 days and your own 15% off code is on us.") +
+          button("Complete my order", "{{checkout_url}}", "solid", { full: true }) +
           "{{cart_items}}" +
-          p("Free shipping on orders over ₹599. Stuck at checkout? Reply to this email and a real person will help."),
+          "{{cart_summary}}" +
+          couponBox(CODE, "Your 15% off code", "One use only. Enter it at checkout within 2 days.") +
+          button("Complete my order", "{{checkout_url}}", "solid", { full: true }) +
+          reviewQuote(
+            "Wish this was mainstream. Excellent flavour, excellent crunch, excellent macros. What more do you want?",
+            "Sujay Thomas, on Noodle Masala Soya Crunchies",
+            5,
+          ) +
+          trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]),
       },
       {
+        // Owner, 2026-09-30: the bare plain-text version read as unbranded
+        // with too much empty space. Now a founder LETTER inside the branded
+        // card: Parth's voice and sender name, plus the cart, code and button.
         type: "email",
-        format: "plain",
+        format: "designed",
         from_name: PARTH_FROM,
-        signature: PARTH_SIG,
         delay_hours: 21.25,
         subject: "A quick note from PROMUNCH's founder",
         subject_variants: ["{{first_name}}, can I ask you something?", "Why I started PROMUNCH (30 second read)"],
-        preview_text: "And your 15% code is still waiting for you.",
+        preview_text: "Your cart is still saved, and your 15% code still works.",
         preview_variants: ["What stopped you? Honest answers welcome."],
         coupon: { percent_off: 15, expires_in_days: 3, prefix: "CART15" },
         coupon_code: "",
-        body_html: PLAIN(
-          "Hi {{first_name}},",
-          "I'm Parth, I started PROMUNCH. I noticed your cart is still sitting there, so I wanted to write to you myself.",
-          "We started PROMUNCH because a snack in India usually meant fried namkeen or chips with very little protein. We wanted something crunchy that actually fills you up. That is what is waiting in your cart.",
-          "If something stopped you, a price question, a flavour doubt, a glitch at checkout, just hit reply and tell me. The team and I read every reply.",
-          "Your 15% code still works: <b>{{coupon_code}}</b>",
-          `<a href="{{checkout_url}}">Here is your cart</a> whenever you are ready.`,
-        ),
+        body_html:
+          eyebrow("A note from our founder") +
+          h1("Can I ask you something?") +
+          p("Hi {{first_name}},") +
+          p("I'm Parth, founder of PROMUNCH. I noticed your cart is still sitting there, so I wanted to write to you myself.") +
+          p("We started PROMUNCH because a snack in India usually meant fried namkeen or chips with very little protein. We wanted something crunchy that actually fills you up. That is what is waiting in your cart.") +
+          p("If something stopped you, a price question, a flavour doubt, a glitch at checkout, <strong>just hit reply and tell me.</strong> The team and I read every reply.") +
+          founderSignoff() +
+          "{{cart_items}}" +
+          couponBox(CODE, "Your 15% off code still works", "One use only. Enter it at checkout.") +
+          button("Complete my order", "{{checkout_url}}", "solid", { full: true }),
       },
       {
         type: "email",
         format: "designed",
         delay_hours: 24,
-        subject: "Last chance: 20% off your cart",
+        subject: "Last chance: your 15% off ends tomorrow",
         subject_variants: [
-          "{{first_name}}, we made it 20% off. Last call",
-          "Final reminder: your PROMUNCH cart, now 20% off",
+          "{{first_name}}, your cart and your 15% code expire tomorrow",
+          "Final reminder: your PROMUNCH cart is still saved",
         ],
-        preview_text: "Our best offer, good for the next 48 hours.",
+        preview_text: "Your 15% code {{coupon_code}} still works, but not for long.",
         preview_variants: ["This is the last email we will send about your cart."],
-        coupon: { percent_off: 20, expires_in_days: 3, prefix: "CART20" },
+        // Owner, 2026-09-30: carts are 15% only, never 20%. Same percent as
+        // email 1, so the engine reuses THAT code (one code per enrolment per
+        // percent). Minted ~45min in, it lives 3 days, so at ~46h it has
+        // ~1 day left: "ends tomorrow" stays true.
+        coupon: { percent_off: 15, expires_in_days: 3, prefix: "CART15" },
         coupon_code: "",
         body_html:
-          h1("Last call: 20% off your cart") +
-          hi("this is the last email we will send about your cart. We bumped your discount to 20%, our best offer, and it is good for the next 48 hours.") +
-          couponBox(CODE, "20% off your cart", "One use. Valid for 48 hours.") +
-          button("Grab my snacks", "{{checkout_url}}") +
+          h1("Last call: your 15% off ends tomorrow") +
+          hi("this is the last email we will send about your cart. Your 15% code still works, but only until tomorrow.") +
+          button("Complete my order", "{{checkout_url}}", "solid", { full: true }) +
           "{{cart_items}}" +
+          "{{cart_summary}}" +
+          couponBox(CODE, "Your 15% off code", "One use only. Expires tomorrow.") +
+          button("Complete my order", "{{checkout_url}}", "solid", { full: true }) +
           REVIEWS +
-          p("Free shipping on orders over ₹599. Questions? Reply and we will help."),
+          trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]),
       },
     ],
   },
@@ -303,7 +326,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     key: "browse_abandonment",
     name: "Browse abandonment",
     category: "recover",
-    description: "Viewed a product but did not buy. 3 emails: the product + 15% unique code, a founder note, then a last call at 20%. Needs the storefront pixel.",
+    description: "Viewed a product but did not buy. 3 emails: the product + a 15% unique code, a founder note, then a last call before that code expires. 15% only. Needs the storefront pixel.",
     trigger_type: "segment_entry",
     // Enrolled by email-browse-tick (>= 1h after the view), not the daily
     // segment tick. Copy uses {{product.title}}, {{product.url}} (fallback: Best
@@ -353,17 +376,19 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         type: "email",
         format: "designed",
         delay_hours: 48,
-        subject: "Last chance: we made it 20% off",
-        subject_variants: ["{{first_name}}, 20% off for the next 48 hours", "Our best offer on {{product.title}}"],
-        preview_text: "Our best offer, good for 48 hours. This is the last email about it.",
-        preview_variants: ["20% off, then this offer is gone."],
-        coupon: { percent_off: 20, expires_in_days: 3, prefix: "LOOK20" },
+        subject: "Last chance: your 15% off ends tomorrow",
+        subject_variants: ["{{first_name}}, your 15% code expires tomorrow", "Still thinking about {{product.title}}?"],
+        preview_text: "Your 15% code still works, but only until tomorrow.",
+        preview_variants: ["This is the last email about it."],
+        // 15% only (owner, 2026-09-30): reuses email 1's code, minted at day 0
+        // and valid 4 days, so at day 3 "ends tomorrow" is true.
+        coupon: { percent_off: 15, expires_in_days: 4, prefix: "LOOK15" },
         coupon_code: "",
         body_html:
-          h1("We made it 20% off") +
-          hi("this is the last email about {{product.title}}. Here is our best offer: 20% off your order, good for the next 48 hours.") +
-          couponBox(CODE, "20% off your order", "One use. Valid for 48 hours.") +
-          button("Take me back", "{{product.url}}") +
+          h1("Your 15% off ends tomorrow") +
+          hi("this is the last email about {{product.title}}. Your 15% code still works, but only until tomorrow.") +
+          couponBox(CODE, "Your 15% off code", "One use only. Expires tomorrow.") +
+          button("Take me back", "{{product.url}}", "solid", { full: true }) +
           REVIEWS +
           p(`Not quite right? <a href="${link(PATHS.bestSellers, "browse_abandon", 3)}">See our Best Sellers</a>.`),
       },
@@ -399,7 +424,8 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           couponBox(CODE, "15% off your first order", "One use. Valid for 7 days.") +
           button("Shop Best Sellers", link(PATHS.bestSellers, "welcome", 1)) +
           p("<strong>Our promise:</strong> real protein (our Roasted Edamame has over 40g per 100g), honest labels (our Soya Crunchies and Edamame are roasted, our Sticks and Chips are fried, and we always tell you which is which), and free shipping on orders over ₹599.") +
-          p("One small thing: add <strong>hello@promunch.in</strong> to your contacts so our emails, and your code, land in your inbox and not in spam."),
+          p("One small thing: add <strong>hello@promunch.in</strong> to your contacts so our emails, and your code, land in your inbox and not in spam.") +
+          socialRow(),
       },
       {
         type: "email",
@@ -516,7 +542,8 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           p("<strong>Keep it crunchy.</strong> Once a pack is open, seal it tight or tip it into an airtight jar, and keep it somewhere cool and dry.") +
           p("<strong>Ways to enjoy it.</strong> Straight from the pack, on a salad or a bowl of soup, tucked into wraps and sandwiches, or in your bag for the office and after a workout.") +
           p("<strong>What is in the pack.</strong> Roasted Edamame: over 40g of protein per 100g, roasted in olive oil. Soya Crunchies: roasted, not fried. Soya Sticks and Chips: fried, for a classic chip crunch.") +
-          p("Anything else? Reply to this email and a real person will answer."),
+          p("Anything else? Reply to this email and a real person will answer.") +
+          socialRow(),
       },
     ],
   },
@@ -705,7 +732,8 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           hi("as one of our regulars, here is everything PROMUNCH makes, in one place.") +
           button("See the full range", link(PATHS.all, "vip", 2)) +
           grid(["edamameCombo", "crunchies4", "sticksChips"], "vip", 2) +
-          p("Got a flavour idea? Reply to this email and tell us. Ideas from our regulars go straight to the team."),
+          p("Got a flavour idea? Reply to this email and tell us. Ideas from our regulars go straight to the team.") +
+          socialRow(),
       },
     ],
   },
@@ -735,7 +763,8 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           h1("How were your snacks?") +
           hi("your PROMUNCH should be with you by now. How was it? A short review takes about a minute and helps other snackers pick the right pack.") +
           button("Leave a review", link(PATHS.review, "review_request", 1)) +
-          p("Something not right? Reply to this email instead and we will fix it."),
+          p("Something not right? Reply to this email instead and we will fix it.") +
+          socialRow(),
       },
       {
         type: "email",
@@ -781,7 +810,8 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           hi("on this day you placed your first PROMUNCH order. Thank you for snacking with us. Here is 15% off to celebrate.") +
           couponBox(CODE, "15% off, to celebrate", "One use. Valid for 7 days.") +
           button("Treat myself", link(PATHS.bestSellers, "anniversary", 1)) +
-          SHIPPING,
+          SHIPPING +
+          socialRow(),
       },
     ],
   },

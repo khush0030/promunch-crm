@@ -1,6 +1,6 @@
 // Merge tags for flow emails (pure, unit-testable).
 //
-// Body tokens:   {{first_name}} {{checkout_url}} {{cart_items}} {{cart_total}}
+// Body tokens:   {{first_name}} {{checkout_url}} {{cart_items}} {{cart_summary}} {{cart_total}}
 //                {{coupon_code}} {{product.title}} {{product.url}}
 //                {{product.image}} {{product.price}} {{product_image}} (full <img>)
 // Subject/preview: same minus the HTML-only ones (cart_items, checkout_url,
@@ -11,7 +11,7 @@
 // the <img> is dropped entirely, price -> empty, title -> "your pick".
 
 import { EMAIL_COLORS } from "./brand-tokens";
-import { cartItemsHtml, money, type ImageLookup } from "./cart-items";
+import { cartItemsHtml, cartSummaryHtml, money, type ImageLookup } from "./cart-items";
 
 export const PRODUCT_URL_FALLBACK = "https://promunch.in/collections/best-sellers";
 export const PRODUCT_TITLE_FALLBACK = "your pick";
@@ -74,6 +74,7 @@ export function personalize(
   stepIndex = 0,
   coupon = "",
   images?: ImageLookup,
+  percentOff = 0,
 ): string {
   const c = ctx ?? {};
   const checkout = trackedCheckoutUrl(String(c.checkout_url ?? c.url ?? "https://promunch.in"), stepIndex);
@@ -88,6 +89,8 @@ export function personalize(
     .replace(T("first_name"), esc(first || "there"))
     .replace(T("checkout_url"), checkout)
     .replace(T("cart_items"), cartItemsHtml(c, images))
+    // Only show the discount line when a real code was issued for this send.
+    .replace(T("cart_summary"), cartSummaryHtml(c, coupon ? percentOff : 0))
     .replace(T("cart_total"), totalNum > 0 ? money(totalNum) : "your cart")
     .replace(T("coupon_code"), esc(coupon))
     .replace(T("product.title"), esc(product.title ?? PRODUCT_TITLE_FALLBACK))

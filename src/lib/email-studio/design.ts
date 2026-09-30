@@ -5,7 +5,7 @@
 //
 // Keep imports relative: vitest has no "@/" alias.
 
-import { EMAIL_BRAND, EMAIL_COLORS } from "../email/brand-tokens";
+import { EMAIL_BRAND, EMAIL_COLORS, SOCIAL_LINKS } from "../email/brand-tokens";
 
 export type Align = "left" | "center";
 
@@ -82,9 +82,9 @@ export const DEFAULT_BRAND: BrandKit = {
   logoWidth: EMAIL_BRAND.logoWidth,
   tagline: EMAIL_BRAND.tagline,
   website: EMAIL_BRAND.website,
-  instagram: "",
-  facebook: "",
-  youtube: "",
+  instagram: SOCIAL_LINKS.instagram,
+  facebook: SOCIAL_LINKS.facebook,
+  youtube: SOCIAL_LINKS.youtube,
   footerAddress: "",
   theme: DEFAULT_THEME,
 };

@@ -272,9 +272,10 @@ describe("cart items with images", () => {
     expect(itemImage({ title: "Unknown", image_url: "javascript:alert(1)" }, images)).toBeNull();
   });
 
-  it("renders a 64px thumbnail with alt text, and no image cell when missing", () => {
+  it("renders a 92px thumbnail with alt text and qty, and no image cell when missing", () => {
     const html = cartItemsHtml({ items: [{ title: "Peri <Peri>", quantity: 2, price: 100, image_url: "https://cdn/p.jpg" }] });
-    expect(html).toContain('width="64" height="64" alt="Peri &lt;Peri&gt;"');
+    expect(html).toContain('width="92" height="92" alt="Peri &lt;Peri&gt;"');
+    expect(html).toContain("Qty 2");
     expect(html).toContain("₹200");
     const noImg = cartItemsHtml({ items: [{ title: "Plain", quantity: 1, price: 50 }] });
     expect(noImg).not.toContain("<img");

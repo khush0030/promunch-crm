@@ -365,7 +365,10 @@ export async function tick(): Promise<FlowTickResult> {
       if (/\{\{\s*cart_items\s*\}\}/.test(step.body_html) && needsImageLookup(e.context) && !catalogImages) {
         catalogImages = await loadCatalogImages().catch(() => new Map<string, string>());
       }
-      const bodyHtml = personalize(step.body_html, e.context, first, e.current_step, coupon, catalogImages ?? undefined);
+      const bodyHtml = personalize(
+        step.body_html, e.context, first, e.current_step, coupon, catalogImages ?? undefined,
+        Number(step.coupon?.percent_off ?? 0),
+      );
       const previewText = variant.preview_text
         ? personalizeSubject(variant.preview_text, e.context, first, coupon)
         : undefined;

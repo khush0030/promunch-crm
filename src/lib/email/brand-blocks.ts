@@ -10,7 +10,9 @@
 //
 // Keep imports relative: vitest has no "@/" alias.
 
-import { EMAIL_COLORS as C, EMAIL_FONT, EMAIL_HEADING_FONT, EMAIL_LAYOUT, EMAIL_MONO, EMAIL_TYPE, LINK_STYLE, escHtml } from "./brand-tokens";
+import { EMAIL_COLORS as C, EMAIL_FONT, EMAIL_HEADING_FONT, EMAIL_LAYOUT, EMAIL_MONO, EMAIL_TYPE, LINK_STYLE, SOCIAL_LINKS, escHtml } from "./brand-tokens";
+
+export { SOCIAL_LINKS };
 
 const FONT = `font-family:${EMAIL_FONT};`;
 const HFONT = `font-family:${EMAIL_HEADING_FONT};`;
@@ -20,6 +22,39 @@ const INNER = EMAIL_LAYOUT.width - EMAIL_LAYOUT.pad * 2;
 /** Style any bare <a> in author HTML black + underlined (keeps explicit styles). */
 function styleLinks(html: string): string {
   return html.replace(/<a\b(?![^>]*\bstyle=)([^>]*)>/gi, `<a$1 style="${LINK_STYLE}">`);
+}
+
+/**
+ * Founder sign-off: round photo (when a public URL is set), name, role and a
+ * credential line. Credential verified 2026-09-30: Parth Mutha, Forbes 30 Under
+ * 30 Asia 2025 (Food & Drink), per BU MET news + his LinkedIn. Only the photo
+ * is optional; with no photo the text still reads as a proper signature.
+ */
+export const FOUNDER = {
+  name: "Parth Mutha",
+  role: "Founder, PROMUNCH",
+  credential: "Forbes 30 Under 30 Asia 2025",
+  /** Public, square, <100KB. Served from public/email/ (middleware skips .jpg). */
+  photoUrl: "https://admin.promunch.in/email/parth-headshot.jpg",
+} as const;
+
+export function founderSignoff(opts: { photoUrl?: string } = {}): string {
+  const photo = (opts.photoUrl ?? FOUNDER.photoUrl).trim();
+  const photoCell = /^https:\/\//i.test(photo)
+    ? `<td width="76" valign="middle" style="width:76px;padding:0 14px 0 0;"><img src="${escHtml(photo)}" width="64" height="64" alt="${escHtml(FOUNDER.name)}" style="display:block;width:64px;height:64px;border-radius:32px;border:2px solid ${C.brand};object-fit:cover;"></td>`
+    : "";
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 8px;"><tr>` +
+    photoCell +
+    `<td valign="middle" style="${FONT}font-size:${EMAIL_TYPE.body}px;line-height:1.4;color:${C.ink};">` +
+    `<strong>${escHtml(FOUNDER.name)}</strong><br>` +
+    `<span style="font-size:${EMAIL_TYPE.small}px;color:${C.muted};">${escHtml(FOUNDER.role)}</span><br>` +
+    `<span style="font-size:13px;font-weight:700;letter-spacing:.5px;color:${C.brand};">${escHtml(FOUNDER.credential)}</span>` +
+    `</td></tr></table>`;
+}
+
+/** Small uppercase red label above a headline, e.g. "A note from our founder". */
+export function eyebrow(text: string): string {
+  return `<p style="margin:0 0 8px;${FONT}font-size:13px;line-height:1.4;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:${C.brand};">${escHtml(text)}</p>`;
 }
 
 export function h1(text: string): string {
@@ -36,15 +71,46 @@ export function p(html: string): string {
  * solid = brand red with white text, uppercase Archivo Black like the site's
  * CTAs (the one primary CTA); outline = white with a red border + red text.
  */
-export function button(label: string, href: string, variant: "solid" | "outline" = "solid"): string {
+export function button(
+  label: string,
+  href: string,
+  variant: "solid" | "outline" = "solid",
+  opts: { full?: boolean } = {},
+): string {
   const solid = variant === "solid";
   const bg = solid ? C.brand : C.card;
   const fg = solid ? C.onBrand : C.brand;
   const r = EMAIL_LAYOUT.buttonRadius;
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;"><tr>` +
-    `<td bgcolor="${bg}" style="background:${bg};border:2px solid ${C.brand};border-radius:${r}px;">` +
-    `<a href="${escHtml(href)}" style="display:inline-block;padding:15px 28px;${HFONT}font-size:15px;line-height:1.2;font-weight:400;letter-spacing:1px;text-transform:uppercase;color:${fg};text-decoration:none;border-radius:${r}px;">${escHtml(label)}</a>` +
+  // Full width = one big thumb target on mobile, centred label.
+  const width = opts.full ? ` width="100%"` : "";
+  const aDisplay = opts.full ? "display:block;text-align:center;padding:18px 20px;" : "display:inline-block;padding:15px 28px;";
+  return `<table role="presentation"${width} cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;"><tr>` +
+    `<td bgcolor="${bg}" align="center" style="background:${bg};border:2px solid ${C.brand};border-radius:${r}px;">` +
+    `<a href="${escHtml(href)}" style="${aDisplay}${HFONT}font-size:16px;line-height:1.2;font-weight:400;letter-spacing:1px;text-transform:uppercase;color:${fg};text-decoration:none;border-radius:${r}px;">${escHtml(label)}</a>` +
     `</td></tr></table>`;
+}
+
+/**
+ * "Follow the crunch" row for relationship emails (welcome, how-to, reviews,
+ * VIP, anniversary). Text links, not icon images: Gmail/Outlook block images
+ * by default and icons then show as broken boxes. Deliberately NOT used in
+ * sales emails (cart, browse, win-back) where it would pull clicks off the CTA.
+ */
+export function socialRow(): string {
+  const link = (label: string, href: string) =>
+    `<a href="${escHtml(href)}" style="display:inline-block;margin:4px 6px;padding:8px 14px;border:1px solid ${C.brand};border-radius:${EMAIL_LAYOUT.buttonRadius}px;${FONT}font-size:${EMAIL_TYPE.small}px;font-weight:700;color:${C.brand};text-decoration:none;">${label}</a>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 20px;"><tr><td align="center" style="text-align:center;">` +
+    `<div style="${FONT}font-size:${EMAIL_TYPE.small}px;line-height:1.5;color:${C.muted};margin:0 0 6px;">Follow the crunch <b style="color:${C.ink};">@promunch.snacks</b></div>` +
+    link("Instagram", SOCIAL_LINKS.instagram) +
+    link("Facebook", SOCIAL_LINKS.facebook) +
+    link("YouTube", SOCIAL_LINKS.youtube) +
+    `</td></tr></table>`;
+}
+
+/** Small reassurance row (e.g. free shipping, COD, reply for help), centred, muted. */
+export function trustRow(items: string[]): string {
+  const cells = items.map((t) => escHtml(t)).join(`&nbsp;&nbsp;<span style="color:${C.line};">|</span>&nbsp;&nbsp;`);
+  return `<p style="margin:0 0 20px;${FONT}font-size:${EMAIL_TYPE.small}px;line-height:1.6;color:${C.muted};text-align:center;">${cells}</p>`;
 }
 
 /** Coupon panel. `code` may be a merge tag like {{coupon}}. */

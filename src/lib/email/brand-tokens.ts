@@ -92,6 +92,13 @@ export function emailFooterAddress(): string {
 }
 
 /** Inline style for links in body copy: brand red, underlined. */
+/** Official PROMUNCH socials, as linked from the promunch.in site footer. */
+export const SOCIAL_LINKS = {
+  instagram: "https://www.instagram.com/promunch.snacks",
+  facebook: "https://www.facebook.com/promunch.snacks",
+  youtube: "https://www.youtube.com/@PromunchYourMunchyPal",
+} as const;
+
 export const LINK_STYLE = `color:${EMAIL_COLORS.brand};text-decoration:underline;`;
 
 /** HTML escape for text and attribute values. Leaves {{merge}} tags intact. */
@@ -160,6 +167,8 @@ p{margin:0 0 16px}
 
 export function preheaderHtml(previewText?: string): string {
   return previewText
-    ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${escHtml(previewText)}${"&#847;&zwnj;&nbsp;".repeat(30)}</div>`
+    // Filler after the preview so clients (Apple Mail shows ~3 lines) don't
+    // pull in the next visible text, e.g. the "Your Munchy Pal" tagline.
+    ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${escHtml(previewText)}${"&#8199;&#65279;&#847;&zwnj;&nbsp;".repeat(120)}</div>`
     : "";
 }
