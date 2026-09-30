@@ -26,6 +26,7 @@ type Enrollment = {
   context: Record<string, unknown> | null;
   deadline_at: string | null;
   attempts: number | null;
+  entered_at: string | null;
 };
 
 export type FlowTickResult = {
@@ -88,6 +89,20 @@ function trackedCheckoutUrl(url: string, stepIndex: number): string {
   }
 }
 
+/** Reorder link for order flows; tagged with the flow name, not cart recovery. */
+function trackedReorderUrl(url: string, stepIndex: number): string {
+  try {
+    const u = new URL(url);
+    u.searchParams.set("utm_source", "email");
+    u.searchParams.set("utm_medium", "email_flow");
+    u.searchParams.set("utm_campaign", "replenishment");
+    u.searchParams.set("utm_content", `email_${stepIndex + 1}`);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 function personalize(
   html: string,
   ctx: Record<string, unknown> | null,
@@ -104,6 +119,7 @@ function personalize(
   return html
     .replace(/\{\{\s*first_name\s*\}\}/g, esc(first || "there"))
     .replace(/\{\{\s*checkout_url\s*\}\}/g, checkout)
+    .replace(/\{\{\s*reorder_url\s*\}\}/g, trackedReorderUrl(String(c.reorder_url || "https://promunch.in/collections/all"), stepIndex))
     .replace(/\{\{\s*cart_items\s*\}\}/g, cartItemsHtml(c))
     .replace(/\{\{\s*cart_total\s*\}\}/g, totalNum > 0 ? money(totalNum) : "your cart")
     .replace(/\{\{\s*coupon_code\s*\}\}/g, esc(coupon));
@@ -158,6 +174,30 @@ async function fetchSuppressedSet(): Promise<Set<string>> {
   return set;
 }
 
+/**
+ * Has this enrolment's buyer placed a newer, non-cancelled order since they
+ * entered? Matches on the order email or the last 10 phone digits carried in
+ * the enrolment context (order_placed enrolments store both). A failed lookup
+ * counts as "reordered": skipping one nudge is safer than a wrong one.
+ */
+export async function reorderedSince(e: Pick<Enrollment, "context" | "entered_at">): Promise<boolean> {
+  const ctx = e.context ?? {};
+  const email = String(ctx.email ?? "").trim().toLowerCase().replace(/[,()]/g, "");
+  const phone10 = String(ctx.phone10 ?? "").replace(/\D/g, "").slice(-10);
+  const ors: string[] = [];
+  if (email) ors.push(`customer_email.ilike.${email}`);
+  if (phone10.length === 10) ors.push(`customer_phone.like.*${phone10}`);
+  if (ors.length === 0 || !e.entered_at) return false;
+  const { count, error } = await supabase
+    .from("shopify_orders")
+    .select("id", { count: "exact", head: true })
+    .is("cancelled_at", null)
+    .gt("shopify_created_at", e.entered_at)
+    .or(ors.join(","));
+  if (error) return true;
+  return (count ?? 0) > 0;
+}
+
 async function setStatus(id: string, status: string, extra: Record<string, unknown> = {}) {
   await supabase
     .from("flow_enrollments")
@@ -188,7 +228,7 @@ export async function tick(): Promise<FlowTickResult> {
 
   const { data: due, error } = await supabase
     .from("flow_enrollments")
-    .select("id, flow_id, contact_id, current_step, context, deadline_at, attempts")
+    .select("id, flow_id, contact_id, current_step, context, deadline_at, attempts, entered_at")
     .eq("status", "active")
     .lte("next_action_at", nowIso)
     .order("next_action_at", { ascending: true })
@@ -200,7 +240,7 @@ export async function tick(): Promise<FlowTickResult> {
   const flowIds = [...new Set(due.map((e) => e.flow_id))];
   const { data: flowRows } = await supabase
     .from("flows")
-    .select("id, status, steps")
+    .select("id, status, steps, trigger_config")
     .in("id", flowIds);
   const flows = new Map((flowRows ?? []).map((f) => [f.id, f]));
 
@@ -226,6 +266,14 @@ export async function tick(): Promise<FlowTickResult> {
     // Deadline (e.g. abandoned cart 72h): stop trying.
     if (e.deadline_at && new Date(e.deadline_at).getTime() < Date.now()) {
       await setStatus(e.id, "exited", { last_error: "deadline passed" });
+      continue;
+    }
+
+    // Replenishment-style flows: stop once the buyer has ordered again since
+    // enrolling ("running low?" to someone who just rebought reads as spam).
+    const cfg = (flow.trigger_config ?? {}) as Record<string, unknown>;
+    if (cfg.exit_on_reorder === true && (await reorderedSince(e))) {
+      await setStatus(e.id, "exited", { last_error: "reordered" });
       continue;
     }
 

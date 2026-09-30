@@ -9,20 +9,37 @@
 // checkouts/update or orders/create for the same entity is a no-op. If there is
 // no ACTIVE flow for the trigger, we enrol nobody (no pile-up while a flow is
 // still a draft).
+//
+// One trigger can feed SEVERAL active flows (order_placed drives welcome,
+// post-purchase and replenishment). Each flow narrows its audience with
+// trigger_config filters:
+//   first_order_only: true          enrol only on the buyer's first order
+//   once_per_contact_days: n        skip if this contact entered the flow in the last n days
 
 import { db } from "./supabase.ts";
 
 type FlowRow = { id: string; steps: unknown; trigger_config: Record<string, unknown> | null };
 
-async function activeFlowFor(trigger: string): Promise<FlowRow | null> {
+async function activeFlowsFor(trigger: string): Promise<FlowRow[]> {
   const { data } = await db()
     .from("flows")
     .select("id, steps, trigger_config")
     .eq("trigger_type", trigger)
     .eq("status", "active")
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: true });
+  return (data ?? []) as FlowRow[];
+}
+
+async function enteredRecently(flowId: string, contactId: string, days: number): Promise<boolean> {
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const { data } = await db()
+    .from("flow_enrollments")
+    .select("id")
+    .eq("flow_id", flowId)
+    .eq("contact_id", contactId)
+    .gte("entered_at", since)
     .limit(1);
-  return (data?.[0] as FlowRow | undefined) ?? null;
+  return (data?.length ?? 0) > 0;
 }
 
 async function contactIdForEmail(email: string, firstName?: string | null): Promise<string | null> {
@@ -48,39 +65,50 @@ export async function enrolEmailFlow(
     dedupPrefix: string;
     firstName?: string | null;
     context?: Record<string, unknown>;
+    /** order_placed only: true when this is the buyer's first order. */
+    isFirstOrder?: boolean | null;
   },
 ): Promise<void> {
   const email = opts.email?.trim();
   if (!email) return;
 
-  const flow = await activeFlowFor(trigger);
-  if (!flow) return; // no active flow → enrol nobody
-  const steps = Array.isArray(flow.steps) ? (flow.steps as Array<{ delay_hours?: number }>) : [];
-  if (steps.length === 0) return;
+  const flows = await activeFlowsFor(trigger);
+  if (flows.length === 0) return; // no active flow → enrol nobody
 
   const contactId = await contactIdForEmail(email, opts.firstName);
   if (!contactId) return;
 
-  const cfg = flow.trigger_config ?? {};
-  const deadlineHours = typeof cfg.deadline_hours === "number" ? cfg.deadline_hours : null;
-  const firstDelayHours = Number(steps[0]?.delay_hours ?? 0);
+  for (const flow of flows) {
+    const steps = Array.isArray(flow.steps) ? (flow.steps as Array<{ delay_hours?: number }>) : [];
+    if (steps.length === 0) continue;
 
-  await db()
-    .from("flow_enrollments")
-    .upsert(
-      {
-        flow_id: flow.id,
-        contact_id: contactId,
-        current_step: 0,
-        status: "active",
-        dedup_key: `${opts.dedupPrefix}:${opts.entityRef}`,
-        context: { ...(opts.context ?? {}), first_name: opts.firstName ?? null },
-        next_action_at: new Date(Date.now() + firstDelayHours * 3_600_000).toISOString(),
-        deadline_at: deadlineHours ? new Date(Date.now() + deadlineHours * 3_600_000).toISOString() : null,
-        entered_at: new Date().toISOString(),
-      },
-      { onConflict: "flow_id,dedup_key", ignoreDuplicates: true },
-    );
+    const cfg = flow.trigger_config ?? {};
+    // Unknown first-order status counts as "not first": a missed welcome is
+    // recoverable, a "welcome to the family" to a repeat buyer is not.
+    if (cfg.first_order_only === true && opts.isFirstOrder !== true) continue;
+    const onceDays = typeof cfg.once_per_contact_days === "number" ? cfg.once_per_contact_days : 0;
+    if (onceDays > 0 && (await enteredRecently(flow.id, contactId, onceDays))) continue;
+
+    const deadlineHours = typeof cfg.deadline_hours === "number" ? cfg.deadline_hours : null;
+    const firstDelayHours = Number(steps[0]?.delay_hours ?? 0);
+
+    await db()
+      .from("flow_enrollments")
+      .upsert(
+        {
+          flow_id: flow.id,
+          contact_id: contactId,
+          current_step: 0,
+          status: "active",
+          dedup_key: `${opts.dedupPrefix}:${opts.entityRef}`,
+          context: { ...(opts.context ?? {}), first_name: opts.firstName ?? null },
+          next_action_at: new Date(Date.now() + firstDelayHours * 3_600_000).toISOString(),
+          deadline_at: deadlineHours ? new Date(Date.now() + deadlineHours * 3_600_000).toISOString() : null,
+          entered_at: new Date().toISOString(),
+        },
+        { onConflict: "flow_id,dedup_key", ignoreDuplicates: true },
+      );
+  }
 }
 
 // Stop an abandoned-cart email flow by the CHECKOUT TOKEN the order came from.

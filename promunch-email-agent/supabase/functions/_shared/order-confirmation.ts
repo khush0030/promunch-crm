@@ -28,7 +28,8 @@ import {
   GATE_TEMPLATE,
   isCodOrder,
 } from "./cod-gate.ts";
-import { isCreatorOrder } from "./shopify-customer.ts";
+import { adminGraphQL, isCreatorOrder } from "./shopify-customer.ts";
+import { buildCartPermalink } from "./shopify-cart.ts";
 import { buildSupportComponents } from "./quick-replies.ts";
 import { holdOrderFulfillments } from "./shopify-fulfillment.ts";
 
@@ -36,6 +37,48 @@ export interface OrderConfirmationResult {
   orderRef: string;
   status: "sent" | "duplicate" | "no_phone" | "not_active" | "failed";
   detail?: string;
+}
+
+function last10(raw: unknown): string | null {
+  const d = String(raw ?? "").replace(/\D/g, "");
+  return d.length >= 10 ? d.slice(-10) : null;
+}
+
+// True when this is the buyer's first order. Two checks, both must pass:
+//   1. no earlier non-cancelled order in shopify_orders (by email or the last
+//      10 phone digits), and
+//   2. Shopify's own count for the linked customer is at most 1. Our table only
+//      starts in Apr 2026, so without this a pre-April regular would be
+//      welcomed as new.
+// Null when either lookup fails; first-order-only flows treat that as "not
+// first" (never send "welcome to the family" to a repeat buyer).
+async function isFirstOrder(order: any, email: string, phone10: string | null): Promise<boolean | null> {
+  const before = String(order.created_at ?? new Date().toISOString());
+  const ors = [`customer_email.ilike.${email.toLowerCase().replace(/[,()]/g, "")}`];
+  if (phone10) ors.push(`customer_phone.like.*${phone10}`);
+  let q = db()
+    .from("shopify_orders")
+    .select("id", { count: "exact", head: true })
+    .is("cancelled_at", null)
+    .lt("shopify_created_at", before)
+    .or(ors.join(","));
+  if (order.id) q = q.neq("shopify_id", order.id);
+  const { count, error } = await q;
+  if (error) return null;
+  if ((count ?? 0) > 0) return false;
+
+  if (!order.id) return null;
+  try {
+    const r = await adminGraphQL(
+      `query($id: ID!) { order(id: $id) { customer { numberOfOrders } } }`,
+      { id: `gid://shopify/Order/${order.id}` },
+    );
+    if (r?.errors || !r?.data?.order) return null;
+    const n = Number(r.data.order.customer?.numberOfOrders ?? 0);
+    return n <= 1;
+  } catch {
+    return null;
+  }
 }
 
 // Send the order confirmation + enrol post-purchase journeys for one order.
@@ -60,7 +103,37 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
     // silently no-ops and would leave the cart sequence running post-purchase.
     await convertAbandonedEmailFlowsByCheckout(order.checkout_token ?? order.cart_token ?? null);
     await convertAbandonedEmailFlows(email);
-    await enrolEmailFlow("order_placed", { email, entityRef: orderRef, dedupPrefix: "postpurchase", firstName: nm });
+    const phone10 = last10(order.customer?.phone ?? order.phone ?? order.shipping_address?.phone ?? order.billing_address?.phone);
+    const items = (Array.isArray(order.line_items) ? order.line_items : [])
+      .slice(0, 8)
+      .map((li: any) => ({
+        title: String(li?.title ?? li?.name ?? "Item"),
+        quantity: Number(li?.quantity ?? 1),
+        price: Number(li?.price ?? 0),
+      }));
+    // One-tap reorder link for the replenishment email: a cart permalink of
+    // the same variants, landing on the storefront cart so Breeze owns checkout.
+    // Paid lines only (a free gift must not come back at full price), and
+    // repeated lines of one variant merged into a single quantity.
+    const qtyByVariant = new Map<string, number>();
+    for (const li of Array.isArray(order.line_items) ? order.line_items : []) {
+      if (!li?.variant_id || !(Number(li.price ?? 0) > 0)) continue;
+      const v = String(li.variant_id);
+      qtyByVariant.set(v, (qtyByVariant.get(v) ?? 0) + Math.max(1, Number(li.quantity ?? 1)));
+    }
+    const reorderUrl = buildCartPermalink([...qtyByVariant].map(([variantId, quantity]) => ({ variantId, quantity })));
+    // HYPD creator seeds (₹0.01) are gifted product, not purchases: no
+    // welcome, review ask or restock nudge for them.
+    if (!isCreatorOrder(order)) await enrolEmailFlow("order_placed", {
+      email,
+      entityRef: orderRef,
+      dedupPrefix: "postpurchase",
+      firstName: nm,
+      isFirstOrder: email ? await isFirstOrder(order, email, phone10) : null,
+      // email + phone10 let the flow engine spot a reorder at send time
+      // (replenishment exits instead of nagging someone who already rebought).
+      context: { order_ref: orderRef, email: String(email ?? "").toLowerCase(), phone10, items, reorder_url: reorderUrl },
+    });
   } catch (e) {
     console.warn(`[order-confirmation] email flow enrol failed for ${orderRef}:`, e);
   }

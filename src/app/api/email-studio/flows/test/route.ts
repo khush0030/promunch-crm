@@ -50,6 +50,34 @@ export async function POST(req: NextRequest) {
       context = recent[0].context as Record<string, unknown>;
       source = `latest real cart with a note link (${String(recent[0].entered_at).slice(0, 10)})`;
     }
+  } else if (flow.trigger_type === "order_placed") {
+    // Latest real order, shaped like the enrolment context order-confirmation
+    // stores (items + one-tap reorder permalink onto the storefront cart).
+    const { data: recent } = await supabase
+      .from("shopify_orders")
+      .select("order_number, line_items, shopify_created_at")
+      .gt("total_price", 1)
+      .order("shopify_created_at", { ascending: false })
+      .limit(1);
+    const lines = (Array.isArray(recent?.[0]?.line_items) ? recent[0].line_items : []) as Array<Record<string, unknown>>;
+    if (lines.length > 0) {
+      const qty = new Map<string, number>();
+      for (const li of lines) {
+        if (!li.variant_id || !(Number(li.price ?? 0) > 0)) continue;
+        const v = String(li.variant_id).replace(/\D/g, "");
+        qty.set(v, (qty.get(v) ?? 0) + Math.max(1, Number(li.quantity ?? 1)));
+      }
+      const perma = [...qty].map(([v, q]) => `${v}:${q}`).join(",");
+      context = {
+        items: lines.slice(0, 8).map((li) => ({
+          title: String(li.title ?? li.name ?? "Item"),
+          quantity: Number(li.quantity ?? 1),
+          price: Number(li.price ?? 0),
+        })),
+        reorder_url: perma ? `https://promunch.in/cart/${perma}?storefront=true` : "",
+      };
+      source = `latest real order ${recent![0].order_number} (${String(recent![0].shopify_created_at).slice(0, 10)})`;
+    }
   }
 
   const firstName = (me.user.user_metadata?.full_name as string | undefined)?.split(" ")[0] || "Khush";

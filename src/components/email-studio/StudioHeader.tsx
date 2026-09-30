@@ -10,11 +10,11 @@ const TABS = [
   { key: "campaigns", label: "Campaigns", href: "/dashboard/email/campaigns" },
   { key: "templates", label: "Templates", href: "/dashboard/email/templates" },
   { key: "audiences", label: "Audiences", href: "/dashboard/email/audiences" },
-  { key: "automations", label: "Automations", href: "/dashboard/flows" },
+  { key: "automations", label: "Automations", href: "/dashboard/email/automations" },
   { key: "settings", label: "Brand & settings", href: "/dashboard/email/settings" },
 ];
 
-export type StudioTab = "home" | "campaigns" | "templates" | "audiences" | "settings";
+export type StudioTab = "home" | "campaigns" | "templates" | "audiences" | "automations" | "settings";
 
 export function StudioHeader({ tab, title, actions }: { tab: StudioTab; title?: ReactNode; actions?: ReactNode }) {
   const router = useRouter();

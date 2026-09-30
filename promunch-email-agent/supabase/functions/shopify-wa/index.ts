@@ -229,14 +229,22 @@ async function handleCheckout(checkout: any) {
   // Email abandoned-cart flow. Enrols on the checkout's EMAIL, so it works even
   // when there is no phone (the WhatsApp path below requires a phone). DB-only:
   // the app-side email-flow-tick sends. No-op unless an Active checkout_abandoned
-  // flow exists; idempotent per (flow, token). Reuses the Super Money Breeze
-  // recovery link from noteCheckoutUrl.
+  // flow exists; idempotent per (flow, token).
+  //
+  // Link rule (email only): the Super Money Breeze NOTE link first, Shopify's
+  // own abandoned_checkout_url second (since Sep 28 some carts go through
+  // native Shopify checkout with no note, and those recover via Shopify's
+  // link). With neither there is nothing that restores the cart, so do not
+  // enrol at all: a bare /cart link just lands on an empty cart.
   try {
     const email = checkout.email ?? checkout.customer?.email ?? null;
     const nm = firstName(checkout.customer?.first_name, checkout.shipping_address?.first_name);
-    const rUrl = brandUrl(
-      noteCheckoutUrl(checkout) || checkout.abandoned_checkout_url || `${SITE_URL}/cart`,
-    );
+    const noteLink = noteCheckoutUrl(checkout);
+    const shopifyLink = typeof checkout.abandoned_checkout_url === "string" && checkout.abandoned_checkout_url
+      ? checkout.abandoned_checkout_url as string
+      : null;
+    const rawLink = noteLink || shopifyLink;
+    const linkSource = noteLink ? "note" : "shopify_url";
     // Carry the actual cart so the recovery emails can name what they left
     // behind ("your 2 Cream & Onion Crunchies") instead of "your cart". Kept to
     // the fields the templates render, so we are not parking customer PII in
@@ -248,17 +256,20 @@ async function handleCheckout(checkout: any) {
         quantity: Number(li?.quantity ?? 1),
         price: Number(li?.price ?? 0),
       }));
-    await enrolEmailFlow("checkout_abandoned", {
-      email,
-      entityRef: token,
-      dedupPrefix: "abandoned",
-      firstName: nm,
-      context: {
-        checkout_url: rUrl,
-        items,
-        total: Number(checkout.total_price ?? 0),
-      },
-    });
+    if (rawLink) {
+      await enrolEmailFlow("checkout_abandoned", {
+        email,
+        entityRef: token,
+        dedupPrefix: "abandoned",
+        firstName: nm,
+        context: {
+          checkout_url: brandUrl(rawLink),
+          link_source: linkSource,
+          items,
+          total: Number(checkout.total_price ?? 0),
+        },
+      });
+    }
   } catch (e) {
     console.warn("[shopify-wa] email cart enrol:", e);
   }
