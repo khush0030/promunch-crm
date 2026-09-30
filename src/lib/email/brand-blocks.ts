@@ -60,6 +60,26 @@ export function photo(src: string, alt: string, caption?: string, width = 400): 
     `</td></tr></table>`;
 }
 
+/**
+ * Numbered tip card on the cream panel: optional picture on top (store CDN,
+ * requested at a small width), then red number + label, then body HTML.
+ */
+export function tipCard(n: number, title: string, html: string, img?: { src: string; alt: string; href?: string }): string {
+  const pic = img
+    ? `<tr><td style="padding:0 0 14px;">` +
+      (img.href ? `<a href="${escHtml(img.href)}" style="text-decoration:none;">` : "") +
+      `<img src="${escHtml(img.src)}" width="${INNER - 36}" alt="${escHtml(img.alt)}" style="display:block;width:100%;max-width:${INNER - 36}px;height:auto;border-radius:10px;">` +
+      (img.href ? `</a>` : "") +
+      `</td></tr>`
+    : "";
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px;"><tr>` +
+    `<td bgcolor="${C.panel}" style="background:${C.panel};border-radius:${EMAIL_LAYOUT.buttonRadius}px;padding:18px;">` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${pic}<tr><td>` +
+    `<div style="${FONT}font-size:13px;line-height:1.4;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:${C.brand};margin:0 0 6px;">${n}. ${escHtml(title)}</div>` +
+    `<div style="${FONT}font-size:${EMAIL_TYPE.body}px;line-height:${EMAIL_TYPE.lineHeight};color:${C.ink};">${styleLinks(html)}</div>` +
+    `</td></tr></table></td></tr></table>`;
+}
+
 /** Small uppercase red label above a headline, e.g. "A note from our founder". */
 export function eyebrow(text: string): string {
   return `<p style="margin:0 0 8px;${FONT}font-size:13px;line-height:1.4;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:${C.brand};">${escHtml(text)}</p>`;

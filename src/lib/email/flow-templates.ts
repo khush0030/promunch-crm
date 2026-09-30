@@ -11,7 +11,7 @@
 //
 // Keep imports relative: vitest has no "@/" alias.
 
-import { button, couponBox, divider, eyebrow, founderSignoff, h1, p, photo, productGrid, reviewQuote, socialRow, trustRow } from "./brand-blocks";
+import { button, couponBox, divider, eyebrow, founderSignoff, h1, p, photo, productGrid, reviewQuote, socialRow, tipCard, trustRow } from "./brand-blocks";
 
 // flows.trigger_type CHECK: checkout_abandoned | order_placed | customer_created
 // | segment_entry | date_based.
@@ -196,6 +196,9 @@ const PRODUCTS = {
     image: `${CDN}/Image_46_jpg.jpg?v=1773731284`,
   },
 } as const;
+
+/** Store image at an email-friendly width (Shopify CDN resizes on the fly). */
+const cdnImg = (file: string, width = 560) => `${CDN}/${file}${file.includes("?") ? "&" : "?"}width=${width}`;
 
 type ProductKey = keyof typeof PRODUCTS;
 /** productGrid items with UTM links (no prices: they change, the page is the truth). */
@@ -594,13 +597,25 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         preview_text: "Storage, serving ideas and the protein facts.",
         preview_variants: ["A 1 minute guide to your snacks."],
         body_html:
+          // Visual guide (owner, 2026-09-30): every card carries a real store
+          // image, fetched from the Shopify CDN at a small width (~80KB each).
+          // Serving ideas and the protein comparison are PROMUNCH's own graphics.
           h1("Your 1 minute snack guide") +
-          hi("here is how to get the most out of your PROMUNCH.") +
-          button("Read our FAQs", link(PATHS.faqs, "post_purchase", 2)) +
-          p("<strong>Keep it crunchy.</strong> Once a pack is open, seal it tight or tip it into an airtight jar, and keep it somewhere cool and dry.") +
-          p("<strong>Ways to enjoy it.</strong> Straight from the pack, on a salad or a bowl of soup, tucked into wraps and sandwiches, or in your bag for the office and after a workout.") +
-          p("<strong>What is in the pack.</strong> Roasted Edamame: roasted in olive oil, with 42 to 45g of protein per 100g depending on the flavour. Soya Crunchies: roasted, not fried. Soya Sticks and Chips: fried, for a classic chip crunch.") +
-          p("Anything else? Reply to this email and a real person will answer.") +
+          hi("your PROMUNCH should be with you soon, if it is not already. Here is how to get the most out of it.") +
+          tipCard(1, "Keep it crunchy", "Once a pack is open, seal it tight or tip it into an airtight jar, and keep it somewhere cool and dry.",
+            { src: cdnImg("Image_25.jpg?v=1771656794"), alt: "A PROMUNCH jar on the table" }) +
+          tipCard(2, "Ways to enjoy it", "Straight from the pack, or mixed into bhel, upma, soup and salad. It also travels well in your bag for the office or after a workout.",
+            { src: cdnImg("All-4-Chunks_Recipes_03_1d491195-6a1d-407d-acba-207266660c9c.jpg?v=1771656794"), alt: "Enjoy PROMUNCH in bhel, upma, soup and salad" }) +
+          tipCard(3, "How much protein?", "Per 100g, our Himalayan Rock Salt Edamame has <strong>45.3g of protein</strong>. Makhana has 7.8g, potato chips 7.2g and peanuts 23.1g. That is the gap we built PROMUNCH to fill.",
+            { src: cdnImg("rock_salt_comparison_1.jpg?v=1781941697"), alt: "Protein per 100g: PROMUNCH Edamame 45.3g, makhana 7.8g, potato chips 7.2g, peanuts 23.1g" }) +
+          tipCard(4, "What is in the pack", "<strong>Roasted Edamame:</strong> roasted in olive oil, 42 to 45g of protein per 100g depending on the flavour. <strong>Soya Crunchies:</strong> roasted, not fried. <strong>Soya Sticks and Chips:</strong> fried, for a classic chip crunch.") +
+          productGrid([
+            { title: "Roasted Edamame", url: link(PATHS.edamame, "post_purchase", 2), image: cdnImg("HRS_Image_4.jpg?v=1781091983", 320) },
+            { title: "Soya Crunchies", url: link(PRODUCTS.crunchies4.path, "post_purchase", 2), image: cdnImg("Noodle_Masala_270g.png?v=1771656794", 320) },
+            { title: "Soya Sticks and Chips", url: link(PRODUCTS.sticksChips.path, "post_purchase", 2), image: cdnImg("DSL_0559_copy_b77e4ec8-35ee-470f-9449-93711c2fe2ee.jpg?v=1773731324", 320) },
+          ]) +
+          button("Read our FAQs", link(PATHS.faqs, "post_purchase", 2), "outline", { full: true }) +
+          p("Anything else? Reply to this email and a real person will answer. And if you love your first bite, tag us on Instagram.") +
           socialRow(),
       },
     ],
