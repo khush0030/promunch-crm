@@ -8,17 +8,20 @@ import { getAppSecret } from "./app-secrets.ts";
 
 const BASE = "https://apps.sarvam.ai/api";
 
+export type VoicePurpose = "cart" | "cod_confirm";
+
 export interface SarvamConfig {
   apiKey: string; orgId: string; workspaceId: string; appId: string;
   appVersion: number; connectionId: string; agentPhone: string;
 }
 
-export async function sarvamConfig(): Promise<SarvamConfig | null> {
+export async function sarvamConfig(purpose: VoicePurpose = "cart"): Promise<SarvamConfig | null> {
   const apiKey = await getAppSecret("SARVAM_API_KEY");
   const orgId = Deno.env.get("SARVAM_ORG_ID");
   const workspaceId = Deno.env.get("SARVAM_WORKSPACE_ID");
-  const appId = Deno.env.get("SARVAM_APP_ID");
-  const appVersion = Number(Deno.env.get("SARVAM_APP_VERSION") ?? "1");
+  // Each purpose is its own Sarvam agent (different prompt, variables and tool).
+  const appId = Deno.env.get(purpose === "cod_confirm" ? "SARVAM_COD_APP_ID" : "SARVAM_APP_ID");
+  const appVersion = Number(Deno.env.get(purpose === "cod_confirm" ? "SARVAM_COD_APP_VERSION" : "SARVAM_APP_VERSION") ?? "1");
   const connectionId = Deno.env.get("SARVAM_CONNECTION_ID");
   const agentPhone = Deno.env.get("SARVAM_AGENT_PHONE");
   if (!apiKey || !orgId || !workspaceId || !appId || !connectionId || !agentPhone) return null;
@@ -26,14 +29,15 @@ export async function sarvamConfig(): Promise<SarvamConfig | null> {
 }
 
 export async function startOutboundCall(args: {
+  purpose: VoicePurpose;
   phoneE164: string;
   agentVariables: Record<string, string>;
   language: string;
   webhookUrl: string;
   metadata: Record<string, string>;
 }): Promise<{ ok: true; attemptId: string } | { ok: false; error: string }> {
-  const cfg = await sarvamConfig();
-  if (!cfg) return { ok: false, error: "sarvam not configured (missing SARVAM_* secrets)" };
+  const cfg = await sarvamConfig(args.purpose);
+  if (!cfg) return { ok: false, error: `sarvam not configured for ${args.purpose} (missing SARVAM_* secrets)` };
   const url = `${BASE}/outbounds/v1/orgs/${cfg.orgId}/workspaces/${cfg.workspaceId}/outbounds`;
   const body = {
     app_config: {
@@ -78,5 +82,77 @@ export async function addToDndList(phoneE164: string): Promise<boolean> {
     return r.ok;
   } catch {
     return false;
+  }
+}
+
+// ---- Analytics (reconcile path) ------------------------------------------------
+// Sarvam's post-call webhook has not been reliably delivered to us (see
+// VoiceView.tsx), so voice-tick polls the per-agent analytics API for calls
+// stuck on 'dialing'. Same shapes as src/lib/sarvam-voice.ts.
+
+const SENTINEL_RE = /^NO_[A-Z_]+$/;
+const sentinel = (v: unknown): string | null => {
+  if (v == null) return null;
+  const s = String(v);
+  return s.length === 0 || SENTINEL_RE.test(s) ? null : s;
+};
+const TERMINAL = new Set(["connected", "no_answer", "busy", "failed"]);
+
+export interface NormalizedAttempt {
+  attemptId: string;
+  interactionId: string | null;
+  status: "connected" | "no_answer" | "busy" | "failed" | "unknown";
+  durationSeconds: number | null;
+  failureReason: string | null;
+  agentVariables: Record<string, unknown>;
+}
+
+export function normalizeAttempt(raw: Record<string, unknown>): NormalizedAttempt {
+  const s = String(raw?.connectivity_status ?? "").toLowerCase().trim();
+  const d = raw?.duration_in_seconds;
+  const dn = d == null || Number.isNaN(Number(d)) ? null : Number(d);
+  return {
+    attemptId: String(raw?.attempt_id ?? ""),
+    interactionId: sentinel(raw?.interaction_id),
+    status: (TERMINAL.has(s) ? s : "unknown") as NormalizedAttempt["status"],
+    durationSeconds: dn,
+    failureReason: sentinel(raw?.failure_reason),
+    agentVariables: raw?.agent_variables && typeof raw.agent_variables === "object"
+      ? raw.agent_variables as Record<string, unknown> : {},
+  };
+}
+
+export async function listAttempts(
+  purpose: VoicePurpose, sinceISO: string, untilISO: string, limit = 200,
+): Promise<NormalizedAttempt[]> {
+  const cfg = await sarvamConfig(purpose);
+  if (!cfg) return [];
+  const url = `${BASE}/analytics/v1/${cfg.orgId}/${cfg.workspaceId}/${cfg.appId}/attempts` +
+    `?start_datetime=${encodeURIComponent(sinceISO)}&end_datetime=${encodeURIComponent(untilISO)}&limit=${limit}`;
+  try {
+    const r = await fetch(url, { headers: { "X-API-Key": cfg.apiKey } });
+    if (!r.ok) return [];
+    const json = await r.json().catch(() => null) as { items?: unknown[] } | null;
+    return (Array.isArray(json?.items) ? json!.items! : []).map((x) => normalizeAttempt(x as Record<string, unknown>));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchTranscript(
+  purpose: VoicePurpose, interactionId: string,
+): Promise<Array<{ role: "agent" | "user"; en_text: string }>> {
+  const cfg = await sarvamConfig(purpose);
+  if (!cfg) return [];
+  try {
+    const r = await fetch(
+      `${BASE}/analytics/v1/${cfg.orgId}/${cfg.workspaceId}/${cfg.appId}/transcripts/${encodeURIComponent(interactionId)}`,
+      { headers: { "X-API-Key": cfg.apiKey } },
+    );
+    if (!r.ok) return [];
+    const json = await r.json().catch(() => null) as { messages?: Array<{ role?: string; content?: string }> } | null;
+    return (json?.messages ?? []).map((m) => ({ role: m.role === "assistant" ? "agent" : "user", en_text: String(m.content ?? "") }));
+  } catch {
+    return [];
   }
 }

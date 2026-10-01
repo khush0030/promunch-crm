@@ -63,6 +63,7 @@ Deno.serve(async (req) => {
   };
 
   const res = await startOutboundCall({
+    purpose: "cart",
     phoneE164: `+${call.wa_id}`,
     agentVariables,
     language,
