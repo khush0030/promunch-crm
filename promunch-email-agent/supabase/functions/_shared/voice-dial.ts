@@ -1,6 +1,12 @@
 // Ledger-first dial: insert the voice_calls row (status 'dialing'), then ask
 // voice-call-start to place it. The CALLER must already hold the claim
 // (journey run active->completed, or shopify_orders.voice_attempts CAS).
+//
+// stage "unknown" = the start request threw, timed out, or came back non-JSON.
+// Sarvam may already have dialled, so the row is left untouched (voice-tick's
+// reconcile pass marks rows with no attempt_id start_failed after 30 min and
+// settles rows that have one). Callers must treat "unknown" as a CONSUMED
+// attempt and never redial. stage "start" = a JSON refusal; nothing was dialled.
 import { db } from "./supabase.ts";
 import type { VoicePurpose } from "./sarvam.ts";
 
@@ -16,7 +22,7 @@ export async function placeVoiceCall(row: {
   run_id?: string | null;
   shopify_id?: number | null;
   attempt_no?: number;
-}): Promise<{ ok: true; callId: string } | { ok: false; stage: "insert" | "start"; error: string; callId?: string }> {
+}): Promise<{ ok: true; callId: string } | { ok: false; stage: "insert" | "start" | "unknown"; error: string; callId?: string }> {
   const token = crypto.randomUUID().replace(/-/g, "");
   const { data: call, error } = await db()
     .from("voice_calls")
@@ -34,23 +40,25 @@ export async function placeVoiceCall(row: {
     .single();
   if (error || !call) return { ok: false, stage: "insert", error: error?.message ?? "insert failed" };
 
-  const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/voice-call-start`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ call_id: call.id }),
-  }).catch(() => null);
-
-  const res = (r ? (await r.json().catch(() => ({ ok: false }))) : { ok: false, error: "fetch failed" }) as {
-    ok?: boolean;
-    error?: string;
-  };
+  let res: { ok?: boolean; error?: string };
+  try {
+    const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/voice-call-start`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ call_id: call.id }),
+      signal: AbortSignal.timeout(25_000),
+    });
+    res = await r.json();
+  } catch (e) {
+    return { ok: false, stage: "unknown", error: e instanceof Error ? e.message : String(e), callId: call.id };
+  }
   if (res.ok) return { ok: true, callId: call.id };
 
-  // voice-call-start marks the row start_failed itself when Sarvam refuses;
-  // a fetch failure leaves it 'dialing' with no attempt_id, so close it here.
+  // A JSON refusal: voice-call-start marks the row start_failed itself when
+  // Sarvam refuses; if it refused earlier it may still be 'dialing', so close it.
   await db()
     .from("voice_calls")
     .update({

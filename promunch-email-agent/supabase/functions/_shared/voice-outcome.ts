@@ -113,24 +113,42 @@ export async function finaliseVoiceCall(callId: string, r: CallResult): Promise<
     await logConnector({ connector: "shopify_wa", level: "warn", event: "voice_dnd_push_failed", message: `${call.wa_id}: voice_dnd set locally but Sarvam DND push failed. Add it in indus.sarvam.ai.`, ref: call.id }).catch(() => {});
   }
 
+  // The row is finalised from here on. A failed side effect is logged loudly
+  // but never un-finalises it. A lost cart cancel cannot double-message:
+  // wa-journey-tick has a durable backstop (it refuses to send a WA cart nudge
+  // when a reached cart call exists).
+  const effectFailed = (effect: string, detail: string) =>
+    logConnector({
+      connector: "shopify_wa", level: "error", event: "voice_outcome_effect_failed",
+      message: `Call ${call.id} (wa_id ${call.wa_id}): ${effect} failed: ${detail}`, ref: call.id,
+    }).catch(() => {});
+
   if (call.purpose === "cart" && call.run_id) {
     if (eff.reached) {
-      await sb.from("wa_journey_runs").update({ delivered_at: now, last_error: "voice: reached on call" })
-        .eq("id", call.run_id).is("delivered_at", null).then(() => {}, () => {});
+      const { error } = await sb.from("wa_journey_runs").update({ delivered_at: now, last_error: "voice: reached on call" })
+        .eq("id", call.run_id).is("delivered_at", null);
+      if (error) await effectFailed("mark run delivered", error.message);
     } else {
-      await sb.from("wa_journey_runs").update({ status: "expired", last_error: `voice: ${r.status}` })
-        .eq("id", call.run_id).eq("status", "completed").then(() => {}, () => {});
+      const { error } = await sb.from("wa_journey_runs").update({ status: "expired", last_error: `voice: ${r.status}` })
+        .eq("id", call.run_id).eq("status", "completed");
+      if (error) await effectFailed("expire run", error.message);
     }
     if (eff.cancelCartRuns) {
       // The customer heard us (and usually has the link). The WhatsApp nudges
       // would now be a second and third message about the same cart.
-      await sb.from("wa_journey_runs").update({ status: "cancelled", last_error: "voice: customer reached on call" })
-        .eq("wa_id", call.wa_id).eq("journey_key", "abandoned_checkout").eq("status", "active")
-        .then(() => {}, () => {});
+      const { error } = await sb.from("wa_journey_runs").update({ status: "cancelled", last_error: "voice: customer reached on call" })
+        .eq("wa_id", call.wa_id).eq("journey_key", "abandoned_checkout").eq("status", "active");
+      if (error) await effectFailed("cancel active abandoned_checkout runs", error.message);
     }
   }
   if (call.purpose === "cod_confirm" && eff.codEscalate && call.shopify_id) {
-    await escalateNeedsCall(call.shopify_id, `Order ${call.order_ref}: ${eff.codEscalate}`);
+    // On failure the order stays 'pending', so the 24h sweep in wa-jobs-tick
+    // still escalates it.
+    try {
+      await escalateNeedsCall(call.shopify_id, `Order ${call.order_ref}: ${eff.codEscalate}`);
+    } catch (e) {
+      await effectFailed("escalate COD order to ops", e instanceof Error ? e.message : String(e));
+    }
   }
 
   await logConnector({

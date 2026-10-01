@@ -10,9 +10,20 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-// Sarvam HTTPS tools authenticate with a DEDICATED secret, VOICE_TOOL_SECRET
-// (never requireInternal: a third party must not hold our internal credential).
-// Fails closed. Logs the rejection shape, never the credential.
+// Sarvam HTTPS tools authenticate with a DEDICATED secret, VOICE_TOOL_SECRET,
+// not requireInternal. Two reasons.
+// (1) The caller is a third party (Sarvam's tool runner), not one of our own
+// functions, so it must never hold a credential that opens the rest of the
+// internal surface. (2) requireInternal's shared secret is the platform-injected
+// SUPABASE_SERVICE_ROLE_KEY, whose value has drifted from every key the dashboard
+// or CLI reports here, so it cannot be pasted into Sarvam's tool config at all,
+// and setting INTERNAL_FN_SECRET to work around that would 401 every legitimate
+// function-to-function call (wa-journey-tick -> wa-send and friends) at once.
+//
+// Fails closed: no secret configured means reject everything. Logs the
+// REJECTION (never the credential). Without this, "Sarvam never called the
+// tool" and "Sarvam called it with the wrong bearer" look identical from our
+// side. Shape only: whether a header arrived and what scheme it used.
 export async function checkVoiceToolAuth(req: Request, fnName: string): Promise<Response | null> {
   const secret = Deno.env.get("VOICE_TOOL_SECRET") ?? "";
   const got = req.headers.get("Authorization") ?? "";
