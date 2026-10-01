@@ -223,3 +223,16 @@ Migration FIRST: the Voice tab routes select the new `purpose` column, so deploy
 - **Cart, test 2 (ANSWERED):** abandon a fresh cart, answer, ask for the link. Expect exactly one link on WhatsApp and the pending WA nudges cancelled. Note `connected_within_7d` blocks further cart calls to the same number for 7 days after an answered call. To see why a run was cancelled or skipped: `select id, status, last_error, next_action_at from wa_journey_runs where wa_id='<owner wa_id>' and journey_key='abandoned_checkout' order by created_at desc;` (`last_error` carries the reason).
 - **COD:** do NOT lower `cod_reminder_delay_hours` globally, it affects every real COD order. Instead place a real COD order with the owner phone and backdate it so the call is due: `update shopify_orders set confirmation_sent_at = confirmation_sent_at - interval '8 hours' where shopify_id = <id>;` (6h reminder + 2h voice delay). Answer and say yes: Shopify hold released, `confirmed_via='voice'`. Second order (same backdating), say cancel: order is `needs_call`, an urgent ticket appears, and a REAL ops ping goes to OPS_WA_ID (Narendra). Warn Narendra before this test.
 - Unset `VOICE_TEST_WA_IDS` only with owner go-ahead.
+
+### Configured state (Oct 1 2026)
+
+| Agent | Sarvam app id | Committed version in use | Tool |
+|---|---|---|---|
+| Cart Recovery Assistant - PROMUNCH | `Conversatio-f80ceadc-9535` | 4 (`SARVAM_APP_VERSION=4`) | `send_whatsapp_link` -> `voice-tool-wa-link` |
+| COD Confirmation - PROMUNCH | `COD-Confirm-b1eefecd-11d2` | 1 (`SARVAM_COD_APP_VERSION=1`) | `cod_confirm` -> `voice-tool-cod` |
+
+- Both tools authenticate with a Bearer token from the Sarvam workspace secret `PROMUNCH_VOICE_TOOL_SECRET`, which holds the same value as the `VOICE_TOOL_SECRET` function secret (rotated Oct 1). Rotate both together.
+- Create or edit these tools with `configure_app_tool` (registry row). `create_api_tool` refuses to attach a secret to a non-allow-listed URL.
+- Both tools use `resp_template: {{ message }}`, so the agent speaks the endpoint's own sentence. On a non-2xx response Sarvam does NOT pass `on_failure` to the model; it passes `http status <N>`. Both prompts therefore spell out that any `http status` result means the tool failed and nothing was sent or recorded.
+- `SARVAM_COD_APP_ID` is set as an edge secret and in Vercel production env.
+- Text tests (`send_chat`) run with empty variables, so the agent may invent order numbers or amounts there. Real calls always carry them (`voice-call-start` fills fallbacks). Tool calls from chat tests send an empty `call_id` and get a harmless 400.
