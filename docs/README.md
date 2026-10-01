@@ -71,6 +71,7 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 | [2026-07-05-b2b-leads-v2.md](plans/2026-07-05-b2b-leads-v2.md) | B2B leads v2 implementation plan (lists/sequences/templates/analytics) |
 | [2026-07-05-b2b-leads-v2-design.md](plans/2026-07-05-b2b-leads-v2-design.md) | B2B leads v2 design spec |
 | [2026-07-17-deal-pipeline.md](plans/2026-07-17-deal-pipeline.md) | Deal pipeline: AI scan of hello@promunch.in → /dashboard/deals stage tracker (architecture + ops checklist) |
+| [2026-10-01-voice-agent-cart-cod.md](plans/2026-10-01-voice-agent-cart-cod.md) | Voice agent v2 implementation plan (16 tasks: voice-tick, COD tool, shared outcome handling, Flows settings, inbox call entries; deploy phase gated on owner approval) |
 | [2026-10-01-voice-agent-cart-cod-design.md](plans/2026-10-01-voice-agent-cart-cod-design.md) | Voice agent v2 (APPROVED design, not built): 15-min abandoned-cart call first, COD confirmation call (confirm via voice, cancel goes to ops), every-minute voice-tick + Sarvam result polling; supersedes the call timing of the Aug 26 design |
 | [2026-08-26-sarvam-voice-cart-recovery-design.md](plans/2026-08-26-sarvam-voice-cart-recovery-design.md) | Sarvam voice agent rescue call for abandoned carts after WhatsApp fails (design spec) |
 | [2026-09-05-wa-inbox-alerts-and-share-links.md](plans/2026-09-05-wa-inbox-alerts-and-share-links.md) | WhatsApp inbox sound/browser alerts for Human-mode chats + shareable ?thread= deep links (design spec) |
