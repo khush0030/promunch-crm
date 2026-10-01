@@ -21,6 +21,7 @@ import {
   buildVerifyComponents,
   buildVerifyVars,
   codTotalLabel,
+  escalateNeedsCall,
   GATE_REMINDER_TEMPLATE,
 } from "../_shared/cod-gate.ts";
 
@@ -248,38 +249,11 @@ async function sweepCodGate() {
     if (!ref) continue;
 
     if (o.confirmation_sent_at < callBefore) {
-      // ESCALATE — one ping ever, then park as needs_call
-      if (!(await claimSend(`cod_needs_call:${ref}`))) continue;
-      await sb.from("shopify_orders")
-        .update({ confirmation_status: "needs_call" })
-        .eq("shopify_id", o.shopify_id).eq("confirmation_status", "pending");
-      const to = (Deno.env.get("OPS_WA_ID") ?? "").replace(/^\+/, "").replace(/\D/g, "");
-      let pinged = true;
-      if (to) {
-        const res = await callWaSendTick({
-          to,
-          kind: "template",
-          sent_by: "cod_gate_ops",
-          template: {
-            name: Deno.env.get("OPS_ALERT_TEMPLATE") ?? "ops_ticket_alert",
-            language: "en",
-            vars: {
-              "1": "COD confirm call",
-              "2": "—",
-              "3": o.customer_name ?? "—",
-              "4": o.customer_phone ? `+${o.customer_phone}` : "—",
-              "5": `Order ${o.order_number} (${codTotalLabel(o.total_price, o.currency)}) unconfirmed for ${flows.cod_needs_call_hours}h. Call to confirm, then flag it on the dashboard.`,
-            },
-          },
-        });
-        pinged = res?.ok === true;
-      }
-      // Ops ping is an internal message: a duplicate is a minor annoyance but a
-      // miss parks the order with nobody told. Retry-bias: only lock the claim
-      // when the ping went out; otherwise release so the next tick retries.
-      if (pinged) await markSendSent(`cod_needs_call:${ref}`);
-      else await releaseSend(`cod_needs_call:${ref}`);
-      escalated++;
+      // ESCALATE — one ping ever (shared with the voice path), then park as needs_call
+      if (await escalateNeedsCall(
+        o.shopify_id,
+        `Order ${o.order_number} (${codTotalLabel(o.total_price, o.currency)}) unconfirmed for ${flows.cod_needs_call_hours}h. Call to confirm, then flag it on the dashboard.`,
+      )) escalated++;
       continue;
     }
 

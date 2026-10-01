@@ -76,6 +76,7 @@ export function buildVerifyComponents(
 // ---- Stateful half: confirm/cancel transitions + wa-webhook button intercept ----
 
 import { db } from "./supabase.ts";
+import { claimSend, markSendSent, releaseSend } from "./confirmations.ts";
 
 // Brand sign-off on COD-gate free-text/footers — Flows-tab brand voice config.
 // Empty string = toggle off or no tagline set.
@@ -132,7 +133,7 @@ async function orderRow(shopifyId: string | number): Promise<OrderRow | null> {
 async function claimTransition(
   shopifyId: string | number,
   to: "confirmed" | "cancelled",
-  via: "button" | "manual",
+  via: "button" | "manual" | "voice",
 ): Promise<OrderRow | null> {
   const patch: Record<string, unknown> = { confirmation_status: to, confirmed_via: via };
   if (to === "confirmed") patch.confirmed_at = new Date().toISOString();
@@ -154,7 +155,7 @@ async function claimTransition(
 
 export async function confirmGate(
   shopifyId: string | number,
-  via: "button" | "manual",
+  via: "button" | "manual" | "voice",
 ): Promise<{ ok: boolean; outcome: "confirmed" | "already"; already?: string }> {
   const row = await claimTransition(shopifyId, "confirmed", via);
   if (!row) {
@@ -256,6 +257,22 @@ async function waSend(body: Record<string, unknown>): Promise<void> {
   }).catch((e) => console.error("[cod-gate] wa-send failed", e));
 }
 
+async function waSendOk(body: Record<string, unknown>): Promise<boolean> {
+  try {
+    const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/wa-send`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json().catch(() => ({})) as { ok?: boolean };
+    return j.ok === true;
+  } catch {
+    return false;
+  }
+}
+
+const refOf = (s: unknown) => String(s ?? "").trim().replace(/^#/, "");
+
 // FYI/urgent ping to ops on WhatsApp via the approved ops_ticket_alert
 // utility template (lands outside any 24h window). Same var layout as
 // wa-ai-reply/ticket.ts notifyOps.
@@ -278,6 +295,66 @@ async function pingOps(label: string, row: OrderRow, reason: string): Promise<vo
       },
     },
   });
+}
+
+// Park a pending COD order for a human and ping ops ONCE. Shared by the 24h
+// sweep (wa-jobs-tick) and the voice path (voice-tick / finaliseVoiceCall), so
+// both use the same claim key and ops never gets two pings for one order.
+export async function escalateNeedsCall(
+  shopifyId: string | number, reason: string, label = "COD confirm call",
+): Promise<boolean> {
+  const row = await orderRow(shopifyId);
+  if (!row) return false;
+  const ref = refOf(row.order_number);
+  if (!ref || !(await claimSend(`cod_needs_call:${ref}`))) return false;
+  await db().from("shopify_orders").update({ confirmation_status: "needs_call" })
+    .eq("shopify_id", shopifyId).eq("confirmation_status", "pending");
+  const to = (Deno.env.get("OPS_WA_ID") ?? "").replace(/^\+/, "").replace(/\D/g, "");
+  let pinged = true;
+  if (to) {
+    pinged = await waSendOk({
+      to, kind: "template", sent_by: "cod_gate_ops",
+      template: {
+        name: Deno.env.get("OPS_ALERT_TEMPLATE") ?? "ops_ticket_alert", language: "en",
+        vars: {
+          "1": label, "2": "—", "3": row.customer_name ?? "—",
+          "4": row.customer_phone ? `+${row.customer_phone}` : "—", "5": reason.slice(0, 300),
+        },
+      },
+    });
+  }
+  // Internal message: retry-bias. Lock only when the ping went out.
+  if (pinged) await markSendSent(`cod_needs_call:${ref}`); else await releaseSend(`cod_needs_call:${ref}`);
+  return true;
+}
+
+// Customer said "cancel" on the COD voice call. The agent never cancels:
+// park the order for ops, open an urgent ticket on the WhatsApp thread, and
+// ping ops once (same claim as escalateNeedsCall).
+export async function requestCancelFromVoice(
+  shopifyId: string | number,
+): Promise<{ ok: boolean; outcome: "flagged" | "already" | "not_found"; already?: string }> {
+  const row = await orderRow(shopifyId);
+  if (!row) return { ok: false, outcome: "not_found" };
+  if (row.confirmation_status === "confirmed" || row.confirmation_status === "cancelled") {
+    return { ok: true, outcome: "already", already: row.confirmation_status };
+  }
+  const ref = refOf(row.order_number);
+  if (row.customer_phone) {
+    await db().from("wa_threads").update({
+      status: "human", ticket_status: "open", ticket_priority: "urgent", ticket_category: "order_issue",
+      ticket_opened_at: new Date().toISOString(),
+      escalation_reason: `COD voice call: customer asked to cancel ${ref}. Cancel it in Shopify, then mark it on the dashboard.`,
+    }).eq("wa_id", row.customer_phone).then(() => {}, () => {});
+  }
+  await escalateNeedsCall(shopifyId,
+    `Customer asked on the COD voice call to cancel ${ref}. Cancel it in Shopify, then mark it on the dashboard.`,
+    "Cancel request (voice call)");
+  await logConnector({
+    connector: "shopify_wa", level: "info", event: "cod_voice_cancel_request",
+    message: `Order ${row.order_number}: customer asked to cancel on the voice call. Parked for ops.`, ref: row.order_number,
+  }).catch(() => {});
+  return { ok: true, outcome: "flagged" };
 }
 
 const statusLabel: Record<string, string> = {
