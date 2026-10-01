@@ -68,6 +68,11 @@ export interface DueAsk {
 // wa_journey_runs.context is free-form jsonb, so PostgREST hands it back
 // loosely typed. Narrow it once here rather than casting at each use site:
 // vars carries {"1": name, "2": link}; anything else is treated as absent.
+function runChannel(ctx: unknown): string {
+  const c = typeof ctx === "string" ? (() => { try { return JSON.parse(ctx); } catch { return {}; } })() : (ctx ?? {});
+  return String((c as Record<string, unknown>).channel ?? "");
+}
+
 function runVars(context: unknown): Record<string, string> {
   const v = (context as { vars?: unknown } | null)?.vars;
   return v && typeof v === "object" ? v as Record<string, string> : {};
@@ -116,6 +121,10 @@ export async function findDueAsk(
   // sort lexicographically against each other at equal instants.
   const nowMs = Date.parse(nowIso);
   const eligible = data.filter((r) => {
+    // The voice row is an abandoned_checkout run with a link, so without this
+    // an inbound message would deliver it as a WhatsApp nudge and silently
+    // consume the call. voice-tick owns it.
+    if (runChannel(r.context) === "voice") return false;
     if (cartPriority && r.journey_key !== "abandoned_checkout") return false;
     // delivered_at is the terminal flag on the cart's at-least-once guarantee.
     // A run carrying it has already landed with the customer — never again.

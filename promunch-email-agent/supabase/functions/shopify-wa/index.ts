@@ -453,7 +453,7 @@ async function handleCheckout(checkout: any) {
   try {
     // Any live cart step for this HUMAN, regardless of which cart it came from.
     const { data: live, error: liveErr } = await sb.from("wa_journey_runs")
-      .select("id, order_ref, context")
+      .select("id, order_ref, context, next_action_at")
       .eq("wa_id", waId)
       .eq("journey_key", "abandoned_checkout")
       .eq("status", "active");
@@ -477,9 +477,10 @@ async function handleCheckout(checkout: any) {
         const ctx = { ...((run.context ?? {}) as Record<string, unknown>) };
         // Voice row: re-point its spoken content at the newest cart, same as
         // the WA steps below, but keyed on its own template rather than
-        // byTemplate (that map only knows the two WA steps). Schedule fields
-        // stay untouched for the identical reason given below — refreshing
-        // CONTENT must never re-arm the call's timing.
+        // byTemplate (that map only knows the two WA steps). Unlike the WA
+        // steps below, its schedule IS touched, but only ever forward: the
+        // call is due N minutes after checkout SILENCE, so fresh activity
+        // pushes it later and can never pull it earlier (an extra call).
         if (ctx.template === VOICE_TEMPLATE) {
           const oldVars = (ctx.vars ?? {}) as Record<string, string>;
           const displayName = name === "there" ? (oldVars["1"] || name) : name;
@@ -487,8 +488,14 @@ async function handleCheckout(checkout: any) {
           ctx.items = voiceItems;
           ctx.total = voiceTotal;
           ctx.coupon = code;
+          // Abandoned = N minutes of checkout SILENCE. New checkout activity
+          // pushes the call later (never earlier: that could only add a call).
+          const later = new Date(Math.max(
+            Date.parse(String(run.next_action_at)),
+            Date.now() + flows.cart_voice_delay_minutes * 60_000,
+          )).toISOString();
           const { error: vErr } = await sb.from("wa_journey_runs")
-            .update({ context: ctx, order_ref: token })
+            .update({ context: ctx, order_ref: token, next_action_at: later })
             .eq("id", run.id).eq("status", "active");
           if (!vErr) refreshed++;
           continue;
@@ -555,19 +562,15 @@ async function handleCheckout(checkout: any) {
       context: { template: s.template, language: "en", components: s.components, vars: { "1": name, "2": s.url } },
       order_ref: token,
     }));
-    // Voice rescue step: due after WA step 2 + its own delay. wa-journey-tick
-    // only dials it once WA has demonstrably failed (see
-    // _shared/voice-eligibility.ts) — enrolling it here just reserves its slot
-    // on the schedule, gated on the dashboard kill-switch like everything else
-    // in this sequence. Ships OFF (voice_call_enabled defaults false), so this
-    // is a no-op for everyone until the flag is turned on.
+    // Voice call ~cart_voice_delay_minutes after the cart goes quiet
+    // (call-first, 2026-10-01). voice-tick dials it; if the call reaches the
+    // customer it cancels the WA steps below, otherwise they run as normal.
+    // Ships OFF.
     if (flows.voice_call_enabled) {
       rows.push({
         journey_key: "abandoned_checkout",
         wa_id: waId,
-        next_action_at: new Date(
-          Date.now() + (flows.cart_step2_delay_hours + flows.cart_voice_delay_hours) * 3600_000,
-        ).toISOString(),
+        next_action_at: new Date(Date.now() + flows.cart_voice_delay_minutes * 60_000).toISOString(),
         deadline_at: deadlineAt,
         context: {
           template: VOICE_TEMPLATE,
