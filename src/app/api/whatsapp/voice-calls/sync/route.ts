@@ -11,6 +11,10 @@ export const dynamic = "force-dynamic";
 // really happened. This is a read-only reconciliation (see src/lib/sarvam-voice.ts
 // for why calling Sarvam directly from Next.js is the intended exception here).
 //
+// Covers both Sarvam apps (cart agent + COD agent). This route only writes the
+// call row + dnd; the COD/cart side-effects come from voice-tick's reconcile,
+// which is the primary path.
+//
 // Session-gated by middleware like every other /api/* route (no extra gate).
 const MAX_HOURS = 168;
 const DEFAULT_HOURS = 24;
@@ -59,7 +63,12 @@ export async function POST(req: NextRequest) {
   const until = new Date();
   const since = new Date(until.getTime() - hours * 3600_000);
 
-  const attempts = await listAttempts(since.toISOString(), until.toISOString(), FETCH_LIMIT);
+  const appIds = [process.env.SARVAM_APP_ID, process.env.SARVAM_COD_APP_ID].filter((x): x is string => !!x);
+  const attempts = (
+    await Promise.all(appIds.map(async (appId) =>
+      (await listAttempts(since.toISOString(), until.toISOString(), FETCH_LIMIT, appId)).map((a) => ({ ...a, appId })),
+    ))
+  ).flat();
 
   const result: SyncResult = { scanned: attempts.length, matched: 0, updated: 0, dndFlagged: 0, dndFailed: 0, unmatched: 0 };
   if (attempts.length === 0) return NextResponse.json(result);
@@ -124,7 +133,7 @@ export async function POST(req: NextRequest) {
 
     let transcript = row.transcript;
     if (!transcript && a.interactionId) {
-      const fetched = await fetchTranscript(a.interactionId);
+      const fetched = await fetchTranscript(a.interactionId, a.appId);
       if (fetched.length) transcript = fetched;
     }
 

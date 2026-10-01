@@ -23,10 +23,18 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     .order("created_at", { ascending: true })
     .limit(500);
 
+  // Voice calls with this customer, shown inline in the conversation.
+  const { data: calls } = await supabaseAdmin
+    .from("voice_calls")
+    .select("id, purpose, order_ref, status, outcome, duration_s, link_sent_at, tool_action, created_at")
+    .eq("wa_id", thread.wa_id)
+    .order("created_at", { ascending: true })
+    .limit(50);
+
   // mark read
   if (!peek) await supabaseAdmin.from("wa_threads").update({ unread_count: 0 }).eq("id", id);
 
-  return NextResponse.json({ thread, messages: messages ?? [] });
+  return NextResponse.json({ thread, messages: messages ?? [], calls: calls ?? [] });
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: call, error } = await supabaseAdmin
     .from("voice_calls")
-    .select("id, interaction_id")
+    .select("id, interaction_id, purpose")
     .eq("id", id)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -22,7 +22,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: "no recording for this call" }, { status: 404 });
   }
 
-  const recording = await fetchRecording(call.interaction_id);
+  const recording = await fetchRecording(
+    call.interaction_id,
+    call.purpose === "cod_confirm" ? process.env.SARVAM_COD_APP_ID : undefined,
+  );
   if (!recording) {
     return NextResponse.json({ error: "recording unavailable upstream" }, { status: 502 });
   }

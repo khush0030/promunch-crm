@@ -68,9 +68,12 @@ export function mapConnectivityStatus(v: unknown): SyncedCallStatus {
   return (CONNECTIVITY_STATUSES.has(s) ? s : "unknown") as SyncedCallStatus;
 }
 
-export type VoiceOutcome = "will_buy" | "asked_link" | "not_interested" | "do_not_call" | "callback_later" | "unknown";
+export type VoiceOutcome =
+  | "will_buy" | "asked_link" | "not_interested" | "do_not_call" | "callback_later" | "unknown"
+  | "confirmed" | "cancel_requested" | "unclear"; // COD confirmation agent
 const OUTCOMES: ReadonlySet<string> = new Set([
   "will_buy", "asked_link", "not_interested", "do_not_call", "callback_later", "unknown",
+  "confirmed", "cancel_requested", "unclear",
 ]);
 
 // Clamps the agent's free-form call_disposition variable to our enum. This is
@@ -113,11 +116,12 @@ function normalizeAttempt(raw: Record<string, unknown>): NormalizedAttempt {
 // GET /analytics/v1/{org}/{ws}/{app}/attempts?start_datetime&end_datetime&limit
 // Never throws: a misconfigured client or an upstream failure returns [] and
 // lets the caller (the sync route) report zero progress rather than 500ing.
-export async function listAttempts(sinceISO: string, untilISO: string, limit: number): Promise<NormalizedAttempt[]> {
+export async function listAttempts(sinceISO: string, untilISO: string, limit: number, appId?: string): Promise<NormalizedAttempt[]> {
   const cfg = getConfig();
   if (!cfg) return [];
+  const app = appId || cfg.appId;
   const url =
-    `${BASE}/analytics/v1/${cfg.orgId}/${cfg.workspaceId}/${cfg.appId}/attempts` +
+    `${BASE}/analytics/v1/${cfg.orgId}/${cfg.workspaceId}/${app}/attempts` +
     `?start_datetime=${encodeURIComponent(sinceISO)}&end_datetime=${encodeURIComponent(untilISO)}&limit=${limit}`;
   try {
     const r = await fetch(url, { headers: { "X-API-Key": cfg.apiKey } });
@@ -137,10 +141,10 @@ export type TranscriptTurn = { role: "agent" | "user"; en_text: string };
 // Normalises Sarvam's {role, content} (role: assistant|user) into our stored
 // shape {role: agent|user, en_text} so the existing Inbox transcript renderer
 // (InboxView.tsx, role === "agent" -> "PROMUNCH") keeps working unmodified.
-export async function fetchTranscript(interactionId: string): Promise<TranscriptTurn[]> {
+export async function fetchTranscript(interactionId: string, appId?: string): Promise<TranscriptTurn[]> {
   const cfg = getConfig();
   if (!cfg) return [];
-  const url = `${BASE}/analytics/v1/${cfg.orgId}/${cfg.workspaceId}/${cfg.appId}/transcripts/${encodeURIComponent(interactionId)}`;
+  const url = `${BASE}/analytics/v1/${cfg.orgId}/${cfg.workspaceId}/${appId || cfg.appId}/transcripts/${encodeURIComponent(interactionId)}`;
   try {
     const r = await fetch(url, { headers: { "X-API-Key": cfg.apiKey } });
     if (!r.ok) return [];
@@ -158,10 +162,10 @@ export async function fetchTranscript(interactionId: string): Promise<Transcript
 // GET /analytics/v1/{org}/{ws}/{app}/recordings/{interaction_id} -> raw audio/wav
 // Returns null on any failure so the recording route can 404/502 as it sees
 // fit; never throws, never leaks the API key (it stays server-side only).
-export async function fetchRecording(interactionId: string): Promise<{ body: ReadableStream<Uint8Array>; contentType: string } | null> {
+export async function fetchRecording(interactionId: string, appId?: string): Promise<{ body: ReadableStream<Uint8Array>; contentType: string } | null> {
   const cfg = getConfig();
   if (!cfg) return null;
-  const url = `${BASE}/analytics/v1/${cfg.orgId}/${cfg.workspaceId}/${cfg.appId}/recordings/${encodeURIComponent(interactionId)}`;
+  const url = `${BASE}/analytics/v1/${cfg.orgId}/${cfg.workspaceId}/${appId || cfg.appId}/recordings/${encodeURIComponent(interactionId)}`;
   try {
     const r = await fetch(url, { headers: { "X-API-Key": cfg.apiKey } });
     if (!r.ok || !r.body) return null;

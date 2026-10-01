@@ -213,11 +213,38 @@ function withDays(entries: Timed[], now: number): BubbleItem[] {
   return out;
 }
 
+export type WaCallRow = {
+  id: string;
+  purpose: string | null;
+  order_ref: string | null;
+  status: string;
+  duration_s: number | null;
+  link_sent_at: string | null;
+  tool_action: string | null;
+  created_at: string;
+};
+
+const CALL_STATUS: Record<string, string> = {
+  connected: "Answered", no_answer: "No answer", busy: "Busy", failed: "Failed",
+  start_failed: "Failed", dialing: "Calling...", unknown: "Unknown",
+};
+
+/** One-line timeline summary of a voice call. */
+export function callLine(c: WaCallRow): string {
+  const what = c.purpose === "cod_confirm" ? `COD call #${c.order_ref ?? ""}`.trim() : "Cart call";
+  const parts = [what, CALL_STATUS[c.status] ?? "Unknown"];
+  if (c.duration_s) parts.push(`${Math.floor(c.duration_s / 60)}m ${c.duration_s % 60}s`);
+  if (c.link_sent_at) parts.push("link sent");
+  if (c.tool_action === "confirm") parts.push("order confirmed");
+  else if (c.tool_action === "cancel_request") parts.push("asked to cancel");
+  return parts.join(" · ");
+}
+
 /**
  * wa_messages -> bubbles with IST day separators and the "Bot handed off"
  * system line at ticket_opened_at (when the thread has a ticket + reason).
  */
-export function waBubbles(messages: WaMessageRow[], thread: WaThreadRow | null, now: number = Date.now()): BubbleItem[] {
+export function waBubbles(messages: WaMessageRow[], thread: WaThreadRow | null, now: number = Date.now(), calls: WaCallRow[] = []): BubbleItem[] {
   const entries: Timed[] = [];
   for (const m of messages) {
     const at = Date.parse(m.created_at);
@@ -246,6 +273,10 @@ export function waBubbles(messages: WaMessageRow[], thread: WaThreadRow | null, 
       // +1ms so the line sorts after a message stamped the same instant.
       entries.push({ at: at + 1, item: { kind: "system", text: `Bot handed off: ${thread.escalation_reason}` } });
     }
+  }
+  for (const c of calls) {
+    const at = Date.parse(c.created_at);
+    if (Number.isFinite(at)) entries.push({ at, item: { kind: "system", text: callLine(c) } });
   }
   return withDays(entries, now);
 }

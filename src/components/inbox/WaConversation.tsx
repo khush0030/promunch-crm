@@ -33,6 +33,7 @@ import {
   NotFoundError,
   isNotFound,
   type WaMessageRow,
+  type WaCallRow,
   type CodGateOrder,
 } from "@/lib/inbox/thread";
 
@@ -62,12 +63,12 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
 
   const threadQ = useQuery({
     queryKey: ["wa-thread-messages", id],
-    queryFn: async (): Promise<{ thread: ThreadRow; messages: WaMessageRow[] }> => {
+    queryFn: async (): Promise<{ thread: ThreadRow; messages: WaMessageRow[]; calls?: WaCallRow[] }> => {
       const r = await fetch(`/api/whatsapp/threads/${id}${peek ? "?peek=1" : ""}`, { cache: "no-store" });
       if (r.status === 404) throw new NotFoundError();
       const j = await r.json();
       if (!r.ok || j.error) throw new Error(j.error || `thread ${r.status}`);
-      return { thread: j.thread as ThreadRow, messages: (j.messages ?? []) as WaMessageRow[] };
+      return { thread: j.thread as ThreadRow, messages: (j.messages ?? []) as WaMessageRow[], calls: (j.calls ?? []) as WaCallRow[] };
     },
     // A 404 before anything loaded is terminal (no polling). The WA route also
     // answers 404 for any database error, so once the thread has loaded a 404
@@ -113,7 +114,8 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
   });
 
   // ---- derived -----------------------------------------------------------
-  const items = useMemo(() => waBubbles(messages, thread, now), [messages, thread, now]);
+  const calls = useMemo(() => threadQ.data?.calls ?? [], [threadQ.data]);
+  const items = useMemo(() => waBubbles(messages, thread, now, calls), [messages, thread, now, calls]);
   const lastInbound = useMemo(() => latestInboundAt(thread?.last_inbound_at, messages), [thread?.last_inbound_at, messages]);
   const windowOpen = (windowLeftMs(lastInbound, now) ?? 0) > 0;
   const codOrder = useMemo(() => waitingCodOrder(codQ.data ?? [], thread?.wa_id), [codQ.data, thread?.wa_id]);

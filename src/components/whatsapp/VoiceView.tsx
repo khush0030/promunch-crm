@@ -1,8 +1,8 @@
 "use client";
 
-// Voice tab: the Sarvam voice-agent rescue call, in one place. Settings live
-// in the Automations tab (wa_flow_settings.voice_call_enabled); the cart-recovery
-// funnel shows four summary chips; this tab shows the actual calls, with
+// Voice tab: the Sarvam voice-agent calls (cart rescue and COD order
+// confirmation), in one place. Settings live in the Automations tab
+// (wa_flow_settings voice flags); this tab shows the actual calls, with
 // transcripts, recordings and a manual backfill from Sarvam's analytics API
 // (voice-calls/sync) because Sarvam's post-call webhook is not currently
 // reaching us — every voice_calls row otherwise sits on 'dialing' forever.
@@ -15,12 +15,13 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api-fetch";
 import { timeAgo } from "@/app/dashboard/whatsapp/format";
-import { cardStyle, inputStyle, primaryBtn, chip } from "./styles";
+import { cardStyle, inputStyle, primaryBtn, chip, chipOn } from "./styles";
 
 type CartItem = { title?: string; qty?: number };
 
 type VoiceCall = {
   id: string;
+  purpose: string | null;
   wa_id: string;
   order_ref: string | null;
   interaction_id: string | null;
@@ -51,7 +52,7 @@ type Stats = { placed: number; connected: number; linkSent: number; doNotCall: n
 type SyncResult = { scanned: number; matched: number; updated: number; dndFlagged: number; dndFailed: number; unmatched: number };
 
 const STATUS_OPTIONS = ["dialing", "connected", "no_answer", "busy", "failed", "start_failed", "unknown"];
-const OUTCOME_OPTIONS = ["will_buy", "asked_link", "not_interested", "do_not_call", "callback_later", "unknown"];
+const OUTCOME_OPTIONS = ["will_buy", "asked_link", "not_interested", "do_not_call", "callback_later", "confirmed", "cancel_requested", "unclear", "unknown"];
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   dialing: { bg: "var(--pm-cyan-soft)", color: "var(--pm-cyan)" },
@@ -71,6 +72,7 @@ const STATUS_LABEL: Record<string, string> = {
 const OUTCOME_LABEL: Record<string, string> = {
   will_buy: "will buy", asked_link: "asked for the link", not_interested: "not interested",
   do_not_call: "asked us not to call", callback_later: "call back later", unknown: "not known",
+  confirmed: "Confirmed order", cancel_requested: "Asked to cancel", unclear: "Unclear",
 };
 const statusLabel = (v: string) => STATUS_LABEL[v] ?? v.replace(/_/g, " ");
 const outcomeLabel = (v: string) => OUTCOME_LABEL[v] ?? v.replace(/_/g, " ");
@@ -116,6 +118,7 @@ export default function VoiceView() {
   const [status, setStatus] = useState("");
   const [outcome, setOutcome] = useState("");
   const [q, setQ] = useState("");
+  const [purpose, setPurpose] = useState<"all" | "cart" | "cod_confirm">("all");
   const [syncing, setSyncing] = useState(false);
 
   const { data: flowsData } = useQuery({
@@ -139,7 +142,8 @@ export default function VoiceView() {
     refetchInterval: 30_000,
   });
 
-  const calls = data?.calls ?? [];
+  const allCalls = data?.calls ?? [];
+  const calls = purpose === "all" ? allCalls : allCalls.filter((c) => c.purpose === purpose);
   const stats = data?.stats ?? { placed: 0, connected: 0, linkSent: 0, doNotCall: 0, dialing: 0 };
   const hasFilters = !!(status || outcome || q.trim());
   const allStillDialing = calls.length > 0 && calls.every((c) => c.status === "dialing");
@@ -172,9 +176,9 @@ export default function VoiceView() {
   return (
     <div>
       <div style={{ marginBottom: 14, maxWidth: 720 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--pm-ink)" }}>Cart rescue calls</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--pm-ink)" }}>Voice calls</div>
         <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--pm-muted)", lineHeight: 1.5 }}>
-          When the WhatsApp cart messages don&apos;t work, a friendly AI voice can call the customer once about their cart.
+          A friendly AI voice calls customers who left a cart behind, and confirms COD orders that are still waiting on WhatsApp.
           Each call, with its recording and what was said, shows here. Switch calls on or off, and set the calling hours, in the Automations tab.
         </p>
         <details style={{ marginTop: 6, fontSize: 12.5, color: "var(--pm-muted)" }}>
@@ -199,6 +203,23 @@ export default function VoiceView() {
         <button type="button" style={primaryBtn} onClick={handleSync} disabled={syncing}>
           <RefreshCw size={14} /> {syncing ? "Refreshing…" : "Refresh call results"}
         </button>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+        {([["all", "All"], ["cart", "Cart"], ["cod_confirm", "COD"]] as const).map(([v, label]) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setPurpose(v)}
+            aria-pressed={purpose === v}
+            style={{
+              ...(purpose === v ? chipOn : chip),
+              cursor: "pointer",
+            }}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
@@ -249,7 +270,7 @@ export default function VoiceView() {
           <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, gap: 8, fontSize: 11, fontWeight: 700, color: "var(--pm-hint)", textTransform: "uppercase", letterSpacing: 0.4, padding: "0 10px 8px", borderBottom: "1px solid var(--pm-line)" }}>
             <span>When</span>
             <span>Customer</span>
-            <span>Cart</span>
+            <span>Call for</span>
             <span>Call</span>
             <span>What they said</span>
             <span>Link sent</span>
@@ -285,7 +306,7 @@ function CallRow({ call: c }: { call: VoiceCall }) {
             )}
           </span>
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={cartSummary(cartItems)}>
-            {cartTotal != null ? <strong>{fmtInr(cartTotal)}</strong> : "-"}
+            {c.purpose === "cod_confirm" ? <strong>COD order #{c.order_ref ?? "-"}</strong> : cartTotal != null ? <strong>{fmtInr(cartTotal)}</strong> : "Cart"}
             {cartItems.length > 0 && <span style={{ color: "var(--pm-hint)" }}> · {cartSummary(cartItems)}</span>}
           </span>
           <span style={{ padding: "3px 8px", borderRadius: 999, background: st.bg, color: st.color, fontWeight: 600, fontSize: 11, width: "fit-content" }}>

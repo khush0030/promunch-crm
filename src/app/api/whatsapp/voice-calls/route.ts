@@ -30,6 +30,7 @@ function phoneKey(raw: string | null | undefined): string {
 type CallRow = {
   id: string;
   run_id: string | null;
+  purpose: string | null;
   wa_id: string;
   order_ref: string | null;
   attempt_id: string | null;
@@ -61,12 +62,14 @@ export async function GET(req: NextRequest) {
 
   let query = supabaseAdmin
     .from("voice_calls")
-    .select("id, run_id, wa_id, order_ref, attempt_id, interaction_id, status, outcome, duration_s, failure_reason, transcript, link_sent_at, created_at")
+    .select("id, run_id, purpose, wa_id, order_ref, attempt_id, interaction_id, status, outcome, duration_s, failure_reason, transcript, link_sent_at, created_at")
     .order("created_at", { ascending: false })
     .limit(fetchLimit);
   if (waId) query = query.eq("wa_id", waId.replace(/\D/g, ""));
   if (statusFilter) query = query.eq("status", statusFilter);
   if (outcomeFilter) query = query.eq("outcome", outcomeFilter);
+  const purposeFilter = sp.get("purpose");
+  if (purposeFilter === "cart" || purposeFilter === "cod_confirm") query = query.eq("purpose", purposeFilter);
 
   const { data: callRows, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -182,6 +185,7 @@ export async function GET(req: NextRequest) {
     const vars = (ctx.vars ?? {}) as Record<string, string>;
     return {
       id: c.id,
+      purpose: c.purpose,
       wa_id: c.wa_id,
       order_ref: c.order_ref,
       attempt_id: c.attempt_id,

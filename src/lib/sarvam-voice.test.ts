@@ -45,8 +45,8 @@ describe("mapConnectivityStatus", () => {
 });
 
 describe("clampOutcome", () => {
-  it("passes the six known dispositions through", () => {
-    for (const v of ["will_buy", "asked_link", "not_interested", "do_not_call", "callback_later", "unknown"]) {
+  it("passes the known dispositions through (cart and COD agents)", () => {
+    for (const v of ["will_buy", "asked_link", "not_interested", "do_not_call", "callback_later", "unknown", "confirmed", "cancel_requested", "unclear"]) {
       expect(clampOutcome(v)).toBe(v);
     }
   });
