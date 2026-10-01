@@ -11,6 +11,7 @@
 type = "web_pixel_extension"
 name = "promunch-storefront-pixel"
 runtime_context = "strict"
+uid = "8ed0f229-1e4d-ad30-e3d1-8067c8e029eb12892b81"
 
 # The pixel only runs for visitors whose consent covers analytics + marketing
 # (where the store's privacy settings require consent at all).
