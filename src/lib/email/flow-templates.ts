@@ -206,9 +206,6 @@ const grid = (keys: ProductKey[], campaign: string, step: number) =>
   productGrid(keys.map((k) => ({ title: PRODUCTS[k].title, url: link(PRODUCTS[k].path, campaign, step), image: PRODUCTS[k].image })));
 
 const hi = (rest: string) => p(`Hi {{first_name}}, ${rest}`);
-/** Plain founder-style paragraphs (format: "plain"); plain-layout.ts adds the signature + footer. */
-const PLAIN = (...paras: string[]) => paras.map((t) => `<p style="margin:0 0 14px;">${t}</p>`).join("");
-const PARTH_SIG = "Parth\nFounder, PROMUNCH";
 const PARTH_FROM = "Parth from PROMUNCH";
 const CODE = "{{coupon_code}}";
 
@@ -226,7 +223,6 @@ const REVIEWS =
     "Naresh Saw, on Noodle Masala Soya Crunchies",
     5,
   );
-const SHIPPING = p("Free shipping on orders over ₹599.");
 
 export const FLOW_TEMPLATES: FlowTemplate[] = [
   // ==== Recover lost sales =====================================================
@@ -671,9 +667,10 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         body_html:
           h1("Your refill code ends tomorrow") +
           hi("just a heads up: your 15% code stops working after tomorrow. This is the last reminder about it.") +
+          "{{reorder_card}}" +
           couponBox(CODE, "15% off your refill", "One use. Ends tomorrow.") +
-          button("Restock now", link(PATHS.bestSellers, "replenishment", 2)) +
-          SHIPPING,
+          button("Restock now", "{{reorder_url}}", "solid", { full: true }) +
+          trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]),
       },
     ],
   },
@@ -695,11 +692,16 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         preview_variants: ["Three different ways to crunch."],
         body_html:
           h1("Try something new next time") +
+          // Visual range guide: one real store image per kind, each linked.
           hi("thanks again for your first PROMUNCH order. If you liked it, here are three different ways to crunch.") +
-          button("Shop all snacks", link(PATHS.all, "cross_sell", 1)) +
-          grid(["edamameCombo", "crunchies4", "sticksChips"], "cross_sell", 1) +
-          p("<strong>Roasted Edamame:</strong> roasted in olive oil, with 42 to 45g of protein per 100g depending on the flavour. <strong>Soya Crunchies:</strong> roasted, in Tangy Pudina, Peri Peri, Cheese &amp; Onion and Noodle Masala. <strong>Soya Sticks and Chips:</strong> fried, for a classic chip crunch.") +
-          SHIPPING,
+          tipCard(1, "Roasted Edamame", "Roasted in olive oil, with 42 to 45g of protein per 100g depending on the flavour. Himalayan Rock Salt, Indori Chatka and Masala Mania.",
+            { src: cdnImg("HRS_Image_4.jpg?v=1781091983"), alt: "PROMUNCH Roasted Edamame", href: link(PATHS.edamame, "cross_sell", 1) }) +
+          tipCard(2, "Soya Crunchies", "Roasted, not fried. Tangy Pudina, Peri Peri, Cheese &amp; Onion and Noodle Masala.",
+            { src: cdnImg("Image_4_jpg.jpg?v=1773731385"), alt: "PROMUNCH Soya Crunchies in 4 flavours", href: link(PRODUCTS.crunchies4.path, "cross_sell", 1) }) +
+          tipCard(3, "Soya Sticks and Chips", "Fried, for a classic chip crunch. Great for sharing.",
+            { src: cdnImg("DSL_0559_copy_b77e4ec8-35ee-470f-9449-93711c2fe2ee.jpg?v=1773731324"), alt: "PROMUNCH Soya Sticks and Chips", href: link(PRODUCTS.sticksChips.path, "cross_sell", 1) }) +
+          button("Shop all snacks", link(PATHS.all, "cross_sell", 1), "solid", { full: true }) +
+          trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]),
       },
     ],
   },
@@ -727,15 +729,16 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           h1("We miss you") +
           hi("it has been a couple of months since your last PROMUNCH order. Come back for 20% off, on us.") +
           couponBox(CODE, "20% off, welcome back", "One use. Valid for 7 days.") +
-          button("Shop Best Sellers", link(PATHS.bestSellers, "winback", 1)) +
-          p(`Have you tried our <a href="${link(PATHS.edamame, "winback", 1)}">Roasted Edamame</a>? Himalayan Rock Salt (45g of protein per 100g), Indori Chatka and Masala Mania (42g each), all roasted in olive oil.`) +
-          SHIPPING,
+          button("Shop Best Sellers", link(PATHS.bestSellers, "winback", 1), "solid", { full: true }) +
+          p(`<strong>Have you tried our</strong> <a href="${link(PATHS.edamame, "winback", 1)}">Roasted Edamame</a>? Himalayan Rock Salt (45g of protein per 100g), Indori Chatka and Masala Mania (42g each), all roasted in olive oil.`) +
+          grid(["edamameRockSalt", "crunchies4", "bigBite"], "winback", 1) +
+          trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]),
       },
       {
         type: "email",
-        format: "plain",
+        // Founder-letter style (approved look).
+        format: "designed",
         from_name: PARTH_FROM,
-        signature: PARTH_SIG,
         delay_hours: 72,
         subject: "Did we do something wrong, {{first_name}}?",
         subject_variants: ["A quick question from PROMUNCH's founder", "{{first_name}}, can I ask why?"],
@@ -743,12 +746,17 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         preview_variants: ["One line is enough."],
         coupon: { percent_off: 20, expires_in_days: 9, prefix: "COMEBACK20" },
         coupon_code: "",
-        body_html: PLAIN(
-          "Hi {{first_name}},",
-          "Parth here, founder of PROMUNCH. You have not ordered in a while, and I would genuinely like to know why.",
-          "Was it the taste, the price, the delivery, or did you just forget about us? Reply with one line. The team and I read every reply, and it helps us fix things.",
-          `If you just forgot, your 20% code <b>{{coupon_code}}</b> is still active for a few more days. <a href="${link(PATHS.all, "winback", 2)}">Here is everything we make</a>.`,
-        ),
+        body_html:
+          eyebrow("A note from our founder") +
+          h1("Can I ask why?") +
+          p("Hi {{first_name}},") +
+          p("Parth here, founder of PROMUNCH. You have not ordered in a while, and I would genuinely like to know why.") +
+          p("Was it the taste, the price, the delivery, or did you just forget about us? <strong>Reply with one line.</strong> The team and I read every reply, and it helps us fix things.") +
+          founderSignoff() +
+          divider() +
+          p("If you just forgot, your 20% code is still active for a few more days.") +
+          couponBox(CODE, "20% off, welcome back", "One use. A few days left.") +
+          button("See everything we make", link(PATHS.all, "winback", 2), "solid", { full: true }),
       },
       {
         type: "email",
@@ -764,8 +772,10 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           h1("Your 20% off ends tomorrow") +
           hi("your comeback code stops working after tomorrow. This is the last email we will send about it.") +
           couponBox(CODE, "20% off, last day tomorrow", "One use.") +
-          button("Shop Best Sellers", link(PATHS.bestSellers, "winback", 3)) +
-          REVIEWS,
+          button("Use my 20% now", link(PATHS.bestSellers, "winback", 3), "solid", { full: true }) +
+          p("<strong>What other snackers say</strong>") +
+          REVIEWS +
+          trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]),
       },
     ],
   },
@@ -781,20 +791,21 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     steps: [
       {
         type: "email",
-        format: "plain",
+        // Founder-letter style (approved look). No code, no selling.
+        format: "designed",
         from_name: PARTH_FROM,
-        signature: PARTH_SIG,
         delay_hours: 0,
         subject: "Thank you, {{first_name}}. Really.",
         subject_variants: ["You are one of our regulars", "A thank you from PROMUNCH's founder"],
         preview_text: "No sale, no code. Just a thank you.",
         preview_variants: ["Parth here, founder of PROMUNCH."],
-        body_html: PLAIN(
-          "Hi {{first_name}},",
-          "Parth here, founder of PROMUNCH. You are one of the people who keeps coming back to PROMUNCH, and I wanted to say thank you personally.",
-          "A small brand like ours lives on regulars like you. Every reorder tells us we are getting something right.",
-          "Since you know our snacks better than most, I would love your take: which flavour should we make next, and what would you change? Just hit reply. The team and I read every reply, and it shapes what we make next.",
-        ),
+        body_html:
+          eyebrow("A note from our founder") +
+          h1("Thank you, {{first_name}}") +
+          p("Parth here, founder of PROMUNCH. You are one of the people who keeps coming back to PROMUNCH, and I wanted to say thank you personally.") +
+          p("A small brand like ours lives on regulars like you. Every reorder tells us we are getting something right.") +
+          p("Since you know our snacks better than most, I would love your take: <strong>which flavour should we make next, and what would you change?</strong> Just hit reply. The team and I read every reply, and it shapes what we make next.") +
+          founderSignoff(),
       },
       {
         type: "email",
@@ -807,8 +818,8 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         body_html:
           h1("Have you tried the whole range?") +
           hi("as one of our regulars, here is everything PROMUNCH makes, in one place.") +
-          button("See the full range", link(PATHS.all, "vip", 2)) +
           grid(["edamameCombo", "crunchies4", "sticksChips"], "vip", 2) +
+          button("See the full range", link(PATHS.all, "vip", 2), "solid", { full: true }) +
           p("Got a flavour idea? Reply to this email and tell us. Ideas from our regulars go straight to the team.") +
           socialRow(),
       },
@@ -893,11 +904,14 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         coupon: { percent_off: 15, expires_in_days: 8, prefix: "ANNIV15" },
         coupon_code: "",
         body_html:
+          photo(cdnImg("Can_you_update_this_image_202606060937.jpg?v=1781094699"), "PROMUNCH Roasted Edamame on a picnic blanket", undefined, 520) +
+          eyebrow("One year of snacking") +
           h1("Happy PROMUNCH anniversary") +
-          hi("on this day you placed your first PROMUNCH order. Thank you for snacking with us. Here is 15% off to celebrate.") +
+          hi("on this day a year ago you placed your first PROMUNCH order. Thank you for snacking with us. Here is 15% off to celebrate.") +
           couponBox(CODE, "15% off, to celebrate", "One use. Valid for 7 days.") +
-          button("Treat myself", link(PATHS.bestSellers, "anniversary", 1)) +
-          SHIPPING +
+          button("Treat myself", link(PATHS.bestSellers, "anniversary", 1), "solid", { full: true }) +
+          grid(["edamameRockSalt", "crunchies4", "bigBite"], "anniversary", 1) +
+          trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]) +
           socialRow(),
       },
     ],
@@ -927,7 +941,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         body_html:
           h1("Should we stop emailing you?") +
           hi("we noticed you have not opened our emails in a while. We only want to be in your inbox if you want us there.") +
-          button("Yes, keep me subscribed", link(PATHS.all, "sunset", 1)) +
+          button("Yes, keep me subscribed", link(PATHS.all, "sunset", 1), "solid", { full: true }) +
           p("Tap the button and you stay on the list. It opens our store, no need to buy anything.") +
           p("Not for you anymore? Use the unsubscribe link at the bottom of this email. One tap and you are off the list, no hard feelings."),
       },
