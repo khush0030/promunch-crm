@@ -8,8 +8,9 @@ import { addToDndList, type VoicePurpose } from "./sarvam.ts";
 import { escalateNeedsCall } from "./cod-gate.ts";
 import { getFlowSettings } from "./flow-settings.ts";
 import { logConnector } from "./connector-log.ts";
+import { REACHED_MIN_SECONDS } from "./voice-eligibility.ts";
 
-export const REACHED_MIN_SECONDS = 20;
+export { REACHED_MIN_SECONDS };
 
 export const VOICE_OUTCOMES = [
   // cart agent

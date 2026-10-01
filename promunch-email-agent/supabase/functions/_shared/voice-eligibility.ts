@@ -3,6 +3,11 @@
 
 export const VOICE_TEMPLATE = "voice_cart_call";
 
+// A connected call counts as "reached" at this many seconds (or if the link
+// went out mid-call). Lives here, in the pure module, so WhatsApp-side code can
+// use it without importing the outcome handler's I/O dependencies.
+export const REACHED_MIN_SECONDS = 20;
+
 const IST_OFFSET_MS = 5.5 * 3600_000;
 
 export function istHour(nowMs: number): number {

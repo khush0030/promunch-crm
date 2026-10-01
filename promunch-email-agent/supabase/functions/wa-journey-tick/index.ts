@@ -16,7 +16,7 @@ import { isOrderCancelled } from "../_shared/orders.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 import { WINDOW_DELIVER_JOURNEYS, claimAsk, releaseAsk, sessionOpen } from "../_shared/window-asks.ts";
 import { isCapError, isMarketingTemplate, isUndeliverableError, marketingAllowed } from "../_shared/marketing-governor.ts";
-import { REACHED_MIN_SECONDS } from "../_shared/voice-outcome.ts";
+import { REACHED_MIN_SECONDS } from "../_shared/voice-eligibility.ts";
 import { claimCartTemplateAttempt, hasPriorityCart } from "../_shared/cart-recovery-policy.ts";
 
 const BATCH = 200;

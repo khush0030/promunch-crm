@@ -23,7 +23,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { logConnector } from "./connector-log.ts";
 import { hasPriorityCart } from "./cart-recovery-policy.ts";
-import { REACHED_MIN_SECONDS } from "./voice-outcome.ts";
+import { REACHED_MIN_SECONDS } from "./voice-eligibility.ts";
 
 // Journeys whose DUE run may be delivered as cap-immune free text when the 24h
 // service window is open. This is BOTH the tick's window-delivery set and the
