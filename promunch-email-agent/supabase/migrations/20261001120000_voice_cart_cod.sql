@@ -28,6 +28,12 @@ create index if not exists voice_calls_shopify_idx on voice_calls (shopify_id) w
 
 -- Row-level claim counter for COD dials (compare-and-swap in voice-tick).
 alter table shopify_orders add column if not exists voice_attempts int not null default 0;
+-- Set by the claim itself; retry spacing is enforced inside the claim (CAS), so
+-- overlapping ticks cannot both dial the same order.
+alter table shopify_orders add column if not exists voice_last_dial_at timestamptz;
+-- Backstop: at most one live (dialing) COD call per order.
+create unique index if not exists voice_calls_cod_one_live_uq
+  on voice_calls (shopify_id) where purpose = 'cod_confirm' and status = 'dialing';
 
 alter table shopify_orders drop constraint if exists shopify_orders_confirmed_via_check;
 alter table shopify_orders add constraint shopify_orders_confirmed_via_check

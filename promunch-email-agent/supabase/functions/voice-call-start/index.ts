@@ -102,7 +102,10 @@ Deno.serve(async (req) => {
     await logConnector({ connector: "shopify_wa", level: "error", event: "voice_start_failed", message: `${label} ${call.order_ref}: ${res.error}`, ref: call.order_ref ?? call.id }).catch(() => {});
     return j({ ok: false, error: res.error }, 502);
   }
-  await sb.from("voice_calls").update({ attempt_id: res.attemptId, agent_vars: agentVariables, updated_at: new Date().toISOString() }).eq("id", call.id);
+  const { error: idErr } = await sb.from("voice_calls").update({ attempt_id: res.attemptId, agent_vars: agentVariables, updated_at: new Date().toISOString() }).eq("id", call.id);
+  if (idErr) {
+    await logConnector({ connector: "shopify_wa", level: "error", event: "voice_attempt_id_write_failed", message: `Call ${call.id}: attempt ${res.attemptId} dialled but attempt_id write failed: ${idErr.message}`, ref: call.order_ref ?? call.id }).catch(() => {});
+  }
   await logConnector({ connector: "shopify_wa", level: "info", event: "voice_call_placed", message: `${label} ${call.order_ref}: Sarvam attempt ${res.attemptId} to ${call.wa_id}.`, ref: call.order_ref ?? call.id }).catch(() => {});
   return j({ ok: true, attempt_id: res.attemptId });
 });

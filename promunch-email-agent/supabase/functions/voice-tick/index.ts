@@ -7,7 +7,7 @@ import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { getFlowSettings, type FlowSettings } from "../_shared/flow-settings.ts";
 import { cartVoiceEligibility, codCallDueBefore, codVoiceEligibility, inCallWindow } from "../_shared/voice-eligibility.ts";
-import { placeVoiceCall, voiceAllowlisted } from "../_shared/voice-dial.ts";
+import { placeVoiceCall, voiceAllowList, voiceAllowlisted } from "../_shared/voice-dial.ts";
 import { fetchTranscript, listAttempts, type VoicePurpose } from "../_shared/sarvam.ts";
 import { clampOutcome, finaliseVoiceCall } from "../_shared/voice-outcome.ts";
 import { escalateNeedsCall } from "../_shared/cod-gate.ts";
@@ -35,10 +35,11 @@ Deno.serve(async (req) => {
 async function cartPass(flows: FlowSettings, nowMs: number) {
   const sb = db();
   const nowIso = new Date(nowMs).toISOString();
-  const { data: due } = await sb.from("wa_journey_runs")
+  const { data: due, error: dueErr } = await sb.from("wa_journey_runs")
     .select("id, wa_id, order_ref, created_at, context")
     .eq("status", "active").eq("journey_key", "abandoned_checkout").eq("context->>channel", "voice")
     .lte("next_action_at", nowIso).order("next_action_at").limit(BATCH);
+  if (dueErr) throw new Error(`cart due query: ${dueErr.message}`);
   let called = 0, cancelled = 0, deferred = 0, failed = 0;
   for (const run of due ?? []) {
     const ctx = (run.context ?? {}) as Record<string, unknown>;
@@ -50,7 +51,7 @@ async function cartPass(flows: FlowSettings, nowMs: number) {
     const cartCalls = (calls ?? []).filter((c) => c.order_ref === run.order_ref);
     const verdict = cartVoiceEligibility({
       enabled: flows.voice_call_enabled && flows.abandoned_cart_enabled,
-      inWindow: inCallWindow(nowMs, flows.voice_call_start_hour, flows.voice_call_end_hour),
+      inWindow: inCallWindow(Date.now(), flows.voice_call_start_hour, flows.voice_call_end_hour),
       cartTotal: Number(ctx.total ?? 0),
       minCartValue: flows.voice_min_cart_value,
       voiceDnd: contact?.voice_dnd === true,
@@ -61,14 +62,14 @@ async function cartPass(flows: FlowSettings, nowMs: number) {
       // A REAL dial = Sarvam accepted it (has attempt_id). start_failed never rang.
       cartDialled: cartCalls.some((c) => !!c.attempt_id && c.status !== "start_failed"),
       cartInFlight: cartCalls.some((c) => c.status === "dialing"),
-      connectedWithin7d: (calls ?? []).some((c) => c.status === "connected" && Date.parse(c.created_at) >= nowMs - 7 * 86400_000),
+      connectedWithin7d: (calls ?? []).some((c) => c.status === "connected" && Date.parse(c.created_at) >= Date.now() - 7 * 86400_000),
     });
     if (verdict.action === "cancel") {
       await sb.from("wa_journey_runs").update({ status: "cancelled", last_error: `voice: ${verdict.reason}` }).eq("id", run.id).eq("status", "active");
       cancelled++; continue;
     }
     if (verdict.action === "defer") {
-      await sb.from("wa_journey_runs").update({ next_action_at: new Date(nowMs + verdict.minutes * 60_000).toISOString(), last_error: `voice: ${verdict.reason}` }).eq("id", run.id).eq("status", "active");
+      await sb.from("wa_journey_runs").update({ next_action_at: new Date(Date.now() + verdict.minutes * 60_000).toISOString(), last_error: `voice: ${verdict.reason}` }).eq("id", run.id).eq("status", "active");
       deferred++; continue;
     }
     // ATOMIC CLAIM: active -> completed. Crash after this loses the call, never doubles it.
@@ -93,17 +94,27 @@ async function cartPass(flows: FlowSettings, nowMs: number) {
 
 async function codPass(flows: FlowSettings, nowMs: number) {
   if (!flows.cod_gate_enabled || !flows.cod_voice_enabled) return { skipped: "flag off" };
-  const inWindow = inCallWindow(nowMs, flows.voice_call_start_hour, flows.voice_call_end_hour);
-  if (!inWindow) return { skipped: "outside call window" };
+  if (!inCallWindow(nowMs, flows.voice_call_start_hour, flows.voice_call_end_hour)) return { skipped: "outside call window" };
   const sb = db();
-  const { data: due } = await sb.from("shopify_orders")
-    .select("shopify_id, order_number, customer_phone, confirmation_status, voice_attempts")
+  const spacingCutoffIso = new Date(nowMs - flows.cod_voice_retry_hours * 3600_000).toISOString();
+  const needsCallCutoffIso = new Date(nowMs - flows.cod_needs_call_hours * 3600_000).toISOString();
+  let q = sb.from("shopify_orders")
+    .select("shopify_id, order_number, customer_phone, confirmation_status, voice_attempts, voice_last_dial_at")
     .eq("confirmation_status", "pending")
     .lt("confirmation_sent_at", codCallDueBefore(nowMs, flows.cod_reminder_delay_hours, flows.cod_voice_delay_hours))
+    // Past the needs-call sweep window the order is ops' job: never call days late.
+    .gt("confirmation_sent_at", needsCallCutoffIso)
     .lt("voice_attempts", flows.cod_voice_max_attempts)
-    .order("confirmation_sent_at").limit(BATCH);
+    .or(`voice_last_dial_at.is.null,voice_last_dial_at.lt.${spacingCutoffIso}`);
+  // Test allowlist: filter in SQL so skipped rows cannot starve the batch.
+  const allowList = voiceAllowList();
+  if (allowList.length) q = q.in("customer_phone", allowList);
+  const { data: due, error: dueErr } = await q.order("confirmation_sent_at").limit(BATCH);
+  if (dueErr) throw new Error(`cod due query: ${dueErr.message}`);
   let called = 0, skipped = 0, failed = 0;
   for (const o of due ?? []) {
+    // Re-check per item so a long run cannot dial after the window closes.
+    if (!inCallWindow(Date.now(), flows.voice_call_start_hour, flows.voice_call_end_hour)) break;
     const waId = String(o.customer_phone ?? "").replace(/\D/g, "");
     if (!waId) { skipped++; continue; }
     const [{ data: contact }, { data: last }] = await Promise.all([
@@ -113,15 +124,18 @@ async function codPass(flows: FlowSettings, nowMs: number) {
     ]);
     const attempts = Number(o.voice_attempts ?? 0);
     const verdict = codVoiceEligibility({
-      enabled: true, inWindow, status: o.confirmation_status, voiceDnd: contact?.voice_dnd === true,
+      enabled: true, inWindow: true, status: o.confirmation_status, voiceDnd: contact?.voice_dnd === true,
       allowlisted: voiceAllowlisted(waId), attempts, maxAttempts: flows.cod_voice_max_attempts,
       lastCallStatus: last?.status ?? null, lastCallAtMs: last ? Date.parse(last.created_at) : null,
       nowMs, retryHours: flows.cod_voice_retry_hours,
     });
     if (verdict.action === "skip") { skipped++; continue; }
-    // ATOMIC CLAIM on the order row: only one tick can move n -> n+1, and only while pending.
-    const { data: won } = await sb.from("shopify_orders").update({ voice_attempts: attempts + 1 })
-      .eq("shopify_id", o.shopify_id).eq("voice_attempts", attempts).eq("confirmation_status", "pending").select("shopify_id");
+    // ATOMIC CLAIM on the order row: only one tick can move n -> n+1, only while
+    // pending, and only if the retry spacing has elapsed (checked inside the CAS).
+    const nowIso = new Date().toISOString();
+    const { data: won } = await sb.from("shopify_orders").update({ voice_attempts: attempts + 1, voice_last_dial_at: nowIso })
+      .eq("shopify_id", o.shopify_id).eq("voice_attempts", attempts).eq("confirmation_status", "pending")
+      .or(`voice_last_dial_at.is.null,voice_last_dial_at.lt.${spacingCutoffIso}`).select("shopify_id");
     if (!won?.length) continue;
     const res = await placeVoiceCall({
       purpose: "cod_confirm", wa_id: waId, order_ref: String(o.order_number).replace(/^#/, ""),
@@ -132,8 +146,8 @@ async function codPass(flows: FlowSettings, nowMs: number) {
     // Lost response: Sarvam may have dialled, so the attempt stays consumed.
     if (res.stage === "unknown") continue;
     // The phone never rang: hand the attempt back (CAS), bounded by 3 start failures.
-    await sb.from("shopify_orders").update({ voice_attempts: attempts })
-      .eq("shopify_id", o.shopify_id).eq("voice_attempts", attempts + 1);
+    await sb.from("shopify_orders").update({ voice_attempts: attempts, voice_last_dial_at: o.voice_last_dial_at })
+      .eq("shopify_id", o.shopify_id).eq("voice_attempts", attempts + 1).eq("voice_last_dial_at", nowIso);
     const { count } = await sb.from("voice_calls").select("id", { count: "exact", head: true })
       .eq("purpose", "cod_confirm").eq("shopify_id", o.shopify_id).eq("status", "start_failed");
     if ((count ?? 0) >= 3) {
@@ -145,14 +159,17 @@ async function codPass(flows: FlowSettings, nowMs: number) {
 
 async function reconcilePass(nowMs: number) {
   const sb = db();
-  // Rows that never reached Sarvam (no attempt_id) after 30 min: nothing to reconcile.
-  await sb.from("voice_calls").update({ status: "start_failed", failure_reason: "never reached Sarvam", updated_at: new Date(nowMs).toISOString() })
+  // No attempt_id after 30 min: Sarvam may or may not have dialled (the attempt_id
+  // write can be lost), so this is 'unknown', never start_failed (which would
+  // free the COD retry spacing). Refused starts are already start_failed.
+  await sb.from("voice_calls").update({ status: "unknown", failure_reason: "start outcome unknown (no attempt id recorded)", updated_at: new Date(nowMs).toISOString() })
     .eq("status", "dialing").is("attempt_id", null).lt("created_at", new Date(nowMs - 30 * 60_000).toISOString());
-  const { data: stuck } = await sb.from("voice_calls").select("id, purpose, attempt_id, created_at")
+  const { data: stuck, error: stuckErr } = await sb.from("voice_calls").select("id, purpose, attempt_id, created_at")
     .eq("status", "dialing").not("attempt_id", "is", null)
     .lt("created_at", new Date(nowMs - 3 * 60_000).toISOString())
     .gt("created_at", new Date(nowMs - 48 * 3600_000).toISOString())
     .order("created_at").limit(50);
+  if (stuckErr) throw new Error(`reconcile stuck query: ${stuckErr.message}`);
   if (!stuck?.length) return { stuck: 0 };
   let finalised = 0;
   for (const purpose of ["cart", "cod_confirm"] as VoicePurpose[]) {

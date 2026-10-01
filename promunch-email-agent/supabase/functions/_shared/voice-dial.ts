@@ -4,14 +4,18 @@
 //
 // stage "unknown" = the start request threw, timed out, or came back non-JSON.
 // Sarvam may already have dialled, so the row is left untouched (voice-tick's
-// reconcile pass marks rows with no attempt_id start_failed after 30 min and
-// settles rows that have one). Callers must treat "unknown" as a CONSUMED
+// reconcile pass marks rows with no attempt_id 'unknown' after 30 min, never
+// start_failed, since Sarvam may have dialled; it settles rows that have one). Callers must treat "unknown" as a CONSUMED
 // attempt and never redial. stage "start" = a JSON refusal; nothing was dialled.
 import { db } from "./supabase.ts";
 import type { VoicePurpose } from "./sarvam.ts";
 
+export function voiceAllowList(): string[] {
+  return (Deno.env.get("VOICE_TEST_WA_IDS") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+}
+
 export function voiceAllowlisted(waId: string): boolean {
-  const allow = (Deno.env.get("VOICE_TEST_WA_IDS") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const allow = voiceAllowList();
   return allow.length === 0 || allow.includes(waId);
 }
 
