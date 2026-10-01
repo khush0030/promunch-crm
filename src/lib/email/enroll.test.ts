@@ -108,7 +108,11 @@ vi.mock("@/lib/supabase-admin", () => ({ supabaseAdmin: { from: (t: string) => f
 vi.mock("../../../promunch-email-agent/supabase/functions/_shared/supabase.ts", () => ({ db: () => fake }));
 
 import * as app from "./enroll";
-import * as edge from "../../../promunch-email-agent/supabase/functions/_shared/email-flows";
+// Loaded by a runtime path, not a static import: the edge file imports Deno
+// modules (./supabase.ts, mocked above) that Next's build type check cannot
+// resolve. Both twins export the same API, so it is typed as the app twin.
+const EDGE_FLOWS = "../../../promunch-email-agent/supabase/functions/_shared/email-flows";
+const edge = (await import(/* @vite-ignore */ EDGE_FLOWS)) as typeof app;
 
 const step = (h = 1) => ({ type: "email", delay_hours: h, subject: "s", body_html: "b" });
 
@@ -286,9 +290,13 @@ describe.each(twins)("enrolment (%s twin)", (_n, enrol, m) => {
     flow("first", "order_placed", { first_order_only: true });
     tables.shopify_orders.push({ shopify_id: 1, order_number: "#1", customer_email: "A@X.com", financial_status: "paid" });
     // the current order row itself does not count as prior
-    expect(await enrol("order_placed", { email: "a@x.com", entityRef: "#1", dedupPrefix: "postpurchase", orderId: 1 })).toBe(1);
+    // unknown first-order status (Shopify count lookup failed) = not first
+    expect(await enrol("order_placed", { email: "a@x.com", entityRef: "#1", dedupPrefix: "postpurchase", orderId: 1 })).toBe(0);
+    expect(await enrol("order_placed", { email: "a@x.com", entityRef: "#1", dedupPrefix: "postpurchase", orderId: 1, isFirstOrder: false })).toBe(0);
+    expect(await enrol("order_placed", { email: "a@x.com", entityRef: "#1", dedupPrefix: "postpurchase", orderId: 1, isFirstOrder: true })).toBe(1);
     tables.shopify_orders.push({ shopify_id: 2, order_number: "#2", customer_email: "a@x.com", financial_status: "paid" });
-    expect(await enrol("order_placed", { email: "a@x.com", entityRef: "#2", dedupPrefix: "postpurchase", orderId: 2 })).toBe(0);
+    // our history wins even when the caller says first
+    expect(await enrol("order_placed", { email: "a@x.com", entityRef: "#2", dedupPrefix: "postpurchase", orderId: 2, isFirstOrder: true })).toBe(0);
     expect(enrolments()).toHaveLength(1);
     expect(enrolments()[0].dedup_key).toBe("postpurchase:first:c1");
   });

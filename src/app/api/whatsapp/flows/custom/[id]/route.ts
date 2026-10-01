@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireAdmin } from "@/lib/rbac-server";
+import { getCaller, requireAdmin } from "@/lib/rbac-server";
 import { recordAudit } from "@/lib/audit";
 import { validateCustomFlow } from "../validate";
 
 export const dynamic = "force-dynamic";
 
+// Edit or switch a custom flow: any teammate with the WhatsApp marketing area
+// (middleware-enforced). Deleting stays Admin-only (destructive, rbac.ts).
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const gate = await requireAdmin();
-  if (!gate.ok) return gate.response;
+  const caller = await getCaller();
+  if (!caller) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const gate = { user: caller };
   const { id } = await ctx.params;
 
   const body = await req.json().catch(() => null);
@@ -31,9 +34,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const v = validateCustomFlow(body);
   if ("error" in v) return NextResponse.json({ error: v.error }, { status: 400 });
 
+  // A content edit never switches the flow on or off: that only happens via
+  // the enabled-only toggle above, so saving an edit can't start sends.
+  const { enabled: _ignored, ...content } = v.flow;
+  void _ignored;
   const { data, error } = await supabaseAdmin
     .from("wa_custom_flows")
-    .update({ ...v.flow, updated_at: new Date().toISOString(), updated_by: gate.user.email ?? null })
+    .update({ ...content, updated_at: new Date().toISOString(), updated_by: gate.user.email ?? null })
     .eq("id", id).select("*").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

@@ -22,7 +22,7 @@
 -- ORDER OF OPERATIONS (do not skip):
 --   1. DEPLOY the engine from the same batch first (vercel --prod): brand
 --      layout, plain layout, unique coupon minting (migration
---      20260930120000_email_flow_coupons applied), defer-on-mint-failure for
+--      20260930120500_email_flow_coupons applied), defer-on-mint-failure for
 --      steps with an empty coupon_code, skip_if_wa_journey, subject/preview
 --      A/B, frequency cap, exit_on_order, segment + browse enrolment.
 --      On the OLD engine these rows would render {{coupon_code}} as EMPTY

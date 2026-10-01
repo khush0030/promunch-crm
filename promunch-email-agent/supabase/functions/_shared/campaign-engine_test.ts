@@ -8,6 +8,11 @@ import {
   classifySendError,
   classifySyncFailure,
   contactVerdict,
+  contentChanged,
+  FOLLOWUP_LIFETIME_MS,
+  followupFilterError,
+  followupFinish,
+  followupGate,
   inQuietHours,
   istDay,
   istDayStartMs,
@@ -350,4 +355,136 @@ Deno.test("pacing: rolling-24h budget resume lands outside quiet hours and never
   assertEquals(budgetResumeAt(now, ist(2026, 9, 28, 11, 0), 600), now + 60_000);
   // oldest at 16:00 yesterday → 16:05 today
   assertEquals(budgetResumeAt(now, ist(2026, 9, 28, 16, 0), 600), ist(2026, 9, 29, 16, 5));
+});
+
+// ---------------------------------------------------------------------------
+// Follow-ups (campaign journeys)
+// ---------------------------------------------------------------------------
+const H = 3600_000;
+
+Deno.test("followupGate: cancel, not started, expired, open", () => {
+  const now = ist(2026, 10, 2, 12);
+  assertEquals(followupGate({ status: "cancelled", started_at: new Date(now - H).toISOString() }, now), "cancel");
+  assertEquals(followupGate({ status: "draft", started_at: null }, now), "wait_parent_start");
+  assertEquals(followupGate({ status: "scheduled", started_at: null }, now), "wait_parent_start");
+  assertEquals(followupGate({ status: "completed", started_at: new Date(now - FOLLOWUP_LIFETIME_MS).toISOString() }, now), "expired");
+  assertEquals(followupGate({ status: "sending", started_at: new Date(now - H).toISOString() }, now), "open");
+  assertEquals(followupGate({ status: "paused", started_at: new Date(now - H).toISOString() }, now), "open");
+  assertEquals(followupGate(null, now), "open");
+});
+
+Deno.test("followupFinish: parent still sending never completes; re-checks within the hour", () => {
+  const now = ist(2026, 10, 2, 12);
+  const parent = { status: "sending", started_at: new Date(now - 2 * H).toISOString() };
+  // nobody pending on time, but the parent may still reach new people
+  const r = followupFinish(parent, { next_due_at: null, last_due_at: new Date(now - H).toISOString() }, now);
+  assertEquals(r.kind, "defer");
+  if (r.kind === "defer") {
+    assertEquals(r.resumeAtMs, now + H);
+    assertEquals(r.reason, "parent_running");
+  }
+  // someone becomes eligible in 20 minutes: wake then, not in an hour
+  const r2 = followupFinish(parent, { next_due_at: new Date(now + 20 * 60_000).toISOString(), last_due_at: new Date(now + 5 * H).toISOString() }, now);
+  assertEquals(r2.kind === "defer" && r2.resumeAtMs, now + 20 * 60_000);
+});
+
+Deno.test("followupFinish: paused parent is not terminal", () => {
+  const now = ist(2026, 10, 2, 12);
+  const r = followupFinish({ status: "paused", started_at: new Date(now - 3 * H).toISOString() }, { last_due_at: null }, now);
+  assertEquals(r.kind, "defer");
+});
+
+Deno.test("followupFinish: parent done but people still waiting for their time -> wait for the next one", () => {
+  const now = ist(2026, 10, 2, 12);
+  const parent = { status: "completed", started_at: new Date(now - 30 * H).toISOString() };
+  const next = now + 18 * H; // 06:00 IST next day -> quiet hours -> moved to 10:00
+  const r = followupFinish(parent, { next_due_at: new Date(next).toISOString(), last_due_at: new Date(now + 20 * H).toISOString() }, now);
+  assertEquals(r.kind, "defer");
+  if (r.kind === "defer") {
+    assertEquals(r.reason, "waiting_for_time");
+    assertEquals(r.resumeAtMs, ist(2026, 10, 3, 10));
+    assert(!inQuietHours(r.resumeAtMs));
+  }
+});
+
+Deno.test("followupFinish: complete only when parent terminal AND nobody still to cross the delay", () => {
+  const now = ist(2026, 10, 2, 12);
+  for (const status of ["completed", "failed"]) {
+    const parent = { status, started_at: new Date(now - 72 * H).toISOString() };
+    assertEquals(followupFinish(parent, { next_due_at: null, last_due_at: new Date(now - H).toISOString() }, now).kind, "complete");
+    assertEquals(followupFinish(parent, { next_due_at: null, last_due_at: null }, now).kind, "complete");
+    // last_due_at in the future but next missing (inconsistent read): never complete, look again
+    const r = followupFinish(parent, { next_due_at: null, last_due_at: new Date(now + H).toISOString() }, now);
+    assertEquals(r.kind, "defer");
+  }
+});
+
+Deno.test("followupFinish: cancelled parent cancels; 30-day lifetime expires; defer never past the lifetime", () => {
+  const now = ist(2026, 10, 2, 12);
+  assertEquals(followupFinish({ status: "cancelled", started_at: new Date(now - H).toISOString() }, null, now).kind, "cancel");
+  assertEquals(
+    followupFinish({ status: "sending", started_at: new Date(now - FOLLOWUP_LIFETIME_MS - 1).toISOString() }, null, now).kind,
+    "expired",
+  );
+  const started = now - FOLLOWUP_LIFETIME_MS + 10 * 60_000; // expires in 10 min
+  const r = followupFinish(
+    { status: "completed", started_at: new Date(started).toISOString() },
+    { next_due_at: new Date(now + 5 * H).toISOString(), last_due_at: new Date(now + 5 * H).toISOString() },
+    now,
+  );
+  assertEquals(r.kind === "defer" && r.resumeAtMs, started + FOLLOWUP_LIFETIME_MS);
+});
+
+Deno.test("followupFinish: minimum defer and quiet-hours clamp", () => {
+  const now = ist(2026, 10, 2, 20, 59);
+  const r = followupFinish(
+    { status: "completed", started_at: new Date(now - 5 * H).toISOString() },
+    { next_due_at: new Date(now + 1000).toISOString(), last_due_at: new Date(now + 1000).toISOString() },
+    now,
+  );
+  // now+1s -> at least now+60s = 21:00 -> quiet -> next day 10:00
+  assertEquals(r.kind === "defer" && r.resumeAtMs, ist(2026, 10, 3, 10));
+});
+
+Deno.test("followupFilterError: filter must match the parent + timing exactly", () => {
+  const pid = "123e4567-e89b-12d3-a456-426614174000";
+  const good = {
+    followup_of: pid, followup_after_hours: 48, followup_stage: "read",
+    audience_filter: { retarget: { campaign_id: pid, stage: "read", min_hours_since: 48 } },
+  };
+  assertEquals(followupFilterError(good), null);
+  assertEquals(followupFilterError({ audience_filter: { tags: ["x"] } }), null); // not a follow-up
+  assert(followupFilterError({ ...good, audience_filter: {} }) !== null);
+  assert(followupFilterError({ ...good, audience_filter: { retarget: { ...good.audience_filter.retarget, stage: "delivered" } } }) !== null);
+  assert(followupFilterError({ ...good, audience_filter: { retarget: { ...good.audience_filter.retarget, min_hours_since: 2 } } }) !== null);
+  assert(followupFilterError({ ...good, audience_filter: { ...good.audience_filter, tags: ["vip"] } }) !== null);
+  assert(followupFilterError({ ...good, followup_stage: "not_delivered", audience_filter: { retarget: { campaign_id: pid, stage: "not_delivered", min_hours_since: 48 } } }) !== null);
+});
+
+Deno.test("follow-up lifetime: 30 days PLUS the delay, so a long delay can still fire", () => {
+  const started = ist(2026, 10, 1, 10);
+  const parent = { status: "completed", started_at: new Date(started).toISOString() };
+  // 30-day delay: someone reached at the very start is due at day 30 exactly;
+  // without the delay in the lifetime they would be expired at that moment.
+  const due = started + 720 * H;
+  assertEquals(followupGate(parent, due, 720), "open");
+  assertEquals(followupGate(parent, due, 0), "expired");
+  assertEquals(followupGate(parent, started + FOLLOWUP_LIFETIME_MS + 720 * H, 720), "expired");
+  // defer is clamped to the extended end, not the bare 30 days
+  const now = started + 29 * 24 * H;
+  const r = followupFinish(parent, { next_due_at: new Date(now + 5 * 24 * H).toISOString(), last_due_at: new Date(now + 5 * 24 * H).toISOString() }, now, 600, 14 * 24);
+  assertEquals(r.kind === "defer" && r.resumeAtMs, ist(2026, 11, 4, 10));
+});
+
+Deno.test("contentChanged: detects an edit between the pre-lock read and the lock", () => {
+  const cols = ["template_id", "template_vars", "audience_filter", "header_media_url", "followup_stage", "followup_after_hours"];
+  const row = {
+    template_id: "t", template_vars: { "1": "x" }, header_media_url: null,
+    audience_filter: { retarget: { campaign_id: "p", stage: "read", min_hours_since: 48 } },
+    followup_stage: "read", followup_after_hours: 48,
+  };
+  assertEquals(contentChanged(row, structuredClone(row), cols), false);
+  assertEquals(contentChanged(row, { ...row, followup_stage: "not_read" }, cols), true);
+  assertEquals(contentChanged(row, { ...row, audience_filter: { retarget: { campaign_id: "p", stage: "read", min_hours_since: 24 } } }, cols), true);
+  assertEquals(contentChanged(row, { ...row, header_media_url: undefined }, cols), false); // null == missing
 });

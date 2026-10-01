@@ -83,3 +83,10 @@ describe("reorder tokens", () => {
     expect(usesReviewTokens("x {{reorder_card}}")).toBe(true);
   });
 });
+
+describe("reorder_url with a cart permalink", () => {
+  it("prefers the one-tap cart link and keeps its storefront flag", () => {
+    const out = personalize("{{reorder_url}}", { reorder_url: "https://promunch.in/cart/123:2?storefront=true" }, "A", 1);
+    expect(out).toBe("https://promunch.in/cart/123:2?storefront=true&amp;utm_source=email&amp;utm_medium=flow&amp;utm_campaign=replenishment&amp;utm_content=email_2");
+  });
+});

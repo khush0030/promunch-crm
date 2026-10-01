@@ -18,7 +18,7 @@ export const campaignHref = (id: string) => `/dashboard/whatsapp/campaigns/${id}
 export const editHref = (id: string) => `/dashboard/whatsapp/campaigns/${id}/edit`;
 export const duplicateHref = (id: string) => `/dashboard/whatsapp/campaigns/new?from=${id}`;
 
-export function useCampaignActions(opts: { afterDelete?: () => void } = {}) {
+export function useCampaignActions(opts: { afterDelete?: () => void; followupCount?: (c: Campaign) => number } = {}) {
   const router = useRouter();
   const toast = useToast();
   const invalidate = useInvalidateCampaigns();
@@ -54,7 +54,8 @@ export function useCampaignActions(opts: { afterDelete?: () => void } = {}) {
       case "open":
         return router.push(campaignHref(c.id));
       case "edit":
-        return router.push(editHref(c.id));
+        // Follow-ups are changed from the Journey card on their page.
+        return router.push(c.followup_of ? `${campaignHref(c.id)}#journey` : editHref(c.id));
       case "duplicate":
         return router.push(duplicateHref(c.id));
       case "resume":
@@ -68,17 +69,20 @@ export function useCampaignActions(opts: { afterDelete?: () => void } = {}) {
   if (pending) {
     const c = pending.campaign;
     const reached = c.sent_count ?? 0;
+    const kids = opts.followupCount?.(c) ?? 0;
+    const alsoKids = kids > 0 ? ` This also cancels its ${kids === 1 ? "follow-up" : `${kids} follow-ups`}.` : "";
+    const what = c.followup_of ? "follow-up" : "campaign";
     const copy = {
       pause: {
         title: `Pause "${c.name}"?`,
         body: `Nobody new gets it while it's paused. ${reached ? `${fmtInt(reached)} people already got it and won't get it again.` : ""} You can resume any time.`,
-        confirm: "Pause campaign",
+        confirm: `Pause ${what}`,
         danger: false,
       },
       cancel: {
         title: `Cancel "${c.name}"?`,
-        body: `It stops for good. ${reached ? `${fmtInt(reached)} people already got it; everyone else won't.` : "Nobody has got it yet."} This can't be undone, but you can duplicate it later.`,
-        confirm: "Cancel campaign",
+        body: `It stops for good. ${reached ? `${fmtInt(reached)} people already got it; everyone else won't.` : "Nobody has got it yet."}${alsoKids} This can't be undone${c.followup_of ? "" : ", but you can duplicate it later"}.`,
+        confirm: `Cancel ${what}`,
         danger: true,
       },
       delete: {
@@ -135,7 +139,8 @@ export function ActionButtons({
   return (
     <>
       {actions.map((a) => {
-        const iconOnly = compact && (a === "delete" || a === "duplicate");
+        // Duplicate stays labelled (it's the easy way to send something similar).
+        const iconOnly = compact && a === "delete";
         return (
           <button
             key={a}

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireAdmin } from "@/lib/rbac-server";
+import { getCaller } from "@/lib/rbac-server";
+import { isAdminUser } from "@/lib/rbac";
+import { ORDER_MESSAGE_KEYS, ORDER_MESSAGES_ADMIN_ONLY } from "./permissions";
 import { recordAudit } from "@/lib/audit";
 import { validateVoiceHours, VOICE_LANGUAGES } from "./validate";
 
@@ -116,8 +118,14 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const gate = await requireAdmin();
-  if (!gate.ok) return gate.response;
+  // Marketing automations (cart, review, restock) may be changed by any
+  // teammate with the WhatsApp marketing area (the middleware enforces the
+  // area). Order messages (confirmation, COD gate, shipping, sign-off, voice
+  // call, and the cart retry safety limits) affect every order, so they stay
+  // Owner/Admin only. See ./permissions.ts.
+  const caller = await getCaller();
+  if (!caller) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const gate = { user: caller };
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
@@ -174,6 +182,9 @@ export async function PATCH(req: NextRequest) {
   }
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "no editable fields in body" }, { status: 400 });
+  }
+  if (!isAdminUser(caller) && Object.keys(patch).some((k) => ORDER_MESSAGE_KEYS.has(k))) {
+    return NextResponse.json({ error: ORDER_MESSAGES_ADMIN_ONLY }, { status: 403 });
   }
 
   // Cross-field sanity against the MERGED result, since fields patch independently.

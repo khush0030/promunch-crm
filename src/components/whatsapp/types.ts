@@ -79,13 +79,26 @@ export type CampaignStatus = "draft" | "scheduled" | "sending" | "paused" | "com
 
 export type RetargetStage = "not_read" | "not_delivered" | "read_no_reply" | "failed_cap";
 
+// Who a follow-up (a campaign linked to its parent) goes to, judged when it
+// sends (migration 20260930120000_wa_campaign_followups).
+export type FollowupStage =
+  | "delivered"
+  | "read"
+  | "not_read"
+  | "read_no_reply"
+  | "replied"
+  | "clicked"
+  | "not_clicked"
+  | "ordered"
+  | "not_ordered";
+
 // Mirrors the shapes wa_campaign_filter_match() understands (engine v2
 // migration 20260929120100 + 20260929130000 for `engagement`). All keys AND.
 export type CampaignAudienceFilter = {
   tags?: string[];
   tags_all?: string[];
   exclude_tags?: string[];
-  retarget?: { campaign_id: string; stage: RetargetStage };
+  retarget?: { campaign_id: string; stage: RetargetStage | FollowupStage; min_hours_since?: number };
   engagement?: "warm";
 };
 
@@ -122,6 +135,10 @@ export type Campaign = {
   held_breakdown?: Record<string, number> | null;
   paused_at?: string | null;
   cancelled_at?: string | null;
+  // Journeys (follow-ups). All three set together, or none.
+  followup_of?: string | null;
+  followup_after_hours?: number | null;
+  followup_stage?: FollowupStage | null;
   template?: {
     id: string; name: string; language: string; category: string; status: string;
     body?: string | null; header_type?: Template["header_type"]; header_text?: string | null;

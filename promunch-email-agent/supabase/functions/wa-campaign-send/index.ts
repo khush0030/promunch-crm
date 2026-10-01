@@ -22,6 +22,19 @@
 //   4. Only failures Meta EXPLICITLY refused (coded error) are ever retried.
 //      A failure without a code, or a claim orphaned mid-send, is 'ambiguous'
 //      and never re-sent.
+//
+// FOLLOW-UPS (campaign journeys, migration 20260930120000): a row with
+// followup_of set is one journey step. It runs through this exact engine
+// (same claims, governor, quiet hours, pause/cancel); its audience_filter is a
+// retarget of its parent with min_hours_since, so people become eligible one
+// by one as their time comes. Extra rules:
+//   - does nothing until the parent has started; cancels itself if the parent
+//     was cancelled; hard stop 30 days (plus its own delay) after the
+//     parent started;
+//   - never COMPLETES while the parent is still running (paused counts as
+//     running) or while any parent recipient has yet to cross the delay: it
+//     parks with resume_at = the next person's time (hourly re-check while
+//     the parent runs) and keeps status 'scheduled' until it first sends.
 
 import OpenAI from "npm:openai@4.78.0";
 import { db } from "../_shared/supabase.ts";
@@ -42,8 +55,14 @@ import {
   budgetResumeAt,
   buildTemplateComponents,
   classifySyncFailure,
+  contentChanged,
   contactVerdict,
   dynamicUrlButtons,
+  FollowupParent,
+  followupFilterError,
+  followupFinish,
+  followupGate,
+  FollowupTiming,
   HOLD_RECHECK_MS,
   inQuietHours,
   isShortLinkBase,
@@ -115,7 +134,33 @@ Deno.serve(async (req) => {
   }
   // resume_at is the single source of truth for dormancy, for ANY caller.
   if (campaign.resume_at && new Date(campaign.resume_at).getTime() > Date.now()) {
-    return j({ ok: true, status: "sending", deferred: true, note: `dormant until ${campaign.resume_at}` });
+    return j({ ok: true, status: campaign.status, deferred: true, note: `dormant until ${campaign.resume_at}` });
+  }
+
+  // ---- follow-up (journey step) gate: before any lock or state change ----
+  const isFollowup = !!campaign.followup_of;
+  let parent: FollowupParent | null = null;
+  let followupExpired = false;
+  if (isFollowup) {
+    const filterErr = followupFilterError(campaign);
+    if (filterErr) return await failCampaign(sb, campaignId, filterErr);
+    const { data: p, error: pErr } = await sb.from("wa_campaigns")
+      .select("id,name,status,started_at").eq("id", campaign.followup_of).maybeSingle();
+    // Fail closed: without the parent's state we can't know it is safe to send.
+    if (pErr) return j({ error: `parent campaign read failed: ${pErr.message} — nothing sent` }, 500);
+    parent = p ? { status: p.status as string, started_at: (p.started_at as string | null) ?? null } : null;
+    const gate = followupGate(parent, Date.now(), Number(campaign.followup_after_hours) || 0);
+    if (gate === "cancel") return await cancelFollowup(sb, campaignId, "The campaign it follows was cancelled.");
+    if (gate === "wait_parent_start") {
+      // Stay armed. A follow-up that was forced to 'sending' re-checks hourly
+      // instead of being re-kicked (and stall-alerted) every few minutes.
+      if (campaign.status === "sending") {
+        await sb.from("wa_campaigns").update({ resume_at: new Date(Date.now() + 60 * 60_000).toISOString() })
+          .eq("id", campaignId).eq("status", "sending");
+      }
+      return j({ ok: true, status: campaign.status, waiting: "parent_not_started", note: "starts once the campaign it follows is sent" });
+    }
+    followupExpired = gate === "expired";
   }
 
   // ---- start-time validation (B5/B8/B10): fail the campaign ONCE with a clear
@@ -139,17 +184,24 @@ Deno.serve(async (req) => {
   const personalized = aiBrief.length > 0;
   const cap = personalized ? MAX_PERSONALIZED : MAX_STATIC;
   const waveMin = waveMinute(campaign.scheduled_at, campaign.started_at);
+  // An armed follow-up that has not sent anything yet keeps status 'scheduled'
+  // while it waits (the dashboard shows "waiting for the first people").
+  const armedFollowup = isFollowup && campaign.status === "scheduled";
 
   // ---- atomic, owner-checked send lock ----
   let lockStamp = new Date().toISOString();
   const lockCutoff = new Date(Date.now() - LOCK_TTL_MS).toISOString();
+  // WHAT is sent and to WHOM, re-read atomically with the lock: the row above
+  // was read before we held it, and a dashboard edit (e.g. a follow-up's
+  // stage/delay PATCH) landing in between must not be sent with the old rule.
+  const contentCols: readonly string[] = [...CONTENT_COLS, ...(isFollowup ? FOLLOWUP_COLS : [])];
   const { data: lockRow, error: lockErr } = await sb
     .from("wa_campaigns")
     .update({ send_lock_at: lockStamp })
     .eq("id", campaignId)
     .in("status", ["draft", "scheduled", "sending", "failed"])
     .or(`send_lock_at.is.null,send_lock_at.lt.${lockCutoff}`)
-    .select("id")
+    .select(["id", ...contentCols].join(","))
     .maybeSingle();
   if (lockErr) return j({ error: "send lock unavailable", detail: lockErr.message }, 500);
   if (!lockRow) return j({ ok: true, skipped: "another sender holds the lock (or the campaign was paused/cancelled)" });
@@ -160,6 +212,11 @@ Deno.serve(async (req) => {
     lockHeld = false;
     await sb.from("wa_campaigns").update({ send_lock_at: null }).eq("id", campaignId).eq("send_lock_at", lockStamp);
   };
+  if (contentChanged(campaign, lockRow as unknown as Record<string, unknown>, contentCols)) {
+    // Nothing sent. The worker (or the next chain call) re-reads the new version.
+    await releaseLock().catch(() => {});
+    return j({ ok: true, skipped: "campaign was edited while this batch was starting; the next run uses the new version" });
+  }
   // Refresh the lock (only if we still own it) and read the live status, so a
   // pause/cancel stops the batch within HEARTBEAT_EVERY sends.
   const heartbeat = async (): Promise<string | null> => {
@@ -184,8 +241,20 @@ Deno.serve(async (req) => {
     const now = Date.now();
 
     // Quiet hours (21:00-09:00 IST): no marketing sends. Park until morning.
+    if (followupExpired) {
+      return await complete({
+        reached: 0,
+        skipped: (campaign.skipped_breakdown ?? {}) as Record<string, number>,
+        note: "follow-up window ended (30 days plus the follow-up delay after the campaign it follows started)",
+      });
+    }
+
     if (inQuietHours(now)) {
       const at = new Date(nextAllowedAt(now, waveMin)).toISOString();
+      if (armedFollowup) {
+        await park(at);
+        return j({ ok: true, status: "scheduled", deferred: true, resume_at: at, note: "quiet hours (21:00-09:00 IST)" });
+      }
       await sb.from("wa_campaigns").update({
         status: "sending",
         started_at: campaign.started_at ?? new Date().toISOString(),
@@ -216,6 +285,11 @@ Deno.serve(async (req) => {
       if (!page || page.length === 0) break;
       contacts.push(...(page as Contact[]));
       if (page.length < 1000) break;
+    }
+    if (contacts.length === 0 && isFollowup) {
+      // Nobody is due yet (or nobody matched). Never complete early.
+      const hold = await followupHold(now);
+      if (hold) return hold;
     }
     if (contacts.length === 0) {
       await sb.from("wa_campaigns").update({
@@ -315,12 +389,18 @@ Deno.serve(async (req) => {
     }).eq("id", campaignId);
 
     const startedMs = Date.parse(campaign.started_at ?? new Date(now).toISOString());
-    const lifetimeOver = now - startedMs > MAX_CAMPAIGN_LIFETIME_MS;
+    // A follow-up's people become eligible over up to 30 days, so its hard
+    // stop is the journey lifetime (followupGate), not the 7-day campaign one.
+    const lifetimeOver = !isFollowup && now - startedMs > MAX_CAMPAIGN_LIFETIME_MS;
 
     // ---- nothing sendable right now ----
     if (eligibleNow.length === 0) {
       const onlyHeldLeft = waitingNextDay.length === 0 && inFlight === 0;
       if (held.size === 0 && onlyHeldLeft) {
+        if (isFollowup) {
+          const hold = await followupHold(now, { reached, skipped });
+          if (hold) return hold;
+        }
         return await complete({ reached, skipped });
       }
       if (onlyHeldLeft && lifetimeOver) {
@@ -333,6 +413,12 @@ Deno.serve(async (req) => {
       if (waitingNextDay.length) options.push(nextWaveAt(now, waveMin));
       if (held.size) options.push(nextAllowedAt(now + HOLD_RECHECK_MS, waveMin));
       if (inFlight) options.push(now + STALE_CLAIM_MS + 60_000);
+      if (isFollowup) {
+        // Someone new may become due before the held ones clear: wake for them.
+        const timing = await readTiming().catch(() => null); // hold re-check below still bounds the wait
+        const fin = followupFinish(parent, timing, now, waveMin, Number(campaign.followup_after_hours) || 0);
+        if (fin.kind === "defer") options.push(fin.resumeAtMs);
+      }
       const at = new Date(Math.min(...options)).toISOString();
       await defer(at);
       return j({
@@ -629,6 +715,64 @@ Deno.serve(async (req) => {
     return j({ ok: true, status: "sending", remaining: eligibleNow.length - queue.length, ...summary });
   }
 
+  // Park without sending: an armed follow-up that has not sent yet stays
+  // 'scheduled' (and unstarted); anything else is an active 'sending' campaign.
+  async function park(at: string) {
+    const patch: Record<string, unknown> = { resume_at: at };
+    if (!armedFollowup) {
+      patch.status = "sending";
+      patch.started_at = campaign.started_at ?? new Date().toISOString();
+    }
+    await sb.from("wa_campaigns").update(patch).eq("id", campaignId)
+      .in("status", armedFollowup ? ["scheduled"] : ["draft", "scheduled", "sending", "failed"]);
+  }
+
+  async function readTiming(): Promise<FollowupTiming | null> {
+    const { data, error } = await sb.rpc("wa_campaign_followup_timing", {
+      p_parent: campaign.followup_of,
+      p_hours: campaign.followup_after_hours,
+    });
+    if (error) throw new Error(`follow-up timing read failed: ${error.message}`);
+    return (data ?? null) as FollowupTiming | null;
+  }
+
+  // Nobody to send to right now. Decide: complete (parent finished and
+  // nobody left to cross the delay), cancel, or park until the next person's
+  // time. Returns null only when completing is right. Any read error parks
+  // for an hour: never complete on a guess.
+  async function followupHold(
+    now: number,
+    done?: { reached: number; skipped: Partial<Record<SkipReason, number>> },
+  ): Promise<Response | null> {
+    let timing: FollowupTiming | null;
+    try {
+      timing = await readTiming();
+    } catch (e) {
+      const at = new Date(nextAllowedAt(now + 60 * 60_000, waveMin)).toISOString();
+      await park(at);
+      return j({ ok: false, status: armedFollowup ? "scheduled" : "sending", deferred: true, resume_at: at, error: String(e) }, 500);
+    }
+    const fin = followupFinish(parent, timing, now, waveMin, Number(campaign.followup_after_hours) || 0);
+    if (fin.kind === "cancel") return await cancelFollowup(sb, campaignId, "The campaign it follows was cancelled.");
+    if (fin.kind === "expired") {
+      return await complete({
+        reached: done?.reached ?? 0,
+        skipped: (done?.skipped ?? {}) as Record<string, number>,
+        note: "follow-up window ended (30 days plus the follow-up delay after the campaign it follows started)",
+      });
+    }
+    if (fin.kind === "complete") return null;
+    const at = new Date(fin.resumeAtMs).toISOString();
+    await park(at);
+    return j({
+      ok: true, status: armedFollowup ? "scheduled" : "sending", deferred: true, resume_at: at,
+      note: fin.reason === "parent_running"
+        ? "waiting: the campaign it follows is still running"
+        : "waiting: more people become due for this follow-up later",
+      reached: done?.reached ?? 0,
+    });
+  }
+
   async function defer(at: string) {
     await sb.from("wa_campaigns").update({
       status: "sending",
@@ -674,6 +818,10 @@ Deno.serve(async (req) => {
   }
 });
 
+// Columns that decide what a batch sends and to whom (see the send lock).
+const CONTENT_COLS = ["template_id", "template_vars", "audience_filter", "header_media_url"] as const;
+const FOLLOWUP_COLS = ["followup_of", "followup_after_hours", "followup_stage"] as const;
+
 const pathStatsShape = { mm_lite_sent: 0, mm_lite_failed: 0, cloud_api_sent: 0, cloud_api_failed: 0, fallbacks: 0 };
 
 // Mark a campaign failed with a human reason (idempotent; never touches a
@@ -683,6 +831,15 @@ async function failCampaign(sb: Sb, campaignId: string, reason: string): Promise
   await sb.from("wa_campaigns").update({ status: "failed", last_error: reason, resume_at: null })
     .eq("id", campaignId).in("status", ["draft", "scheduled", "sending", "failed"]);
   return j({ ok: false, status: "failed", error: reason }, 400);
+}
+
+// A follow-up whose parent was cancelled stops too (belt and braces with the
+// dashboard's cancel cascade). Never touches a finished step.
+async function cancelFollowup(sb: Sb, campaignId: string, reason: string): Promise<Response> {
+  await sb.from("wa_campaigns").update({
+    status: "cancelled", cancelled_at: new Date().toISOString(), resume_at: null, last_error: reason,
+  }).eq("id", campaignId).in("status", ["draft", "scheduled", "sending", "paused", "failed"]);
+  return j({ ok: true, status: "cancelled", note: reason });
 }
 
 // ---------------------------------------------------------------------------

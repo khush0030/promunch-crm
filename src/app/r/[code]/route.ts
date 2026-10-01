@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // the real destination. Fail-safe: an unknown code or any error still sends the
 // user somewhere sane rather than erroring in their face.
 
-const FALLBACK = (process.env.SITE_URL || "https://trypromunch.in").replace(/\/+$/, "");
+const FALLBACK = (process.env.SITE_URL || "https://promunch.in").replace(/\/+$/, "");
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ code: string }> }) {
   const { code } = await ctx.params;

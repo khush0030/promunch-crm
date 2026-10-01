@@ -173,6 +173,8 @@ export type EnrolOpts = {
   flowId?: string | null;
   /** Shopify order id, used to exclude the current order in first_order_only. */
   orderId?: string | number | null;
+  /** order_placed only: the caller's first-order verdict (null = unknown = not first). */
+  isFirstOrder?: boolean | null;
 };
 
 async function activeFlowsFor(trigger: string): Promise<FlowRow[]> {
@@ -188,6 +190,20 @@ async function activeFlowsFor(trigger: string): Promise<FlowRow[]> {
 
 // App side never creates contacts: the opt-in route / segment crons upsert the
 // contact first, so enrolment is lookup-only (as before).
+/** Bias to silence: a lookup error counts as "entered recently". */
+async function enteredRecently(flowId: string, contactId: string, days: number): Promise<boolean> {
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const { data, error } = await db()
+    .from("flow_enrollments")
+    .select("id")
+    .eq("flow_id", flowId)
+    .eq("contact_id", contactId)
+    .gte("entered_at", since)
+    .limit(1);
+  if (error) return true;
+  return (data?.length ?? 0) > 0;
+}
+
 async function contactIdForEmail(email: string): Promise<string | null> {
   return lookupContactId(email);
 }
@@ -346,7 +362,14 @@ async function enrolOne(flow: FlowRow, contactId: string, email: string, trigger
   const deadlineHours = typeof cfg.deadline_hours === "number" && cfg.deadline_hours > 0 ? cfg.deadline_hours : null;
   const firstDelayHours = Number(steps[0]?.delay_hours ?? 0);
 
-  if (isFirstOrderOnly(flow) && (await priorOrderExists(email, opts))) return false;
+  // Unknown first-order status counts as "not first": a missed welcome is
+  // recoverable, a "welcome to the family" to a repeat buyer is not.
+  if (isFirstOrderOnly(flow)) {
+    if (trigger === "order_placed" && opts.isFirstOrder !== true) return false;
+    if (await priorOrderExists(email, opts)) return false;
+  }
+  const onceDays = typeof cfg.once_per_contact_days === "number" ? cfg.once_per_contact_days : 0;
+  if (onceDays > 0 && (await enteredRecently(flow.id, contactId, onceDays))) return false;
 
   const dedupKey = dedupKeyFor(flow, opts, contactId);
   const context: Record<string, unknown> = { ...(opts.context ?? {}), first_name: opts.firstName ?? null };

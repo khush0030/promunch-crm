@@ -7,8 +7,7 @@
 // welcome flow (once per contact). Never sends here — the flow engine does.
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import { enrollEmailFlow } from "@/lib/email/enroll";
+import { EMAIL_RE, recordEmailOptIn } from "@/lib/email/popup-optin";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +19,6 @@ const ALLOWED_ORIGINS = new Set([
   "https://a1e4f4-2.myshopify.com",
 ]);
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function cors(origin: string | null): Record<string, string> {
   const allow = origin && ALLOWED_ORIGINS.has(origin) ? origin : "";
@@ -59,47 +57,6 @@ export async function POST(req: NextRequest) {
   }
   const first = body.name ? String(body.name).trim().slice(0, 80) : null;
   const source = body.source === "website_widget" ? "website_widget" : "website_popup";
-  const nowIso = new Date().toISOString();
-
-  // Merge-never-clobber: keep an existing contact's data, just add consent + tag.
-  const { data: existing } = await supabaseAdmin
-    .from("contacts")
-    .select("id, tags")
-    .eq("email", email)
-    .maybeSingle();
-
-  const tags = new Set<string>(Array.isArray(existing?.tags) ? (existing!.tags as string[]) : []);
-  tags.add("popup");
-
-  let contactId = existing?.id as string | undefined;
-  const consent = {
-    accepts_marketing: true,
-    email_consent: "subscribed",
-    consent_source: source,
-    consent_timestamp: nowIso,
-    tags: [...tags],
-    status: "active",
-  };
-
-  if (contactId) {
-    await supabaseAdmin.from("contacts").update(consent).eq("id", contactId);
-  } else {
-    const { data: ins } = await supabaseAdmin
-      .from("contacts")
-      .insert({ email, first_name: first, source: "manual", ...consent })
-      .select("id")
-      .maybeSingle();
-    contactId = ins?.id as string | undefined;
-  }
-
-  if (contactId) {
-    await enrollEmailFlow("customer_created", {
-      email,
-      entityRef: contactId,
-      dedupPrefix: "welcome",
-      firstName: first,
-    }).catch(() => {});
-  }
-
-  return NextResponse.json({ ok: true, already: !!existing }, { headers });
+  const { already } = await recordEmailOptIn({ email, firstName: first, source });
+  return NextResponse.json({ ok: true, already }, { headers });
 }

@@ -7,7 +7,7 @@ import { CART_REQUEST_PREFIX, requestedCartUrl, STOREFRONT_ORIGINS } from "../..
 export const dynamic = "force-dynamic";
 
 function cors(origin: string | null) {
-  return { "Access-Control-Allow-Origin": origin && STOREFRONT_ORIGINS.has(origin) ? origin : "https://trypromunch.in",
+  return { "Access-Control-Allow-Origin": origin && STOREFRONT_ORIGINS.has(origin) ? origin : "https://promunch.in",
     "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type",
     "Cache-Control": "no-store", Vary: "Origin" };
 }

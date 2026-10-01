@@ -19,7 +19,9 @@ export async function campaignAction(
   const { id } = await ctx.params;
   const { data: c, error } = await supabaseAdmin
     .from("wa_campaigns")
-    .select("id,name,status,started_at,scheduled_at,repeat_rule")
+    // "*" so planTransition sees followup_of (an unstarted follow-up resumes
+    // to armed, not to 'sending') and this still works before that migration.
+    .select("*")
     .eq("id", id)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

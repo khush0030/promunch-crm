@@ -50,6 +50,8 @@ describe("pages", () => {
   });
   it("the marketer can open campaigns, popup and email, nothing else", () => {
     expect(canOpenHref(marketer, "/dashboard/whatsapp?tab=campaigns")).toBe(true);
+    expect(canOpenHref(marketer, "/dashboard/whatsapp?tab=home")).toBe(true);
+    expect(pageModule("/dashboard/whatsapp", "home")).toBe("wa_marketing");
     expect(canOpenHref(marketer, "/dashboard/whatsapp?tab=growth")).toBe(true);
     expect(canOpenHref(marketer, "/dashboard/marketing/email/123/edit")).toBe(true);
     expect(canOpenHref(marketer, "/dashboard/email/campaigns/abc")).toBe(true);
@@ -65,7 +67,7 @@ describe("pages", () => {
     expect(canOpenPage(marketer, "/dashboard/brand-new", null)).toBe(false);
   });
   it("landing is the first allowed area, or the no-access page", () => {
-    expect(landingFor(marketer)).toBe("/dashboard/whatsapp?tab=campaigns");
+    expect(landingFor(marketer)).toBe("/dashboard/whatsapp?tab=home");
     expect(landingFor(accessOf({ email: "a@promunch.in", app_metadata: { role: "agent", modules: [] } }))).toBe(NO_ACCESS_PATH);
     // Every landing must itself be allowed, or the middleware would loop.
     for (const k of MODULE_KEYS) {
@@ -83,6 +85,7 @@ describe("api", () => {
     expect(canCallApi(marketer, "/api/whatsapp/tags", "GET")).toBe(true);
     expect(canCallApi(marketer, "/api/whatsapp/lists", "POST")).toBe(true);
     expect(canCallApi(marketer, "/api/whatsapp/campaigns/audience-preview", "POST")).toBe(true);
+    expect(canCallApi(marketer, "/api/whatsapp/campaigns/abc/journey", "GET")).toBe(true);
     expect(canCallApi(marketer, "/api/brevo/campaigns/1/actions", "POST")).toBe(true);
     expect(canCallApi(marketer, "/api/metrics/attention", "GET")).toBe(true);
   });
@@ -110,7 +113,7 @@ describe("nav", () => {
     const hubs = navFor(marketer);
     expect(hubs.map((h) => h.hub)).toEqual(["Marketing"]);
     expect(hubs[0].items.map((i) => i.label)).not.toContain("Audience");
-    expect(hubs[0].items.map((i) => i.label)).toContain("WhatsApp popup");
+    expect(hubs[0].items.map((i) => i.label)).toContain("WhatsApp marketing");
     expect(navFor(null)).toEqual([]);
     expect(navFor(accessOf({ email: OWNER_EMAIL }))).toBe(NAV);
   });

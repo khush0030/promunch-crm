@@ -5,6 +5,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { Card, Chips } from "@/components/pm";
+import { GlossaryTerm, HelpTip, StepHeader } from "@/components/guide";
 import type { Campaign } from "../../types";
 import { useCampaigns, useSegments, useTags } from "../api";
 import { RETARGET_STAGES, SEGMENTS, fmtInt, fmtIst, type AudienceMode, type AudienceState } from "../logic";
@@ -38,7 +39,11 @@ export function StepAudience({
   problems,
   showErrors,
   selfId,
+  step,
+  total,
 }: {
+  step: number;
+  total: number;
   value: AudienceState;
   onChange: (patch: Partial<AudienceState>) => void;
   problems: string[];
@@ -47,13 +52,20 @@ export function StepAudience({
 }) {
   return (
     <div className={s.stack}>
-      <div>
-        <h2 style={{ margin: "0 0 4px", fontSize: 18 }}>Choose who gets it</h2>
-        <p className={s.help} style={{ margin: 0 }}>
-          Meta gives every WhatsApp user a small allowance of marketing messages across all businesses, and spends it on people who talk to
-          the business. A warmer list means more messages arrive and our number stays in good standing.
-        </p>
-      </div>
+      <StepHeader
+        step={step}
+        total={total}
+        title="Choose who gets it"
+        why={
+          <>
+            Meta gives every WhatsApp user a small allowance of marketing messages across all businesses and spends it on people who talk to
+            the business. Anyone else is <GlossaryTerm k="held_back">held back</GlossaryTerm>. A{" "}
+            <GlossaryTerm k="warm_audience">Warm</GlossaryTerm> list means more messages arrive and our number stays in good standing. If
+            you are not sure, keep Warm.
+          </>
+        }
+        glossary={["warm_audience", "engaged_audience", "rfm_segment", "retarget", "opted_in", "held_back"]}
+      />
 
       <div className={s.optionGrid} role="radiogroup" aria-label="Audience">
         {OPTIONS.map((o) => {
@@ -100,7 +112,7 @@ function SegmentPicker({ value, onChange }: { value: string[]; onChange: (v: str
   const { data: segs = [] } = useSegments();
   const byTier = Object.fromEntries(segs.map((x) => [x.rfm_tier, Number(x.customers)]));
   return (
-    <Card title="Customer groups" basis="pick one or more">
+    <Card title="Customer groups" basis="pick one or more" right={<HelpTip term="rfm_segment" />}>
       <div className={s.optionGrid}>
         {SEGMENTS.map((seg) => {
           const on = value.includes(seg.key);
@@ -192,7 +204,7 @@ function RetargetPicker({
   const { data: campaigns = [] } = useCampaigns();
   const past = campaigns.filter((c: Campaign) => c.id !== selfId && (c.sent_count > 0 || c.failed_count > 0));
   return (
-    <Card title="Follow up a past campaign">
+    <Card title="Follow up a past campaign" right={<HelpTip term="retarget" />}>
       <div className={s.stack}>
         <label className={s.field}>
           <span className={s.label}>Campaign</span>

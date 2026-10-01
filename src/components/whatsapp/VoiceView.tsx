@@ -1,7 +1,7 @@
 "use client";
 
 // Voice tab: the Sarvam voice-agent rescue call, in one place. Settings live
-// in the Flows tab (wa_flow_settings.voice_call_enabled); the cart-recovery
+// in the Automations tab (wa_flow_settings.voice_call_enabled); the cart-recovery
 // funnel shows four summary chips; this tab shows the actual calls, with
 // transcripts, recordings and a manual backfill from Sarvam's analytics API
 // (voice-calls/sync) because Sarvam's post-call webhook is not currently
@@ -54,18 +54,30 @@ const STATUS_OPTIONS = ["dialing", "connected", "no_answer", "busy", "failed", "
 const OUTCOME_OPTIONS = ["will_buy", "asked_link", "not_interested", "do_not_call", "callback_later", "unknown"];
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  dialing: { bg: "rgba(59,130,246,0.10)", color: "#1d4ed8" },
-  connected: { bg: "rgba(16,185,129,0.14)", color: "var(--pm-green)" },
-  no_answer: { bg: "rgba(229,231,235,0.7)", color: "var(--pm-muted)" },
-  busy: { bg: "rgba(245,183,49,0.16)", color: "#92400e" },
-  failed: { bg: "rgba(239,68,68,0.12)", color: "var(--pm-terra)" },
-  start_failed: { bg: "rgba(239,68,68,0.12)", color: "var(--pm-terra)" },
-  unknown: { bg: "rgba(229,231,235,0.7)", color: "var(--pm-muted)" },
+  dialing: { bg: "var(--pm-cyan-soft)", color: "var(--pm-cyan)" },
+  connected: { bg: "var(--pm-green-soft)", color: "var(--pm-green)" },
+  no_answer: { bg: "var(--pm-card2)", color: "var(--pm-muted)" },
+  busy: { bg: "var(--pm-gold-soft)", color: "var(--pm-gold)" },
+  failed: { bg: "var(--pm-terra-soft)", color: "var(--pm-terra)" },
+  start_failed: { bg: "var(--pm-terra-soft)", color: "var(--pm-terra)" },
+  unknown: { bg: "var(--pm-card2)", color: "var(--pm-muted)" },
 };
+
+// Plain words for the call states and outcomes the voice partner reports.
+const STATUS_LABEL: Record<string, string> = {
+  dialing: "calling", connected: "picked up", no_answer: "no answer", busy: "busy",
+  failed: "did not connect", start_failed: "could not start", unknown: "not known yet",
+};
+const OUTCOME_LABEL: Record<string, string> = {
+  will_buy: "will buy", asked_link: "asked for the link", not_interested: "not interested",
+  do_not_call: "asked us not to call", callback_later: "call back later", unknown: "not known",
+};
+const statusLabel = (v: string) => STATUS_LABEL[v] ?? v.replace(/_/g, " ");
+const outcomeLabel = (v: string) => OUTCOME_LABEL[v] ?? v.replace(/_/g, " ");
 
 function fmtInr(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "-";
-  return `Rs ${Math.round(n).toLocaleString("en-IN")}`;
+  return `₹${Math.round(n).toLocaleString("en-IN")}`;
 }
 
 // Masks a phone number for display in a list view: keeps the country code
@@ -145,9 +157,9 @@ export default function VoiceView() {
       // retryable, but an operator must not read this as a clean success.
       toast.push({
         kind: res.dndFailed ? "error" : "success",
-        text: `Synced from Sarvam. Scanned ${res.scanned}, matched ${res.matched}, updated ${res.updated}${
-          res.dndFlagged ? `, ${res.dndFlagged} marked do-not-call` : ""
-        }${res.dndFailed ? `, ${res.dndFailed} FAILED to mark do-not-call (will retry on next sync)` : ""}.`,
+        text: `Call results refreshed. Checked ${res.scanned} calls, updated ${res.updated}${
+          res.dndFlagged ? `, ${res.dndFlagged} marked "do not call"` : ""
+        }${res.dndFailed ? `. ${res.dndFailed} could NOT be marked "do not call" yet; refresh again to retry` : ""}.`,
       });
       qc.invalidateQueries({ queryKey: ["voice-calls"] });
     } catch (e) {
@@ -159,18 +171,33 @@ export default function VoiceView() {
 
   return (
     <div>
+      <div style={{ marginBottom: 14, maxWidth: 720 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--pm-ink)" }}>Cart rescue calls</div>
+        <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--pm-muted)", lineHeight: 1.5 }}>
+          When the WhatsApp cart messages don&apos;t work, a friendly AI voice can call the customer once about their cart.
+          Each call, with its recording and what was said, shows here. Switch calls on or off, and set the calling hours, in the Automations tab.
+        </p>
+        <details style={{ marginTop: 6, fontSize: 12.5, color: "var(--pm-muted)" }}>
+          <summary style={{ cursor: "pointer", fontWeight: 600 }}>How this works (technical)</summary>
+          <p style={{ margin: "6px 0 0", lineHeight: 1.5 }}>
+            Calls are placed by our voice partner, Sarvam. Sarvam is meant to tell us how each call went as soon as it ends,
+            but that message is not reaching us at the moment, so calls can stay on &quot;calling&quot;. &quot;Refresh call results&quot;
+            asks Sarvam for the last 24 hours of results and updates the list. Anyone who asks us not to call is never called again.
+          </p>
+        </details>
+      </div>
       <div style={{ ...cardStyle, marginBottom: 14, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16, justifyContent: "space-between" }}>
         <StatChips
           rows={[
-            { label: "placed", value: stats.placed, color: "var(--pm-ink)" },
-            { label: "connected", value: stats.connected, color: "var(--pm-green)" },
-            { label: "link sent", value: stats.linkSent, color: "var(--pm-gold)" },
-            { label: "do-not-call", value: stats.doNotCall, color: "var(--pm-terra)" },
-            { label: "still dialing", value: stats.dialing, color: "#1d4ed8" },
+            { label: "calls placed", value: stats.placed, color: "var(--pm-ink)" },
+            { label: "picked up", value: stats.connected, color: "var(--pm-green)" },
+            { label: "cart link sent", value: stats.linkSent, color: "var(--pm-gold)" },
+            { label: "asked us not to call", value: stats.doNotCall, color: "var(--pm-terra)" },
+            { label: "result not in yet", value: stats.dialing, color: "var(--pm-cyan)" },
           ]}
         />
         <button type="button" style={primaryBtn} onClick={handleSync} disabled={syncing}>
-          <RefreshCw size={14} /> {syncing ? "Syncing..." : "Sync from Sarvam"}
+          <RefreshCw size={14} /> {syncing ? "Refreshing…" : "Refresh call results"}
         </button>
       </div>
 
@@ -178,13 +205,13 @@ export default function VoiceView() {
         <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} className="pm-fluid-ctl" style={{ ...inputStyle, width: 160 }}>
           <option value="">All statuses</option>
           {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+            <option key={s} value={s}>{statusLabel(s)}</option>
           ))}
         </select>
         <select aria-label="Outcome" value={outcome} onChange={(e) => setOutcome(e.target.value)} className="pm-fluid-ctl" style={{ ...inputStyle, width: 180 }}>
           <option value="">All outcomes</option>
           {OUTCOME_OPTIONS.map((o) => (
-            <option key={o} value={o}>{o.replace(/_/g, " ")}</option>
+            <option key={o} value={o}>{outcomeLabel(o)}</option>
           ))}
         </select>
         <div style={{ position: "relative", flex: "1 1 220px", maxWidth: 320 }}>
@@ -200,14 +227,14 @@ export default function VoiceView() {
       </div>
 
       {voiceEnabled === false && (
-        <div style={{ ...cardStyle, marginBottom: 14, background: "rgba(245,183,49,0.10)", borderColor: "var(--pm-gold)" }}>
-          <strong>Voice calling is switched off.</strong> Turn it on in the Flows tab to place rescue calls. Past calls still show below.
+        <div style={{ ...cardStyle, marginBottom: 14, background: "var(--pm-gold-soft)", borderColor: "var(--pm-gold)" }}>
+          <strong>Rescue calls are switched off.</strong> The owner can turn them on in the Automations tab (Order messages, Voice rescue call). Past calls still show below.
         </div>
       )}
 
       {allStillDialing && (
-        <div style={{ ...cardStyle, marginBottom: 14, background: "rgba(59,130,246,0.08)" }}>
-          These calls have not been finalised yet because the Sarvam webhook is not reaching us. Use Sync from Sarvam above to pull the real results.
+        <div style={{ ...cardStyle, marginBottom: 14, background: "var(--pm-cyan-soft)" }}>
+          The results of these calls haven&apos;t arrived yet. Press Refresh call results above to fetch them.
         </div>
       )}
 
@@ -223,8 +250,8 @@ export default function VoiceView() {
             <span>When</span>
             <span>Customer</span>
             <span>Cart</span>
-            <span>Status</span>
-            <span>Outcome</span>
+            <span>Call</span>
+            <span>What they said</span>
             <span>Link sent</span>
             <span>Duration</span>
           </div>
@@ -253,7 +280,7 @@ function CallRow({ call: c }: { call: VoiceCall }) {
             </span>
             {c.contact.voice_dnd && (
               <span style={{ ...chip, padding: "2px 7px", fontSize: 10, color: "var(--pm-terra)", borderColor: "var(--pm-terra)" }}>
-                <PhoneOff size={10} /> DND
+                <PhoneOff size={10} /> Do not call
               </span>
             )}
           </span>
@@ -262,9 +289,9 @@ function CallRow({ call: c }: { call: VoiceCall }) {
             {cartItems.length > 0 && <span style={{ color: "var(--pm-hint)" }}> · {cartSummary(cartItems)}</span>}
           </span>
           <span style={{ padding: "3px 8px", borderRadius: 999, background: st.bg, color: st.color, fontWeight: 600, fontSize: 11, width: "fit-content" }}>
-            {c.status.replace(/_/g, " ")}
+            {statusLabel(c.status)}
           </span>
-          <span style={{ color: "var(--pm-muted)" }}>{c.outcome ? c.outcome.replace(/_/g, " ") : "-"}</span>
+          <span style={{ color: "var(--pm-muted)" }}>{c.outcome ? outcomeLabel(c.outcome) : "-"}</span>
           <span style={{ color: "var(--pm-muted)" }}>
             {c.link_sent_at ? (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--pm-green)" }}>
@@ -278,7 +305,7 @@ function CallRow({ call: c }: { call: VoiceCall }) {
 
       <div style={{ padding: "0 10px 14px 10px" }}>
         {c.failure_reason && (
-          <div style={{ fontSize: 11.5, color: "var(--pm-terra)", marginBottom: 8 }}>Failure reason: {c.failure_reason}</div>
+          <div style={{ fontSize: 11.5, color: "var(--pm-terra)", marginBottom: 8 }}>Why it did not connect: {c.failure_reason}</div>
         )}
 
         <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--pm-hint)", textTransform: "uppercase", letterSpacing: 0.4, margin: "6px 0" }}>
@@ -293,7 +320,7 @@ function CallRow({ call: c }: { call: VoiceCall }) {
             ))}
           </div>
         ) : (
-          <div style={{ fontSize: 12, color: "var(--pm-hint)", marginBottom: 10 }}>No transcript. Try Sync from Sarvam.</div>
+          <div style={{ fontSize: 12, color: "var(--pm-hint)", marginBottom: 10 }}>No transcript yet. Try Refresh call results.</div>
         )}
 
         {c.has_recording && (

@@ -1,6 +1,8 @@
 "use client";
 
-// Full-page campaign wizard: Template -> Message -> Audience -> When -> Review.
+// Full-page campaign wizard: Template -> Message -> Audience -> When ->
+// Follow-ups (optional) -> Review. Follow-ups live in the wizard state and are
+// saved as linked campaigns once the parent draft exists.
 // Autosaves a draft from the moment a template is picked. Launching re-saves
 // everything, checks the server kept the exact audience, then schedules or
 // starts the send and opens the campaign page.
@@ -14,6 +16,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Rocket } from "lucide-react";
 import { Callout, ConfirmDialog, PageHeader } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
+import { friendlyTemplateName } from "@/lib/whatsapp/templateKind";
 import type { Campaign, RetargetStage } from "../../types";
 import {
   api,
@@ -36,14 +39,17 @@ import {
   audienceProblems,
   buildAudienceFilter,
   buildTemplateVars,
+  campaignTemplates,
   contentProblems,
   effectiveStart,
   filterKey,
   fmtInt,
+  fmtIst,
   initialVars,
   isColdAudience,
   pacing,
   parseIstInput,
+  samplesUsed,
   sameFilter,
   scheduleProblems,
   toIstInput,
@@ -53,6 +59,17 @@ import {
   type ScheduleState,
 } from "../logic";
 import { campaignHref } from "../useCampaignActions";
+import {
+  draftFromCampaign,
+  followupProblems,
+  followupRuleSentence,
+  duplicateWarnings,
+  followupTemplates,
+  draftHours,
+  type FollowupDraft,
+} from "../journey";
+import { StepFollowups } from "./StepFollowups";
+import { followupPayload, useFollowupSync } from "./useFollowupSync";
 import { AudiencePreviewPanel } from "./AudiencePreviewPanel";
 import { StepAudience } from "./StepAudience";
 import { StepContent, type ContentValue } from "./StepContent";
@@ -62,7 +79,7 @@ import { StepTemplate } from "./StepTemplate";
 import { useAutosave } from "./useAutosave";
 import s from "../campaigns.module.css";
 
-type Form = ContentValue & { templateId: string | null; audience: AudienceState; schedule: ScheduleState };
+type Form = ContentValue & { templateId: string | null; audience: AudienceState; schedule: ScheduleState; followups: FollowupDraft[] };
 
 const EMPTY: Form = {
   name: "",
@@ -73,6 +90,7 @@ const EMPTY: Form = {
   brief: "",
   audience: DEFAULT_AUDIENCE,
   schedule: { when: "now", at: "", repeat: "", until: "" },
+  followups: [],
 };
 
 const EDITABLE = new Set(["draft", "scheduled", "paused", "failed"]);
@@ -107,6 +125,7 @@ function formFromCampaign(c: Campaign, copy: boolean): Form {
       !copy && c.status === "scheduled" && Number.isFinite(at)
         ? { when: "schedule", at: toIstInput(at), repeat: c.repeat_rule ?? "", until: c.repeat_until ? toIstInput(Date.parse(c.repeat_until)).slice(0, 10) : "" }
         : EMPTY.schedule,
+    followups: [],
   };
 }
 
@@ -131,9 +150,17 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
   const [confirmLaunch, setConfirmLaunch] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [launching, setLaunching] = useState(false);
+  const [sampleOk, setSampleOk] = useState(false);
 
   const templates = useMemo(() => templatesQ.data ?? [], [templatesQ.data]);
-  const tpl = useMemo(() => templates.find((t) => t.id === form.templateId) ?? null, [templates, form.templateId]);
+  // Only marketing templates can be sent as a campaign (an old draft pointing
+  // at an internal or customer-service template has to pick again).
+  const tpl = useMemo(
+    () => campaignTemplates(templates).find((t) => t.id === form.templateId) ?? null,
+    [templates, form.templateId],
+  );
+
+  const fuTemplates = useMemo(() => followupTemplates(templates), [templates]);
 
   /* ---------- audience + live preview ---------- */
   const filter = useMemo(() => buildAudienceFilter(form.audience), [form.audience]);
@@ -182,11 +209,38 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
     window.history.replaceState(null, "", `/dashboard/whatsapp/campaigns/${c.id}/edit`);
   }, []);
   const autosave = useAutosave({ initialId: editId ?? null, payload, enabled: ready && editable && !launching, onCreated });
+  const onFollowupSaved = useCallback((key: string, id: string) => {
+    setForm((f) => ({ ...f, followups: f.followups.map((d) => (d.key === key ? { ...d, id } : d)) }));
+  }, []);
+  // Exact copies of the main message or an earlier follow-up: warned at once,
+  // never sent to the server (it would refuse them).
+  const dupWarnings = useMemo(
+    () =>
+      duplicateWarnings(
+        tpl ? { template_id: tpl.id, template_vars: buildTemplateVars(form.vars, form.ai, form.brief, tpl), header_media_url: form.mediaUrl } : null,
+        form.followups.map((d) => {
+          const ft = fuTemplates.find((t) => t.id === d.templateId) ?? null;
+          return { key: d.key, msg: { template_id: ft?.id ?? null, template_vars: buildTemplateVars(d.vars, false, "", ft), header_media_url: d.mediaUrl } };
+        }),
+        (id) => fuTemplates.find((t) => t.id === id)?.header_media_url ?? null,
+      ),
+    [tpl, form.vars, form.ai, form.brief, form.mediaUrl, form.followups, fuTemplates],
+  );
+  const dupKeys = useMemo(() => new Set(Object.keys(dupWarnings)), [dupWarnings]);
+  const fuSync = useFollowupSync({
+    skip: dupKeys,
+    parentId: campaignId,
+    parentName: form.name,
+    drafts: form.followups,
+    templates: fuTemplates,
+    enabled: ready && editable && !launching,
+    onSaved: onFollowupSaved,
+  });
 
   /* ---------- initialise from URL / existing campaign ---------- */
   useEffect(() => {
     if (ready || !templatesQ.isFetched) return;
-    if (sourceId && !sourceQ.data) return;
+    if (sourceId && (!sourceQ.data || !campaignsQ.isFetched)) return;
     let next: Form = { ...EMPTY };
     let startStep = 0;
     if (sourceQ.data) {
@@ -195,7 +249,7 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
       startStep = next.templateId ? 1 : 0;
     }
     const tId = params.get("template");
-    const t = tId ? templates.find((x) => x.id === tId) : null;
+    const t = tId ? campaignTemplates(templates).find((x) => x.id === tId) : null;
     if (t) {
       next = { ...next, templateId: t.id, vars: initialVars(t), mediaUrl: null };
       startStep = 1;
@@ -212,6 +266,26 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
         audience: { ...DEFAULT_AUDIENCE, mode: "retarget", retargetCampaignId: rt, retargetStage: stage },
       };
     }
+    // Direct follow-ups come along: as they are when editing, as new copies
+    // when duplicating. Deeper ones are managed on the campaign page.
+    if (sourceQ.data) {
+      const kids = (campaignsQ.data ?? [])
+        .filter((c) => c.followup_of === sourceQ.data!.id && !["cancelled", "failed"].includes(c.status))
+        .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))
+        .slice(0, editId ? undefined : 3);
+      const drafts = kids.map((c) => draftFromCampaign(c, !editId));
+      next = { ...next, followups: drafts };
+      if (editId) {
+        const parentName = next.name.trim() || "Untitled campaign";
+        fuSync.setBaseline(
+          kids.map((c, i) => ({
+            key: drafts[i].key,
+            id: c.id,
+            body: followupPayload(drafts[i], i, parentName, fuTemplates.find((x) => x.id === c.template_id) ?? null),
+          })),
+        );
+      }
+    }
     setForm(next);
     if (editId) {
       autosave.setBaseline(makePayload(next, templates.find((x) => x.id === next.templateId) ?? null, undefined));
@@ -220,13 +294,14 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
     setMaxStep(editId ? STEPS.length - 1 : startStep);
     setReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, templatesQ.isFetched, sourceQ.data, sourceId]);
+  }, [ready, templatesQ.isFetched, sourceQ.data, sourceId, campaignsQ.isFetched]);
 
   /* ---------- per-step problems ---------- */
   const content = contentProblems(tpl, form.vars, { mediaUrl: form.mediaUrl, ai: form.ai, brief: form.brief, name: form.name });
   const schedProblems = scheduleProblems(form.schedule);
+  const sampleFields = samplesUsed(tpl, form.ai ? {} : form.vars);
   const stepProblems: string[][] = [
-    tpl ? [] : [form.templateId ? "That template isn't approved any more. Pick another one." : "Pick a template to continue."],
+    tpl ? [] : [form.templateId ? "That message can't be used for a campaign any more (not approved, or not a marketing template). Pick another one." : "Pick a message to continue."],
     content.map((p) => p.message),
     [
       ...audProblems,
@@ -243,7 +318,16 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
                 : []),
     ],
     schedProblems,
-    risky && !typedCountMatches(typed, people ?? -1) ? [`Type ${fmtInt(people ?? 0)} to confirm this risky audience.`] : [],
+    form.followups.flatMap((d, i) =>
+      [
+        ...followupProblems(d, fuTemplates.find((t) => t.id === d.templateId) ?? null, tpl).map((p) => p.message),
+        ...(dupWarnings[d.key] ? [dupWarnings[d.key]] : []),
+      ].map((m) => `Follow-up ${i + 1}: ${m}`),
+    ),
+    [
+      ...(risky && !typedCountMatches(typed, people ?? -1) ? [`Type ${fmtInt(people ?? 0)} to confirm this risky audience.`] : []),
+      ...(sampleFields.length && !sampleOk ? ["Some blanks still have Meta's example text. Change them in step 2, or tick \"Yes, send this exact text\"."] : []),
+    ],
   ];
   const firstBlocked = stepProblems.findIndex((p) => p.length > 0);
 
@@ -272,6 +356,7 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
 
   function pickTemplate(t: CampaignTemplate) {
     setForm((f) => (f.templateId === t.id ? f : { ...f, templateId: t.id, vars: initialVars(t), mediaUrl: null }));
+    setSampleOk(false);
     setStep(1);
     setMaxStep((m) => Math.max(m, 1));
     setShowErrors(false);
@@ -282,11 +367,13 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
     if (saveFirst) {
       try {
         await autosave.saveNow();
+        await fuSync.flush();
       } catch {
         return; // error shows in the footer; stay on the page
       }
     }
     autosave.stop();
+    fuSync.stop();
     router.push(campaignId && status !== "draft" ? campaignHref(campaignId) : BACK_HREF);
   }
 
@@ -306,6 +393,10 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
       if (!sameFilter(filter, saved.audience_filter)) {
         throw new Error("The server changed who this goes to, so nothing was sent. Pick another audience or tell the owner.");
       }
+      // Follow-ups are saved (as drafts) before the parent goes out, so the
+      // launch arms them together.
+      await fuSync.flush(id);
+      fuSync.stop();
       autosave.stop();
       if (form.schedule.when === "schedule") {
         const at = parseIstInput(form.schedule.at)!;
@@ -342,7 +433,7 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
   const title = editId ? `Edit: ${form.name || "campaign"}` : "New WhatsApp campaign";
   const header = (
     <PageHeader
-      crumb={<>Marketing · <Link href={BACK_HREF}>WhatsApp campaigns</Link></>}
+      crumb={<>Marketing · <Link href={BACK_HREF}>WhatsApp marketing</Link></>}
       title={title}
       actions={
         <button type="button" className="pm2-btn sm" onClick={() => (autosave.dirty ? setConfirmLeave(true) : leave(false))}>
@@ -358,6 +449,22 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
       <>
         {header}
         <div className="pm2-body">{err ? <Callout tone="crit" title="Couldn't open the campaign" body={errorMessage(err)} /> : <div className="pm2-skel" />}</div>
+      </>
+    );
+  }
+
+  if (editId && sourceQ.data?.followup_of) {
+    return (
+      <>
+        {header}
+        <div className="pm2-body">
+          <Callout
+            tone="plain"
+            title="This is a follow-up"
+            body="Follow-ups are changed from the Journey card on the campaign page: the wait, who gets it, and the message."
+            action={<Link className="pm2-btn sm pri" href={campaignHref(editId)}>Open the journey</Link>}
+          />
+        </div>
       </>
     );
   }
@@ -383,8 +490,40 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
   const testDraft = tpl
     ? { template_id: tpl.id, template_vars: buildTemplateVars(form.vars, form.ai, form.brief, tpl), header_media_url: form.mediaUrl, name: form.name.trim() || "test" }
     : null;
-  const saveText =
-    autosave.state === "saving" ? "Saving…" : autosave.state === "error" ? `Not saved: ${autosave.error}` : campaignId ? (autosave.dirty ? "Unsaved changes" : "Draft saved") : "";
+  const saving = autosave.state === "saving" || fuSync.state === "saving";
+  // Which follow-ups didn't save: refused by the server, or held back here
+  // because they copy an earlier message.
+  const unsavedNums = form.followups
+    .map((d, i) => (fuSync.errors[d.key] || (campaignId && dupWarnings[d.key]) ? i + 1 : 0))
+    .filter(Boolean);
+  const saveError =
+    autosave.state === "error"
+      ? `Not saved: ${autosave.error}`
+      : fuSync.error
+        ? `Not saved: follow-ups: ${fuSync.error}`
+        : unsavedNums.length
+          ? `${unsavedNums.length === 1 ? "Follow-up" : "Follow-ups"} ${unsavedNums.join(", ")} not saved`
+          : null;
+  const saveText = saving
+    ? "Saving…"
+    : saveError
+      ? saveError
+      : campaignId
+        ? autosave.dirty || fuSync.dirty
+          ? "Unsaved changes"
+          : "Draft saved"
+        : "";
+  const whenText =
+    form.schedule.when === "now"
+      ? startMs > Date.now() + 60_000
+        ? `Right after you launch, first messages ${fmtIst(startMs)}`
+        : "Right after you launch"
+      : `${fmtIst(startMs)} India time`;
+  const fuName = (id: string | null) => {
+    const t = fuTemplates.find((x) => x.id === id);
+    return t ? friendlyTemplateName(t.name) : null;
+  };
+  const followupSentences = form.followups.map((d) => followupRuleSentence({ hours: draftHours(d), stage: d.stage, templateName: fuName(d.templateId) }));
 
   return (
     <>
@@ -411,12 +550,14 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
 
         <div className={s.wizard}>
           <div className={s.stack}>
-            {stepKey === "template" && <StepTemplate value={form.templateId} onPick={pickTemplate} />}
+            {stepKey === "template" && <StepTemplate value={form.templateId} onPick={pickTemplate} step={step + 1} total={STEPS.length} />}
             {stepKey === "content" && tpl && (
-              <StepContent tpl={tpl} value={form} onChange={(p) => setForm((f) => ({ ...f, ...p }))} problems={content} showErrors={showErrors} />
+              <StepContent step={step + 1} total={STEPS.length} tpl={tpl} value={form} onChange={(p) => setForm((f) => ({ ...f, ...p }))} problems={content} showErrors={showErrors} />
             )}
             {stepKey === "audience" && (
               <StepAudience
+                step={step + 1}
+                total={STEPS.length}
                 value={form.audience}
                 onChange={(p) => setForm((f) => ({ ...f, audience: { ...f.audience, ...p } }))}
                 problems={audProblems}
@@ -426,6 +567,8 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
             )}
             {stepKey === "schedule" && (
               <StepSchedule
+                step={step + 1}
+                total={STEPS.length}
                 value={form.schedule}
                 onChange={(p) => setForm((f) => ({ ...f, schedule: { ...f.schedule, ...p } }))}
                 problems={schedProblems}
@@ -433,8 +576,29 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
                 pace={{ ...pace, people }}
               />
             )}
+            {stepKey === "followups" && (
+              <StepFollowups
+                step={step + 1}
+                total={STEPS.length}
+                value={form.followups}
+                onChange={(followups) => setForm((f) => ({ ...f, followups }))}
+                templates={fuTemplates}
+                parentTpl={tpl}
+                parentName={form.name.trim() || "Untitled campaign"}
+                whenText={whenText}
+                problemsFor={(d) => followupProblems(d, fuTemplates.find((t) => t.id === d.templateId) ?? null, tpl)}
+                warnings={dupWarnings}
+                saveErrors={fuSync.errors}
+                showErrors={showErrors}
+              />
+            )}
             {stepKey === "review" && tpl && (
               <StepReview
+                step={step + 1}
+                total={STEPS.length}
+                sampleFields={sampleFields}
+                sampleOk={sampleOk}
+                onSampleOk={setSampleOk}
                 name={form.name.trim() || "Untitled campaign"}
                 tpl={tpl}
                 vars={form.vars}
@@ -452,10 +616,11 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
                 testDraft={testDraft}
                 testDisabled={content.length ? "Finish the message step first." : null}
                 pace={pace}
+                followupSentences={followupSentences}
               />
             )}
 
-            {showErrors && stepProblems[step].length > 0 && stepKey !== "audience" && stepKey !== "schedule" && stepKey !== "content" && (
+            {showErrors && stepProblems[step].length > 0 && stepKey !== "audience" && stepKey !== "schedule" && stepKey !== "content" && stepKey !== "followups" && (
               <div className={s.err} role="alert">{stepProblems[step].map((p) => <div key={p}>{p}</div>)}</div>
             )}
             {showErrors && stepKey === "audience" && stepProblems[2].length > audProblems.length && (
@@ -473,7 +638,7 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
               </div>
               {stepKey !== "review" ? (
                 <button type="button" className="pm2-btn pri" onClick={next} disabled={stepKey === "template" && !tpl}>
-                  Next: {STEPS[step + 1].label} <ArrowRight size={14} aria-hidden />
+                  {STEPS[step + 1].next} <ArrowRight size={14} aria-hidden />
                 </button>
               ) : (
                 <button
@@ -496,7 +661,7 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
           </div>
 
           <aside className={s.side} aria-label="Preview">
-            {stepKey !== "review" && <CampaignPreview tpl={tpl} vars={form.vars} mediaUrl={form.mediaUrl} />}
+            {stepKey !== "review" && stepKey !== "followups" && <CampaignPreview tpl={tpl} vars={form.vars} mediaUrl={form.mediaUrl} />}
             {step >= 2 && (
               <section className="pm2-panel">
                 <div className="pm2-p-head"><h3>Who gets it</h3></div>
@@ -521,7 +686,12 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
           title={form.schedule.when === "schedule" ? `Schedule for ${fmtInt(people ?? 0)} people?` : `Send to ${fmtInt(people ?? 0)} people now?`}
           body={
             <>
-              <b>{form.name.trim() || "Untitled campaign"}</b> with template <b>{tpl?.name}</b> goes to {describeAudience(form.audience, campaignName).toLowerCase()}.
+              <b>{form.name.trim() || "Untitled campaign"}</b>{" "}with the message <b>{tpl ? friendlyTemplateName(tpl.name) : ""}</b> goes to {describeAudience(form.audience, campaignName).toLowerCase()}.
+              {form.followups.length > 0 && (
+                <>
+                  {" "}Plus {form.followups.length === 1 ? "1 follow-up" : `${form.followups.length} follow-ups`}, which go out later by themselves to the people they fit.
+                </>
+              )}
               {" "}Meta charges for each delivered message. You can pause or cancel it any time from its page.
             </>
           }

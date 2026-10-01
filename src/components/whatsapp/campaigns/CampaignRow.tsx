@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { Clock, Repeat } from "lucide-react";
 import type { Campaign } from "../types";
+import { friendlyTemplateName } from "@/lib/whatsapp/templateKind";
 import { useFailures } from "./api";
 import { StatusPill, TemplateThumb } from "./bits";
+import { followupShortLabel } from "./journey";
 import { fmtInt, fmtIst, fmtPct, pct, progressOf, type CampaignAction } from "./logic";
 import { ActionButtons, campaignHref } from "./useCampaignActions";
 import s from "./campaigns.module.css";
@@ -41,10 +43,12 @@ export function CampaignRow({
           <Link href={campaignHref(c.id)} className={s.rowTitle}>
             {c.name}
           </Link>
+          {c.followup_of && <div className={s.fuTag}>{followupShortLabel(c.followup_after_hours, c.followup_stage)}</div>}
           <div className={s.rowSub}>
-            <StatusPill status={c.status} />
-            <span>{c.template?.name ?? "No template"}</span>
+            <StatusPill status={c.status} followup={!!c.followup_of} />
+            <span>{c.template?.name ? friendlyTemplateName(c.template.name) : "No message picked yet"}</span>
           </div>
+          {c.followup_of && c.status === "draft" && <div className={s.rowSub}>Turns on when the first message is launched</div>}
           {c.status === "scheduled" && c.scheduled_at && (
             <div className={s.rowSub}>
               <Clock size={12} aria-hidden /> Starts {fmtIst(c.scheduled_at)}
@@ -63,12 +67,19 @@ export function CampaignRow({
         </div>
       </div>
 
+      <div className={s.rowStats}>
       <div className={s.progress}>
         <div className={s.track} aria-hidden>
           <div className={s.fill} style={{ width: `${prog.percent ?? 0}%` }} />
         </div>
         <div className={s.progressText}>
-          {prog.total != null ? `${fmtInt(prog.reached)} of ${fmtInt(prog.total)} reached` : sent ? `${fmtInt(sent)} reached` : "Not started"}
+          {prog.total != null
+            ? `${fmtInt(prog.reached)} of ${fmtInt(prog.total)} reached`
+            : sent
+              ? `${fmtInt(sent)} reached`
+              : c.followup_of && c.status === "scheduled"
+                ? "Waiting for people to reach their time"
+                : "Not started"}
         </div>
       </div>
 
@@ -91,8 +102,9 @@ export function CampaignRow({
         </div>
         <div className={s.metric} title="Meta's limit on marketing messages per person. Not a fault; retried later.">
           <b>{held == null ? "…" : fmtInt(held)}</b>
-          <span>Held by Meta</span>
+          <span>Held back by Meta</span>
         </div>
+      </div>
       </div>
 
       <div className={s.rowActions}>

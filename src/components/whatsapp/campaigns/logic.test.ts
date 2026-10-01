@@ -8,6 +8,7 @@ import {
   breakdownRows,
   buildAudienceFilter,
   buildTemplateVars,
+  campaignTemplates,
   contentProblems,
   csvContacts,
   effectiveStart,
@@ -17,12 +18,14 @@ import {
   initialVars,
   isColdAudience,
   listTagFor,
+  looksLikeNameBlank,
   matchesListFilter,
   normalizeTestNumber,
   pacing,
   parseCsv,
   parseIstInput,
   rememberNumber,
+  samplesUsed,
   sameFilter,
   scheduleProblems,
   sortTemplatesForGallery,
@@ -150,7 +153,41 @@ describe("template content", () => {
   it("turns template blanks into friendly fields with samples", () => {
     const f = templateFields(tpl());
     expect(f.map((x) => x.key)).toEqual(["1", "2", "_button_0"]);
-    expect(initialVars(tpl())).toEqual({ "1": "Priya", "2": "15%", _button_0: "https://promunch.in/collections/all" });
+    // Name blanks start as {name}; every other blank starts empty (sample is only a placeholder).
+    expect(initialVars(tpl())).toEqual({ "1": "{name}", "2": "", _button_0: "" });
+    expect(f[1].placeholder).toBe("e.g. 15%");
+    expect(f[1].label).toBe("Blank 2 in the message");
+    expect(f[1].blankLabel).toBeUndefined();
+  });
+
+  it("uses the label the marketer gave the blank in the template creator", () => {
+    const f = templateFields(tpl({ variables: [{ name: "1", sample: "Priya", label: "First name" }, { name: "2", sample: "15%", label: "Offer details" }] }));
+    expect(f[1].label).toBe("Blank 2: Offer details");
+    expect(f[1].blankLabel).toBe("Offer details");
+  });
+
+  it("spots name blanks from a capitalised sample or a greeting", () => {
+    expect(looksLikeNameBlank("Hi {{1}}, get {{2}} off", "1", "")).toBe(true);
+    expect(looksLikeNameBlank("Dear {{1}}", "1", "friend")).toBe(true);
+    expect(looksLikeNameBlank("Running low, {{1}}?", "1", "Aarav")).toBe(true);
+    expect(looksLikeNameBlank("Hi {{1}}, get {{2}} off", "2", "15%")).toBe(false);
+    expect(looksLikeNameBlank("Use code {{1}}", "1", "DIWALI15")).toBe(false);
+  });
+
+  it("flags values that are exactly Meta's sample", () => {
+    expect(samplesUsed(tpl(), { "1": "Priya", "2": "15%" }).map((f) => f.key)).toEqual(["1", "2"]);
+    expect(samplesUsed(tpl(), { "1": "{name}", "2": "20%" })).toEqual([]);
+    expect(samplesUsed(null, {})).toEqual([]);
+  });
+
+  it("keeps internal and customer-service templates out of campaigns", () => {
+    const list = [
+      { name: "diwali_offer", category: "MARKETING" },
+      { name: "order_confirmation_v2", category: "UTILITY" },
+      { name: "ops_ticket_alert", category: "MARKETING" },
+      { name: "shipping_note", category: "UTILITY" },
+    ];
+    expect(campaignTemplates(list).map((t) => t.name)).toEqual(["diwali_offer"]);
   });
 
   it("uses one tracked-link field for short-link buttons and a title field for text headers", () => {
@@ -165,7 +202,7 @@ describe("template content", () => {
       ],
     });
     expect(templateFields(t).map((x) => x.key)).toEqual(["_header_1", "1", "2", "_track_url"]);
-    expect(initialVars(t)._header_1).toBe("friend");
+    expect(initialVars(t)._header_1).toBe("{name}");
   });
 
   it("reports missing values in plain English", () => {
@@ -181,7 +218,7 @@ describe("template content", () => {
 
   it("needs media for a media header and catches the wrong kind of file", () => {
     const noMedia = tpl({ header_media_url: null });
-    const vars = initialVars(tpl());
+    const vars = { ...initialVars(tpl()), "2": "20%" };
     expect(contentProblems(noMedia, vars, { mediaUrl: null, ai: false, brief: "", name: "x" }).map((x) => x.field)).toEqual(["media"]);
     const wrong = contentProblems(tpl(), vars, { mediaUrl: "https://cdn.example.com/v.mp4", ai: false, brief: "", name: "x" });
     expect(wrong[0].message).toMatch(/video but this template needs a image/);

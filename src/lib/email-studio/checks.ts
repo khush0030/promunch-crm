@@ -27,12 +27,13 @@ function blockCopy(b: Block): string[] {
   }
 }
 
-function copyIssues(label: string, text: string, blockId?: string): Issue[] {
+export function copyIssues(label: string, text: string, blockId?: string): Issue[] {
   const out: Issue[] = [];
   if (/[—–]/.test(text)) out.push({ level: "block", message: `${label}: remove the dash (— or –). Use a comma, full stop or "to".`, blockId });
   if (/oltaflock/i.test(text)) out.push({ level: "block", message: `${label}: never mention Oltaflock in PROMUNCH copy.`, blockId });
-  // "promunch" in copy must be all caps. Ignore it inside a domain (promunch.in).
-  const bad = text.match(/\bpromunch\b(?!\.in)/gi)?.filter((m) => m !== "PROMUNCH");
+  // "promunch" in copy must be all caps. Ignore technical identifiers: domains
+  // (promunch.in), handles (@promunch.snacks) and emails (hello@promunch.in).
+  const bad = text.match(/(?<![@\w.])promunch\b(?!\.[a-z])/gi)?.filter((m) => m !== "PROMUNCH");
   if (bad && bad.length) out.push({ level: "block", message: `${label}: write the brand as PROMUNCH (all caps).`, blockId });
   return out;
 }

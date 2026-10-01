@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { parseBody } from "@/lib/api-helpers";
-import { etaDays, normalizeAudienceFilter } from "@/lib/wa-campaigns";
+import {
+  etaDays,
+  followupAudienceFilter,
+  needsFollowupSql,
+  normalizeAudienceFilter,
+  parseFollowupInput,
+} from "@/lib/wa-campaigns";
 import { warmAudienceError } from "@/lib/wa-warm-guard";
+import { followupSqlError } from "@/lib/wa-campaign-journeys";
 import { GET as quotaGet } from "../../quota/route";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +18,8 @@ export const dynamic = "force-dynamic";
 //   { audience_filter, campaign_id? }
 //   -> { counts: { total_matched, excluded_suppressed, already_reached,
 //                  excluded_ticket, excluded_cart, excluded_governor,
-//                  excluded_daily_claim, eligible_total, eligible },
+//                  excluded_daily_claim, eligible_total, eligible,
+//                  waiting_for_time, next_eligible_at },
 //        budget: { limit, used24h, remaining_today, non_campaign_24h },
 //        eta_days }
 //
@@ -22,11 +30,31 @@ export const dynamic = "force-dynamic";
 // frequency limit, already messaged by another campaign today), who are sent
 // to later, not dropped. The ETA uses eligible_total against the real daily
 // budget left after utility/journey traffic.
+//
+// Follow-up preview: send { followup_of, followup_after_hours, followup_stage }
+// (all three) instead of audience_filter; the filter is built exactly as the
+// follow-up will store it. waiting_for_time = people the parent reached whose
+// delay has not passed yet (they become eligible later); next_eligible_at =
+// the earliest of those moments. Both are 0 / null for other audiences.
 export async function POST(req: NextRequest) {
-  const body = await parseBody<{ audience_filter?: unknown; campaign_id?: string | null }>(req);
+  const body = await parseBody<{
+    audience_filter?: unknown;
+    campaign_id?: string | null;
+    followup_of?: string | null;
+    followup_after_hours?: number | null;
+    followup_stage?: string | null;
+  }>(req);
   if (!body) return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
-  const aud = normalizeAudienceFilter(body.audience_filter ?? {});
+  const fu = parseFollowupInput(body as Record<string, unknown>);
+  if (!fu.ok) return NextResponse.json({ error: fu.error }, { status: 400 });
+  const aud = fu.followup
+    ? { ok: true as const, filter: followupAudienceFilter(fu.followup) }
+    : normalizeAudienceFilter(body.audience_filter ?? {});
   if (!aud.ok) return NextResponse.json({ error: aud.error }, { status: 400 });
+  if (needsFollowupSql(aud.filter)) {
+    const sqlErr = await followupSqlError();
+    if (sqlErr) return NextResponse.json({ error: sqlErr }, { status: 409 });
+  }
   const warmErr = await warmAudienceError(aud.filter);
   if (warmErr) return NextResponse.json({ error: warmErr }, { status: 409 });
 

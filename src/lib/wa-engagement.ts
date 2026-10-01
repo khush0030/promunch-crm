@@ -154,3 +154,8 @@ export function audienceWarning(
 // record the new wording; existing records keep the wording they agreed to.
 export const POPUP_CONSENT_TEXT =
   "By joining you agree to receive WhatsApp updates from PROMUNCH. Reply STOP anytime to leave.";
+
+// Shown when the popup also asks for an email. Covers both channels in one
+// sentence, and is stored verbatim on both the WhatsApp and the email opt-in.
+export const POPUP_EMAIL_CONSENT_TEXT =
+  "By joining you agree to receive WhatsApp updates and emails from PROMUNCH. Reply STOP or unsubscribe anytime.";

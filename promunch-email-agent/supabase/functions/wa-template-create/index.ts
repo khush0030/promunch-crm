@@ -32,6 +32,11 @@
 //                            20260929110000_wa_templates_v2.sql)
 //   { waba?: "..." }       — optional explicit WABA id (else secret/discovery)
 //
+// Blank labels: the dashboard may send template.body_labels (one per body
+// blank, "" = none). They are stored as wa_templates.variables[i].label and
+// kept across edit and sync (Meta never sees them); see
+// _shared/template-variables.ts.
+//
 // Dashboard templates are re-validated server-side with the same rules the
 // builder uses (_shared/template-rules.ts, twin of the app's
 // src/lib/whatsapp/template-rules-core.ts). Failures return
@@ -49,6 +54,7 @@ import { requireInternal } from "../_shared/require-internal.ts";
 import { uploadResumable, fetchMediaBytes } from "../_shared/whatsapp.ts";
 import { intentLabel, quickRepliesFor } from "../_shared/quick-replies.ts";
 import { finalFooter, validateCore, type CoreIssue } from "../_shared/template-rules.ts";
+import { buildVariables, incomingLabels, storedLabels } from "../_shared/template-variables.ts";
 
 type HeaderFormat = "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT";
 
@@ -87,6 +93,10 @@ interface TemplateDef {
   button?: { text: string; url: string; example?: string };
   // optional typed button set from the dashboard builder (up to 10).
   buttons?: TplButton[];
+  // Dashboard-only names for the body blanks ({"1":"First name"}); never sent
+  // to Meta, stored as variables[i].label. Undefined = the caller sent none
+  // (older dashboard build), so existing stored labels are kept.
+  bodyLabels?: Record<string, string>;
 }
 
 type MetaErr = {
@@ -483,7 +493,9 @@ Deno.serve(async (req) => {
         body: def.body,
         footer: def.footer ?? null,
         buttons: def.buttons ?? null,
-        variables: def.bodyExample.map((sample, i) => ({ name: String(i + 1), sample })),
+        // Labels the marketer gave the blanks; keep the stored ones when this
+        // request carried none (older dashboard build).
+        variables: buildVariables(def.bodyExample, def.bodyLabels ?? {}, def.bodyLabels ? {} : storedLabels(row.variables)),
         header_samples: def.headerExample?.length ? def.headerExample : null,
         rejection_reason: null,
         rejected_reason_detail: null,
@@ -509,7 +521,7 @@ Deno.serve(async (req) => {
     for (const def of editDefs) {
       const { data: row } = await sb
         .from("wa_templates")
-        .select("meta_template_id")
+        .select("meta_template_id, variables")
         .eq("name", def.name).eq("language", def.language)
         .maybeSingle();
       const id = row?.meta_template_id;
@@ -524,7 +536,7 @@ Deno.serve(async (req) => {
           status: "pending",
           body: def.body,
           footer: def.footer ?? null,
-          variables: def.bodyExample.map((sample, i) => ({ name: String(i + 1), sample })),
+          variables: buildVariables(def.bodyExample, {}, storedLabels(row?.variables)),
           rejection_reason: null,
         }).eq("name", def.name).eq("language", def.language);
       }
@@ -602,6 +614,11 @@ Deno.serve(async (req) => {
 
     // Mirror Meta's response into the local registry.
     if (created.ok) {
+      // A local draft of the same name may already hold blank labels; keep
+      // them unless this request carried its own.
+      const { data: prior } = def.bodyLabels
+        ? { data: null }
+        : await sb.from("wa_templates").select("variables").eq("name", def.name).eq("language", def.language).maybeSingle();
       // Keep the CRM-only 'offer' bucket if the dashboard sent it.
       const incomingCat = b?.template ? String((b.template as Record<string, unknown>).category ?? "").toLowerCase() : "";
       await writeTolerant((r) => sb.from("wa_templates").upsert(r, { onConflict: "name,language" }), {
@@ -616,7 +633,7 @@ Deno.serve(async (req) => {
         body: def.body,
         footer: def.footer ?? null,
         buttons: def.buttons ?? (def.button ? [{ type: "URL", ...def.button }] : null),
-        variables: def.bodyExample.map((sample, i) => ({ name: String(i + 1), sample })),
+        variables: buildVariables(def.bodyExample, def.bodyLabels ?? {}, storedLabels(prior?.variables)),
         header_samples: def.headerExample?.length ? def.headerExample : null,
         rejection_reason: null,
         rejected_reason_detail: null,
@@ -716,6 +733,7 @@ function normalizeIncoming(t: Record<string, unknown>): TemplateDef {
     bodyExample: bodyExample.slice(0, bodyVars),
     headerExample: headerExample.slice(0, headerVars),
     buttons,
+    bodyLabels: t.body_labels === undefined ? undefined : incomingLabels(t.body_labels),
   };
 }
 
@@ -1091,7 +1109,9 @@ async function syncFromMeta(
     // Meta's approved example values: keep samples in step for edits.
     const bodyEx = bodyC?.example?.body_text?.[0];
     if (Array.isArray(bodyEx) && bodyEx.length) {
-      row.variables = bodyEx.map((sample: unknown, i: number) => ({ name: String(i + 1), sample: String(sample ?? "") }));
+      // Meta knows nothing of blank labels: keep the ones we already store
+      // (merged by blank number) instead of wiping them every sync.
+      row.variables = buildVariables(bodyEx, {}, storedLabels(existing?.variables));
     }
     const headerEx = headerC?.example?.header_text;
     if (Array.isArray(headerEx) && headerEx.length) row.header_samples = headerEx.map(String);

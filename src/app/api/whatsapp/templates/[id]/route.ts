@@ -3,6 +3,9 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { recordAudit } from "@/lib/audit";
 import { parseBody } from "@/lib/api-helpers";
 import { callTemplateFn } from "@/lib/whatsapp/template-edge";
+import { templateChangeRefusal } from "@/lib/whatsapp/template-access";
+import { getCaller } from "@/lib/rbac-server";
+import { isAdminUser } from "@/lib/rbac";
 
 // Only fields the dashboard template editor edits — a raw passthrough would
 // let any caller flip Meta-owned columns. Meta owns the real template status
@@ -22,6 +25,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "no editable fields in body" }, { status: 400 });
   }
+  // Automatic (utility) messages: Owner/Admin only. Team alerts: nobody.
+  const { data: current, error: readErr } = await supabaseAdmin
+    .from("wa_templates").select("name, category").eq("id", id).maybeSingle();
+  if (readErr) return NextResponse.json({ error: readErr.message }, { status: 500 });
+  if (!current) return NextResponse.json({ error: "Template not found." }, { status: 404 });
+  const incoming = { name: String(patch.name ?? current.name), category: (patch.category as string | undefined) ?? current.category };
+  const refusal = templateChangeRefusal([current, incoming], isAdminUser(await getCaller()));
+  if (refusal) return NextResponse.json({ error: refusal }, { status: 403 });
   const { data, error } = await supabaseAdmin
     .from("wa_templates")
     .update(patch)
@@ -39,9 +50,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const { data: row, error: readErr } = await supabaseAdmin
-    .from("wa_templates").select("id, name, language, meta_template_id").eq("id", id).maybeSingle();
+    .from("wa_templates").select("id, name, language, category, meta_template_id").eq("id", id).maybeSingle();
   if (readErr) return NextResponse.json({ ok: false, error: readErr.message }, { status: 500 });
   if (!row) return NextResponse.json({ ok: false, error: "Template not found." }, { status: 404 });
+  const refusal = templateChangeRefusal([row], isAdminUser(await getCaller()));
+  if (refusal) return NextResponse.json({ ok: false, error: refusal }, { status: 403 });
 
   if (row.meta_template_id) {
     const { status, data } = await callTemplateFn({ action: "delete", name: row.name, language: row.language });

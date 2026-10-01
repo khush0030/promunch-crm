@@ -78,10 +78,25 @@ export async function loadStoreCatalog(fetchImpl: typeof fetch = fetch): Promise
   return map;
 }
 
-/** Reorder link for the product they bought (refill emails); Best Sellers when unknown. */
-export function reorderUrl(product: ReviewProduct | null, stepIndex: number): string {
-  const utm = `utm_source=email&utm_medium=flow&utm_campaign=replenishment&utm_content=email_${stepIndex + 1}`;
-  return product ? `${product.url}?${utm}` : `${STORE}/collections/best-sellers?${utm}`;
+/**
+ * Refill link, best first: the one-tap cart permalink of the same paid
+ * variants (order-confirmation stores it as context.reorder_url), else the
+ * product page of what they bought, else Best Sellers. UTM-tagged.
+ */
+export function reorderUrl(product: ReviewProduct | null, stepIndex: number, cartPermalink?: unknown): string {
+  const base = typeof cartPermalink === "string" && /^https:\/\//.test(cartPermalink)
+    ? cartPermalink
+    : product ? product.url : `${STORE}/collections/best-sellers`;
+  try {
+    const u = new URL(base);
+    u.searchParams.set("utm_source", "email");
+    u.searchParams.set("utm_medium", "flow");
+    u.searchParams.set("utm_campaign", "replenishment");
+    u.searchParams.set("utm_content", `email_${stepIndex + 1}`);
+    return u.toString();
+  } catch {
+    return `${STORE}/collections/best-sellers`;
+  }
 }
 
 /** Store CDN image at an email-friendly width (Shopify resizes on the fly). */

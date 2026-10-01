@@ -5,6 +5,14 @@
 //   1. PROMOTE  — any campaign whose scheduled time has passed goes
 //                 scheduled -> sending (recurring ones spawn a child occurrence
 //                 and advance the parent).
+//   1b. ARM     — armed follow-ups (journey steps: status 'scheduled',
+//                 followup_of set, scheduled_at NULL) whose parent has started
+//                 are kicked once their resume_at has passed (or was never
+//                 set). The engine parks them again with resume_at = the next
+//                 person's time (hourly while the parent still runs), so an
+//                 idle follow-up is looked at about once an hour, not every
+//                 tick. Draft follow-ups (parent not launched) are never kicked.
+//                 A follow-up whose parent was cancelled is cancelled here.
 //   2. DRIVE    — every 'sending' campaign is kicked to send its next batch via
 //                 wa-campaign-send. We only kick a campaign that has STALLED
 //                 (no new message for STALL_MS) so we never run two batches at
@@ -43,13 +51,17 @@ Deno.serve(async (req) => {
   const log: string[] = [];
 
   // 1. PROMOTE due scheduled campaigns ---------------------------------------
+  // select * (not a column list) so this keeps working before the follow-up
+  // migration adds followup_of.
   const { data: due } = await sb
     .from("wa_campaigns")
-    .select("id,name,scheduled_at,repeat_rule,repeat_until,template_id,template_vars,audience_filter,created_by,header_media_url")
+    .select("*")
     .eq("status", "scheduled")
     .lte("scheduled_at", nowIso);
 
   for (const c of due ?? []) {
+    // A follow-up never starts on a clock; it starts from its parent (1b).
+    if (c.followup_of) continue;
     if (c.repeat_rule) {
       // Skip occurrences missed while the scheduler was down: ONE child for the
       // overdue slot, never a burst of catch-up children re-sending the same
@@ -80,6 +92,35 @@ Deno.serve(async (req) => {
         .eq("id", c.id).eq("status", "scheduled")
         .select("id").maybeSingle();
       if (claimed) { kick(c.id); log.push(`started "${c.name}"`); }
+    }
+  }
+
+  // 1b. ARMED FOLLOW-UPS ------------------------------------------------------
+  const { data: armed, error: armedErr } = await sb
+    .from("wa_campaigns")
+    .select("id,name,followup_of,resume_at")
+    .eq("status", "scheduled")
+    .not("followup_of", "is", null)
+    .limit(200);
+  if (armedErr) log.push(`armed follow-ups unreadable (migration 20260930120000 applied?): ${armedErr.message}`);
+  const armedDue = (armed ?? []).filter((c) => !c.resume_at || new Date(c.resume_at).getTime() <= now);
+  if (armedDue.length) {
+    const parentIds = Array.from(new Set(armedDue.map((c) => c.followup_of as string)));
+    const { data: parents } = await sb.from("wa_campaigns").select("id,status,started_at").in("id", parentIds);
+    const byId = new Map((parents ?? []).map((p) => [p.id as string, p]));
+    for (const c of armedDue) {
+      const p = byId.get(c.followup_of as string);
+      if (!p) continue; // unreadable or deleted: the engine decides when kicked by hand
+      if (p.status === "cancelled") {
+        await sb.from("wa_campaigns").update({
+          status: "cancelled", cancelled_at: nowIso, resume_at: null, last_error: "The campaign it follows was cancelled.",
+        }).eq("id", c.id).eq("status", "scheduled");
+        log.push(`cancelled follow-up "${c.name}" (parent cancelled)`);
+        continue;
+      }
+      if (!p.started_at) continue; // parent not launched yet: stay armed
+      kick(c.id);
+      log.push(`checked follow-up "${c.name}"`);
     }
   }
 

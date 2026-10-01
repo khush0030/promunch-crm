@@ -91,6 +91,7 @@ type Enrollment = {
   context: Record<string, unknown> | null;
   deadline_at: string | null;
   attempts: number | null;
+  entered_at: string | null;
 };
 
 export type FlowTickResult = {
@@ -108,6 +109,54 @@ function hoursFromNow(h: number): string {
   return new Date(Date.now() + h * 3_600_000).toISOString();
 }
 
+/**
+ * One flow step exactly as tick() renders it: merge tags, the bought product
+ * for review/reorder tokens, cart images, designed or plain layout, and the
+ * pm_c storefront token. Shared with the Email Studio preview and "send me a
+ * test" routes so a test is the customer email. `coupon` is the code to show
+ * (tick mints a real one; previews pass a TEST code).
+ */
+export async function renderFlowStep(
+  step: FlowStep,
+  opts: {
+    contactId: string;
+    context: Record<string, unknown> | null;
+    firstName: string | null;
+    stepIndex: number;
+    coupon?: string;
+    variant?: { subject: string; preview_text?: string };
+  },
+): Promise<{ subject: string; html: string; previewText?: string }> {
+  const first = opts.firstName;
+  const coupon = opts.coupon ?? previewCoupon(step);
+  const subjectTpl = opts.variant?.subject ?? step.subject;
+  const previewTpl = opts.variant ? opts.variant.preview_text : step.preview_text;
+  let ctx = opts.context;
+  // Review / refill emails: resolve the product they bought (public catalog,
+  // cached) for {{review_url}}, {{reorder_card}} and friends.
+  if (usesReviewTokens(step.body_html, subjectTpl, previewTpl)) {
+    const catalog = await loadStoreCatalog();
+    ctx = { ...(ctx ?? {}), review_product: pickReviewProduct(ctx, catalog) };
+  }
+  const images = /\{\{\s*cart_items\s*\}\}/.test(step.body_html) && needsImageLookup(ctx)
+    ? await loadCatalogImages().catch(() => new Map<string, string>())
+    : undefined;
+  const bodyHtml = personalize(step.body_html, ctx, first, opts.stepIndex, coupon, images, Number(step.coupon?.percent_off ?? 0));
+  const previewText = previewTpl ? personalizeSubject(previewTpl, ctx, first, coupon) : undefined;
+  const rendered = step.format === "plain"
+    ? renderPlainMarketingEmail({ unsubscribeUrl: unsubscribeUrl(opts.contactId), bodyHtml, previewText, signature: step.signature })
+    : renderMarketingEmail({ contactId: opts.contactId, bodyHtml, previewText });
+  // Storefront links carry the signed pm_c token so the pixel can identify a
+  // click-through shopper (browse abandonment). Unsubscribe is untouched.
+  const html = tokenizeStorefrontLinks(rendered, (u) => withContactToken(u, opts.contactId));
+  return { subject: personalizeSubject(subjectTpl, ctx, first, coupon), html, previewText };
+}
+
+/** Code shown in previews/tests: a fake TEST code for minted-coupon steps. */
+export function previewCoupon(step: FlowStep): string {
+  return step.coupon && Number(step.coupon.percent_off) > 0 ? `TEST-${step.coupon.prefix ?? "PM"}` : step.coupon_code ?? "";
+}
+
 async function fetchSuppressedSet(): Promise<Set<string>> {
   const set = new Set<string>();
   for (let from = 0; ; from += PAGE) {
@@ -122,6 +171,30 @@ async function fetchSuppressedSet(): Promise<Set<string>> {
     if (rows.length < PAGE) break;
   }
   return set;
+}
+
+/**
+ * Has this enrolment's buyer placed a newer, non-cancelled order since they
+ * entered? Matches on the order email or the last 10 phone digits carried in
+ * the enrolment context (order_placed enrolments store both). A failed lookup
+ * counts as "reordered": skipping one nudge is safer than a wrong one.
+ */
+export async function reorderedSince(e: Pick<Enrollment, "context" | "entered_at">): Promise<boolean> {
+  const ctx = e.context ?? {};
+  const email = String(ctx.email ?? "").trim().toLowerCase().replace(/[,()]/g, "");
+  const phone10 = String(ctx.phone10 ?? "").replace(/\D/g, "").slice(-10);
+  const ors: string[] = [];
+  if (email) ors.push(`customer_email.ilike.${email}`);
+  if (phone10.length === 10) ors.push(`customer_phone.like.*${phone10}`);
+  if (ors.length === 0 || !e.entered_at) return false;
+  const { count, error } = await supabase
+    .from("shopify_orders")
+    .select("id", { count: "exact", head: true })
+    .is("cancelled_at", null)
+    .gt("shopify_created_at", e.entered_at)
+    .or(ors.join(","));
+  if (error) return true;
+  return (count ?? 0) > 0;
 }
 
 async function setStatus(id: string, status: string, extra: Record<string, unknown> = {}) {
@@ -154,7 +227,11 @@ async function advance(e: Enrollment, steps: FlowStep[]) {
  * and by lowercased product/variant title, since the cart context written by
  * shopify-wa only carries titles today. Non-fatal: no images on error.
  */
+let catalogImagesCache: { at: number; map: ImageLookup } | null = null;
+
 async function loadCatalogImages(): Promise<ImageLookup> {
+  // Cached for a few minutes: one tick renders many cart emails.
+  if (catalogImagesCache && Date.now() - catalogImagesCache.at < 5 * 60_000) return catalogImagesCache.map;
   const map: ImageLookup = new Map();
   const { data, error } = await supabase
     .from("wa_catalog_items")
@@ -170,6 +247,7 @@ async function loadCatalogImages(): Promise<ImageLookup> {
       if (k && !map.has(k)) map.set(k, r.image_url);
     }
   }
+  catalogImagesCache = { at: Date.now(), map };
   return map;
 }
 
@@ -191,7 +269,7 @@ export async function tick(): Promise<FlowTickResult> {
 
   const { data: due, error } = await supabase
     .from("flow_enrollments")
-    .select("id, flow_id, contact_id, current_step, context, deadline_at, attempts")
+    .select("id, flow_id, contact_id, current_step, context, deadline_at, attempts, entered_at")
     .eq("status", "active")
     .lte("next_action_at", nowIso)
     .order("next_action_at", { ascending: true })
@@ -203,7 +281,7 @@ export async function tick(): Promise<FlowTickResult> {
   const flowIds = [...new Set(due.map((e) => e.flow_id))];
   const { data: flowRows } = await supabase
     .from("flows")
-    .select("id, status, steps, trigger_type")
+    .select("id, status, steps, trigger_type, trigger_config")
     .in("id", flowIds);
   const flows = new Map((flowRows ?? []).map((f) => [f.id, f]));
 
@@ -223,7 +301,6 @@ export async function tick(): Promise<FlowTickResult> {
     }
   }
 
-  let catalogImages: ImageLookup | null = null;
 
   for (const e of due as Enrollment[]) {
     res.scanned++;
@@ -245,6 +322,14 @@ export async function tick(): Promise<FlowTickResult> {
     // Deadline (e.g. abandoned cart 72h): stop trying.
     if (e.deadline_at && new Date(e.deadline_at).getTime() < Date.now()) {
       await setStatus(e.id, "exited", { last_error: "deadline passed" });
+      continue;
+    }
+
+    // Replenishment-style flows: stop once the buyer has ordered again since
+    // enrolling ("running low?" to someone who just rebought reads as spam).
+    const cfg = (flow.trigger_config ?? {}) as Record<string, unknown>;
+    if (cfg.exit_on_reorder === true && (await reorderedSince(e))) {
+      await setStatus(e.id, "exited", { last_error: "reordered" });
       continue;
     }
 
@@ -363,35 +448,14 @@ export async function tick(): Promise<FlowTickResult> {
           })
         : step.coupon_code ?? "";
 
-      if (/\{\{\s*cart_items\s*\}\}/.test(step.body_html) && needsImageLookup(e.context) && !catalogImages) {
-        catalogImages = await loadCatalogImages().catch(() => new Map<string, string>());
-      }
-      // Review emails: resolve the product they bought (public catalog,
-      // cached) so {{review_url}} lands on that product's Judge.me reviews.
-      let ctx = e.context;
-      if (usesReviewTokens(step.body_html, variant.subject, variant.preview_text)) {
-        const catalog = await loadStoreCatalog();
-        ctx = { ...(e.context ?? {}), review_product: pickReviewProduct(e.context, catalog) };
-      }
-      const bodyHtml = personalize(
-        step.body_html, ctx, first, e.current_step, coupon, catalogImages ?? undefined,
-        Number(step.coupon?.percent_off ?? 0),
-      );
-      const previewText = variant.preview_text
-        ? personalizeSubject(variant.preview_text, ctx, first, coupon)
-        : undefined;
-      const rendered = step.format === "plain"
-        ? renderPlainMarketingEmail({
-            unsubscribeUrl: unsubscribeUrl(e.contact_id),
-            bodyHtml,
-            previewText,
-            signature: step.signature,
-          })
-        : renderMarketingEmail({ contactId: e.contact_id, bodyHtml, previewText });
-      // Storefront links carry the signed pm_c token so the pixel can identify
-      // a click-through shopper (browse abandonment). Unsubscribe is untouched.
-      const html = tokenizeStorefrontLinks(rendered, (u) => withContactToken(u, e.contact_id));
-      const subject = personalizeSubject(variant.subject, ctx, first, coupon);
+      const { subject, html, previewText } = await renderFlowStep(step, {
+        contactId: e.contact_id,
+        context: e.context,
+        firstName: first,
+        stepIndex: e.current_step,
+        coupon,
+        variant,
+      });
       // Coupon safety, AFTER the claim and BEFORE any send: an offer email with
       // no code (mint failed, no static fallback) or a raw {{coupon_code}} tag
       // never goes out. The catch below fails the queued claim (re-claimable)

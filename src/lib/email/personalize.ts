@@ -6,8 +6,9 @@
 //                {{product_card}} (image + name + price with the code applied)
 //                {{review_url}} {{review_product}} (the product they bought; the engine
 //                puts ctx.review_product, see order-product.ts)
-//                {{reorder_url}} {{reorder_card}} (same product, for refill emails;
-//                card is "" and the url is Best Sellers when unknown)
+//                {{reorder_url}} {{reorder_card}} (refill emails: one-tap cart link of
+//                the same items when the order stored ctx.reorder_url, else the product
+//                page; card is "" and the url is Best Sellers when unknown)
 // Subject/preview: same minus the HTML-only ones (cart_items, checkout_url,
 //                product.url, product.image).
 //
@@ -92,9 +93,9 @@ export function productCardHtml(p: Product, percentOff = 0, hasCoupon = false): 
 }
 
 /** Refill hero ({{reorder_card}}): the product they bought, image + name, linked; "" when unknown. */
-export function reorderCardHtml(p: ReviewProduct | null, stepIndex = 0): string {
+export function reorderCardHtml(p: ReviewProduct | null, stepIndex = 0, cartPermalink?: unknown): string {
   if (!p) return "";
-  const href = esc(reorderUrl(p, stepIndex));
+  const href = esc(reorderUrl(p, stepIndex, cartPermalink));
   const title = esc(p.title);
   const img = p.image
     ? `<tr><td align="center" style="padding:0 0 12px;"><a href="${href}" style="text-decoration:none;"><img src="${esc(emailImage(p.image))}" width="260" alt="${title}" style="display:block;width:260px;max-width:100%;height:auto;border-radius:12px;"></a></td></tr>`
@@ -152,8 +153,8 @@ export function personalize(
     .replace(T("product.url"), esc(product.url ?? PRODUCT_URL_FALLBACK))
     .replace(T("review_url"), esc(reviewUrl(reviewProductOf(c), stepIndex)))
     .replace(T("review_product"), esc(reviewProductOf(c)?.title ?? "order"))
-    .replace(T("reorder_url"), esc(reorderUrl(reviewProductOf(c), stepIndex)))
-    .replace(T("reorder_card"), reorderCardHtml(reviewProductOf(c), stepIndex))
+    .replace(T("reorder_url"), esc(reorderUrl(reviewProductOf(c), stepIndex, c.reorder_url)))
+    .replace(T("reorder_card"), reorderCardHtml(reviewProductOf(c), stepIndex, c.reorder_url))
     .replace(T("product_card"), productCardHtml(product, percentOff, !!coupon))
     .replace(T("product_image"), productImageHtml(product))
     .replace(T("product.image"), product.image ? esc(product.image) : "")

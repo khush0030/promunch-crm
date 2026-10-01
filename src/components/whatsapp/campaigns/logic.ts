@@ -15,6 +15,8 @@ import {
   validateCampaignSetup,
   type TemplateSchema,
 } from "../../../../promunch-email-agent/supabase/functions/_shared/campaign-engine";
+import { templateKind } from "@/lib/whatsapp/templateKind";
+import { storedBlankLabels } from "@/lib/whatsapp/template-draft";
 import type { Campaign, CampaignAudienceFilter, CampaignStatus, RetargetStage, Template, TemplateButton } from "../types";
 import { COLD_SHARE_DANGER, GST_RATE, HELD_BACK_RATE, MARKETING_RATE_INR } from "./rates";
 
@@ -69,7 +71,16 @@ export function matchesSearch(c: Pick<Campaign, "name"> & { template?: { name?: 
 // Which buttons a campaign row offers. The API still has the final say (it
 // answers 409 with a plain reason); this only hides buttons that can't work.
 export type CampaignAction = "open" | "edit" | "duplicate" | "pause" | "resume" | "cancel" | "delete";
-export function allowedActions(c: Pick<Campaign, "status" | "sent_count" | "failed_count">): CampaignAction[] {
+// Follow-ups never offer Duplicate (a copy would lose its link to the parent);
+// their Edit opens the Journey on the campaign page.
+export function allowedActions(
+  c: Pick<Campaign, "status" | "sent_count" | "failed_count"> & { followup_of?: string | null },
+): CampaignAction[] {
+  const out = baseActions(c);
+  return c.followup_of ? out.filter((a) => a !== "duplicate") : out;
+}
+
+function baseActions(c: Pick<Campaign, "status" | "sent_count" | "failed_count">): CampaignAction[] {
   const untouched = (c.sent_count ?? 0) === 0 && (c.failed_count ?? 0) === 0;
   const out: CampaignAction[] = ["open"];
   switch (c.status) {
@@ -240,7 +251,11 @@ export function audienceFromFilter(f: CampaignAudienceFilter | null | undefined)
   if (tags.includes(UNCHOSEN_AUDIENCE_TAG)) return base;
   if (f.engagement === "warm") return { ...base, mode: "warm" };
   if (f.retarget?.campaign_id) {
-    return { ...base, mode: "retarget", retargetCampaignId: f.retarget.campaign_id, retargetStage: f.retarget.stage };
+    // A follow-up's own stages (read, ordered, ...) have no "send now" twin;
+    // copying one as a plain campaign starts from the safe default instead.
+    const known = RETARGET_STAGES.find((x) => x.key === f.retarget!.stage);
+    if (!known || f.retarget.min_hours_since != null) return base;
+    return { ...base, mode: "retarget", retargetCampaignId: f.retarget.campaign_id, retargetStage: known.key };
   }
   const onlyTags = !f.tags_all?.length && !f.exclude_tags?.length;
   if (onlyTags && tags.length === 0) return { ...base, mode: "everyone" };
@@ -365,7 +380,26 @@ export type VarField = {
   help: string;
   sample: string;
   placeholder: string;
+  /** True when the blank is the customer's first name (starts as {name}). */
+  isName: boolean;
+  /** The name the marketer gave this blank in the template creator, if any. */
+  blankLabel?: string;
 };
+
+// A blank "looks like a name" when Meta's sample is a single capitalised word
+// (Priya, Aarav) or the blank comes straight after a greeting ("Hi {{1}}").
+// Those default to {name}, never the sample, so nobody gets "Hi Aarav".
+const GREETING_BEFORE_RE = /\b(hi|hello|hey|dear)[\s,!]*$/i;
+const NAME_SAMPLE_RE = /^[A-Z][a-z]+$/;
+export function looksLikeNameBlank(text: string | null | undefined, key: string, sample: string): boolean {
+  if (NAME_SAMPLE_RE.test(sample.trim())) return true;
+  const src = String(text ?? "");
+  const m = src.match(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`));
+  if (!m || m.index == null) return false;
+  return GREETING_BEFORE_RE.test(src.slice(0, m.index));
+}
+
+const eg = (sample: string, fallback: string) => (sample.trim() ? `e.g. ${sample.trim()}` : fallback);
 
 function bodySample(t: CampaignTemplate, n: string): string {
   const v = t.variables;
@@ -397,23 +431,34 @@ export function mediaKindOf(t: Pick<CampaignTemplate, "header_type"> | null | un
 export function templateFields(t: CampaignTemplate): VarField[] {
   const out: VarField[] = [];
   if (String(t.header_type ?? "").toUpperCase() === "TEXT" && templateVarKeys(t.header_text).length) {
+    const sample = String(t.header_samples?.[0] ?? "");
+    const isName = looksLikeNameBlank(t.header_text, "1", sample);
     out.push({
       key: "_header_1",
       kind: "header",
-      label: "Title line",
-      help: `Fills {{1}} in the title: "${t.header_text}"`,
-      sample: String(t.header_samples?.[0] ?? ""),
-      placeholder: "Short title text",
+      label: isName ? "Title line: customer's first name" : "Title line",
+      help: `Fills the blank in the title: "${t.header_text}"`,
+      sample,
+      placeholder: eg(sample, "Short title text"),
+      isName,
     });
   }
+  const stored = storedBlankLabels(t.variables);
   for (const n of templateVarKeys(t.body)) {
+    const sample = bodySample(t, n);
+    const isName = looksLikeNameBlank(t.body, n, sample);
+    const blankLabel = stored[n];
     out.push({
       key: n,
       kind: "body",
-      label: `Message blank {{${n}}}`,
-      help: "Same text for everyone, or insert the customer's first name.",
-      sample: bodySample(t, n),
-      placeholder: "Text for this blank",
+      label: isName ? `Blank ${n}: customer's first name` : blankLabel ? `Blank ${n}: ${blankLabel}` : `Blank ${n} in the message`,
+      ...(blankLabel ? { blankLabel } : {}),
+      help: isName
+        ? "Leave it as {name} and each customer sees their own first name."
+        : "Same text for everyone. Type your own words, the grey example is only Meta's sample.",
+      sample,
+      placeholder: eg(sample, "Text for this blank"),
+      isName,
     });
   }
   const tpl = t as unknown as TemplateSchema;
@@ -431,6 +476,7 @@ export function templateFields(t: CampaignTemplate): VarField[] {
         help: "Paste the full page link. We count every tap before sending people there.",
         sample: "",
         placeholder: "https://promunch.in/...",
+        isName: false,
       });
     } else {
       out.push({
@@ -439,15 +485,29 @@ export function templateFields(t: CampaignTemplate): VarField[] {
         label: `Link for the ${text} button`,
         help: `The link starts with ${b.base}. Type the rest, or paste the whole link.`,
         sample: b.example ?? buttonExample(btn),
-        placeholder: `${b.base}...`,
+        placeholder: eg(b.example ?? buttonExample(btn), `${b.base}...`),
+        isName: false,
       });
     }
   }
   return out;
 }
 
+// Starting values: name blanks get {name}; everything else starts EMPTY (the
+// Meta sample is only a placeholder), so a sample can't be sent by accident.
 export function initialVars(t: CampaignTemplate): Record<string, string> {
-  return Object.fromEntries(templateFields(t).map((f) => [f.key, f.sample]));
+  return Object.fromEntries(templateFields(t).map((f) => [f.key, f.isName ? "{name}" : ""]));
+}
+
+// Blanks whose value is exactly Meta's sample text (e.g. "Aarav", "15%"),
+// which almost always means the real wording was never typed in.
+export function samplesUsed(t: CampaignTemplate | null, vars: Record<string, string>): VarField[] {
+  if (!t) return [];
+  return templateFields(t).filter((f) => {
+    if (f.kind !== "body" && f.kind !== "header") return false;
+    const v = (vars[f.key] ?? "").trim();
+    return !!v && !!f.sample.trim() && v === f.sample.trim();
+  });
 }
 
 const HTTPS_RE = /^https:\/\/[^\s/]+\.[^\s]+$/i;
@@ -527,6 +587,13 @@ export function isMarketing(t: Pick<CampaignTemplate, "category">): boolean {
   return c === "marketing" || c === "offer";
 }
 
+// Only real marketing templates can be used for a campaign. Internal
+// (ops pings, order confirmations) and customer-service (UTILITY) templates
+// never show up in the campaign picker.
+export function campaignTemplates<T extends { name: string; category?: string | null }>(list: T[]): T[] {
+  return list.filter((t) => templateKind(t) === "marketing");
+}
+
 export function sortTemplatesForGallery<T extends Pick<CampaignTemplate, "category" | "name">>(list: T[]): T[] {
   return [...list].sort((a, b) => Number(isMarketing(b)) - Number(isMarketing(a)) || a.name.localeCompare(b.name));
 }
@@ -577,12 +644,15 @@ export function effectiveStart(s: ScheduleState, nowMs = Date.now()): number {
 /* Wizard steps                                                               */
 /* ------------------------------------------------------------------------ */
 
+// `next` is the primary button label on the step BEFORE this one, so it says
+// what happens next in plain words.
 export const STEPS = [
-  { key: "template", label: "Template" },
-  { key: "content", label: "Message" },
-  { key: "audience", label: "Audience" },
-  { key: "schedule", label: "When" },
-  { key: "review", label: "Review" },
+  { key: "template", label: "Message", next: "Next: pick a message" },
+  { key: "content", label: "Fill in", next: "Next: fill in the message" },
+  { key: "audience", label: "Who gets it", next: "Next: choose who gets it" },
+  { key: "schedule", label: "When", next: "Next: pick when it goes out" },
+  { key: "followups", label: "Follow-ups", next: "Next: follow-ups (optional)" },
+  { key: "review", label: "Check and send", next: "Next: check and send" },
 ] as const;
 export type StepKey = (typeof STEPS)[number]["key"];
 
