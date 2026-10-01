@@ -6,7 +6,7 @@
 import { db } from "../_shared/supabase.ts";
 import { errStr, logConnector } from "../_shared/connector-log.ts";
 import { verifyVoiceWebhook } from "../_shared/voice-webhook-verify.ts";
-import { addToDndList } from "../_shared/sarvam.ts";
+import { clampOutcome, finaliseVoiceCall } from "../_shared/voice-outcome.ts";
 
 interface SarvamWebhook {
   attempt_id?: string;
@@ -29,8 +29,6 @@ interface VoiceCallRow {
   attempt_id: string | null;
   webhook_token: string;
 }
-
-const OUTCOMES = new Set(["will_buy", "asked_link", "not_interested", "do_not_call", "callback_later", "unknown"]);
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("ok", { status: 200 });
@@ -79,70 +77,20 @@ Deno.serve(async (req) => {
   const unmappedStatus = rawStatus && !STATUSES.has(rawStatus) ? rawStatus : null;
   // The agent's outcome variable is named call_disposition (Sarvam Build ->
   // Variables); `outcome` is accepted as a fallback so renaming the variable on
-  // either side degrades to "unknown" rather than throwing. Values outside
-  // OUTCOMES are clamped, and do_not_call is what flips voice_dnd below, so a
-  // drift here silently costs us a customer's do-not-call request: if the
-  // clamp starts firing, fix the agent's extraction prompt, not this line.
-  const rawOutcome = String(
-    p.final_agent_variables?.call_disposition ?? p.final_agent_variables?.outcome ?? "unknown",
-  ).toLowerCase();
-  const outcome = OUTCOMES.has(rawOutcome) ? rawOutcome : "unknown";
-  const now = new Date().toISOString();
+  // either side degrades to "unknown" rather than throwing. clampOutcome drops
+  // values outside the allowed set, and do_not_call flips voice_dnd downstream,
+  // so if the clamp starts firing fix the agent's extraction prompt, not this line.
+  const outcome = clampOutcome(p.final_agent_variables?.call_disposition ?? p.final_agent_variables?.outcome);
   const failureReason = unmappedStatus
     ? `unmapped status '${unmappedStatus}'; ${p.failure_reason ?? ""}`
     : (p.failure_reason ?? null);
 
-  // Idempotent finalise: a 'dialing' row transitions normally; an 'unknown' row
-  // is one the tick's stuck-dial sweep flipped after 6h with no webhook — this
-  // late arrival is exactly the case that status exists to still accept. Either
-  // way the compare-and-swap (WHERE status IN (...)) means only the first
-  // webhook to arrive can finalise the row; a second delivery is a no-op dup.
-  const { data: finalised } = await sb.from("voice_calls").update({
-    status, outcome, duration_s: p.duration ?? null, failure_reason: failureReason,
-    interaction_id: p.interaction_id ?? null, transcript: p.interaction_transcript ?? null,
-    agent_vars: p.final_agent_variables ?? null, updated_at: now,
-  }).eq("id", call.id).in("status", ["dialing", "unknown"]).select("id");
-  if (!finalised?.length) return j({ ok: true, dup: true });
-
-  if (status === "connected" && call.run_id) {
-    // Honest attribution: the customer heard us. If an order follows, the cart
-    // counts as recovered (cart-recovery route requires converted && delivered).
-    await sb.from("wa_journey_runs").update({ delivered_at: now, last_error: null })
-      .eq("id", call.run_id).is("delivered_at", null).then(() => {}, () => {});
-  }
-  if (outcome === "do_not_call") {
-    await sb.from("wa_contacts").update({ voice_dnd: true, updated_at: now }).eq("wa_id", call.wa_id).then(() => {}, () => {});
-    // Local voice_dnd is the real dialing gate; the Sarvam-side push is
-    // best-effort only, but must never silently vanish on a throw.
-    const pushed = await addToDndList(`+${call.wa_id}`).catch(() => false);
-    if (!pushed) {
-      await logConnector({ connector: "shopify_wa", level: "warn", event: "voice_dnd_push_failed", message: `${call.wa_id}: voice_dnd set locally but Sarvam DND list push failed - add manually in indus.sarvam.ai.`, ref: call.order_ref ?? call.id }).catch(() => {});
-    }
-  }
-  if ((status === "no_answer" || status === "busy") && call.run_id) {
-    // ONE retry, 2h later, inside the window (the tick re-checks the window).
-    const { data: run } = await sb.from("wa_journey_runs").select("context, deadline_at").eq("id", call.run_id).maybeSingle();
-    const ctx = (run?.context ?? {}) as Record<string, unknown>;
-    const attempts = Number(ctx.voice_attempts ?? 0);
-    if (attempts < 1 && (!run?.deadline_at || run.deadline_at > now)) {
-      await sb.from("wa_journey_runs").update({
-        status: "active",
-        next_action_at: new Date(Date.now() + 2 * 3600_000).toISOString(),
-        last_error: `voice ${status}, one retry scheduled`,
-        context: { ...ctx, voice_attempts: attempts + 1 },
-      }).eq("id", call.run_id).eq("status", "completed").then(() => {}, () => {});
-    } else {
-      await sb.from("wa_journey_runs").update({ status: "expired", last_error: `voice ${status} twice` })
-        .eq("id", call.run_id).eq("status", "completed").then(() => {}, () => {});
-    }
-  }
-  if (status === "failed" && call.run_id) {
-    await sb.from("wa_journey_runs").update({ status: "failed", last_error: `voice failed: ${p.failure_reason ?? "unknown"}` })
-      .eq("id", call.run_id).eq("status", "completed").then(() => {}, () => {});
-    await logConnector({ connector: "shopify_wa", level: "warn", event: "voice_call_failed", message: `Cart ${call.order_ref}: ${p.failure_reason ?? "unknown"}`, ref: call.order_ref ?? call.id }).catch(() => {});
-  }
-  await logConnector({ connector: "shopify_wa", level: "info", event: "voice_call_result", message: `Cart ${call.order_ref}: ${status}${p.duration ? ` ${p.duration}s` : ""}, outcome ${outcome}.`, ref: call.order_ref ?? call.id }).catch(() => {});
-  return j({ ok: true });
+  const res = await finaliseVoiceCall(call.id, {
+    status, durationS: p.duration ?? null, outcome, interactionId: p.interaction_id ?? null,
+    failureReason, transcript: p.interaction_transcript ?? null, agentVars: p.final_agent_variables ?? null,
+  });
+  if (res === "retry") return j({ error: "retry" }, 500);
+  return j({ ok: true, dup: res === "dup" });
   } catch (e) {
     // No future throw in the body above may strand a call silently; always
     // trace it and give Sarvam a definite (retryable) response.

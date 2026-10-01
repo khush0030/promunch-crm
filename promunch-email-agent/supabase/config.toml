@@ -170,7 +170,13 @@ verify_jwt = false                    # function-to-function from wa-journey-tic
 verify_jwt = false                    # Sarvam post-call webhook; auth = per-call token in metadata (voice-webhook-verify.ts)
 
 [functions.voice-tool-wa-link]
-verify_jwt = false                    # Sarvam HTTPS tool; auth = bearer INTERNAL_FN_SECRET via requireInternal
+verify_jwt = false                    # Sarvam HTTPS tool; auth = VOICE_TOOL_SECRET bearer (voice-tool-auth.ts)
+
+[functions.voice-tool-cod]
+verify_jwt = false                    # Sarvam HTTPS tool; auth = VOICE_TOOL_SECRET bearer (voice-tool-auth.ts)
+
+[functions.voice-tick]
+verify_jwt = false                    # pg_cron; real auth is requireInternal
 
 [functions.email-draft-action]
 verify_jwt = false                    # called by Next.js API with service role bearer; gated by requireInternal
