@@ -28,6 +28,14 @@ export async function sarvamConfig(purpose: VoicePurpose = "cart"): Promise<Sarv
   return { apiKey, orgId, workspaceId, appId, appVersion, connectionId, agentPhone };
 }
 
+// Only a 4xx proves Sarvam rejected the request without queueing a call. A 5xx
+// or gateway error can come back AFTER the call was queued, and a thrown fetch
+// or a 2xx without attempt_id means we cannot know. Those are NOT definite, so
+// the caller must never hand the attempt back (a redial would call twice).
+export function isDefiniteRefusal(status: number | null): boolean {
+  return status != null && status >= 400 && status <= 499;
+}
+
 export async function startOutboundCall(args: {
   purpose: VoicePurpose;
   phoneE164: string;
@@ -35,9 +43,9 @@ export async function startOutboundCall(args: {
   language: string;
   webhookUrl: string;
   metadata: Record<string, string>;
-}): Promise<{ ok: true; attemptId: string } | { ok: false; error: string }> {
+}): Promise<{ ok: true; attemptId: string } | { ok: false; definite: boolean; error: string }> {
   const cfg = await sarvamConfig(args.purpose);
-  if (!cfg) return { ok: false, error: `sarvam not configured for ${args.purpose} (missing SARVAM_* secrets)` };
+  if (!cfg) return { ok: false, definite: true, error: `sarvam not configured for ${args.purpose} (missing SARVAM_* secrets)` };
   const url = `${BASE}/outbounds/v1/orgs/${cfg.orgId}/workspaces/${cfg.workspaceId}/outbounds`;
   const body = {
     app_config: {
@@ -58,12 +66,12 @@ export async function startOutboundCall(args: {
       body: JSON.stringify(body),
     });
     const text = await r.text();
-    if (!r.ok) return { ok: false, error: `sarvam HTTP ${r.status}: ${text.slice(0, 300)}` };
+    if (!r.ok) return { ok: false, definite: isDefiniteRefusal(r.status), error: `sarvam HTTP ${r.status}: ${text.slice(0, 300)}` };
     const json = JSON.parse(text) as { attempt_id?: string };
-    if (!json.attempt_id) return { ok: false, error: `sarvam: no attempt_id in ${text.slice(0, 200)}` };
+    if (!json.attempt_id) return { ok: false, definite: false, error: `sarvam: no attempt_id in ${text.slice(0, 200)}` };
     return { ok: true, attemptId: json.attempt_id };
   } catch (e) {
-    return { ok: false, error: `sarvam fetch failed: ${String(e)}` };
+    return { ok: false, definite: false, error: `sarvam fetch failed: ${String(e)}` };
   }
 }
 

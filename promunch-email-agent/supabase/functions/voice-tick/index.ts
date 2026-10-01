@@ -164,6 +164,9 @@ async function reconcilePass(nowMs: number) {
   // free the COD retry spacing). Refused starts are already start_failed.
   await sb.from("voice_calls").update({ status: "unknown", failure_reason: "start outcome unknown (no attempt id recorded)", updated_at: new Date(nowMs).toISOString() })
     .eq("status", "dialing").is("attempt_id", null).lt("created_at", new Date(nowMs - 30 * 60_000).toISOString());
+  // Still unresolved after 2h: unknown (counts as not reached; a late webhook can still land).
+  await sb.from("voice_calls").update({ status: "unknown", updated_at: new Date(nowMs).toISOString() })
+    .eq("status", "dialing").lt("created_at", new Date(nowMs - 2 * 3600_000).toISOString());
   const { data: stuck, error: stuckErr } = await sb.from("voice_calls").select("id, purpose, attempt_id, created_at")
     .eq("status", "dialing").not("attempt_id", "is", null)
     .lt("created_at", new Date(nowMs - 3 * 60_000).toISOString())
@@ -190,9 +193,6 @@ async function reconcilePass(nowMs: number) {
       if (r === "finalised") finalised++;
     }
   }
-  // Still unresolved after 2h: unknown (counts as not reached; a late webhook can still land).
-  await sb.from("voice_calls").update({ status: "unknown", updated_at: new Date(nowMs).toISOString() })
-    .eq("status", "dialing").lt("created_at", new Date(nowMs - 2 * 3600_000).toISOString());
   return { stuck: stuck.length, finalised };
 }
 

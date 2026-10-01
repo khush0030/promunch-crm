@@ -2,11 +2,14 @@
 // voice-call-start to place it. The CALLER must already hold the claim
 // (journey run active->completed, or shopify_orders.voice_attempts CAS).
 //
-// stage "unknown" = the start request threw, timed out, or came back non-JSON.
-// Sarvam may already have dialled, so the row is left untouched (voice-tick's
-// reconcile pass marks rows with no attempt_id 'unknown' after 30 min, never
-// start_failed, since Sarvam may have dialled; it settles rows that have one). Callers must treat "unknown" as a CONSUMED
-// attempt and never redial. stage "start" = a JSON refusal; nothing was dialled.
+// stage "unknown" = the outcome is not provably a refusal: the start request
+// threw or timed out, came back non-JSON, or voice-call-start answered
+// ok:false without refused:true (Sarvam 5xx, no attempt_id). Sarvam may already
+// have dialled, so the row is left untouched (voice-tick's reconcile pass
+// settles rows; ones with no attempt_id become 'unknown', never start_failed).
+// Callers must treat "unknown" as a CONSUMED attempt and never redial.
+// stage "start" = voice-call-start said refused:true (definite refusal, e.g.
+// Sarvam 4xx); nothing was dialled and the attempt may be handed back.
 import { db } from "./supabase.ts";
 import type { VoicePurpose } from "./sarvam.ts";
 
@@ -44,7 +47,7 @@ export async function placeVoiceCall(row: {
     .single();
   if (error || !call) return { ok: false, stage: "insert", error: error?.message ?? "insert failed" };
 
-  let res: { ok?: boolean; error?: string };
+  let res: { ok?: boolean; refused?: boolean; error?: string };
   try {
     const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/voice-call-start`, {
       method: "POST",
@@ -60,8 +63,11 @@ export async function placeVoiceCall(row: {
     return { ok: false, stage: "unknown", error: e instanceof Error ? e.message : String(e), callId: call.id };
   }
   if (res.ok) return { ok: true, callId: call.id };
+  if (res.refused !== true) {
+    return { ok: false, stage: "unknown", error: res.error ?? "start outcome unknown", callId: call.id };
+  }
 
-  // A JSON refusal: voice-call-start marks the row start_failed itself when
+  // A definite refusal: voice-call-start marks the row start_failed itself when
   // Sarvam refuses; if it refused earlier it may still be 'dialing', so close it.
   await db()
     .from("voice_calls")

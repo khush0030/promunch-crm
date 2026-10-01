@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { normalizeAttempt } from "./sarvam.ts";
+import { isDefiniteRefusal, normalizeAttempt } from "./sarvam.ts";
 
 Deno.test("normalizeAttempt maps Sarvam analytics rows", () => {
   const a = normalizeAttempt({
@@ -13,4 +13,12 @@ Deno.test("normalizeAttempt maps Sarvam analytics rows", () => {
 });
 Deno.test("normalizeAttempt: unfinished attempt is unknown", () => {
   assertEquals(normalizeAttempt({ attempt_id: "x", connectivity_status: "in_progress" }).status, "unknown");
+});
+
+Deno.test("isDefiniteRefusal: only 4xx is definite", () => {
+  assertEquals(isDefiniteRefusal(400), true);
+  assertEquals(isDefiniteRefusal(422), true);
+  assertEquals(isDefiniteRefusal(500), false);
+  assertEquals(isDefiniteRefusal(504), false);
+  assertEquals(isDefiniteRefusal(null), false);
 });

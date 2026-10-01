@@ -20,8 +20,8 @@ Deno.serve(async (req) => {
   const { data: call } = await sb.from("voice_calls")
     .select("id, run_id, wa_id, order_ref, status, attempt_id, webhook_token, agent_vars, purpose, shopify_id")
     .eq("id", body.call_id).maybeSingle();
-  if (!call) return j({ ok: false, error: "call not found" }, 404);
-  if (call.status !== "dialing" || call.attempt_id) return j({ ok: false, error: "call already started" }, 409);
+  if (!call) return j({ ok: false, refused: true, error: "call not found" }, 404);
+  if (call.status !== "dialing" || call.attempt_id) return j({ ok: false, refused: true, error: "call already started" }, 409);
 
   const language = (await getFlowSettings()).voice_language || "Hindi";
 
@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
       .select("order_number, customer_name, total_price, raw").eq("shopify_id", call.shopify_id).maybeSingle();
     if (!o) {
       await sb.from("voice_calls").update({ status: "start_failed", failure_reason: "order not found", updated_at: new Date().toISOString() }).eq("id", call.id);
-      return j({ ok: false, error: "order not found" }, 404);
+      return j({ ok: false, refused: true, error: "order not found" }, 404);
     }
     const lines = Array.isArray(o.raw?.line_items) ? o.raw.line_items as Array<{ title?: string; name?: string; quantity?: number }> : [];
     // COD agent contract (Sarvam Build -> Variables). Same rule as the cart
@@ -96,11 +96,20 @@ Deno.serve(async (req) => {
   });
 
   const label = purpose === "cod_confirm" ? "COD order" : "Cart";
-  if (!res.ok) {
+  if (!res.ok && res.definite) {
+    // Sarvam definitely refused (4xx / not configured): nothing was dialled.
     await sb.from("voice_calls").update({ status: "start_failed", failure_reason: res.error, agent_vars: agentVariables, updated_at: new Date().toISOString() })
       .eq("id", call.id);
     await logConnector({ connector: "shopify_wa", level: "error", event: "voice_start_failed", message: `${label} ${call.order_ref}: ${res.error}`, ref: call.order_ref ?? call.id }).catch(() => {});
-    return j({ ok: false, error: res.error }, 502);
+    return j({ ok: false, refused: true, error: res.error }, 502);
+  }
+  if (!res.ok) {
+    // 5xx / thrown fetch / no attempt_id: Sarvam may already have queued the call.
+    // Never start_failed (that hands the attempt back for a redial).
+    await sb.from("voice_calls").update({ status: "unknown", failure_reason: `start outcome unknown: ${res.error}`, agent_vars: agentVariables, updated_at: new Date().toISOString() })
+      .eq("id", call.id);
+    await logConnector({ connector: "shopify_wa", level: "warn", event: "voice_start_unknown", message: `${label} ${call.order_ref}: ${res.error}`, ref: call.order_ref ?? call.id }).catch(() => {});
+    return j({ ok: false, refused: false, error: res.error }, 502);
   }
   const { error: idErr } = await sb.from("voice_calls").update({ attempt_id: res.attemptId, agent_vars: agentVariables, updated_at: new Date().toISOString() }).eq("id", call.id);
   if (idErr) {
