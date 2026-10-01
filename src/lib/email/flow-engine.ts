@@ -43,6 +43,7 @@ import { personalize, personalizeSubject } from "./personalize";
 import { needsImageLookup, type ImageLookup } from "./cart-items";
 import { tokenizeStorefrontLinks } from "./link-tokens";
 import { withContactToken } from "./browse-abandon";
+import { loadStoreCatalog, pickReviewProduct, usesReviewTokens } from "./order-product";
 
 const BATCH = 200;
 const PAGE = 1000;
@@ -365,12 +366,19 @@ export async function tick(): Promise<FlowTickResult> {
       if (/\{\{\s*cart_items\s*\}\}/.test(step.body_html) && needsImageLookup(e.context) && !catalogImages) {
         catalogImages = await loadCatalogImages().catch(() => new Map<string, string>());
       }
+      // Review emails: resolve the product they bought (public catalog,
+      // cached) so {{review_url}} lands on that product's Judge.me reviews.
+      let ctx = e.context;
+      if (usesReviewTokens(step.body_html, variant.subject, variant.preview_text)) {
+        const catalog = await loadStoreCatalog();
+        ctx = { ...(e.context ?? {}), review_product: pickReviewProduct(e.context, catalog) };
+      }
       const bodyHtml = personalize(
-        step.body_html, e.context, first, e.current_step, coupon, catalogImages ?? undefined,
+        step.body_html, ctx, first, e.current_step, coupon, catalogImages ?? undefined,
         Number(step.coupon?.percent_off ?? 0),
       );
       const previewText = variant.preview_text
-        ? personalizeSubject(variant.preview_text, e.context, first, coupon)
+        ? personalizeSubject(variant.preview_text, ctx, first, coupon)
         : undefined;
       const rendered = step.format === "plain"
         ? renderPlainMarketingEmail({
@@ -383,7 +391,7 @@ export async function tick(): Promise<FlowTickResult> {
       // Storefront links carry the signed pm_c token so the pixel can identify
       // a click-through shopper (browse abandonment). Unsubscribe is untouched.
       const html = tokenizeStorefrontLinks(rendered, (u) => withContactToken(u, e.contact_id));
-      const subject = personalizeSubject(variant.subject, e.context, first, coupon);
+      const subject = personalizeSubject(variant.subject, ctx, first, coupon);
       // Coupon safety, AFTER the claim and BEFORE any send: an offer email with
       // no code (mint failed, no static fallback) or a raw {{coupon_code}} tag
       // never goes out. The catch below fails the queued claim (re-claimable)

@@ -4,6 +4,8 @@
 //                {{coupon_code}} {{product.title}} {{product.url}}
 //                {{product.image}} {{product.price}} {{product_image}} (full <img>)
 //                {{product_card}} (image + name + price with the code applied)
+//                {{review_url}} {{review_product}} (the product they bought; the engine
+//                puts ctx.review_product, see order-product.ts)
 // Subject/preview: same minus the HTML-only ones (cart_items, checkout_url,
 //                product.url, product.image).
 //
@@ -13,6 +15,7 @@
 
 import { EMAIL_COLORS, EMAIL_FONT } from "./brand-tokens";
 import { cartItemsHtml, cartSummaryHtml, cleanTitle, money, type ImageLookup } from "./cart-items";
+import { reviewUrl, type ReviewProduct } from "./order-product";
 
 export const PRODUCT_URL_FALLBACK = "https://promunch.in/collections/best-sellers";
 export const PRODUCT_TITLE_FALLBACK = "your pick";
@@ -96,6 +99,11 @@ export function productImageHtml(p: { title: string | null; url: string | null; 
 
 const T = (name: string) => new RegExp(`\\{\\{\\s*${name.replace(".", "\\.")}\\s*\\}\\}`, "g");
 
+function reviewProductOf(c: Record<string, unknown>): ReviewProduct | null {
+  const r = c.review_product as ReviewProduct | null | undefined;
+  return r && typeof r.url === "string" && /^https:\/\//.test(r.url) ? r : null;
+}
+
 export function personalize(
   html: string,
   ctx: Record<string, unknown> | null,
@@ -124,6 +132,8 @@ export function personalize(
     .replace(T("coupon_code"), esc(coupon))
     .replace(T("product.title"), esc(product.title ?? PRODUCT_TITLE_FALLBACK))
     .replace(T("product.url"), esc(product.url ?? PRODUCT_URL_FALLBACK))
+    .replace(T("review_url"), esc(reviewUrl(reviewProductOf(c), stepIndex)))
+    .replace(T("review_product"), esc(reviewProductOf(c)?.title ?? "order"))
     .replace(T("product_card"), productCardHtml(product, percentOff, !!coupon))
     .replace(T("product_image"), productImageHtml(product))
     .replace(T("product.image"), product.image ? esc(product.image) : "")
@@ -141,6 +151,7 @@ export function personalizeSubject(
   const totalNum = Number(c.total ?? 0);
   const product = productFromContext(c);
   return subject
+    .replace(T("review_product"), reviewProductOf(c)?.title ?? "order")
     .replace(T("first_name"), first || "there")
     .replace(T("cart_total"), totalNum > 0 ? money(totalNum) : "your cart")
     .replace(T("coupon_code"), coupon)

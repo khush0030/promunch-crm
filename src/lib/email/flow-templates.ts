@@ -818,6 +818,8 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     category: "engage",
     description: "Every order. Around day 8, ask for a review on promunch.in, with one reminder on day 12. Skipped when WhatsApp already sent the review ask.",
     trigger_type: "order_placed",
+    // Links go to the Judge.me reviews of the product they bought
+    // ({{review_url}} / {{review_product}}, order-product.ts).
     // WhatsApp review_request fires at day 7; skip_if_wa_journey makes the
     // email the fallback for customers WhatsApp did not reach. A new order
     // exits the pending ask (and enrols a fresh one for the new order).
@@ -828,7 +830,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         format: "designed",
         delay_hours: 192,
         skip_if_wa_journey: "review",
-        subject: "{{first_name}}, how were your snacks?",
+        subject: "{{first_name}}, how was your {{review_product}}?",
         subject_variants: ["Got a minute? We would love your review", "Be honest: what did you think?"],
         preview_text: "A short review takes about a minute.",
         preview_variants: ["Good or bad, we want to hear it."],
@@ -836,30 +838,34 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
           // Visual review ask (owner, 2026-09-30): real store lifestyle shot,
           // tappable stars, one full-width button. Short on purpose.
           photo(cdnImg("Can_you_update_this_image_202606060937.jpg?v=1781094699"), "PROMUNCH Roasted Edamame on a picnic blanket", undefined, 520) +
-          h1("How were your snacks?") +
+          h1("How was your {{review_product}}?") +
           hi("your PROMUNCH should be with you by now. How was it? A short review takes about a minute and helps other snackers pick the right pack.") +
-          starRating(link(PATHS.review, "review_request", 1)) +
-          button("Leave a review", link(PATHS.review, "review_request", 1), "solid", { full: true }) +
+          starRating("{{review_url}}") +
+          button("Leave a review", "{{review_url}}", "solid", { full: true }) +
           p("Something not right? <strong>Reply to this email</strong> instead and we will fix it. And if you snapped a photo, tag us on Instagram.") +
           socialRow(),
       },
       {
         type: "email",
-        format: "plain",
+        // Founder-letter style (approved look), links to the product they bought.
+        format: "designed",
         from_name: PARTH_FROM,
-        signature: PARTH_SIG,
         delay_hours: 96,
         skip_if_wa_journey: "review",
         subject: "One small favour, {{first_name}}?",
-        subject_variants: ["Would you rate your PROMUNCH?", "A minute of your time?"],
+        subject_variants: ["Would you rate your {{review_product}}?", "A minute of your time?"],
         preview_text: "A quick review helps a small brand a lot.",
         preview_variants: ["Parth here, one quick ask."],
-        body_html: PLAIN(
-          "Hi {{first_name}},",
-          "Parth here, founder of PROMUNCH. If you have a minute, would you leave a quick review of your order? Reviews are how new snackers find us, and they help us a lot.",
-          `<a href="${link(PATHS.review, "review_request", 2)}">Leave a review here</a>.`,
-          "Already did it? Thank you, you can ignore this email.",
-        ),
+        body_html:
+          eyebrow("A note from our founder") +
+          h1("One small favour?") +
+          p("Hi {{first_name}},") +
+          p("Parth here, founder of PROMUNCH. If you have a minute, would you leave a quick review of your <strong>{{review_product}}</strong>? Reviews are how new snackers find us, and honest ones, good or bad, help us get better.") +
+          founderSignoff() +
+          divider() +
+          starRating("{{review_url}}") +
+          button("Leave a review", "{{review_url}}", "solid", { full: true }) +
+          p("Already did it? Thank you, you can ignore this email."),
       },
     ],
   },

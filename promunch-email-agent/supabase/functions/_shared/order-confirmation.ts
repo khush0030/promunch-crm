@@ -70,8 +70,20 @@ export async function handleOrderCreated(order: any): Promise<OrderConfirmationR
     console.warn(`[order-confirmation] email flow order-exit failed for ${orderRef}:`, e);
   }
   try {
+    // Line items let the review email link to the product they actually
+    // bought (resolved to a product page app-side; payloads carry no handle).
+    const items = (Array.isArray(order.line_items) ? order.line_items : [])
+      .slice(0, 20)
+      .map((li: Record<string, unknown>) => ({
+        title: li.title ?? null,
+        product_id: li.product_id ?? null,
+        variant_id: li.variant_id ?? null,
+        quantity: li.quantity ?? 1,
+        price: li.price ?? null,
+      }));
     await enrolEmailFlow("order_placed", {
       email, entityRef: orderRef, dedupPrefix: "postpurchase", firstName: nm, orderId: order.id ?? null,
+      context: { items },
     });
   } catch (e) {
     console.warn(`[order-confirmation] email flow enrol failed for ${orderRef}:`, e);
