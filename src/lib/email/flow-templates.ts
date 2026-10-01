@@ -142,7 +142,7 @@ export const CATEGORY_LABELS: Record<FlowCategory, string> = {
 // {{cart_items}}, {{cart_total}}, {{coupon_code}}, {{product.title}},
 // {{product.url}}, {{product_image}} (browse only).
 
-const SITE = "https://promunch.in";
+export const SITE = "https://promunch.in";
 /** Link with UTM so flow revenue is attributable per flow + step. */
 const link = (path: string, campaign: string, step: number) =>
   `${SITE}${path}?utm_source=email&utm_medium=flow&utm_campaign=${campaign}&utm_content=email_${step}`;
@@ -159,7 +159,7 @@ const PATHS = {
 const CDN = "https://cdn.shopify.com/s/files/1/0794/6731/5501/files";
 
 /** Real products (handles + first image from promunch.in/products.json). */
-const PRODUCTS = {
+export const PRODUCTS = {
   edamameCombo: {
     title: "Roasted Edamame Combo",
     path: "/products/promunch-roasted-edamame-beans-assorted-combo-42-45g-high-protein-snack",
@@ -198,7 +198,7 @@ const PRODUCTS = {
 } as const;
 
 /** Store image at an email-friendly width (Shopify CDN resizes on the fly). */
-const cdnImg = (file: string, width = 560) => `${CDN}/${file}${file.includes("?") ? "&" : "?"}width=${width}`;
+export const cdnImg = (file: string, width = 560) => `${CDN}/${file}${file.includes("?") ? "&" : "?"}width=${width}`;
 
 type ProductKey = keyof typeof PRODUCTS;
 /** productGrid items with UTM links (no prices: they change, the page is the truth). */

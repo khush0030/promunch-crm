@@ -266,6 +266,12 @@ export function flowIssues(flow: EditableFlow): Issue[] {
     if (/\{\{\s*coupon_code\s*\}\}/.test(st.subject + st.body_html) && !st.coupon_code && !st.coupon) {
       out.push({ level: "block", message: `${n}: uses {{coupon_code}} but this email has no coupon set.` });
     }
+    // Owner's discount rule (2026-09-30): 15% everywhere, win-back may go to 20%.
+    const pctOff = Number(st.coupon?.percent_off ?? 0);
+    if (pctOff > 20) out.push({ level: "block", message: `${n}: ${pctOff}% is too much. The most any automation can give is 20% (win-back only).` });
+    else if (pctOff > 15 && flow.trigger_config.segment !== "winback") {
+      out.push({ level: "warn", message: `${n}: ${pctOff}% off. Our rule is 15% for everything except win-back.` });
+    }
     if (!st.preview_text) out.push({ level: "warn", message: `${n}: add preview text (the grey line after the subject). It lifts opens.` });
   });
   if (flow.trigger_type === "checkout_abandoned" && !flow.steps.some((st) => /\{\{\s*checkout_url\s*\}\}/.test(st.body_html))) {

@@ -129,3 +129,70 @@
 
 .linkRow { display: flex; gap: 10px; justify-content: space-between; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--pm-line); }
 .linkRow span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--pm-muted); }
+
+/* ---- Visual email editor (VisualEmailEditor.tsx) ---- */
+.vee { display: grid; gap: 8px; }
+.veeBar { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 6px; border: 1px solid var(--pm-line); border-radius: 10px; background: var(--pm-card); position: sticky; top: 0; z-index: 3; }
+.veeBar > button, .veeMenuWrap > button { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--pm-ink); font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.veeBar > button:hover, .veeMenuWrap > button:hover { background: var(--pm-card2); }
+.veeSep { width: 1px; height: 20px; background: var(--pm-line); margin: 0 4px; }
+.veeMenuWrap { position: relative; }
+.veeMenu { position: absolute; top: 36px; left: 0; z-index: 5; display: grid; gap: 2px; min-width: 220px; padding: 8px; border: 1px solid var(--pm-line); border-radius: 10px; background: var(--pm-card); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+.veeMenu button { text-align: left; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; font-size: 14px; cursor: pointer; color: var(--pm-ink); }
+.veeMenu button:hover { background: var(--pm-card2); }
+.veeTip { font-size: 12.5px; color: var(--pm-hint); }
+.veeStage { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid var(--pm-line); }
+.veeFrame { display: block; width: 100%; border: 0; background: #F4F1EA; }
+.veeSection { position: absolute; left: 0; right: 0; pointer-events: none; }
+.veeSectionBar { pointer-events: auto; position: absolute; top: -4px; right: 8px; display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: var(--pm-ink); box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.veeSectionBar button { display: inline-grid; place-items: center; width: 28px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--pm-card); cursor: pointer; }
+.veeSectionBar button:hover { background: rgba(255,255,255,.16); }
+.veeSectionBar .veeDanger:hover { background: #AF272F; }
+.veePanel { display: grid; gap: 10px; padding: 14px; border: 1.5px solid var(--pm-brand); border-radius: 12px; background: var(--pm-card); box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+.veeChips { display: flex; flex-wrap: wrap; gap: 6px; }
+.veeChips button { padding: 5px 10px; border: 1px solid var(--pm-line); border-radius: 999px; background: var(--pm-card); font-size: 12.5px; cursor: pointer; color: var(--pm-ink); }
+.veeChips button:hover { border-color: var(--pm-ink); }
+.veeChips button.on { background: var(--pm-ink); color: var(--pm-card); border-color: var(--pm-ink); }
+.veeErr { color: var(--pm-terra); font-size: 13px; font-weight: 600; }
+.veeImages { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.veeImages button { padding: 0; border: 2px solid transparent; border-radius: 8px; overflow: hidden; background: var(--pm-card2); cursor: pointer; aspect-ratio: 1; }
+.veeImages button.on { border-color: var(--pm-brand); }
+.veeImages img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.veeAdd { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; }
+.veeAdd button { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border: 1px solid var(--pm-line); border-radius: 10px; background: var(--pm-card); cursor: pointer; color: var(--pm-ink); }
+.veeAdd button:hover { border-color: var(--pm-brand); background: var(--pm-card2); }
+.veeAdd button span { font-size: 12px; color: var(--pm-hint); }
+
+/* ---- Automation editor layout (automations/[id]) ---- */
+.ae { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 960px) { .ae { grid-template-columns: 1fr; } }
+.aeList { display: grid; gap: 6px; position: sticky; top: 12px; }
+.aeItem { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; padding: 10px; border: 1px solid var(--pm-line); border-radius: 12px; background: var(--pm-card); cursor: pointer; text-align: left; color: var(--pm-ink); width: 100%; }
+.aeItem:hover { border-color: var(--pm-ink); }
+.aeItem.on { border-color: var(--pm-brand); box-shadow: 0 0 0 1px var(--pm-brand); }
+.aeNum { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--pm-card2); font-weight: 800; font-size: 13px; }
+.aeItem.on .aeNum { background: var(--pm-brand); color: #fff; }
+.aeSubj { font-size: 13.5px; font-weight: 650; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.aeWhen { font-size: 12px; color: var(--pm-hint); margin-top: 2px; }
+.aeTabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--pm-card2); }
+.aeTabs button { height: 32px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; font-weight: 650; font-size: 13.5px; cursor: pointer; color: var(--pm-muted); }
+.aeTabs button.on { background: var(--pm-card); color: var(--pm-ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.aeCard { display: grid; gap: 12px; padding: 16px; }
+.aeGrid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 700px) { .aeGrid2 { grid-template-columns: 1fr; } }
+.aeVariant { display: flex; gap: 6px; align-items: center; }
+.aeVariant .input { flex: 1; }
+.aeOffer { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; background: var(--pm-card2); font-size: 14px; }
+.aeChecks { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; font-size: 13.5px; }
+.aeChecksOk { background: rgba(46,125,50,.08); color: #2E7D32; }
+.aeChecksBad { background: rgba(175,39,47,.08); color: #AF272F; }
+
+/* ---- Automations list (automations/page) ---- */
+.alGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+.alCard { display: grid; gap: 10px; padding: 16px; align-content: start; }
+.alEmails { display: grid; gap: 2px; }
+.alEmail { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 7px 8px; border-radius: 8px; text-decoration: none; color: var(--pm-ink); font-size: 13.5px; }
+.alEmail:hover { background: var(--pm-card2); }
+.alEmail .aeNum { width: 22px; height: 22px; font-size: 11.5px; }
+.alEmail span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alGroup { margin: 8px 0 2px; font-size: 12px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--pm-hint); }

@@ -5,9 +5,18 @@ import { caller, isResponse, bad } from "@/lib/email-studio/route-helpers";
 import { recordAudit } from "@/lib/audit";
 import { flowIssues, hasBlockingIssue, sanitizeFlow, type EditableFlow } from "@/lib/email-studio/automations";
 
-// One automation: load, save, switch on/off, delete. Anything that changes
-// what real customers receive is admin only: switching on, and editing or
-// deleting an automation that is ON. Agents can build and edit drafts.
+/** The stored config as the editor would send it back (same cleaning). */
+function sanitizeFlowConfig(f: EditableFlow): Record<string, unknown> {
+  const c = sanitizeFlow({ ...f, steps: [] });
+  return typeof c === "string" ? f.trigger_config : c.trigger_config;
+}
+
+// One automation: load, save, switch on/off, delete. Team members edit the
+// COPY of any automation, including live ones (owner, 2026-10-01: staff run
+// the emails day to day); the copy checks still block a bad save of a live
+// one and every save is audit logged. Admin only: switching on/off, deleting,
+// and on a live automation changing who gets it (trigger, rules, name) or
+// adding/removing emails.
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -53,10 +62,15 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   const f = await load(id);
   if (!f) return bad("automation not found", 404);
   const on = f.status === "active";
-  if (on && !me.admin) return bad("This automation is on. Only admins can change it. Ask an admin, or pause it first.", 403);
-
   const clean = sanitizeFlow(await parseBody(req));
   if (typeof clean === "string") return bad(clean);
+  if (on && !me.admin) {
+    const cur = asEditable(f);
+    if (clean.name !== cur.name || clean.trigger_type !== cur.trigger_type || JSON.stringify(clean.trigger_config) !== JSON.stringify(sanitizeFlowConfig(cur))) {
+      return bad("Only admins can change who gets a live automation. You can edit the emails.", 403);
+    }
+    if (clean.steps.length !== cur.steps.length) return bad("Only admins can add or remove emails in a live automation.", 403);
+  }
   if (on && clean.trigger_type !== f.trigger_type) return bad("Pause the automation before changing its trigger.");
   const issues = flowIssues(clean);
   if (on && hasBlockingIssue(issues)) return NextResponse.json({ error: "Fix the issues before saving a live automation.", issues }, { status: 400 });
@@ -70,7 +84,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     action: "email_studio.flow_save",
     entityType: "flow",
     entityId: id,
-    summary: `Automation "${clean.name}" edited${on ? " while on" : ""}`,
+    summary: `Automation "${clean.name}" edited${on ? " while on" : ""}${me.admin ? "" : " by a team member"}`,
     metadata: { steps: clean.steps.length, trigger: clean.trigger_type },
     actor: me.user,
     request: req,
