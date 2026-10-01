@@ -38,6 +38,11 @@ const DEFAULTS = {
   tagline_checkout_footer: true,
   voice_call_enabled: false,
   cart_voice_delay_hours: 6,
+  cart_voice_delay_minutes: 15,
+  cod_voice_enabled: false,
+  cod_voice_delay_hours: 2,
+  cod_voice_max_attempts: 2,
+  cod_voice_retry_hours: 3,
   voice_min_cart_value: 0,
   voice_call_start_hour: 10,
   voice_call_end_hour: 20,
@@ -49,7 +54,7 @@ const BOOL_KEYS = [
   "order_confirmation_enabled", "shipping_update_enabled", "abandoned_cart_enabled",
   "review_request_enabled", "replenishment_enabled", "cod_gate_enabled",
   "tagline_bot_replies", "tagline_proactive_asks", "tagline_cod_gate", "tagline_checkout_footer",
-  "voice_call_enabled",
+  "voice_call_enabled", "cod_voice_enabled",
 ] as const;
 
 // Meta template names: lowercase letters, digits, underscores. first may not
@@ -67,6 +72,10 @@ const NUM_LIMITS: Record<string, { min: number; max: number }> = {
   cod_reminder_delay_hours: { min: 0.5, max: 48 },
   cod_needs_call_hours: { min: 1, max: 168 },
   cart_voice_delay_hours: { min: 1, max: 72 },
+  cart_voice_delay_minutes: { min: 5, max: 180 },
+  cod_voice_delay_hours: { min: 0.5, max: 24 },
+  cod_voice_max_attempts: { min: 1, max: 3 },
+  cod_voice_retry_hours: { min: 1, max: 12 },
   voice_min_cart_value: { min: 0, max: 100000 },
   voice_call_start_hour: { min: 0, max: 23 },
   voice_call_end_hour: { min: 1, max: 24 },

@@ -39,4 +39,9 @@ export const TOGGLE_COPY: Partial<Record<BoolKey, { name: string; on: string; of
     on: "Customers whose cart WhatsApp messages did not work may get one friendly AI phone call about their cart, within the calling hours you set.",
     off: "No more cart rescue phone calls will be placed.",
   },
+  cod_voice_enabled: {
+    name: "COD confirmation calls",
+    on: "Customers who have not confirmed a COD order will get an AI phone call.",
+    off: "No more COD confirmation phone calls will be placed.",
+  },
 };

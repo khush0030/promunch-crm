@@ -112,6 +112,36 @@ export function CodCard({ c }: { c: FlowsCtx }) {
           {d.cod_needs_call_hours <= d.cod_reminder_delay_hours && (
             <span className={s.err} role="alert">The call request has to come after the reminder.</span>
           )}
+          <div className={s.toggleRow}>
+            <div>
+              <div className={s.toggleName}>AI confirmation call</div>
+              <div className={s.toggleSub}>If a COD customer ignores the Confirm buttons and the reminder, the AI voice calls to confirm. Cancel requests go to the team, never auto-cancelled.</div>
+            </div>
+            {c.isAdmin ? (
+              <Switch on={c.saved.cod_voice_enabled} label="COD confirmation calls"
+                onClick={() => c.requestToggle("cod_voice_enabled", !c.saved.cod_voice_enabled)} />
+            ) : (
+              <span className={s.stateText}>{c.saved.cod_voice_enabled ? "On" : "Off"}</span>
+            )}
+          </div>
+          <Field label="Hours after reminder">
+            {c.isAdmin ? (
+              <input type="number" className={s.num} min={0.5} max={24} step={0.5} value={d.cod_voice_delay_hours}
+                aria-label="Hours after reminder" onChange={(e) => c.set("cod_voice_delay_hours", Number(e.target.value) || 0)} />
+            ) : <span className={s.fieldValue}>{d.cod_voice_delay_hours}</span>}
+          </Field>
+          <Field label="Max calls">
+            {c.isAdmin ? (
+              <input type="number" className={s.num} min={1} max={3} step={1} value={d.cod_voice_max_attempts}
+                aria-label="Max calls" onChange={(e) => c.set("cod_voice_max_attempts", Number(e.target.value) || 0)} />
+            ) : <span className={s.fieldValue}>{d.cod_voice_max_attempts}</span>}
+          </Field>
+          <Field label="Hours between calls">
+            {c.isAdmin ? (
+              <input type="number" className={s.num} min={1} max={12} step={1} value={d.cod_voice_retry_hours}
+                aria-label="Hours between calls" onChange={(e) => c.set("cod_voice_retry_hours", Number(e.target.value) || 0)} />
+            ) : <span className={s.fieldValue}>{d.cod_voice_retry_hours}</span>}
+          </Field>
         </div>
       }
       tech={
@@ -164,24 +194,28 @@ export function VoiceCard({ c }: { c: FlowsCtx }) {
     <AutomationCard
       icon={Phone}
       title="Voice rescue call"
-      line="If the cart WhatsApp messages did not work, a friendly AI voice gives them one call"
+      line={`About ${d.cart_voice_delay_minutes} minutes after a customer leaves their cart, a friendly AI voice gives them one call`}
       enabled={c.saved.voice_call_enabled}
       locked={!c.isAdmin}
       badge={!c.isAdmin ? LOCK_BADGE : undefined}
       onToggle={() => c.requestToggle("voice_call_enabled", !c.saved.voice_call_enabled)}
       steps={[
-        { kind: "trigger", title: "Cart WhatsApp messages did not work", detail: "no reply, or Meta held them back" },
-        { kind: "wait", title: friendlyDuration(d.cart_voice_delay_hours), detail: "after the coupon message" },
+        { kind: "trigger", title: "A customer leaves their cart" },
+        { kind: "wait", title: `${d.cart_voice_delay_minutes} min`, detail: "after the cart goes quiet" },
         { kind: "message", title: "One AI phone call", detail: `in ${d.voice_language}, ${hourLabel(d.voice_call_start_hour)} to ${hourLabel(d.voice_call_end_hour)}` },
       ]}
       settings={
         <div className={s.settings}>
-          <Field label="Call after the coupon message">
+          <Field label="Call after the cart goes quiet">
             {c.isAdmin ? (
-              <DurationInput label="Call wait" hours={d.cart_voice_delay_hours} min={1} max={72}
-                onChange={(h) => c.set("cart_voice_delay_hours", h)} />
-            ) : <span className={s.fieldValue}>{friendlyDuration(d.cart_voice_delay_hours)}</span>}
+              <span className={s.dur}>
+                <input type="number" className={s.num} min={5} max={180} step={5} value={d.cart_voice_delay_minutes}
+                  aria-label="Minutes before the call" onChange={(e) => c.set("cart_voice_delay_minutes", Number(e.target.value) || 0)} />
+                <span className={s.hint}>minutes</span>
+              </span>
+            ) : <span className={s.fieldValue}>{d.cart_voice_delay_minutes} minutes</span>}
           </Field>
+          <span className={s.hint}>If the call connects, the WhatsApp cart reminders are skipped. If not, they go as usual.</span>
           <Field label="Only carts worth at least">
             {c.isAdmin ? (
               <span className={s.dur}>

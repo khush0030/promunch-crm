@@ -26,6 +26,11 @@ export type FlowSettings = {
   tagline_checkout_footer: boolean;
   voice_call_enabled: boolean;
   cart_voice_delay_hours: number;
+  cart_voice_delay_minutes: number;
+  cod_voice_enabled: boolean;
+  cod_voice_delay_hours: number;
+  cod_voice_max_attempts: number;
+  cod_voice_retry_hours: number;
   voice_min_cart_value: number;
   voice_call_start_hour: number;
   voice_call_end_hour: number;
