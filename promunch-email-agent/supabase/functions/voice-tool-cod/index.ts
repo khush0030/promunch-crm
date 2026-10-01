@@ -5,6 +5,7 @@
 // spoken by the agent, so: short, plain, no em dashes.
 import { db } from "../_shared/supabase.ts";
 import { checkVoiceToolAuth } from "../_shared/voice-tool-auth.ts";
+import { logConnector } from "../_shared/connector-log.ts";
 import { confirmGate, requestCancelFromVoice } from "../_shared/cod-gate.ts";
 
 // Gate statuses are internal ("needs_call"); the customer hears plain words.
@@ -24,7 +25,7 @@ Deno.serve(async (req) => {
   if (!body?.call_id || !action) return j({ ok: false, message: "Sorry, I could not update the order." }, 400);
   const sb = db();
   const { data: call } = await sb.from("voice_calls")
-    .select("id, status, purpose, shopify_id, tool_action").eq("id", body.call_id).maybeSingle();
+    .select("id, status, purpose, shopify_id").eq("id", body.call_id).maybeSingle();
   if (!call || call.status !== "dialing" || call.purpose !== "cod_confirm" || !call.shopify_id) {
     return j({ ok: false, message: "Sorry, I could not update the order." }, 400);
   }
@@ -32,16 +33,30 @@ Deno.serve(async (req) => {
     .eq("id", call.id).is("tool_action", null).select("id");
   if (!won?.length) return j({ ok: true, message: "That is already noted for this order." });
 
-  if (action === "confirm") {
-    const r = await confirmGate(call.shopify_id, "voice");
-    return j({ ok: true, message: r.outcome === "confirmed"
-      ? "Done, your order is confirmed and will be packed soon."
-      : `Your order is already ${spoken(r.already)}.` });
+  const notFound = "Sorry, I could not find that order. Our team will call you to sort it out.";
+  try {
+    if (action === "confirm") {
+      const r = await confirmGate(call.shopify_id, "voice");
+      if (r.outcome !== "confirmed" && r.already === "unknown") return j({ ok: false, message: notFound });
+      return j({ ok: true, message: r.outcome === "confirmed"
+        ? "Done, your order is confirmed and will be packed soon."
+        : `Your order is already ${spoken(r.already)}.` });
+    }
+    const r = await requestCancelFromVoice(call.shopify_id);
+    if (r.outcome === "not_found") return j({ ok: false, message: notFound });
+    return j({ ok: r.ok, message: r.outcome === "already"
+      ? `Your order is already ${spoken(r.already)}.`
+      : "Noted. Our team will cancel it and confirm with you on WhatsApp shortly." });
+  } catch (e) {
+    // Release the claim so a retry works and finaliseVoiceCall still escalates.
+    await sb.from("voice_calls").update({ tool_action: null, updated_at: new Date().toISOString() })
+      .eq("id", call.id).eq("tool_action", action).then(() => {}, () => {});
+    await logConnector({
+      connector: "shopify_wa", level: "error", event: "voice_tool_cod_failed",
+      message: `voice-tool-cod ${action} threw: ${e instanceof Error ? e.message : String(e)}`, ref: call.id,
+    }).catch(() => {});
+    return j({ ok: false, message: "Sorry, I could not update the order. Our team will call you to confirm." }, 502);
   }
-  const r = await requestCancelFromVoice(call.shopify_id);
-  return j({ ok: r.ok, message: r.outcome === "already"
-    ? `Your order is already ${spoken(r.already)}.`
-    : "Noted. Our team will cancel it and confirm with you on WhatsApp shortly." });
 });
 
 function j(o: unknown, s = 200) {
