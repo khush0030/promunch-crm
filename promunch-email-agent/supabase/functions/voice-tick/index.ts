@@ -178,7 +178,9 @@ async function reconcilePass(nowMs: number) {
     .eq("status", "dialing").lt("created_at", new Date(nowMs - 2 * 3600_000).toISOString());
   const { data: stuck, error: stuckErr } = await sb.from("voice_calls").select("id, purpose, attempt_id, created_at")
     .eq("status", "dialing").not("attempt_id", "is", null)
-    .lt("created_at", new Date(nowMs - 3 * 60_000).toISOString())
+    // 10 min, not 3: finalising flips status off 'dialing', and the mid-call
+    // tools (voice-tool-*) require 'dialing', so finalising a live call breaks them.
+    .lt("created_at", new Date(nowMs - 10 * 60_000).toISOString())
     .gt("created_at", new Date(nowMs - 48 * 3600_000).toISOString())
     .order("created_at").limit(50);
   if (stuckErr) throw new Error(`reconcile stuck query: ${stuckErr.message}`);
@@ -193,6 +195,8 @@ async function reconcilePass(nowMs: number) {
     for (const row of rows) {
       const a = byId.get(String(row.attempt_id));
       if (!a || a.status === "unknown") continue; // still ringing / not in analytics yet
+      // Connected but no duration yet = still live; leave it 'dialing' for the tools.
+      if (a.status === "connected" && a.durationSeconds == null) continue;
       const transcript = a.interactionId ? await fetchTranscript(purpose, a.interactionId) : [];
       const r = await finaliseVoiceCall(row.id, {
         status: a.status, durationS: a.durationSeconds != null ? Math.round(a.durationSeconds) : null,

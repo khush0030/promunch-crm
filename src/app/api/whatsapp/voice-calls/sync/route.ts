@@ -12,8 +12,9 @@ export const dynamic = "force-dynamic";
 // for why calling Sarvam directly from Next.js is the intended exception here).
 //
 // Covers both Sarvam apps (cart agent + COD agent). This route only writes the
-// call row + dnd; the COD/cart side-effects come from voice-tick's reconcile,
-// which is the primary path.
+// call row + dnd; it does NOT run finaliseVoiceCall's side effects (WA cancel,
+// COD escalation). So it only touches rows older than 2 hours: voice-tick's
+// reconcile owns younger rows and runs the full outcome logic on them.
 //
 // Session-gated by middleware like every other /api/* route (no extra gate).
 const MAX_HOURS = 168;
@@ -77,7 +78,8 @@ export async function POST(req: NextRequest) {
   const { data: rows, error } = await supabaseAdmin
     .from("voice_calls")
     .select("id, attempt_id, wa_id, status, interaction_id, transcript")
-    .in("attempt_id", attemptIds);
+    .in("attempt_id", attemptIds)
+    .lt("created_at", new Date(until.getTime() - 2 * 3600_000).toISOString());
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const byAttempt = new Map<string, CallRow>();

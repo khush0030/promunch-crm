@@ -212,11 +212,15 @@ Deno.serve(async (req) => {
     if (isCart) {
       const { data: cartCalls } = await sb.from("voice_calls")
         .select("status, duration_s, link_sent_at, created_at").eq("wa_id", run.wa_id)
-        .eq("purpose", "cart").gt("created_at", run.created_at);
+        .eq("purpose", "cart").gt("created_at", new Date(Date.now() - 24 * 3600_000).toISOString());
       // DURABLE BACKSTOP for finaliseVoiceCall's cancel: if a call already
       // reached this customer for this sequence, never send the WA nudge,
       // even if the outcome handler's cancel write was lost.
+      // A reached call within 24h counts regardless of run.created_at: a new
+      // checkout token may have enrolled this run after the call.
+      const reachedSinceMs = Date.now() - 24 * 3600_000;
       const reached = (cartCalls ?? []).some((c) => c.status === "connected" &&
+        Date.parse(c.created_at) > reachedSinceMs &&
         (!!c.link_sent_at || Number(c.duration_s ?? 0) >= REACHED_MIN_SECONDS));
       if (reached) {
         await mark(run.id, "cancelled", "voice: customer reached on call");
@@ -224,6 +228,7 @@ Deno.serve(async (req) => {
         continue;
       }
       const live = (cartCalls ?? []).filter((c) => c.status === "dialing" &&
+        Date.parse(c.created_at) > Date.parse(run.created_at) &&
         Date.parse(c.created_at) > Date.now() - 30 * 60_000);
       if (live.length) {
         await sb.from("wa_journey_runs").update({

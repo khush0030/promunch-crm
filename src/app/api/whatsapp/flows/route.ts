@@ -4,7 +4,7 @@ import { getCaller } from "@/lib/rbac-server";
 import { isAdminUser } from "@/lib/rbac";
 import { ORDER_MESSAGE_KEYS, ORDER_MESSAGES_ADMIN_ONLY } from "./permissions";
 import { recordAudit } from "@/lib/audit";
-import { validateVoiceHours, VOICE_LANGUAGES } from "./validate";
+import { validateCartVoiceDelay, validateVoiceHours, VOICE_LANGUAGES } from "./validate";
 
 // Settings for the automated WhatsApp journeys (Flows tab).
 // Backed by the wa_flow_settings singleton (id=1, migration 20260705190000).
@@ -213,6 +213,8 @@ export async function PATCH(req: NextRequest) {
       { error: "needs-call escalation must come after the reminder (needs-call hours > reminder hours)" },
       { status: 400 });
   }
+  const voiceDelayErr = validateCartVoiceDelay(merged.cart_voice_delay_minutes, merged.cart_step1_delay_hours);
+  if (voiceDelayErr) return NextResponse.json({ error: voiceDelayErr }, { status: 400 });
   const hoursErr = validateVoiceHours(merged.voice_call_start_hour, merged.voice_call_end_hour);
   if (hoursErr) return NextResponse.json({ error: hoursErr }, { status: 400 });
 

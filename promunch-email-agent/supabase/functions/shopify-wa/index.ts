@@ -19,7 +19,7 @@ import { handleOrderCreated } from "../_shared/order-confirmation.ts";
 import { claimSend, markSendSent, releaseSend } from "../_shared/confirmations.ts";
 import { enrolCustomFlows } from "../_shared/custom-flows.ts";
 import { enrolEmailFlow, exitFlowsOnCheckout, exitOrderEmailFlows } from "../_shared/email-flows.ts";
-import { VOICE_TEMPLATE } from "../_shared/voice-eligibility.ts";
+import { REACHED_MIN_SECONDS, VOICE_TEMPLATE } from "../_shared/voice-eligibility.ts";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
@@ -324,6 +324,23 @@ async function handleCheckout(checkout: any) {
   // (Gate #2, per CUSTOMER, is further down — this one alone is not enough,
   // because Shopify mints a new token for every fresh abandonment.)
   const enrolKey = `abandoned_enrol:${token}`;
+  // Same-checkout activity pushes the voice call later. Every checkouts/update
+  // after the first stops at the enrol claim below, so this must run BEFORE it.
+  // Abandoned = N minutes of checkout silence; only ever later, never earlier.
+  if (flows.voice_call_enabled) {
+    const { data: vRuns } = await sb.from("wa_journey_runs")
+      .select("id, next_action_at")
+      .eq("journey_key", "abandoned_checkout").eq("wa_id", waId).eq("order_ref", token)
+      .eq("status", "active").eq("context->>template", VOICE_TEMPLATE);
+    for (const vr of vRuns ?? []) {
+      const later = new Date(Math.max(
+        Date.parse(String(vr.next_action_at)),
+        Date.now() + flows.cart_voice_delay_minutes * 60_000,
+      )).toISOString();
+      await sb.from("wa_journey_runs").update({ next_action_at: later })
+        .eq("id", vr.id).eq("status", "active");
+    }
+  }
   if (!(await claimSend(enrolKey))) return;
   // secondary guard — already enrolled before this gate existed? lock and stop.
   const { data: prior } = await sb.from("wa_journey_runs").select("id").eq("order_ref", token).limit(1);
@@ -529,6 +546,24 @@ async function handleCheckout(checkout: any) {
         message:
           `Cart ${token}: ${waId} already has a live recovery sequence — re-pointed ${refreshed} step(s) ` +
           `at the new cart instead of enrolling a second one (original deadline kept).`,
+        ref: token,
+      }).catch(() => {});
+      return;
+    }
+
+    // A shopper we already reached by phone in the last 24h gets no fresh
+    // sequence just because this checkout minted a new token (WA or voice).
+    // Independent of any run's created_at: the earlier sequence may be long gone.
+    const reachedSince = new Date(Date.now() - 24 * 3600_000).toISOString();
+    const { data: recentCalls } = await sb.from("voice_calls")
+      .select("status, link_sent_at, duration_s")
+      .eq("wa_id", waId).eq("purpose", "cart").eq("status", "connected")
+      .gte("created_at", reachedSince);
+    if ((recentCalls ?? []).some((c: any) => c.link_sent_at || Number(c.duration_s ?? 0) >= REACHED_MIN_SECONDS)) {
+      await markSendSent(enrolKey);
+      await logConnector({
+        connector: "shopify_wa", level: "info", event: "abandoned_enrol_skipped_reached_call",
+        message: `Cart ${token}: ${waId} was reached by a cart call in the last 24h — not enrolling a new sequence.`,
         ref: token,
       }).catch(() => {});
       return;

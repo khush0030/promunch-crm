@@ -36,7 +36,7 @@ export const TOGGLE_COPY: Partial<Record<BoolKey, { name: string; on: string; of
   },
   voice_call_enabled: {
     name: "Cart call",
-    on: "Customers who leave their cart get one friendly AI phone call a few minutes later, within the calling hours you set. If the call connects, the WhatsApp cart reminders are skipped.",
+    on: "Customers who leave their cart get one friendly AI phone call a few minutes later, within the calling hours you set. If the customer picks up and talks, the WhatsApp cart reminders are skipped.",
     off: "No more cart phone calls will be placed. WhatsApp and email cart reminders carry on as usual.",
   },
   cod_voice_enabled: {

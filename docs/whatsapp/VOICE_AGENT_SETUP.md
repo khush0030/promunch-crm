@@ -142,7 +142,7 @@ Full order (spec §9):
 
 **Live test:** set `voice_call_enabled=true` (Flows tab), `voice_min_cart_value=0`, and enrol a real cart from the owner's own phone with the WA path disabled (or wait for the WA leg to stand down naturally). Expect a call inside the configured window (`voice_call_start_hour`–`voice_call_end_hour` IST, default 10–20). During the call, ask for the link and confirm it lands on WhatsApp. Afterward check the `voice_calls` row (status, transcript, outcome) and the Contact 360 call log in the WhatsApp thread side panel.
 
-Before the first real rollout to the full audience, `VOICE_TEST_WA_IDS` (an edge function env var, comma-separated wa_ids) restricts dialing to an allowlist — everyone else's voice row just defers 6h. Keep it set to the owner's number through the live test, then unset it.
+Before the first real rollout to the full audience, `VOICE_TEST_WA_IDS` (an edge function env var, comma-separated wa_ids) restricts dialing to an allowlist — everyone else's cart voice row is cancelled (v2) and COD orders are filtered out of the voice pass. Keep it set to the owner's number through the live test, then unset it.
 
 ## 8. DND / TRAI note
 
@@ -217,6 +217,9 @@ Migration FIRST: the Voice tab routes select the new `purpose` column, so deploy
 
 ### Live test
 
-- **Cart:** flip `voice_call_enabled`, abandon a real cart with the owner phone, expect a call at the configured delay, ask for the link, confirm it arrives once and the pending WA nudges show cancelled. Repeat without answering: the WA reminder arrives at +1h.
-- **COD:** flip `cod_voice_enabled` with `cod_voice_delay_hours` temporarily low (for example 0.5) and a low `cod_reminder_delay_hours`, place a real COD order, answer and say yes: Shopify hold released, `confirmed_via='voice'`. Second order, say cancel: order is `needs_call`, ops ping and urgent ticket appear. Restore the delays.
+- **Cart pre-checks (owner phone):** the owner's WhatsApp thread has no open or pending ticket; `wa_contacts.voice_dnd=false` and `opted_in=true`; and there are no active `abandoned_checkout` runs for that wa_id. Cancel leftovers with:
+  `update wa_journey_runs set status='cancelled', last_error='manual: live-test reset' where wa_id='<owner wa_id>' and journey_key='abandoned_checkout' and status='active';`
+- **Cart, test 1 (UNANSWERED) first:** flip `voice_call_enabled`, abandon a real cart with the owner phone, let the call ring out without answering. Expect: no call answered, and the WA reminder arrives at +1h. Then clear the runs with the SQL above.
+- **Cart, test 2 (ANSWERED):** abandon a fresh cart, answer, ask for the link. Expect exactly one link on WhatsApp and the pending WA nudges cancelled. Note `connected_within_7d` blocks further cart calls to the same number for 7 days after an answered call. To see why a run was cancelled or skipped: `select id, status, last_error, next_action_at from wa_journey_runs where wa_id='<owner wa_id>' and journey_key='abandoned_checkout' order by created_at desc;` (`last_error` carries the reason).
+- **COD:** do NOT lower `cod_reminder_delay_hours` globally, it affects every real COD order. Instead place a real COD order with the owner phone and backdate it so the call is due: `update shopify_orders set confirmation_sent_at = confirmation_sent_at - interval '8 hours' where shopify_id = <id>;` (6h reminder + 2h voice delay). Answer and say yes: Shopify hold released, `confirmed_via='voice'`. Second order (same backdating), say cancel: order is `needs_call`, an urgent ticket appears, and a REAL ops ping goes to OPS_WA_ID (Narendra). Warn Narendra before this test.
 - Unset `VOICE_TEST_WA_IDS` only with owner go-ahead.

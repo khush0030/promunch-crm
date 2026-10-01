@@ -132,9 +132,12 @@ export async function findDueAsk(
     cartCalls = vc ?? [];
   }
   const callBlocks = (runCreatedAt: string | null): boolean => cartCalls.some((c) =>
-    (!runCreatedAt || Date.parse(c.created_at) > Date.parse(runCreatedAt)) &&
-    (c.status === "dialing" ||
-      (c.status === "connected" && (!!c.link_sent_at || Number(c.duration_s ?? 0) >= REACHED_MIN_SECONDS))));
+    // Reached: any call in the last 24h (a new checkout token may enrol a run
+    // after the call). Dialing: only a call placed after this run, < 30 min old.
+    (c.status === "connected" && Date.parse(c.created_at) > nowMs - 24 * 3600_000 &&
+      (!!c.link_sent_at || Number(c.duration_s ?? 0) >= REACHED_MIN_SECONDS)) ||
+    (c.status === "dialing" && (!runCreatedAt || Date.parse(c.created_at) > Date.parse(runCreatedAt)) &&
+      Date.parse(c.created_at) > nowMs - 30 * 60_000));
 
   const eligible = data.filter((r) => {
     // The voice row is an abandoned_checkout run with a link, so without this

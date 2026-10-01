@@ -215,7 +215,7 @@ export function VoiceCard({ c }: { c: FlowsCtx }) {
               </span>
             ) : <span className={s.fieldValue}>{d.cart_voice_delay_minutes} minutes</span>}
           </Field>
-          <span className={s.hint}>If the call connects, the WhatsApp cart reminders are skipped. If not, they go as usual.</span>
+          <span className={s.hint}>If the customer picks up and talks, the WhatsApp cart reminders are skipped. If not, they go as usual.</span>
           <Field label="Only carts worth at least">
             {c.isAdmin ? (
               <span className={s.dur}>

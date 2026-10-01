@@ -104,7 +104,7 @@ export async function GET() {
   const voiceCarts = new Map<string, { placed: boolean; connected: boolean }>();
   let linkSent = 0;
   const { data: calls } = await supabaseAdmin
-    .from("voice_calls").select("order_ref, status, link_sent_at").gte("created_at", since);
+    .from("voice_calls").select("order_ref, status, link_sent_at").eq("purpose", "cart").gte("created_at", since);
   (calls ?? []).forEach((c, i) => {
     // A link send is a real one-off WhatsApp send that happened during a specific
     // call, not a per-cart outcome — count every occurrence, not one per cart.
