@@ -1,5 +1,7 @@
 # Sarvam voice agent setup — abandoned-cart rescue calls
 
+> **v2 (Oct 1 2026):** calls are now call-first (cart) plus a COD confirmation agent, driven by `voice-tick`. The v1 sections below describe the original WhatsApp-first flow; the "v2" section at the end is the current truth for timing, dispatch and the COD agent. Where they disagree, v2 wins.
+
 Design spec: [docs/plans/2026-08-26-sarvam-voice-cart-recovery-design.md](../plans/2026-08-26-sarvam-voice-cart-recovery-design.md). This doc is the operational setup guide: what to configure in indus.sarvam.ai, what secrets to set, and the deploy order that keeps the feature safely OFF until every piece is live.
 
 **Ships disabled.** `wa_flow_settings.voice_call_enabled` defaults to `false` (migration `20260826200000_voice_cart_recovery.sql`). Nothing dials a customer until that flag is flipped on — see §7 for the hard ordering rule.
@@ -157,3 +159,64 @@ Two places where what shipped differs from the original plan — this doc, not t
 
 1. **A swept "unknown" call can still be finalised by a late webhook.** The tick sweeps any `voice_calls` row stuck in `dialing` for 6+ hours to `status='unknown'` so it stops blocking the per-cart and 7-day dedup guards (never redialed from there). But `unknown` is not a dead end: `verifyVoiceWebhook` (`_shared/voice-webhook-verify.ts`) still accepts a webhook against a row in `dialing` **or** `unknown` — a "swept" row just means "no webhook arrived yet," and a late Sarvam delivery (including a `do_not_call` outcome that must still set `voice_dnd`) can land and finalise it after the sweep.
 2. **The cart-recovery funnel reports two separate voice metrics, not one.** `GET /api/whatsapp/cart-recovery` returns `voice.recovered` (the cart converted, the call connected, and no WA message was ever delivered for that cart — the call is the only channel that reached the customer) and `voice.assistedRecovered` (the cart converted, the call connected, **and** a WA message also delivered — credit is split, not claimed) as distinct fields. This is an honest-attribution choice: there is no reliable "which channel actually gets credit for this order" signal in the schema (the design spec proposed one; on inspection no such timestamp exists — `wa_journey_runs.updated_at` is a generic touch-trigger column, not a dedicated conversion moment, and repurposing it would repeat the exact WA-attribution inflation bug fixed on 2026-07-25), so the funnel reports both numbers side by side instead of collapsing them into one that would overclaim.
+
+## v2: call-first cart + COD confirmation (Oct 1 2026)
+
+Design: [docs/plans/2026-10-01-voice-agent-cart-cod-design.md](../plans/2026-10-01-voice-agent-cart-cod-design.md). Plan: [docs/plans/2026-10-01-voice-agent-cart-cod.md](../plans/2026-10-01-voice-agent-cart-cod.md).
+
+### Two agents
+
+| Agent | Purpose | Secrets |
+|---|---|---|
+| Cart Recovery Assistant | Calls a few minutes after checkout goes quiet; can send the cart link via `send_whatsapp_link` | `SARVAM_APP_ID`, `SARVAM_APP_VERSION` |
+| COD Confirmation | Confirms a pending COD order | `SARVAM_COD_APP_ID`, `SARVAM_COD_APP_VERSION` |
+
+`SARVAM_COD_APP_ID` and `SARVAM_COD_APP_VERSION` are edge function secrets. The Next.js side (voice sync and recording routes) also reads `SARVAM_COD_APP_ID` from Vercel env, so set it in both places.
+
+### Dispatch: `voice-tick` (pg_cron, every minute)
+
+`wa-journey-tick` no longer handles voice rows. `voice-tick` runs three passes:
+
+1. **Cart pass:** dials voice journey rows due about `cart_voice_delay_minutes` after the checkout goes quiet. One real dial per cart, inside the IST window only (outside it, no call and the WA flow continues).
+2. **COD pass:** pending COD orders after the confirmation reminder plus `cod_voice_delay_hours`, up to `cod_voice_max_attempts`, `cod_voice_retry_hours` apart. Spacing is enforced inside the atomic claim via `shopify_orders.voice_last_dial_at`, so two ticks can never double-dial.
+3. **Reconcile pass:** fetches Sarvam analytics for rows stuck `dialing`. Rows without an `attempt_id` become `unknown` after 30 minutes; anything still `dialing` after 2 hours becomes `unknown`.
+
+Only a definite Sarvam refusal (4xx, or not configured) gives a COD attempt back. 5xx and timeouts count as a used attempt (the call may have gone out).
+
+WA interplay: `wa-journey-tick` refuses to send a WA cart nudge if a cart call reached the customer, and defers while one is dialing. The inbound weave (`window-asks.ts`) applies the same rule.
+
+### COD agent configuration
+
+**Inputs:** `customer_name`, `order_ref`, `order_items`, `order_value`, `call_id`, `gender`. Undeclared variables are a hard 422 (see the v1 §3 note), so declare exactly these.
+
+**Outputs:** `call_disposition` in {`confirmed`, `cancel_requested`, `callback_later`, `unclear`, `do_not_call`}, plus `call_summary`.
+
+**HTTPS tool `cod_confirm`:** POST `https://hlykspakpewuilttnydm.supabase.co/functions/v1/voice-tool-cod`, header `Authorization: Bearer <VOICE_TOOL_SECRET>` (same secret as `voice-tool-wa-link`), body `{call_id, action}` where `action` is `"confirm"` or `"cancel_request"`.
+
+- `confirm` releases the COD fulfillment hold and sets `confirmed_via='voice'`.
+- `cancel_request` parks the order as `needs_call`, opens an urgent WA ticket and sends one ops ping. **The agent never cancels an order**; ops decide.
+
+Prompt rules: confirm the order (`{order_items}`, `{order_value}`); call the tool with `confirm` on a yes and `cancel_request` on a cancel; never promise refunds or discounts; product facts only from the Master KB upload; no em dashes.
+
+### Flags
+
+- `voice_call_enabled` (cart) and `cod_voice_enabled` (COD). Both default OFF. COD also requires `cod_gate_enabled`.
+- `VOICE_TEST_WA_IDS` (edge env, comma-separated wa_ids) restricts dialing to an allowlist for BOTH cart and COD.
+- Timings live in `wa_flow_settings` (Flows tab): `cart_voice_delay_minutes`, `cod_voice_delay_hours`, `cod_voice_max_attempts`, `cod_voice_retry_hours`, `voice_call_start_hour`, `voice_call_end_hour`.
+
+### Deploy order and rollout
+
+Migration FIRST: the Voice tab routes select the new `purpose` column, so deploying Next before the migration breaks them.
+
+1. Apply `20261001120000_voice_cart_cod.sql` (SQL editor); verify columns.
+2. Create/update both Sarvam agents; set `SARVAM_COD_APP_ID`, `SARVAM_COD_APP_VERSION` and the new `SARVAM_APP_VERSION`: `supabase secrets set ... --project-ref hlykspakpewuilttnydm`.
+3. Deploy in order: `voice-tick voice-tool-cod voice-call-start voice-webhook voice-tool-wa-link wa-jobs-tick`, then `wa-journey-tick wa-ai-reply`, then `shopify-wa`.
+4. Apply `20261001120100_voice_tick_cron.sql` AFTER `voice-tick` is deployed; confirm `cron.job_run_details` shows voice-tick 200s.
+5. Vercel: deploy from a detached worktree of the pushed commit with `.vercel` copied in (the shared checkout drifts); check `vercel ls promunch-crm`. Set `SARVAM_COD_APP_ID` in Vercel env.
+6. Set `VOICE_TEST_WA_IDS` to the owner's number.
+
+### Live test
+
+- **Cart:** flip `voice_call_enabled`, abandon a real cart with the owner phone, expect a call at the configured delay, ask for the link, confirm it arrives once and the pending WA nudges show cancelled. Repeat without answering: the WA reminder arrives at +1h.
+- **COD:** flip `cod_voice_enabled` with `cod_voice_delay_hours` temporarily low (for example 0.5) and a low `cod_reminder_delay_hours`, place a real COD order, answer and say yes: Shopify hold released, `confirmed_via='voice'`. Second order, say cancel: order is `needs_call`, ops ping and urgent ticket appear. Restore the delays.
+- Unset `VOICE_TEST_WA_IDS` only with owner go-ahead.

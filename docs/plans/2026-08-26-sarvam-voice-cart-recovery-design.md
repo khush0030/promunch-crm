@@ -1,5 +1,7 @@
 # Sarvam voice agent for abandoned-cart recovery — design spec
 
+> Timing superseded Oct 1 2026: calls are now call-first via `voice-tick`, see [2026-10-01-voice-agent-cart-cod-design.md](2026-10-01-voice-agent-cart-cod-design.md).
+
 Date: 2026-08-26. Status: approved design, implementation pending.
 
 ## Goal

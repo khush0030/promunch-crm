@@ -37,7 +37,7 @@ Rule: every doc lives in exactly one subfolder below. Superseded docs move to `a
 | [MM_LITE_MIGRATION.md](whatsapp/MM_LITE_MIGRATION.md) | Marketing Messages (MM Lite) API: what was verified from Meta's docs, the `WA_MM_LITE_ENABLED` flag + Cloud API fallback, Meta onboarding steps, rollout and rollback |
 | [WA_DELIVERABILITY_PLAYBOOK.md](whatsapp/WA_DELIVERABILITY_PLAYBOOK.md) | Why Meta holds back our marketing (#131049), the Sep 2026 numbers, the recommended "Warm" default audience, owner steps at Meta (MM API onboarding, verification) and the weekly routine for the WhatsApp marketer |
 | [CART_RECOVERY_DELIVERY.md](whatsapp/CART_RECOVERY_DELIVERY.md) | Customer-requested storefront carts, one template attempt per cart, cart priority, verification and staged activation |
-| [VOICE_AGENT_SETUP.md](whatsapp/VOICE_AGENT_SETUP.md) | Sarvam AI voice agent for abandoned-cart rescue calls: number rental + KYC, function secrets, agent variables/prompt/tool config, template submission, deploy order, DND/TRAI caveats |
+| [VOICE_AGENT_SETUP.md](whatsapp/VOICE_AGENT_SETUP.md) | Sarvam AI voice agents (v2: call-first abandoned-cart + COD confirmation, voice-tick dispatch): number rental + KYC, function secrets, agent variables/prompt/tool config, template submission, deploy order, DND/TRAI caveats |
 
 Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHATSAPP_SETUP.md`, `promunch-email-agent/docs/WHATSAPP_ORDERING.md`.
 

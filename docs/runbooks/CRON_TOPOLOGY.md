@@ -193,3 +193,19 @@ One new job, scheduled inside the feature migration (apply by hand after
 Added by `promunch-email-agent/supabase/migrations/20260930130000_storefront_events.sql`.
 Events come from the Shopify Web Pixel in `shopify-app/extensions/promunch-storefront-pixel`
 via `/api/public/track`.
+
+## 2026-10-01 update (voice agent v2: call-first cart + COD)
+
+One new job, added to the canonical file
+(`promunch-email-agent/supabase/migrations/20260705100000_cron_jobs_canonical.sql`)
+and scheduled standalone by
+`promunch-email-agent/supabase/migrations/20261001120100_voice_tick_cron.sql`.
+Apply the standalone migration AFTER deploying `voice-tick`.
+
+| Job | Schedule | Target |
+|---|---|---|
+| `voice-tick` | `* * * * *` | Edge `voice-tick` (service_role bearer). Cart pass dials voice journey rows due about `cart_voice_delay_minutes` after checkout goes quiet. COD pass dials pending COD orders after the reminder plus `cod_voice_delay_hours` (max `cod_voice_max_attempts`, `cod_voice_retry_hours` apart). Reconcile pass fetches Sarvam analytics for rows stuck `dialing`. |
+
+`wa-journey-tick` no longer handles voice rows. Both passes ship behind flags that
+default OFF (`voice_call_enabled`, `cod_voice_enabled`), so the job is a no-op
+until they are flipped. See [docs/whatsapp/VOICE_AGENT_SETUP.md](../whatsapp/VOICE_AGENT_SETUP.md).

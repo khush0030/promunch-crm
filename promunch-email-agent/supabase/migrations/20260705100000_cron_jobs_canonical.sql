@@ -57,6 +57,7 @@ BEGIN
   PERFORM cron.schedule('shopify-monthly-recap',        '29 18 28-31 * *', _cron_post(fns || 'shopify-daily-summary?period=month',   'service_role_key'));
   PERFORM cron.schedule('shopify-weekly-recap',         '29 18 * * 0',     _cron_post(fns || 'shopify-daily-summary?period=week',    'service_role_key'));
   PERFORM cron.schedule('shopify-catalog-sync-nightly', '30 19 * * *',     _cron_post(fns || 'shopify-catalog-sync',                 'service_role_key'));
+  PERFORM cron.schedule('voice-tick',                   '* * * * *',       _cron_post(fns || 'voice-tick',                           'service_role_key'));
   PERFORM cron.schedule('wa-campaign-worker',           '*/2 * * * *',     _cron_post(fns || 'wa-campaign-worker',                   'service_role_key'));
   PERFORM cron.schedule('wa-health',                    '*/10 * * * *',    _cron_post(fns || 'wa-health',                            'service_role_key'));
   PERFORM cron.schedule('wa-jobs-tick',                 '* * * * *',       _cron_post(fns || 'wa-jobs-tick',                         'service_role_key'));

@@ -11,7 +11,7 @@ Production CRM + marketing + customer-ops platform for **PROMUNCH** (high-protei
 | Deployable | Path | Deploy |
 |---|---|---|
 | Next.js 16 dashboard + 153 API routes | `src/` | `vercel --prod` (manual — git push ships NOTHING) |
-| 57 Supabase Edge Functions (Deno) + `_shared/` | `promunch-email-agent/supabase/functions/` | `supabase functions deploy <name>` from `promunch-email-agent/` |
+| 60 Supabase Edge Functions (Deno) + `_shared/` | `promunch-email-agent/supabase/functions/` | `supabase functions deploy <name>` from `promunch-email-agent/` |
 
 SQL migrations (both `supabase/migrations/` app-side and `promunch-email-agent/supabase/migrations/` edge-side) are pasted by hand into the Supabase dashboard SQL editor — the CLI path does not work. Always report "committed" and "deployed" separately.
 
@@ -48,9 +48,9 @@ All `/api/*` require a Supabase session (email-domain allowlist) EXCEPT two fail
 ### Edge function roles (grouped)
 
 - **Webhook receivers** (public, signature-verified): `wa-webhook`, `shopify-webhook`/`shopify-wa`/`shopify-status`, `gmail-webhook` (Pub/Sub), `ig-webhook`, `slack-events`/`slack-interactivity`, `oauth-callback`, `voice-webhook` (Sarvam post-call callback, per-call token instead of a provider signature).
-- **Send chokepoints** (internal-only via `_shared/require-internal.ts`): `wa-send`, `ig-send`, `b2b-send`, `voice-call-start`, `voice-tool-wa-link`.
+- **Send chokepoints** (internal-only via `_shared/require-internal.ts`): `wa-send`, `ig-send`, `b2b-send`, `voice-call-start`, `voice-tool-wa-link`, `voice-tool-cod` (Sarvam COD tool: confirm releases the hold, cancel_request parks the order for ops; the agent never cancels).
 - **AI workers** (all OpenAI — migrated off Anthropic): `wa-ai-reply` (KB-grounded WA bot), `ig-ai-reply`, `ig-analyze`, `deal-scan`, `kb-embed`/`kb-ingest`.
-- **Cron workers**: `wa-jobs-tick`, `wa-journey-tick`, `wa-campaign-worker`, `wa-campaign-send` (self-chaining), `gmail-poll`, `amazon-poll`, `wa-rfm-tick`, `wa-health`, `nudge-pending`, `ig-jobs-tick`, `ig-discovery-tick`, `ig-followup-tick`, daily/weekly summaries.
+- **Cron workers**: `wa-jobs-tick`, `wa-journey-tick`, `voice-tick` (every minute: cart + COD voice calls and Sarvam result reconcile), `wa-campaign-worker`, `wa-campaign-send` (self-chaining), `gmail-poll`, `amazon-poll`, `wa-rfm-tick`, `wa-health`, `nudge-pending`, `ig-jobs-tick`, `ig-discovery-tick`, `ig-followup-tick`, daily/weekly summaries.
 - **Manual/backfill + read services**: `shopify-*-backfill`, `shopify-stats`, `wa-template-create`, `wa-meta-info`, `cod-gate-action`.
 
 Cross-function logic lives in `_shared/` (whatsapp.ts, openai.ts, shopify*.ts, journeys.ts, order-confirmation.ts, cod-gate.ts, gmail.ts, slack.ts, require-internal.ts, …). New shared logic goes there, never copy-pasted into function folders.
