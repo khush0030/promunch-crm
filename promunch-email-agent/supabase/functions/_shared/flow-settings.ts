@@ -38,13 +38,19 @@ export interface FlowSettings {
   tagline_proactive_asks: boolean;
   tagline_cod_gate: boolean;
   tagline_checkout_footer: boolean;
-  // Sarvam voice rescue call (fires only after WhatsApp cart recovery fails).
+  // Sarvam cart call (~15 min after the cart goes quiet; voice-tick dials)
   voice_call_enabled: boolean;
-  cart_voice_delay_hours: number;   // hours after cart step 2 before the call is due
+  cart_voice_delay_hours: number;   // UNUSED since 2026-10-01 (call-first); kept until the column is dropped
   voice_min_cart_value: number;     // INR; 0 = call every cart
   voice_call_start_hour: number;    // IST, inclusive
   voice_call_end_hour: number;      // IST, exclusive
   voice_language: string;           // Sarvam initial_language_name enum
+  // Voice v2: cart call and COD confirmation call timings and flags.
+  cart_voice_delay_minutes: number; // minutes of checkout silence before the cart call
+  cod_voice_enabled: boolean;       // COD confirmation call (needs cod_gate_enabled too)
+  cod_voice_delay_hours: number;    // hours after the COD reminder before the first call
+  cod_voice_max_attempts: number;
+  cod_voice_retry_hours: number;
 }
 
 export const FLOW_DEFAULTS: FlowSettings = {
@@ -76,6 +82,11 @@ export const FLOW_DEFAULTS: FlowSettings = {
   voice_call_start_hour: 10,
   voice_call_end_hour: 20,
   voice_language: "Hindi",
+  cart_voice_delay_minutes: 15,
+  cod_voice_enabled: false,
+  cod_voice_delay_hours: 2,
+  cod_voice_max_attempts: 2,
+  cod_voice_retry_hours: 3,
 };
 
 export async function getFlowSettings(): Promise<FlowSettings> {
