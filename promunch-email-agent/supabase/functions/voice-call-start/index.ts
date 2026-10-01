@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     .select("id, run_id, wa_id, order_ref, status, attempt_id, webhook_token, agent_vars, purpose, shopify_id")
     .eq("id", body.call_id).maybeSingle();
   if (!call) return j({ ok: false, refused: true, error: "call not found" }, 404);
-  if (call.status !== "dialing" || call.attempt_id) return j({ ok: false, refused: true, error: "call already started" }, 409);
+  if (call.status !== "dialing" || call.attempt_id) return j({ ok: false, refused: false, error: "call already started" }, 409); // may already be ringing: never hand the attempt back
 
   const language = (await getFlowSettings()).voice_language || "Hindi";
 
