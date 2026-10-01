@@ -115,7 +115,7 @@ export function CodCard({ c }: { c: FlowsCtx }) {
           <div className={s.toggleRow}>
             <div>
               <div className={s.toggleName}>AI confirmation call</div>
-              <div className={s.toggleSub}>If a COD customer ignores the Confirm buttons and the reminder, the AI voice calls to confirm. Cancel requests go to the team, never auto-cancelled.</div>
+              <div className={s.toggleSub}>If a COD customer ignores the Confirm buttons and the reminder, the AI voice calls to confirm. Cancel requests go to the team, never auto-cancelled.{!c.saved.cod_gate_enabled && " Works only while the COD confirmation above is on."}</div>
             </div>
             {c.isAdmin ? (
               <Switch on={c.saved.cod_voice_enabled} label="COD confirmation calls"
@@ -193,7 +193,7 @@ export function VoiceCard({ c }: { c: FlowsCtx }) {
   return (
     <AutomationCard
       icon={Phone}
-      title="Voice rescue call"
+      title="Cart call"
       line={`About ${d.cart_voice_delay_minutes} minutes after a customer leaves their cart, a friendly AI voice gives them one call`}
       enabled={c.saved.voice_call_enabled}
       locked={!c.isAdmin}
