@@ -6,6 +6,8 @@
 //                {{product_card}} (image + name + price with the code applied)
 //                {{review_url}} {{review_product}} (the product they bought; the engine
 //                puts ctx.review_product, see order-product.ts)
+//                {{reorder_url}} {{reorder_card}} (same product, for refill emails;
+//                card is "" and the url is Best Sellers when unknown)
 // Subject/preview: same minus the HTML-only ones (cart_items, checkout_url,
 //                product.url, product.image).
 //
@@ -15,7 +17,7 @@
 
 import { EMAIL_COLORS, EMAIL_FONT } from "./brand-tokens";
 import { cartItemsHtml, cartSummaryHtml, cleanTitle, money, type ImageLookup } from "./cart-items";
-import { reviewUrl, type ReviewProduct } from "./order-product";
+import { emailImage, reorderUrl, reviewUrl, type ReviewProduct } from "./order-product";
 
 export const PRODUCT_URL_FALLBACK = "https://promunch.in/collections/best-sellers";
 export const PRODUCT_TITLE_FALLBACK = "your pick";
@@ -89,6 +91,22 @@ export function productCardHtml(p: Product, percentOff = 0, hasCoupon = false): 
     `</table>`;
 }
 
+/** Refill hero ({{reorder_card}}): the product they bought, image + name, linked; "" when unknown. */
+export function reorderCardHtml(p: ReviewProduct | null, stepIndex = 0): string {
+  if (!p) return "";
+  const href = esc(reorderUrl(p, stepIndex));
+  const title = esc(p.title);
+  const img = p.image
+    ? `<tr><td align="center" style="padding:0 0 12px;"><a href="${href}" style="text-decoration:none;"><img src="${esc(emailImage(p.image))}" width="260" alt="${title}" style="display:block;width:260px;max-width:100%;height:auto;border-radius:12px;"></a></td></tr>`
+    : "";
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 20px;"><tr><td bgcolor="${EMAIL_COLORS.panel}" style="background:${EMAIL_COLORS.panel};border-radius:14px;padding:20px;">` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">` +
+    `<tr><td align="center" style="font-family:${EMAIL_FONT};font-size:13px;line-height:1.4;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:${EMAIL_COLORS.brand};text-align:center;padding:0 0 12px;">Last time you picked</td></tr>` +
+    img +
+    `<tr><td align="center" style="font-family:${EMAIL_FONT};font-size:18px;line-height:1.4;font-weight:700;color:${EMAIL_COLORS.ink};text-align:center;"><a href="${href}" style="color:${EMAIL_COLORS.ink};text-decoration:none;">${title}</a></td></tr>` +
+    `</table></td></tr></table>`;
+}
+
 /** Email-safe product image block linked to the product; "" when no image. */
 export function productImageHtml(p: { title: string | null; url: string | null; image: string | null }): string {
   if (!p.image) return "";
@@ -134,6 +152,8 @@ export function personalize(
     .replace(T("product.url"), esc(product.url ?? PRODUCT_URL_FALLBACK))
     .replace(T("review_url"), esc(reviewUrl(reviewProductOf(c), stepIndex)))
     .replace(T("review_product"), esc(reviewProductOf(c)?.title ?? "order"))
+    .replace(T("reorder_url"), esc(reorderUrl(reviewProductOf(c), stepIndex)))
+    .replace(T("reorder_card"), reorderCardHtml(reviewProductOf(c), stepIndex))
     .replace(T("product_card"), productCardHtml(product, percentOff, !!coupon))
     .replace(T("product_image"), productImageHtml(product))
     .replace(T("product.image"), product.image ? esc(product.image) : "")

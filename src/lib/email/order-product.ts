@@ -78,7 +78,21 @@ export async function loadStoreCatalog(fetchImpl: typeof fetch = fetch): Promise
   return map;
 }
 
-/** True when a body/subject uses the review tokens (so the engine only fetches when needed). */
+/** Reorder link for the product they bought (refill emails); Best Sellers when unknown. */
+export function reorderUrl(product: ReviewProduct | null, stepIndex: number): string {
+  const utm = `utm_source=email&utm_medium=flow&utm_campaign=replenishment&utm_content=email_${stepIndex + 1}`;
+  return product ? `${product.url}?${utm}` : `${STORE}/collections/best-sellers?${utm}`;
+}
+
+/** Store CDN image at an email-friendly width (Shopify resizes on the fly). */
+export function emailImage(src: string, width = 320): string {
+  return /^https:\/\/cdn\.shopify\.com\//.test(src) ? `${src}${src.includes("?") ? "&" : "?"}width=${width}` : src;
+}
+
+/**
+ * True when a body/subject uses the bought-product tokens (review_* or
+ * reorder_*), so the engine only fetches the catalog when needed.
+ */
 export function usesReviewTokens(...texts: Array<string | undefined>): boolean {
-  return texts.some((t) => !!t && /\{\{\s*review_(url|product)\s*\}\}/.test(t));
+  return texts.some((t) => !!t && /\{\{\s*(review_(url|product)|reorder_(url|card))\s*\}\}/.test(t));
 }

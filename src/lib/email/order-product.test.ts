@@ -51,3 +51,35 @@ describe("review links", () => {
     expect(usesReviewTokens("nothing here", undefined)).toBe(false);
   });
 });
+
+describe("reorder tokens", () => {
+  const product = { title: "Noodle Masala Soya Crunchies", url: "https://promunch.in/products/noodle-masala", image: "https://cdn.shopify.com/s/files/n.png?v=1" };
+  it("links the card and button to the product they bought", () => {
+    const out = personalize("{{reorder_card}}|{{reorder_url}}", { review_product: product }, "A");
+    expect(out).toContain("Noodle Masala Soya Crunchies");
+    expect(out).toContain("n.png?v=1&amp;width=320");
+    expect(out).toContain("https://promunch.in/products/noodle-masala?utm_source=email&amp;utm_medium=flow&amp;utm_campaign=replenishment&amp;utm_content=email_1");
+  });
+  it("drops the card and falls back to Best Sellers when unknown", () => {
+    expect(personalize("{{reorder_card}}|{{reorder_url}}", {}, "A")).toBe("|https://promunch.in/collections/best-sellers?utm_source=email&amp;utm_medium=flow&amp;utm_campaign=replenishment&amp;utm_content=email_1");
+  });
+  it("triggers the catalog fetch", () => {
+    expect(usesReviewTokens("x {{reorder_card}}")).toBe(true);
+  });
+});
+
+describe("reorder tokens", () => {
+  const product = { title: "Noodle Masala Soya Crunchies", url: "https://promunch.in/products/noodle-masala", image: "https://cdn.shopify.com/s/files/n.png?v=1" };
+  it("links the card and button to the product they bought", () => {
+    const out = personalize("{{reorder_card}}|{{reorder_url}}", { review_product: product }, "A");
+    expect(out).toContain("Noodle Masala Soya Crunchies");
+    expect(out).toContain("n.png?v=1&amp;width=320");
+    expect(out).toContain("https://promunch.in/products/noodle-masala?utm_source=email&amp;utm_medium=flow&amp;utm_campaign=replenishment&amp;utm_content=email_1");
+  });
+  it("drops the card and falls back to Best Sellers when unknown", () => {
+    expect(personalize("{{reorder_card}}|{{reorder_url}}", {}, "A")).toBe("|https://promunch.in/collections/best-sellers?utm_source=email&amp;utm_medium=flow&amp;utm_campaign=replenishment&amp;utm_content=email_1");
+  });
+  it("triggers the catalog fetch", () => {
+    expect(usesReviewTokens("x {{reorder_card}}")).toBe(true);
+  });
+});

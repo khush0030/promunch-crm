@@ -645,13 +645,17 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         coupon: { percent_off: 15, expires_in_days: 9, prefix: "REFILL15" },
         coupon_code: "",
         body_html:
+          // {{reorder_card}} = the product they bought (order line items +
+          // public catalog, like the review emails); "" when unknown, and
+          // {{reorder_url}} then falls back to Best Sellers.
           h1("Running low?") +
           hi("it has been a few weeks since your order, so your stash might be getting light. Here is 15% off your refill.") +
+          "{{reorder_card}}" +
           couponBox(CODE, "15% off your refill", "One use. Valid for 7 days.") +
-          button("Restock now", link(PATHS.bestSellers, "replenishment", 1)) +
-          p("<strong>From our Best Sellers</strong>") +
+          button("Restock now", "{{reorder_url}}", "solid", { full: true }) +
+          p("<strong>Or try something new from our Best Sellers</strong>") +
           grid(["edamameRockSalt", "crunchies4", "bigBite"], "replenishment", 1) +
-          SHIPPING,
+          trustRow(["Free shipping over ₹599", "Cash on delivery available", "Questions? Just reply"]),
       },
       {
         type: "email",
