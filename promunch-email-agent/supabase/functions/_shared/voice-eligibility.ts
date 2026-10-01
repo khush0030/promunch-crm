@@ -43,6 +43,8 @@ export interface CartVoiceInput {
   cartInFlight: boolean;
   /** Any cart call for this customer CONNECTED in the last 7 days. */
   connectedWithin7d: boolean;
+  /** A WhatsApp cart message for this sequence was already sent or attempted. */
+  waAlreadySent: boolean;
 }
 
 export type VoiceVerdict =
@@ -55,6 +57,7 @@ export function cartVoiceEligibility(i: CartVoiceInput): VoiceVerdict {
   if (!i.enabled) return cancel("voice_disabled");
   if (i.cartInFlight) return { action: "defer", minutes: 15, reason: "call_in_flight" };
   if (i.cartDialled) return cancel("cart_already_called");
+  if (i.waAlreadySent) return cancel("wa_already_sent");
   if (i.connectedWithin7d) return cancel("connected_within_7d");
   if (i.voiceDnd) return cancel("voice_dnd");
   if (!i.optedIn) return cancel("wa_opted_out");

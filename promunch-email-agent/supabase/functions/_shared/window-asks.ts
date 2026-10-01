@@ -23,6 +23,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { logConnector } from "./connector-log.ts";
 import { hasPriorityCart } from "./cart-recovery-policy.ts";
+import { REACHED_MIN_SECONDS } from "./voice-outcome.ts";
 
 // Journeys whose DUE run may be delivered as cap-immune free text when the 24h
 // service window is open. This is BOTH the tick's window-delivery set and the
@@ -108,7 +109,7 @@ export async function findDueAsk(
 
   const { data } = await sb
     .from("wa_journey_runs")
-    .select("id, journey_key, order_ref, context, deadline_at, delivered_at")
+    .select("id, journey_key, order_ref, context, deadline_at, delivered_at, created_at")
     .eq("wa_id", waId)
     .eq("status", "active")
     .in("journey_key", WINDOW_DELIVER_JOURNEYS as unknown as string[])
@@ -120,6 +121,21 @@ export async function findDueAsk(
   // "…+00:00" while new Date().toISOString() returns "…Z", and those two do not
   // sort lexicographically against each other at equal instants.
   const nowMs = Date.parse(nowIso);
+  // Reached-call backstop (mirrors wa-journey-tick): one voice_calls query, only
+  // when a cart run is in play. A cart call that reached the customer, or is
+  // ringing now, means no WhatsApp cart ask may be woven in.
+  const cartRuns = data.filter((r) => r.journey_key === "abandoned_checkout");
+  let cartCalls: Array<{ status: string; duration_s: number | null; link_sent_at: string | null; created_at: string }> = [];
+  if (cartRuns.length) {
+    const { data: vc } = await sb.from("voice_calls")
+      .select("status, duration_s, link_sent_at, created_at").eq("wa_id", waId).eq("purpose", "cart");
+    cartCalls = vc ?? [];
+  }
+  const callBlocks = (runCreatedAt: string | null): boolean => cartCalls.some((c) =>
+    (!runCreatedAt || Date.parse(c.created_at) > Date.parse(runCreatedAt)) &&
+    (c.status === "dialing" ||
+      (c.status === "connected" && (!!c.link_sent_at || Number(c.duration_s ?? 0) >= REACHED_MIN_SECONDS))));
+
   const eligible = data.filter((r) => {
     // The voice row is an abandoned_checkout run with a link, so without this
     // an inbound message would deliver it as a WhatsApp nudge and silently
@@ -139,6 +155,7 @@ export async function findDueAsk(
     // that tells the customer their cart is waiting and then strands them.
     const url = String(runVars(r.context)["2"] ?? "").trim();
     if (r.journey_key === "abandoned_checkout" && !url) return false;
+    if (r.journey_key === "abandoned_checkout" && callBlocks(r.created_at ?? null)) return false;
     return true;
   });
   if (!eligible.length) return null;

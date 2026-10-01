@@ -43,11 +43,19 @@ async function cartPass(flows: FlowSettings, nowMs: number) {
   let called = 0, cancelled = 0, deferred = 0, failed = 0;
   for (const run of due ?? []) {
     const ctx = (run.context ?? {}) as Record<string, unknown>;
-    const [{ data: contact }, { data: th }, { data: calls }] = await Promise.all([
+    const [{ data: contact }, { data: th }, { data: calls }, { data: sibs }] = await Promise.all([
       sb.from("wa_contacts").select("opted_in, voice_dnd").eq("wa_id", run.wa_id).maybeSingle(),
       sb.from("wa_threads").select("last_inbound_at, ticket_status").eq("wa_id", run.wa_id).maybeSingle(),
       sb.from("voice_calls").select("order_ref, created_at, status, attempt_id").eq("wa_id", run.wa_id).eq("purpose", "cart"),
+      // Sibling WA cart runs of this same sequence (same 60s window wa-journey-tick uses).
+      sb.from("wa_journey_runs").select("delivered_at, attempts, status, context")
+        .eq("wa_id", run.wa_id).eq("journey_key", "abandoned_checkout").neq("id", run.id)
+        .gte("created_at", new Date(Date.parse(run.created_at) - 60_000).toISOString()),
     ]);
+    // Call-FIRST: once a WA cart message went out (or was attempted), never dial.
+    const waAlreadySent = (sibs ?? []).some((s) =>
+      (s.context as Record<string, unknown> | null)?.channel !== "voice" &&
+      (!!s.delivered_at || Number(s.attempts ?? 0) > 0 || s.status === "completed"));
     const cartCalls = (calls ?? []).filter((c) => c.order_ref === run.order_ref);
     const verdict = cartVoiceEligibility({
       enabled: flows.voice_call_enabled && flows.abandoned_cart_enabled,
@@ -62,6 +70,7 @@ async function cartPass(flows: FlowSettings, nowMs: number) {
       // A REAL dial = Sarvam accepted it (has attempt_id). start_failed never rang.
       cartDialled: cartCalls.some((c) => !!c.attempt_id && c.status !== "start_failed"),
       cartInFlight: cartCalls.some((c) => c.status === "dialing"),
+      waAlreadySent,
       connectedWithin7d: (calls ?? []).some((c) => c.status === "connected" && Date.parse(c.created_at) >= Date.now() - 7 * 86400_000),
     });
     if (verdict.action === "cancel") {

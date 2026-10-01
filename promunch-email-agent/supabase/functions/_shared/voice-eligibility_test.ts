@@ -31,7 +31,7 @@ Deno.test("nextWindowOpen is the next IST start hour strictly after now", () => 
 const cart = (o: Partial<CartVoiceInput> = {}): CartVoiceInput => ({
   enabled: true, inWindow: true, cartTotal: 500, minCartValue: 0, voiceDnd: false, optedIn: true,
   inboundSinceEnrol: false, openTicket: false, allowlisted: true, cartDialled: false, cartInFlight: false,
-  connectedWithin7d: false, ...o,
+  connectedWithin7d: false, waAlreadySent: false, ...o,
 });
 
 Deno.test("cart: happy path calls", () => {
@@ -46,10 +46,13 @@ Deno.test("cart: in-flight dial defers 15 min", () => {
 Deno.test("cart: one real dial per cart", () => {
   assertEquals(cartVoiceEligibility(cart({ cartDialled: true })).action, "cancel");
 });
+Deno.test("cart: call-first, no call once a WA cart message already went out", () => {
+  assertEquals(cartVoiceEligibility(cart({ waAlreadySent: true })), { action: "cancel", reason: "wa_already_sent" });
+});
 Deno.test("cart: every guard cancels", () => {
   for (const o of [
     { enabled: false }, { voiceDnd: true }, { optedIn: false }, { inboundSinceEnrol: true },
-    { openTicket: true }, { allowlisted: false }, { connectedWithin7d: true }, { cartTotal: 100, minCartValue: 499 },
+    { openTicket: true }, { allowlisted: false }, { connectedWithin7d: true }, { waAlreadySent: true }, { cartTotal: 100, minCartValue: 499 },
   ] as Partial<CartVoiceInput>[]) {
     assertEquals(cartVoiceEligibility(cart(o)).action, "cancel", JSON.stringify(o));
   }
