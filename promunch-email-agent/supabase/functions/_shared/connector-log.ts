@@ -19,7 +19,8 @@ export type ConnectorId =
   | "shopify"          // Shopify webhook intake (Next.js + edge)
   | "b2b_outreach"     // B2B cold-email outreach sends
   | "instagram"        // Instagram inbound DM / comment automation
-  | "deal_scan";       // Gmail → deal-pipeline scanner
+  | "deal_scan"        // Gmail → deal-pipeline scanner
+  | "breeze";          // Super Money Breeze checkout drop-off webhook
 
 export type ConnectorLevel = "info" | "warn" | "error";
 

@@ -166,6 +166,9 @@ verify_jwt = false                    # self-auths via requireInternal (service-
 [functions.voice-call-start]
 verify_jwt = false                    # function-to-function from wa-journey-tick; real auth is requireInternal
 
+[functions.breeze-webhook]
+verify_jwt = false                    # Breeze auto-recovery webhook; auth = x-breeze-secret header
+
 [functions.voice-webhook]
 verify_jwt = false                    # Sarvam post-call webhook; auth = per-call token in metadata (voice-webhook-verify.ts)
 
