@@ -31,14 +31,16 @@
     <div class="kpi"><span class="l">Orders</span><span class="v num">1,018</span><span class="d"><span class="up">▲ 9%</span> · 38% cash on delivery</span></div>
     <div class="kpi"><span class="l">Average order</span><span class="v num">₹778</span><span class="d"><span class="up">▲ ₹34</span> · hampers pulling it up</span></div>
   </div>
-  <div class="card mt24"><div class="ch"><div><h2>Sales by channel, per week</h2><p>Gross ₹. HYPD creator seed orders (₹0.01) are left out.</p></div></div>
-    <div class="chart" data-chart='{"type":"bar","stacked":1,"fmt":"inr","h":260,"labels":["8 Sep","15 Sep","22 Sep","29 Sep","6 Oct"],"series":[{"name":"Website","color":"var(--s1)","data":[92000,98000,104000,118000,61000]},{"name":"Amazon","color":"var(--s2)","data":[51000,54000,58000,62000,30000]},{"name":"HYPD","color":"var(--s3)","data":[18000,17000,21000,24000,11000]}]}'></div>
-    <div class="legend mt16"><span><i style="background:var(--s1)"></i>Website (D2C)</span><span><i style="background:var(--s2)"></i>Amazon</span><span><i style="background:var(--s3)"></i>HYPD</span></div></div>
-  <div class="card flush mt24"><table class="tbl stack"><thead><tr><th>Channel</th><th class="r">Sales</th><th class="r">Orders</th><th class="r">Avg order</th><th class="r">Change</th></tr></thead><tbody>
-    <tr onclick="location.hash='an-web'"><td class="main-cell"><b><span class="prod-dot" style="background:var(--s1)"></span> Website</b><span>promunch.in</span></td><td class="r" data-l="Sales">₹4,59,600</td><td class="r" data-l="Orders">571</td><td class="r" data-l="Avg order">₹805</td><td class="r" data-l="Change"><span class="up">▲ 17%</span></td></tr>
-    <tr onclick="location.hash='an-amazon'"><td class="main-cell"><b><span class="prod-dot" style="background:var(--s2)"></span> Amazon</b><span>Paid to you: ₹1,71,300</span></td><td class="r" data-l="Sales">₹2,45,600</td><td class="r" data-l="Orders">338</td><td class="r" data-l="Avg order">₹727</td><td class="r" data-l="Change"><span class="up">▲ 9%</span></td></tr>
-    <tr><td class="main-cell"><b><span class="prod-dot" style="background:var(--s3)"></span> HYPD</b><span>Creator storefronts</span></td><td class="r" data-l="Sales">₹87,200</td><td class="r" data-l="Orders">109</td><td class="r" data-l="Avg order">₹800</td><td class="r" data-l="Change"><span class="up">▲ 12%</span></td></tr>
-  </tbody></table></div>
+  <div class="card mt24"><div class="sec-t"><h3>Sales by channel, per week</h3></div>
+    <p class="takeaway">Website brings <em>58%</em> of sales</p>
+    <div class="chart mt16" data-chart='{"type":"bar","stacked":1,"fmt":"inr","h":240,"labels":["8 Sep","15","22","29","This wk"],"series":[{"name":"Website","color":"var(--s1)","data":[92000,98000,104000,118000,61000]},{"name":"Amazon","color":"var(--s2)","data":[51000,54000,58000,62000,30000]},{"name":"HYPD","color":"var(--s3)","data":[18000,17000,21000,24000,11000]}]}'></div>
+    <div class="ci-keys"><span><i style="background:var(--s1)"></i>Website</span><span><i style="background:var(--s2)"></i>Amazon</span><span><i style="background:var(--s3)"></i>HYPD</span><span class="muted">This week is only 2 days in</span></div></div>
+  <div class="card mt24"><div class="sec-t"><h3>By channel, 30 days</h3></div>
+    <div class="chan mt8">
+      <a class="ch-r" href="#an-web"><div class="ch-top"><span class="dot-p" style="background:var(--s1)"></span><b>Website</b><span class="ch-v">₹4.6L</span><span class="up">▲17%</span></div><div class="bt-bar"><i style="width:58%;background:var(--s1)"></i></div><span class="ch-s">58% · 571 orders · avg ₹805</span></a>
+      <a class="ch-r" href="#an-amazon"><div class="ch-top"><span class="dot-p" style="background:var(--s2)"></span><b>Amazon</b><span class="ch-v">₹2.5L</span><span class="up">▲9%</span></div><div class="bt-bar"><i style="width:31%;background:var(--s2)"></i></div><span class="ch-s">31% · 338 orders · ₹1.7L paid to you</span></a>
+      <div class="ch-r"><div class="ch-top"><span class="dot-p" style="background:var(--s3)"></span><b>HYPD</b><span class="ch-v">₹87k</span><span class="up">▲12%</span></div><div class="bt-bar"><i style="width:11%;background:var(--s3)"></i></div><span class="ch-s">11% · 109 orders · creator storefronts</span></div>
+    </div></div>
   <p class="footer-note">Illustrative data. Revenue rule: paid or COD orders, minus voided and refunded, minus HYPD creator seeds.</p>
 </section>
 
@@ -69,26 +71,29 @@
     <div class="kpi"><span class="l">Time to 2nd order</span><span class="v num">29 days</span><span class="d">Median · half return within a month</span></div>
     <div class="kpi"><span class="l">Value per buyer</span><span class="v num">₹1,240</span><span class="d">First 6 months</span></div>
   </div>
-  <div class="card mt24"><div class="ch"><div><h2>Who came back, by first-order month</h2><p>% of each month's new buyers who ordered again in later months.</p></div></div>
-    <div style="overflow-x:auto"><table class="heat" data-heat><thead><tr><th>First order</th><th>Buyers</th><th>Month 1</th><th>Month 2</th><th>Month 3</th><th>Month 4</th><th>Month 5</th></tr></thead><tbody>
-      <tr><td class="c0">Apr</td><td class="c0">412</td><td data-v="14"></td><td data-v="9"></td><td data-v="8"></td><td data-v="6"></td><td data-v="6"></td></tr>
-      <tr><td class="c0">May</td><td class="c0">468</td><td data-v="16"></td><td data-v="10"></td><td data-v="8"></td><td data-v="7"></td><td data-v="6"></td></tr>
-      <tr><td class="c0">Jun</td><td class="c0">521</td><td data-v="18"></td><td data-v="11"></td><td data-v="9"></td><td data-v="8"></td><td></td></tr>
-      <tr><td class="c0">Jul</td><td class="c0">590</td><td data-v="19"></td><td data-v="12"></td><td data-v="10"></td><td></td><td></td></tr>
-      <tr><td class="c0">Aug</td><td class="c0">644</td><td data-v="21"></td><td data-v="13"></td><td></td><td></td><td></td></tr>
-      <tr><td class="c0">Sep</td><td class="c0">702</td><td data-v="22"></td><td></td><td></td><td></td><td></td></tr>
+  <div class="card mt24"><div class="sec-t"><h3>Who came back, by first-order month</h3></div><p class="takeaway">Month-1 return rose from 14% to <em>22%</em></p><p class="small muted mt8">Each square: % of that month's new buyers who ordered again. Darker = more.</p>
+    <div style="overflow-x:auto"><table class="heat" data-heat><thead><tr><th>Started</th><th class="hide-m">Buyers</th><th>1 mo</th><th>2 mo</th><th>3 mo</th><th>4 mo</th><th class="hide-m">5 mo</th></tr></thead><tbody>
+      <tr><td class="c0">Apr</td><td class="c0 hide-m">412</td><td data-v="14"></td><td data-v="9"></td><td data-v="8"></td><td data-v="6"></td><td class="hide-m" data-v="6"></td></tr>
+      <tr><td class="c0">May</td><td class="c0 hide-m">468</td><td data-v="16"></td><td data-v="10"></td><td data-v="8"></td><td data-v="7"></td><td class="hide-m" data-v="6"></td></tr>
+      <tr><td class="c0">Jun</td><td class="c0 hide-m">521</td><td data-v="18"></td><td data-v="11"></td><td data-v="9"></td><td data-v="8"></td><td class="hide-m"></td></tr>
+      <tr><td class="c0">Jul</td><td class="c0 hide-m">590</td><td data-v="19"></td><td data-v="12"></td><td data-v="10"></td><td></td><td class="hide-m"></td></tr>
+      <tr><td class="c0">Aug</td><td class="c0 hide-m">644</td><td data-v="21"></td><td data-v="13"></td><td></td><td></td><td class="hide-m"></td></tr>
+      <tr><td class="c0">Sep</td><td class="c0 hide-m">702</td><td data-v="22"></td><td></td><td></td><td></td><td class="hide-m"></td></tr>
     </tbody></table></div>
-    <p class="small muted mt16">Getting better: September buyers came back 22% in month 1, up from 14% in April. The restock automation started in July.</p></div>
+    <p class="small muted mt16">Up since the restock reminder started in July.</p></div>
   <div class="grid g2 mt24">
-    <div class="card"><h2>Days until the second order</h2><div class="chart mt16" data-chart='{"type":"bar","fmt":"num","h":220,"labels":["0-7","8-14","15-21","22-28","29-35","36-45","46-60","60+"],"series":[{"name":"Buyers","color":"var(--s1)","data":[38,52,96,141,128,74,51,62]}]}'></div><p class="small muted mt8">Peak at 22 to 35 days. Restock reminder at day 21 is well timed.</p></div>
-    <div class="card"><div class="ch"><div><h2>Customer groups (RFM)</h2><p>By how recently, how often and how much they buy. Tap a group to message them.</p></div></div>
-      <div class="rfm">
-        <a href="other.html#cu-segments" style="background:var(--red);color:#fff"><b>Champions</b><span>Buy often, recently</span><span class="c">186</span></a>
-        <a href="other.html#cu-segments" style="background:var(--red-soft)"><b>Loyal</b><span>Regulars</span><span class="c">302</span></a>
-        <a href="other.html#cu-segments" style="background:var(--good-soft)"><b>New</b><span>First order &lt; 30d</span><span class="c">540</span></a>
-        <a href="other.html#cu-segments" style="background:var(--warn-soft)"><b>At risk</b><span>Was regular, quiet 60d</span><span class="c">344</span></a>
-        <a href="other.html#cu-segments" style="background:var(--surface-3)"><b>Bought once</b><span>Never came back</span><span class="c">612</span></a>
-        <a href="other.html#cu-segments" style="background:var(--surface-2);border-color:var(--hair)"><b>Lost</b><span>Nothing in 180d</span><span class="c">890</span></a>
+    <div class="card"><div class="sec-t"><h3>When the second order comes</h3></div><p class="takeaway">Most come back in <em>3 to 5 weeks</em></p>
+      <div class="chart mt16" data-chart='{"type":"bar","fmt":"num","h":200,"hi":[3,4],"labels":["1w","2w","3w","4w","5w","6w","8w","8w+"],"series":[{"name":"Buyers","color":"var(--s1)","data":[38,52,96,141,128,74,51,62]}]}'></div>
+      <p class="small muted mt8">Weeks after the first order. The restock reminder goes at day 21, just before the peak.</p></div>
+    <div class="card"><div class="sec-t"><h3>Customer groups</h3><a class="txt-link" href="other.html#cu-segments">Message a group<i data-lucide="arrow-right"></i></a></div>
+      <p class="small muted mt8">2,874 buyers, grouped by how recently and how often they buy</p>
+      <div class="rfm2 mt16">
+        <a href="other.html#cu-segments"><span class="dot-p" style="background:var(--red)"></span><div class="r2-m"><div class="r2-t"><b>Champions</b><span class="r2-n">186</span></div><div class="bt-bar"><i style="width:21%;background:var(--red)"></i></div><span class="r2-d">Buy often, bought lately</span></div></a>
+        <a href="other.html#cu-segments"><span class="dot-p" style="background:#D57E80"></span><div class="r2-m"><div class="r2-t"><b>Loyal</b><span class="r2-n">302</span></div><div class="bt-bar"><i style="width:34%;background:#D57E80"></i></div><span class="r2-d">Regulars</span></div></a>
+        <a href="other.html#cu-segments"><span class="dot-p" style="background:var(--good)"></span><div class="r2-m"><div class="r2-t"><b>New</b><span class="r2-n">540</span></div><div class="bt-bar"><i style="width:61%;background:var(--good)"></i></div><span class="r2-d">First order in the last 30 days</span></div></a>
+        <a href="other.html#cu-segments"><span class="dot-p" style="background:#D99A00"></span><div class="r2-m"><div class="r2-t"><b>At risk</b><span class="r2-n warn-t">344</span></div><div class="bt-bar"><i style="width:39%;background:#D99A00"></i></div><span class="r2-d">Were regular, quiet for 60 days</span></div></a>
+        <a href="other.html#cu-segments"><span class="dot-p" style="background:#B9B0A3"></span><div class="r2-m"><div class="r2-t"><b>Bought once</b><span class="r2-n">612</span></div><div class="bt-bar"><i style="width:69%;background:#B9B0A3"></i></div><span class="r2-d">Never came back</span></div></a>
+        <a href="other.html#cu-segments"><span class="dot-p" style="background:#DDD6CA"></span><div class="r2-m"><div class="r2-t"><b>Lost</b><span class="r2-n">890</span></div><div class="bt-bar"><i style="width:100%;background:#DDD6CA"></i></div><span class="r2-d">Nothing in 6 months</span></div></a>
       </div></div>
   </div>
 </section>
@@ -126,25 +131,27 @@
     <div class="kpi"><span class="l">Units sold</span><span class="v num">1,284</span><span class="d"><span class="up">▲ 11%</span></span></div>
     <div class="kpi"><span class="l">Profit after costs</span><span class="v num">₹58,900</span><span class="d">24% of sales · 2 products need costs</span></div>
   </div>
-  <div class="note warn mt24"><i data-lucide="package-x"></i><div style="flex:1"><b>Masala Mania 100g runs out in 6 days.</b> It sells 21 a day. Send at least 380 units to FBA this week to stay in stock for a month.</div><button class="btn sm" data-open="stock-plan">Plan shipment</button></div>
-  <div class="sec-h"><h2>Stock</h2><span class="sp"></span><span class="small muted">Days left at today's selling speed</span></div>
-  <div class="card flush"><table class="tbl stack"><thead><tr><th>Product</th><th class="r">In stock</th><th class="r">Sells / day</th><th>Days left</th></tr></thead><tbody>
-    <tr onclick="location.hash='an-amazon/sku'"><td class="main-cell"><b>Edamame · Masala Mania 100g</b><span>B0CX…41K</span></td><td class="r" data-l="In stock">126</td><td class="r" data-l="Sells / day">21</td><td data-l="Days left"><span class="pill bad">6 days</span></td></tr>
-    <tr onclick="location.hash='an-amazon/sku'"><td class="main-cell"><b>Edamame · Himalayan Rock Salt 100g</b><span>B0CX…38P</span></td><td class="r" data-l="In stock">640</td><td class="r" data-l="Sells / day">18</td><td data-l="Days left"><span class="pill good">35 days</span></td></tr>
-    <tr onclick="location.hash='an-amazon/sku'"><td class="main-cell"><b>Edamame · Indori Chatka 100g</b><span>B0CX…52A</span></td><td class="r" data-l="In stock">302</td><td class="r" data-l="Sells / day">11</td><td data-l="Days left"><span class="pill warn">27 days</span></td></tr>
-    <tr onclick="location.hash='an-amazon/sku'"><td class="main-cell"><b>Crunchies Classic 150g</b><span>B0CY…07T</span></td><td class="r" data-l="In stock">410</td><td class="r" data-l="Sells / day">8</td><td data-l="Days left"><span class="pill good">51 days</span></td></tr>
-  </tbody></table></div>
-  <div class="sec-h"><h2>Profit by product</h2></div>
-  <div class="card flush"><table class="tbl stack"><thead><tr><th>Product</th><th class="r">Sales</th><th class="r">Amazon fees</th><th class="r">Your cost</th><th class="r">Profit</th></tr></thead><tbody>
-    <tr><td class="main-cell"><b>Himalayan Rock Salt 100g</b></td><td class="r" data-l="Sales">₹88,200</td><td class="r" data-l="Amazon fees">₹26,100</td><td class="r" data-l="Your cost">₹38,400</td><td class="r" data-l="Profit"><b class="up">₹23,700</b></td></tr>
-    <tr><td class="main-cell"><b>Masala Mania 100g</b></td><td class="r" data-l="Sales">₹82,600</td><td class="r" data-l="Amazon fees">₹24,800</td><td class="r" data-l="Your cost">₹36,000</td><td class="r" data-l="Profit"><b class="up">₹21,800</b></td></tr>
-    <tr><td class="main-cell"><b>Crunchies Classic 150g</b></td><td class="r" data-l="Sales">₹36,900</td><td class="r" data-l="Amazon fees">₹12,300</td><td class="r" data-l="Your cost"><button class="link" data-open="add-cost">Add cost</button></td><td class="r" data-l="Profit">·</td></tr>
-  </tbody></table></div>
-  <div class="sec-h"><h2>Payouts</h2></div>
-  <div class="card flush divide">
-    <div class="list-row"><span class="ic good"><i data-lucide="landmark"></i></span><div class="tx"><b>₹48,210 paid on 2 Oct</b><span>Settlement 24 Sep to 1 Oct · matches orders</span></div><span class="pill good">Matched</span></div>
-    <div class="list-row"><span class="ic warn"><i data-lucide="landmark"></i></span><div class="tx"><b>₹39,880 due on 9 Oct</b><span>₹2,140 held as reserve by Amazon</span></div><span class="pill warn">Reserve held</span></div>
-  </div>
+  <div class="alert-row mt24"><span class="lic-w"><i data-lucide="package-x"></i></span><div class="ar-m"><b>Masala Mania runs out in 6 days</b><span>Send ~380 units to FBA this week</span></div><button class="btn sm dark" data-open="stock-plan">Plan</button></div>
+  <div class="card mt24"><div class="sec-t"><h3>Stock left</h3><span class="small muted">at today's selling speed</span></div>
+    <div class="runway mt16">
+      <a class="rw" href="#an-amazon/sku"><div class="rw-t"><b>Masala Mania 100g</b><span class="rw-d bad-t">6 days</span></div><div class="rw-bar"><i class="bad" style="width:10%"></i><span class="rw-mark" style="left:50%" title="30 days"></span></div><span class="rw-s">126 left · sells 21 a day</span></a>
+      <a class="rw" href="#an-amazon/sku"><div class="rw-t"><b>Indori Chatka 100g</b><span class="rw-d warn-t">27 days</span></div><div class="rw-bar"><i class="warn" style="width:45%"></i><span class="rw-mark" style="left:50%"></span></div><span class="rw-s">302 left · sells 11 a day</span></a>
+      <a class="rw" href="#an-amazon/sku"><div class="rw-t"><b>Himalayan Rock Salt 100g</b><span class="rw-d good-t">35 days</span></div><div class="rw-bar"><i class="good" style="width:58%"></i><span class="rw-mark" style="left:50%"></span></div><span class="rw-s">640 left · sells 18 a day</span></a>
+      <a class="rw" href="#an-amazon/sku"><div class="rw-t"><b>Crunchies Classic 150g</b><span class="rw-d good-t">51 days</span></div><div class="rw-bar"><i class="good" style="width:85%"></i><span class="rw-mark" style="left:50%"></span></div><span class="rw-s">410 left · sells 8 a day</span></a>
+    </div>
+    <p class="small muted mt16">The line marks 30 days. Bars left of it need a shipment soon.</p></div>
+  <div class="card mt24"><div class="sec-t"><h3>Where each ₹ of sales goes</h3></div>
+    <div class="ci-keys mt8"><span><i style="background:#B9B0A3"></i>Amazon fees</span><span><i style="background:#E0C9A6"></i>Your cost</span><span><i style="background:var(--good)"></i>Profit</span></div>
+    <div class="pfl mt16">
+      <div class="pf"><div class="pf-t"><b>Himalayan Rock Salt 100g</b><span class="pf-v good-t">₹23.7k</span></div><div class="pf-bar"><i style="flex:26.1;background:#B9B0A3"></i><i style="flex:38.4;background:#E0C9A6"></i><i style="flex:23.7;background:var(--good)"></i></div><span class="pf-s">₹88k sales · 27% profit</span></div>
+      <div class="pf"><div class="pf-t"><b>Masala Mania 100g</b><span class="pf-v good-t">₹21.8k</span></div><div class="pf-bar"><i style="flex:24.8;background:#B9B0A3"></i><i style="flex:36;background:#E0C9A6"></i><i style="flex:21.8;background:var(--good)"></i></div><span class="pf-s">₹83k sales · 26% profit</span></div>
+      <div class="pf"><div class="pf-t"><b>Crunchies Classic 150g</b><button class="txt-link" data-open="add-cost">Add cost<i data-lucide="plus"></i></button></div><div class="pf-bar"><i style="flex:12.3;background:#B9B0A3"></i><i class="miss" style="flex:24.6"></i></div><span class="pf-s">₹37k sales · profit unknown until you add the cost</span></div>
+    </div></div>
+  <div class="card mt24"><div class="sec-t"><h3>Payouts</h3></div>
+    <div class="pay mt8">
+      <div class="py"><div class="py-a"><b>₹48,210</b><span>paid 2 Oct</span></div><div class="py-m"><span class="tg good">Matched to orders</span><span class="py-s">24 Sep to 1 Oct</span></div></div>
+      <div class="py"><div class="py-a"><b>₹39,880</b><span>due 9 Oct</span></div><div class="py-m"><span class="tg warn">₹2,140 held back</span><span class="py-s">Amazon reserve, released later</span></div></div>
+    </div></div>
   <p class="footer-note">Illustrative data.</p>
 </section>
 

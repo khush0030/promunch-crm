@@ -50,18 +50,23 @@
     <div class="uq">Why are sales up this week?</div>
     <div class="maya-ans">
       <div class="mhead"><span class="ic"><i data-lucide="sparkle"></i></span><b>Maya</b><span class="small muted">· looked at 236 orders, 2 campaigns</span></div>
-      <p style="font-size:17px">Sales are up <b>12% (₹19,700)</b> on last week. Three things did it:</p>
-      <ol class="mt8" style="padding-left:20px;line-height:1.8">
-        <li><b>Diwali WhatsApp campaign:</b> 38 orders, ₹31,420.</li>
-        <li><b>Hampers lifted the average order</b> from ₹744 to ₹778.</li>
-        <li><b>Amazon held steady</b> (+2%), so the gain is almost all website.</li>
-      </ol>
-      <div class="card inset mt16"><h3>Website sales, this week vs last</h3><div class="chart mt16" data-chart='{"type":"line","fmt":"inr","h":200,"labels":["Wed","Thu","Fri","Sat","Sun","Mon","Tue"],"series":[{"name":"This week","color":"var(--s1)","data":[17200,19900,18800,22100,26900,24400,20800]},{"name":"Last week","color":"#CFC7B9","dash":1,"data":[16100,16900,15300,18800,19900,18200,17100]}]}'></div></div>
-      <div class="card flush mt16"><table class="tbl stack"><thead><tr><th>Source</th><th class="r">Orders</th><th class="r">Sales</th></tr></thead><tbody>
-        <tr><td class="main-cell"><b>WhatsApp campaign</b></td><td class="r" data-l="Orders">38</td><td class="r" data-l="Sales">₹31,420</td></tr>
-        <tr><td class="main-cell"><b>Instagram</b></td><td class="r" data-l="Orders">52</td><td class="r" data-l="Sales">₹38,100</td></tr>
-        <tr><td class="main-cell"><b>Email automations</b></td><td class="r" data-l="Orders">14</td><td class="r" data-l="Sales">₹9,860</td></tr></tbody></table></div>
-      <div class="acts-row"><button class="btn sm" data-open="save-ans"><i data-lucide="bookmark"></i>Save</button><button class="btn sm" data-toast="Pinned to Home"><i data-lucide="pin"></i>Pin to Home</button><button class="btn sm ghost" data-open="sources"><i data-lucide="database"></i>How Maya got this</button><span class="sp"></span><button class="btn sm ghost icon" data-toast="Thanks, noted" aria-label="Good answer"><i data-lucide="thumbs-up"></i></button><button class="btn sm ghost icon" data-toast="Thanks. We'll look at this one." aria-label="Bad answer"><i data-lucide="thumbs-down"></i></button></div>
+      <div class="m-head"><span class="m-big">Sales up <em>12%</em></span><span class="m-chip">+₹19,700 vs last week</span></div>
+      <p class="m-lead">Three things did it:</p>
+      <div class="drivers">
+        <div class="dv good"><span class="dv-i"><i data-lucide="message-circle"></i></span><div class="dv-m"><b>₹31,420</b><span>Diwali WhatsApp campaign · 38 orders</span></div><span class="dv-tag">Biggest</span></div>
+        <div class="dv warn"><span class="dv-i"><i data-lucide="gift"></i></span><div class="dv-m"><b>₹744 → ₹778</b><span>Hampers raised the average order</span></div></div>
+        <div class="dv flat"><span class="dv-i"><i data-lucide="package"></i></span><div class="dv-m"><b>+2%</b><span>Amazon stayed flat, so the gain is the website</span></div></div>
+      </div>
+      <div class="m-sec"><div class="sec-t"><h3>Website sales by day</h3></div>
+        <div class="chart mt8" data-chart='{"type":"line","fmt":"inr","h":200,"labels":["Wed","Thu","Fri","Sat","Sun","Mon","Tue"],"series":[{"name":"This week","color":"var(--s1)","data":[17200,19900,18800,22100,26900,24400,20800]},{"name":"Last week","color":"#CFC7B9","dash":1,"data":[16100,16900,15300,18800,19900,18200,17100]}]}'></div>
+        <div class="ci-keys"><span><i style="background:var(--s1)"></i>This week</span><span><i style="background:#CFC7B9"></i>Last week</span><span class="muted">Sunday was the best day</span></div></div>
+      <div class="m-sec"><div class="sec-t"><h3>Where this week's orders came from</h3></div>
+        <div class="bought mt8">
+          <div class="bt"><span class="dot-p" style="background:var(--s6)"></span><div class="bt-m"><div class="bt-r"><span>Instagram</span><b>₹38,100</b><em class="bt-p">52</em></div><div class="bt-bar"><i style="width:100%;background:var(--s6)"></i></div></div></div>
+          <div class="bt"><span class="dot-p" style="background:var(--good)"></span><div class="bt-m"><div class="bt-r"><span>WhatsApp campaign</span><b>₹31,420</b><em class="bt-p">38</em></div><div class="bt-bar"><i style="width:82%;background:var(--good)"></i></div></div></div>
+          <div class="bt"><span class="dot-p" style="background:var(--info)"></span><div class="bt-m"><div class="bt-r"><span>Email automations</span><b>₹9,860</b><em class="bt-p">14</em></div><div class="bt-bar"><i style="width:26%;background:var(--info)"></i></div></div></div>
+        </div><p class="small muted mt8">Grey number = orders</p></div>
+      <div class="acts-row"><button class="qa" data-open="save-ans"><i data-lucide="bookmark"></i>Save</button><button class="qa" data-toast="Pinned to Home"><i data-lucide="pin"></i>Pin</button><button class="qa" data-open="sources"><i data-lucide="database"></i>Sources</button><span class="sp"></span><button class="btn sm ghost icon" data-toast="Thanks, noted" aria-label="Good answer"><i data-lucide="thumbs-up"></i></button><button class="btn sm ghost icon" data-toast="Thanks. We'll look at this one." aria-label="Bad answer"><i data-lucide="thumbs-down"></i></button></div>
     </div>
     <div class="row wrap" style="gap:8px"><span class="small muted">Ask next:</span><button class="chip">Who were the 38 buyers?</button><button class="chip">Send them a thank-you</button><button class="chip">Compare with Navratri</button></div>
   </div>

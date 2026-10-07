@@ -185,7 +185,7 @@
 
   /* ---------------- charts ---------------- */
   const fmt = (v, f) => {
-    if (f === 'inr') return v >= 100000 ? '₹' + (v / 100000).toFixed(v >= 1000000 ? 0 : 1) + 'L' : v >= 1000 ? '₹' + Math.round(v / 1000) + 'k' : '₹' + v;
+    if (f === 'inr') return v >= 100000 ? '₹' + (+(v / 100000).toFixed(1)) + 'L' : v >= 1000 ? '₹' + (+(v / 1000).toFixed(1)) + 'k' : '₹' + v;
     if (f === 'pct') return v + '%';
     return v >= 1000 ? (v / 1000).toFixed(1).replace('.0', '') + 'k' : String(v);
   };
@@ -206,23 +206,31 @@
         svg += `<text x="80" y="78" text-anchor="middle" style="font:400 22px 'Archivo Black'">${cfg.center || ''}</text><text x="80" y="98" text-anchor="middle" class="ax">${cfg.sub || ''}</text>`;
         el.innerHTML = `<svg viewBox="0 0 160 160" role="img" aria-label="${cfg.label || 'chart'}">${svg}</svg>`; return;
       }
-      const pad = { l: cfg.spark ? 0 : 44, r: cfg.spark ? 0 : 8, t: 10, b: cfg.spark ? 0 : 28 };
+      const isLine = cfg.type !== 'bar';
+      const pad = { l: cfg.spark ? 0 : 44, r: cfg.spark ? 0 : (isLine ? 44 : 8), t: cfg.spark ? 4 : 18, b: cfg.spark ? 0 : 28 };
       const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
       const all = cfg.stacked ? cfg.labels.map((_, i) => cfg.series.reduce((a, s) => a + s.data[i], 0)) : cfg.series.flatMap(s => s.data);
-      let max = Math.max(...all) * 1.12; const step = Math.pow(10, Math.floor(Math.log10(max))); max = Math.ceil(max / step) * step;
+      /* nice round ticks: 1, 2, 2.5, 5 x 10^k, three gridlines above zero */
+      const raw = Math.max(...all) / 3; const mag = Math.pow(10, Math.floor(Math.log10(raw || 1)));
+      const tick = [1, 2, 2.5, 5, 10].map(m => m * mag).find(t => t >= raw);
+      const max = tick * Math.max(3, Math.ceil(Math.max(...all) / tick));
       const y = v => pad.t + ih - v / max * ih;
-      if (!cfg.spark) for (let i = 0; i <= 4; i++) { const v = max / 4 * i; svg += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y(v)}" y2="${y(v)}" stroke="#EFEBE3"/><text class="ax" x="${pad.l - 8}" y="${y(v) + 4}" text-anchor="end">${fmt(Math.round(v), cfg.fmt)}</text>`; }
+      if (!cfg.spark) for (let v = 0; v <= max + 1e-9; v += tick) { svg += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y(v)}" y2="${y(v)}" stroke="#EFEBE3"/><text class="ax" x="${pad.l - 8}" y="${y(v) + 4}" text-anchor="end">${fmt(Math.round(v * 100) / 100, cfg.fmt)}</text>`; }
       const n = cfg.labels.length;
-      const every = Math.ceil(n / Math.max(2, Math.floor(iw / 64)));
+      const every = cfg.type === 'bar' ? (iw / n >= 30 ? 1 : 2) : Math.ceil(n / Math.max(2, Math.floor(iw / 64)));
+      const hi = cfg.hi || null;
       if (cfg.type === 'bar') {
         const bw = iw / n; const gw = Math.min(46, bw * .62);
         cfg.labels.forEach((lb, i) => {
           let base = 0; const k = cfg.stacked ? 1 : cfg.series.length;
           cfg.series.forEach((s, j) => { const v = s.data[i]; const w = gw / k; const x = pad.l + bw * i + (bw - gw) / 2 + (cfg.stacked ? 0 : j * w);
             const y0 = y(base + (cfg.stacked ? v : v)); const h = (cfg.stacked ? y(base) : y(0)) - y0;
-            svg += `<rect x="${x}" y="${y0}" width="${Math.max(2, w - 2)}" height="${Math.max(0, h)}" rx="4" fill="${cssv(s.color)}"><title>${lb} · ${s.name}: ${fmt(v, cfg.fmt)}</title></rect>`;
+            const fill = hi && !hi.includes(i) ? '#DDD6CA' : cssv(s.color);
+            svg += `<rect x="${x}" y="${y0}" width="${Math.max(2, w - 2)}" height="${Math.max(0, h)}" rx="4" fill="${fill}"><title>${lb} · ${s.name}: ${fmt(v, cfg.fmt)}</title></rect>`;
+            if (!cfg.stacked && k === 1 && !cfg.spark && cfg.values !== false) svg += `<text class="bv${hi && hi.includes(i) ? ' on' : ''}" x="${x + (w - 2) / 2}" y="${y0 - 5}" text-anchor="middle">${fmt(v, cfg.fmt)}</text>`;
             if (cfg.stacked) base += v; });
-          if (!cfg.spark && i % every === 0) svg += `<text class="ax" x="${pad.l + bw * i + bw / 2}" y="${H - 8}" text-anchor="middle">${lb}</text>`;
+          if (cfg.stacked && !cfg.spark && cfg.values !== false) svg += `<text class="bv" x="${pad.l + bw * i + bw / 2}" y="${y(base) - 5}" text-anchor="middle">${fmt(base, cfg.fmt)}</text>`;
+          if (!cfg.spark && i % every === 0) svg += `<text class="ax${hi && hi.includes(i) ? ' on' : ''}" x="${pad.l + bw * i + bw / 2}" y="${H - 8}" text-anchor="middle">${lb}</text>`;
         });
       } else {
         const x = i => pad.l + (n === 1 ? iw / 2 : i / (n - 1) * iw);
@@ -232,7 +240,8 @@
           const col = cssv(s.color);
           if (cfg.type === 'area' && j === 0) svg += `<path d="${d}L${x(n - 1)} ${y(0)}L${x(0)} ${y(0)}Z" fill="${col}" opacity=".12"/>`;
           svg += `<path d="${d}" fill="none" stroke="${col}" stroke-width="${j === 0 ? 2.6 : 2}" ${s.dash ? 'stroke-dasharray="5 5"' : ''} stroke-linejoin="round" stroke-linecap="round"/>`;
-          if (!cfg.spark && j === 0) { const lp = pts[pts.length - 1]; svg += `<circle cx="${lp[0]}" cy="${lp[1]}" r="4.5" fill="${col}" stroke="#fff" stroke-width="2"/>`; }
+          if (!cfg.spark) { const lp = pts[pts.length - 1]; if (j === 0 || !s.dash) svg += `<circle cx="${lp[0]}" cy="${lp[1]}" r="4" fill="${col}" stroke="#fff" stroke-width="2"/>`;
+            if (!s.dash) svg += `<text class="ev" x="${lp[0] + 8}" y="${lp[1] + 4}" fill="${col}">${fmt(s.data[n - 1], cfg.fmt)}</text>`; }
         });
         if (!cfg.spark) cfg.labels.forEach((lb, i) => { if (i % every === 0 || i === n - 1 && (n - 1) % every > every / 2) svg += `<text class="ax" x="${x(i)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}">${lb}</text>`; });
       }
