@@ -1,0 +1,83 @@
+/* Automation detail (redesign round 8, email.html #em-flow + app.css .flow):
+   one card holding a single timeline. Nodes have no borders, waits are plain
+   mono text with a clock on a continuous vertical line. The side cards keep
+   their own height (they never stretch to the timeline). */
+
+.back { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14.5px; color: var(--pm-muted); text-decoration: none; }
+.back:hover { color: var(--pm-ink); }
+.sum { margin: 0; font-size: 17px; line-height: 1.5; color: var(--pm-ink2); max-width: 72ch; }
+.sum b { color: var(--pm-ink); }
+
+/* checks line: coloured text + icon, no filled block */
+.checks { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0; border: 0; background: none; font: 700 14.5px var(--pm-font); text-align: left; justify-self: start; }
+.checks svg { width: 16px; height: 16px; flex: none; }
+.checks u { font-weight: 600; color: var(--pm-muted); }
+.checksOk { color: var(--pm-green); }
+.checksBad { color: var(--pm-terra); }
+.issues { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--pm-line); }
+.issue { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; line-height: 1.45; padding: 10px 0; border-bottom: 1px solid var(--pm-line); color: var(--pm-ink2); }
+.issue svg { flex: none; width: 16px; height: 16px; margin-top: 2px; }
+.issueBlock svg { color: var(--pm-terra); }
+.issueWarn svg { color: var(--pm-gold); }
+
+.grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 20px; align-items: start; }
+.side { display: grid; gap: 20px; align-content: start; min-width: 0; }
+.card { background: var(--pm-card); border: 1px solid var(--pm-border); border-radius: var(--pm-r); padding: 22px 24px; min-width: 0; }
+.card h3 { margin: 0; font-size: var(--pm-h3); font-weight: 700; }
+
+/* ---- the timeline ---- */
+.flow { display: flex; flex-direction: column; }
+.node { display: flex; gap: 14px; align-items: center; padding: 12px 0; min-width: 0; }
+.node + .node { border-top: 1px solid var(--pm-line); }
+.ic { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; flex: none; }
+.ic svg { width: 19px; height: 19px; }
+.icStart { background: var(--pm-card3); color: var(--pm-ink); }
+.icMail { background: var(--pm-blue-soft); color: var(--pm-blue); }
+.icOffer { background: var(--pm-green-soft); color: var(--pm-green); }
+.tx { flex: 1; min-width: 0; }
+.tx b { display: block; font-weight: 700; font-size: 16px; line-height: 1.35; overflow-wrap: anywhere; }
+.tx p { margin: 2px 0 0; font-size: 14px; color: var(--pm-muted); line-height: 1.4; }
+.picked .tx b { color: var(--pm-ink); }
+.picked .ic { box-shadow: 0 0 0 2px var(--pm-card), 0 0 0 4px var(--pm-ink); }
+.editing { font: 700 11px var(--pm-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--pm-ink2); white-space: nowrap; }
+.wait { position: relative; padding: 12px 0 12px 56px; font: 700 12px var(--pm-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--pm-muted); }
+.wait::before { content: ""; position: absolute; left: 20px; top: 0; bottom: 0; width: 2px; background: var(--pm-border); }
+.wait svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 6px; }
+.addRow { padding-top: 12px; border-top: 1px solid var(--pm-line); margin-top: 4px; }
+
+/* ---- side: hairline stat rows ---- */
+.statrows { margin-top: 8px; }
+.srow { display: flex; align-items: baseline; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--pm-line); }
+.srow:last-child { border-bottom: 0; }
+.srow span { flex: 1; font-size: 14.5px; color: var(--pm-muted); }
+.srow b { font: 400 20px var(--pm-display); color: var(--pm-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.srow em { font-style: normal; font: 600 13px var(--pm-font); color: var(--pm-muted); margin-left: 6px; }
+.foot { margin: 10px 0 0; font-size: 13px; color: var(--pm-hint); }
+
+/* who gets it */
+.who summary { cursor: pointer; font-weight: 700; font-size: var(--pm-h3); list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.who summary::-webkit-details-marker { display: none; }
+.who summary span { font: 600 14px var(--pm-font); color: var(--pm-muted); }
+.who[open] summary span { display: none; }
+.whoBody { display: grid; gap: 12px; margin-top: 14px; }
+
+/* ---- the picked email's editor ---- */
+.edHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.edTitle { min-width: 0; }
+.edTitle span { display: block; font: 700 11px var(--pm-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--pm-muted); }
+.edTitle b { display: block; font-size: 18px; margin-top: 4px; overflow-wrap: anywhere; }
+.edBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between; }
+.editor { display: grid; gap: 12px; min-width: 0; scroll-margin-top: 16px; }
+
+@media (max-width: 1000px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .card { padding: 16px; }
+  .sum { font-size: 16px; }
+  .node { align-items: flex-start; }
+  .ic { width: 38px; height: 38px; border-radius: 12px; }
+  .wait { padding-left: 52px; }
+  .wait::before { left: 18px; }
+  .edBar > * { flex: 1 1 auto; }
+}

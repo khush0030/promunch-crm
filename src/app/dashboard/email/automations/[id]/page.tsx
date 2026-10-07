@@ -8,19 +8,20 @@
 // /api/email-studio/flows/[id]: anyone can edit the emails, admins change who
 // gets a live automation, switch it on/off or delete it.
 
-import { Suspense, use, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, Suspense, use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, ChevronLeft, Copy, Monitor, OctagonAlert, Plus, Send, Smartphone, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, CheckCircle2, Clock, Copy, Mail, Monitor, OctagonAlert, Plus, Send, Smartphone, TicketPercent, Trash2, X, Zap } from "lucide-react";
 import { Callout, ConfirmDialog, Pill } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
 import { StudioHeader } from "@/components/email-studio/StudioHeader";
 import { PreviewFrame } from "@/components/email-studio/Builder";
 import { VisualEmailEditor } from "@/components/email-studio/VisualEmailEditor";
-import { getJson, sendJson } from "@/components/email-studio/api";
+import { getJson, pct, sendJson } from "@/components/email-studio/api";
 import {
   FLOW_TRIGGERS,
+  describeFlowRules,
   LIVE_TRIGGERS,
   flowIssues,
   hasBlockingIssue,
@@ -28,15 +29,37 @@ import {
   mergeTagsFor,
   splitDelay,
   triggerLabel,
+  type FlowStats,
   type DelayUnit,
   type EditableFlow,
   type EditableStep,
 } from "@/lib/email-studio/automations";
 import { friendlyText, whenLabel } from "@/lib/email-studio/visual-edit";
 import s from "@/components/email-studio/studio.module.css";
+import f from "./flow.module.css";
 
 type FlowDto = EditableFlow & { id: string; status: string; updated_at: string | null };
 type LoadDto = { flow: FlowDto; inProgress: number; admin: boolean };
+// Same query (and cache key) as the automations list, read here for the numbers.
+type ListDto = { flows: { id: string; stats: FlowStats }[]; admin: boolean };
+
+/** The start of the timeline, in plain words. */
+const START_LABEL: Record<string, string> = {
+  checkout_abandoned: "Leaves checkout without paying",
+  order_placed: "Places an order",
+  customer_created: "Signs up",
+  segment_entry: "Joins an audience",
+  date_based: "A special date comes round",
+};
+
+/** "1 hour", "2 days", "30 minutes" for a wait between emails. */
+function waitLabel(hours: number): string {
+  const r = (n: number) => Math.round(n * 10) / 10;
+  if (hours < 1) { const m = Math.round(hours * 60); return `${m} minute${m === 1 ? "" : "s"}`; }
+  if (hours < 48 && hours % 24 !== 0) { const h = hours < 3 ? r(hours) : Math.round(hours); return `${h} hour${h === 1 ? "" : "s"}`; }
+  const d = r(hours / 24);
+  return `${d} day${d === 1 ? "" : "s"}`;
+}
 
 const STATUS: Record<string, { tone: "good" | "warn" | "neu"; label: string }> = {
   active: { tone: "good", label: "On" },
@@ -74,6 +97,7 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
   const qc = useQueryClient();
   const toast = useToast();
   const q = useQuery({ queryKey: ["email-studio-flow", id], queryFn: () => getJson<LoadDto>(`/api/email-studio/flows/${id}`) });
+  const listQ = useQuery({ queryKey: ["email-studio-flows"], queryFn: () => getJson<ListDto>("/api/email-studio/flows") });
 
   const [draft, setDraft] = useState<EditableFlow | null>(null);
   const [saved, setSaved] = useState<string>("");
@@ -232,21 +256,28 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
   const tags = mergeTagsFor(draft.trigger_type);
   const cfg = draft.trigger_config;
 
+  const statsRow = listQ.data?.flows.find((f) => f.id === id)?.stats;
+  const abandoned = draft.trigger_type === "checkout_abandoned";
+  const stopNote = abandoned ? "stops if they buy" : cfg.exit_on_reorder === true || cfg.exit_on_order === true ? "stops if they order again" : "";
+  const rules = describeFlowRules(draft.trigger_type, cfg).slice(1).filter((r) => r !== "Stops when they buy");
+  const inProgress = q.data!.inProgress;
+  const openEmail = (i: number) => {
+    setSel(i);
+    setTab("edit");
+    requestAnimationFrame(() => document.getElementById("email-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
   return (
     <>
       <StudioHeader
         tab="automations"
-        title={
-          <span className={s.row} style={{ gap: 10 }}>
-            {draft.name || "Untitled automation"} <Pill tone={st.tone}>{st.label}</Pill>
-          </span>
-        }
+        title={draft.name || "Untitled automation"}
         actions={
           <>
             {admin && (on ? (
-              <button type="button" className="pm2-btn ghost" disabled={busy !== null} onClick={() => setDialog("off")}>Pause</button>
+              <button type="button" className="pm2-btn" disabled={busy !== null} onClick={() => setDialog("off")}>Pause</button>
             ) : (
-              <button type="button" className="pm2-btn ghost" disabled={busy !== null || dirty || blockers} title={dirty ? "Save first" : blockers ? "Fix the issues first" : undefined} onClick={() => setDialog("on")}>Switch on</button>
+              <button type="button" className="pm2-btn" disabled={busy !== null || dirty || blockers} title={dirty ? "Save first" : blockers ? "Fix the issues first" : undefined} onClick={() => setDialog("on")}>Switch on</button>
             ))}
             <button type="button" className="pm2-btn pri" disabled={busy !== null || !dirty || (on && blockers)} title={on && blockers ? "Fix the red issues first" : undefined} onClick={save}>
               {busy === "save" ? "Saving…" : dirty ? "Save changes" : "Saved"}
@@ -255,57 +286,114 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
         }
       />
       <div className="pm2-body">
-        <Link href="/dashboard/email/automations" className={s.hint} style={{ display: "inline-flex", alignItems: "center", gap: 4, textDecoration: "none" }}>
-          <ChevronLeft size={14} /> All automations
+        <Link href="/dashboard/email/automations" className={f.back}>
+          <ArrowLeft size={15} /> Automations
         </Link>
 
-        {on && (
-          <Callout
-            tone="sun"
-            title="This automation is live"
-            body={`Saved changes go to real customers from their next email (${q.data!.inProgress} ${q.data!.inProgress === 1 ? "person is" : "people are"} in it now). After saving, send yourself a test.`}
-          />
-        )}
+        <p className={f.sum}>
+          <Pill tone={st.tone}>{st.label}</Pill>{" "}
+          {on ? (
+            <>
+              Click any email to change the words. Saved changes reach real customers from their next email
+              {" "}(<b>{inProgress} {inProgress === 1 ? "person is" : "people are"} in it now</b>). After saving, send yourself a test.
+            </>
+          ) : (
+            <>Click any email to change the words. Nobody gets these emails until it is switched on.</>
+          )}
+        </p>
 
-        <button type="button" className={`${s.aeChecks} ${blockCount ? s.aeChecksBad : s.aeChecksOk}`} style={{ border: 0, cursor: issues.length ? "pointer" : "default", textAlign: "left" }} onClick={() => setShowChecks((v) => !v)}>
-          {blockCount ? <OctagonAlert size={16} /> : <CheckCircle2 size={16} />}
+        <button type="button" className={`${f.checks} ${blockCount ? f.checksBad : f.checksOk}`} style={{ cursor: issues.length ? "pointer" : "default" }} onClick={() => setShowChecks((v) => !v)}>
+          {blockCount ? <OctagonAlert /> : <CheckCircle2 />}
           {blockCount
             ? `${blockCount} thing${blockCount === 1 ? "" : "s"} to fix before this can be saved`
             : issues.length ? `Looks good. ${issues.length} tip${issues.length === 1 ? "" : "s"}` : "Looks good"}
-          {issues.length > 0 && <span style={{ textDecoration: "underline", fontWeight: 600 }}>{showChecks ? "Hide" : "Show"}</span>}
+          {issues.length > 0 && <u>{showChecks ? "Hide" : "Show"}</u>}
         </button>
         {showChecks && issues.length > 0 && (
-          <ul className={s.issues}>
+          <ul className={f.issues}>
             {issues.map((it, k) => (
-              <li key={k} className={`${s.issue} ${it.level === "block" ? s.issueBlock : s.issueWarn}`}>
+              <li key={k} className={`${f.issue} ${it.level === "block" ? f.issueBlock : f.issueWarn}`}>
                 {it.level === "block" ? <OctagonAlert /> : <AlertTriangle />} {it.message}
               </li>
             ))}
           </ul>
         )}
 
-        <div className={s.ae}>
-          {/* ---------- left: the emails + who gets it ---------- */}
-          <div className={s.aeList}>
-            <span className={s.alGroup}>The emails, in order</span>
-            {draft.steps.map((x, i) => (
-              <button key={i} type="button" className={`${s.aeItem} ${i === sel ? s.on : ""}`} onClick={() => setSel(i)}>
-                <span className={s.aeNum}>{i + 1}</span>
-                <span>
-                  <span className={s.aeSubj}>{x.subject ? friendlyText(x.subject) : "No subject yet"}</span>
-                  <span className={s.aeWhen}>{whenLabel(draft.trigger_type, i, x.delay_hours)}{x.coupon ? ` · ${x.coupon.percent_off}% code` : ""}</span>
-                </span>
-              </button>
-            ))}
-            {!rulesLocked && draft.steps.length < 10 && (
-              <button type="button" className="pm2-btn ghost" onClick={() => { setDraft({ ...draft, steps: [...draft.steps, blankStep(draft.steps.length)] }); setSel(draft.steps.length); setTab("edit"); }}>
-                <Plus size={14} /> Add an email
-              </button>
-            )}
+        <div className={f.grid}>
+          {/* ---------- the timeline: start, then wait / email pairs ---------- */}
+          <div className={f.card}>
+            <div className={f.flow}>
+              <div className={f.node}>
+                <span className={`${f.ic} ${f.icStart}`}><Zap /></span>
+                <div className={f.tx}>
+                  <b>{START_LABEL[draft.trigger_type] ?? triggerLabel(draft.trigger_type)}</b>
+                  <p>{rules.length ? rules.join(" · ") : "Everyone who matches, every time"}</p>
+                </div>
+              </div>
+              {draft.steps.map((x, i) => {
+                const wait = x.delay_hours > 0 ? `Wait ${waitLabel(x.delay_hours)}` : i === 0 ? "Right away" : "Right after the email above";
+                const picked = i === sel;
+                return (
+                  <Fragment key={i}>
+                    <div className={f.wait}><Clock />{wait}{stopNote && x.delay_hours > 0 ? ` · ${stopNote}` : ""}</div>
+                    <div className={`${f.node}${picked ? ` ${f.picked}` : ""}`}>
+                      <span className={`${f.ic} ${x.coupon || x.coupon_code ? f.icOffer : f.icMail}`}>{x.coupon || x.coupon_code ? <TicketPercent /> : <Mail />}</span>
+                      <div className={f.tx}>
+                        <b>{x.subject ? `“${friendlyText(x.subject)}”` : "No subject yet"}</b>
+                        <p>
+                          Email {i + 1}
+                          {x.coupon ? ` · ${x.coupon.percent_off}% one-time code` : x.coupon_code ? ` · Code ${x.coupon_code}` : ""}
+                          {x.subject_variants?.length ? ` · testing ${x.subject_variants.length + 1} subject lines` : ""}
+                        </p>
+                      </div>
+                      {picked && tab === "edit" ? (
+                        <span className={f.editing}>Editing</span>
+                      ) : (
+                        <button type="button" className="pm2-btn sm" onClick={() => openEmail(i)}>Edit</button>
+                      )}
+                    </div>
+                  </Fragment>
+                );
+              })}
+              {!rulesLocked && draft.steps.length < 10 && (
+                <div className={f.addRow}>
+                  <button type="button" className="pm2-btn ghost sm" onClick={() => { setDraft({ ...draft, steps: [...draft.steps, blankStep(draft.steps.length)] }); openEmail(draft.steps.length); }}>
+                    <Plus size={14} /> Add an email
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
 
-            <details className="pm2-panel" style={{ padding: 14, marginTop: 8 }}>
-              <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 14 }}>Who gets it</summary>
-              <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+          {/* ---------- side: numbers, then who gets it ---------- */}
+          <div className={f.side}>
+            <div className={f.card}>
+              <h3>So far</h3>
+              <div className={f.statrows}>
+                {statsRow && (
+                  <div className={f.srow}><span>Entered</span><b>{statsRow.entered.toLocaleString("en-IN")}</b></div>
+                )}
+                <div className={f.srow}><span>In it now</span><b>{inProgress.toLocaleString("en-IN")}</b></div>
+                {statsRow && (
+                  <>
+                    <div className={f.srow}><span>Emails sent</span><b>{statsRow.sent.toLocaleString("en-IN")}</b></div>
+                    <div className={f.srow}><span>Opened</span><b>{statsRow.sent ? pct(statsRow.opened / statsRow.sent) : "–"}</b></div>
+                    <div className={f.srow}><span>Clicked</span><b>{statsRow.sent ? pct(statsRow.clicked / statsRow.sent) : "–"}</b></div>
+                    {abandoned && (
+                      <div className={f.srow}>
+                        <span>Bought after</span>
+                        <b>{statsRow.converted.toLocaleString("en-IN")}{statsRow.entered ? <em>{pct(statsRow.converted / statsRow.entered)}</em> : null}</b>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              <p className={f.foot}>Since this automation started.</p>
+            </div>
+
+            <details className={`${f.card} ${f.who}`}>
+              <summary>Who gets it <span>Change</span></summary>
+              <div className={f.whoBody}>
                 {rulesLocked && <span className={s.hint}>Only admins can change who gets a live automation.</span>}
                 <label className={s.field}>
                   <span>Name</span>
@@ -360,68 +448,74 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
               </div>
             </details>
           </div>
-
-          {/* ---------- right: the picked email ---------- */}
-          {step ? (
-            <div style={{ display: "grid", gap: 12, minWidth: 0 }}>
-              <div className={s.row} style={{ justifyContent: "space-between" }}>
-                <div className={s.aeTabs}>
-                  <button type="button" className={tab === "edit" ? s.on : ""} onClick={() => setTab("edit")}>Edit email {sel + 1}</button>
-                  <button type="button" className={tab === "preview" ? s.on : ""} onClick={() => setTab("preview")}>Preview as a customer</button>
-                </div>
-                <button type="button" className="pm2-btn ghost" disabled={busy !== null || dirty} title={dirty ? "Save first. Tests send the saved version." : undefined} onClick={() => test(sel)}>
-                  <Send size={14} /> {busy === "test" ? "Sending…" : "Send me this email"}
-                </button>
-              </div>
-
-              {tab === "edit" ? (
-                <>
-                  <StepSettings step={step} index={sel} trigger={draft.trigger_type} winback={cfg.segment === "winback"} onChange={(patch) => setStep(sel, patch)} />
-                  <VisualEmailEditor key={sel} html={step.body_html} trigger={draft.trigger_type} tags={tags} onChange={(html) => setStep(sel, { body_html: html })} />
-                  <details className="pm2-panel" style={{ padding: 14 }}>
-                    <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 14 }}>Advanced</summary>
-                    <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
-                      {!rulesLocked && (
-                        <div className={s.row}>
-                          <button type="button" className="pm2-btn ghost" disabled={sel === 0} onClick={() => moveStep(sel, -1)}><ArrowUp size={14} /> Move earlier</button>
-                          <button type="button" className="pm2-btn ghost" disabled={sel === draft.steps.length - 1} onClick={() => moveStep(sel, 1)}><ArrowDown size={14} /> Move later</button>
-                          <button type="button" className="pm2-btn ghost" disabled={draft.steps.length >= 10} onClick={() => { setDraft({ ...draft, steps: [...draft.steps.slice(0, sel + 1), { ...step }, ...draft.steps.slice(sel + 1)] }); setSel(sel + 1); }}><Copy size={14} /> Copy this email</button>
-                          <button type="button" className="pm2-btn ghost" style={{ color: "var(--pm-terra)" }} onClick={() => { setDraft({ ...draft, steps: draft.steps.filter((_, k) => k !== sel) }); setSel(Math.max(0, sel - 1)); }}><Trash2 size={14} /> Remove this email</button>
-                        </div>
-                      )}
-                      <label className={s.field}>
-                        <span>Fixed code <em>only when the offer is off; fills the code box</em></span>
-                        <input className={s.input} value={step.coupon_code ?? ""} onChange={(e) => setStep(sel, { coupon_code: e.target.value.toUpperCase() || undefined })} placeholder="PROMUNCH10" />
-                      </label>
-                      <label className={s.field}>
-                        <span>Email HTML <em>for experts, the editor above writes this</em></span>
-                        <textarea className={s.textarea} style={{ minHeight: 220, fontFamily: "var(--pm-mono)", fontSize: 12 }} value={step.body_html} onChange={(e) => setStep(sel, { body_html: e.target.value })} />
-                      </label>
-                    </div>
-                  </details>
-                </>
-              ) : (
-                <div className={s.previewWrap}>
-                  <div className={s.previewBar}>
-                    <span className={s.grow}>Email {sel + 1}{preview?.source ? ` · filled from ${preview.source}` : ""}</span>
-                    <button type="button" className={s.iconBtn} aria-label="Desktop" onClick={() => setMobile(false)} style={{ color: mobile ? undefined : "var(--pm-ink)" }}><Monitor /></button>
-                    <button type="button" className={s.iconBtn} aria-label="Phone" onClick={() => setMobile(true)} style={{ color: mobile ? "var(--pm-ink)" : undefined }}><Smartphone /></button>
-                  </div>
-                  {preview ? (
-                    <>
-                      <div className={s.inboxLine}><b>{step.from_name || "PROMUNCH"}</b> · <b>{preview.subject || "(no subject)"}</b> <span>{step.preview_text ? ` · ${step.preview_text}` : ""}</span></div>
-                      <PreviewFrame html={preview.html} mobile={mobile} />
-                    </>
-                  ) : (
-                    <div style={{ padding: 16 }}><span className={s.hint}>Rendering…</span></div>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="pm2-panel" style={{ padding: 16 }}><span className={s.hint}>No emails yet. Add the first one.</span></div>
-          )}
         </div>
+
+        {/* ---------- the picked email ---------- */}
+        {step ? (
+          <div id="email-editor" className={f.editor}>
+            <div className={f.edHead}>
+              <div className={f.edTitle}>
+                <span>Email {sel + 1} of {draft.steps.length} · {whenLabel(draft.trigger_type, sel, step.delay_hours)}</span>
+                <b>{step.subject ? friendlyText(step.subject) : "No subject yet"}</b>
+              </div>
+            </div>
+            <div className={f.edBar}>
+              <div className={s.aeTabs}>
+                <button type="button" className={tab === "edit" ? s.on : ""} onClick={() => setTab("edit")}>Edit the words</button>
+                <button type="button" className={tab === "preview" ? s.on : ""} onClick={() => setTab("preview")}>Preview as a customer</button>
+              </div>
+              <button type="button" className="pm2-btn" disabled={busy !== null || dirty} title={dirty ? "Save first. Tests send the saved version." : undefined} onClick={() => test(sel)}>
+                <Send size={14} /> {busy === "test" ? "Sending…" : "Send me this email"}
+              </button>
+            </div>
+
+            {tab === "edit" ? (
+              <>
+                <StepSettings step={step} index={sel} trigger={draft.trigger_type} winback={cfg.segment === "winback"} onChange={(patch) => setStep(sel, patch)} />
+                <VisualEmailEditor key={sel} html={step.body_html} trigger={draft.trigger_type} tags={tags} onChange={(html) => setStep(sel, { body_html: html })} />
+                <details className="pm2-panel" style={{ padding: 14 }}>
+                  <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 14 }}>Advanced</summary>
+                  <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+                    {!rulesLocked && (
+                      <div className={s.row}>
+                        <button type="button" className="pm2-btn ghost" disabled={sel === 0} onClick={() => moveStep(sel, -1)}><ArrowUp size={14} /> Move earlier</button>
+                        <button type="button" className="pm2-btn ghost" disabled={sel === draft.steps.length - 1} onClick={() => moveStep(sel, 1)}><ArrowDown size={14} /> Move later</button>
+                        <button type="button" className="pm2-btn ghost" disabled={draft.steps.length >= 10} onClick={() => { setDraft({ ...draft, steps: [...draft.steps.slice(0, sel + 1), { ...step }, ...draft.steps.slice(sel + 1)] }); setSel(sel + 1); }}><Copy size={14} /> Copy this email</button>
+                        <button type="button" className="pm2-btn ghost" style={{ color: "var(--pm-terra)" }} onClick={() => { setDraft({ ...draft, steps: draft.steps.filter((_, k) => k !== sel) }); setSel(Math.max(0, sel - 1)); }}><Trash2 size={14} /> Remove this email</button>
+                      </div>
+                    )}
+                    <label className={s.field}>
+                      <span>Fixed code <em>only when the offer is off; fills the code box</em></span>
+                      <input className={s.input} value={step.coupon_code ?? ""} onChange={(e) => setStep(sel, { coupon_code: e.target.value.toUpperCase() || undefined })} placeholder="PROMUNCH10" />
+                    </label>
+                    <label className={s.field}>
+                      <span>Email HTML <em>for experts, the editor above writes this</em></span>
+                      <textarea className={s.textarea} style={{ minHeight: 220, fontFamily: "var(--pm-mono)", fontSize: 12 }} value={step.body_html} onChange={(e) => setStep(sel, { body_html: e.target.value })} />
+                    </label>
+                  </div>
+                </details>
+              </>
+            ) : (
+              <div className={s.previewWrap}>
+                <div className={s.previewBar}>
+                  <span className={s.grow}>Email {sel + 1}{preview?.source ? ` · filled from ${preview.source}` : ""}</span>
+                  <button type="button" className={s.iconBtn} aria-label="Desktop" onClick={() => setMobile(false)} style={{ color: mobile ? undefined : "var(--pm-ink)" }}><Monitor /></button>
+                  <button type="button" className={s.iconBtn} aria-label="Phone" onClick={() => setMobile(true)} style={{ color: mobile ? "var(--pm-ink)" : undefined }}><Smartphone /></button>
+                </div>
+                {preview ? (
+                  <>
+                    <div className={s.inboxLine}><b>{step.from_name || "PROMUNCH"}</b> · <b>{preview.subject || "(no subject)"}</b> <span>{step.preview_text ? ` · ${step.preview_text}` : ""}</span></div>
+                    <PreviewFrame html={preview.html} mobile={mobile} />
+                  </>
+                ) : (
+                  <div style={{ padding: 16 }}><span className={s.hint}>Rendering…</span></div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className={f.card}><span className={s.hint}>No emails yet. Add the first one.</span></div>
+        )}
       </div>
 
       {dialog === "on" && (

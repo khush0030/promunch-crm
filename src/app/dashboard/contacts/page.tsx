@@ -1,19 +1,20 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Download, ChevronLeft, ChevronRight, ChevronDown, Users, UserPlus, ShoppingBag, UserMinus, X } from "lucide-react";
-import { Avatar } from "@/components/ui/Avatar";
+import { Upload, Download, ChevronLeft, ChevronRight, MoreHorizontal, Plus, Search, SlidersHorizontal, Users, X } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { PageHead, Toolbar, SearchBar, FilterChips, DataTable, StatusBadge, EmptyState, KpiCard } from "@/components/pm";
-import type { Column, BadgeTone, KpiTone } from "@/components/pm";
+import { PageHeader, EmptyState } from "@/components/pm";
 import { apiFetch } from "@/lib/api-fetch";
+import css from "./contacts.module.css";
 
 type ContactRow = {
   id: string;
   name: string;
   email: string | null;
   phone: string | null;
+  city: string | null;
   orders: number;
+  spent: number;
   ltv: string;
   lastOrder: string;
   status: string;
@@ -22,17 +23,28 @@ type ContactRow = {
   segments: string[];
 };
 
-const statusMeta: Record<string, { tone: BadgeTone; label: string }> = {
-  active: { tone: "green", label: "Active" },
-  inactive: { tone: "gold", label: "Inactive" },
-  unsubscribed: { tone: "gray", label: "Unsubscribed" },
-  bounced: { tone: "terra", label: "Bounced" },
-  VIP: { tone: "terra", label: "VIP" },
-  "At Risk": { tone: "terra", label: "At Risk" },
-  New: { tone: "blue", label: "New" },
-};
-function statusFor(s: string): { tone: BadgeTone; label: string } {
-  return statusMeta[s] || statusMeta[s?.toLowerCase?.()] || { tone: "gray", label: s };
+// Group = what the row already tells us (status + order count), shown as
+// coloured text with a small dot. Bounced is the only red one.
+function groupFor(r: ContactRow): { label: string; cls: string } {
+  const st = (r.status || "active").toLowerCase();
+  if (st === "bounced") return { label: "Email bounced", cls: css.gBounced };
+  if (st === "unsubscribed") return { label: "Unsubscribed", cls: css.gUnsub };
+  if (st === "inactive") return { label: "Inactive", cls: css.gInactive };
+  if (r.orders >= 2) return { label: "Repeat buyer", cls: css.gRepeat };
+  if (r.orders === 1) return { label: "One order", cls: css.gOne };
+  return { label: "Signed up", cls: css.gSigned };
+}
+
+// "+919335497559" -> "+91 93354 97559"; anything else as stored.
+function prettyPhone(p: string): string {
+  const m = p.replace(/\s+/g, "").match(/^\+91(\d{5})(\d{5})$/);
+  return m ? `+91 ${m[1]} ${m[2]}` : p;
+}
+
+function shortDate(iso: string): string {
+  const d = new Date(iso);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString("en-IN", sameYear ? { day: "numeric", month: "short" } : { day: "numeric", month: "short", year: "numeric" });
 }
 
 const filters = ["All", "active", "inactive", "unsubscribed", "bounced"];
@@ -65,7 +77,7 @@ export default function ContactsPage() {
   const [sort, setSort] = useState("created_at");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
   const [showFilters, setShowFilters] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [audience, setAudience] = useState<{ type: "list" | "segment"; value: string } | null>(null);
   const [facets, setFacets] = useState<{
     lists: { name: string; count: number }[];
@@ -101,6 +113,7 @@ export default function ContactsPage() {
           last_name?: string;
           email: string | null;
           phone?: string | null;
+          city?: string | null;
           total_orders?: number;
           total_spent?: number;
           last_purchase_date?: string;
@@ -115,6 +128,8 @@ export default function ContactsPage() {
 
       const mapped: ContactRow[] = (data.contacts || []).map((c) => ({
         id: c.id,
+        city: c.city?.trim() || null,
+        spent: Number(c.total_spent) || 0,
         name: [c.first_name, c.last_name].filter(Boolean).join(" ") || (c.email ? c.email.split("@")[0] : c.phone || "Contact"),
         email: c.email || null,
         phone: c.phone || null,
@@ -122,9 +137,7 @@ export default function ContactsPage() {
         ltv: c.total_spent
           ? `₹${parseFloat(String(c.total_spent)).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
           : "₹0",
-        lastOrder: c.last_purchase_date
-          ? new Date(c.last_purchase_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-          : "",
+        lastOrder: c.last_purchase_date ? shortDate(c.last_purchase_date) : "",
         status: c.status || "active",
         tags: c.tags || [],
         lists: c.klaviyo_lists || [],
@@ -223,264 +236,319 @@ export default function ContactsPage() {
     }
   }
 
-  const showOrderCols = contacts.some((c) => c.orders > 0);
-
-  const columns: Column<ContactRow>[] = [
-    {
-      header: "Name",
-      cell: (c) => (
-        <div className="pm-cellname">
-          <Avatar name={c.name} size={30} />
-          <span className="pm-b7">{c.name}</span>
-        </div>
-      ),
-    },
-    // phone-only buyers (HYPD / guest checkout) have no email — show their phone
-    { header: "Email / phone", cell: (c) => <span className="pm-dim">{c.email || c.phone || "—"}</span> },
-    ...(showOrderCols
-      ? ([
-          { header: "Orders", cell: (c: ContactRow) => c.orders },
-          {
-            header: "LTV",
-            cell: (c: ContactRow) => (
-              <span style={{ color: c.orders > 0 ? "var(--pm-green)" : "var(--pm-hint)", fontWeight: c.orders > 0 ? 600 : 400 }}>{c.ltv}</span>
-            ),
-          },
-          { header: "Last order", cell: (c: ContactRow) => <span className="pm-dim">{c.lastOrder || "—"}</span> },
-        ] as Column<ContactRow>[])
-      : []),
-    {
-      header: "Status",
-      cell: (c) => {
-        const sp = statusFor(c.status);
-        return <StatusBadge tone={sp.tone}>{sp.label}</StatusBadge>;
-      },
-    },
-    {
-      header: "Lists & segments",
-      cell: (c) => (
-        <div style={{ display: "flex", flexWrap: "wrap", maxWidth: 240 }}>
-          {c.lists.slice(0, 2).map((l) => <span key={`l-${l}`} className="pm-tag" title={l}>{l}</span>)}
-          {c.segments.slice(0, 2).map((s) => <span key={`s-${s}`} className="pm-tag" title={s}>{s}</span>)}
-          {c.lists.length + c.segments.length > 4 && (
-            <span className="pm-dim" style={{ fontSize: 11 }}>+{c.lists.length + c.segments.length - 4}</span>
-          )}
-        </div>
-      ),
-    },
-  ];
+  const moreOn = showFilters || !!minOrders || !!minLtv || !!lastOrderDays || audience !== null;
+  const repeatOn = minOrders === "2";
+  const n = (v: number) => v.toLocaleString("en-IN");
 
   return (
-    <div className="pm-page">
-      <PageHead
-        title="Contacts"
-        subtitle={
-          loadError && contacts.length === 0
-            ? "Couldn’t load contacts"
-            : `${total.toLocaleString("en-IN")} total contacts · manage your subscriber base`
-        }
+    <>
+      <PageHeader
+        crumb="Customers"
+        title="Customers"
         actions={
           <>
-            {importMsg && (
-              <span style={{ fontSize: 12, color: importMsg.startsWith("Imported") ? "var(--pm-green)" : importMsg.startsWith("Importing") ? "var(--pm-muted)" : "var(--pm-terra)" }}>
-                {importMsg}
-              </span>
-            )}
-            <button className="pm-btn ghost" onClick={() => setAddOpen(true)}>
-              <UserPlus size={15} /> Add contact
-            </button>
-            <button className="pm-btn ghost" onClick={exportCsv} title="Download the current filtered view as CSV">
-              <Download size={15} /> Export CSV
-            </button>
-            <div style={{ position: "relative" }}>
-              <button className="pm-btn primary" disabled={importing} onClick={() => setImportOpen((o) => !o)}>
-                <Upload size={15} /> {importing ? "Importing…" : "Import / Sync"} <ChevronDown size={13} />
+            <div className={css.menuWrap}>
+              <button
+                type="button"
+                className="pm2-btn"
+                aria-label="More actions"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                disabled={importing}
+                onClick={() => setMenuOpen((o) => !o)}
+              >
+                <MoreHorizontal size={16} /> {importing ? "Importing…" : "More"}
               </button>
-              {importOpen && (
+              {menuOpen && (
                 <>
-                  <div onClick={() => setImportOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 19 }} />
-                  <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: "var(--pm-card)", border: "1px solid var(--pm-border)", borderRadius: 10, boxShadow: "0 8px 22px rgba(67,55,32,.12)", zIndex: 20, minWidth: 190, overflow: "hidden" }}>
-                    {(["klaviyo", "shopify"] as const).map((src) => (
-                      <button
-                        key={src}
-                        onClick={() => { setImportOpen(false); runImport(src); }}
-                        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 12px", fontSize: 13, background: "none", border: "none", textAlign: "left", color: "var(--pm-ink)" }}
-                      >
-                        <Upload size={13} /> Import from {src === "klaviyo" ? "Klaviyo" : "Shopify"}
+                  <div className={css.menuScrim} onClick={() => setMenuOpen(false)} />
+                  <div className={css.menu} role="menu">
+                    {(["shopify", "klaviyo"] as const).map((src) => (
+                      <button key={src} type="button" role="menuitem" disabled={importing} onClick={() => { setMenuOpen(false); runImport(src); }}>
+                        <Upload /> Import from {src === "klaviyo" ? "Klaviyo" : "Shopify"}
                       </button>
                     ))}
+                    <hr />
+                    <button type="button" role="menuitem" title="Download the current filtered view as CSV" onClick={() => { setMenuOpen(false); exportCsv(); }}>
+                      <Download /> Export this view as CSV
+                    </button>
                   </div>
                 </>
               )}
             </div>
+            <button type="button" className={`pm2-btn pri ${css.addBtn}`} onClick={() => setAddOpen(true)}>
+              <Plus size={16} /> Add customer
+            </button>
           </>
         }
       />
 
-      {stats && (
-        <div className="pm-kpis" style={{ marginBottom: 16 }}>
-          {([
-            { label: "Total contacts", value: stats.total.toLocaleString("en-IN"), icon: <Users />, tone: "b" as KpiTone },
-            { label: "Buyers", value: stats.buyers.toLocaleString("en-IN"), icon: <ShoppingBag />, tone: "g" as KpiTone },
-            { label: "New this month", value: stats.newThisMonth.toLocaleString("en-IN"), icon: <UserPlus />, tone: "t" as KpiTone },
-            { label: "Unsubscribed", value: stats.unsubscribed.toLocaleString("en-IN"), icon: <UserMinus />, tone: "o" as KpiTone },
-          ]).map((k) => (
-            <KpiCard key={k.label} label={k.label} value={k.value} icon={k.icon} tone={k.tone} />
-          ))}
-        </div>
-      )}
+      <div className="pm2-body">
+        <p className={css.sum}>
+          {loadError && contacts.length === 0 ? (
+            "Couldn’t load customers."
+          ) : stats ? (
+            <>
+              <b>{n(stats.total)} people</b> who bought or signed up. {n(stats.buyers)} have ordered, {n(stats.newThisMonth)} joined this month
+              {stats.unsubscribed > 0 ? `, ${n(stats.unsubscribed)} unsubscribed` : ""}.
+            </>
+          ) : (
+            <>
+              <b>{n(total)} people</b> who bought or signed up.
+            </>
+          )}
+        </p>
+        {importMsg && (
+          <div
+            className={`${css.note} ${importMsg.startsWith("Imported") ? css.noteGood : importMsg.startsWith("Importing") ? css.noteBusy : css.noteBad}`}
+            role="status"
+          >
+            {importMsg}
+          </div>
+        )}
 
-      <Toolbar>
-        <SearchBar value={search} placeholder="Search contacts…" onChange={(v) => { setSearch(v); setPage(1); }} />
-        <FilterChips
-          chips={filters.map((f) => ({ key: f, label: filterLabels[f] }))}
-          active={activeFilter}
-          onSelect={(k) => { setActiveFilter(k); setPage(1); }}
-        />
-        <span className={`pm-chip${showFilters ? " on" : ""}`} onClick={() => setShowFilters((v) => !v)}>More filters</span>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--pm-hint)" }}>
-          Sort by
-          <select aria-label="Sort" value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }}
-            style={{ fontFamily: "inherit", fontSize: 12.5, color: "var(--pm-ink)", background: "var(--pm-card)", border: "1px solid var(--pm-border)", borderRadius: 9, padding: "6px 9px", outline: "none" }}>
-            <option value="created_at">Recently added</option>
-            <option value="last_purchase_date">Last order</option>
-            <option value="total_spent">LTV</option>
-            <option value="total_orders">Order count</option>
-            <option value="average_order_value">Avg order value</option>
-            <option value="email">Email</option>
-          </select>
-          <button className="pm-btn ghost sm" onClick={() => setDir((d) => (d === "asc" ? "desc" : "asc"))} aria-label="Toggle direction">
-            {dir === "desc" ? "↓" : "↑"}
-          </button>
-        </div>
-      </Toolbar>
-
-      {(facets.segments.length > 0 || facets.lists.length > 0) && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 12, color: "var(--pm-hint)", fontWeight: 500 }}>Segments &amp; lists</span>
-          <div className="pm-chips">
-            {facets.segments.slice(0, 8).map((s) => (
-              <span key={`seg-${s.name}`}
-                className={`pm-chip${audience?.type === "segment" && audience.value === s.name ? " on" : ""}`}
-                title={`Segment · ${s.count} contact${s.count === 1 ? "" : "s"}`}
-                onClick={() => { setAudience((a) => (a?.type === "segment" && a.value === s.name ? null : { type: "segment", value: s.name })); setPage(1); }}>
-                {s.name}
-              </span>
+        <div className={css.tools}>
+          <label className={css.search}>
+            <Search aria-hidden />
+            <input
+              type="search"
+              aria-label="Search customers"
+              placeholder="Name, phone or email"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            />
+          </label>
+          <div className={css.chips} role="group" aria-label="Filter customers">
+            {filters.map((f) => (
+              <button
+                key={f}
+                type="button"
+                aria-pressed={activeFilter === f}
+                className={`${css.chip}${activeFilter === f ? ` ${css.chipOn}` : ""}`}
+                onClick={() => { setActiveFilter(f); setPage(1); }}
+              >
+                {filterLabels[f]}
+              </button>
             ))}
-            {facets.lists.slice(0, 6).map((l) => (
-              <span key={`list-${l.name}`}
-                className={`pm-chip${audience?.type === "list" && audience.value === l.name ? " on" : ""}`}
-                title={`List · ${l.count} contact${l.count === 1 ? "" : "s"}`}
-                onClick={() => { setAudience((a) => (a?.type === "list" && a.value === l.name ? null : { type: "list", value: l.name })); setPage(1); }}>
-                {l.name}
-              </span>
-            ))}
+            <span className={css.sep} aria-hidden />
+            <button
+              type="button"
+              aria-pressed={repeatOn}
+              className={`${css.chip}${repeatOn ? ` ${css.chipOn}` : ""}`}
+              onClick={() => { setMinOrders(repeatOn ? "" : "2"); setPage(1); }}
+            >
+              Bought 2+ times
+            </button>
+            <button
+              type="button"
+              aria-expanded={showFilters}
+              className={`${css.chip}${moreOn ? ` ${css.chipOn}` : ""}`}
+              onClick={() => setShowFilters((v) => !v)}
+            >
+              <SlidersHorizontal /> More filters
+            </button>
           </div>
         </div>
-      )}
 
-      {showFilters && (
-        <div className="pm-panel filter-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr) auto", gap: 12, alignItems: "end", marginBottom: 14 }}>
-          <div className="pm-field" style={{ marginBottom: 0 }}>
-            <label>Min orders</label>
-            <input type="number" min={0} title="Minimum orders" placeholder="0" value={minOrders} onChange={(e) => { setMinOrders(e.target.value); setPage(1); }} />
-          </div>
-          <div className="pm-field" style={{ marginBottom: 0 }}>
-            <label>Min LTV (₹)</label>
-            <input type="number" min={0} title="Minimum lifetime value" placeholder="0" value={minLtv} onChange={(e) => { setMinLtv(e.target.value); setPage(1); }} />
-          </div>
-          <div className="pm-field" style={{ marginBottom: 0 }}>
-            <label>Last order</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              <select aria-label="Last order comparison" value={lastOrderOp} onChange={(e) => setLastOrderOp(e.target.value as "within" | "before")}
-                style={{ fontFamily: "inherit", fontSize: 13.5, color: "var(--pm-ink)", background: "var(--pm-card2)", border: "1px solid var(--pm-border)", borderRadius: 10, padding: "11px 10px", outline: "none" }}>
-                <option value="within">Within last</option>
-                <option value="before">Before last</option>
-              </select>
-              <input type="number" min={0} style={{ flex: 1 }} title="Days" placeholder="Days" value={lastOrderDays} onChange={(e) => { setLastOrderDays(e.target.value); setPage(1); }} />
+        {showFilters && (
+          <div className={css.filters}>
+            <div className={css.fGrid}>
+              <label className={css.fld}>
+                <span>Min orders</span>
+                <input className={css.inp} type="number" min={0} placeholder="0" value={minOrders} onChange={(e) => { setMinOrders(e.target.value); setPage(1); }} />
+              </label>
+              <label className={css.fld}>
+                <span>Min spent (₹)</span>
+                <input className={css.inp} type="number" min={0} placeholder="0" value={minLtv} onChange={(e) => { setMinLtv(e.target.value); setPage(1); }} />
+              </label>
+              <div className={css.fld}>
+                <span>Last order</span>
+                <div className={css.pair}>
+                  <select className={css.inp} aria-label="Last order comparison" value={lastOrderOp} onChange={(e) => setLastOrderOp(e.target.value as "within" | "before")}>
+                    <option value="within">Within last</option>
+                    <option value="before">Before last</option>
+                  </select>
+                  <input className={css.inp} type="number" min={0} aria-label="Days" placeholder="Days" value={lastOrderDays} onChange={(e) => { setLastOrderDays(e.target.value); setPage(1); }} />
+                </div>
+              </div>
+              <div className={css.fld}>
+                <span>Sort by</span>
+                <div className={css.pair}>
+                  <select className={css.inp} style={{ flex: 1, width: "100%" }} aria-label="Sort" value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }}>
+                    <option value="created_at">Recently added</option>
+                    <option value="last_purchase_date">Last order</option>
+                    <option value="total_spent">Spent</option>
+                    <option value="total_orders">Order count</option>
+                    <option value="average_order_value">Avg order value</option>
+                    <option value="email">Email</option>
+                  </select>
+                  <button type="button" className="pm2-btn sm" onClick={() => setDir((d) => (d === "asc" ? "desc" : "asc"))} aria-label="Toggle direction">
+                    {dir === "desc" ? "↓" : "↑"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {(facets.segments.length > 0 || facets.lists.length > 0) && (
+              <div className={css.audRow}>
+                <div className={css.fld}><span>Segments &amp; lists</span></div>
+                <div className={css.chips} style={{ flexWrap: "wrap", margin: 0, padding: 0, width: "auto", overflow: "visible" }}>
+                  {facets.segments.slice(0, 8).map((sg) => {
+                    const on = audience?.type === "segment" && audience.value === sg.name;
+                    return (
+                      <button key={`seg-${sg.name}`} type="button" aria-pressed={on}
+                        className={`${css.chip}${on ? ` ${css.chipOn}` : ""}`}
+                        title={`Segment · ${sg.count} contact${sg.count === 1 ? "" : "s"}`}
+                        onClick={() => { setAudience((a) => (a?.type === "segment" && a.value === sg.name ? null : { type: "segment", value: sg.name })); setPage(1); }}>
+                        {sg.name}
+                      </button>
+                    );
+                  })}
+                  {facets.lists.slice(0, 6).map((l) => {
+                    const on = audience?.type === "list" && audience.value === l.name;
+                    return (
+                      <button key={`list-${l.name}`} type="button" aria-pressed={on}
+                        className={`${css.chip}${on ? ` ${css.chipOn}` : ""}`}
+                        title={`List · ${l.count} contact${l.count === 1 ? "" : "s"}`}
+                        onClick={() => { setAudience((a) => (a?.type === "list" && a.value === l.name ? null : { type: "list", value: l.name })); setPage(1); }}>
+                        {l.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className={css.fFoot}>
+              <button type="button" className="pm2-btn ghost sm" onClick={() => { setMinOrders(""); setMinLtv(""); setLastOrderDays(""); setLastOrderOp("within"); setAudience(null); setPage(1); }}>
+                Clear filters
+              </button>
             </div>
           </div>
-          <button className="pm-btn ghost" onClick={() => { setMinOrders(""); setMinLtv(""); setLastOrderDays(""); setLastOrderOp("within"); setPage(1); }}>Clear</button>
-        </div>
-      )}
+        )}
 
-      {contacts.length > 0 ? (
-        <div style={{ opacity: isLoading ? 0.7 : 1, transition: "opacity 0.2s" }}>
-          <DataTable columns={columns} rows={contacts} rowKey={(c) => c.id} onRowClick={(c) => router.push(`/dashboard/contacts/${c.id}`)} />
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14 }}>
-            <span className="pm-dim" style={{ fontSize: 12.5 }}>Showing {contacts.length} of {total.toLocaleString("en-IN")}</span>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <button aria-label="Previous" className="pm-btn ghost sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-                <ChevronLeft size={14} /> Previous
-              </button>
-              <span className="pm-dim" style={{ fontSize: 12.5, padding: "0 8px" }}>Page {page} / {totalPages}</span>
-              <button aria-label="Next" className="pm-btn sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
-                Next <ChevronRight size={14} />
-              </button>
+        {contacts.length > 0 ? (
+          <>
+            <div className={`${css.card}${isLoading ? ` ${css.loading}` : ""}`}>
+              <table className={css.tbl}>
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th className={css.r}>Orders</th>
+                    <th className={css.r}>Spent</th>
+                    <th>Last order</th>
+                    <th>Group</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contacts.map((r) => {
+                    const g = groupFor(r);
+                    const reach = r.phone ? prettyPhone(r.phone) : r.email;
+                    const sub = [r.city, reach].filter(Boolean).join(" · ");
+                    const open = () => router.push(`/dashboard/contacts/${r.id}`);
+                    return (
+                      <tr
+                        key={r.id}
+                        tabIndex={0}
+                        onClick={open}
+                        onKeyDown={(e) => { if (e.key === "Enter") open(); }}
+                      >
+                        <td className={css.main}>
+                          <b>{r.name}</b>
+                          <span>{sub || "No phone or email"}</span>
+                        </td>
+                        <td className={css.r} data-l="Orders">
+                          {r.orders > 0 ? r.orders : <span className={css.nil}>–</span>}
+                        </td>
+                        <td className={css.r} data-l="Spent">
+                          {r.spent > 0 ? <span className={css.spent}>{r.ltv}</span> : <span className={css.nil}>–</span>}
+                        </td>
+                        <td data-l="Last order">
+                          {r.lastOrder ? <span className={css.date}>{r.lastOrder}</span> : <span className={css.nil}>–</span>}
+                        </td>
+                        <td>
+                          <span className={`${css.grp} ${g.cls}`}>{g.label}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          </div>
-        </div>
-      ) : loadError ? (
-        <EmptyState
-          icon={<Users />}
-          title="Couldn’t load contacts"
-          cta={<button className="pm-btn primary" onClick={() => fetchContacts()}>Retry</button>}
-        >
-          {loadError}
-        </EmptyState>
-      ) : (
-        <EmptyState
-          icon={<Users />}
-          title={loaded ? "No contacts yet" : "Loading…"}
-          cta={loaded ? <button className="pm-btn primary" disabled={importing} onClick={() => runImport("shopify")}><Upload size={15} /> Import from Shopify</button> : undefined}
-        >
-          {loaded ? "Import contacts from Shopify or Klaviyo to get started, or add them manually." : undefined}
-        </EmptyState>
-      )}
+            <div className={css.pager}>
+              <span>Showing {contacts.length} of {n(total)}</span>
+              <div className={css.pagerBtns}>
+                <button type="button" aria-label="Previous" className="pm2-btn ghost sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+                  <ChevronLeft size={14} /> Previous
+                </button>
+                <span>{page} / {totalPages}</span>
+                <button type="button" aria-label="Next" className="pm2-btn sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
+                  Next <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          </>
+        ) : loadError ? (
+          <EmptyState
+            icon={<Users />}
+            title="Couldn’t load customers"
+            cta={<button type="button" className="pm2-btn" onClick={() => fetchContacts()}>Retry</button>}
+          >
+            {loadError}
+          </EmptyState>
+        ) : (
+          <EmptyState
+            icon={<Users />}
+            title={loaded ? "No customers match" : "Loading…"}
+            cta={loaded ? <button type="button" className="pm2-btn" disabled={importing} onClick={() => runImport("shopify")}><Upload size={15} /> Import from Shopify</button> : undefined}
+          >
+            {loaded ? "Try a different search or filter, import from Shopify or Klaviyo, or add someone by hand." : undefined}
+          </EmptyState>
+        )}
+      </div>
 
       {addOpen && (
-        <>
-          <div onClick={() => setAddOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(43,36,20,.32)", zIndex: 40 }} />
-          <div role="dialog" aria-label="Add contact" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(440px, calc(100vw - 32px))", background: "var(--pm-card)", border: "1px solid var(--pm-border)", borderRadius: 14, boxShadow: "0 18px 48px rgba(67,55,32,.22)", zIndex: 41, padding: 22 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-              <h3 style={{ margin: 0, fontSize: 16 }}>Add contact</h3>
-              <button type="button" className="pm-btn ghost sm" onClick={() => setAddOpen(false)} aria-label="Close">
+        <div className="pm2-dialog-backdrop" onClick={() => setAddOpen(false)}>
+          <div role="dialog" aria-label="Add customer" className={css.dialog} onClick={(e) => e.stopPropagation()}>
+            <div className={css.dHead}>
+              <h3>Add customer</h3>
+              <button type="button" className="pm2-btn ghost sm" onClick={() => setAddOpen(false)} aria-label="Close">
                 <X size={15} />
               </button>
             </div>
-            <form onSubmit={submitAddContact}>
-              <div className="pm-field">
-                <label>Email *</label>
-                <input type="email" required autoFocus placeholder="customer@example.com" value={addForm.email}
+            <form onSubmit={submitAddContact} className={css.dForm}>
+              <label className={css.fld}>
+                <span>Email *</span>
+                <input className={css.inp} type="email" required autoFocus placeholder="customer@example.com" value={addForm.email}
                   onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))} />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <div className="pm-field">
-                  <label>First name</label>
-                  <input type="text" placeholder="First" value={addForm.first_name}
+              </label>
+              <div className={css.dTwo}>
+                <label className={css.fld}>
+                  <span>First name</span>
+                  <input className={css.inp} type="text" placeholder="First" value={addForm.first_name}
                     onChange={(e) => setAddForm((f) => ({ ...f, first_name: e.target.value }))} />
-                </div>
-                <div className="pm-field">
-                  <label>Last name</label>
-                  <input type="text" placeholder="Last" value={addForm.last_name}
+                </label>
+                <label className={css.fld}>
+                  <span>Last name</span>
+                  <input className={css.inp} type="text" placeholder="Last" value={addForm.last_name}
                     onChange={(e) => setAddForm((f) => ({ ...f, last_name: e.target.value }))} />
-                </div>
+                </label>
               </div>
-              <div className="pm-field">
-                <label>Phone</label>
-                <input type="tel" placeholder="+91…" value={addForm.phone}
+              <label className={css.fld}>
+                <span>Phone</span>
+                <input className={css.inp} type="tel" placeholder="+91…" value={addForm.phone}
                   onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
-                <button type="button" className="pm-btn ghost" onClick={() => setAddOpen(false)} disabled={addBusy}>Cancel</button>
-                <button type="submit" className="pm-btn primary" disabled={addBusy || !addForm.email.trim()}>
-                  {addBusy ? "Adding…" : "Add contact"}
+              </label>
+              <div className={css.dFoot}>
+                <button type="button" className="pm2-btn ghost" onClick={() => setAddOpen(false)} disabled={addBusy}>Cancel</button>
+                <button type="submit" className="pm2-btn pri" disabled={addBusy || !addForm.email.trim()}>
+                  {addBusy ? "Adding…" : "Add customer"}
                 </button>
               </div>
             </form>
           </div>
-        </>
+        </div>
       )}
-    </div>
+    </>
   );
 }
