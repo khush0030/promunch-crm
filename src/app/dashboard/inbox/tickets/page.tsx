@@ -1,39 +1,82 @@
 "use client";
 
-// /dashboard/inbox/tickets — Tickets board (Task 2.6). A kanban of every
+// /dashboard/inbox/tickets — Tickets queue (Task 2.6, Oct 2026 redesign).
+// A views column (My work / All tickets) and a searchable queue of every
 // open/pending/recently-resolved wa_threads + ig_threads ticket
-// (src/lib/inbox/tickets.ts / /api/inbox/tickets, Task 2.6), grouped by
-// status with a 4-hour first-human-reply target. All writes reuse the
-// existing PATCH /api/whatsapp/threads/[id] and
-// PATCH /api/instagram/threads/[id]/stage routes — this page never messages
-// a customer.
+// (src/lib/inbox/tickets.ts / /api/inbox/tickets), with a 4-hour
+// first-human-reply target. All writes reuse the existing
+// PATCH /api/whatsapp/threads/[id] and PATCH /api/instagram/threads/[id]/stage
+// routes — this page never messages a customer.
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import Link from "next/link";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { PageHeader, Chips, KpiStrip, Kpi, Board, Pill, Avatar, Callout, ConfirmDialog } from "@/components/pm";
-import type { ChipItem, BoardColumn } from "@/components/pm";
+import {
+  AlarmClock,
+  CircleCheck,
+  CircleDot,
+  Clock,
+  Hourglass,
+  Inbox as InboxIcon,
+  ListTodo,
+  MoreHorizontal,
+  Search,
+  User,
+  UserCheck,
+} from "lucide-react";
+import { PageHeader, Avatar, Callout, ConfirmDialog } from "@/components/pm";
 import { formatINR } from "@/lib/metrics/money";
 import { useToast } from "@/components/ui/Toast";
 import { patchThread } from "@/components/inbox/shared";
+import { useMeEmail } from "@/components/inbox/hooks";
 import type { TicketCard, TicketsBoard } from "@/lib/inbox/tickets";
+import s from "./tickets.module.css";
 
-type FilterKey = "open" | "waiting" | "resolved";
+// Views map straight onto the board columns the API already builds:
+//   new       = open + unassigned          ("New")
+//   with:*    = open/pending + assigned    ("Open")
+//   waiting   = pending + unassigned       ("Waiting on customer")
+//   resolved  = resolved in the last 7 days ("Solved")
+type ViewKey = "mine" | "unassigned" | "overdue" | "open" | "new" | "assigned" | "waiting" | "resolved";
+type Status = "new" | "open" | "waiting" | "solved";
+type ChannelFilter = "all" | "wa" | "ig";
+type SortKey = "oldest" | "newest";
 
-const FILTER_CHIPS: { key: FilterKey; label: string }[] = [
-  { key: "open", label: "Open" },
-  { key: "waiting", label: "Waiting on customer" },
-  { key: "resolved", label: "Resolved this week" },
-];
+const VIEW_KEYS: ViewKey[] = ["mine", "unassigned", "overdue", "open", "new", "assigned", "waiting", "resolved"];
 
-function parseFilter(raw: string | null): FilterKey {
-  return raw === "waiting" || raw === "resolved" ? raw : "open";
+const STATUS_WORD: Record<Status, string> = {
+  new: "New",
+  open: "Open",
+  waiting: "Waiting",
+  solved: "Solved",
+};
+
+const CHANNEL_WORD: Record<"wa" | "ig", string> = { wa: "WhatsApp", ig: "Instagram" };
+
+function parseView(raw: string | null): ViewKey {
+  return VIEW_KEYS.includes(raw as ViewKey) ? (raw as ViewKey) : "open";
 }
 
 function computeDeltaPct(curr: number | null, prev: number | null): number | null {
   if (curr == null || prev == null || prev === 0) return null;
   return ((curr - prev) / prev) * 100;
 }
+
+// Display-only sort key off the aggregator's age text ("40m", "2h 10m",
+// "3 days"). Resolved cards ("resolved in …") return null and keep the
+// server's order.
+function ageMinutes(text: string): number | null {
+  if (text.startsWith("resolved")) return null;
+  const d = text.match(/(\d+)\s*days?/);
+  if (d) return Number(d[1]) * 1440;
+  const h = text.match(/(\d+)h/);
+  const m = text.match(/(\d+)m/);
+  if (!h && !m) return null;
+  return (h ? Number(h[1]) * 60 : 0) + (m ? Number(m[1]) : 0);
+}
+
+type Row = { card: TicketCard; status: Status; channel: "wa" | "ig"; order: number };
 
 type TeamUser = { id: string; email: string | null; name: string };
 
@@ -57,9 +100,10 @@ function TicketsPageInner() {
   const router = useRouter();
   const params = useSearchParams();
   const qc = useQueryClient();
-  const filter = parseFilter(params.get("filter"));
+  const view = parseView(params.get("filter"));
+  const me = useMeEmail();
 
-  const setFilter = useCallback(
+  const setView = useCallback(
     (key: string) => {
       const sp = new URLSearchParams(params.toString());
       if (key === "open") sp.delete("filter");
@@ -97,6 +141,9 @@ function TicketsPageInner() {
   );
 
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [channel, setChannel] = useState<ChannelFilter>("all");
+  const [sort, setSort] = useState<SortKey>("oldest");
 
   const toast = useToast();
   // patchThread checks r.ok and shows the route's error as a toast; a
@@ -154,30 +201,79 @@ function TicketsPageInner() {
   );
 
   const board = boardQ.data;
-  const chipItems: ChipItem[] = FILTER_CHIPS.map((f) => ({
-    key: f.key,
-    label: f.label,
-    count: board
-      ? f.key === "open"
-        ? board.counts.open
-        : f.key === "waiting"
-          ? board.counts.waiting
-          : board.counts.resolvedWeek
-      : undefined,
-  }));
 
-  const header = (
-    <PageHeader
-      crumb="Inbox"
-      title="Tickets"
-      actions={
-        <>
-          <Chips items={chipItems} value={filter} onChange={setFilter} ariaLabel="Filter tickets" />
-          <span className="pm2-cmp pm2-d-only">target: first human reply within 4h</span>
-        </>
+  // Every card once, tagged with the status its column means.
+  const allRows = useMemo<Row[]>(() => {
+    if (!board) return [];
+    const out: Row[] = [];
+    for (const col of board.columns) {
+      const status: Status =
+        col.key === "new" ? "new" : col.key === "waiting" ? "waiting" : col.key === "resolved" ? "solved" : "open";
+      for (const card of col.cards) {
+        out.push({ card, status, channel: card.key.slice(0, 2) as "wa" | "ig", order: out.length });
       }
-    />
+    }
+    return out;
+  }, [board]);
+
+  const inView = useCallback(
+    (r: Row, v: ViewKey): boolean => {
+      const live = r.status !== "solved";
+      switch (v) {
+        case "mine":
+          return live && !!me && r.card.assignee === me;
+        case "unassigned":
+          return live && !r.card.assignee;
+        case "overdue":
+          return live && r.card.pastTarget;
+        case "open":
+          return r.status === "new" || r.status === "open";
+        case "new":
+          return r.status === "new";
+        case "assigned":
+          return r.status === "open";
+        case "waiting":
+          return r.status === "waiting";
+        case "resolved":
+          return r.status === "solved";
+      }
+    },
+    [me],
   );
+
+  const counts = useMemo(() => {
+    const c = {} as Record<ViewKey, number>;
+    for (const k of VIEW_KEYS) c[k] = allRows.filter((r) => inView(r, k)).length;
+    return c;
+  }, [allRows, inView]);
+
+  const nameOf = useCallback(
+    (email: string | null) => (email ? teamUsers.find((u) => u.email === email)?.name || email : null),
+    [teamUsers],
+  );
+
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = allRows.filter((r) => {
+      if (!inView(r, view)) return false;
+      if (channel !== "all" && r.channel !== channel) return false;
+      if (!q) return true;
+      const hay = [r.card.title, r.card.customer, r.card.orderRef, r.card.number != null ? `#${r.card.number}` : null, nameOf(r.card.assignee)]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+    const sorted = [...list].sort((a, b) => {
+      const am = ageMinutes(a.card.ageText);
+      const bm = ageMinutes(b.card.ageText);
+      if (am != null && bm != null && am !== bm) return bm - am;
+      return a.order - b.order;
+    });
+    return sort === "newest" ? sorted.reverse() : sorted;
+  }, [allRows, inView, view, channel, query, sort, nameOf]);
+
+  const header = <PageHeader crumb="Inbox" title="Tickets" />;
 
   if (boardQ.isError && !board) {
     return (
@@ -214,171 +310,342 @@ function TicketsPageInner() {
   const topCategory = board.kpis.topCategory;
   const categoryDeltaPct = topCategory ? computeDeltaPct(topCategory.count, topCategory.prevCount) : null;
 
-  const visibleColumns = board.columns.filter((c) => {
-    if (filter === "open") return c.key === "new" || c.key.startsWith("with:");
-    if (filter === "waiting") return c.key === "waiting";
-    return c.key === "resolved";
-  });
-  const boardColumns: BoardColumn[] = visibleColumns.map((c) => ({
-    key: c.key,
-    title: c.title,
-    count: c.cards.length,
-    cards: c.cards.map((card) => (
-      <TicketCardView
-        key={card.key}
-        card={card}
-        teamUsers={teamUsers}
-        busyKey={busyKey}
-        onAssign={onAssign}
-        onWaiting={onWaiting}
-        onResolve={onResolve}
-      />
-    )),
-  }));
+  const viewGroups: { title: string; items: { key: ViewKey; label: string; icon: ReactNode }[] }[] = [
+    {
+      title: "My work",
+      items: [
+        { key: "mine", label: "Mine, open", icon: <User aria-hidden /> },
+        { key: "unassigned", label: "Not assigned", icon: <InboxIcon aria-hidden /> },
+        { key: "overdue", label: "Past reply target", icon: <AlarmClock aria-hidden /> },
+      ],
+    },
+    {
+      title: "All tickets",
+      items: [
+        { key: "open", label: "All open", icon: <ListTodo aria-hidden /> },
+        { key: "new", label: "New", icon: <CircleDot aria-hidden /> },
+        { key: "assigned", label: "Open, assigned", icon: <UserCheck aria-hidden /> },
+        { key: "waiting", label: "Waiting on customer", icon: <Hourglass aria-hidden /> },
+        { key: "resolved", label: "Solved, 7 days", icon: <CircleCheck aria-hidden /> },
+      ],
+    },
+  ];
 
   return (
     <>
       {header}
       <div className="pm2-body">
-        <KpiStrip cols={3}>
-          <Kpi label="Open" value={board.kpis.open} sub={`${board.kpis.pastTarget} past target`} />
-          <Kpi
-            label="Median time to resolve"
-            value={board.kpis.medianResolveHours != null ? `${board.kpis.medianResolveHours.toFixed(1)}h` : "None resolved"}
-            delta={medianDeltaPct}
-            invert
-            sub="this week"
-            deltaTip="Lower is better"
-          />
-          <Kpi
-            label={`${topCategory?.word ?? "Complaint"} tickets`}
-            value={topCategory?.count ?? 0}
-            delta={categoryDeltaPct}
-            sub="this week"
-          />
-        </KpiStrip>
-        <Board columns={boardColumns} empty="No tickets here." />
-        <p style={{ marginTop: 14, fontSize: 12.5, color: "var(--pm-hint)" }}>
-          Ops can also close a ticket by replying &quot;done #N&quot; on WhatsApp.
-        </p>
+        <div className={s.summary}>
+          <p className={s.sum}>
+            <b>{board.kpis.open} open</b>, {board.kpis.pastTarget} past the 4h first-reply target.
+            {me ? <> You&apos;re on {counts.mine} of them.</> : null}
+          </p>
+          <dl className={s.stats}>
+            <div>
+              <dt>Median time to resolve</dt>
+              <dd>
+                {board.kpis.medianResolveHours != null ? `${board.kpis.medianResolveHours.toFixed(1)}h` : "None resolved"}
+                {medianDeltaPct != null ? (
+                  <small title="Lower is better">
+                    {medianDeltaPct > 0 ? "+" : ""}
+                    {medianDeltaPct.toFixed(0)}% vs last week
+                  </small>
+                ) : null}
+              </dd>
+            </div>
+            <div>
+              <dt>{topCategory?.word ?? "Complaint"} tickets, this week</dt>
+              <dd>
+                {topCategory?.count ?? 0}
+                {categoryDeltaPct != null ? (
+                  <small>
+                    {categoryDeltaPct > 0 ? "+" : ""}
+                    {categoryDeltaPct.toFixed(0)}% vs last week
+                  </small>
+                ) : null}
+              </dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className={s.tq}>
+          <nav className={s.views} aria-label="Ticket views">
+            {viewGroups.map((g) => (
+              <div key={g.title}>
+                <div className={s.vg}>{g.title}</div>
+                {g.items.map((it) => (
+                  <button
+                    key={it.key}
+                    type="button"
+                    className={`${s.view}${view === it.key ? ` ${s.on}` : ""}`}
+                    aria-current={view === it.key ? "page" : undefined}
+                    onClick={() => setView(it.key)}
+                  >
+                    {it.icon}
+                    <span className={s.vl}>{it.label}</span>
+                    <span className={s.n}>{it.key === "mine" && !me ? "" : counts[it.key]}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </nav>
+
+          <div className={s.queue}>
+            <div className={s.tools}>
+              <select
+                className={`pm2-btn sm ${s.viewSelect}`}
+                aria-label="Ticket view"
+                value={view}
+                onChange={(e) => setView(e.target.value)}
+              >
+                {viewGroups.map((g) => (
+                  <optgroup key={g.title} label={g.title}>
+                    {g.items.map((it) => (
+                      <option key={it.key} value={it.key}>
+                        {it.label} ({counts[it.key]})
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <label className={s.search}>
+                <Search aria-hidden />
+                <input
+                  type="search"
+                  placeholder="Search tickets, names, order numbers"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  aria-label="Search tickets"
+                />
+              </label>
+              <select
+                className="pm2-btn sm"
+                aria-label="Filter by channel"
+                value={channel}
+                onChange={(e) => setChannel(e.target.value as ChannelFilter)}
+              >
+                <option value="all">All channels</option>
+                <option value="wa">WhatsApp</option>
+                <option value="ig">Instagram</option>
+              </select>
+              <select
+                className="pm2-btn sm"
+                aria-label="Sort tickets"
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortKey)}
+              >
+                <option value="oldest">Oldest first</option>
+                <option value="newest">Newest first</option>
+              </select>
+            </div>
+
+            <div className={s.thead} aria-hidden>
+              <span>Ticket</span>
+              <span>{view === "resolved" ? "Resolved" : "Open for"}</span>
+              <span>Status</span>
+              <span>Who</span>
+              <span />
+            </div>
+
+            {rows.length === 0 ? (
+              <div className={s.empty}>
+                {query || channel !== "all" ? "No tickets match this search." : view === "mine" && !me ? "Signing you in…" : "No tickets here."}
+              </div>
+            ) : (
+              <ul className={s.rows}>
+                {rows.map((r) => (
+                  <TicketRowView
+                    key={r.card.key}
+                    row={r}
+                    teamUsers={teamUsers}
+                    assigneeName={nameOf(r.card.assignee)}
+                    busyKey={busyKey}
+                    onAssign={onAssign}
+                    onWaiting={onWaiting}
+                    onResolve={onResolve}
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+        <p className={s.note}>Ops can also close a ticket by replying &quot;done #N&quot; on WhatsApp.</p>
       </div>
     </>
   );
 }
 
-function TicketCardView({
-  card,
+function DueLabel({ card, status }: { card: TicketCard; status: Status }) {
+  if (status === "solved") {
+    return (
+      <span className={s.due} title={card.ageText}>
+        <CircleCheck aria-hidden />
+        <span>{card.ageText}</span>
+      </span>
+    );
+  }
+  const age = card.ageText.replace(/ · past target$/, "");
+  const tone = card.pastTarget ? s.late : card.tone === "warn" ? s.soon : "";
+  return (
+    <span
+      className={`${s.due} ${tone}`}
+      title={card.pastTarget ? "Past the 4h first-reply target" : "Time since the ticket opened (target: first human reply within 4h)"}
+    >
+      {card.pastTarget ? <AlarmClock aria-hidden /> : <Clock aria-hidden />}
+      <span>
+        {age}
+        {card.pastTarget ? <span className={s.dueSub}> · late</span> : null}
+      </span>
+    </span>
+  );
+}
+
+function TicketRowView({
+  row,
   teamUsers,
+  assigneeName,
   busyKey,
   onAssign,
   onWaiting,
   onResolve,
 }: {
-  card: TicketCard;
+  row: Row;
   teamUsers: { email: string; name: string }[];
+  assigneeName: string | null;
   busyKey: string | null;
   onAssign: (channel: "wa" | "ig", id: string, email: string) => void;
   onWaiting: (channel: "wa" | "ig", id: string) => void;
   onResolve: (channel: "wa" | "ig", id: string) => void;
 }) {
+  const { card, status, channel } = row;
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const channel = card.key.slice(0, 2) as "wa" | "ig";
+  const menuRef = useRef<HTMLDivElement>(null);
   const id = card.key.slice(3);
   const busy = busyKey === card.key;
-  const assigneeName = card.assignee ? teamUsers.find((u) => u.email === card.assignee)?.name || card.assignee : null;
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [menuOpen]);
+
+  const meta = [
+    card.number != null ? `#${card.number}` : null,
+    card.customer,
+    CHANNEL_WORD[channel],
+    card.orderRef ? `order ${card.orderRef}${card.orderValue != null ? ` · ${formatINR(card.orderValue)}` : ""}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <>
-      <div className="t" style={{ cursor: "pointer" }} onClick={() => router.push(card.href)}>
-        {card.number != null ? `#${card.number} ` : ""}
-        {card.title}
+    <li className={s.row} onClick={() => router.push(card.href)}>
+      <div className={s.subj}>
+        <Link href={card.href} className={s.title} onClick={(e) => e.stopPropagation()}>
+          {card.title}
+        </Link>
+        <span className={s.meta}>{meta}</span>
       </div>
-      <div className="m" style={{ cursor: "pointer" }} onClick={() => router.push(card.href)}>
-        <span>{card.customer}</span>
-        {card.orderRef ? <span>· {card.orderRef}</span> : null}
-        {card.orderValue != null ? <span>· {formatINR(card.orderValue)}</span> : null}
+      <div className={s.dueCell}>
+        <DueLabel card={card} status={status} />
       </div>
-      <div className="m">
-        <Pill tone={card.tone} plain>
-          {card.ageText}
-        </Pill>
-        {assigneeName ? <Avatar name={assigneeName} size={28} /> : <span>Unassigned</span>}
+      <div className={s.stCell}>
+        <span className={`${s.st} ${s[`st_${status}`]}`}>{STATUS_WORD[status]}</span>
+      </div>
+      <div className={s.who}>
+        {assigneeName ? (
+          <span title={assigneeName} className={s.whoAv}>
+            <Avatar name={assigneeName} size={28} />
+          </span>
+        ) : (
+          <span className={s.nobody}>Nobody</span>
+        )}
+      </div>
+      <div className={s.act} ref={menuRef} onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
-          className="pm2-btn sm"
-          style={{ marginLeft: "auto" }}
+          className={`pm2-btn sm ghost ${s.more}`}
           aria-label="Ticket actions"
-          onClick={(e) => {
-            e.stopPropagation();
-            setMenuOpen((v) => !v);
-          }}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
         >
-          ⋯
+          <MoreHorizontal aria-hidden />
         </button>
-      </div>
-      {menuOpen ? (
-        <div className="m" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
-          <select
-            className="pm2-btn sm"
-            defaultValue=""
-            disabled={busy}
-            onChange={(e) => {
-              if (e.target.value) {
-                onAssign(channel, id, e.target.value);
-                setMenuOpen(false);
-              }
-            }}
-          >
-            <option value="" disabled>
-              Assign to…
-            </option>
-            {teamUsers.map((u) => (
-              <option key={u.email} value={u.email}>
-                {u.name}
-              </option>
-            ))}
-          </select>
-          {channel === "wa" ? (
-            <button
-              type="button"
+        {menuOpen ? (
+          <div className={s.menu} role="menu">
+            <select
               className="pm2-btn sm"
+              defaultValue=""
               disabled={busy}
-              onClick={() => {
-                onWaiting(channel, id);
-                setMenuOpen(false);
+              aria-label="Assign to"
+              onChange={(e) => {
+                if (e.target.value) {
+                  onAssign(channel, id, e.target.value);
+                  setMenuOpen(false);
+                }
               }}
             >
-              Waiting on customer
+              <option value="" disabled>
+                Assign to…
+              </option>
+              {teamUsers.map((u) => (
+                <option key={u.email} value={u.email}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+            {channel === "wa" ? (
+              <button
+                type="button"
+                className="pm2-btn sm ghost"
+                disabled={busy}
+                onClick={() => {
+                  onWaiting(channel, id);
+                  setMenuOpen(false);
+                }}
+              >
+                Waiting on customer
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="pm2-btn sm ghost"
+              disabled={busy}
+              onClick={() => {
+                setMenuOpen(false);
+                setConfirming(true);
+              }}
+            >
+              Resolve
             </button>
-          ) : null}
-          <button
-            type="button"
-            className="pm2-btn sm"
-            disabled={busy}
-            onClick={() => {
-              setMenuOpen(false);
-              setConfirming(true);
+          </div>
+        ) : null}
+        {confirming ? (
+          <ConfirmDialog
+            title={card.number != null ? `Resolve ticket #${card.number}?` : "Resolve this ticket?"}
+            body="The customer is not messaged."
+            confirmLabel="Resolve"
+            busy={busy}
+            onConfirm={() => {
+              onResolve(channel, id);
+              setConfirming(false);
             }}
-          >
-            Resolve
-          </button>
-        </div>
-      ) : null}
-      {confirming ? (
-        <ConfirmDialog
-          title={card.number != null ? `Resolve ticket #${card.number}?` : "Resolve this ticket?"}
-          body="The customer is not messaged."
-          confirmLabel="Resolve"
-          busy={busy}
-          onConfirm={() => {
-            onResolve(channel, id);
-            setConfirming(false);
-          }}
-          onClose={() => setConfirming(false)}
-        />
-      ) : null}
-    </>
+            onClose={() => setConfirming(false)}
+          />
+        ) : null}
+      </div>
+    </li>
   );
 }

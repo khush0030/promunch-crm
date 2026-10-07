@@ -1,3 +1,5 @@
+import b from "./bubbles.module.css";
+
 export type BubbleItem =
   | { kind: "day"; label: string }
   | { kind: "system"; text: string }
@@ -17,7 +19,7 @@ const BUBBLE_CLASS: Record<"in" | "human" | "bot" | "template", string> = {
 // colour/border treatment so a glance tells you who said what.
 export function Bubbles({ items }: { items: BubbleItem[] }) {
   return (
-    <div className="pm2-convo">
+    <div className={`pm2-convo ${b.convo}`}>
       {items.map((item, i) => {
         if (item.kind === "day") {
           return (

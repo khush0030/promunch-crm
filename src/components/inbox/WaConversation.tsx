@@ -20,6 +20,8 @@ import { ConversationHeader } from "./ConversationHeader";
 import { useMeEmail, useNow, useStickToBottom, useTeamMembers } from "./hooks";
 import { AssignSelect, ConnectionNotice, NotFoundCard, patchThread, shareLink } from "./shared";
 import { WindowChip, windowLeftMs } from "@/components/whatsapp/WindowTimer";
+import { TicketProperties, WindowStrip } from "./TicketSide";
+import t from "./ticket.module.css";
 import type { Template, Thread } from "@/components/whatsapp/types";
 import { formatINR } from "@/lib/metrics/money";
 import {
@@ -299,6 +301,11 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
   }
 
   const pill = waStatusPill(thread.status);
+  // Same control + handler in both layouts: the header in compact mode, the
+  // "Assigned to" property tile on the full page.
+  const assignSelect = (
+    <AssignSelect value={thread.assigned_to} members={members} disabled={patching} onChange={(email) => patch({ assigned_to: email || null })} />
+  );
   const btn = compact ? "pm2-btn sm" : "pm2-btn";
   const headerActions = (
     <>
@@ -313,7 +320,7 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
         <button type="button" className={`${btn} ghost`} disabled={patching} onClick={() => patch({ ticket_status: "resolved" })}>Resolve</button>
       ) : null}
       <button type="button" className={`${btn} ghost`} onClick={() => shareLink(`/dashboard/inbox/wa-${id}`, toast)}>Share</button>
-      <AssignSelect value={thread.assigned_to} members={members} disabled={patching} onChange={(email) => patch({ assigned_to: email || null })} />
+      {compact ? assignSelect : null}
     </>
   );
 
@@ -331,9 +338,9 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
         {orderTotal ? <> · <b className="num">{formatINR(orderTotal)}</b></> : null}
       </span>
       {codOrder ? <span>{orderLabel(codOrder.order_number)} · COD · <b>waiting</b></span> : null}
-      <WindowChip lastInboundAt={lastInbound} />
+      {compact ? <WindowChip lastInboundAt={lastInbound} /> : null}
       {customer?.contact?.id ? (
-        <Link className="pm2-lnk" style={{ marginLeft: "auto" }} href={`/dashboard/contacts/${customer.contact.id}`}>Profile →</Link>
+        <Link className="pm2-lnk" style={compact ? { marginLeft: "auto" } : undefined} href={`/dashboard/contacts/${customer.contact.id}`}>Profile →</Link>
       ) : null}
     </>
   );
@@ -373,19 +380,9 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
     </>
   );
 
-  return (
-    <div className={`pm2-thread${compact ? " compact" : ""}`}>
-      <ConversationHeader
-        compact={compact}
-        channel="wa"
-        name={name}
-        crumb={`Inbox · WhatsApp · ${maskPhone(thread.contact?.phone || thread.wa_id)}`}
-        faint={factsLine}
-        pill={pill}
-        actions={headerActions}
-        facts={facts}
-        note={ticketNote}
-      />
+  const teamName = (email: string) => members.find((m) => m.email === email)?.name || email;
+
+  const threadBody = (
       <div className="pm2-thread-body">
         <div ref={scrollRef} className="pm2-thread-scroll">
           {items.length === 0 ? (
@@ -395,6 +392,7 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
           )}
         </div>
         {pollFailed ? <ConnectionNotice /> : null}
+        {compact ? null : <WindowStrip lastInboundAt={lastInbound} now={now} />}
         <div className="pm2-thread-foot">
           {pickingTemplate ? (
             <div className="pm2-panel">
@@ -418,12 +416,50 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
             />
           )}
           {thread.status === "bot" ? (
-            <div style={{ fontSize: 12.5, color: "var(--pm-hint)", padding: "6px 2px 0" }}>
+            <div className={compact ? undefined : t.botNote} style={compact ? { fontSize: 12.5, color: "var(--pm-hint)", padding: "6px 2px 0" } : undefined}>
               The bot is still replying. Take over to pause it.
             </div>
           ) : null}
         </div>
       </div>
+  );
+
+  return (
+    <div className={`pm2-thread${compact ? " compact" : ` ${t.full}`}`}>
+      <ConversationHeader
+        compact={compact}
+        channel="wa"
+        name={name}
+        crumb={`Inbox · WhatsApp · ${maskPhone(thread.contact?.phone || thread.wa_id)}`}
+        faint={factsLine}
+        pill={pill}
+        actions={headerActions}
+        facts={compact ? facts : undefined}
+        note={compact ? ticketNote : undefined}
+      />
+      {compact ? (
+        threadBody
+      ) : (
+        <div className={t.layout}>
+          <div className={t.main}>{threadBody}</div>
+          <aside className={t.side} aria-label="Ticket details">
+            <TicketProperties
+              ticketStatus={thread.ticket_status}
+              ticketNumber={thread.ticket_number}
+              ticketAssignee={thread.ticket_assignee}
+              priority={thread.ticket_priority}
+              category={thread.ticket_category}
+              teamName={teamName}
+              assign={assignSelect}
+            />
+            <div className={`${t.blk} ${t.blkFacts}`}>
+              <div className={t.blkH}>Customer</div>
+              <div className={t.facts}>{facts}</div>
+              {ticketNote ? <div className={t.note}>{ticketNote}</div> : null}
+            </div>
+          </aside>
+        </div>
+      )}
       {confirmCod && codOrder ? (
         <ConfirmDialog
           title={`Confirm order ${orderLabel(codOrder.order_number)}?`}

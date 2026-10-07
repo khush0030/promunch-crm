@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { PageHeader, Pill, Avatar } from "@/components/pm";
 import type { Channel, PillTone } from "@/components/pm";
+import t from "./ticket.module.css";
 
 // Header for a conversation view in its two shapes:
 //   compact  -> the `.pm2-thread-h` row used inside the Conversations list
@@ -59,10 +60,10 @@ export function ConversationHeader({
         crumb={crumb}
         title={name}
         actions={
-          <>
+          <span className={t.acts}>
             <Pill tone={pill.tone}>{pill.text}</Pill>
             {actions}
-          </>
+          </span>
         }
       />
       {facts || note ? (
