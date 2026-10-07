@@ -109,7 +109,7 @@ body{font-family:var(--pm-font);font-size:16px;line-height:1.5;color:var(--pm-in
 .pm3-sectabs a:hover{color:var(--pm-ink)}
 .pm3-sectabs a.on{color:var(--pm-ink);font-weight:700}
 .pm3-sectabs a.on::after{content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:2px;border-radius:2px;background:var(--pm-brand)}
-.pm-head+.pm3-sectabs{margin:4px calc(-1 * var(--pm3-gutter)) 20px}
+.pm-head+.pm3-sectabs{margin:6px 0 20px;padding:0}
 
 /* phone: top bar with logo, bottom tabs, More sheet */
 .pm3-tabbar{display:none}
@@ -250,7 +250,8 @@ table.pm2-tbl,.pm-tbl{font-size:15.5px}
 /* callouts: quiet card, not a coloured slab */
 .pm2-callout{border-radius:16px;padding:14px 18px;background:var(--pm-card)}
 .pm2-callout.crit{background:#FFF7F5;border-color:#F3D0CA}
-.pm2-callout.sun{background:#FFFCF0;border-color:#F7E6B0}
+/* yellow is Maya's alone: a "sun" callout reads as an amber heads-up */
+.pm2-callout.sun{background:#FFFAF0;border-color:#F3E2BE}
 .pm2-callout .t{font-weight:700;font-size:16px}
 .pm2-callout .c{font-size:14.5px;color:var(--pm-ink2)}
 

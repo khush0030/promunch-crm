@@ -404,7 +404,7 @@ function OrdersPageInner() {
       render: (o) => (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <a
-            className="pm2-btn pri sm"
+            className="pm2-btn sm"
             href={telHref(o.customer_phone)}
             style={!o.customer_phone ? { opacity: 0.5, pointerEvents: "none" } : undefined}
           >
@@ -519,7 +519,7 @@ function OrdersPageInner() {
                       <span>{waLabel(confirmByOrderNumber.get(o.order_number)?.status)}</span>
                       <span style={{ width: "100%" }} />
                       <a
-                        className="pm2-btn pri sm"
+                        className="pm2-btn sm"
                         href={telHref(o.customer_phone)}
                         style={!o.customer_phone ? { opacity: 0.5, pointerEvents: "none" } : undefined}
                       >

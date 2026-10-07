@@ -23,9 +23,12 @@ export function AttentionList({
   onSnooze?: (id: string) => void;
 }) {
   if (items.length === 0) return empty != null ? <>{empty}</> : null;
+  // One red button per screen: only the first urgent item's action is primary.
+  const lead = items.findIndex((i) => i.severity === "crit");
+  const cls = (i: number) => `pm2-btn sm${i === lead ? " pri" : ""}`;
   return (
     <div className="pm2-attlist">
-      {items.map((it) => (
+      {items.map((it, i) => (
         <div className="pm2-att" key={it.id}>
           <span className={`ic ${it.severity}`} aria-label={it.severity === "crit" ? "Urgent" : it.severity === "warn" ? "Soon" : "For info"}>
             {iconText(it)}
@@ -46,7 +49,7 @@ export function AttentionList({
           </span>
           {onSnooze ? (
             <span className="pm2-att-actions">
-              <Link href={it.href} className={`pm2-btn sm${it.severity === "crit" ? " pri" : ""}`}>
+              <Link href={it.href} className={cls(i)}>
                 {it.cta}
               </Link>
               <button type="button" className="pm2-btn sm ghost" onClick={() => onSnooze(it.id)}>
@@ -54,7 +57,7 @@ export function AttentionList({
               </button>
             </span>
           ) : (
-            <Link href={it.href} className={`pm2-btn sm${it.severity === "crit" ? " pri" : ""}`}>
+            <Link href={it.href} className={cls(i)}>
               {it.cta}
             </Link>
           )}
