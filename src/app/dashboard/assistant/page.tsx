@@ -6,19 +6,18 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  BookOpen,
   Check,
   Copy,
-  HeartPulse,
-  MessageCircle,
+  CornerDownRight,
+  Database,
+  Loader,
   Plus,
   SendHorizonal,
   Sparkles,
   Square,
-  TrendingUp,
   Trash2,
 } from "lucide-react";
-import { PageHead } from "@/components/pm";
+import { PageHeader } from "@/components/pm";
 import { Markdown } from "@/components/assistant/Markdown";
 import { ToolResult } from "@/components/assistant/ToolResult";
 import styles from "./assistant.module.css";
@@ -26,12 +25,36 @@ import styles from "./assistant.module.css";
 type Convo = { id: string; title: string | null; updated_at: string };
 type StoredMessage = { id: string; role: "user" | "assistant"; content: string };
 
-const SUGGESTIONS = [
-  { icon: HeartPulse, kicker: "System health", q: "Is everything working right now?" },
-  { icon: TrendingUp, kicker: "Revenue", q: "Revenue in the last 7 days vs the 7 before, by channel" },
-  { icon: MessageCircle, kicker: "WhatsApp", q: "How did WhatsApp sends perform this week?" },
-  { icon: BookOpen, kicker: "Brand & policy", q: "What is our shipping and COD policy?" },
+// Suggested questions, grouped the way people think about the business.
+const SUGGESTION_GROUPS = [
+  { kicker: "Sales", qs: ["Revenue in the last 7 days vs the 7 before, by channel", "Which channel brought the most orders this month?"] },
+  { kicker: "Marketing", qs: ["How did WhatsApp sends perform this week?", "How are email campaigns doing this month?"] },
+  { kicker: "B2B & Amazon", qs: ["How is the B2B pipeline looking?", "How is Amazon doing this week?"] },
+  { kicker: "Health & policy", qs: ["Is everything working right now?", "What is our shipping and COD policy?"] },
 ];
+
+// Where an answer's numbers came from, by the tool Maya used.
+const SOURCE_LABELS: Record<string, string> = {
+  query_orders: "Shopify orders",
+  get_whatsapp_stats: "WhatsApp",
+  get_system_health: "System health",
+  get_leads_pipeline: "B2B pipeline",
+  get_email_stats: "Email",
+  get_amazon_stats: "Amazon",
+  search_customer: "Customers",
+  search_kb: "Knowledge base",
+  get_audit_log: "Audit log",
+};
+
+function sourcesOf(parts: { type: string }[]): string[] {
+  const out = new Set<string>();
+  for (const p of parts) {
+    if (!p.type.startsWith("tool-")) continue;
+    const name = p.type.slice(5);
+    out.add(SOURCE_LABELS[name] ?? name.replace(/_/g, " "));
+  }
+  return [...out];
+}
 
 function ago(iso: string): string {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -44,7 +67,7 @@ function ago(iso: string): string {
 function MayaAvatar() {
   return (
     <span className={styles.avatar} aria-hidden>
-      <Sparkles size={13} />
+      <Sparkles size={14} />
     </span>
   );
 }
@@ -170,17 +193,18 @@ function AssistantInner() {
     busy && (lastMessage?.role === "user" || (lastMessage?.role === "assistant" && !lastMessage.parts.some((p) => p.type === "text")));
 
   return (
-    <div className="pm-page">
-      <PageHead
-        title="Ask Maya"
-        subtitle="Your PROMUNCH data analyst. Every answer is read live from Shopify, WhatsApp, email, leads and Amazon."
-      />
+    <div className={styles.page}>
+      <PageHeader crumb="Your data, plain answers" title="Ask Maya" />
+      <div className="pm2-body">
+      <p className={styles.sum}>
+        Ask about sales, orders, WhatsApp, email, B2B leads, Amazon or system health. Maya reads the live data before she answers, and shows where the numbers came from.
+      </p>
       <div className={styles.wrap}>
         <aside className={styles.rail}>
           <button type="button" className={styles.newChat} onClick={newChat}>
             <Plus size={14} /> New conversation
           </button>
-          <div className={styles.railHead}>Recent</div>
+          <div className={styles.railHead}>Your questions</div>
           <div className={styles.railList}>
             {(convos ?? []).map((c) => (
               <div key={c.id} className={`${styles.railItem} ${c.id === activeId ? styles.railItemOn : ""}`}>
@@ -198,38 +222,24 @@ function AssistantInner() {
                 </button>
               </div>
             ))}
-            {convos && convos.length === 0 && <div className={styles.railEmpty}>Nothing yet</div>}
+            {convos && convos.length === 0 && <div className={styles.railEmpty}>Questions you ask stay here.</div>}
           </div>
         </aside>
 
         <section className={styles.chat}>
           {messages.length === 0 ? (
             <div className={styles.hero}>
-              <div className={styles.heroMark}>
-                <Sparkles size={22} />
-              </div>
-              <h2 className={styles.heroTitle}>Ask Maya.</h2>
-              <p className={styles.heroSub}>
-                She reads the live PROMUNCH data before she answers: orders, WhatsApp, email, B2B
-                leads, Amazon, cron jobs and the Master KB.
-              </p>
               <div className={styles.heroGrid}>
-                {SUGGESTIONS.map((s, i) => (
-                  <button
-                    key={s.q}
-                    type="button"
-                    className={styles.heroCard}
-                    style={{ animationDelay: `${i * 70}ms` }}
-                    onClick={() => send(s.q)}
-                  >
-                    <span className={styles.heroIcon}>
-                      <s.icon size={15} />
-                    </span>
-                    <span>
-                      <span className={styles.heroKicker}>{s.kicker}</span>
-                      <span className={styles.heroQ}>{s.q}</span>
-                    </span>
-                  </button>
+                {SUGGESTION_GROUPS.map((g, gi) => (
+                  <div key={g.kicker} className={styles.heroCard} style={{ animationDelay: `${gi * 60}ms` }}>
+                    <span className={styles.heroKicker}>{g.kicker}</span>
+                    {g.qs.map((q) => (
+                      <button key={q} type="button" className={styles.qcard} onClick={() => send(q)}>
+                        <CornerDownRight size={15} aria-hidden />
+                        <span>{q}</span>
+                      </button>
+                    ))}
+                  </div>
                 ))}
               </div>
             </div>
@@ -243,7 +253,7 @@ function AssistantInner() {
                     .join("\n\n");
                   return (
                     <div key={m.id} className={styles.userRow}>
-                      <div className={styles.userPill}>{text}</div>
+                      <div className={styles.userQ}>{text}</div>
                     </div>
                   );
                 }
@@ -252,21 +262,13 @@ function AssistantInner() {
                   .map((p) => (p as { text: string }).text)
                   .join("\n\n");
                 const isStreamingThis = busy && mi === messages.length - 1;
+                const sources = sourcesOf(m.parts);
                 return (
                   <div key={m.id} className={styles.mayaBlock}>
                     <div className={styles.mayaName}>
                       <MayaAvatar />
-                      Maya
-                      {fullText && !isStreamingThis && (
-                        <button
-                          type="button"
-                          className={styles.copyBtn}
-                          aria-label="Copy answer"
-                          onClick={() => copyAnswer(m.id, fullText)}
-                        >
-                          {copiedId === m.id ? <Check size={12} /> : <Copy size={12} />}
-                        </button>
-                      )}
+                      <b>Maya</b>
+                      {sources.length > 0 && <span className={styles.looked}>· looked at {sources.join(", ")}</span>}
                     </div>
                     <div className={styles.mayaBody}>
                       {m.parts.map((p, i) => {
@@ -290,17 +292,36 @@ function AssistantInner() {
                       })}
                       {isStreamingThis && <span className={styles.caret} aria-hidden />}
                     </div>
+                    {fullText && !isStreamingThis && (
+                      <div className={styles.ansFoot}>
+                        <span className={styles.sources}>
+                          <Database size={14} aria-hidden />
+                          {sources.length ? `Sources: ${sources.join(", ")}` : "Answered from what Maya already knows about PROMUNCH"}
+                        </span>
+                        <button
+                          type="button"
+                          className={styles.copyBtn}
+                          aria-label="Copy answer"
+                          onClick={() => copyAnswer(m.id, fullText)}
+                        >
+                          {copiedId === m.id ? <Check size={14} /> : <Copy size={14} />}
+                          {copiedId === m.id ? "Copied" : "Copy"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
               {waitingForMaya && (
                 <div className={styles.mayaBlock}>
                   <div className={styles.mayaName}>
-                    <MayaAvatar />
-                    Maya
+                    <span className={`${styles.avatar} ${styles.avatarSpin}`} aria-hidden>
+                      <Loader size={14} />
+                    </span>
+                    <b>Maya is checking</b>
                   </div>
                   <div className={styles.thinking}>
-                    reading the data
+                    Reading the live data
                     <span className={styles.dots}>
                       <i />
                       <i />
@@ -321,12 +342,13 @@ function AssistantInner() {
               send(input);
             }}
           >
+            <Sparkles size={17} className={styles.askMark} aria-hidden />
             <textarea
               ref={inputRef}
               className={styles.input}
               rows={1}
               value={input}
-              placeholder="Ask about revenue, campaigns, customers or system health…"
+              placeholder={messages.length ? "Ask a follow-up…" : "Ask anything…"}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -341,12 +363,14 @@ function AssistantInner() {
               </button>
             ) : (
               <button type="submit" className={styles.sendBtn} disabled={!input.trim()} aria-label="Send">
-                <SendHorizonal size={15} />
+                <span>Ask</span>
+                <SendHorizonal size={15} aria-hidden />
               </button>
             )}
           </form>
           <div className={styles.hint}>Maya reads live data, so answers can take a few seconds. Enter to send · Shift+Enter for a new line.</div>
         </section>
+      </div>
       </div>
     </div>
   );

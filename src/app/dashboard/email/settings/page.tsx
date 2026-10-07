@@ -13,6 +13,7 @@ import { useStudioSettings } from "@/components/email-studio/hooks";
 import { sendJson } from "@/components/email-studio/api";
 import type { BrandKit, Theme } from "@/lib/email-studio/design";
 import s from "@/components/email-studio/studio.module.css";
+import l from "@/components/email-studio/list.module.css";
 
 const COLORS: { key: keyof Omit<Theme, "font">; label: string }[] = [
   { key: "background", label: "Page background" },
@@ -70,11 +71,12 @@ export default function StudioSettingsPage() {
         actions={canEdit ? <button type="button" className="pm2-btn pri" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button> : undefined}
       />
       <div className="pm2-body">
+        <p className={l.sum}>One brand kit for every email: logo, colours, fonts and footer. Customer email always sends from <b>hello@promunch.in</b>.</p>
         {!canEdit && <Callout tone="plain" title="View only" body="Only an admin can change the brand kit and sending rules." />}
         <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, display: "grid", gap: 16 }}>
           <div className="pm2-g2">
             <div className="pm2-panel" style={{ padding: 16, display: "grid", gap: 14 }}>
-              <h3 style={{ margin: 0, fontSize: 15.5 }}>Logo and footer</h3>
+              <h3 style={{ margin: 0, fontSize: 16 }}>Logo and footer</h3>
               <label className={s.field}><span>Logo <em>transparent PNG, about 400px wide</em></span></label>
               <ImagePicker value={brand.logoUrl} onChange={(logoUrl) => set({ logoUrl })} />
               <label className={s.field}>
@@ -88,14 +90,14 @@ export default function StudioSettingsPage() {
               </label>
             </div>
             <div className="pm2-panel" style={{ padding: 16, display: "grid", gap: 14, alignContent: "start" }}>
-              <h3 style={{ margin: 0, fontSize: 15.5 }}>Links</h3>
+              <h3 style={{ margin: 0, fontSize: 16 }}>Links</h3>
               {(["website", "instagram", "facebook", "youtube"] as const).map((k) => (
                 <label key={k} className={s.field}>
                   <span style={{ textTransform: "capitalize" }}>{k}</span>
                   <input className={s.input} placeholder="https://" value={brand[k]} onChange={(e) => set({ [k]: e.target.value.trim() } as Partial<BrandKit>)} />
                 </label>
               ))}
-              <h3 style={{ margin: "8px 0 0", fontSize: 15.5 }}>Default colours for new emails</h3>
+              <h3 style={{ margin: "8px 0 0", fontSize: 16 }}>Default colours for new emails</h3>
               <div className={s.swatches}>
                 {COLORS.map((c) => (
                   <label key={c.key} className={s.swatch}>
@@ -108,7 +110,7 @@ export default function StudioSettingsPage() {
           </div>
 
           <div className="pm2-panel" style={{ padding: 16, display: "grid", gap: 14 }}>
-            <h3 style={{ margin: 0, fontSize: 15.5 }}>Sending rules</h3>
+            <h3 style={{ margin: 0, fontSize: 16 }}>Sending rules</h3>
             <label className={s.row} style={{ fontSize: 14 }}>
               <input type="checkbox" checked={warmOn} onChange={(e) => setWarmOn(e.target.checked)} />
               <b>Domain warm-up</b>: cap each campaign at

@@ -2,15 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
-import { Table, Pill, Callout, ConfirmDialog } from "@/components/pm";
-import type { PillTone } from "@/components/pm";
+import { ChevronRight, Trash2 } from "lucide-react";
+import { Callout, Chips, ConfirmDialog } from "@/components/pm";
+import type { ChipItem } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
 import { StudioHeader } from "@/components/email-studio/StudioHeader";
 import { NewCampaignButton } from "@/components/email-studio/NewCampaignButton";
-import { getJson, sendJson, inr, pct, when } from "@/components/email-studio/api";
-import s from "@/components/email-studio/studio.module.css";
+import { getJson, sendJson, inr, pct, when, niceText } from "@/components/email-studio/api";
+import l from "@/components/email-studio/list.module.css";
 
 type Row = {
   id: string;
@@ -22,6 +23,7 @@ type Row = {
   created_at: string;
   total_recipients: number | null;
   total_sent: number | null;
+  total_opened?: number | null;
   total_clicked: number | null;
   approval_status?: string;
   created_by?: string | null;
@@ -30,16 +32,23 @@ type Row = {
   revenue?: number;
 };
 
-function statusPill(r: Row): { tone: PillTone; label: string } {
-  if (r.approval_status === "pending") return { tone: "warn", label: "Needs approval" };
-  if (r.approval_status === "rejected" && r.status === "draft") return { tone: "crit", label: "Rejected" };
+function statusOf(r: Row): { cls: string; label: string } {
+  if (r.approval_status === "pending") return { cls: l.stWarn, label: "Needs approval" };
+  if (r.approval_status === "rejected" && r.status === "draft") return { cls: l.stCrit, label: "Sent back" };
   switch (r.status) {
-    case "sent": return { tone: "good", label: "Sent" };
-    case "sending": return { tone: "info", label: "Sending" };
-    case "scheduled": return { tone: "brand", label: "Scheduled" };
-    case "paused": return { tone: "warn", label: "Paused" };
-    default: return { tone: "neu", label: "Draft" };
+    case "sent": return { cls: l.stPlain, label: "Sent" };
+    case "sending": return { cls: l.stGood, label: "Sending" };
+    case "scheduled": return { cls: l.stInfo, label: "Scheduled" };
+    case "paused": return { cls: l.stWarn, label: "Paused" };
+    default: return { cls: l.stNeu, label: "Draft" };
   }
+}
+
+function matches(r: Row, filter: string): boolean {
+  if (filter === "all") return true;
+  if (filter === "pending") return r.approval_status === "pending";
+  if (filter === "draft") return ["draft", "paused"].includes(r.status) && r.approval_status !== "pending";
+  return r.status === filter;
 }
 
 const FILTERS = [
@@ -50,9 +59,22 @@ const FILTERS = [
   { key: "sent", label: "Sent" },
 ];
 
+function Nil() {
+  return <i className={l.nil} aria-label="none yet">–</i>;
+}
+
+function greyLine(r: Row): string {
+  const by = r.created_by ? `By ${r.created_by.split("@")[0]} · ` : "";
+  if (r.status === "sent" && r.sent_at) return `Sent ${when(r.sent_at)}`;
+  if (r.status === "scheduled" && r.scheduled_at) return `Goes out ${when(r.scheduled_at)}`;
+  if (r.approval_status === "pending") return `${by}${when(r.created_at)}`;
+  return r.subject ? niceText(r.subject) : `Draft · ${when(r.created_at)}`;
+}
+
 export default function CampaignsPage() {
   const qc = useQueryClient();
   const toast = useToast();
+  const router = useRouter();
   const [filter, setFilter] = useState("all");
   const [del, setDel] = useState<Row | null>(null);
   const [busy, setBusy] = useState(false);
@@ -60,69 +82,91 @@ export default function CampaignsPage() {
     queryKey: ["email-studio-campaigns"],
     queryFn: () => getJson<{ campaigns: Row[]; warning?: string }>("/api/email-studio/campaigns"),
   });
-  const rows = (q.data?.campaigns ?? []).filter((r) =>
-    filter === "all" ? true : filter === "pending" ? r.approval_status === "pending" : filter === "draft" ? ["draft", "paused"].includes(r.status) && r.approval_status !== "pending" : r.status === filter,
-  );
+  const all = q.data?.campaigns ?? [];
+  const rows = all.filter((r) => matches(r, filter));
+  const chips: ChipItem[] = FILTERS.map((f) => {
+    const n = f.key === "all" ? 0 : all.filter((r) => matches(r, f.key)).length;
+    return { key: f.key, label: f.label, count: n > 0 && (f.key === "draft" || f.key === "pending") ? n : undefined };
+  });
 
   return (
     <>
       <StudioHeader tab="campaigns" title="Campaigns" actions={<NewCampaignButton />} />
       <div className="pm2-body">
-        {q.data?.warning && <Callout tone="sun" title="Email Studio isn't fully set up" body={q.data.warning} />}
-        <div className="pm2-chips">
-          {FILTERS.map((f) => (
-            <button key={f.key} type="button" className={`pm2-chip ${filter === f.key ? "on" : ""}`} onClick={() => setFilter(f.key)}>
-              {f.label}
-            </button>
-          ))}
+        <p className={l.sum}>One email to many people. Every campaign is approved by an admin before it sends, and only goes to people with an email who said yes.</p>
+        {q.data?.warning && <Callout tone="plain" title="Email Studio isn't fully set up" body={q.data.warning} />}
+        <div className={l.chipsWrap}>
+          <Chips items={chips} value={filter} onChange={setFilter} ariaLabel="Filter campaigns" />
         </div>
         {q.isLoading ? (
           <div className="pm2-skel" />
         ) : (
-          <div className="pm2-panel">
-            <Table<Row>
-              cols={[
-                {
-                  h: "Campaign",
-                  render: (r) => (
-                    <Link href={`/dashboard/email/campaigns/${r.id}`} style={{ display: "grid", color: "inherit", textDecoration: "none" }}>
-                      <b>{r.name}</b>
-                      <span className={s.hint}>{r.subject || "No subject yet"}</span>
-                    </Link>
-                  ),
-                },
-                { h: "Status", render: (r) => { const p = statusPill(r); return <Pill tone={p.tone}>{p.label}</Pill>; } },
-                { h: "When", render: (r) => when(r.sent_at || r.scheduled_at || r.created_at) },
-                { h: "Sent", num: true, render: (r) => (r.total_sent ? r.total_sent.toLocaleString("en-IN") : "–") },
-                { h: "Click rate", num: true, render: (r) => (r.total_sent ? pct((r.total_clicked ?? 0) / r.total_sent) : "–") },
-                { h: "Revenue", num: true, render: (r) => (r.revenue ? inr(r.revenue) : "–") },
-                {
-                  h: "",
-                  render: (r) =>
-                    ["draft", "paused"].includes(r.status) && !r.total_sent ? (
-                      <button
-                        type="button"
-                        className={s.iconBtn}
-                        aria-label="Delete draft"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDel(r);
-                        }}
-                      >
-                        <Trash2 />
-                      </button>
-                    ) : null,
-                },
-              ]}
-              rows={rows}
-              rowKey={(r) => r.id}
-              empty={
-                <div style={{ padding: 24, display: "grid", gap: 10, justifyItems: "start" }}>
-                  <span className={s.hint}>No campaigns here yet.</span>
-                  <NewCampaignButton label="Create your first campaign" />
-                </div>
-              }
-            />
+          <div className={l.card}>
+            {rows.length === 0 ? (
+              <div className={l.empty}>
+                <span>No campaigns here yet.</span>
+                <NewCampaignButton label="Create your first campaign" primary={false} />
+              </div>
+            ) : (
+              <table className={l.tbl}>
+                <thead>
+                  <tr>
+                    <th>Campaign</th>
+                    <th>Status</th>
+                    <th className={l.r}>People</th>
+                    <th className={l.r}>Opened</th>
+                    <th className={l.r}>Revenue</th>
+                    <th aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const st = statusOf(r);
+                    const people = r.total_sent || r.total_recipients || 0;
+                    // opens can be counted more than once per person; never show over 100%
+                    const opened = r.total_sent ? pct(Math.min(1, (r.total_opened ?? 0) / r.total_sent)) : null;
+                    const href = `/dashboard/email/campaigns/${r.id}`;
+                    const canDelete = ["draft", "paused"].includes(r.status) && !r.total_sent;
+                    return (
+                      <tr key={r.id} onClick={() => router.push(href)}>
+                        <td className={l.main}>
+                          <Link href={href} className={l.name} onClick={(e) => e.stopPropagation()}>{r.name}</Link>
+                          <span className={l.sub}>{greyLine(r)}</span>
+                        </td>
+                        <td className={l.meta}><span className={`${l.status} ${st.cls}`}>{st.label}</span></td>
+                        <td className={`${l.meta} ${l.r}`}>{people ? <span className={l.num}>{people.toLocaleString("en-IN")}</span> : <Nil />}</td>
+                        <td className={`${l.meta} ${l.r}`}>{opened ? <span className={l.num}>{opened}</span> : <Nil />}</td>
+                        <td className={`${l.meta} ${l.r}`}>{r.revenue ? <b className={l.money}>{inr(r.revenue)}</b> : <Nil />}</td>
+                        <td className={l.metaLine}>
+                          <span className={`${l.status} ${st.cls}`}>{st.label}</span>
+                          {people > 0 && <span className={l.metaPart}><b>{people.toLocaleString("en-IN")}</b> <span>people</span></span>}
+                          {opened && <span className={l.metaPart}><b>{opened}</b> <span>opened</span></span>}
+                          {!!r.revenue && <span className={l.metaPart}><b>{inr(r.revenue)}</b></span>}
+                        </td>
+                        <td className={l.end}>
+                          <span className={l.endIn}>
+                            {canDelete && (
+                              <button
+                                type="button"
+                                className={l.iconBtn}
+                                aria-label="Delete draft"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDel(r);
+                                }}
+                              >
+                                <Trash2 />
+                              </button>
+                            )}
+                            <span className={`${l.iconBtn} ${l.chev}`} aria-hidden><ChevronRight /></span>
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { KpiStrip, Kpi, Card, Table, Callout } from "@/components/pm";
+import { KpiStrip, Kpi, Card, HBars, Table, Callout } from "@/components/pm";
 import { getJson, inr, pct, when } from "./api";
 import s from "./studio.module.css";
 
@@ -26,33 +26,52 @@ export function ReportView({ id }: { id: string }) {
   const { funnel: f, links, orders, revenue, campaign } = q.data;
   const base = f.accepted || 1;
 
+  const topLink = links[0];
+  const linkLabel = (url: string) => url.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\?.*$/, "");
+  const trustBad = f.bounced / base > 0.02 || f.complained / base > 0.001;
+
   return (
     <div className={s.stack} style={{ gap: 16 }}>
+      <p className={s.sumLine}>
+        <span>
+          Went to <b>{f.accepted.toLocaleString("en-IN")}</b> people{campaign.sent_at ? ` on ${when(campaign.sent_at)}` : ""}.{" "}
+          <b>{orders.length} order{orders.length === 1 ? "" : "s"}, {inr(revenue)}.</b>
+        </span>
+      </p>
       <KpiStrip>
+        <Kpi label="Delivered" value={f.delivered.toLocaleString("en-IN")} sub={`${pct(f.delivered / base)} of ${f.accepted.toLocaleString("en-IN")} sent`} />
+        <Kpi label="Opened" value={pct(f.opened / base)} sub={`${f.opened.toLocaleString("en-IN")} people · inflated by Apple Mail`} tip="Apple Mail opens every email automatically for privacy, so opens run high. Trust clicks and revenue more." />
+        <Kpi label="Clicked" value={pct(f.clicked / base)} sub={`${f.clicked.toLocaleString("en-IN")} people`} tip="People who tapped at least one link." />
         <Kpi label="Revenue" value={inr(revenue)} sub={`${orders.length} order${orders.length === 1 ? "" : "s"} from this email`} tip="Orders with this email's link tag, or placed within 5 days of clicking it. Updated every 3 hours." />
-        <Kpi label="Clicked" value={f.clicked.toLocaleString("en-IN")} sub={`${pct(f.clicked / base)} of sent`} tip="People who tapped at least one link." />
-        <Kpi label="Delivered" value={f.delivered.toLocaleString("en-IN")} sub={`of ${f.accepted.toLocaleString("en-IN")} sent`} />
-        <Kpi label="Opened" value={f.opened.toLocaleString("en-IN")} sub={`${pct(f.opened / base)} · inflated by Apple Mail`} tip="Apple Mail opens every email automatically for privacy, so opens run high. Trust clicks and revenue more." />
-      </KpiStrip>
-      <KpiStrip cols={4}>
-        <Kpi label="Unsubscribed" value={f.unsubscribed} sub={pct(f.unsubscribed / base)} />
-        <Kpi label="Bounced" value={f.bounced} sub={f.bounced / base > 0.02 ? "over 2%: clean the list" : pct(f.bounced / base)} />
-        <Kpi label="Marked as spam" value={f.complained} sub={f.complained / base > 0.001 ? "over 0.1%: slow down" : pct(f.complained / base)} />
-        <Kpi label="Failed to send" value={f.failed} sub={campaign.sent_at ? `sent ${when(campaign.sent_at)}` : ""} />
       </KpiStrip>
       <div className="pm2-g2">
-        <Card title="Links clicked" basis="unique people per link">
+        <Card title="What they clicked" basis="unique people per link">
           {links.length === 0 ? (
             <div className={s.hint}>No clicks yet.</div>
           ) : (
-            links.map((l) => (
-              <div key={l.url} className={s.linkRow}>
-                <span title={l.url}>{l.url.replace(/^https?:\/\//, "")}</span>
-                <b>{l.count}</b>
-              </div>
-            ))
+            <div className={s.stack}>
+              <p className={s.takeaway}>
+                <b>{linkLabel(topLink.url)}</b> got the most clicks ({topLink.count}).
+              </p>
+              <HBars
+                items={links.slice(0, 8).map((x) => ({ label: linkLabel(x.url), value: x.count, text: x.count.toLocaleString("en-IN"), tip: x.url, color: "var(--pm-ink2)" }))}
+              />
+            </div>
           )}
         </Card>
+        <Card title="Inbox trust" basis="this campaign">
+          <p className={s.takeaway}>
+            {trustBad ? "Too many bounces or spam marks. Clean the list and slow down." : "Inboxes still trust you. Bounces and spam marks are under the limits."}
+          </p>
+          <div className={s.trust}>
+            <div><span>Unsubscribed</span><b>{f.unsubscribed.toLocaleString("en-IN")}</b><em>{pct(f.unsubscribed / base)}</em></div>
+            <div><span>Bounced</span><b className={f.bounced / base > 0.02 ? s.bad : undefined}>{f.bounced.toLocaleString("en-IN")}</b><em>{f.bounced / base > 0.02 ? "over 2%" : pct(f.bounced / base)}</em></div>
+            <div><span>Marked as spam</span><b className={f.complained / base > 0.001 ? s.bad : undefined}>{f.complained.toLocaleString("en-IN")}</b><em>{f.complained / base > 0.001 ? "over 0.1%" : pct(f.complained / base)}</em></div>
+            <div><span>Failed to send</span><b>{f.failed.toLocaleString("en-IN")}</b><em>{f.failed ? "check the address" : "none"}</em></div>
+          </div>
+        </Card>
+      </div>
+      <div>
         <Card title="Orders from this email" basis="Shopify">
           <Table
             cols={[

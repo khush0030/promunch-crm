@@ -9,14 +9,14 @@ import { use, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Clock, OctagonX, Send, FlaskConical, Copy, Save } from "lucide-react";
-import { Callout, ConfirmDialog, Pill } from "@/components/pm";
+import { Callout, ConfirmDialog } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
 import { StudioHeader } from "@/components/email-studio/StudioHeader";
 import { Builder } from "@/components/email-studio/Builder";
 import { SegmentEditor, AudienceCount } from "@/components/email-studio/SegmentEditor";
 import { ReportView } from "@/components/email-studio/ReportView";
 import { useSegments, useStudioSettings } from "@/components/email-studio/hooks";
-import { getJson, sendJson, when } from "@/components/email-studio/api";
+import { getJson, sendJson, when, niceText } from "@/components/email-studio/api";
 import { parseDesign, type EmailDesign } from "@/lib/email-studio/design";
 import { parseRules, type AudienceRules } from "@/lib/email-studio/segments";
 import type { Issue } from "@/lib/email-studio/checks";
@@ -69,7 +69,7 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
   if (q.isLoading) {
     return (
       <>
-        <StudioHeader tab="campaigns" title="Campaign" />
+        <StudioHeader tab="campaigns" title="Campaign" back={{ href: "/dashboard/email/campaigns", label: "Campaigns" }} />
         <div className="pm2-body"><div className="pm2-skel" style={{ minHeight: 500 }} /></div>
       </>
     );
@@ -77,7 +77,7 @@ export default function CampaignPage({ params }: { params: Promise<{ id: string 
   if (q.error || !q.data) {
     return (
       <>
-        <StudioHeader tab="campaigns" title="Campaign" />
+        <StudioHeader tab="campaigns" title="Campaign" back={{ href: "/dashboard/email/campaigns", label: "Campaigns" }} />
         <div className="pm2-body"><Callout tone="crit" title="Could not open this campaign" body={(q.error as Error)?.message} /></div>
       </>
     );
@@ -95,6 +95,7 @@ function SentView({ c }: { c: Campaign }) {
       <StudioHeader
         tab="campaigns"
         title={c.name}
+        back={{ href: "/dashboard/email/campaigns", label: "Campaigns" }}
         actions={
           <button
             type="button"
@@ -113,12 +114,12 @@ function SentView({ c }: { c: Campaign }) {
         }
       />
       <div className="pm2-body">
-        <div className={s.row}>
-          <Pill tone={c.status === "sent" ? "good" : "info"}>{c.status === "sent" ? "Sent" : "Sending now"}</Pill>
-          <span className={s.hint}>
-            “{c.subject}” {c.sent_at ? `· ${when(c.sent_at)}` : ""}
+        <p className={s.sumLine}>
+          <span className={`${s.statusText} ${c.status === "sent" ? "" : s.statusLive}`}>{c.status === "sent" ? "Sent" : "Sending now"}</span>
+          <span>
+            “{niceText(c.subject ?? "")}” {c.sent_at ? `· ${when(c.sent_at)}` : ""}
           </span>
-        </div>
+        </p>
         <ReportView id={c.id} />
       </div>
     </>
@@ -191,10 +192,10 @@ function Editor({ initial }: { initial: Campaign }) {
   if (!design) {
     return (
       <>
-        <StudioHeader tab="campaigns" title={name} />
+        <StudioHeader tab="campaigns" title={name} back={{ href: "/dashboard/email/campaigns", label: "Campaigns" }} />
         <div className="pm2-body">
           <Callout
-            tone="sun"
+            tone="plain"
             title="This is an old HTML campaign"
             body="It was made before Email Studio, so it can't be edited in the builder. Duplicate a template to build a new one."
             action={<button type="button" className="pm2-btn" onClick={() => router.push("/dashboard/email/templates")}>Pick a template</button>}
@@ -211,6 +212,7 @@ function Editor({ initial }: { initial: Campaign }) {
       <StudioHeader
         tab="campaigns"
         title={name || "Untitled campaign"}
+        back={{ href: "/dashboard/email/campaigns", label: "Campaigns" }}
         actions={
           <>
             <span className={s.hint} style={{ color: saveState === "error" ? "var(--pm-terra)" : undefined }}>{saveLabel}</span>
@@ -224,7 +226,7 @@ function Editor({ initial }: { initial: Campaign }) {
           <Callout tone="crit" title="An admin rejected this campaign" body="Make the changes they asked for, send a new test and submit it again." />
         )}
 
-        <div className={s.row} style={{ justifyContent: "space-between" }}>
+        <div className={s.stepBar}>
           <div className={s.steps}>
             {(["email", "audience", "review"] as Step[]).map((k, i) => (
               <button
@@ -237,20 +239,20 @@ function Editor({ initial }: { initial: Campaign }) {
                 }}
               >
                 <b>{i + 1}</b>
-                {k === "email" ? "Email" : k === "audience" ? "Audience" : "Review & send"}
+                <span>{k === "email" ? "Write" : k === "audience" ? "Who gets it" : "Check & send"}</span>
               </button>
             ))}
           </div>
           {step !== "review" && (
             <button
               type="button"
-              className="pm2-btn pri"
+              className={`pm2-btn dark ${s.nextBtn}`}
               onClick={async () => {
                 await flush();
                 setStep(step === "email" ? "audience" : "review");
               }}
             >
-              Next: {step === "email" ? "Audience" : "Review & send"}
+              Next: {step === "email" ? "Who gets it" : "Check & send"}
             </button>
           )}
         </div>
@@ -352,7 +354,7 @@ function ScheduledBanner({ id, onUnscheduled }: { id: string; onUnscheduled: () 
   const toast = useToast();
   return (
     <Callout
-      tone="sun"
+      tone="plain"
       title={`Scheduled for ${when(q.data?.campaign.scheduled_at)}`}
       body="It will go out automatically. To change anything, unschedule it first."
       action={
@@ -571,7 +573,7 @@ function ReviewStep({
     <div className="pm2-g21">
       <div className={s.stack} style={{ gap: 16 }}>
         <div className="pm2-panel" style={{ padding: 16 }}>
-          <h3 style={{ margin: "0 0 12px", fontSize: 15.5 }}>Checks</h3>
+          <h3 style={{ margin: "0 0 12px", fontSize: 17 }}>Checks</h3>
           {r.issues.length === 0 ? (
             <ul className={s.issues}><li className={`${s.issue} ${s.issueOk}`}><CheckCircle2 /> Everything looks good.</li></ul>
           ) : (
@@ -589,7 +591,7 @@ function ReviewStep({
         </div>
 
         <div className="pm2-panel" style={{ padding: 16 }}>
-          <h3 style={{ margin: "0 0 12px", fontSize: 15.5 }}>1. Send yourself a test</h3>
+          <h3 style={{ margin: "0 0 12px", fontSize: 17 }}>1. Send yourself a test</h3>
           <div className={s.checklist}>
             <div className={s.check}>
               {r.testIsCurrent ? <CheckCircle2 className={s.good} /> : <Clock className={s.wait} />}
@@ -609,11 +611,11 @@ function ReviewStep({
         </div>
 
         <div className="pm2-panel" style={{ padding: 16 }}>
-          <h3 style={{ margin: "0 0 12px", fontSize: 15.5 }}>2. Send or schedule</h3>
+          <h3 style={{ margin: "0 0 12px", fontSize: 17 }}>2. Send or schedule</h3>
           {r.capBlocker && <Callout tone="crit" title="Can't send this yet" body={r.capBlocker} />}
           {pending && (
             <Callout
-              tone="sun"
+              tone="plain"
               title="Waiting for an admin to approve"
               body={r.scheduled_at ? `Requested for ${when(r.scheduled_at)}.` : "It will send as soon as it's approved."}
               action={

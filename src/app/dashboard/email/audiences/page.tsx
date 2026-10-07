@@ -14,6 +14,7 @@ import { useSegments, type SegmentsDto } from "@/components/email-studio/hooks";
 import { sendJson, when } from "@/components/email-studio/api";
 import { parseRules, type AudienceRules } from "@/lib/email-studio/segments";
 import s from "@/components/email-studio/studio.module.css";
+import l from "@/components/email-studio/list.module.css";
 
 type Saved = SegmentsDto["saved"][number];
 
@@ -47,13 +48,14 @@ export default function AudiencesPage() {
         tab="audiences"
         title="Audiences"
         actions={
-          <button type="button" className="pm2-btn pri" onClick={() => setEditing({ id: null, name: "", rules: { conditions: [{ field: "total_orders", op: "gte", value: 1 }] } })}>
+          <button type="button" className={`pm2-btn${editing ? "" : " pri"}`} onClick={() => setEditing({ id: null, name: "", rules: { conditions: [{ field: "total_orders", op: "gte", value: 1 }] } })}>
             <Plus size={14} /> New audience
           </button>
         }
       />
       <div className="pm2-body">
-        {q.data?.savedError && <Callout tone="sun" title="Saved audiences unavailable" body={q.data.savedError} />}
+        <p className={l.sum}>Groups of people to email. Every audience only counts people with an email address who said yes; phone-only buyers get WhatsApp instead.</p>
+        {q.data?.savedError && <Callout tone="plain" title="Saved audiences unavailable" body={q.data.savedError} />}
 
         {editing && (
           <div className="pm2-g21">
@@ -96,7 +98,7 @@ export default function AudiencesPage() {
         </div>
 
         <div className="pm2-panel" style={{ padding: 16 }}>
-          <h3 style={{ margin: "0 0 8px", fontSize: 15.5 }}>Quick audiences</h3>
+          <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>Quick audiences</h3>
           <div className={s.stack} style={{ gap: 4 }}>
             {(q.data?.presets ?? []).map((p) => (
               <div key={p.key} className={s.linkRow}><span><b style={{ color: "var(--pm-ink)" }}>{p.label}</b> · {p.hint}</span></div>

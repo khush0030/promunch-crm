@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Trash2 } from "lucide-react";
-import { Callout, ConfirmDialog, Pill } from "@/components/pm";
+import { Callout, ConfirmDialog } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
 import { StudioHeader } from "@/components/email-studio/StudioHeader";
 import { NewCampaignButton } from "@/components/email-studio/NewCampaignButton";
@@ -18,6 +18,7 @@ import { getJson, sendJson, when } from "@/components/email-studio/api";
 import { renderDesign, SAMPLE_MERGE } from "@/lib/email-studio/render";
 import { parseDesign, type BrandKit, type EmailDesign, type ProductInfo } from "@/lib/email-studio/design";
 import s from "@/components/email-studio/studio.module.css";
+import l from "@/components/email-studio/list.module.css";
 
 type Sys = { key: string; name: string; category: string; description: string; subject: string; design: EmailDesign };
 type Saved = { id: string; name: string; category: string; subject: string | null; design: unknown; created_by: string | null; updated_at: string };
@@ -60,12 +61,12 @@ function Inner() {
     <>
       <StudioHeader tab="templates" title={picking ? "Pick a starting point" : "Templates"} />
       <div className="pm2-body">
-        {picking && <Callout tone="plain" title="New campaign" body="Choose a template to start from. You can change everything in the builder." />}
-        {q.data?.savedError && <Callout tone="sun" title="Saved templates unavailable" body={q.data.savedError} />}
+        <p className={l.sum}>{picking ? "Choose a design to start your campaign from. You can change everything in the builder." : "Saved designs. Start a campaign from any of them, and the brand colours and fonts come from Brand & settings."}</p>
+        {q.data?.savedError && <Callout tone="plain" title="Saved templates unavailable" body={q.data.savedError} />}
 
         {!!q.data?.saved.length && (
           <>
-            <h3 style={{ margin: "4px 0 0", fontSize: 15.5 }}>Your templates</h3>
+            <span className={l.group}>Your templates</span>
             <div className={s.gallery}>
               {q.data.saved.map((t) => (
                 <div key={t.id} className={s.tpl}>
@@ -85,7 +86,7 @@ function Inner() {
           </>
         )}
 
-        <h3 style={{ margin: "8px 0 0", fontSize: 15.5 }}>PROMUNCH library</h3>
+        <span className={l.group}>PROMUNCH library</span>
         {q.isLoading ? (
           <div className="pm2-skel" />
         ) : (
@@ -96,10 +97,10 @@ function Inner() {
                 <div className={s.tplBody}>
                   <div className={s.row}>
                     <h4 className={s.grow}>{t.name}</h4>
-                    <Pill tone={t.category === "diwali" ? "brand" : "neu"}>{CATS[t.category] ?? t.category}</Pill>
+                    <span className={s.tplCat}>{CATS[t.category] ?? t.category}</span>
                   </div>
                   <p>{t.description}</p>
-                  <div style={{ marginTop: 6 }}><NewCampaignButton templateKey={t.key} label="Use this" primary={t.category === "diwali"} name={t.name} /></div>
+                  <div style={{ marginTop: 6 }}><NewCampaignButton templateKey={t.key} label="Use this" primary={false} name={t.name} /></div>
                 </div>
               </div>
             ))}

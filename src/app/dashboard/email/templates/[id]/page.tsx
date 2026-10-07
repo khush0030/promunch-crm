@@ -23,7 +23,7 @@ export default function TemplateEditPage({ params }: { params: Promise<{ id: str
   if (q.error || !q.data) {
     return (
       <>
-        <StudioHeader tab="templates" title="Template" />
+        <StudioHeader tab="templates" title="Template" back={{ href: "/dashboard/email/templates", label: "Templates" }} />
         <div className="pm2-body"><Callout tone="crit" title="Could not open this template" body={(q.error as Error)?.message} /></div>
       </>
     );
@@ -70,6 +70,7 @@ function Edit({ t }: { t: T }) {
       <StudioHeader
         tab="templates"
         title={name}
+        back={{ href: "/dashboard/email/templates", label: "Templates" }}
         actions={
           <>
             <span className={s.hint}>{saved ? "All changes saved" : "Saving…"}</span>
@@ -78,6 +79,7 @@ function Edit({ t }: { t: T }) {
         }
       />
       <div className="pm2-body">
+        <p className={s.sumLine}>Changes save as you go. Colours and fonts come from Brand &amp; settings, so every template matches.</p>
         <div className="pm2-panel" style={{ padding: 16 }}>
           <div className="pm2-g3">
             <label className={s.field}><span>Template name</span><input className={s.input} value={name} onChange={(e) => { setName(e.target.value); queue({ name: e.target.value }); }} /></label>

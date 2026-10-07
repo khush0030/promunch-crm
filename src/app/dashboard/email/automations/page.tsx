@@ -7,15 +7,16 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Send, Pencil, Plus } from "lucide-react";
+import { CalendarHeart, ChevronDown, ChevronUp, Hand, HeartCrack, Mail, PackageCheck, Pencil, Plus, Send, ShoppingCart, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Callout, ConfirmDialog, Pill } from "@/components/pm";
+import { Callout, ConfirmDialog } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
 import { StudioHeader } from "@/components/email-studio/StudioHeader";
 import { getJson, sendJson, pct, when } from "@/components/email-studio/api";
 import { delayLabel, type FlowStats } from "@/lib/email-studio/automations";
 import { friendlyText } from "@/lib/email-studio/visual-edit";
 import s from "@/components/email-studio/studio.module.css";
+import l from "@/components/email-studio/list.module.css";
 
 type FlowDto = {
   id: string;
@@ -38,10 +39,18 @@ const GROUPS: { trigger: string; title: string }[] = [
   { trigger: "date_based", title: "Special dates" },
 ];
 
-const STATUS: Record<string, { tone: "good" | "warn" | "neu"; label: string }> = {
-  active: { tone: "good", label: "On" },
-  paused: { tone: "warn", label: "Paused" },
-  draft: { tone: "neu", label: "Draft" },
+const STATUS: Record<string, { cls: string; label: string }> = {
+  active: { cls: l.stGood, label: "On" },
+  paused: { cls: l.stWarn, label: "Paused" },
+  draft: { cls: l.stNeu, label: "Draft" },
+};
+
+const ICONS: Record<string, LucideIcon> = {
+  checkout_abandoned: ShoppingCart,
+  order_placed: PackageCheck,
+  customer_created: Hand,
+  segment_entry: HeartCrack,
+  date_based: CalendarHeart,
 };
 
 export default function AutomationsPage() {
@@ -81,6 +90,16 @@ export default function AutomationsPage() {
 
   const flows = q.data?.flows ?? [];
   const admin = q.data?.admin ?? false;
+  const liveCount = flows.filter((f) => f.status === "active").length;
+  // Which rows show their email list (UI only).
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggle = (id: string) =>
+    setOpen((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   return (
     <>
@@ -94,12 +113,16 @@ export default function AutomationsPage() {
         }
       />
       <div className="pm2-body">
-        {q.error && <Callout tone="sun" title="Could not load automations" body={(q.error as Error).message} />}
-        <Callout
-          tone="plain"
-          title="Always-on emails"
-          body="These emails go out by themselves when something happens. Click any email to change its words, photos, buttons or offer. Save, then send yourself a test. Only people with an email who have not unsubscribed get them."
-        />
+        {q.error && <Callout tone="crit" title="Could not load automations" body={(q.error as Error).message} />}
+        <p className={l.sum}>
+          {flows.length ? (
+            <>
+              {flows.length} always-on email {flows.length === 1 ? "automation" : "automations"}, <b>{liveCount} on</b>. They go out by themselves when something happens, only to people with an email who have not unsubscribed. Open one to change its words, photos, buttons or offer.
+            </>
+          ) : (
+            "Always-on emails that go out by themselves when something happens."
+          )}
+        </p>
         {creating && (
           <div className="pm2-panel" style={{ padding: 16, display: "grid", gap: 10 }}>
             <h3 style={{ margin: 0, fontSize: 15 }}>Start a new automation</h3>
@@ -112,44 +135,39 @@ export default function AutomationsPage() {
             </div>
           </div>
         )}
-        {q.isLoading && <div className="pm2-panel" style={{ padding: 16 }}><span className={s.hint}>Loading…</span></div>}
+        {q.isLoading && <div className="pm2-skel" />}
         {GROUPS.map((g) => {
           const list = flows.filter((f) => f.trigger_type === g.trigger);
           if (list.length === 0) return null;
+          const Icon = ICONS[g.trigger] ?? Mail;
           return (
-            <section key={g.trigger} style={{ display: "grid", gap: 8 }}>
-              <span className={s.alGroup}>{g.title}</span>
-              <div className={s.alGrid}>
+            <section key={g.trigger} style={{ display: "grid", gap: 12 }}>
+              <span className={l.group}>{g.title}</span>
+              <div className={l.list}>
                 {list.map((f) => {
-                  const st = STATUS[f.status] ?? { tone: "neu" as const, label: f.status };
+                  const st = STATUS[f.status] ?? { cls: l.stNeu, label: f.status };
                   const on = f.status === "active";
+                  const isOpen = open.has(f.id);
                   return (
-                    <div key={f.id} className={`pm2-panel ${s.alCard}`}>
-                      <div className={s.row} style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
-                          <a href={`/dashboard/email/automations/${f.id}`} style={{ fontSize: 16, fontWeight: 750, color: "var(--pm-ink)", textDecoration: "none" }}>{f.name}</a>
-                          {f.description && <span className={s.hint}>{f.description}</span>}
+                    <div key={f.id} className={l.lrow}>
+                      <span className={l.lic}><Icon /></span>
+                      <div className={l.ltx}>
+                        <a href={`/dashboard/email/automations/${f.id}`} className={l.name} style={{ fontSize: 16 }}>{f.name}</a>
+                        {f.description && <span>{f.description}</span>}
+                        <div className={l.lstats}>
+                          <span><b>{f.steps.length}</b> email{f.steps.length === 1 ? "" : "s"}</span>
+                          <span><b>{f.stats.sent.toLocaleString("en-IN")}</b> sent</span>
+                          {f.stats.sent > 0 && <span><b>{pct(f.stats.opened / f.stats.sent)}</b> opened</span>}
+                          {f.stats.sent > 0 && <span><b>{pct(f.stats.clicked / f.stats.sent)}</b> clicked</span>}
+                          <span><b>{f.stats.active.toLocaleString("en-IN")}</b> in it now</span>
+                          {f.trigger_type === "checkout_abandoned" && <span><b>{f.stats.converted.toLocaleString("en-IN")}</b> bought after</span>}
                         </div>
-                        <Pill tone={st.tone}>{st.label}</Pill>
                       </div>
-                      <div className={s.alEmails}>
-                        {f.steps.map((step, i) => (
-                          <a key={i} className={s.alEmail} href={`/dashboard/email/automations/${f.id}?email=${i + 1}`} title="Open this email">
-                            <span className={s.aeNum}>{i + 1}</span>
-                            <span>{step.subject ? friendlyText(step.subject) : "No subject yet"}</span>
-                            <span className={s.hint}>{i === 0 ? "" : "+"}{delayLabel(step.delay_hours)}</span>
-                          </a>
-                        ))}
+                      <div className={l.lside}>
+                        <span className={`${l.status} ${st.cls}`}>{st.label}</span>
                       </div>
-                      <div className={s.row} style={{ gap: 16 }}>
-                        <Stat label="Sent" value={f.stats.sent} />
-                        <Stat label="Opened" value={f.stats.sent ? pct(f.stats.opened / f.stats.sent) : "–"} />
-                        <Stat label="Clicked" value={f.stats.sent ? pct(f.stats.clicked / f.stats.sent) : "–"} />
-                        <Stat label="In it now" value={f.stats.active} />
-                        {f.trigger_type === "checkout_abandoned" && <Stat label="Bought after" value={f.stats.converted} />}
-                      </div>
-                      <div className={s.row}>
-                        <a className="pm2-btn pri" href={`/dashboard/email/automations/${f.id}`}><Pencil size={14} /> Edit emails</a>
+                      <div className={l.lacts}>
+                        <a className="pm2-btn" href={`/dashboard/email/automations/${f.id}`}><Pencil size={14} /> Edit emails</a>
                         <button type="button" className="pm2-btn ghost" disabled={busy !== null} onClick={() => test(f)}>
                           <Send size={14} /> {busy === `test:${f.id}` ? "Sending…" : "Send me all"}
                         </button>
@@ -158,8 +176,24 @@ export default function AutomationsPage() {
                             {on ? "Pause" : "Switch on"}
                           </button>
                         )}
+                        {f.steps.length > 0 && (
+                          <button type="button" className="pm2-btn ghost" aria-expanded={isOpen} onClick={() => toggle(f.id)}>
+                            {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />} {isOpen ? "Hide emails" : "Show emails"}
+                          </button>
+                        )}
+                        {f.updated_at && <span className={l.lfoot}>Changed {when(f.updated_at)}</span>}
                       </div>
-                      {f.updated_at && <span className={s.hint}>Last changed {when(f.updated_at)}</span>}
+                      {isOpen && (
+                        <div className={l.emails}>
+                          {f.steps.map((step, i) => (
+                            <a key={i} className={l.email} href={`/dashboard/email/automations/${f.id}?email=${i + 1}`} title="Open this email">
+                              <span className={l.enum}>{i + 1}</span>
+                              <span>{step.subject ? friendlyText(step.subject) : "No subject yet"}</span>
+                              <span>{i === 0 ? "" : "+"}{delayLabel(step.delay_hours)}</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -168,7 +202,7 @@ export default function AutomationsPage() {
           );
         })}
         {!q.isLoading && flows.length === 0 && !q.error && (
-          <div className="pm2-panel" style={{ padding: 16 }}><span className={s.hint}>No automations yet.</span></div>
+          <div className={l.list}><div className={l.empty}>No automations yet.</div></div>
         )}
       </div>
 
@@ -200,14 +234,5 @@ export default function AutomationsPage() {
         />
       )}
     </>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div style={{ display: "grid", gap: 2 }}>
-      <span className={s.hint}>{label}</span>
-      <b style={{ fontSize: 15 }}>{typeof value === "number" ? value.toLocaleString("en-IN") : value}</b>
-    </div>
   );
 }
