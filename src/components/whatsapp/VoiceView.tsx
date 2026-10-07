@@ -6,111 +6,38 @@
 // transcripts, recordings and a manual backfill from Sarvam's analytics API
 // (voice-calls/sync) because Sarvam's post-call webhook is not currently
 // reaching us — every voice_calls row otherwise sits on 'dialing' forever.
+//
+// Layout: takeaway + refresh, the voice agent tracker (scorecards, trend,
+// reasons), then the latest calls. A row opens the call drawer.
 
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  CheckCircle2, ExternalLink, Phone, PhoneOff, RefreshCw, Search, ShoppingCart, User as UserIcon,
-} from "lucide-react";
+import { Banknote, ChevronRight, Info, PhoneOff, RefreshCw, Search, ShoppingCart } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api-fetch";
 import { timeAgo } from "@/app/dashboard/whatsapp/format";
-import { cardStyle, inputStyle, primaryBtn, chip, chipOn } from "./styles";
+import type { Stats, SyncResult, VoiceCall } from "./voice/model";
+import {
+  OUTCOME_OPTIONS, STATUS_OPTIONS, callResult, callSubject, displayName, fmtDur, fmtInr, groupTries, outcomeLabel,
+  pct, scoreJob, statusLabel, triesKey,
+} from "./voice/model";
+import { VoiceTracker } from "./voice/VoiceTracker";
+import { CallDrawer } from "./voice/CallDrawer";
+import s from "./voice.module.css";
 
-type CartItem = { title?: string; qty?: number };
-
-type VoiceCall = {
-  id: string;
-  purpose: string | null;
-  wa_id: string;
-  order_ref: string | null;
-  interaction_id: string | null;
-  status: string;
-  outcome: string | null;
-  duration_s: number | null;
-  failure_reason: string | null;
-  transcript: Array<{ role: "agent" | "user"; en_text: string }> | null;
-  link_sent_at: string | null;
-  created_at: string;
-  has_recording: boolean;
-  contact: { wa_id: string; name: string | null; phone: string | null; voice_dnd: boolean };
-  crm_contact_id: string | null;
-  run: {
-    id: string;
-    status: string;
-    order_ref: string | null;
-    delivered_at: string | null;
-    cart_total: number | null;
-    cart_items: CartItem[];
-    checkout_url: string | null;
-  } | null;
-  order: { order_number: number; total_price: number; financial_status: string | null; admin_url: string | null } | null;
-};
-
-type Stats = { placed: number; connected: number; linkSent: number; doNotCall: number; dialing: number };
-
-type SyncResult = { scanned: number; matched: number; updated: number; dndFlagged: number; dndFailed: number; unmatched: number };
-
-const STATUS_OPTIONS = ["dialing", "connected", "no_answer", "busy", "failed", "start_failed", "unknown"];
-const OUTCOME_OPTIONS = ["will_buy", "asked_link", "not_interested", "do_not_call", "callback_later", "confirmed", "cancel_requested", "unclear", "unknown"];
-
-const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  dialing: { bg: "var(--pm-cyan-soft)", color: "var(--pm-cyan)" },
-  connected: { bg: "var(--pm-green-soft)", color: "var(--pm-green)" },
-  no_answer: { bg: "var(--pm-card2)", color: "var(--pm-muted)" },
-  busy: { bg: "var(--pm-gold-soft)", color: "var(--pm-gold)" },
-  failed: { bg: "var(--pm-terra-soft)", color: "var(--pm-terra)" },
-  start_failed: { bg: "var(--pm-terra-soft)", color: "var(--pm-terra)" },
-  unknown: { bg: "var(--pm-card2)", color: "var(--pm-muted)" },
-};
-
-// Plain words for the call states and outcomes the voice partner reports.
-const STATUS_LABEL: Record<string, string> = {
-  dialing: "calling", connected: "picked up", no_answer: "no answer", busy: "busy",
-  failed: "did not connect", start_failed: "could not start", unknown: "not known yet",
-};
-const OUTCOME_LABEL: Record<string, string> = {
-  will_buy: "will buy", asked_link: "asked for the link", not_interested: "not interested",
-  do_not_call: "asked us not to call", callback_later: "call back later", unknown: "not known",
-  confirmed: "Confirmed order", cancel_requested: "Asked to cancel", unclear: "Unclear",
-};
-const statusLabel = (v: string) => STATUS_LABEL[v] ?? v.replace(/_/g, " ");
-const outcomeLabel = (v: string) => OUTCOME_LABEL[v] ?? v.replace(/_/g, " ");
-
-function fmtInr(n: number | null | undefined): string {
-  if (n == null || !Number.isFinite(n)) return "-";
-  return `₹${Math.round(n).toLocaleString("en-IN")}`;
+function takeaway(calls: VoiceCall[]): string {
+  if (!calls.length) return "No voice calls yet. Calls show here as soon as the agent places one.";
+  const cod = scoreJob(calls.filter((c) => c.purpose === "cod_confirm"));
+  const cart = scoreJob(calls.filter((c) => c.purpose === "cart"));
+  const parts: string[] = [];
+  if (cod.placed) parts.push(`COD: ${cod.confirmed} of ${cod.placed} calls confirmed, ${pct(cod.pickedUp, cod.placed)}% picked up.`);
+  if (cart.placed) {
+    parts.push(
+      `Carts: ${cart.ordered ? `${cart.ordered} ordered after a call (${fmtInr(cart.orderedValue)})` : "no orders after a call yet"}, ${cart.linkSent} ${cart.linkSent === 1 ? "link" : "links"} sent.`,
+    );
+  }
+  return parts.join(" ");
 }
-
-// Masks a phone number for display in a list view: keeps the country code
-// and a couple of digits at each end, hides the rest.
-function maskPhone(raw: string | null | undefined): string {
-  const digits = (raw ?? "").replace(/\D/g, "");
-  if (digits.length < 6) return digits || "-";
-  const cc = digits.length > 10 ? digits.slice(0, digits.length - 10) : "";
-  const local = digits.length > 10 ? digits.slice(-10) : digits;
-  const masked = local.slice(0, 2) + "*".repeat(Math.max(0, local.length - 4)) + local.slice(-2);
-  return cc ? `+${cc} ${masked}` : masked;
-}
-
-function cartSummary(items: CartItem[]): string {
-  if (!items.length) return "";
-  return items.map((i) => `${i.qty ?? 1}x ${i.title ?? "Item"}`).join(", ");
-}
-
-function StatChips({ rows }: { rows: Array<{ label: string; value: number; color?: string }> }) {
-  return (
-    <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-      {rows.map((s) => (
-        <span key={s.label} style={{ fontSize: 12, color: "var(--pm-muted)" }}>
-          <strong style={{ color: s.color ?? "var(--pm-ink)", fontSize: 14 }}>{s.value.toLocaleString("en-IN")}</strong> {s.label}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-const GRID_COLS = "78px 1.5fr 1.3fr 96px 130px 110px 64px";
 
 export default function VoiceView() {
   const toast = useToast();
@@ -120,6 +47,7 @@ export default function VoiceView() {
   const [q, setQ] = useState("");
   const [purpose, setPurpose] = useState<"all" | "cart" | "cod_confirm">("all");
   const [syncing, setSyncing] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const { data: flowsData } = useQuery({
     queryKey: ["wa-flows-settings", "voice"],
@@ -142,11 +70,13 @@ export default function VoiceView() {
     refetchInterval: 30_000,
   });
 
-  const allCalls = data?.calls ?? [];
+  const allCalls = useMemo(() => data?.calls ?? [], [data]);
   const calls = purpose === "all" ? allCalls : allCalls.filter((c) => c.purpose === purpose);
   const stats = data?.stats ?? { placed: 0, connected: 0, linkSent: 0, doNotCall: 0, dialing: 0 };
   const hasFilters = !!(status || outcome || q.trim());
   const allStillDialing = calls.length > 0 && calls.every((c) => c.status === "dialing");
+  const tries = useMemo(() => groupTries(allCalls), [allCalls]);
+  const openCall = openId ? allCalls.find((c) => c.id === openId) ?? null : null;
 
   async function handleSync() {
     setSyncing(true);
@@ -174,207 +104,119 @@ export default function VoiceView() {
   }
 
   return (
-    <div>
-      <div style={{ marginBottom: 14, maxWidth: 720 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--pm-ink)" }}>Voice calls</div>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--pm-muted)", lineHeight: 1.5 }}>
-          A friendly AI voice calls customers who left a cart behind, and confirms COD orders that are still waiting on WhatsApp.
-          Each call, with its recording and what was said, shows here. Switch calls on or off, and set the calling hours, in the Automations tab.
-        </p>
-        <details style={{ marginTop: 6, fontSize: 12.5, color: "var(--pm-muted)" }}>
-          <summary style={{ cursor: "pointer", fontWeight: 600 }}>How this works (technical)</summary>
-          <p style={{ margin: "6px 0 0", lineHeight: 1.5 }}>
-            Calls are placed by our voice partner, Sarvam. Sarvam is meant to tell us how each call went as soon as it ends,
-            but that message is not reaching us at the moment, so calls can stay on &quot;calling&quot;. &quot;Refresh call results&quot;
-            asks Sarvam for the last 24 hours of results and updates the list. Anyone who asks us not to call is never called again.
+    <div className={s.wrap}>
+      <div className={s.head}>
+        <div className={s.headT}>
+          <p className={s.sum}>{isLoading ? "Loading calls…" : takeaway(allCalls)}</p>
+          <p className={s.sub}>
+            {stats.placed} calls loaded{hasFilters ? " (filtered)" : ""} · {stats.doNotCall} asked us not to call
+            {stats.dialing > 0 ? ` · ${stats.dialing} result not in yet` : ""}
           </p>
-        </details>
-      </div>
-      <div style={{ ...cardStyle, marginBottom: 14, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16, justifyContent: "space-between" }}>
-        <StatChips
-          rows={[
-            { label: "calls placed", value: stats.placed, color: "var(--pm-ink)" },
-            { label: "picked up", value: stats.connected, color: "var(--pm-green)" },
-            { label: "cart link sent", value: stats.linkSent, color: "var(--pm-gold)" },
-            { label: "asked us not to call", value: stats.doNotCall, color: "var(--pm-terra)" },
-            { label: "result not in yet", value: stats.dialing, color: "var(--pm-cyan)" },
-          ]}
-        />
-        <button type="button" style={primaryBtn} onClick={handleSync} disabled={syncing}>
-          <RefreshCw size={14} /> {syncing ? "Refreshing…" : "Refresh call results"}
+        </div>
+        <button type="button" className="pm2-btn" onClick={handleSync} disabled={syncing}>
+          <RefreshCw size={15} /> {syncing ? "Refreshing…" : "Refresh call results"}
         </button>
       </div>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-        {([["all", "All"], ["cart", "Cart"], ["cod_confirm", "COD"]] as const).map(([v, label]) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => setPurpose(v)}
-            aria-pressed={purpose === v}
-            style={{
-              ...(purpose === v ? chipOn : chip),
-              cursor: "pointer",
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
-        <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} className="pm-fluid-ctl" style={{ ...inputStyle, width: 160 }}>
-          <option value="">All statuses</option>
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>{statusLabel(s)}</option>
-          ))}
-        </select>
-        <select aria-label="Outcome" value={outcome} onChange={(e) => setOutcome(e.target.value)} className="pm-fluid-ctl" style={{ ...inputStyle, width: 180 }}>
-          <option value="">All outcomes</option>
-          {OUTCOME_OPTIONS.map((o) => (
-            <option key={o} value={o}>{outcomeLabel(o)}</option>
-          ))}
-        </select>
-        <div style={{ position: "relative", flex: "1 1 220px", maxWidth: 320 }}>
-          <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--pm-hint)" }} />
-          <input
-            aria-label="Search by number or name"
-            placeholder="Search number or name"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            style={{ ...inputStyle, paddingLeft: 30 }}
-          />
-        </div>
-      </div>
+      <details className={s.how}>
+        <summary><Info size={14} /> How it works</summary>
+        <p>
+          A friendly AI voice calls customers who left a cart behind, and confirms COD orders that are still waiting on WhatsApp.
+          Switch calls on or off, and set the calling hours, in the Automations tab.
+        </p>
+        <p>
+          Calls are placed by our voice partner, Sarvam. Sarvam is meant to tell us how each call went as soon as it ends,
+          but that message is not reaching us at the moment, so calls can stay on &quot;calling&quot;. &quot;Refresh call results&quot;
+          asks Sarvam for the last 24 hours of results and updates the list. Anyone who asks us not to call is never called again.
+        </p>
+      </details>
 
       {voiceEnabled === false && (
-        <div style={{ ...cardStyle, marginBottom: 14, background: "var(--pm-gold-soft)", borderColor: "var(--pm-gold)" }}>
-          <strong>Rescue calls are switched off.</strong> The owner can turn them on in the Automations tab (Order messages, Voice rescue call). Past calls still show below.
-        </div>
+        <p className={s.note}>
+          <Info size={15} /> <span><b>Rescue calls are switched off.</b> The owner can turn them on in the Automations tab (Order messages, Voice rescue call). Past calls still show below.</span>
+        </p>
       )}
-
       {allStillDialing && (
-        <div style={{ ...cardStyle, marginBottom: 14, background: "var(--pm-cyan-soft)" }}>
-          The results of these calls haven&apos;t arrived yet. Press Refresh call results above to fetch them.
-        </div>
+        <p className={s.note}>
+          <Info size={15} /> <span>The results of these calls have not arrived yet. Press Refresh call results above to fetch them.</span>
+        </p>
       )}
 
-      {isLoading ? (
-        <div style={{ ...cardStyle, textAlign: "center", color: "var(--pm-hint)" }}>Loading...</div>
-      ) : calls.length === 0 ? (
-        <div style={{ ...cardStyle, textAlign: "center", color: "var(--pm-hint)" }}>
-          {hasFilters ? "No calls match these filters." : "No voice calls yet."}
-        </div>
-      ) : (
-        <div className="pm-gridtable-wrap" style={cardStyle}>
-          <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, gap: 8, fontSize: 11, fontWeight: 700, color: "var(--pm-hint)", textTransform: "uppercase", letterSpacing: 0.4, padding: "0 10px 8px", borderBottom: "1px solid var(--pm-line)" }}>
-            <span>When</span>
-            <span>Customer</span>
-            <span>Call for</span>
-            <span>Call</span>
-            <span>What they said</span>
-            <span>Link sent</span>
-            <span>Duration</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            {calls.map((c) => <CallRow key={c.id} call={c} />)}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+      {!isLoading && allCalls.length > 0 && <VoiceTracker calls={allCalls} />}
 
-function CallRow({ call: c }: { call: VoiceCall }) {
-  const st = STATUS_STYLE[c.status] ?? STATUS_STYLE.unknown;
-  const cartTotal = c.run?.cart_total ?? null;
-  const cartItems = c.run?.cart_items ?? [];
-
-  return (
-    <details style={{ borderBottom: "1px solid var(--pm-line)" }}>
-      <summary style={{ cursor: "pointer", padding: "10px", listStyle: "none" }}>
-        <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, gap: 8, alignItems: "center", fontSize: 12.5 }}>
-          <span style={{ color: "var(--pm-hint)" }}>{timeAgo(c.created_at)}</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {c.contact.name || "Unknown"} <span style={{ color: "var(--pm-hint)" }}>{maskPhone(c.contact.phone || c.contact.wa_id)}</span>
-            </span>
-            {c.contact.voice_dnd && (
-              <span style={{ ...chip, padding: "2px 7px", fontSize: 10, color: "var(--pm-terra)", borderColor: "var(--pm-terra)" }}>
-                <PhoneOff size={10} /> Do not call
-              </span>
-            )}
-          </span>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={cartSummary(cartItems)}>
-            {c.purpose === "cod_confirm" ? <strong>COD order #{c.order_ref ?? "-"}</strong> : cartTotal != null ? <strong>{fmtInr(cartTotal)}</strong> : "Cart"}
-            {cartItems.length > 0 && <span style={{ color: "var(--pm-hint)" }}> · {cartSummary(cartItems)}</span>}
-          </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: st.color, fontWeight: 700, fontSize: 14, width: "fit-content" }}>
-            <i aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />
-            {statusLabel(c.status)}
-          </span>
-          <span style={{ color: "var(--pm-muted)" }}>{c.outcome ? outcomeLabel(c.outcome) : "-"}</span>
-          <span style={{ color: "var(--pm-muted)" }}>
-            {c.link_sent_at ? (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--pm-green)" }}>
-                <CheckCircle2 size={13} /> {timeAgo(c.link_sent_at)}
-              </span>
-            ) : "-"}
-          </span>
-          <span style={{ color: "var(--pm-muted)" }}>{c.duration_s != null ? `${c.duration_s}s` : "-"}</span>
-        </div>
-      </summary>
-
-      <div style={{ padding: "0 10px 14px 10px" }}>
-        {c.failure_reason && (
-          <div style={{ fontSize: 11.5, color: "var(--pm-terra)", marginBottom: 8 }}>Why it did not connect: {c.failure_reason}</div>
-        )}
-
-        <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--pm-hint)", textTransform: "uppercase", letterSpacing: 0.4, margin: "6px 0" }}>
-          Transcript
-        </div>
-        {c.transcript?.length ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
-            {c.transcript.map((t, i) => (
-              <div key={i} style={{ fontSize: 12 }}>
-                <strong>{t.role === "agent" ? "PROMUNCH" : "Customer"}:</strong> {t.en_text}
-              </div>
+      <section className={s.card} aria-labelledby="vc-list-h">
+        <div className={s.listH}>
+          <h3 id="vc-list-h">Latest calls</h3>
+          <div className={s.chips} role="group" aria-label="Call type">
+            {([["all", "All"], ["cod_confirm", "COD"], ["cart", "Carts"]] as const).map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                className={`pm2-chip${purpose === v ? " on" : ""}`}
+                aria-pressed={purpose === v}
+                onClick={() => setPurpose(v)}
+              >
+                {label}
+              </button>
             ))}
           </div>
-        ) : (
-          <div style={{ fontSize: 12, color: "var(--pm-hint)", marginBottom: 10 }}>No transcript yet. Try Refresh call results.</div>
-        )}
-
-        {c.has_recording && (
-          <div style={{ marginBottom: 10 }}>
-            <audio controls style={{ width: "100%", maxWidth: 420 }} src={`/api/whatsapp/voice-calls/${c.id}/recording`} />
-          </div>
-        )}
-
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 14, fontSize: 12 }}>
-          {c.crm_contact_id && (
-            <a href={`/dashboard/contacts/${c.crm_contact_id}`} style={{ color: "var(--pm-green)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <UserIcon size={12} /> CRM contact <ExternalLink size={10} />
-            </a>
-          )}
-          {c.order && (
-            <a href={c.order.admin_url ?? undefined} target={c.order.admin_url ? "_blank" : undefined} rel="noreferrer"
-              style={{ color: "var(--pm-green)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4, pointerEvents: c.order.admin_url ? "auto" : "none" }}>
-              <ShoppingCart size={12} /> Order #{c.order.order_number}, {fmtInr(c.order.total_price)} {c.order.admin_url && <ExternalLink size={10} />}
-            </a>
-          )}
-          {c.run?.checkout_url && (
-            <a href={c.run.checkout_url} target="_blank" rel="noreferrer" style={{ color: "var(--pm-green)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <Phone size={12} /> Checkout link the call was about <ExternalLink size={10} />
-            </a>
-          )}
         </div>
-        {c.order && (
-          <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 6 }}>
-            Likely order placed after this call, matched by phone and timing. Not proof the call caused it.
-          </div>
+        <div className={s.filters}>
+          <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} className={s.ctl}>
+            <option value="">Any call status</option>
+            {STATUS_OPTIONS.map((o) => <option key={o} value={o}>{statusLabel(o)}</option>)}
+          </select>
+          <select aria-label="Outcome" value={outcome} onChange={(e) => setOutcome(e.target.value)} className={s.ctl}>
+            <option value="">Any outcome</option>
+            {OUTCOME_OPTIONS.map((o) => <option key={o} value={o}>{outcomeLabel(o)}</option>)}
+          </select>
+          <label className={s.search}>
+            <Search size={15} aria-hidden />
+            <input aria-label="Search by number or name" placeholder="Search number or name" value={q} onChange={(e) => setQ(e.target.value)} />
+          </label>
+        </div>
+
+        {isLoading ? (
+          <p className={s.empty}>Loading…</p>
+        ) : calls.length === 0 ? (
+          <p className={s.empty}>{hasFilters || purpose !== "all" ? "No calls match these filters." : "No voice calls yet."}</p>
+        ) : (
+          <ul className={s.list}>
+            {calls.map((c) => {
+              const r = callResult(c);
+              const group = tries.get(triesKey(c)) ?? [c];
+              const tryNo = group.findIndex((x) => x.id === c.id) + 1;
+              const meta = [callSubject(c), c.duration_s != null ? fmtDur(c.duration_s) : null, tryNo > 1 ? `try ${tryNo}` : null]
+                .filter(Boolean).join(" · ");
+              return (
+                <li key={c.id}>
+                  <button type="button" className={s.row} onClick={() => setOpenId(c.id)} aria-haspopup="dialog">
+                    <span className={`${s.cj} ${c.purpose === "cod_confirm" ? s.icInfo : s.icGood}`} aria-hidden title={c.purpose === "cod_confirm" ? "COD" : "Cart"}>
+                      {c.purpose === "cod_confirm" ? <Banknote size={16} /> : <ShoppingCart size={16} />}
+                    </span>
+                    <span className={s.rowM}>
+                      <b>
+                        {displayName(c)}
+                        {c.contact.voice_dnd && <span className={s.dnd}><PhoneOff size={12} /> Do not call</span>}
+                      </b>
+                      <span>{meta}</span>
+                    </span>
+                    <span className={s.rowO}>
+                      <span className={`${s.tg} ${s[r.tone]}`}>{r.label}</span>
+                      <time dateTime={c.created_at}>{timeAgo(c.created_at)}</time>
+                    </span>
+                    <ChevronRight size={16} className={s.chev} aria-hidden />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         )}
-      </div>
-    </details>
+      </section>
+
+      {openCall && (
+        <CallDrawer call={openCall} tries={tries.get(triesKey(openCall)) ?? [openCall]} onClose={() => setOpenId(null)} />
+      )}
+    </div>
   );
 }
