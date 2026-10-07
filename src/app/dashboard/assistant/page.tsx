@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -48,9 +49,20 @@ function MayaAvatar() {
   );
 }
 
+// useSearchParams needs a Suspense boundary in the App Router.
 export default function AssistantPage() {
+  return (
+    <Suspense fallback={null}>
+      <AssistantInner />
+    </Suspense>
+  );
+}
+
+function AssistantInner() {
   const qc = useQueryClient();
-  const [input, setInput] = useState("");
+  // ?q= prefills the box (suggested questions on Home); nothing is sent until they press send.
+  const params = useSearchParams();
+  const [input, setInput] = useState(() => params.get("q") ?? "");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
