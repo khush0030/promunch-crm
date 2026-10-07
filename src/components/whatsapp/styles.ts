@@ -3,7 +3,8 @@
 
 import type { CSSProperties } from "react";
 
-export const BRAND = "var(--pm-green)";
+// Primary actions in the WhatsApp views: ink, so the one red action per screen stays red.
+export const BRAND = "var(--pm-ink)";
 export const WA_GREEN = "#25D366";
 
 export const priorityStyle: Record<string, { bg: string; color: string }> = {
@@ -43,8 +44,8 @@ export const cardStyle: CSSProperties = {
   background: "var(--pm-card)", border: "1px solid var(--pm-border)", borderRadius: 12, padding: 14,
 };
 export const primaryBtn: CSSProperties = {
-  padding: "8px 14px", borderRadius: 8, border: "none", background: BRAND,
-  color: "var(--pm-card)", fontWeight: 600, fontSize: 13, cursor: "pointer",
+  padding: "9px 15px", borderRadius: 12, border: "none", background: BRAND,
+  color: "var(--pm-card)", fontWeight: 700, fontSize: 14, cursor: "pointer",
   display: "inline-flex", alignItems: "center", gap: 6,
 };
 export const smallBtn: CSSProperties = {
@@ -53,12 +54,13 @@ export const smallBtn: CSSProperties = {
   cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4,
 };
 export const chip: CSSProperties = {
-  padding: "5px 11px", borderRadius: 999, border: "1px solid var(--pm-border)",
-  background: "var(--pm-card)", color: "var(--pm-ink)", fontSize: 12, fontWeight: 600,
+  padding: "6px 13px", borderRadius: 999, border: "1px solid var(--pm-border)",
+  background: "var(--pm-card)", color: "var(--pm-ink2)", fontSize: 14, fontWeight: 700,
   cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5,
 };
+// Complete on its own (some views spread only this one for the selected chip).
 export const chipOn: CSSProperties = {
-  background: "rgba(185,28,74,0.08)", borderColor: BRAND, color: BRAND,
+  ...chip, background: "var(--pm-ink)", borderColor: "var(--pm-ink)", color: "#fff",
 };
 export const fmtBtn: CSSProperties = {
   width: 30, height: 28, borderRadius: 6, border: "1px solid var(--pm-border)",

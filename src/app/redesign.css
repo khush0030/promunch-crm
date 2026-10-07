@@ -289,3 +289,8 @@ table.pm2-tbl,.pm-tbl{font-size:15.5px}
   .pm3-sectabs a{padding:11px 10px 12px;font-size:15px}
   .pm3-sectabs a.on::after{left:10px;right:10px}
 }
+
+/* legacy tabs (pm-tabs): ink + red underline instead of the old green */
+.pm-tabs{gap:4px;border-bottom-color:var(--pm-border)}
+.pm-tab{font:600 15.5px var(--pm-font);color:var(--pm-ink2);padding:11px 14px 12px}
+.pm-tab.on{color:var(--pm-ink);border-bottom-color:var(--pm-brand);font-weight:700}

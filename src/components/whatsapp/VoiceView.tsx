@@ -309,7 +309,8 @@ function CallRow({ call: c }: { call: VoiceCall }) {
             {c.purpose === "cod_confirm" ? <strong>COD order #{c.order_ref ?? "-"}</strong> : cartTotal != null ? <strong>{fmtInr(cartTotal)}</strong> : "Cart"}
             {cartItems.length > 0 && <span style={{ color: "var(--pm-hint)" }}> · {cartSummary(cartItems)}</span>}
           </span>
-          <span style={{ padding: "3px 8px", borderRadius: 999, background: st.bg, color: st.color, fontWeight: 600, fontSize: 11, width: "fit-content" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: st.color, fontWeight: 700, fontSize: 14, width: "fit-content" }}>
+            <i aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />
             {statusLabel(c.status)}
           </span>
           <span style={{ color: "var(--pm-muted)" }}>{c.outcome ? outcomeLabel(c.outcome) : "-"}</span>

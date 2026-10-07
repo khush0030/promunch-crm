@@ -160,7 +160,7 @@ export default function DealsPage() {
 
   const segBtn = (active: boolean): React.CSSProperties => ({
     border: "none",
-    background: active ? "var(--pm-green)" : "transparent",
+    background: active ? "var(--pm-ink)" : "transparent",
     color: active ? "#fff" : "var(--pm-muted)",
     borderRadius: 999,
     padding: "6px 14px",
