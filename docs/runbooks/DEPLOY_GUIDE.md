@@ -7,7 +7,7 @@ isn't set first, so secrets/keys come before deploys, and the RLS migration come
 
 Reference values for this project:
 - Supabase project ref: **`wlungshkwfuggtbantkb`**
-- Supabase URL: **`https://wlungshkwfuggtbantkb.supabase.co`** (Mumbai, ap-south-1, org "Admin Oltaflock"; moved from Seoul on 2026-10-07)
+- Supabase URL: **`https://wlungshkwfuggtbantkb.supabase.co`** (Mumbai, ap-south-1, PROMUNCH org on the Free plan; moved from Seoul on 2026-10-07)
 - Vercel functions region: **`bom1`** (pinned in `vercel.json`, next to the database)
 - Production app: **`https://promunch-crm.vercel.app`**
 - `CRON_SECRET` (already chosen): **`w1xcPz5K2mFm-N2N7Mfh-0YGGPDtbKS8voUpyXd0YJ0`**

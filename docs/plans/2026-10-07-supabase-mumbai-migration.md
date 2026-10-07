@@ -1,6 +1,6 @@
 # Supabase migration: Seoul → Mumbai
 
-**Status:** DONE. Cut over 2026-10-07, 15:09–15:37 IST. New project `wlungshkwfuggtbantkb` (Mumbai) is live; Seoul `hlykspakpewuilttnydm` is a forwarding shell awaiting deletion. See §9 for what actually happened.
+**Status:** DONE. Cut over 2026-10-07, 15:09–15:37 IST. New project `wlungshkwfuggtbantkb` (Mumbai) is live; Seoul `hlykspakpewuilttnydm` was deleted the same evening, and the project now lives in the PROMUNCH org (Free plan). See §9 for what actually happened.
 **Date:** 2026-10-07
 **Goal:** move the CRM Supabase project from Seoul (`ap-northeast-2`) to Mumbai (`ap-south-1`) so that (1) the app is faster from India and (2) customer data is stored in India.
 
@@ -118,4 +118,4 @@ Up to step 11, Seoul is unchanged apart from paused crons and maintenance receiv
   3. `shopify-webhooks-ensure` added Mumbai checkout subscriptions without removing the Seoul ones, which briefly doubled checkout deliveries. Seoul's stand-in now drops them; no journey or message was duplicated.
 - **Webhooks moved:** Meta WhatsApp (WABA override), Shopify app checkouts plus the 9 admin webhooks, Slack (events, interactivity, `/shopify`), Gmail Pub/Sub push and OAuth redirect, Breeze, Sarvam tools. The dashboard is on Mumbai, with functions pinned to `bom1`.
 - **Speed:** uncached dashboard API requests went from about 1.1 s to 0.17–0.66 s.
-- **Left:** verify one real order end to end; delete Seoul (old sent emails lose their `email-assets` images); move the project into the PROMUNCH org.
+- **Closing steps (same evening):** a real COD test order (#342975) went end to end through Mumbai (one confirmation, button confirm, one Slack post, duplicates blocked) and was cancelled; Seoul showed zero traffic and was deleted around 20:56 (the final dump is kept offline); the project was transferred from Admin Oltaflock into the PROMUNCH org on the Free plan around 21:00 (owner's choice: no daily backups). Ref, URL and keys were unchanged by the transfer.
