@@ -32,7 +32,7 @@
     tk: [['tk-queue', 'Tickets', 9], ['tk-chats', 'Live chats', 3], ['tk-drafts', 'Email drafts', 4], ['tk-kb', 'Bot knowledge'], ['tk-reports', 'Reports']],
     or: [['or-today', 'Confirm COD', 6], ['or-calls', 'Voice calls'], ['or-all', 'All orders'], ['or-settings', 'Call rules']],
     an: [['an-overview', 'Sales'], ['an-web', 'Website'], ['an-retention', 'Repeat & cohorts'], ['an-products', 'What people buy'], ['an-amazon', 'Amazon']],
-    b2b: [['b2b-home', 'Overview'], ['b2b-find', '1 · Find'], ['b2b-review', '2 · Review', 8], ['b2b-track', '3 · Sent & replies'], ['b2b-deals', 'Deals']],
+    b2b: [['b2b-home', 'Overview'], ['b2b-list', 'Lists'], ['b2b-review', 'Review', 8], ['b2b-track', 'Replies', 9], ['b2b-deals', 'Deals']],
     inf: [['inf-board', 'Board'], ['inf-creators', 'Creators'], ['inf-kits', 'Kits'], ['inf-settings', 'Settings']],
     cu: [['cu-list', 'Customers'], ['cu-segments', 'Segments'], ['cu-popup', 'Sign-up popup']],
     set: [['set-home', 'Connections'], ['set-team', 'Team & access'], ['set-keys', 'API keys'], ['set-brand', 'Brand & email'], ['set-security', 'Security']],
