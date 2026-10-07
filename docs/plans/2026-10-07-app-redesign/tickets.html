@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inbox and Tickets</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+.tq{display:grid;grid-template-columns:240px minmax(0,1fr);background:var(--surface);border:1px solid var(--hair);border-radius:var(--r-card);overflow:hidden}
+.tq .views{border-right:1px solid var(--hair);padding:14px 10px;background:var(--surface-2)}
+.tq .views .vg{font:700 10.5px var(--f-mono);letter-spacing:.14em;color:var(--mute);padding:14px 10px 6px;text-transform:uppercase}
+.tq .views a{display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;border-radius:10px;font-weight:600;font-size:15px;color:var(--ink-2)}
+.tq .views a:hover{background:var(--surface-3)}
+.tq .views a.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(26,23,20,.08)}
+.tq .views a .n{margin-left:auto;font-weight:700;font-size:13.5px;color:var(--mute)}
+.tq .views a.on .n{color:var(--red)}
+.trow{display:grid;grid-template-columns:28px minmax(0,1fr) 150px 120px 110px;gap:14px;align-items:center;padding:16px 20px;border-bottom:1px solid var(--hair-2);cursor:pointer}
+.trow:hover{background:var(--surface-2)}
+.trow .s b{display:block;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trow .s span{display:block;font-size:14.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thead{display:grid;grid-template-columns:28px minmax(0,1fr) 150px 120px 110px;gap:14px;padding:12px 20px;border-bottom:1px solid var(--hair);font:700 11px var(--f-mono);letter-spacing:.12em;color:var(--mute);text-transform:uppercase}
+.prio{width:10px;height:10px;border-radius:3px;display:inline-block}
+.tkt{display:grid;grid-template-columns:minmax(0,1fr) 340px;background:var(--surface);border:1px solid var(--hair);border-radius:var(--r-card);overflow:hidden;min-height:680px}
+.tkt .thread{display:flex;flex-direction:column;border-right:1px solid var(--hair);min-width:0}
+@media (max-width:1180px){.tkt{grid-template-columns:minmax(0,1fr)}.tkt .side-panel{border-top:1px solid var(--hair)}}
+@media (max-width:1024px){.tq{grid-template-columns:minmax(0,1fr)}.tq .views{display:none}.trow,.thead{grid-template-columns:20px minmax(0,1fr) 110px}.trow .hc,.thead .hc{display:none}}
+@media (max-width:760px){.thead{display:none}.trow{grid-template-columns:14px minmax(0,1fr);padding:14px 16px}.trow .mc{display:none}.trow .s .mob{display:flex!important;gap:6px;margin-top:8px;flex-wrap:wrap}}
+</style>
+</head>
+<body data-nav="inbox">
+<main class="content">
+
+<!-- ============ TICKET QUEUE ============ -->
+<section class="screen" id="tk-queue" data-title="Inbox · Tickets (queue)">
+  <header class="ph" data-tabs="tk">
+    <div class="t"><span class="eyebrow">★ Inbox</span><h1>Tickets</h1><p class="sum"><b>9 open</b>, 2 past their reply time. You're on 4 of them.</p></div>
+    <div class="acts"><button class="btn hide-m" data-open="tk-settings-dr"><i data-lucide="settings-2"></i>Rules</button><button class="btn primary" data-open="new-ticket"><i data-lucide="plus"></i>New ticket</button></div>
+  </header>
+  <div class="tq">
+    <nav class="views" aria-label="Views">
+      <div class="vg">My work</div>
+      <a class="on" href="#tk-queue"><i data-lucide="user"></i>Mine, open<span class="n">4</span></a>
+      <a href="#tk-queue"><i data-lucide="inbox"></i>Not assigned<span class="n">2</span></a>
+      <a href="#tk-queue"><i data-lucide="alarm-clock"></i>Overdue<span class="n">2</span></a>
+      <div class="vg">All tickets</div>
+      <a href="#tk-queue"><i data-lucide="circle-dot"></i>New<span class="n">2</span></a>
+      <a href="#tk-queue"><i data-lucide="circle"></i>Open<span class="n">5</span></a>
+      <a href="#tk-queue"><i data-lucide="hourglass"></i>Waiting on customer<span class="n">3</span></a>
+      <a href="#tk-queue"><i data-lucide="pause"></i>On hold<span class="n">1</span></a>
+      <a href="#tk-queue"><i data-lucide="circle-check"></i>Solved, 7 days<span class="n">48</span></a>
+      <div class="vg">Topics</div>
+      <a href="#tk-queue"><i data-lucide="truck"></i>Delivery<span class="n">4</span></a>
+      <a href="#tk-queue"><i data-lucide="package-open"></i>Damaged or wrong item<span class="n">3</span></a>
+      <a href="#tk-queue"><i data-lucide="building-2"></i>Wholesale leads<span class="n">2</span></a>
+    </nav>
+    <div>
+      <div class="row wrap" style="padding:14px 20px;border-bottom:1px solid var(--hair)"><div class="in-icon" style="flex:1;min-width:180px"><i data-lucide="search"></i><input class="in" placeholder="Search tickets, names, order numbers" style="height:40px"></div><button class="btn sm"><i data-lucide="sliders-horizontal"></i>Filter</button><button class="btn sm d-only"><i data-lucide="arrow-down-up"></i>Due first</button></div>
+      <div class="thead"><span></span><span>Ticket</span><span class="mc">Reply due</span><span class="hc mc">Status</span><span class="hc mc">Who</span></div>
+      <a class="trow" href="#tk-ticket"><span class="prio" style="background:var(--bad)" title="Urgent"></span><div class="s"><b>Pouch arrived torn, beans everywhere</b><span>#1182 · Meera Nair · WhatsApp · order #PM-2790</span><div class="mob" style="display:none"><span class="sla bad"><i data-lucide="alarm-clock"></i>38m late</span><span class="pill info">Open</span></div></div><span class="mc"><span class="sla bad"><i data-lucide="alarm-clock"></i>38 min late</span></span><span class="hc mc"><span class="pill info">Open</span></span><span class="hc mc row"><span class="av sm red">KM</span></span></a>
+      <a class="trow" href="#tk-ticket"><span class="prio" style="background:var(--warn)" title="High"></span><div class="s"><b>Got Indori Chatka instead of Himalayan Rock Salt</b><span>#1179 · Arjun Reddy · Email · order #PM-2802</span><div class="mob" style="display:none"><span class="sla bad"><i data-lucide="alarm-clock"></i>12m late</span></div></div><span class="mc"><span class="sla bad"><i data-lucide="alarm-clock"></i>12 min late</span></span><span class="hc mc"><span class="pill info">Open</span></span><span class="hc mc row"><span class="av sm info">NA</span></span></a>
+      <a class="trow" href="#tk-ticket"><span class="prio" style="background:#CFC7B9" title="Normal"></span><div class="s"><b>Where is my order? Placed 4 days ago</b><span>#1186 · Sneha Kulkarni · WhatsApp · bot handed over</span><div class="mob" style="display:none"><span class="sla warn"><i data-lucide="clock"></i>in 25m</span></div></div><span class="mc"><span class="sla warn"><i data-lucide="clock"></i>in 25 min</span></span><span class="hc mc"><span class="pill red">New</span></span><span class="hc mc muted small">Nobody</span></a>
+      <a class="trow" href="#tk-ticket"><span class="prio" style="background:#CFC7B9" title="Normal"></span><div class="s"><b>Want 200 packs for our office pantry</b><span>#1185 · Kabir Malhotra, Zeta Foods · Email</span><div class="mob" style="display:none"><span class="sla"><i data-lucide="clock"></i>in 3h</span></div></div><span class="mc"><span class="sla"><i data-lucide="clock"></i>in 3h 10m</span></span><span class="hc mc"><span class="pill red">New</span></span><span class="hc mc muted small">Nobody</span></a>
+      <a class="trow" href="#tk-ticket"><span class="prio" style="background:#CFC7B9" title="Normal"></span><div class="s"><b>Can I change my address? COD order</b><span>#1180 · Vikram Singh · WhatsApp</span><div class="mob" style="display:none"><span class="pill warn">Waiting on customer</span></div></div><span class="mc"><span class="sla good"><i data-lucide="hourglass"></i>Their turn</span></span><span class="hc mc"><span class="pill warn">Waiting</span></span><span class="hc mc row"><span class="av sm red">KM</span></span></a>
+      <a class="trow" href="#tk-ticket"><span class="prio" style="background:#CFC7B9" title="Low"></span><div class="s"><b>Is Masala Mania OK for kids?</b><span>#1177 · Fatima Shaikh · Instagram</span><div class="mob" style="display:none"><span class="pill">On hold</span></div></div><span class="mc"><span class="sla"><i data-lucide="pause"></i>Paused</span></span><span class="hc mc"><span class="pill">On hold</span></span><span class="hc mc row"><span class="av sm good">PA</span></span></a>
+    </div>
+  </div>
+  <p class="footer-note">Illustrative data. Reply times: urgent 1 hour, normal 4 working hours (9 am to 9 pm IST).</p>
+</section>
+
+<!-- ============ TICKET DETAIL ============ -->
+<section class="screen" id="tk-ticket" data-title="Inbox · Ticket detail (reply, note, properties)">
+  <header class="ph" style="margin-bottom:18px">
+    <div class="t"><a class="back" href="#tk-queue"><i data-lucide="arrow-left"></i>Tickets</a><div class="row wrap"><h1 style="text-transform:none;font-size:26px">Pouch arrived torn</h1><span class="pill info">Open</span><span class="sla bad"><i data-lucide="alarm-clock"></i>Reply 38 min late</span></div><p class="small muted mt8">#1182 · opened 9:02 am on WhatsApp · Meera Nair, Kochi</p></div>
+    <div class="acts"><button class="btn hide-m" data-open="merge"><i data-lucide="merge"></i>Merge</button><button class="btn hide-m" data-open="escalate"><i data-lucide="siren"></i>Escalate</button><button class="btn icon ghost" data-menu="tk-more" aria-label="More"><i data-lucide="ellipsis"></i></button>
+      <div class="menu" id="tk-more"><button data-open="merge"><i data-lucide="merge"></i>Merge with another ticket</button><button data-open="escalate"><i data-lucide="siren"></i>Escalate to ops</button><button data-toast="Link copied"><i data-lucide="link"></i>Copy link</button><button class="dz" data-toast="Marked as spam" data-undo><i data-lucide="ban"></i>Mark as spam</button></div></div>
+  </header>
+  <div class="tkt">
+    <div class="thread">
+      <div class="msgs" style="flex:1;padding:22px;display:flex;flex-direction:column;gap:14px;background:var(--surface-2)">
+        <span class="sysmsg">Today</span>
+        <div class="bub cin"><span class="who">Meera · WhatsApp</span>Hi, my order came today but the Himalayan Rock Salt pouch was torn and half the beans spilled in the box 😕 photo attached<time>9:02 am</time></div>
+        <div class="bub bot"><span class="who">PROMUNCH bot</span>So sorry about that, Meera! I've passed this to our team with your photo. Someone will reply here shortly.<time>9:02 am</time></div>
+        <span class="sysmsg">Bot handed over · ticket created · urgent</span>
+        <div class="bub inote"><span class="who">Internal note · Narendra</span>Checked with the packer. Batch HRS-0926 had weak seals on 3 pouches. @Khush ok to send a replacement + 10% code?<time>9:31 am</time></div>
+      </div>
+      <div class="composer">
+        <div class="mode"><button class="on" data-mode="reply"><i data-lucide="reply"></i> Reply</button><button class="nt" data-mode="note"><i data-lucide="sticky-note"></i> Internal note</button><span class="sp"></span><span class="small muted" style="align-self:center">WhatsApp window open · 23h left</span></div>
+        <div class="box">Reply to the customer on WhatsApp. Type / for a saved reply.</div>
+        <div class="bar2"><button class="btn sm" data-open="macros"><i data-lucide="zap"></i>Saved replies</button><button class="btn sm ghost icon" aria-label="Attach"><i data-lucide="paperclip"></i></button><button class="btn sm ghost icon" aria-label="Order link"><i data-lucide="receipt"></i></button><span class="sp"></span>
+          <div class="rel"><button class="btn primary" data-menu="send-as">Send & set to <b>Waiting</b><i data-lucide="chevron-down"></i></button>
+            <div class="menu" id="send-as" style="bottom:54px;right:0"><button data-toast="Sent. Ticket is waiting on Meera."><span class="pill warn">Waiting on customer</span></button><button data-toast="Sent. Ticket stays open."><span class="pill info">Open</span></button><button data-open="solve"><span class="pill good">Solved</span></button><button data-toast="Sent. On hold until the replacement ships."><span class="pill">On hold</span></button></div></div></div>
+      </div>
+    </div>
+    <aside class="side-panel">
+      <div class="blk">
+        <div class="prop"><span>Status</span><select class="sel"><option>Open</option><option>New</option><option>Waiting on customer</option><option>On hold</option><option>Solved</option><option>Closed</option></select></div>
+        <div class="prop"><span>Priority</span><select class="sel"><option>Urgent</option><option>High</option><option>Normal</option><option>Low</option></select></div>
+        <div class="prop"><span>Assigned to</span><select class="sel"><option>Khush Mutha</option><option>Narendra (ops)</option><option>Parth</option><option>Riya</option></select></div>
+        <div class="prop"><span>Topic</span><select class="sel"><option>Damaged item</option><option>Delivery</option><option>Wrong item</option></select></div>
+        <div class="row wrap mt8" style="gap:6px"><span class="tag">damaged</span><span class="tag">batch-HRS-0926</span><button class="tag" style="border:1px dashed var(--hair);background:none">+ tag</button></div>
+      </div>
+      <div class="blk">
+        <div class="row"><span class="av red">MN</span><div style="flex:1"><b>Meera Nair</b><p class="small muted">Kochi · customer since Mar</p></div><a class="btn sm ghost icon" href="other.html#cu-profile" aria-label="Open profile"><i data-lucide="arrow-up-right"></i></a></div>
+        <dl class="kv mt16"><dt>Orders</dt><dd>5 · ₹3,910</dd><dt>Phone</dt><dd>+91 94XXX X1187</dd><dt>Email</dt><dd class="muted">None</dd><dt>Past tickets</dt><dd>1, solved, 5 stars</dd></dl>
+      </div>
+      <div class="blk">
+        <span class="eyebrow">This order</span>
+        <a class="row" href="cod-voice.html#or-all/order"><span class="pack hr">HRS</span><div style="flex:1"><b>#PM-2790 · ₹749</b><p class="small muted">Delivered yesterday · prepaid</p></div></a>
+        <p class="small ink2 mt8">2 × Himalayan Rock Salt 100g, 1 × Crunchies Classic</p>
+        <div class="row mt16" style="gap:8px"><button class="btn sm" data-toast="Replacement order #PM-2851 created in Shopify (₹0)">Send replacement</button><button class="btn sm ghost" data-toast="Refund needs owner approval">Refund</button></div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ============ LIVE CHATS ============ -->
+<section class="screen" id="tk-chats" data-title="Inbox · Live WhatsApp chats">
+  <header class="ph" data-tabs="tk"><div class="t"><span class="eyebrow">★ Inbox</span><h1>Live chats</h1><p class="sum">The bot is handling <b>27 chats</b>. <b>3 need a human.</b></p></div><div class="acts"><button class="btn" data-toast="Sound alerts on for chats assigned to you"><i data-lucide="bell-ring"></i>Alerts on</button></div></header>
+  <div class="ibx">
+    <nav class="views"><div class="vg">Chats</div><a class="on" href="#tk-chats"><i data-lucide="hand"></i>Need a human<span class="n">3</span></a><a href="#tk-chats"><i data-lucide="user"></i>Mine<span class="n">2</span></a><a href="#tk-chats"><i data-lucide="bot"></i>Bot handling<span class="n">27</span></a><a href="#tk-chats"><i data-lucide="messages-square"></i>All<span class="n">412</span></a><div class="vg">Channels</div><a href="#tk-chats"><i data-lucide="message-circle"></i>WhatsApp</a><a href="#tk-chats"><i data-lucide="instagram"></i>Instagram<span class="n">off</span></a></nav>
+    <div class="list">
+      <div class="lh"><div class="in-icon" style="flex:1"><i data-lucide="search"></i><input class="in" placeholder="Search chats" style="height:38px"></div></div>
+      <div class="tk unread on"><span class="av info">SK</span><div class="tx"><div class="a"><b>Sneha Kulkarni</b><time>2m</time></div><p>Bot: I've asked the team to check on your order…</p><div class="m"><span class="pill red">Needs human</span><span class="sla warn"><i data-lucide="clock"></i>22h window</span></div></div></div>
+      <div class="tk unread"><span class="av sun">RV</span><div class="tx"><div class="a"><b>Rahul Verma</b><time>9m</time></div><p>Do you deliver to Leh?</p><div class="m"><span class="pill red">Needs human</span></div></div></div>
+      <div class="tk"><span class="av good">AI</span><div class="tx"><div class="a"><b>Ananya Iyer</b><time>14m</time></div><p>You: Done! Your COD order is confirmed 🎉</p><div class="m"><span class="pill nodot line">You</span></div></div></div>
+      <div class="tk"><span class="av">DP</span><div class="tx"><div class="a"><b>Deepak Patel</b><time>31m</time></div><p>Bot: Indori Chatka has 42g protein per 100g…</p><div class="m"><span class="pill info">Bot</span></div></div></div>
+    </div>
+    <div class="conv conv-pane" style="grid-template-columns:minmax(0,1fr)">
+      <div class="thread">
+        <div class="th-h"><button class="btn sm ghost icon m-only" data-ibx-back aria-label="Back"><i data-lucide="arrow-left"></i></button><span class="av info">SK</span><div style="flex:1;min-width:0"><b>Sneha Kulkarni</b><p class="small muted">+91 98XXX X7731 · Pune · 2 orders</p></div><button class="btn sm" data-toast="You took over. The bot is paused for this chat.">Take over</button><a class="btn sm ghost d-only" href="#tk-ticket">Open ticket</a></div>
+        <div class="msgs">
+          <div class="bub cin"><span class="who">Sneha</span>Hi my order #PM-2811 hasn't come yet, placed on Friday<time>9:41 am</time></div>
+          <div class="bub bot"><span class="who">Bot</span>Hi Sneha! It shipped on Saturday. Here's your order page: promunch.in/orders/2811. Want me to ask the team to check with the courier?<time>9:41 am</time></div>
+          <div class="bub cin"><span class="who">Sneha</span>Yes please, it says delivered but I didn't get it<time>9:43 am</time></div>
+          <div class="bub bot"><span class="who">Bot</span>Oh no. I've asked the team to check right away. Someone will reply here soon.<time>9:43 am</time></div>
+          <span class="sysmsg">Handed to a human · ticket #1186 created</span>
+        </div>
+        <div class="composer"><div class="mode"><button class="on" data-mode="reply">Reply</button><button class="nt" data-mode="note">Internal note</button></div><div class="box">Reply to the customer on WhatsApp. Type / for a saved reply.</div><div class="bar2"><button class="btn sm" data-open="macros"><i data-lucide="zap"></i>Saved replies</button><button class="btn sm ghost icon" aria-label="Picture"><i data-lucide="image"></i></button><span class="sp"></span><button class="btn primary" data-toast="Sent">Send</button></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ EMAIL DRAFTS ============ -->
+<section class="screen" id="tk-drafts" data-title="Inbox · Support email drafts (AI, to approve)">
+  <header class="ph" data-tabs="tk"><div class="t"><span class="eyebrow">★ Inbox</span><h1>Email drafts</h1><p class="sum">The AI read <b>4 support emails</b> and wrote replies from the knowledge base. Check, edit, send.</p></div></header>
+  <div class="ibx two">
+    <div class="list">
+      <div class="lh"><div class="chips" data-single><button class="chip on">To approve 4</button><button class="chip">Sent</button><button class="chip">Skipped</button></div></div>
+      <div class="tk on"><span class="av">KM</span><div class="tx"><div class="a"><b>Kabir Malhotra</b><time>5h</time></div><p>Bulk order for office pantry</p><div class="m"><span class="pill info">Wholesale</span></div></div></div>
+      <div class="tk"><span class="av">LG</span><div class="tx"><div class="a"><b>Lata Gupta</b><time>3h</time></div><p>Is it gluten free?</p><div class="m"><span class="pill nodot line">Product question</span></div></div></div>
+      <div class="tk"><span class="av">AR</span><div class="tx"><div class="a"><b>Arjun Reddy</b><time>1h</time></div><p>Wrong flavour in my box</p><div class="m"><span class="pill warn">Linked to #1179</span></div></div></div>
+      <div class="tk"><span class="av">NJ</span><div class="tx"><div class="a"><b>Nikhil Joshi</b><time>40m</time></div><p>Invoice for GST</p><div class="m"><span class="pill nodot line">Billing</span></div></div></div>
+    </div>
+    <div class="conv-pane col-pane">
+      <div class="th-h" style="padding:16px 22px;border-bottom:1px solid var(--hair);display:flex;gap:12px;align-items:center"><button class="btn sm ghost icon m-only" data-ibx-back aria-label="Back"><i data-lucide="arrow-left"></i></button><div style="flex:1"><b>Re: Bulk order for office pantry</b><p class="small muted">kabir@zetafoods.in · 5 hours ago</p></div></div>
+      <div style="padding:22px;flex:1;overflow:auto">
+        <div class="card inset"><span class="eyebrow">Their email</span><p class="ink2">Hi, we'd like about 200 packs of your snacks for our Bengaluru office every month. Can you share bulk pricing?</p></div>
+        <div class="field mt24"><label>AI reply (edit freely)</label><textarea class="ta" style="min-height:190px">Hi Kabir,
+
+Thanks for thinking of PROMUNCH for the Zeta Foods pantry! For 200 packs a month we offer business pricing and free delivery in Bengaluru. Parth from our team will send you a quote today with a mix of Crunchies and roasted edamame.
+
+Your Munchy Pal,
+Team PROMUNCH</textarea><span class="hint">Grounded in: Wholesale policy, Shipping policy. Also creates a B2B deal.</span></div>
+      </div>
+      <div class="composer" style="display:flex;gap:10px;justify-content:flex-end"><button class="btn ghost" data-open="skip-draft">Skip</button><button class="btn" data-toast="Marked as no reply needed">No reply needed</button><button class="btn primary" data-toast="Sent from hello@promunch.in">Approve & send</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ BOT KNOWLEDGE ============ -->
+<section class="screen" id="tk-kb" data-title="Inbox · Bot knowledge (Master KB)">
+  <header class="ph" data-tabs="tk"><div class="t"><span class="eyebrow">★ Inbox</span><h1>Bot knowledge</h1><p class="sum">The only place the WhatsApp bot, email drafts and B2B emails learn facts from. <b>14 documents</b>, updated 2 days ago.</p></div><div class="acts"><button class="btn" data-open="kb-test"><i data-lucide="message-circle-question"></i>Test a question</button><button class="btn primary" data-open="kb-add"><i data-lucide="plus"></i>Add knowledge</button></div></header>
+  <div class="card flush divide">
+    <div class="list-row"><span class="ic"><i data-lucide="file-text"></i></span><div class="tx"><b>Products and nutrition</b><span>Edamame: Himalayan Rock Salt 45g protein/100g, Indori Chatka and Masala Mania 42g. Crunchies roasted; chips and sticks fried.</span></div><span class="pill good">Up to date</span></div>
+    <div class="list-row"><span class="ic"><i data-lucide="truck"></i></span><div class="tx"><b>Shipping and payment</b><span>Free shipping from ₹599, ₹99 below. COD +₹50. Prepaid 5% off.</span></div><span class="pill good">Up to date</span></div>
+    <div class="list-row"><span class="ic"><i data-lucide="gift"></i></span><div class="tx"><b>Festive hampers</b><span>Diwali hamper, 9 pouches, ₹899</span></div><span class="pill warn">Check price</span></div>
+    <div class="list-row"><span class="ic"><i data-lucide="rotate-ccw"></i></span><div class="tx"><b>Returns and damaged items</b><span>Replacement within 48h of delivery with a photo</span></div><span class="pill good">Up to date</span></div>
+    <div class="list-row"><span class="ic"><i data-lucide="building-2"></i></span><div class="tx"><b>Wholesale and offices</b><span>Business pricing from 100 packs</span></div><span class="pill good">Up to date</span></div>
+  </div>
+  <div class="note mt24"><i data-lucide="bot"></i><div>The bot never answers from its own memory. If a fact isn't here, it says it'll check with the team and creates a ticket.</div></div>
+</section>
+
+<!-- ============ REPORTS ============ -->
+<section class="screen" id="tk-reports" data-title="Inbox · Helpdesk reports (SLA, CSAT)">
+  <header class="ph" data-tabs="tk"><div class="t"><span class="eyebrow">★ Inbox</span><h1>Reports</h1><p class="sum">Customers waited <b>1h 40m</b> on average for a first reply this week. 91% got it on time.</p></div><div class="acts"><div class="seg"><button class="on">7 days</button><button>30 days</button></div></div></header>
+  <div class="grid g4 kpis">
+    <div class="kpi"><span class="l">First reply</span><span class="v num">1h 40m</span><span class="d"><span class="up">▼ 22 min</span> faster</span></div>
+    <div class="kpi"><span class="l">On time</span><span class="v num">91%</span><span class="d">Target 90%</span></div>
+    <div class="kpi"><span class="l">Solved</span><span class="v num">48</span><span class="d">Avg 9h to solve</span></div>
+    <div class="kpi"><span class="l">Happy customers</span><span class="v num red">4.6★</span><span class="d">31 ratings · 94% good</span></div>
+  </div>
+  <div class="grid g2 mt24">
+    <div class="card"><h2>Tickets by topic</h2><div class="hbars mt16">
+      <div class="hb"><span class="lab">Where's my order</span><div class="bar"><i style="width:100%"></i></div><span class="val">19</span></div>
+      <div class="hb"><span class="lab">Damaged or wrong</span><div class="bar"><i style="width:53%"></i></div><span class="val">10</span></div>
+      <div class="hb"><span class="lab">Product questions</span><div class="bar"><i style="width:37%"></i></div><span class="val">7</span></div>
+      <div class="hb"><span class="lab">COD changes</span><div class="bar"><i style="width:26%"></i></div><span class="val">5</span></div>
+      <div class="hb"><span class="lab">Wholesale</span><div class="bar"><i style="width:21%"></i></div><span class="val">4</span></div></div></div>
+    <div class="card flush"><div class="ch" style="padding:22px 22px 0"><h2>By person</h2></div><table class="tbl stack mt16"><thead><tr><th>Who</th><th class="r">Solved</th><th class="r">First reply</th><th class="r">Rating</th></tr></thead><tbody>
+      <tr><td class="main-cell"><b>Narendra</b><span>Ops</span></td><td class="r" data-l="Solved">22</td><td class="r" data-l="First reply">1h 05m</td><td class="r" data-l="Rating">4.7★</td></tr>
+      <tr><td class="main-cell"><b>Khush</b><span>Owner</span></td><td class="r" data-l="Solved">14</td><td class="r" data-l="First reply">2h 10m</td><td class="r" data-l="Rating">4.5★</td></tr>
+      <tr><td class="main-cell"><b>Riya</b><span>Marketing</span></td><td class="r" data-l="Solved">12</td><td class="r" data-l="First reply">1h 50m</td><td class="r" data-l="Rating">4.6★</td></tr></tbody></table></div>
+  </div>
+</section>
+
+</main>
+
+<!-- overlays -->
+<div class="overlay" id="macros" data-title="Saved replies (macros) picker" data-host="tk-ticket"><div class="modal wide"><div class="mh"><div style="flex:1"><h2>Saved replies</h2><p>Pick one. It fills the reply and can also set status and tags.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="in-icon"><i data-lucide="search"></i><input class="in" placeholder="Search saved replies" value="damaged"></div>
+  <div class="divide mt16">
+    <button class="list-row" style="width:100%;text-align:left;padding:14px 4px" data-toast="Saved reply added. Tags: damaged, replacement."><span class="ic red"><i data-lucide="package-open"></i></span><div class="tx"><b>Damaged pouch: replacement</b><span>"So sorry, Meera. We're sending a fresh pouch today, free…" · sets On hold + tag replacement</span></div></button>
+    <button class="list-row" style="width:100%;text-align:left;padding:14px 4px" data-toast="Saved reply added"><span class="ic"><i data-lucide="camera"></i></span><div class="tx"><b>Ask for a photo</b><span>"Could you send a photo of the pouch and the box label?" · sets Waiting on customer</span></div></button>
+    <button class="list-row" style="width:100%;text-align:left;padding:14px 4px" data-toast="Saved reply added"><span class="ic"><i data-lucide="ticket-percent"></i></span><div class="tx"><b>Sorry + 10% code</b><span>"Here's 10% off your next order: SORRY10"</span></div></button>
+  </div>
+  <div class="mf"><a class="btn ghost" href="#tk-queue/tk-settings-dr">Manage saved replies</a></div></div></div>
+<div class="overlay" id="merge" data-title="Merge tickets" data-host="tk-ticket"><div class="modal"><div class="mh"><div style="flex:1"><h2>Merge into another ticket</h2><p>Messages move into the ticket you pick. This one closes.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="stack" data-group style="gap:10px"><button class="radio-card on"><span class="rd"></span><div><b>#1174 · Meera Nair</b><span>"Order not delivered yet" · solved 3 days ago</span></div></button><button class="radio-card"><span class="rd"></span><div><b>Search for a ticket number</b><span>Any ticket from the same customer</span></div></button></div>
+  <div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn dark" data-toast="Merged into #1174">Merge</button></div></div></div>
+<div class="overlay" id="escalate" data-title="Escalate to ops" data-host="tk-ticket"><div class="modal"><div class="mh"><span class="ic bad"><i data-lucide="siren"></i></span><div style="flex:1"><h2>Escalate</h2><p>Pings the right person on WhatsApp right now. They reply "done #1182" to close it.</p></div></div>
+  <div class="stack" data-group style="gap:10px"><button class="radio-card on"><span class="rd"></span><div><b>Order issue → Narendra (ops)</b><span>Delivery, damage, cancellations</span></div></button><button class="radio-card"><span class="rd"></span><div><b>Anything else → Khush</b><span>Refunds, complaints, press</span></div></button></div>
+  <div class="field mt16"><label>Note for them</label><textarea class="ta" style="min-height:80px">Customer needs a replacement today. Batch HRS-0926.</textarea></div>
+  <div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Narendra pinged on WhatsApp">Escalate now</button></div></div></div>
+<div class="overlay" id="solve" data-title="Solve + happiness survey" data-host="tk-ticket"><div class="modal"><div class="mh"><span class="ic good"><i data-lucide="circle-check"></i></span><div style="flex:1"><h2>Mark as solved?</h2><p>Meera gets a one-tap rating 2 hours later. If she replies, the ticket opens again.</p></div></div>
+  <div class="phone" style="width:260px"><div class="ph-top"><span class="av">PM</span>PROMUNCH</div><div class="ph-body" style="min-height:150px"><div class="wa-b">Hi Meera, how did we do with your torn pouch?<div class="btns"><span>Great</span><span>Okay</span><span>Not good</span></div></div></div></div>
+  <div class="mf"><button class="btn ghost" data-close>Cancel</button><a class="btn primary" href="#tk-queue" data-toast="Solved. Survey goes at 12:20 pm.">Send & solve</a></div></div></div>
+<div class="overlay right" id="new-ticket" data-title="New ticket drawer" data-host="tk-queue"><div class="drawer"><div class="dh"><div class="t"><span class="eyebrow">★ New</span><h2>New ticket</h2></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="db stack"><div class="field"><label>Customer</label><div class="in-icon"><i data-lucide="search"></i><input class="in" placeholder="Name, phone or order number"></div></div><div class="field"><label>What happened</label><input class="in" placeholder="Short title"></div><div class="field"><label>Details</label><textarea class="ta"></textarea></div><div class="grid g2"><div class="field"><label>Priority</label><select class="sel"><option>Normal</option><option>Urgent</option></select></div><div class="field"><label>Assign to</label><select class="sel"><option>Me</option><option>Narendra</option></select></div></div></div>
+  <div class="df"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Ticket #1187 created">Create ticket</button></div></div></div>
+<div class="overlay right" id="tk-settings-dr" data-title="Helpdesk rules (SLA, saved replies, tags, survey)" data-host="tk-queue"><div class="drawer wide"><div class="dh"><div class="t"><span class="eyebrow">★ Inbox rules</span><h2>How tickets work</h2></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="db stack">
+    <div class="card"><h3>Reply times</h3><div class="divide mt8"><div class="row" style="padding:10px 0"><span class="pill bad">Urgent</span><span class="small" style="flex:1">First reply in 1 hour</span><b class="small">Next: 2h</b></div><div class="row" style="padding:10px 0"><span class="pill warn">High</span><span class="small" style="flex:1">First reply in 2 hours</span><b class="small">Next: 4h</b></div><div class="row" style="padding:10px 0"><span class="pill">Normal</span><span class="small" style="flex:1">First reply in 4 hours</span><b class="small">Next: 8h</b></div></div><p class="small muted mt8">Clock runs 9 am to 9 pm IST, every day. Paused while waiting on the customer or on hold.</p></div>
+    <div class="card"><div class="row"><h3 style="flex:1">Auto-close</h3><button class="switch on" aria-label="On"></button></div><p class="small muted mt8">Solved tickets close after 4 days. Waiting on customer goes to solved after 3 days of silence, with one reminder.</p></div>
+    <div class="card"><div class="row"><h3 style="flex:1">Happiness survey</h3><button class="switch on" aria-label="On"></button></div><p class="small muted mt8">2 hours after solving. One tap: Great, Okay, Not good. "Not good" reopens it as High.</p></div>
+    <div class="card"><div class="row"><h3 style="flex:1">Saved replies</h3><button class="btn sm">Add</button></div><p class="small muted mt8">12 saved replies. Most used: Where is my order (41), Damaged pouch (17).</p></div>
+  </div>
+  <div class="df"><button class="btn primary" data-toast="Rules saved">Save</button></div></div></div>
+<div class="overlay" id="skip-draft" data-title="Skip email draft confirm" data-host="tk-drafts"><div class="modal"><div class="mh"><div style="flex:1"><h2>Skip this email?</h2><p>Nobody replies to Kabir. It stays in Skipped if you change your mind.</p></div></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn dark" data-toast="Skipped" data-undo>Skip</button></div></div></div>
+<div class="overlay" id="kb-add" data-title="Add knowledge" data-host="tk-kb"><div class="modal"><div class="mh"><div style="flex:1"><h2>Add knowledge</h2><p>Paste text, or upload a PDF or Doc. The bot can use it within a minute.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div><div class="field"><label>Title</label><input class="in" value="Bhai Dooj hampers 2026"></div><div class="field mt16"><label>What the bot should know</label><textarea class="ta">Bhai Dooj hamper: 6 pouches (2 Himalayan Rock Salt, 2 Masala Mania, 2 Crunchies), ₹649, ships until 21 Oct.</textarea></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Added. The bot knows this now.">Add</button></div></div></div>
+<div class="overlay" id="kb-test" data-title="Test a bot answer" data-host="tk-kb"><div class="modal"><div class="mh"><div style="flex:1"><h2>Ask the bot</h2><p>See exactly what a customer would get, and where it came from.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div><input class="in" value="Is chips roasted or fried?"><div class="bub bot mt16" style="max-width:none"><span class="who">Bot would say</span>Our chips and sticks are fried. If you want roasted, go for Crunchies or our roasted edamame!</div><p class="small muted mt8">From: Products and nutrition</p></div></div>
+
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="manifest.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

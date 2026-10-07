@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Phone Frames</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+.mf-wrap{max-width:1500px;margin:0 auto;padding:36px 32px 80px}
+.mf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(410px,1fr));gap:36px 24px;margin-top:32px}
+figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:10px}
+figcaption{font:700 11.5px var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2)}
+iframe{border:10px solid var(--ink);border-radius:44px;background:var(--paper);box-shadow:var(--sh-soft);max-width:100%}
+@media (max-width:760px){.mf-wrap{padding:20px 0 60px}.mf-wrap>header{padding:0 16px}.mf-grid{grid-template-columns:1fr}iframe{border:0;border-radius:0;width:100%}}
+</style>
+</head>
+<body data-shell="none">
+<main class="content" style="padding:0;max-width:none">
+<div class="mf-wrap"><header><span class="eyebrow red">★ Phone · 390 px</span><h1>Phone frames</h1><p class="ink2 mt8" style="max-width:70ch;font-size:17px">The same prototype pages at phone width. Every screen in the prototype is responsive, so any page can also be opened on a real phone. Bottom tabs: Home, Inbox, Maya, Orders, More.</p></header>
+<div class="mf-grid">
+<figure><figcaption>Home · Today</figcaption><iframe loading="lazy" src="index.html?frame=1&s=home" title="Home · Today" width="390" height="844"></iframe></figure>
+<figure><figcaption>More sheet</figcaption><iframe loading="lazy" src="index.html?frame=1&s=home/more" title="More sheet" width="390" height="844"></iframe></figure>
+<figure><figcaption>Tickets queue</figcaption><iframe loading="lazy" src="tickets.html?frame=1&s=tk-queue" title="Tickets queue" width="390" height="844"></iframe></figure>
+<figure><figcaption>Ticket detail</figcaption><iframe loading="lazy" src="tickets.html?frame=1&s=tk-ticket" title="Ticket detail" width="390" height="844"></iframe></figure>
+<figure><figcaption>Saved replies</figcaption><iframe loading="lazy" src="tickets.html?frame=1&s=tk-ticket/macros" title="Saved replies" width="390" height="844"></iframe></figure>
+<figure><figcaption>Confirm COD</figcaption><iframe loading="lazy" src="cod-voice.html?frame=1&s=or-today" title="Confirm COD" width="390" height="844"></iframe></figure>
+<figure><figcaption>Voice tracker</figcaption><iframe loading="lazy" src="cod-voice.html?frame=1&s=or-calls" title="Voice tracker" width="390" height="844"></iframe></figure>
+<figure><figcaption>Call recording</figcaption><iframe loading="lazy" src="cod-voice.html?frame=1&s=or-calls/call" title="Call recording" width="390" height="844"></iframe></figure>
+<figure><figcaption>WhatsApp overview</figcaption><iframe loading="lazy" src="whatsapp.html?frame=1&s=wa-home" title="WhatsApp overview" width="390" height="844"></iframe></figure>
+<figure><figcaption>New campaign wizard</figcaption><iframe loading="lazy" src="whatsapp.html?frame=1&s=wa-new" title="New campaign wizard" width="390" height="844"></iframe></figure>
+<figure><figcaption>Launch confirm</figcaption><iframe loading="lazy" src="whatsapp.html?frame=1&s=wa-new/launch" title="Launch confirm" width="390" height="844"></iframe></figure>
+<figure><figcaption>Campaign report</figcaption><iframe loading="lazy" src="whatsapp.html?frame=1&s=wa-report" title="Campaign report" width="390" height="844"></iframe></figure>
+<figure><figcaption>Email overview</figcaption><iframe loading="lazy" src="email.html?frame=1&s=em-home" title="Email overview" width="390" height="844"></iframe></figure>
+<figure><figcaption>Email builder</figcaption><iframe loading="lazy" src="email.html?frame=1&s=em-builder" title="Email builder" width="390" height="844"></iframe></figure>
+<figure><figcaption>Sales</figcaption><iframe loading="lazy" src="analytics.html?frame=1&s=an-overview" title="Sales" width="390" height="844"></iframe></figure>
+<figure><figcaption>Repeat & cohorts</figcaption><iframe loading="lazy" src="analytics.html?frame=1&s=an-retention" title="Repeat & cohorts" width="390" height="844"></iframe></figure>
+<figure><figcaption>Amazon</figcaption><iframe loading="lazy" src="analytics.html?frame=1&s=an-amazon" title="Amazon" width="390" height="844"></iframe></figure>
+<figure><figcaption>Maya answer</figcaption><iframe loading="lazy" src="maya.html?frame=1&s=maya-chat" title="Maya answer" width="390" height="844"></iframe></figure>
+<figure><figcaption>Creators board</figcaption><iframe loading="lazy" src="influencers.html?frame=1&s=inf-board" title="Creators board" width="390" height="844"></iframe></figure>
+<figure><figcaption>Collab page</figcaption><iframe loading="lazy" src="influencers.html?frame=1&s=inf-deal" title="Collab page" width="390" height="844"></iframe></figure>
+<figure><figcaption>Add collab</figcaption><iframe loading="lazy" src="influencers.html?frame=1&s=inf-board/add" title="Add collab" width="390" height="844"></iframe></figure>
+<figure><figcaption>Creator portal: brief</figcaption><iframe loading="lazy" src="portal.html?frame=1&s=pt-brief" title="Creator portal: brief" width="390" height="844"></iframe></figure>
+<figure><figcaption>Creator portal: draft</figcaption><iframe loading="lazy" src="portal.html?frame=1&s=pt-draft" title="Creator portal: draft" width="390" height="844"></iframe></figure>
+<figure><figcaption>B2B overview</figcaption><iframe loading="lazy" src="b2b.html?frame=1&s=b2b-home" title="B2B overview" width="390" height="844"></iframe></figure>
+<figure><figcaption>B2B review</figcaption><iframe loading="lazy" src="b2b.html?frame=1&s=b2b-review" title="B2B review" width="390" height="844"></iframe></figure>
+<figure><figcaption>Deals board</figcaption><iframe loading="lazy" src="b2b.html?frame=1&s=b2b-deals" title="Deals board" width="390" height="844"></iframe></figure>
+<figure><figcaption>Customers</figcaption><iframe loading="lazy" src="other.html?frame=1&s=cu-list" title="Customers" width="390" height="844"></iframe></figure>
+<figure><figcaption>Segments</figcaption><iframe loading="lazy" src="other.html?frame=1&s=cu-segments" title="Segments" width="390" height="844"></iframe></figure>
+<figure><figcaption>Team & access</figcaption><iframe loading="lazy" src="other.html?frame=1&s=set-team" title="Team & access" width="390" height="844"></iframe></figure>
+<figure><figcaption>Search</figcaption><iframe loading="lazy" src="index.html?frame=1&s=home/palette" title="Search" width="390" height="844"></iframe></figure>
+<figure><figcaption>Login</figcaption><iframe loading="lazy" src="public.html?frame=1&s=login" title="Login" width="390" height="844"></iframe></figure>
+</div><p class="footer-note">Illustrative data.</p></div>
+</main>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="manifest.js"></script>
+<script src="app.js"></script>
+<script>
+/* Keep the gallery at the top while the phone frames load (frames can nudge the page). Stops as soon as the viewer scrolls. */
+(function(){var user=false;['wheel','touchstart','keydown','mousedown'].forEach(function(e){addEventListener(e,function(){user=true},{passive:true})});
+var t0=Date.now();function hold(){if(user||Date.now()-t0>8000)return;if(scrollY!==0)scrollTo(0,0);requestAnimationFrame(hold)}hold();})();
+</script>
+</body>
+</html>

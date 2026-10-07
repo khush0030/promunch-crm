@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Email Marketing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+</head>
+<body data-nav="marketing" data-sub="email">
+<main class="content">
+
+<section class="screen" id="em-home" data-title="Email · Overview">
+  <header class="ph" data-tabs="em">
+    <div class="t"><span class="eyebrow">★ Marketing</span><h1>Email</h1><p class="sum">Email made <b>₹38,600</b> in 30 days, mostly from automations. 4,120 people can get your emails. Sending from <b>hello@promunch.in</b>.</p></div>
+    <div class="acts"><a class="btn primary" href="#em-builder"><i data-lucide="plus"></i>New campaign</a></div>
+  </header>
+  <div class="grid g3 kpis">
+    <div class="kpi"><span class="l">Revenue · 30 days</span><span class="v num red">₹38,600</span><span class="d">₹26,900 from automations</span></div>
+    <div class="kpi"><span class="l">Opened</span><span class="v num">41%</span><span class="d">India D2C average is about 30%</span></div>
+    <div class="kpi"><span class="l">Can email</span><span class="v num">4,120</span><span class="d"><span class="up">+212</span> from the popup this month</span></div>
+  </div>
+  <div class="grid g2 mt24">
+    <div class="card"><div class="ch"><h2>Needs approval</h2><span class="sp"></span><span class="pill warn">1</span></div>
+      <a class="row" href="#em-builder" style="padding:6px 0"><span class="ic info"><i data-lucide="mail"></i></span><div style="flex:1"><b>Bhai Dooj gift guide</b><p class="small muted">Riya sent it for approval 40 min ago · 2,860 people</p></div><span class="btn sm">Review</span></a></div>
+    <div class="card"><div class="ch"><h2>Automations</h2><span class="sp"></span><a class="link small" href="#em-flows">All 11</a></div>
+      <div class="divide">
+        <div class="row" style="padding:10px 0"><span class="small" style="flex:1"><b>Abandoned checkout</b></span><span class="small muted">₹14,200</span></div>
+        <div class="row" style="padding:10px 0"><span class="small" style="flex:1"><b>Welcome series</b></span><span class="small muted">₹7,300</span></div>
+        <div class="row" style="padding:10px 0"><span class="small" style="flex:1"><b>Post-purchase</b></span><span class="small muted">₹5,400</span></div>
+      </div></div>
+  </div>
+  <div class="note mt24"><i data-lucide="mail-check"></i><div><b>Sending health: good.</b> 99.2% delivered, 0.08% spam complaints. Every email has an unsubscribe link and only goes to people with an email who said yes.</div></div>
+  <p class="footer-note">Illustrative data.</p>
+</section>
+
+<section class="screen" id="em-campaigns" data-title="Email · Campaigns">
+  <header class="ph" data-tabs="em">
+    <div class="t"><span class="eyebrow">★ Marketing · Email</span><h1>Campaigns</h1><p class="sum">One email to many people. Every campaign is approved by an admin before it sends.</p></div>
+    <div class="acts"><a class="btn primary" href="#em-builder"><i data-lucide="plus"></i>New campaign</a></div>
+  </header>
+  <div class="chips" data-single style="margin-bottom:16px"><button class="chip on">All</button><button class="chip">Drafts <span class="n">2</span></button><button class="chip">Needs approval <span class="n">1</span></button><button class="chip">Scheduled</button><button class="chip">Sent</button></div>
+  <div class="card flush"><table class="tbl stack"><thead><tr><th>Campaign</th><th>Status</th><th class="r">People</th><th class="r">Opened</th><th class="r">Revenue</th></tr></thead><tbody>
+    <tr onclick="location.hash='em-builder'"><td class="main-cell"><b>Bhai Dooj gift guide</b><span>By Riya · 40 min ago</span></td><td data-l="Status"><span class="pill warn">Needs approval</span></td><td class="r" data-l="People">2,860</td><td class="r" data-l="Opened">·</td><td class="r" data-l="Revenue">·</td></tr>
+    <tr onclick="location.hash='em-report'"><td class="main-cell"><b>Diwali hampers are here</b><span>Sent 3 Oct · 3,940 people</span></td><td data-l="Status"><span class="pill nodot line">Sent</span></td><td class="r" data-l="People">3,940</td><td class="r" data-l="Opened">44%</td><td class="r" data-l="Revenue"><b>₹11,700</b></td></tr>
+    <tr onclick="location.hash='em-builder'"><td class="main-cell"><b>Crunchies vs makhana</b><span>Draft · edited 2 days ago</span></td><td data-l="Status"><span class="pill">Draft</span></td><td class="r" data-l="People">·</td><td class="r" data-l="Opened">·</td><td class="r" data-l="Revenue">·</td></tr>
+  </tbody></table></div>
+  <p class="footer-note">Illustrative data.</p>
+</section>
+
+<section class="screen" id="em-builder" data-title="Email · Campaign builder (4 steps)">
+  <div class="wiz">
+  <header class="ph">
+    <div class="t"><a class="back" href="#em-campaigns"><i data-lucide="arrow-left"></i>Campaigns</a><h1>Bhai Dooj gift guide</h1></div>
+    <div class="acts"><button class="btn ghost hide-m" data-open="em-test">Send me a test</button><button class="btn ghost" data-toast="Saved">Save</button></div>
+    <div style="flex-basis:100%" class="steps"><div class="step on"><span class="n">1</span><span>Write</span></div><i class="step-line"></i><div class="step"><span class="n">2</span><span>Who gets it</span></div><i class="step-line"></i><div class="step"><span class="n">3</span><span>Check</span></div><i class="step-line"></i><div class="step"><span class="n">4</span><span>Approve & send</span></div></div>
+  </header>
+  <div data-step>
+    <div class="grid g2" style="margin-bottom:16px"><div class="field"><label>Subject</label><input class="in" value="Gifts your brother will actually eat"></div><div class="field"><label>Preview text</label><input class="in" value="High-protein hampers from ₹599. Delivered before Bhai Dooj."></div></div>
+    <div class="editor">
+      <div class="pal"><span class="eyebrow">Add a block</span>
+        <button><i data-lucide="type"></i>Text</button><button><i data-lucide="image"></i>Picture</button><button><i data-lucide="mouse-pointer-click"></i>Button</button><button><i data-lucide="shopping-bag"></i>Products</button><button><i data-lucide="ticket-percent"></i>Coupon</button><button><i data-lucide="minus"></i>Divider</button>
+        <button class="mt16" data-open="em-ai" style="background:var(--sun-soft);border-color:#F2DC93"><i data-lucide="sparkle"></i>Write with Maya</button></div>
+      <div class="canvas ecanvas" style="border-radius:0">
+        <div class="email">
+          <div class="eh"><img src="assets/promunch-logo.png" alt="PROMUNCH"></div>
+          <div class="hero"><h4>Gifts he'll<br>actually eat.</h4><p>Bhai Dooj hampers from ₹599</p></div>
+          <div class="eb blk-sel">Skip the sweets box that sits in the fridge. Our hampers pack roasted edamame with up to 45g protein per 100g, plus Crunchies for the whole family.<br><a class="ebtn" href="#em-builder">Shop hampers</a></div>
+          <div class="prods"><div><i style="background:#1F8E9C"></i>Himalayan Rock Salt</div><div><i style="background:#6B3FA0"></i>Indori Chatka</div><div><i style="background:#EF5B31"></i>Masala Mania</div></div>
+          <div class="ef">PROMUNCH · Your Munchy Pal · Unsubscribe</div>
+        </div>
+      </div>
+      <div class="props"><span class="eyebrow" style="margin:0">Text block</span>
+        <div class="field"><label>Size</label><div class="seg"><button>S</button><button class="on">M</button><button>L</button></div></div>
+        <div class="field"><label>Align</label><div class="seg"><button class="on">Left</button><button>Centre</button></div></div>
+        <div class="note" style="font-size:14px"><i data-lucide="book-open-check"></i><div>Product facts are checked against the knowledge base. "45g protein" is right for Himalayan Rock Salt.</div></div>
+        <button class="btn danger sm"><i data-lucide="trash-2"></i>Remove block</button></div>
+    </div>
+  </div>
+  <div data-step hidden>
+    <h2>Who gets it?</h2>
+    <div class="grid g2 mt24" data-group>
+      <button class="radio-card on"><span class="rd"></span><div><b>Gift buyers</b><span>Bought a hamper or combo before · 2,860 with email</span></div></button>
+      <button class="radio-card"><span class="rd"></span><div><b>Everyone subscribed</b><span>4,120 people</span></div></button>
+      <button class="radio-card"><span class="rd"></span><div><b>Engaged in 90 days</b><span>Opened or clicked recently · 2,310</span></div></button>
+      <button class="radio-card"><span class="rd"></span><div><b>Build a segment</b><span>Pick rules in Customers</span></div></button>
+    </div>
+    <div class="note mt24"><i data-lucide="info"></i><div>Only people with an email address who said yes. 93% of buyers ordered with just a phone, so they get WhatsApp instead.</div></div>
+  </div>
+  <div data-step hidden>
+    <h2>Check it</h2>
+    <div class="card mt24"><div class="tl">
+      <div class="it done"><b>2,860 people · Gift buyers</b><span>12 unsubscribed people left out.</span></div>
+      <div class="it done"><b>From hello@promunch.in</b><span>Replies go to the support inbox.</span></div>
+      <div class="it done"><b>Links work and are tracked</b><span>3 links checked.</span></div>
+      <div class="it done"><b>Test sent to khush@promunch.in</b><span>9:58 am</span></div>
+      <div class="it now"><b>Needs an admin to approve</b><span>Khush or Parth.</span></div>
+    </div></div>
+  </div>
+  <div data-step hidden>
+    <h2>Approve and send</h2>
+    <div class="grid g2 mt24" data-group><button class="radio-card"><span class="rd"></span><div><b>Send now</b><span>Goes out in about 10 minutes</span></div></button><button class="radio-card on"><span class="rd"></span><div><b>Thu 23 Oct, 10:00 am</b><span>3 days before Bhai Dooj</span></div></button></div>
+    <div class="card inset mt24"><div class="row wrap"><div style="flex:1"><h3>Riya asked for approval</h3><p class="small muted">"Can you check the hamper prices before this goes?"</p></div><button class="btn danger" data-open="em-reject">Send back</button><button class="btn primary" data-open="em-approve">Approve & schedule</button></div></div>
+  </div>
+  <div class="wiz-foot"><button class="btn ghost" data-prev><i data-lucide="arrow-left"></i>Back</button><button class="btn dark" data-next>Continue<i data-lucide="arrow-right"></i></button></div>
+  </div>
+</section>
+
+<section class="screen" id="em-report" data-title="Email · Campaign report">
+  <header class="ph"><div class="t"><a class="back" href="#em-campaigns"><i data-lucide="arrow-left"></i>Campaigns</a><h1>Diwali hampers are here</h1><p class="sum">Sent 3 Oct to 3,940 people. <b>31 orders, ₹11,700.</b></p></div><div class="acts"><button class="btn" data-toast="Copied as a new draft">Duplicate</button></div></header>
+  <div class="grid g4 kpis">
+    <div class="kpi"><span class="l">Delivered</span><span class="v num">3,912</span><span class="d">99.3%</span></div>
+    <div class="kpi"><span class="l">Opened</span><span class="v num">44%</span><span class="d">1,721 people</span></div>
+    <div class="kpi"><span class="l">Clicked</span><span class="v num">6.1%</span><span class="d">239 people</span></div>
+    <div class="kpi"><span class="l">Revenue</span><span class="v num red">₹11,700</span><span class="d">31 orders</span></div>
+  </div>
+  <div class="grid g2 mt24">
+    <div class="card"><h2>Opens over 48 hours</h2><div class="chart mt16" data-chart='{"type":"area","fmt":"num","h":200,"labels":["10am","2pm","6pm","10pm","2am","6am","10am","2pm","6pm"],"series":[{"name":"Opens","color":"var(--s1)","data":[0,640,980,1260,1310,1350,1560,1660,1721]}]}'></div></div>
+    <div class="card"><h2>What they clicked</h2><div class="hbars mt16">
+      <div class="hb"><span class="lab">Shop hampers</span><div class="bar"><i style="width:100%"></i></div><span class="val">142</span></div>
+      <div class="hb"><span class="lab">Himalayan Rock Salt</span><div class="bar"><i style="width:43%"></i></div><span class="val">61</span></div>
+      <div class="hb"><span class="lab">Masala Mania</span><div class="bar"><i style="width:25%"></i></div><span class="val">36</span></div>
+    </div><p class="small muted mt16">9 unsubscribed (0.2%). 2 marked as spam.</p></div>
+  </div>
+</section>
+
+<section class="screen" id="em-flows" data-title="Email · Automations">
+  <header class="ph" data-tabs="em"><div class="t"><span class="eyebrow">★ Marketing · Email</span><h1>Automations</h1><p class="sum">11 always-on emails. <b>All live</b>, ₹26,900 in 30 days.</p></div></header>
+  <div class="card flush divide">
+    <a class="list-row" href="#em-flow"><span class="ic red"><i data-lucide="shopping-cart"></i></span><div class="tx"><b>Abandoned checkout</b><span>3 emails over 3 days · ₹14,200</span></div><span class="pill good">Live</span><i data-lucide="chevron-right"></i></a>
+    <a class="list-row" href="#em-flow"><span class="ic info"><i data-lucide="hand"></i></span><div class="tx"><b>Welcome series</b><span>3 emails after popup sign-up · ₹7,300</span></div><span class="pill good">Live</span><i data-lucide="chevron-right"></i></a>
+    <a class="list-row" href="#em-flow"><span class="ic good"><i data-lucide="package-check"></i></span><div class="tx"><b>Post-purchase</b><span>Thank you, how to enjoy, review ask · ₹5,400</span></div><span class="pill good">Live</span><i data-lucide="chevron-right"></i></a>
+    <a class="list-row" href="#em-flow"><span class="ic"><i data-lucide="eye"></i></span><div class="tx"><b>Browsed, didn't add</b><span>Waiting for the website tracking code</span></div><span class="pill warn">Not tracking yet</span><i data-lucide="chevron-right"></i></a>
+    <a class="list-row" href="#em-flow"><span class="ic"><i data-lucide="crown"></i></span><div class="tx"><b>VIP thank you</b><span>0 people qualify: VIP buyers haven't given an email yet</span></div><span class="pill good">Live</span><i data-lucide="chevron-right"></i></a>
+    <a class="list-row" href="#em-flow"><span class="ic"><i data-lucide="heart-crack"></i></span><div class="tx"><b>Win back</b><span>90 days with no order · 2 emails</span></div><span class="pill good">Live</span><i data-lucide="chevron-right"></i></a>
+    <a class="list-row" href="#em-flows" data-toast="5 more automations: Back in stock, Price drop, Birthday, Review follow-up, Sunset"><span class="ic"><i data-lucide="ellipsis"></i></span><div class="tx"><b>5 more</b><span>Back in stock, birthday, review follow-up and others</span></div><i data-lucide="chevron-down"></i></a>
+  </div>
+</section>
+
+<section class="screen" id="em-flow" data-title="Email · Automation detail">
+  <header class="ph"><div class="t"><a class="back" href="#em-flows"><i data-lucide="arrow-left"></i>Automations</a><div class="row wrap"><h1>Abandoned checkout</h1><span class="pill good">Live</span></div><p class="sum">Click any email to change the words. Changes apply to people entering from now.</p></div><div class="acts"><button class="btn" data-open="em-pause">Pause</button></div></header>
+  <div class="grid g-2-1">
+    <div class="card"><div class="flow">
+      <div class="node"><span class="ic red"><i data-lucide="shopping-cart"></i></span><div style="flex:1"><b>Leaves checkout with an email</b><p class="small muted">And has said yes to emails</p></div></div>
+      <div class="wire"></div><span class="wait">Wait 1 hour</span><div class="wire"></div>
+      <div class="node"><span class="ic info"><i data-lucide="mail"></i></span><div style="flex:1"><b>"You left something crunchy"</b><p class="small muted">52% opened · 8.2% clicked</p></div><button class="btn sm" data-open="em-edit">Edit</button></div>
+      <div class="wire"></div><span class="wait">Wait 1 day · stop if they buy</span><div class="wire"></div>
+      <div class="node"><span class="ic info"><i data-lucide="mail"></i></span><div style="flex:1"><b>"Still thinking? Here's what people say"</b><p class="small muted">Reviews · 44% opened</p></div><button class="btn sm" data-open="em-edit">Edit</button></div>
+      <div class="wire"></div><span class="wait">Wait 2 days</span><div class="wire"></div>
+      <div class="node"><span class="ic info"><i data-lucide="ticket-percent"></i></span><div style="flex:1"><b>"10% off, today only"</b><p class="small muted">Code PROMUNCH10</p></div><button class="btn sm" data-open="em-edit">Edit</button></div>
+    </div></div>
+    <div class="card"><h3>Last 30 days</h3><div class="stack mt16" style="gap:14px">
+      <div class="row"><span class="small" style="flex:1">Entered</span><b>318</b></div><div class="row"><span class="small" style="flex:1">Bought</span><b>34 · 10.7%</b></div><div class="row"><span class="small" style="flex:1">Revenue</span><b>₹14,200</b></div></div></div>
+  </div>
+</section>
+
+<section class="screen" id="em-templates" data-title="Email · Templates">
+  <header class="ph" data-tabs="em"><div class="t"><span class="eyebrow">★ Marketing · Email</span><h1>Templates</h1><p class="sum">Saved designs. Start a campaign from any of them.</p></div><div class="acts"><a class="btn primary" href="#em-template-edit"><i data-lucide="plus"></i>New template</a></div></header>
+  <div class="grid g3">
+    <a class="card" href="#em-template-edit" style="padding:14px"><div class="ecanvas" style="padding:14px"><div class="email" style="transform:scale(.9)"><div class="hero" style="padding:22px"><h4 style="font-size:20px">Festive drop</h4></div><div class="eb" style="padding:12px;font-size:12px">Hampers, gifting, launch</div></div></div><h3 class="mt16">Festive drop</h3><p class="small muted">Used 4 times</p></a>
+    <a class="card" href="#em-template-edit" style="padding:14px"><div class="ecanvas" style="padding:14px"><div class="email" style="transform:scale(.9)"><div class="hero" style="padding:22px;background-color:#1F8E9C"><h4 style="font-size:20px">New flavour</h4></div><div class="eb" style="padding:12px;font-size:12px">One product, big picture</div></div></div><h3 class="mt16">New flavour</h3><p class="small muted">Used 2 times</p></a>
+    <a class="card" href="#em-template-edit" style="padding:14px"><div class="ecanvas" style="padding:14px"><div class="email" style="transform:scale(.9)"><div class="hero" style="padding:22px;background-color:var(--ink)"><h4 style="font-size:20px">Plain letter</h4></div><div class="eb" style="padding:12px;font-size:12px">From the founder, text only</div></div></div><h3 class="mt16">Plain letter</h3><p class="small muted">Used 1 time</p></a>
+  </div>
+</section>
+
+<section class="screen" id="em-template-edit" data-title="Email · Template editor">
+  <header class="ph"><div class="t"><a class="back" href="#em-templates"><i data-lucide="arrow-left"></i>Templates</a><h1>Festive drop</h1></div><div class="acts"><div class="seg hide-m"><button class="on"><i data-lucide="monitor"></i></button><button><i data-lucide="smartphone"></i></button></div><button class="btn primary" data-toast="Template saved">Save template</button></div></header>
+  <div class="editor">
+    <div class="pal"><span class="eyebrow">Add a block</span><button><i data-lucide="type"></i>Text</button><button><i data-lucide="image"></i>Picture</button><button><i data-lucide="mouse-pointer-click"></i>Button</button><button><i data-lucide="shopping-bag"></i>Products</button><button><i data-lucide="ticket-percent"></i>Coupon</button></div>
+    <div class="canvas ecanvas" style="border-radius:0"><div class="email"><div class="eh"><img src="assets/promunch-logo.png" alt="PROMUNCH"></div><div class="hero"><h4>Your headline<br>goes here.</h4><p>One line that says why</p></div><div class="eb">Write 2 or 3 short sentences. Keep it about the snack and the moment.<br><span class="ebtn">Shop now</span></div><div class="ef">PROMUNCH · Your Munchy Pal · Unsubscribe</div></div></div>
+    <div class="props"><span class="eyebrow" style="margin:0">Brand</span><p class="small ink2">Colours and fonts come from Settings → Brand & email, so every template matches.</p><a class="btn sm" href="other.html#set-brand">Open brand settings</a></div>
+  </div>
+</section>
+
+<section class="screen" id="em-results" data-title="Email · Results">
+  <header class="ph" data-tabs="em"><div class="t"><span class="eyebrow">★ Marketing · Email</span><h1>Results</h1><p class="sum">How email is doing, and whether inboxes still trust you.</p></div><div class="acts"><div class="seg"><button>7 days</button><button class="on">30 days</button><button>90 days</button></div></div></header>
+  <div class="grid g3 kpis">
+    <div class="kpi"><span class="l">Revenue</span><span class="v num red">₹38,600</span><span class="d"><span class="up">▲ 22%</span> vs previous 30 days</span></div>
+    <div class="kpi"><span class="l">Per email sent</span><span class="v num">₹2.90</span><span class="d">13,310 emails</span></div>
+    <div class="kpi"><span class="l">List growth</span><span class="v num">+5.4%</span><span class="d">212 joined · 31 left</span></div>
+  </div>
+  <div class="grid g2 mt24">
+    <div class="card"><h2>Revenue by week</h2><div class="chart mt16" data-chart='{"type":"bar","stacked":1,"fmt":"inr","h":220,"labels":["8 Sep","15 Sep","22 Sep","29 Sep","6 Oct"],"series":[{"name":"Automations","color":"var(--s5)","data":[5100,6200,6600,6100,2900]},{"name":"Campaigns","color":"var(--s1)","data":[0,0,0,11700,0]}]}'></div></div>
+    <div class="card"><h2>Inbox trust</h2><div class="stack mt16" style="gap:18px">
+      <div><div class="row"><span class="small" style="flex:1">Delivered</span><b>99.2%</b></div><div class="bar good mt8"><i style="width:99%"></i></div></div>
+      <div><div class="row"><span class="small" style="flex:1">Bounced</span><b>0.6%</b></div><div class="bar warn mt8"><i style="width:6%"></i></div></div>
+      <div><div class="row"><span class="small" style="flex:1">Spam complaints</span><b>0.08%</b></div><div class="bar good mt8"><i style="width:3%"></i></div><p class="small muted mt8">Keep under 0.1%. You're fine.</p></div>
+    </div></div>
+  </div>
+</section>
+
+</main>
+
+<div class="overlay" id="em-test" data-title="Send test email" data-host="em-builder"><div class="modal"><div class="mh"><div style="flex:1"><h2>Send me a test</h2><p>Check it in a real inbox before anyone else sees it.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div><div class="field"><label>Email</label><input class="in" value="khush@promunch.in"></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn dark" data-toast="Test sent to khush@promunch.in">Send test</button></div></div></div>
+<div class="overlay" id="em-ai" data-title="Write with Maya (AI copy)" data-host="em-builder"><div class="modal"><div class="mh"><span class="ic sun"><i data-lucide="sparkle"></i></span><div style="flex:1"><h2>Write with Maya</h2><p>Maya writes from the knowledge base, so product facts stay right.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div><div class="field"><label>What's this email about?</label><textarea class="ta">Bhai Dooj gift hampers, playful, short. Mention free shipping over ₹599.</textarea></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn sun" data-toast="Maya wrote 3 options. Pick one in the editor.">Write it</button></div></div></div>
+<div class="overlay" id="em-approve" data-title="Approve and schedule" data-host="em-builder"><div class="modal"><div class="mh"><span class="ic good"><i data-lucide="check"></i></span><div style="flex:1"><h2>Approve for Thu 23 Oct, 10 am?</h2><p>2,860 people. Riya will be told it's approved.</p></div></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><a class="btn primary" href="#em-campaigns" data-toast="Approved and scheduled">Approve</a></div></div></div>
+<div class="overlay" id="em-reject" data-title="Send back with a note" data-host="em-builder"><div class="modal"><div class="mh"><div style="flex:1"><h2>Send back to Riya</h2><p>Say what to change. It goes back to draft.</p></div></div><textarea class="ta">Hamper price is ₹899 now, not ₹849. Fix the hero and the button.</textarea><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn dark" data-toast="Sent back to Riya">Send back</button></div></div></div>
+<div class="overlay" id="em-pause" data-title="Pause email automation" data-host="em-flow"><div class="modal"><div class="mh"><div style="flex:1"><h2>Pause abandoned checkout?</h2><p>People already in it stop where they are. New carts won't enter.</p></div></div><div class="mf"><button class="btn ghost" data-close>Keep live</button><button class="btn dark" data-toast="Paused" data-undo>Pause</button></div></div></div>
+<div class="overlay right" id="em-edit" data-title="Edit automation email (click-to-edit)" data-host="em-flow"><div class="drawer wide"><div class="dh"><div class="t"><span class="eyebrow">★ Email 1 of 3</span><h2>You left something crunchy</h2></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="db"><div class="field"><label>Subject</label><input class="in" value="You left something crunchy"></div>
+  <div class="ecanvas mt16"><div class="email"><div class="eh"><img src="assets/promunch-logo.png" alt="PROMUNCH"></div><div class="eb blk-sel">Hi Priya, your Masala Mania edamame is waiting in your cart. 42g protein per 100g, roasted in olive oil, and it's a click away.<br><span class="ebtn">Finish my order</span></div><div class="ef">PROMUNCH · Your Munchy Pal · Unsubscribe</div></div></div></div>
+  <div class="df"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Saved. Applies to new carts from now.">Save</button></div></div></div>
+
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="manifest.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

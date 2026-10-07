@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Customers and Settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+</head>
+<body data-nav="customers">
+<main class="content">
+
+<!-- ============ CUSTOMERS ============ -->
+<section class="screen" id="cu-list" data-title="Customers · List">
+  <header class="ph" data-tabs="cu">
+    <div class="t"><span class="eyebrow">★ Customers</span><h1>Customers</h1><p class="sum"><b>6,284 people</b> who bought or signed up. 5,910 reachable on WhatsApp, 4,120 by email.</p></div>
+    <div class="acts"><button class="btn hide-m" data-open="import"><i data-lucide="upload"></i>Import</button><button class="btn primary" data-open="new-contact"><i data-lucide="plus"></i>Add customer</button></div>
+  </header>
+  <div class="row wrap" style="margin-bottom:16px"><div class="in-icon" style="flex:1;min-width:220px;max-width:420px"><i data-lucide="search"></i><input class="in" placeholder="Name, phone, email or city" style="height:44px"></div><div class="chips" data-single><button class="chip on">All</button><button class="chip">Bought 2+ times</button><button class="chip">WhatsApp yes</button><button class="chip">Email yes</button></div></div>
+  <div class="card flush"><table class="tbl stack"><thead><tr><th>Customer</th><th class="r">Orders</th><th class="r">Spent</th><th>Last order</th><th>Group</th></tr></thead><tbody>
+    <tr onclick="location.hash='cu-profile'"><td class="main-cell"><b>Priya Sharma</b><span>Pune · +91 98XXX X1042</span></td><td class="r" data-l="Orders">6</td><td class="r" data-l="Spent"><b>₹4,812</b></td><td data-l="Last order">2 Oct</td><td data-l="Group"><span class="pill red">Champion</span></td></tr>
+    <tr onclick="location.hash='cu-profile'"><td class="main-cell"><b>Meera Nair</b><span>Kochi · +91 94XXX X1187</span></td><td class="r" data-l="Orders">5</td><td class="r" data-l="Spent"><b>₹3,910</b></td><td data-l="Last order">5 Oct</td><td data-l="Group"><span class="pill red">Loyal</span></td></tr>
+    <tr onclick="location.hash='cu-profile'"><td class="main-cell"><b>Rahul Verma</b><span>Indore · rahul.v@gmail.com</span></td><td class="r" data-l="Orders">2</td><td class="r" data-l="Spent"><b>₹1,248</b></td><td data-l="Last order">14 Aug</td><td data-l="Group"><span class="pill warn">At risk</span></td></tr>
+    <tr onclick="location.hash='cu-profile'"><td class="main-cell"><b>Ananya Iyer</b><span>Chennai · +91 99XXX X8830</span></td><td class="r" data-l="Orders">1</td><td class="r" data-l="Spent"><b>₹749</b></td><td data-l="Last order">Today</td><td data-l="Group"><span class="pill good">New</span></td></tr>
+  </tbody></table></div>
+  <p class="footer-note">Illustrative data.</p>
+</section>
+
+<section class="screen" id="cu-profile" data-title="Customers · Profile">
+  <header class="ph"><div class="t"><a class="back" href="#cu-list"><i data-lucide="arrow-left"></i>Customers</a><div class="row wrap"><span class="av lg red">PS</span><div><h1 style="text-transform:none">Priya Sharma</h1><p class="small muted">Pune · customer since Jan · WhatsApp yes · email yes</p></div><span class="pill red">Champion</span></div></div>
+    <div class="acts"><a class="btn" href="tickets.html#tk-chats"><i data-lucide="message-circle"></i>Message</a><button class="btn icon ghost" data-menu="cu-menu" aria-label="More"><i data-lucide="ellipsis"></i></button><div class="menu" id="cu-menu"><button data-open="new-contact"><i data-lucide="pencil"></i>Edit details</button><button data-toast="Data export ready"><i data-lucide="download"></i>Export her data</button><button class="dz" data-open="anonymize"><i data-lucide="user-x"></i>Delete personal data</button></div></div></header>
+  <div class="grid g4 kpis"><div class="kpi"><span class="l">Spent</span><span class="v num">₹4,812</span></div><div class="kpi"><span class="l">Orders</span><span class="v num">6</span></div><div class="kpi"><span class="l">Every</span><span class="v num">31 days</span></div><div class="kpi"><span class="l">Favourite</span><span class="v" style="font-size:20px">Masala Mania</span></div></div>
+  <div class="grid g-2-1 mt24">
+    <div class="card flush"><div class="ch" style="padding:22px 22px 0"><h2>Orders</h2></div><table class="tbl stack mt16"><tbody>
+      <tr onclick="location.href='cod-voice.html#or-all/order'"><td class="main-cell"><b>#PM-2790</b><span>2 Oct · Masala Mania × 2, Crunchies</span></td><td class="r" data-l="Total">₹747</td><td data-l="Status"><span class="pill good">Delivered</span></td></tr>
+      <tr><td class="main-cell"><b>#PM-2611</b><span>1 Sep · Diwali hamper</span></td><td class="r" data-l="Total">₹899</td><td data-l="Status"><span class="pill good">Delivered</span></td></tr>
+      <tr><td class="main-cell"><b>#PM-2420</b><span>2 Aug · Mixed pack</span></td><td class="r" data-l="Total">₹849</td><td data-l="Status"><span class="pill good">Delivered</span></td></tr></tbody></table></div>
+    <div class="card"><h3>Activity</h3><div class="tl mt16"><div class="it done"><b>Read "Diwali hamper launch"</b><span>WhatsApp · 5 Oct</span></div><div class="it done"><b>Rated support 5 stars</b><span>Ticket #1102 · 18 Sep</span></div><div class="it done"><b>Opened "New flavour" email</b><span>14 Sep</span></div></div></div>
+  </div>
+</section>
+
+<section class="screen" id="cu-segments" data-title="Customers · Segments (shared by WhatsApp and email)">
+  <header class="ph" data-tabs="cu"><div class="t"><span class="eyebrow">★ Customers</span><h1>Segments</h1><p class="sum">Saved groups of customers. WhatsApp and email campaigns both pick from here. They update by themselves every night.</p></div><div class="acts"><button class="btn primary" data-open="seg-new"><i data-lucide="plus"></i>New segment</button></div></header>
+  <div class="card flush divide">
+    <div class="list-row"><span class="ic red"><i data-lucide="crown"></i></span><div class="tx"><b>Champions</b><span>Bought 4+ times, last order within 45 days</span></div><span class="small muted d-only">186 · WA 180 · email 61</span><a class="btn sm" href="whatsapp.html#wa-new">Message</a></div>
+    <div class="list-row"><span class="ic sun"><i data-lucide="flame"></i></span><div class="tx"><b>Warm buyers</b><span>Bought in 90 days or chatted in 30 days</span></div><span class="small muted d-only">1,040</span><a class="btn sm" href="whatsapp.html#wa-new">Message</a></div>
+    <div class="list-row"><span class="ic warn"><i data-lucide="hourglass"></i></span><div class="tx"><b>At risk</b><span>Was regular, nothing in 60 days</span></div><span class="small muted d-only">344</span><a class="btn sm" href="whatsapp.html#wa-new">Message</a></div>
+    <div class="list-row"><span class="ic info"><i data-lucide="leaf"></i></span><div class="tx"><b>Edamame fans, no Crunchies</b><span>Custom · made by Riya</span></div><span class="small muted d-only">702</span><a class="btn sm" href="whatsapp.html#wa-new">Message</a></div>
+    <div class="list-row"><span class="ic"><i data-lucide="gift"></i></span><div class="tx"><b>Gift buyers</b><span>Bought a hamper or combo</span></div><span class="small muted d-only">2,860</span><a class="btn sm" href="email.html#em-builder">Email</a></div>
+  </div>
+  <div class="note mt24"><i data-lucide="shield-check"></i><div>WhatsApp campaigns only reach people who said yes to WhatsApp; email only people with an email who said yes. Imported order phones are never cold-blasted.</div></div>
+</section>
+
+<section class="screen" id="cu-popup" data-title="Customers · Sign-up popup and chat button">
+  <header class="ph" data-tabs="cu"><div class="t"><span class="eyebrow">★ Customers · grow your list</span><h1>Sign-up popup</h1><p class="sum">On promunch.in. <b>212 people joined</b> this month (3.1% of visitors). They get PROMUNCH10.</p></div><div class="acts"><span class="small muted hide-m">Live</span><button class="switch on" aria-label="Live"></button><button class="btn primary" data-toast="Popup published to promunch.in">Publish</button></div></header>
+  <div class="split">
+    <div class="stack">
+      <div class="seg"><button class="on">Popup</button><button>Chat button</button></div>
+      <div class="card stack"><div class="field"><label>Headline</label><input class="in" value="Get 10% off your first crunch"></div><div class="field"><label>Ask for</label><div class="chips" data-multi><button class="chip on">WhatsApp number</button><button class="chip on">Email</button><button class="chip">Birthday</button></div></div><div class="field"><label>Show after</label><select class="sel"><option>8 seconds, or when leaving</option></select></div><div class="field"><label>Picture</label><div class="row"><span class="pack hr">HRS</span><button class="btn sm">Change</button></div></div></div>
+      <div class="card"><h3>Put it on the website</h3><p class="small muted mt8">Already installed on promunch.in. Nothing to do.</p></div>
+    </div>
+    <div class="aside"><div class="frame-label">Preview · phone</div>
+      <div class="phone" style="background:#fff"><div style="background:var(--surface);padding:18px;min-height:420px;display:flex;flex-direction:column;justify-content:flex-end;background-image:linear-gradient(rgba(26,23,20,.45),rgba(26,23,20,.45))"><div style="background:#fff;border-radius:18px;padding:20px"><span class="sticker">10% off</span><h3 class="mt8" style="font:400 22px/1.1 var(--f-display);text-transform:uppercase">Get 10% off your first crunch</h3><input class="in mt16" placeholder="WhatsApp number" style="height:42px"><input class="in mt8" placeholder="Email (optional)" style="height:42px"><button class="btn primary block mt16">Get my code</button></div></div></div></div>
+  </div>
+</section>
+
+<!-- ============ SETTINGS ============ -->
+<section class="screen" id="set-home" data-title="Settings · Connections and health" data-nav="settings">
+  <header class="ph" data-tabs="set"><div class="t"><span class="eyebrow">★ Settings</span><h1>Settings</h1><p class="sum"><b>All 8 connections are working.</b> Last check 2 minutes ago.</p></div></header>
+  <div class="card flush divide">
+    <div class="list-row"><span class="ic good"><i data-lucide="shopping-bag"></i></span><div class="tx"><b>Shopify</b><span>Last order synced 9:38 am</span></div><span class="pill good">Working</span></div>
+    <div class="list-row"><span class="ic good"><i data-lucide="message-circle"></i></span><div class="tx"><b>WhatsApp (Meta)</b><span>Quality high · 250 marketing messages a day</span></div><span class="pill good">Working</span></div>
+    <div class="list-row"><span class="ic good"><i data-lucide="package"></i></span><div class="tx"><b>Amazon</b><span>Synced 9:10 am</span></div><span class="pill good">Working</span></div>
+    <div class="list-row"><span class="ic good"><i data-lucide="mail"></i></span><div class="tx"><b>Email sending (Resend)</b><span>hello@promunch.in · domain verified</span></div><span class="pill good">Working</span></div>
+    <div class="list-row"><span class="ic good"><i data-lucide="inbox"></i></span><div class="tx"><b>Support mailbox (Gmail)</b><span>Read 4 min ago</span></div><span class="pill good">Working</span></div>
+    <div class="list-row"><span class="ic good"><i data-lucide="phone-call"></i></span><div class="tx"><b>Voice agent (Sarvam)</b><span>Last call 9:51 am</span></div><span class="pill good">Working</span></div>
+    <div class="list-row"><span class="ic"><i data-lucide="instagram"></i></span><div class="tx"><b>Instagram DMs</b><span>Switched off until Meta approves access</span></div><span class="pill">Off</span></div>
+    <div class="list-row"><span class="ic"><i data-lucide="message-square"></i></span><div class="tx"><b>Slack</b><span>Retired. Alerts now come on WhatsApp.</span></div><span class="pill">Retired</span></div>
+  </div>
+  <div class="row mt24"><a class="btn" href="#set-home/notif-settings"><i data-lucide="bell"></i>My notifications</a></div>
+</section>
+
+<section class="screen" id="set-team" data-title="Settings · Team and area access" data-nav="settings">
+  <header class="ph" data-tabs="set"><div class="t"><span class="eyebrow">★ Settings</span><h1>Team & access</h1><p class="sum">5 people. Choose which areas each person can open.</p></div><div class="acts"><button class="btn primary" data-open="invite"><i data-lucide="user-plus"></i>Invite</button></div></header>
+  <div class="card flush"><table class="tbl stack"><thead><tr><th>Person</th><th>Role</th><th>Can open</th><th></th></tr></thead><tbody>
+    <tr><td class="main-cell"><b>Khush Mutha</b><span>kmutha@vippysoya.com</span></td><td data-l="Role"><span class="pill ink nodot">Owner</span></td><td data-l="Can open">Everything</td><td></td></tr>
+    <tr><td class="main-cell"><b>Parth</b><span>parth@trypromunch.in</span></td><td data-l="Role"><span class="pill nodot">Admin</span></td><td data-l="Can open">Everything</td><td></td></tr>
+    <tr><td class="main-cell"><b>Narendra</b><span>ops@promunch.in</span></td><td data-l="Role"><span class="pill nodot line">Agent</span></td><td data-l="Can open">Home, Inbox, Orders</td><td class="r"><button class="btn sm" data-open="access">Change</button></td></tr>
+    <tr><td class="main-cell"><b>Riya</b><span>digital@promunch.in</span></td><td data-l="Role"><span class="pill nodot line">Agent</span></td><td data-l="Can open">Marketing, Creators, Customers</td><td class="r"><button class="btn sm" data-open="access">Change</button></td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="screen" id="set-keys" data-title="Settings · API keys (owner only)" data-nav="settings">
+  <header class="ph" data-tabs="set"><div class="t"><span class="eyebrow">★ Settings · owner only</span><h1>API keys</h1><p class="sum">Keys for the services the CRM talks to. Changing one takes effect within a minute, no redeploy.</p></div></header>
+  <div class="card flush divide">
+    <div class="list-row"><span class="ic"><i data-lucide="key-round"></i></span><div class="tx"><b>OpenAI</b><span>sk-…9f2A · changed 12 Sep by Khush</span></div><button class="btn sm" data-open="rotate">Replace</button></div>
+    <div class="list-row"><span class="ic"><i data-lucide="key-round"></i></span><div class="tx"><b>Resend</b><span>re_…U4 · changed 21 Jul</span></div><button class="btn sm" data-open="rotate">Replace</button></div>
+    <div class="list-row"><span class="ic"><i data-lucide="key-round"></i></span><div class="tx"><b>Google Places</b><span>AIza…k0 · changed 2 Jul</span></div><button class="btn sm" data-open="rotate">Replace</button></div>
+    <div class="list-row"><span class="ic warn"><i data-lucide="key-round"></i></span><div class="tx"><b>Anymail finder</b><span>Not set · B2B email finding uses the free method</span></div><button class="btn sm" data-open="rotate">Add</button></div>
+  </div>
+</section>
+
+<section class="screen" id="set-brand" data-title="Settings · Brand and email" data-nav="settings">
+  <header class="ph" data-tabs="set"><div class="t"><span class="eyebrow">★ Settings</span><h1>Brand & email</h1><p class="sum">Used by every email, popup and creator page.</p></div><div class="acts"><button class="btn primary" data-toast="Saved">Save</button></div></header>
+  <div class="grid g2">
+    <div class="card stack"><div class="field"><label>Brand name</label><input class="in" value="PROMUNCH"></div><div class="field"><label>Tagline</label><input class="in" value="Your Munchy Pal"></div><div class="field"><label>Colours</label><div class="row"><span class="av" style="background:#AF272F"></span><span class="av" style="background:#1A1714"></span><span class="av" style="background:#F4F1EA;border:1px solid var(--hair)"></span><span class="av" style="background:#FEBD11"></span></div></div></div>
+    <div class="card stack"><div class="field"><label>Send emails from</label><input class="in" value="hello@promunch.in"></div><div class="field"><label>Replies go to</label><input class="in" value="support@promunch.in"></div><div class="field"><label>Footer address</label><textarea class="ta" style="min-height:80px">(your registered PROMUNCH postal address)</textarea></div><div class="row"><span class="pill good">SPF</span><span class="pill good">DKIM</span><span class="pill good">DMARC</span><span class="small muted">Checked live</span></div></div>
+  </div>
+</section>
+
+<section class="screen" id="set-security" data-title="Settings · Security (sign-ins, sessions, activity log)" data-nav="settings">
+  <header class="ph" data-tabs="set"><div class="t"><span class="eyebrow">★ Settings · admins only</span><h1>Security</h1><p class="sum">Who signed in, from where, and what they changed. <b>No unusual sign-ins</b> this week.</p></div></header>
+  <div class="seg" style="margin-bottom:16px"><button class="on">Signed in now</button><button>Activity log</button></div>
+  <div class="card flush"><table class="tbl stack"><thead><tr><th>Person</th><th>Device</th><th>Where</th><th>Last active</th><th></th></tr></thead><tbody>
+    <tr><td class="main-cell"><b>Khush Mutha</b><span>This device</span></td><td data-l="Device">Mac · Chrome</td><td data-l="Where">Indore</td><td data-l="Last active">Now</td><td></td></tr>
+    <tr><td class="main-cell"><b>Narendra</b><span>ops@promunch.in</span></td><td data-l="Device">Android · Chrome</td><td data-l="Where">Indore</td><td data-l="Last active">4 min ago</td><td class="r"><button class="btn sm danger" data-open="signout">Sign out</button></td></tr>
+    <tr><td class="main-cell"><b>Riya</b><span>digital@promunch.in</span></td><td data-l="Device">Windows · Edge</td><td data-l="Where">Mumbai</td><td data-l="Last active">1 h ago</td><td class="r"><button class="btn sm danger" data-open="signout">Sign out</button></td></tr>
+  </tbody></table></div>
+  <div class="sec-h"><h2>Recent changes</h2></div>
+  <div class="card"><div class="tl">
+    <div class="it done"><b>Riya sent "Bhai Dooj gift guide" for approval</b><span>Today 9:20 am</span></div>
+    <div class="it done"><b>Khush replaced the OpenAI key</b><span>12 Sep, 6:02 pm</span></div>
+    <div class="it done"><b>Parth changed Narendra's access</b><span>10 Sep · added Orders</span></div></div></div>
+</section>
+
+<!-- ============ SYSTEM STATES ============ -->
+<section class="screen" id="no-access" data-title="No access (restricted area)" data-nav="home">
+  <div class="card mt40"><div class="empty"><div class="art"><i data-lucide="lock"></i></div><h3>This area is locked for you</h3><p>Ask Khush or Parth to give you access to Insights in Settings → Team & access.</p><a class="btn mt8" href="index.html#home">Back to Home</a></div></div>
+</section>
+<section class="screen" id="error" data-title="Error and offline states" data-nav="home">
+  <header class="ph"><div class="t"><span class="eyebrow">★ States</span><h1>When things break</h1><p class="sum">Every page uses the same 3 patterns. Plain words, one action.</p></div></header>
+  <div class="grid g3">
+    <div class="card"><div class="empty" style="padding:28px 10px"><div class="art"><i data-lucide="cloud-off"></i></div><h3>Couldn't load orders</h3><p class="small">Shopify didn't answer. Your data is safe.</p><button class="btn sm mt8" data-toast="Trying again…">Try again</button></div></div>
+    <div class="card"><div class="note warn"><i data-lucide="clock"></i><div><b>Amazon numbers are 6 hours old.</b> The last sync failed. <a class="link" href="#set-home">Check connection</a></div></div></div>
+    <div class="card"><div class="stack" style="gap:10px"><div class="bar" style="height:16px;background:var(--surface-3)"><i style="width:0"></i></div><div style="height:16px;width:70%;border-radius:8px;background:var(--surface-3)"></div><div style="height:16px;width:85%;border-radius:8px;background:var(--surface-3)"></div><p class="small muted mt8">Loading: grey shapes, never spinners over numbers.</p></div></div>
+  </div>
+</section>
+<section class="screen" id="retired" data-title="Retired screens (Instagram, Brevo, legacy email)" data-nav="settings">
+  <header class="ph"><div class="t"><span class="eyebrow">★ Cleanup</span><h1>Retired pages</h1><p class="sum">Old links still work and land on the new place, with a one-line note.</p></div></header>
+  <div class="card flush divide">
+    <div class="list-row"><span class="ic"><i data-lucide="instagram"></i></span><div class="tx"><b>Instagram (DMs, collabs, discovery, tasks)</b><span>DMs return inside Inbox as a channel when Meta approves. Creator discovery moves into Creators.</span></div><a class="btn sm" href="influencers.html#inf-creators">Go to Creators</a></div>
+    <div class="list-row"><span class="ic"><i data-lucide="mail"></i></span><div class="tx"><b>Brevo email hub (7 tabs)</b><span>Replaced by Email. Coupons move to Email → Automations; SMS stays off.</span></div><a class="btn sm" href="email.html#em-home">Go to Email</a></div>
+    <div class="list-row"><span class="ic"><i data-lucide="history"></i></span><div class="tx"><b>Old email campaigns and flows</b><span>Read-only history inside Email → Campaigns → Sent.</span></div><a class="btn sm" href="email.html#em-campaigns">Go to Email</a></div>
+  </div>
+</section>
+
+</main>
+
+<div class="overlay" id="import" data-title="Import customers (CSV)" data-host="cu-list"><div class="modal"><div class="mh"><div style="flex:1"><h2>Import customers</h2><p>CSV with name, phone and/or email. We'll show what matches before anything changes.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div><button class="radio-card" style="justify-content:center;flex-direction:column;align-items:center;padding:30px;border-style:dashed"><i data-lucide="upload"></i><b>Choose a CSV file</b><span>or drop it here</span></button><div class="row mt16"><button class="check on" data-tog aria-label="Consent"></button><span class="small">These people agreed to hear from PROMUNCH</span></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="412 rows read. 398 new, 14 already here.">Check file</button></div></div></div>
+<div class="overlay right" id="new-contact" data-title="Add or edit customer" data-host="cu-list"><div class="drawer"><div class="dh"><div class="t"><h2>Add customer</h2></div><button class="x" data-close><i data-lucide="x"></i></button></div><div class="db stack"><div class="field"><label>Name</label><input class="in"></div><div class="field"><label>WhatsApp number</label><input class="in" placeholder="+91"></div><div class="field"><label>Email (optional)</label><input class="in"></div><div class="field"><label>City</label><input class="in"></div></div><div class="df"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Customer added">Save</button></div></div></div>
+<div class="overlay" id="anonymize" data-title="Delete personal data (GDPR)" data-host="cu-profile"><div class="modal"><div class="mh"><span class="ic bad"><i data-lucide="user-x"></i></span><div style="flex:1"><h2>Delete Priya's personal data?</h2><p>Name, phone, email and address are wiped. Orders stay for accounts, without her details. This can't be undone.</p></div></div><div class="field"><label>Type DELETE to confirm</label><input class="in"></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn danger" data-toast="Personal data deleted">Delete data</button></div></div></div>
+<div class="overlay right" id="seg-new" data-title="Segment builder" data-host="cu-segments"><div class="drawer wide"><div class="dh"><div class="t"><span class="eyebrow">★ New segment</span><h2>Who's in it?</h2></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="db stack"><div class="field"><label>Name</label><input class="in" value="Masala Mania fans in Mumbai"></div>
+  <div class="card inset stack" style="gap:10px"><div class="row wrap"><span class="small muted" style="width:50px">Who</span><select class="sel" style="flex:1;min-width:160px"><option>Bought product</option></select><select class="sel" style="flex:1;min-width:160px"><option>Masala Mania</option></select></div><div class="row wrap"><span class="small muted" style="width:50px">and</span><select class="sel" style="flex:1;min-width:160px"><option>City is</option></select><input class="in" style="flex:1;min-width:160px" value="Mumbai"></div><button class="btn sm ghost" style="align-self:flex-start"><i data-lucide="plus"></i>Add a rule</button></div>
+  <div class="row"><span class="big-count">318</span><p class="small muted">people now · 301 on WhatsApp · 96 by email</p></div></div>
+  <div class="df"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Segment saved">Save segment</button></div></div></div>
+<div class="overlay" id="access" data-title="Choose areas a member can open" data-host="set-team"><div class="modal"><div class="mh"><div style="flex:1"><h2>What can Narendra open?</h2><p>Unticked areas are hidden for him.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="stack" style="gap:12px"><div class="row"><button class="check on" data-tog></button><span style="flex:1">Home & Ask Maya</span></div><div class="row"><button class="check on" data-tog></button><span style="flex:1">Inbox</span></div><div class="row"><button class="check on" data-tog></button><span style="flex:1">Orders & COD</span></div><div class="row"><button class="check" data-tog></button><span style="flex:1">Marketing</span></div><div class="row"><button class="check" data-tog></button><span style="flex:1">Creators</span></div><div class="row"><button class="check" data-tog></button><span style="flex:1">B2B & deals</span></div><div class="row"><button class="check" data-tog></button><span style="flex:1">Customers</span></div><div class="row"><button class="check" data-tog></button><span style="flex:1">Insights</span></div></div>
+  <div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Access updated. Applies on his next page load.">Save</button></div></div></div>
+<div class="overlay" id="invite" data-title="Invite teammate" data-host="set-team"><div class="modal"><div class="mh"><div style="flex:1"><h2>Invite someone</h2><p>They get a PROMUNCH email to set a password.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div><div class="field"><label>Work email</label><input class="in" placeholder="name@promunch.in"></div><div class="field mt16"><label>Role</label><div class="seg"><button class="on">Agent</button><button>Admin</button></div></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Invite sent">Send invite</button></div></div></div>
+<div class="overlay" id="rotate" data-title="Replace an API key" data-host="set-keys"><div class="modal"><div class="mh"><div style="flex:1"><h2>Replace OpenAI key</h2><p>We test the new key before saving. The old one keeps working until then.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div><div class="field"><label>New key</label><input class="in" type="password" value="sk-xxxxxxxxxxxxxxxx"></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Key works. Saved.">Test & save</button></div></div></div>
+<div class="overlay" id="signout" data-title="Sign out a session" data-host="set-security"><div class="modal"><div class="mh"><div style="flex:1"><h2>Sign Narendra out of Android?</h2><p>He'll need to sign in again on that phone.</p></div></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn danger" data-toast="Signed out">Sign out</button></div></div></div>
+<div class="overlay right" id="notif-settings" data-title="My notification settings" data-host="set-home"><div class="drawer"><div class="dh"><div class="t"><h2>My notifications</h2></div><button class="x" data-close><i data-lucide="x"></i></button></div><div class="db stack">
+  <div class="row"><div style="flex:1"><b>Sound for chats assigned to me</b></div><button class="switch on"></button></div>
+  <div class="row"><div style="flex:1"><b>WhatsApp me when a ticket is overdue</b></div><button class="switch on"></button></div>
+  <div class="row"><div style="flex:1"><b>Morning digest at 9 am</b></div><button class="switch on"></button></div>
+  <div class="row"><div style="flex:1"><b>Daily sales summary</b></div><button class="switch"></button></div></div><div class="df"><button class="btn primary" data-toast="Saved">Save</button></div></div></div>
+
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="manifest.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ask Maya</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+.mwrap{max-width:860px;margin:0 auto}
+.ask{position:sticky;bottom:20px;z-index:5;background:var(--surface);border:1.5px solid var(--ink);border-radius:20px;padding:10px 10px 10px 18px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh-soft);margin-top:28px}
+.ask input{flex:1;border:0;outline:0;font-size:17px;background:none;min-width:0}
+.uq{align-self:flex-end;background:var(--ink);color:#fff;border-radius:18px 18px 6px 18px;padding:12px 16px;font-size:16px;max-width:80%;margin-left:auto}
+.mhead{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.mhead .ic{width:34px;height:34px;border-radius:11px;background:var(--sun);color:var(--ink)}
+.acts-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;padding-top:16px;border-top:1px solid var(--hair-2)}
+@media (max-width:760px){.ask{bottom:86px}}
+</style>
+</head>
+<body data-nav="maya">
+<main class="content">
+
+<section class="screen" id="maya-home" data-title="Maya · Ask (start)">
+  <div class="mwrap">
+  <header class="ph" data-tabs="maya"><div class="t"><span class="eyebrow" style="color:var(--sun-ink)">★ Your data, plain answers</span><h1>Ask Maya</h1><p class="sum">Ask about sales, customers, orders, WhatsApp, email, Amazon or creators. Maya answers with numbers and a chart, and shows where they came from.</p></div></header>
+  <div class="grid g2">
+    <div class="card"><span class="eyebrow">Sales</span><div class="stack" style="gap:8px">
+      <a class="qcard" href="#maya-chat"><i data-lucide="corner-down-right"></i>Why are sales up this week?</a>
+      <a class="qcard" href="#maya-chat"><i data-lucide="corner-down-right"></i>Which flavour do repeat buyers pick second?</a></div></div>
+    <div class="card"><span class="eyebrow">Customers</span><div class="stack" style="gap:8px">
+      <a class="qcard" href="#maya-chat"><i data-lucide="corner-down-right"></i>Who should get the Diwali offer?</a>
+      <a class="qcard" href="#maya-chat"><i data-lucide="corner-down-right"></i>How many champions haven't ordered in 30 days?</a></div></div>
+    <div class="card"><span class="eyebrow">Orders & COD</span><div class="stack" style="gap:8px">
+      <a class="qcard" href="#maya-chat"><i data-lucide="corner-down-right"></i>How much did COD calls save us this month?</a>
+      <a class="qcard" href="#maya-chat"><i data-lucide="corner-down-right"></i>Which cities return the most COD orders?</a></div></div>
+    <div class="card"><span class="eyebrow">Marketing</span><div class="stack" style="gap:8px">
+      <a class="qcard" href="#maya-chat"><i data-lucide="corner-down-right"></i>Best WhatsApp campaign this quarter?</a>
+      <a class="qcard" href="#maya-chat"><i data-lucide="corner-down-right"></i>Is email or WhatsApp better for restock?</a></div></div>
+  </div>
+  <div class="ask"><i data-lucide="sparkle" style="color:var(--sun-ink)"></i><input placeholder="Ask anything…" aria-label="Ask Maya"><a class="btn sun" href="#maya-chat">Ask</a></div>
+  </div>
+</section>
+
+<section class="screen" id="maya-chat" data-title="Maya · Answer with chart and table">
+  <div class="mwrap">
+  <header class="ph" style="margin-bottom:16px"><div class="t"><a class="back" href="#maya-home"><i data-lucide="arrow-left"></i>New question</a></div><div class="acts"><button class="btn sm ghost" data-toast="Chat cleared">Clear</button></div></header>
+  <div class="stack" style="gap:18px">
+    <div class="uq">Why are sales up this week?</div>
+    <div class="maya-ans">
+      <div class="mhead"><span class="ic"><i data-lucide="sparkle"></i></span><b>Maya</b><span class="small muted">· looked at 236 orders, 2 campaigns</span></div>
+      <p style="font-size:17px">Sales are up <b>12% (₹19,700)</b> on last week. Three things did it:</p>
+      <ol class="mt8" style="padding-left:20px;line-height:1.8">
+        <li><b>Diwali WhatsApp campaign:</b> 38 orders, ₹31,420.</li>
+        <li><b>Hampers lifted the average order</b> from ₹744 to ₹778.</li>
+        <li><b>Amazon held steady</b> (+2%), so the gain is almost all website.</li>
+      </ol>
+      <div class="card inset mt16"><h3>Website sales, this week vs last</h3><div class="chart mt16" data-chart='{"type":"line","fmt":"inr","h":200,"labels":["Wed","Thu","Fri","Sat","Sun","Mon","Tue"],"series":[{"name":"This week","color":"var(--s1)","data":[17200,19900,18800,22100,26900,24400,20800]},{"name":"Last week","color":"#CFC7B9","dash":1,"data":[16100,16900,15300,18800,19900,18200,17100]}]}'></div></div>
+      <div class="card flush mt16"><table class="tbl stack"><thead><tr><th>Source</th><th class="r">Orders</th><th class="r">Sales</th></tr></thead><tbody>
+        <tr><td class="main-cell"><b>WhatsApp campaign</b></td><td class="r" data-l="Orders">38</td><td class="r" data-l="Sales">₹31,420</td></tr>
+        <tr><td class="main-cell"><b>Instagram</b></td><td class="r" data-l="Orders">52</td><td class="r" data-l="Sales">₹38,100</td></tr>
+        <tr><td class="main-cell"><b>Email automations</b></td><td class="r" data-l="Orders">14</td><td class="r" data-l="Sales">₹9,860</td></tr></tbody></table></div>
+      <div class="acts-row"><button class="btn sm" data-open="save-ans"><i data-lucide="bookmark"></i>Save</button><button class="btn sm" data-toast="Pinned to Home"><i data-lucide="pin"></i>Pin to Home</button><button class="btn sm ghost" data-open="sources"><i data-lucide="database"></i>How Maya got this</button><span class="sp"></span><button class="btn sm ghost icon" data-toast="Thanks, noted" aria-label="Good answer"><i data-lucide="thumbs-up"></i></button><button class="btn sm ghost icon" data-toast="Thanks. We'll look at this one." aria-label="Bad answer"><i data-lucide="thumbs-down"></i></button></div>
+    </div>
+    <div class="row wrap" style="gap:8px"><span class="small muted">Ask next:</span><button class="chip">Who were the 38 buyers?</button><button class="chip">Send them a thank-you</button><button class="chip">Compare with Navratri</button></div>
+  </div>
+  <div class="ask"><i data-lucide="sparkle" style="color:var(--sun-ink)"></i><input placeholder="Ask a follow-up…" aria-label="Ask Maya"><button class="btn sun">Ask</button></div>
+  </div>
+</section>
+
+<section class="screen" id="maya-thinking" data-title="Maya · Thinking and can't-answer states">
+  <div class="mwrap"><header class="ph"><div class="t"><a class="back" href="#maya-home"><i data-lucide="arrow-left"></i>New question</a></div></header>
+  <div class="stack" style="gap:18px">
+    <div class="uq">How many champions haven't ordered in 30 days?</div>
+    <div class="maya-ans"><div class="mhead"><span class="ic"><i data-lucide="loader"></i></span><b>Maya is checking</b></div><div class="tl"><div class="it done"><b>Found the Champions group</b><span>186 people</span></div><div class="it now"><b>Checking their last order dates</b><span>shopify_orders</span></div></div></div>
+    <div class="uq">What's our Flipkart revenue?</div>
+    <div class="maya-ans"><div class="mhead"><span class="ic"><i data-lucide="circle-help"></i></span><b>Maya</b></div><p>I don't have Flipkart data. I can see the website, Amazon, HYPD, WhatsApp, email, tickets and creators. Want Amazon instead?</p><div class="row mt16" style="gap:8px"><button class="chip">Yes, Amazon</button></div></div>
+  </div></div>
+</section>
+
+<section class="screen" id="maya-saved" data-title="Maya · Saved answers">
+  <div class="mwrap">
+  <header class="ph" data-tabs="maya"><div class="t"><span class="eyebrow" style="color:var(--sun-ink)">★ Ask Maya</span><h1>Saved answers</h1><p class="sum">Questions you ask often. Each one refreshes with today's numbers when you open it.</p></div></header>
+  <div class="card flush divide">
+    <a class="list-row" href="#maya-chat"><span class="ic sun"><i data-lucide="chart-line"></i></span><div class="tx"><b>Why are sales up this week?</b><span>Saved by Khush · pinned to Home</span></div><span class="pill sun">Pinned</span></a>
+    <a class="list-row" href="#maya-chat"><span class="ic sun"><i data-lucide="phone-call"></i></span><div class="tx"><b>COD savings this month</b><span>Saved by Narendra · refreshed today 9:00 am</span></div></a>
+    <a class="list-row" href="#maya-chat"><span class="ic sun"><i data-lucide="users"></i></span><div class="tx"><b>Champions who went quiet</b><span>Saved by Riya · used for 2 campaigns</span></div></a>
+  </div>
+  </div>
+</section>
+
+</main>
+
+<div class="overlay" id="save-ans" data-title="Save an answer" data-host="maya-chat"><div class="modal"><div class="mh"><div style="flex:1"><h2>Save this answer</h2><p>It re-runs with fresh numbers whenever someone opens it.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="field"><label>Name</label><input class="in" value="Why are sales up this week?"></div>
+  <div class="row mt16"><button class="check on" data-tog aria-label="Share"></button><span>Share with the team</span></div>
+  <div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn sun" data-toast="Saved to Saved answers">Save</button></div></div></div>
+<div class="overlay right" id="sources" data-title="How Maya got this (sources)" data-host="maya-chat"><div class="drawer"><div class="dh"><div class="t"><span class="eyebrow">★ Sources</span><h2>How Maya got this</h2></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="db"><div class="tl"><div class="it done"><b>Website orders, 24 Sep to 7 Oct</b><span>236 orders · HYPD seeds left out</span></div><div class="it done"><b>WhatsApp campaign results</b><span>Orders within 7 days of reading</span></div><div class="it done"><b>Amazon orders</b><span>Last synced 9:10 am</span></div></div><p class="small muted mt24">Maya only reads data. She can't send messages or change orders.</p></div></div></div>
+
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="manifest.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

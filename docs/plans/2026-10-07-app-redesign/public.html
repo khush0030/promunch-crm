@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign In Pages</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+.auth{min-height:calc(100vh - 36px);display:grid;grid-template-columns:1fr 1fr}
+body.framed .auth{min-height:100vh}
+.auth .art{background:var(--red);color:#fff;padding:48px;display:flex;flex-direction:column;justify-content:space-between;background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px)}
+.auth .art .lg{background:#fff;border-radius:14px;padding:12px 16px;display:inline-flex;align-self:flex-start}
+.auth .art .lg img{height:20px}
+.auth .art h1{font-size:clamp(44px,5.5vw,84px);line-height:.95}
+.auth .form{display:flex;align-items:center;justify-content:center;padding:32px 20px;background:var(--paper)}
+.auth .form .card{width:min(420px,100%);padding:32px}
+.solo{min-height:calc(100vh - 36px);display:flex;align-items:center;justify-content:center;padding:24px 16px}
+body.framed .solo{min-height:100vh}
+@media (max-width:760px){.auth{grid-template-columns:1fr}.auth .art{padding:24px 20px 28px;gap:28px}.auth .art h1{font-size:40px}.auth .form .card{padding:22px}}
+</style>
+</head>
+<body data-shell="none">
+<main class="content" style="padding:0;max-width:none">
+
+<section class="screen" id="login" data-title="Login">
+  <div class="auth"><div class="art"><span class="lg"><img src="assets/promunch-logo.png" alt="PROMUNCH"></span><h1>Crunch<br>the numbers.</h1><span class="mono" style="opacity:.85">★ PROMUNCH CRM · YOUR MUNCHY PAL</span></div>
+    <div class="form"><div class="card"><h2>Sign in</h2><p class="ink2 mt8">Use your PROMUNCH work email.</p>
+      <div class="field mt24"><label>Email</label><input class="in" value="riya@promunch.in"></div>
+      <div class="field mt16"><label>Password</label><input class="in" type="password" value="xxxxxxxxxx"></div>
+      <a class="btn primary block lg mt24" href="index.html#home">Sign in</a>
+      <button class="btn ghost block mt8" data-toast="Magic link sent. Check your email.">Email me a sign-in link</button>
+      <p class="small muted mt16">Only promunch.in, trypromunch.in and vippysoya.com emails can sign in.</p></div></div></div>
+</section>
+
+<section class="screen" id="set-password" data-title="Set password (invite link)">
+  <div class="auth"><div class="art"><span class="lg"><img src="assets/promunch-logo.png" alt="PROMUNCH"></span><h1>Welcome<br>to the crew.</h1><span class="mono" style="opacity:.85">★ Khush invited you</span></div>
+    <div class="form"><div class="card"><h2>Set your password</h2><p class="ink2 mt8">For riya@promunch.in</p>
+      <div class="field mt24"><label>New password</label><input class="in" type="password" value="xxxxxxxxxxxx"><span class="hint">At least 10 characters. Strong.</span></div>
+      <div class="bar good mt8"><i style="width:85%"></i></div>
+      <a class="btn primary block lg mt24" href="index.html#home/welcome">Save and open the CRM</a></div></div></div>
+</section>
+
+<section class="screen" id="unsub" data-title="Email unsubscribe page (/u/[token])">
+  <div class="solo"><div class="card" style="width:min(460px,100%);text-align:center;padding:36px 28px"><img src="assets/promunch-logo.png" alt="PROMUNCH" style="height:22px;margin:0 auto"><div class="empty" style="padding:28px 0 8px"><div class="art"><i data-lucide="mail-x"></i></div><h3>You're unsubscribed</h3><p>priya@gmail.com won't get marketing emails from PROMUNCH any more. Order updates still arrive.</p><button class="btn mt8" data-toast="Welcome back! You're subscribed again.">Oops, subscribe me again</button></div><p class="mono muted mt16">★ Your Munchy Pal</p></div></div>
+</section>
+
+<section class="screen" id="short-link" data-title="WhatsApp short link (/r/[code], redirect)">
+  <div class="solo"><div class="card" style="width:min(460px,100%);text-align:center"><div class="empty" style="padding:24px 0"><div class="art"><i data-lucide="link"></i></div><h3>Taking you to PROMUNCH</h3><p>/r/ links count the click and jump to promunch.in instantly. This page only shows if the jump is slow.</p><a class="btn primary mt8" href="#short-link">Continue to promunch.in</a></div></div></div>
+</section>
+
+<section class="screen" id="not-found" data-title="404 page">
+  <div class="solo"><div class="card" style="width:min(480px,100%)"><div class="empty"><div class="art"><i data-lucide="search-x"></i><span class="sticker">404</span></div><h3>Chips could never find this page</h3><p>The link is old or mistyped. Search from Home, or press ⌘K.</p><a class="btn primary mt8" href="index.html#home">Go to Home</a></div></div></div>
+</section>
+
+</main>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="manifest.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

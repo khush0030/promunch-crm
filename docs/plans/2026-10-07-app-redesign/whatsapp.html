@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WhatsApp Marketing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+</head>
+<body data-nav="marketing" data-sub="whatsapp">
+<main class="content">
+
+<!-- ============ OVERVIEW ============ -->
+<section class="screen" id="wa-home" data-title="WhatsApp · Overview">
+  <header class="ph" data-tabs="wa">
+    <div class="t"><span class="eyebrow">★ Marketing</span><h1>WhatsApp</h1><p class="sum">WhatsApp made <b>₹62,140</b> in the last 30 days. Your account is healthy and you can send <b>250 marketing messages</b> today.</p></div>
+    <div class="acts"><a class="btn hide-m" href="#wa-template-new">New template</a><a class="btn primary" href="#wa-new"><i data-lucide="plus"></i>New campaign</a></div>
+  </header>
+  <div class="grid g3 kpis">
+    <div class="kpi"><span class="l">Revenue · 30 days</span><span class="v num red">₹62,140</span><span class="d">71 orders from campaigns and automations</span></div>
+    <div class="kpi"><span class="l">Read rate</span><span class="v num">78%</span><span class="d"><span class="up">▲ 6 pts</span> vs previous 30 days</span></div>
+    <div class="kpi"><span class="l">Can send today</span><span class="v num">250</span><span class="d">Meta's daily marketing limit · resets 5:30 am</span></div>
+  </div>
+  <div class="grid g-2-1 mt24">
+    <div class="card">
+      <div class="ch"><h2>Last campaign</h2><span class="sp"></span><a class="link small" href="#wa-report">Full report</a></div>
+      <div class="row wrap" style="gap:18px">
+        <div style="flex:1;min-width:220px"><h3>Diwali hamper launch</h3><p class="small muted">Sent 5 Oct · 1,040 people · Warm buyers segment</p>
+          <div class="funnel mt16">
+            <div class="fn"><span class="lab">Delivered</span><div><div class="b" style="width:96%">998</div></div><span class="val">96%</span></div>
+            <div class="fn"><span class="lab">Read</span><div><div class="b l2" style="width:78%">812</div></div><span class="val">78%</span></div>
+            <div class="fn"><span class="lab">Clicked</span><div><div class="b l3" style="width:21%">214</div></div><span class="val">21%</span></div>
+            <div class="fn"><span class="lab">Ordered</span><div><div class="b l4" style="width:6%">38</div></div><span class="val">₹31,420</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="card"><h3>Coming up</h3>
+        <div class="divide mt8">
+          <a class="row" style="padding:12px 0" href="#wa-report"><span class="pill info">Scheduled</span><span class="small" style="flex:1">Restock: Indori Chatka</span><span class="small muted">Thu 11 am</span></a>
+          <a class="row" style="padding:12px 0" href="#wa-new"><span class="pill">Draft</span><span class="small" style="flex:1">Bhai Dooj gifting</span><span class="small muted">Not set</span></a>
+        </div></div>
+      <div class="card"><h3>Automations working for you</h3><p class="small muted mt8">5 on · 3,212 messages this month</p><a class="btn sm mt16" href="#wa-flows">Open automations</a></div>
+    </div>
+  </div>
+  <div class="note mt24"><i data-lucide="shield-check"></i><div><b>Your account health is good.</b> Quality rating: High. 0.4% of people blocked or reported you this month (under 2% is safe). Only people who opted in get campaigns, and every message has a STOP option.</div></div>
+  <p class="footer-note">Illustrative data.</p>
+</section>
+
+<!-- ============ CAMPAIGNS LIST ============ -->
+<section class="screen" id="wa-campaigns" data-title="WhatsApp · Campaigns">
+  <header class="ph" data-tabs="wa">
+    <div class="t"><span class="eyebrow">★ Marketing · WhatsApp</span><h1>Campaigns</h1><p class="sum">One message to many people. 1 sending, 1 scheduled, 2 drafts.</p></div>
+    <div class="acts"><a class="btn primary" href="#wa-new"><i data-lucide="plus"></i>New campaign</a></div>
+  </header>
+  <div class="row wrap" style="margin-bottom:16px"><div class="chips" data-single><button class="chip on">All</button><button class="chip">Drafts <span class="n">2</span></button><button class="chip">Scheduled <span class="n">1</span></button><button class="chip">Sent</button></div><span class="sp"></span><div class="in-icon d-only" style="width:260px"><i data-lucide="search"></i><input class="in" placeholder="Search campaigns" style="height:40px"></div></div>
+  <div class="card flush">
+    <table class="tbl stack">
+      <thead><tr><th>Campaign</th><th>Status</th><th class="r">People</th><th class="r">Read</th><th class="r">Revenue</th><th></th></tr></thead>
+      <tbody>
+        <tr onclick="location.hash='wa-report'"><td class="main-cell"><b>Diwali hamper launch</b><span>Sent 5 Oct, 11:00 am · Warm buyers</span></td><td data-l="Status"><span class="pill good">Sending</span></td><td class="r" data-l="People">1,040</td><td class="r" data-l="Read">78%</td><td class="r" data-l="Revenue"><b>₹31,420</b></td><td class="r hide-m"><i data-lucide="chevron-right"></i></td></tr>
+        <tr onclick="location.hash='wa-report'"><td class="main-cell"><b>Restock: Indori Chatka</b><span>Thu 9 Oct, 11:00 am · Bought Indori Chatka before</span></td><td data-l="Status"><span class="pill info">Scheduled</span></td><td class="r" data-l="People">486</td><td class="r" data-l="Read">·</td><td class="r" data-l="Revenue">·</td><td class="r hide-m"><i data-lucide="chevron-right"></i></td></tr>
+        <tr onclick="location.hash='wa-new'"><td class="main-cell"><b>Bhai Dooj gifting</b><span>Edited yesterday by Riya</span></td><td data-l="Status"><span class="pill">Draft</span></td><td class="r" data-l="People">·</td><td class="r" data-l="Read">·</td><td class="r" data-l="Revenue">·</td><td class="r hide-m"><i data-lucide="chevron-right"></i></td></tr>
+        <tr onclick="location.hash='wa-report'"><td class="main-cell"><b>Navratri combo · follow-up</b><span>Sent 28 Sep · people who read but didn't buy</span></td><td data-l="Status"><span class="pill nodot line">Sent</span></td><td class="r" data-l="People">402</td><td class="r" data-l="Read">71%</td><td class="r" data-l="Revenue"><b>₹9,880</b></td><td class="r hide-m"><i data-lucide="chevron-right"></i></td></tr>
+        <tr onclick="location.hash='wa-report'"><td class="main-cell"><b>Navratri combo</b><span>Sent 24 Sep · Everyone opted in</span></td><td data-l="Status"><span class="pill nodot line">Sent</span></td><td class="r" data-l="People">1,212</td><td class="r" data-l="Read">74%</td><td class="r" data-l="Revenue"><b>₹27,300</b></td><td class="r hide-m"><i data-lucide="chevron-right"></i></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="footer-note">Illustrative data.</p>
+</section>
+
+<section class="screen" id="wa-campaigns-empty" data-title="WhatsApp · Campaigns (empty state)">
+  <header class="ph" data-tabs="wa" data-active="wa-campaigns"><div class="t"><span class="eyebrow">★ Marketing · WhatsApp</span><h1>Campaigns</h1><p class="sum">One message to many people.</p></div></header>
+  <div class="card"><div class="empty"><div class="art"><i data-lucide="send"></i><span class="sticker">First one</span></div><h3>No campaigns yet</h3><p>Pick who gets it, pick an approved message, check the preview, send. Takes about 3 minutes.</p><a class="btn primary mt8" href="#wa-new">Create your first campaign</a></div></div>
+</section>
+
+<!-- ============ NEW CAMPAIGN WIZARD ============ -->
+<section class="screen" id="wa-new" data-title="WhatsApp · New campaign (4 steps)">
+  <div class="wiz">
+  <header class="ph">
+    <div class="t"><a class="back" href="#wa-campaigns"><i data-lucide="arrow-left"></i>Campaigns</a><h1>New campaign</h1></div>
+    <div class="acts"><button class="btn ghost" data-toast="Draft saved">Save draft</button></div>
+    <div style="flex-basis:100%" class="steps"><div class="step on"><span class="n">1</span><span>Who gets it</span></div><i class="step-line"></i><div class="step"><span class="n">2</span><span>Message</span></div><i class="step-line"></i><div class="step"><span class="n">3</span><span>Check</span></div><i class="step-line"></i><div class="step"><span class="n">4</span><span>Send</span></div></div>
+  </header>
+  <div class="split">
+    <div>
+      <!-- step 1 -->
+      <div data-step>
+        <h2>Who should get this?</h2><p class="ink2 mt8">Only people who said yes to WhatsApp messages are ever included.</p>
+        <div class="stack mt24" data-group style="gap:12px">
+          <button class="radio-card on"><span class="rd"></span><div><b>A customer segment</b><span>Ready-made groups like "Warm buyers" or "Bought Edamame, not Crunchies"</span></div></button>
+          <button class="radio-card"><span class="rd"></span><div><b>People who got an earlier campaign</b><span>For example: read it but didn't buy</span></div></button>
+          <button class="radio-card"><span class="rd"></span><div><b>Upload a list</b><span>CSV of phone numbers. We keep only opted-in ones.</span></div></button>
+        </div>
+        <div class="card mt24">
+          <span class="lbl">Pick segments</span>
+          <div class="chips mt16" data-multi>
+            <button class="chip on">Warm buyers · 1,040</button><button class="chip">Champions · 186</button><button class="chip">Bought once · 612</button><button class="chip">At risk · 344</button><button class="chip">Edamame fans · 702</button><button class="chip">Never bought · 290</button>
+          </div>
+          <hr class="hr">
+          <div class="row wrap"><div style="flex:1"><span class="big-count">1,040</span><p class="small muted">people will get this</p></div><div class="note warn" style="flex:2;min-width:240px"><i data-lucide="gauge"></i><div>Meta lets you send <b>250 today</b>. We'll send over <b>5 days</b>, oldest buyers first, and never message anyone twice.</div></div></div>
+        </div>
+      </div>
+      <!-- step 2 -->
+      <div data-step hidden>
+        <h2>Pick the message</h2><p class="ink2 mt8">Only Meta-approved marketing templates show here. Need a new one? <a class="link" href="#wa-template-new">Create a template</a>.</p>
+        <div class="stack mt24" data-group style="gap:12px">
+          <button class="radio-card on"><span class="rd"></span><div><b>Festive hamper (with picture)</b><span>Approved 2 Oct · used in 1 campaign · 78% read</span></div></button>
+          <button class="radio-card"><span class="rd"></span><div><b>New flavour drop</b><span>Approved 14 Sep · used in 3 campaigns · 72% read</span></div></button>
+          <button class="radio-card"><span class="rd"></span><div><b>Come back offer (coupon)</b><span>Approved 2 Aug · used in 2 campaigns · 66% read</span></div></button>
+        </div>
+        <div class="card mt24"><span class="lbl">Fill the blanks</span>
+          <div class="grid g2 mt16">
+            <div class="field"><label>Customer name</label><select class="sel"><option>Their first name (fallback: "there")</option></select></div>
+            <div class="field"><label>Button link</label><input class="in" value="promunch.in/collections/gift-hamper"><span class="hint">We add tracking automatically.</span></div>
+          </div>
+        </div>
+      </div>
+      <!-- step 3 -->
+      <div data-step hidden>
+        <h2>Check it, in plain words</h2>
+        <div class="card mt24">
+          <div class="tl">
+            <div class="it done"><b>1,040 people</b><span>Warm buyers segment, all opted in. 18 who replied STOP are left out.</span></div>
+            <div class="it done"><b>"Festive hamper" with the hamper picture</b><span>Name becomes their first name, or "there" if we don't know it.</span></div>
+            <div class="it done"><b>250 a day, over 5 days</b><span>Starts when you press Send. You can pause any time.</span></div>
+            <div class="it now"><b>Send yourself a test first</b><span>Goes to +91 98XXX X4210 (you). Required once per campaign.</span></div>
+          </div>
+          <div class="row mt24"><button class="btn" data-open="test-send"><i data-lucide="smartphone"></i>Send me a test</button><span class="pill good">Test delivered 9:52 am</span></div>
+        </div>
+      </div>
+      <!-- step 4 -->
+      <div data-step hidden>
+        <h2>When should it go?</h2>
+        <div class="stack mt24" data-group style="gap:12px">
+          <button class="radio-card on"><span class="rd"></span><div><b>Now</b><span>First 250 go out in the next 30 minutes.</span></div></button>
+          <button class="radio-card"><span class="rd"></span><div><b>Schedule</b><span>Best time for your customers: 11 am to 1 pm.</span></div></button>
+        </div>
+        <div class="card inset mt24"><div class="row wrap"><div style="flex:1"><h3>Ready to send to 1,040 people</h3><p class="small muted">Expected: about ₹25k to ₹35k based on your last 3 campaigns.</p></div><button class="btn primary lg" data-open="launch">Send campaign</button></div></div>
+      </div>
+      <div class="wiz-foot"><button class="btn ghost" data-prev><i data-lucide="arrow-left"></i>Back</button><button class="btn dark" data-next>Continue<i data-lucide="arrow-right"></i></button></div>
+    </div>
+    <div class="aside">
+      <div class="frame-label">Preview on a phone</div>
+      <div class="phone"><div class="ph-top"><span class="av">PM</span>PROMUNCH</div>
+        <div class="ph-body"><div class="wa-b"><div class="img">DIWALI HAMPER</div>Hi Priya, Diwali gifting sorted. 9 pouches of roasted edamame and Crunchies in one festive box, ₹899 with free shipping.<br><br>Your Munchy Pal, PROMUNCH<div class="ft">Reply STOP to unsubscribe</div><div class="btns"><span>Shop the hamper</span></div></div></div>
+      </div>
+    </div>
+  </div>
+  </div>
+</section>
+
+<!-- ============ CAMPAIGN REPORT ============ -->
+<section class="screen" id="wa-report" data-title="WhatsApp · Campaign report">
+  <header class="ph">
+    <div class="t"><a class="back" href="#wa-campaigns"><i data-lucide="arrow-left"></i>Campaigns</a><div class="row wrap"><h1>Diwali hamper launch</h1><span class="pill good">Sending · day 4 of 5</span></div><p class="sum">So far <b>38 orders worth ₹31,420</b> from 812 people who read it. That's ₹30 back for every ₹1 Meta charged.</p></div>
+    <div class="acts"><button class="btn hide-m" data-open="pause">Pause</button><button class="btn primary" data-open="followup">Add a follow-up</button><button class="btn icon ghost" data-menu="rep-menu" aria-label="More"><i data-lucide="ellipsis"></i></button>
+      <div class="menu" id="rep-menu"><button data-toast="Copied as a new draft"><i data-lucide="copy"></i>Duplicate</button><button data-toast="CSV downloading"><i data-lucide="download"></i>Download results</button><button class="dz" data-open="cancel-camp"><i data-lucide="circle-x"></i>Stop sending</button></div></div>
+  </header>
+  <div class="grid g4 kpis">
+    <div class="kpi"><span class="l">Delivered</span><span class="v num">998</span><span class="d">96% of 1,040</span></div>
+    <div class="kpi"><span class="l">Read</span><span class="v num">812</span><span class="d">78%</span></div>
+    <div class="kpi"><span class="l">Clicked</span><span class="v num">214</span><span class="d">21%</span></div>
+    <div class="kpi"><span class="l">Orders</span><span class="v num red">38</span><span class="d">₹31,420 · avg ₹827</span></div>
+  </div>
+  <div class="grid g-2-1 mt24">
+    <div class="card"><div class="ch"><div><h2>Orders by day</h2><p>Orders within 7 days of reading the message.</p></div></div>
+      <div class="chart" data-chart='{"type":"bar","fmt":"num","h":220,"labels":["Sun 5","Mon 6","Tue 7","Wed 8","Thu 9"],"series":[{"name":"Orders","color":"var(--s1)","data":[14,11,8,5,0]}]}'></div></div>
+    <div class="card"><h2>Didn't reach 42 people</h2>
+      <div class="divide mt16">
+        <div class="row" style="padding:10px 0"><span class="small" style="flex:1">Number not on WhatsApp</span><b>21</b></div>
+        <div class="row" style="padding:10px 0"><span class="small" style="flex:1">Meta's daily limit, will retry</span><b>14</b></div>
+        <div class="row" style="padding:10px 0"><span class="small" style="flex:1">Phone switched off for 30 days</span><b>7</b></div>
+      </div><p class="small muted mt16">None of these are a problem with your message.</p></div>
+  </div>
+  <div class="card mt24"><div class="row wrap"><span class="ic sun"><i data-lucide="lightbulb"></i></span><div style="flex:1;min-width:220px"><h3>Suggested follow-up</h3><p class="small ink2">598 people read it but didn't click. A reminder 3 days later usually brings 30% more orders.</p></div><button class="btn" data-open="followup">Set it up</button></div></div>
+  <p class="footer-note">Illustrative data.</p>
+</section>
+
+<!-- ============ TEMPLATES ============ -->
+<section class="screen" id="wa-templates" data-title="WhatsApp · Templates">
+  <header class="ph" data-tabs="wa">
+    <div class="t"><span class="eyebrow">★ Marketing · WhatsApp</span><h1>Templates</h1><p class="sum">Messages Meta has approved. Campaigns and automations can only use these.</p></div>
+    <div class="acts"><a class="btn primary" href="#wa-template-new"><i data-lucide="plus"></i>New template</a></div>
+  </header>
+  <div class="note bad" style="margin-bottom:20px"><i data-lucide="circle-alert"></i><div style="flex:1"><b>"Festive restock" was rejected.</b> Meta says it reads like a promotion but was filed as an order update. Change the type to Marketing and resend.</div><a class="btn sm" href="#wa-template-new">Fix it</a></div>
+  <div class="chips" data-single style="margin-bottom:16px"><button class="chip on">For campaigns <span class="n">6</span></button><button class="chip">For automations <span class="n">9</span></button><button class="chip">Waiting for Meta <span class="n">1</span></button></div>
+  <div class="grid g3">
+    <div class="card tpl"><div class="mini"><div class="wa-b"><div class="img">HAMPER</div>Hi Priya, Diwali gifting sorted…</div></div><div><h3>Festive hamper</h3><p class="small muted">With picture · 1 campaign</p><span class="pill good mt8">Approved</span></div></div>
+    <div class="card tpl"><div class="mini"><div class="wa-b">New flavour just dropped: Masala Mania…</div></div><div><h3>New flavour drop</h3><p class="small muted">Text · 3 campaigns</p><span class="pill good mt8">Approved</span></div></div>
+    <div class="card tpl"><div class="mini"><div class="wa-b">We miss you, here's 10% off…</div></div><div><h3>Come back offer</h3><p class="small muted">With coupon · 2 campaigns</p><span class="pill good mt8">Approved</span></div></div>
+    <div class="card tpl"><div class="mini"><div class="wa-b">Back in stock: Indori Chatka…</div></div><div><h3>Restock alert</h3><p class="small muted">Text · scheduled Thu</p><span class="pill good mt8">Approved</span></div></div>
+    <div class="card tpl"><div class="mini"><div class="wa-b">Bhai Dooj is around the corner…</div></div><div><h3>Bhai Dooj gifting</h3><p class="small muted">Sent 2 h ago</p><span class="pill warn mt8">Waiting for Meta</span></div></div>
+    <div class="card tpl"><div class="mini"><div class="wa-b">Your favourite crunch is back…</div></div><div><h3>Festive restock</h3><p class="small muted">Rejected 6 Oct</p><span class="pill bad mt8">Rejected</span></div></div>
+  </div>
+  <p class="footer-note">Illustrative data.</p>
+</section>
+
+<!-- ============ TEMPLATE CREATOR ============ -->
+<section class="screen" id="wa-template-new" data-title="WhatsApp · New template (guided)">
+  <div class="wiz">
+  <header class="ph">
+    <div class="t"><a class="back" href="#wa-templates"><i data-lucide="arrow-left"></i>Templates</a><h1>New template</h1></div>
+    <div style="flex-basis:100%" class="steps"><div class="step on"><span class="n">1</span><span>Start from</span></div><i class="step-line"></i><div class="step"><span class="n">2</span><span>Write</span></div><i class="step-line"></i><div class="step"><span class="n">3</span><span>Check</span></div><i class="step-line"></i><div class="step"><span class="n">4</span><span>Send to Meta</span></div></div>
+  </header>
+  <div class="split"><div>
+    <div data-step>
+      <h2>Start from a PROMUNCH starter</h2><p class="ink2 mt8">These are written to pass Meta's review. Edit anything after.</p>
+      <div class="grid g2 mt24" data-group>
+        <button class="radio-card on"><span class="rd"></span><div><b>Picture + offer</b><span>Festive, launch, gifting</span></div></button>
+        <button class="radio-card"><span class="rd"></span><div><b>Back in stock</b><span>Restock and pre-order</span></div></button>
+        <button class="radio-card"><span class="rd"></span><div><b>Come back</b><span>Win back with a coupon</span></div></button>
+        <button class="radio-card"><span class="rd"></span><div><b>Blank</b><span>Write your own</span></div></button>
+      </div>
+    </div>
+    <div data-step hidden>
+      <h2>Write it</h2>
+      <div class="stack mt24">
+        <div class="field"><label>Picture</label><div class="row"><span class="pack mm">Masala Mania</span><button class="btn sm">Change picture</button><span class="small muted">JPG or PNG, up to 5 MB</span></div></div>
+        <div class="field"><label>Message</label><textarea class="ta">Hi {{name}}, Diwali gifting sorted. 9 pouches of roasted edamame and Crunchies in one festive box, ₹899 with free shipping.
+
+Your Munchy Pal, PROMUNCH</textarea><span class="hint">{{name}} becomes the customer's first name. 168 of 1,024 characters.</span></div>
+        <div class="field"><label>Button</label><div class="grid g2"><input class="in" value="Shop the hamper"><input class="in" value="promunch.in/collections/gift-hamper"></div></div>
+        <div class="note"><i data-lucide="info"></i><div>A "Reply STOP to unsubscribe" line is added automatically. You can't remove it.</div></div>
+      </div>
+    </div>
+    <div data-step hidden>
+      <h2>Quick check</h2>
+      <div class="card mt24"><div class="tl">
+        <div class="it done"><b>PROMUNCH is in capitals</b><span>Good.</span></div>
+        <div class="it done"><b>No dashes or banned words</b><span>Good.</span></div>
+        <div class="it done"><b>Type: Marketing</b><span>Right for offers. Marketing messages count towards the daily limit.</span></div>
+        <div class="it warn"><b>Product fact check</b><span>"9 pouches" matches the Festive Hamper in the knowledge base. Confirm the price is still ₹899.</span></div>
+      </div></div>
+    </div>
+    <div data-step hidden>
+      <h2>Send to Meta for approval</h2><p class="ink2 mt8">Usually approved in 1 to 6 hours. We'll tell you either way.</p>
+      <div class="card inset mt24"><div class="row wrap"><div style="flex:1"><h3>festive_hamper_v3</h3><p class="small muted">Marketing · English · with picture and 1 button</p></div><button class="btn primary lg" data-open="tpl-submit">Send for approval</button></div></div>
+    </div>
+    <div class="wiz-foot"><button class="btn ghost" data-prev><i data-lucide="arrow-left"></i>Back</button><button class="btn dark" data-next>Continue<i data-lucide="arrow-right"></i></button></div>
+  </div>
+  <div class="aside"><div class="frame-label">Live preview</div>
+    <div class="phone"><div class="ph-top"><span class="av">PM</span>PROMUNCH</div><div class="ph-body"><div class="wa-b"><div class="img">DIWALI HAMPER</div>Hi Priya, Diwali gifting sorted. 9 pouches of roasted edamame and Crunchies in one festive box, ₹899 with free shipping.<br><br>Your Munchy Pal, PROMUNCH<div class="ft">Reply STOP to unsubscribe</div><div class="btns"><span>Shop the hamper</span></div></div></div></div>
+  </div></div>
+  </div>
+</section>
+
+<!-- ============ AUTOMATIONS ============ -->
+<section class="screen" id="wa-flows" data-title="WhatsApp · Automations">
+  <header class="ph" data-tabs="wa">
+    <div class="t"><span class="eyebrow">★ Marketing · WhatsApp</span><h1>Automations</h1><p class="sum">Messages that send themselves when something happens. <b>5 on</b>, made ₹30,720 this month.</p></div>
+    <div class="acts"><button class="btn" data-open="recipes"><i data-lucide="plus"></i>New automation</button></div>
+  </header>
+  <div class="sec-h" style="margin-top:0"><span class="eyebrow" style="margin:0">Order messages · owner only</span></div>
+  <div class="card flush divide">
+    <a class="list-row" href="#wa-flow"><span class="ic good"><i data-lucide="receipt"></i></span><div class="tx"><b>Order confirmation</b><span>Right after an order · 1,184 sent this month</span></div><span class="pill good">On</span><i data-lucide="chevron-right"></i></a>
+    <a class="list-row" href="cod-voice.html#or-settings"><span class="ic good"><i data-lucide="shield-check"></i></span><div class="tx"><b>COD confirm or cancel</b><span>Buttons on every COD order, then a voice call if no tap</span></div><span class="pill good">On</span><i data-lucide="chevron-right"></i></a>
+    <a class="list-row" href="#wa-flow"><span class="ic good"><i data-lucide="truck"></i></span><div class="tx"><b>Shipped and delivered updates</b><span>Links to the Shopify order page</span></div><span class="pill good">On</span><i data-lucide="chevron-right"></i></a>
+  </div>
+  <div class="sec-h"><span class="eyebrow" style="margin:0">Marketing automations</span></div>
+  <div class="card flush divide">
+    <a class="list-row" href="#wa-flow"><span class="ic red"><i data-lucide="shopping-cart"></i></span><div class="tx"><b>Abandoned cart</b><span>1 hour later a reminder, 24 hours later a 10% coupon · ₹21,300 this month</span></div><span class="pill good">On</span><i data-lucide="chevron-right"></i></a>
+    <a class="list-row" href="#wa-flow"><span class="ic sun"><i data-lucide="star"></i></span><div class="tx"><b>Ask for a review</b><span>5 days after delivery · 64 reviews this month</span></div><span class="pill good">On</span><i data-lucide="chevron-right"></i></a>
+    <a class="list-row" href="#wa-flow"><span class="ic info"><i data-lucide="repeat"></i></span><div class="tx"><b>Time to restock</b><span>21 days after delivery · ₹9,420 this month</span></div><span class="pill good">On</span><i data-lucide="chevron-right"></i></a>
+    <a class="list-row" href="#wa-flow"><span class="ic"><i data-lucide="gift"></i></span><div class="tx"><b>Birthday treat</b><span>Off · needs birthdays from the sign-up popup</span></div><span class="pill">Off</span><i data-lucide="chevron-right"></i></a>
+  </div>
+  <p class="footer-note">Illustrative data.</p>
+</section>
+
+<section class="screen" id="wa-flow" data-title="WhatsApp · Automation detail (abandoned cart)">
+  <header class="ph">
+    <div class="t"><a class="back" href="#wa-flows"><i data-lucide="arrow-left"></i>Automations</a><div class="row wrap"><h1>Abandoned cart</h1><span class="pill good">On</span></div><p class="sum">Brought back <b>27 carts worth ₹21,300</b> in the last 30 days. 1 in 9 people who get it come back and buy.</p></div>
+    <div class="acts"><span class="small muted hide-m">On</span><button class="switch on" data-toast-off="Abandoned cart paused. No new messages will send." data-toast-on="Abandoned cart is on again" aria-label="On"></button></div>
+  </header>
+  <div class="grid g-2-1">
+    <div class="card"><h2>What happens</h2>
+      <div class="flow mt24">
+        <div class="node"><span class="ic red"><i data-lucide="shopping-cart"></i></span><div style="flex:1"><b>Someone leaves checkout</b><p class="small muted">With a phone number, and opted in</p></div></div>
+        <div class="wire"></div><span class="wait">Wait 1 hour</span><div class="wire"></div>
+        <div class="node"><span class="ic info"><i data-lucide="message-circle"></i></span><div style="flex:1"><b>Send "Cart reminder"</b><p class="small muted">Free text if they chatted in the last 24h, else the template</p></div><button class="btn sm" data-open="edit-step">Edit</button></div>
+        <div class="wire"></div><span class="wait">Wait 23 hours · stop if they buy</span><div class="wire"></div>
+        <div class="node"><span class="ic info"><i data-lucide="ticket-percent"></i></span><div style="flex:1"><b>Send "10% coupon"</b><p class="small muted">Code PROMUNCH10, valid 48 hours</p></div><button class="btn sm" data-open="edit-step">Edit</button></div>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="card"><h3>Last 30 days</h3><div class="funnel mt16">
+        <div class="fn" style="grid-template-columns:90px 1fr 60px"><span class="lab small">Reached</span><div><div class="b" style="width:100%">241</div></div><span class="val small">100%</span></div>
+        <div class="fn" style="grid-template-columns:90px 1fr 60px"><span class="lab small">Came back</span><div><div class="b l3" style="width:24%">58</div></div><span class="val small">24%</span></div>
+        <div class="fn" style="grid-template-columns:90px 1fr 60px"><span class="lab small">Bought</span><div><div class="b l4" style="width:11%">27</div></div><span class="val small">11%</span></div>
+      </div></div>
+      <div class="note"><i data-lucide="shield-check"></i><div>Each person gets this <b>once per cart</b>. If they reply, the bot takes over and the coupon waits.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RESULTS ============ -->
+<section class="screen" id="wa-results" data-title="WhatsApp · Results">
+  <header class="ph" data-tabs="wa">
+    <div class="t"><span class="eyebrow">★ Marketing · WhatsApp</span><h1>Results</h1><p class="sum">Every rupee WhatsApp brought in, from campaigns and automations.</p></div>
+    <div class="acts"><div class="seg"><button>7 days</button><button class="on">30 days</button><button>90 days</button></div></div>
+  </header>
+  <div class="grid g3 kpis">
+    <div class="kpi"><span class="l">Revenue</span><span class="v num red">₹62,140</span><span class="d"><span class="up">▲ 18%</span> vs previous 30 days</span></div>
+    <div class="kpi"><span class="l">Messages sent</span><span class="v num">6,420</span><span class="d">96% delivered</span></div>
+    <div class="kpi"><span class="l">Cost to Meta</span><span class="v num">₹3,110</span><span class="d">₹20 back for every ₹1</span></div>
+  </div>
+  <div class="card mt24"><div class="ch"><div><h2>Revenue by week</h2><p>Campaigns vs automations</p></div></div>
+    <div class="chart" data-chart='{"type":"bar","stacked":1,"fmt":"inr","h":240,"labels":["8 Sep","15 Sep","22 Sep","29 Sep","6 Oct"],"series":[{"name":"Automations","color":"var(--s5)","data":[6200,7100,6900,7400,3120]},{"name":"Campaigns","color":"var(--s1)","data":[0,2100,27300,9880,31420]}]}'></div>
+    <div class="legend mt16"><span><i style="background:var(--s1)"></i>Campaigns</span><span><i style="background:var(--s5)"></i>Automations</span></div></div>
+  <div class="card flush mt24"><div class="ch" style="padding:22px 22px 0"><h2>Campaign report cards</h2></div>
+    <table class="tbl stack mt16"><thead><tr><th>Campaign</th><th class="r">Read</th><th class="r">Orders</th><th class="r">Revenue</th><th>Verdict</th></tr></thead><tbody>
+      <tr><td class="main-cell"><b>Diwali hamper launch</b><span>5 Oct · 1,040 people</span></td><td class="r" data-l="Read">78%</td><td class="r" data-l="Orders">38</td><td class="r" data-l="Revenue"><b>₹31,420</b></td><td data-l="Verdict"><span class="pill good">Great</span></td></tr>
+      <tr><td class="main-cell"><b>Navratri combo</b><span>24 Sep · 1,212 people</span></td><td class="r" data-l="Read">74%</td><td class="r" data-l="Orders">33</td><td class="r" data-l="Revenue"><b>₹27,300</b></td><td data-l="Verdict"><span class="pill good">Good</span></td></tr>
+      <tr><td class="main-cell"><b>Navratri combo · follow-up</b><span>28 Sep · 402 people</span></td><td class="r" data-l="Read">71%</td><td class="r" data-l="Orders">12</td><td class="r" data-l="Revenue"><b>₹9,880</b></td><td data-l="Verdict"><span class="pill info">Okay</span></td></tr>
+    </tbody></table></div>
+  <p class="footer-note">Illustrative data. Revenue = orders from the same phone within 7 days of reading.</p>
+</section>
+
+</main>
+
+<!-- overlays -->
+<div class="overlay" id="test-send" data-title="Test send confirmation" data-host="wa-new"><div class="modal">
+  <div class="mh"><div style="flex:1"><h2>Send a test to yourself</h2><p>Exactly what customers will see, on your phone.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="field"><label>Your WhatsApp number</label><input class="in" value="+91 98XXX X4210"></div>
+  <div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn dark" data-toast="Test sent. Check your phone.">Send test</button></div>
+</div></div>
+<div class="overlay" id="launch" data-title="Launch confirmation" data-host="wa-new"><div class="modal">
+  <div class="mh"><span class="ic red"><i data-lucide="send"></i></span><div style="flex:1"><h2>Send to 1,040 people?</h2><p>250 go today, the rest over the next 4 days. You can pause any time, but you can't unsend.</p></div></div>
+  <div class="note"><i data-lucide="shield-check"></i><div>Nobody gets this twice, even if they're in two segments.</div></div>
+  <div class="mf"><button class="btn ghost" data-close>Not yet</button><a class="btn primary" href="#wa-report" data-toast="Campaign started. First 250 sending now.">Yes, send it</a></div>
+</div></div>
+<div class="overlay" id="pause" data-title="Pause campaign" data-host="wa-report"><div class="modal">
+  <div class="mh"><div style="flex:1"><h2>Pause this campaign?</h2><p>228 people haven't got it yet. They'll wait until you resume.</p></div></div>
+  <div class="mf"><button class="btn ghost" data-close>Keep sending</button><button class="btn dark" data-toast="Paused. 228 people waiting." data-undo>Pause</button></div>
+</div></div>
+<div class="overlay" id="cancel-camp" data-title="Stop sending (destructive)" data-host="wa-report"><div class="modal">
+  <div class="mh"><span class="ic bad"><i data-lucide="circle-x"></i></span><div style="flex:1"><h2>Stop for good?</h2><p>The 228 people still waiting will never get it. This can't be undone.</p></div></div>
+  <div class="mf"><button class="btn ghost" data-close>Keep it</button><button class="btn danger" data-toast="Campaign stopped">Stop sending</button></div>
+</div></div>
+<div class="overlay right" id="followup" data-title="Follow-up drawer" data-host="wa-report"><div class="drawer">
+  <div class="dh"><div class="t"><span class="eyebrow">★ Follow-up</span><h2>Remind people who didn't buy</h2></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="db stack">
+    <div class="field"><label>Who</label><div class="stack" data-group style="gap:10px"><button class="radio-card on"><span class="rd"></span><div><b>Read it, didn't click</b><span>598 people</span></div></button><button class="radio-card"><span class="rd"></span><div><b>Clicked, didn't buy</b><span>176 people</span></div></button></div></div>
+    <div class="field"><label>When</label><select class="sel"><option>3 days after the first message</option><option>2 days after</option></select></div>
+    <div class="field"><label>Message</label><select class="sel"><option>Come back offer (coupon)</option></select></div>
+  </div>
+  <div class="df"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Follow-up scheduled for Thu 9 Oct, 11 am">Schedule follow-up</button></div>
+</div></div>
+<div class="overlay" id="tpl-submit" data-title="Send template to Meta" data-host="wa-template-new"><div class="modal">
+  <div class="mh"><div style="flex:1"><h2>Send to Meta?</h2><p>You can't edit it while Meta reviews it. Usually 1 to 6 hours.</p></div></div>
+  <div class="mf"><button class="btn ghost" data-close>Keep editing</button><a class="btn primary" href="#wa-templates" data-toast="Sent to Meta. We'll tell you when it's approved.">Send for approval</a></div>
+</div></div>
+<div class="overlay" id="recipes" data-title="New automation recipes" data-host="wa-flows"><div class="modal wide">
+  <div class="mh"><div style="flex:1"><h2>Start from a recipe</h2><p>Each one is a proven set of messages. Turn it on when you're happy.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="grid g2">
+    <button class="radio-card"><span class="ic sun"><i data-lucide="gift"></i></span><div><b>Birthday treat</b><span>A coupon on their birthday</span></div></button>
+    <button class="radio-card"><span class="ic info"><i data-lucide="user-plus"></i></span><div><b>Welcome series</b><span>3 messages after sign-up</span></div></button>
+    <button class="radio-card"><span class="ic red"><i data-lucide="heart-crack"></i></span><div><b>Win back</b><span>60 days with no order</span></div></button>
+    <button class="radio-card"><span class="ic good"><i data-lucide="sparkles"></i></span><div><b>Second order nudge</b><span>14 days after first delivery</span></div></button>
+  </div>
+</div></div>
+<div class="overlay right" id="edit-step" data-title="Edit automation message" data-host="wa-flow"><div class="drawer">
+  <div class="dh"><div class="t"><span class="eyebrow">★ Step 1 of 2</span><h2>Cart reminder</h2></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="db stack">
+    <div class="field"><label>Wait before sending</label><select class="sel"><option>1 hour</option><option>2 hours</option><option>4 hours</option></select></div>
+    <div class="field"><label>Message (when the chat is open)</label><textarea class="ta">Hi {{name}}, your Himalayan Rock Salt edamame is still in your cart. Want me to hold it for you? Tap below to finish your order.</textarea></div>
+    <div class="field"><label>Template (when the chat is closed)</label><select class="sel"><option>cart_reminder_v2 · approved</option></select></div>
+    <div class="phone" style="width:260px"><div class="ph-top"><span class="av">PM</span>PROMUNCH</div><div class="ph-body" style="min-height:180px"><div class="wa-b">Hi Rahul, your Himalayan Rock Salt edamame is still in your cart. Want me to hold it for you?<div class="btns"><span>Finish my order</span></div></div></div></div>
+  </div>
+  <div class="df"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Saved. Applies to new carts from now.">Save</button></div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="manifest.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

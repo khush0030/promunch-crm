@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Orders and COD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+</head>
+<body data-nav="orders">
+<main class="content">
+
+<section class="screen" id="or-today" data-title="Orders · Confirm COD (today)">
+  <header class="ph" data-tabs="or">
+    <div class="t"><span class="eyebrow">★ Orders & COD</span><h1>Confirm COD</h1><p class="sum"><b>6 cash-on-delivery orders (₹4,410)</b> aren't confirmed yet. They won't ship until someone confirms. The voice agent tries again at 11:30 am.</p></div>
+    <div class="acts"><button class="btn primary" data-toast="Voice agent is calling 6 customers now"><i data-lucide="phone-outgoing"></i>Call all 6 now</button></div>
+  </header>
+  <div class="grid g4 kpis">
+    <div class="kpi"><span class="l">Confirmed today</span><span class="v num">29</span><span class="d">17 by tap · 12 by call</span></div>
+    <div class="kpi"><span class="l">Waiting</span><span class="v num red">6</span><span class="d">₹4,410 on hold</span></div>
+    <div class="kpi"><span class="l">Cancelled</span><span class="v num">3</span><span class="d">Customer said no</span></div>
+    <div class="kpi"><span class="l">RTO saved · 30d</span><span class="v num">₹38,200</span><span class="d">Fake or unwanted orders stopped</span></div>
+  </div>
+
+  <div class="sec-h"><span class="eyebrow" style="margin:0">Didn't answer · 2</span></div>
+  <div class="card flush">
+    <div class="todo"><span class="av">VS</span><div class="tx"><b>Vikram Singh · Jaipur</b><span>#PM-2836 · ₹749 · 2 calls, no answer · next try 11:30 am</span></div><button class="btn sm" data-open="manual-confirm">Confirm</button><button class="btn sm ghost icon" data-open="cod-cancel" aria-label="Cancel order"><i data-lucide="x"></i></button></div>
+    <div class="todo"><span class="av">PK</span><div class="tx"><b>Pooja Kapoor · Lucknow</b><span>#PM-2839 · ₹598 · 2 calls, busy · next try 11:30 am</span></div><button class="btn sm" data-open="manual-confirm">Confirm</button><button class="btn sm ghost icon" data-open="cod-cancel" aria-label="Cancel order"><i data-lucide="x"></i></button></div>
+  </div>
+  <div class="sec-h"><span class="eyebrow" style="margin:0">Asked to call back · 1</span></div>
+  <div class="card flush">
+    <div class="todo"><span class="av info">RG</span><div class="tx"><b>Rohit Gupta · Bhopal</b><span>#PM-2843 · ₹1,047 · "Call after 2 pm" · call booked 2:00 pm</span></div><a class="btn sm" href="#or-calls/call">Listen</a></div>
+  </div>
+  <div class="sec-h"><span class="eyebrow" style="margin:0">Waiting for WhatsApp tap · 3</span></div>
+  <div class="card flush">
+    <div class="todo"><span class="av">AI</span><div class="tx"><b>Ananya Iyer · Chennai</b><span>#PM-2841 · ₹749 · message read 9:12 am · call at 10:15 am if no tap</span></div><button class="btn sm" data-open="manual-confirm">Confirm</button></div>
+    <div class="todo"><span class="av">MD</span><div class="tx"><b>Manish Dubey · Indore</b><span>#PM-2844 · ₹449 · delivered, not read · call at 10:40 am</span></div><button class="btn sm" data-open="manual-confirm">Confirm</button></div>
+    <div class="todo"><span class="av">SR</span><div class="tx"><b>Shalini Rao · Mysuru</b><span>#PM-2846 · ₹818 · sent 9:30 am</span></div><button class="btn sm" data-open="manual-confirm">Confirm</button></div>
+  </div>
+  <div class="note mt24"><i data-lucide="info"></i><div><b>How it works:</b> every COD order gets WhatsApp buttons (Confirm / Cancel). No tap in 45 minutes, the voice agent calls, up to 3 times between 10 am and 8 pm. Confirmed orders are released to ship.</div></div>
+  <p class="footer-note">Illustrative data.</p>
+</section>
+
+<section class="screen" id="or-calls" data-title="Orders · Voice agent tracker">
+  <header class="ph" data-tabs="or">
+    <div class="t"><span class="eyebrow">★ Orders & COD</span><h1>Voice calls</h1><p class="sum">The voice agent made <b>412 calls</b> in 30 days. <b>58% ended in a confirmed order</b>, and it stopped 49 orders that would have come back.</p></div>
+    <div class="acts"><div class="seg"><button>7 days</button><button class="on">30 days</button></div></div>
+  </header>
+  <div class="grid g4 kpis">
+    <div class="kpi"><span class="l">Calls</span><span class="v num">412</span><span class="d">COD 318 · carts 94</span></div>
+    <div class="kpi"><span class="l">Picked up</span><span class="v num">71%</span><span class="d">Avg 2.1 tries</span></div>
+    <div class="kpi"><span class="l">Confirmed</span><span class="v num red">58%</span><span class="d"><span class="up">▲ 7 pts</span> since script v1.2</span></div>
+    <div class="kpi"><span class="l">RTO saved</span><span class="v num">₹38,200</span><span class="d">49 cancels × ₹780 avg return cost + product</span></div>
+  </div>
+  <div class="grid g2 mt24">
+    <div class="card"><h2>What happened on calls</h2><div class="funnel mt16">
+      <div class="fn"><span class="lab">Called</span><div><div class="b" style="width:100%">412</div></div><span class="val">100%</span></div>
+      <div class="fn"><span class="lab">Picked up</span><div><div class="b l2" style="width:71%">293</div></div><span class="val">71%</span></div>
+      <div class="fn"><span class="lab">Confirmed</span><div><div class="b l3" style="width:58%">239</div></div><span class="val">58%</span></div>
+      <div class="fn"><span class="lab">Cancelled</span><div><div class="b l4" style="width:12%">49</div></div><span class="val">12%</span></div>
+      <div class="fn"><span class="lab">Call back</span><div><div class="b l5" style="width:4%">5</div></div><span class="val">1%</span></div>
+    </div><p class="small muted mt16">119 never picked up after 3 tries. Those orders were held and the team was told.</p></div>
+    <div class="card"><h2>Confirm rate by week</h2><div class="chart mt16" data-chart='{"type":"line","fmt":"pct","h":220,"labels":["8 Sep","15 Sep","22 Sep","29 Sep","6 Oct"],"series":[{"name":"Confirmed","color":"var(--s1)","data":[49,52,55,59,61]},{"name":"Picked up","color":"#CFC7B9","dash":1,"data":[66,68,70,73,74]}]}'></div><div class="legend mt8"><span><i style="background:var(--s1)"></i>Confirmed %</span><span><i style="background:#CFC7B9"></i>Picked up %</span></div></div>
+  </div>
+  <div class="sec-h"><h2>Latest calls</h2><span class="sp"></span><div class="chips" data-single><button class="chip on">All</button><button class="chip">Confirmed</button><button class="chip">Cancelled</button><button class="chip">No answer</button></div></div>
+  <div class="card flush"><table class="tbl stack"><thead><tr><th>Customer</th><th>Outcome</th><th class="r">Try</th><th class="r">Length</th><th>When</th></tr></thead><tbody>
+    <tr onclick="location.hash='or-calls/call'"><td class="main-cell"><b>Rohit Gupta · #PM-2843</b><span>COD · ₹1,047 · Hindi</span></td><td data-l="Outcome"><span class="pill info">Call back 2 pm</span></td><td class="r" data-l="Try">1</td><td class="r" data-l="Length">0:48</td><td data-l="When">9:51 am</td></tr>
+    <tr onclick="location.hash='or-calls/call'"><td class="main-cell"><b>Kavya Menon · #PM-2838</b><span>COD · ₹749 · English</span></td><td data-l="Outcome"><span class="pill good">Confirmed</span></td><td class="r" data-l="Try">1</td><td class="r" data-l="Length">0:36</td><td data-l="When">9:40 am</td></tr>
+    <tr onclick="location.hash='or-calls/call'"><td class="main-cell"><b>Vikram Singh · #PM-2836</b><span>COD · ₹749 · Hindi</span></td><td data-l="Outcome"><span class="pill warn">No answer</span></td><td class="r" data-l="Try">2</td><td class="r" data-l="Length">·</td><td data-l="When">9:31 am</td></tr>
+    <tr onclick="location.hash='or-calls/call'"><td class="main-cell"><b>Imran Qureshi · #PM-2831</b><span>COD · ₹1,198 · Hindi</span></td><td data-l="Outcome"><span class="pill bad">Cancelled</span></td><td class="r" data-l="Try">1</td><td class="r" data-l="Length">0:52</td><td data-l="When">Yesterday</td></tr>
+    <tr onclick="location.hash='or-calls/call'"><td class="main-cell"><b>Neha Bansal · cart</b><span>Cart recovery · ₹899 hamper</span></td><td data-l="Outcome"><span class="pill good">Bought after call</span></td><td class="r" data-l="Try">1</td><td class="r" data-l="Length">1:14</td><td data-l="When">Yesterday</td></tr>
+  </tbody></table></div>
+  <p class="footer-note">Illustrative data. Calls by the Sarvam voice agent.</p>
+</section>
+
+<section class="screen" id="or-all" data-title="Orders · All orders">
+  <header class="ph" data-tabs="or"><div class="t"><span class="eyebrow">★ Orders & COD</span><h1>All orders</h1><p class="sum">236 orders this week across the website, Amazon and HYPD.</p></div><div class="acts"><button class="btn hide-m" data-toast="CSV downloading"><i data-lucide="download"></i>Export</button></div></header>
+  <div class="row wrap" style="margin-bottom:16px"><div class="chips" data-single><button class="chip on">All</button><button class="chip">Website</button><button class="chip">Amazon</button><button class="chip">HYPD</button><button class="chip">COD</button></div><span class="sp"></span><div class="in-icon d-only" style="width:280px"><i data-lucide="search"></i><input class="in" placeholder="Order number, name, phone" style="height:40px"></div></div>
+  <div class="card flush"><table class="tbl stack"><thead><tr><th>Order</th><th>Status</th><th>Payment</th><th class="r">Total</th><th>Placed</th></tr></thead><tbody>
+    <tr onclick="location.hash='or-all/order'"><td class="main-cell"><b>#PM-2846 · Shalini Rao</b><span>Mysuru · 2 items · website</span></td><td data-l="Status"><span class="pill warn">Waiting to confirm</span></td><td data-l="Payment">COD</td><td class="r" data-l="Total"><b>₹818</b></td><td data-l="Placed">9:28 am</td></tr>
+    <tr onclick="location.hash='or-all/order'"><td class="main-cell"><b>#PM-2845 · Aditya Rao</b><span>Hyderabad · 1 item · website</span></td><td data-l="Status"><span class="pill info">Ready to ship</span></td><td data-l="Payment">Prepaid</td><td class="r" data-l="Total"><b>₹664</b></td><td data-l="Placed">9:10 am</td></tr>
+    <tr onclick="location.hash='or-all/order'"><td class="main-cell"><b>#PM-2841 · Ananya Iyer</b><span>Chennai · 3 items · website</span></td><td data-l="Status"><span class="pill warn">Waiting to confirm</span></td><td data-l="Payment">COD</td><td class="r" data-l="Total"><b>₹749</b></td><td data-l="Placed">8:54 am</td></tr>
+    <tr onclick="location.hash='or-all/order'"><td class="main-cell"><b>403-88…1192 · Amazon</b><span>Gurugram · 2 items</span></td><td data-l="Status"><span class="pill good">Shipped</span></td><td data-l="Payment">Amazon</td><td class="r" data-l="Total"><b>₹698</b></td><td data-l="Placed">Yesterday</td></tr>
+    <tr onclick="location.hash='or-all/order'"><td class="main-cell"><b>#PM-2838 · Kavya Menon</b><span>Kochi · HYPD</span></td><td data-l="Status"><span class="pill good">Confirmed by call</span></td><td data-l="Payment">COD</td><td class="r" data-l="Total"><b>₹749</b></td><td data-l="Placed">Yesterday</td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="screen" id="or-settings" data-title="Orders · Call rules (voice agent settings)">
+  <header class="ph" data-tabs="or"><div class="t"><span class="eyebrow">★ Orders & COD</span><h1>Call rules</h1><p class="sum">When the voice agent calls, how often, and what it says. Owner only.</p></div><div class="acts"><button class="btn primary" data-toast="Call rules saved">Save</button></div></header>
+  <div class="grid g2">
+    <div class="card stack"><div class="row"><div style="flex:1"><h3>COD confirmation calls</h3><p class="small muted">Call if no WhatsApp tap</p></div><button class="switch on" aria-label="On"></button></div>
+      <div class="field"><label>Call after no tap for</label><select class="sel"><option>45 minutes</option><option>1 hour</option><option>2 hours</option></select></div>
+      <div class="field"><label>Tries</label><select class="sel"><option>3 tries, 2 hours apart</option><option>2 tries</option></select></div>
+      <div class="field"><label>Calling hours</label><div class="grid g2"><input class="in" value="10:00 am"><input class="in" value="8:00 pm"></div></div></div>
+    <div class="card stack"><div class="row"><div style="flex:1"><h3>Abandoned cart calls</h3><p class="small muted">For carts over ₹600 with no WhatsApp reply</p></div><button class="switch on" aria-label="On"></button></div>
+      <div class="field"><label>Language</label><div class="seg"><button class="on">Hindi first</button><button>English first</button></div></div>
+      <div class="field"><label>Script</label><select class="sel"><option>Cart v4 (live)</option><option>Cart v3</option></select><span class="hint">COD script v1.2 · changes need owner approval.</span></div>
+      <div class="note"><i data-lucide="shield-check"></i><div>One call flow per order, ever. If the customer confirms on WhatsApp mid-way, calls stop.</div></div></div>
+  </div>
+</section>
+
+</main>
+
+<div class="overlay right" id="call" data-title="Call detail (recording, transcript, retries)" data-host="or-calls"><div class="drawer wide"><div class="dh"><span class="av info">RG</span><div class="t"><span class="eyebrow">★ Voice call · try 1</span><h2>Rohit Gupta</h2><p class="small muted">#PM-2843 · ₹1,047 · today 9:51 am · Hindi</p></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="db stack">
+    <div class="row wrap"><span class="pill info">Asked to call back at 2 pm</span><span class="pill nodot line">48 seconds</span></div>
+    <div class="player"><button class="pb" aria-label="Play"><i data-lucide="play"></i></button><div class="wave"><i class="p" style="height:30%"></i><i class="p" style="height:60%"></i><i class="p" style="height:45%"></i><i class="p" style="height:80%"></i><i class="p" style="height:50%"></i><i style="height:70%"></i><i style="height:35%"></i><i style="height:90%"></i><i style="height:55%"></i><i style="height:40%"></i><i style="height:65%"></i><i style="height:30%"></i><i style="height:75%"></i><i style="height:45%"></i><i style="height:60%"></i><i style="height:35%"></i></div><span class="mono">0:14 / 0:48</span></div>
+    <div class="card"><h3>Transcript</h3><div class="transcript mt16">
+      <div class="ln agent"><b>Agent</b><span>Namaste Rohit ji, main PROMUNCH se baat kar rahi hoon. Aapne ₹1,047 ka order kiya hai, cash on delivery. Kya main confirm kar doon?</span></div>
+      <div class="ln"><b>Rohit</b><span>Haan order kiya tha, abhi meeting mein hoon. Do baje call karo.</span></div>
+      <div class="ln agent"><b>Agent</b><span>Bilkul, main do baje call karungi. Dhanyavaad!</span></div></div></div>
+    <div class="card"><h3>Tries</h3><div class="tl mt16"><div class="it done"><b>WhatsApp buttons sent</b><span>8:59 am · not tapped</span></div><div class="it done"><b>Call 1 · picked up</b><span>9:51 am · asked for 2 pm</span></div><div class="it now"><b>Call 2 booked</b><span>2:00 pm today</span></div></div></div>
+  </div>
+  <div class="df"><button class="btn danger" data-open="cod-cancel">Cancel order</button><button class="btn primary" data-open="manual-confirm">Confirm manually</button></div></div></div>
+<div class="overlay right" id="order" data-title="Order detail drawer" data-host="or-all"><div class="drawer"><div class="dh"><div class="t"><span class="eyebrow">★ Order</span><h2>#PM-2841</h2><p class="small muted">Ananya Iyer · Chennai · 8:54 am</p></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="db stack">
+    <div class="row wrap"><span class="pill warn">Waiting to confirm</span><span class="pill nodot line">COD +₹50</span></div>
+    <div class="card flush divide"><div class="list-row"><span class="pack hr">HRS</span><div class="tx"><b>Himalayan Rock Salt 100g × 1</b><span>₹299</span></div></div><div class="list-row"><span class="pack mm">MM</span><div class="tx"><b>Masala Mania 100g × 1</b><span>₹299</span></div></div><div class="list-row"><span class="pack cr">CR</span><div class="tx"><b>Crunchies Classic × 1</b><span>₹149</span></div></div></div>
+    <dl class="kv"><dt>Subtotal</dt><dd>₹747</dd><dt>COD fee</dt><dd>₹50</dd><dt>Shipping</dt><dd>Free (over ₹599)</dd><dt>Discount</dt><dd>₹48 · code WELCOME</dd><dt>Total</dt><dd>₹749</dd></dl>
+    <div class="card"><h3>What's happened</h3><div class="tl mt16"><div class="it done"><b>Order placed</b><span>8:54 am · website · from Instagram</span></div><div class="it done"><b>WhatsApp confirmation sent</b><span>8:55 am · read 9:12 am</span></div><div class="it now"><b>Voice call at 10:15 am</b><span>If no tap before then</span></div></div></div>
+  </div>
+  <div class="df"><a class="btn ghost" href="other.html#cu-profile">Customer</a><a class="btn" href="#or-all" data-toast="Opening in Shopify">Shopify</a><button class="btn primary" data-open="manual-confirm">Confirm</button></div></div></div>
+<div class="overlay" id="manual-confirm" data-title="Confirm COD manually" data-host="or-today"><div class="modal"><div class="mh"><span class="ic good"><i data-lucide="check"></i></span><div style="flex:1"><h2>Confirm this order?</h2><p>It's released to ship and the voice agent won't call. Only do this if the customer said yes to you directly.</p></div></div>
+  <div class="field"><label>How did they confirm?</label><select class="sel"><option>Called them myself</option><option>Said yes on WhatsApp chat</option></select></div>
+  <div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Confirmed. Released to ship." data-undo>Confirm order</button></div></div></div>
+<div class="overlay" id="cod-cancel" data-title="Cancel COD order (destructive)" data-host="or-today"><div class="modal"><div class="mh"><span class="ic bad"><i data-lucide="circle-x"></i></span><div style="flex:1"><h2>Cancel #PM-2836?</h2><p>The Shopify order is cancelled and Vikram gets one WhatsApp message saying so. This can't be undone.</p></div></div>
+  <div class="field"><label>Reason</label><select class="sel"><option>Customer said no</option><option>Fake or test order</option><option>Couldn't reach after 3 tries</option></select></div>
+  <div class="mf"><button class="btn ghost" data-close>Keep order</button><button class="btn danger" data-toast="Order cancelled">Cancel order</button></div></div></div>
+
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="manifest.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

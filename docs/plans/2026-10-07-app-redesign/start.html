@@ -1,0 +1,78 @@
+<title>PROMUNCH CRM Redesign</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one hero, then a grid of doors into each prototype area. Committed light brand look (storefront paper + PROMUNCH red). */
+:root{--paper:#F4F1EA;--surface:#FFFFFF;--hair:#E7E2D8;--ink:#1A1714;--ink2:#4A423C;--mute:#7A736C;--red:#AF272F;--red-deep:#8E1F26;--sun:#FEBD11;
+--f-display:'Archivo Black','Arial Black',sans-serif;--f-body:'Assistant',system-ui,-apple-system,'Segoe UI',sans-serif;--f-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;color-scheme:light}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:400 16px/1.5 var(--f-body);margin:0}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:16px;padding-block:32px 72px}
+.hero{background:var(--red);color:#fff;border-radius:26px;padding:36px 32px;background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px)}
+.eyebrow{font:700 11.5px/1.2 var(--f-mono);letter-spacing:.14em;text-transform:uppercase}
+.hero .eyebrow{color:rgba(255,255,255,.82)}
+h1{font:400 clamp(34px,6vw,64px)/.98 var(--f-display);text-transform:uppercase;letter-spacing:-.02em;margin:14px 0 0;text-wrap:balance}
+.hero p{max-width:60ch;margin:16px 0 0;font-size:18px;opacity:.92}
+.hero .cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
+.btn{display:inline-flex;align-items:center;height:48px;padding:0 20px;border-radius:14px;font-weight:800;font-size:16px;text-decoration:none}
+.btn.w{background:#fff;color:var(--red-deep)}
+.btn.o{border:1.5px solid rgba(255,255,255,.6);color:#fff}
+.btn:focus-visible,a.door:focus-visible{outline:3px solid #2457C5;outline-offset:2px}
+h2{font:400 22px/1.2 var(--f-display);text-transform:uppercase;margin:44px 0 6px}
+.lead{color:var(--ink2);margin:0 0 18px}
+.doors{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+a.door{background:var(--surface);border:1px solid var(--hair);border-radius:20px;padding:20px;text-decoration:none;color:var(--ink);display:flex;flex-direction:column;gap:6px;min-width:0}
+a.door:hover{border-color:var(--ink)}
+a.door .k{font:700 11px var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+a.door b{font-size:18px}
+a.door span{color:var(--ink2);font-size:15px}
+a.door.core{border:2px solid var(--red)}
+.sb{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+@media (max-width:700px){.sb{grid-template-columns:minmax(0,1fr)}.hero{padding:26px 20px}}
+.panel{background:var(--surface);border:1px solid var(--hair);border-radius:20px;padding:20px}
+.panel ol,.panel ul{margin:8px 0 0;padding-left:20px;color:var(--ink2)}
+.panel li{margin:4px 0}
+.grp{font:700 11px var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-top:10px}
+.foot{margin-top:48px;padding-top:16px;border-top:1px solid var(--hair);color:var(--mute);font-size:14px}
+</style>
+
+<div class="wrap">
+  <section class="hero">
+    <span class="eyebrow">★ PROMUNCH CRM · redesign prototype · 7 Oct 2026</span>
+    <h1>Bold outside.<br>Calm inside.</h1>
+    <p>Every screen of the CRM, redrawn in promunch.in's own fonts and colours. Fewer places, bigger type, one clear action per screen. Click through it like the real app, on a laptop or a phone.</p>
+    <div class="cta"><a class="btn w" href="index.html#home">Open the app</a><a class="btn o" href="mobile.html">Phone frames</a><a class="btn o" href="system.html">Design system</a></div>
+  </section>
+
+  <h2>The four core areas</h2>
+  <p class="lead">Designed deepest, because the team lives here every day.</p>
+  <div class="doors">
+    <a class="door core" href="whatsapp.html#wa-home"><span class="k">Marketing</span><b>WhatsApp</b><span>Overview, 4-step campaign wizard, templates, automations, results</span></a>
+    <a class="door core" href="email.html#em-home"><span class="k">Marketing</span><b>Email</b><span>Campaign builder with approval, automations, templates, inbox trust</span></a>
+    <a class="door core" href="tickets.html#tk-queue"><span class="k">Inbox</span><b>Tickets</b><span>Zendesk-style queue, statuses, reply-time clock, saved replies, merge, escalate, survey</span></a>
+    <a class="door core" href="influencers.html#inf-board"><span class="k">Grow</span><b>Creators</b><span>Board, collab page, brief, box, drafts, library, kits</span></a>
+  </div>
+
+  <h2>Everything else</h2>
+  <div class="doors">
+    <a class="door" href="analytics.html#an-overview"><span class="k">Know</span><b>Insights</b><span>Sales, website, repeat rate and cohorts, what people buy, Amazon</span></a>
+    <a class="door" href="cod-voice.html#or-today"><span class="k">Orders</span><b>COD and voice calls</b><span>Confirm COD, voice agent tracker with recordings, all orders</span></a>
+    <a class="door" href="b2b.html#b2b-home"><span class="k">Grow</span><b>B2B and deals</b><span>Find, review, send as Parth, track replies, deals board</span></a>
+    <a class="door" href="maya.html#maya-home"><span class="k">Ask</span><b>Maya</b><span>Suggested questions, answers with charts, sources, saved answers</span></a>
+    <a class="door" href="other.html#cu-list"><span class="k">Know</span><b>Customers and settings</b><span>Customers, segments, popup, team access, keys, security, error states</span></a>
+    <a class="door" href="portal.html#pt-brief"><span class="k">Public</span><b>Creator page</b><span>What a creator sees: brief, box, draft, go live</span></a>
+    <a class="door" href="public.html#login"><span class="k">Public</span><b>Sign in and links</b><span>Login, set password, unsubscribe, short link, 404</span></a>
+  </div>
+
+  <h2>What changed</h2>
+  <div class="sb">
+    <div class="panel"><b>New sidebar: 8 places, 3 groups</b>
+      <div class="grp">Top</div><ul><li>Home</li><li>Inbox</li><li>Orders and COD</li></ul>
+      <div class="grp">Grow</div><ul><li>Marketing (WhatsApp, Email)</li><li>Creators</li><li>B2B and deals</li></ul>
+      <div class="grp">Know</div><ul><li>Customers</li><li>Insights</li></ul>
+      <p class="lead" style="margin:10px 0 0">Ask Maya is the yellow button on top. Search everything with ⌘K. On phones: Home, Inbox, Maya, Orders, More.</p></div>
+    <div class="panel"><b>Rules every screen follows</b>
+      <ol><li>A title, one plain sentence, at most 4 numbers.</li><li>One red thing per screen.</li><li>Details one click deeper, in a drawer.</li><li>No more than 5 tabs or 5 table columns.</li><li>Status is a word plus a colour, never colour alone.</li><li>Body text 16px, nothing under 14px.</li></ol></div>
+  </div>
+
+  <p class="foot">73 screens and 60 pop-ups, each at laptop and phone width. All names, numbers and orders are illustrative; product names and facts are real PROMUNCH ones.</p>
+</div>

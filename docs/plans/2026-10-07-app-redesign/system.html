@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PROMUNCH Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+.ds{max-width:1160px;margin:0 auto;padding:40px 40px 100px}
+.ds section{margin-top:64px}
+.ds .lead{font-size:19px;color:var(--ink-2);max-width:64ch;margin-top:14px}
+.sw{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
+.sw div{border:1px solid var(--hair);border-radius:16px;overflow:hidden;background:var(--surface)}
+.sw i{display:block;height:82px}
+.sw p{padding:10px 12px;font-size:14px}
+.sw p b{display:block}
+.sw p span{font:500 12px var(--f-mono);color:var(--mute)}
+.ts>div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:20px;align-items:baseline;padding:16px 0;border-bottom:1px solid var(--hair-2)}
+.ts .k{font:700 11px var(--f-mono);letter-spacing:.1em;color:var(--mute);text-transform:uppercase}
+.demo{background:var(--surface);border:1px solid var(--hair);border-radius:var(--r-card);padding:28px;display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.minisb{width:248px;background:var(--surface);border:1px solid var(--hair);border-radius:20px;padding:16px 12px}
+.static-modal{position:static;box-shadow:var(--sh-pop);animation:none}
+.mob-nav{width:390px;max-width:100%;border:1px solid var(--hair);border-radius:20px;overflow:hidden;background:var(--surface)}
+.mob-nav .tabbar{display:grid;position:static;border-top:1px solid var(--hair)}
+.rules li{margin:8px 0}
+@media (max-width:760px){.ds{padding:24px 16px 80px}.ts>div{grid-template-columns:1fr;gap:6px}}
+.mob-nav .tabbar{grid-template-columns:repeat(5,1fr);padding:6px}
+.mob-nav .tabbar a,.mob-nav .tabbar button{display:flex;flex-direction:column;align-items:center;gap:3px;font-weight:700;font-size:11.5px;color:var(--mute);padding:6px 0;position:relative}
+.mob-nav .tabbar a.on{color:var(--red)}
+.mob-nav .tabbar .mid span.ic{width:46px;height:46px;border-radius:16px;background:var(--sun);color:var(--ink);margin-top:-18px}
+</style>
+</head>
+<body data-shell="none">
+<main class="content ds">
+  <span class="eyebrow red">★ PROMUNCH CRM · design system · 7 Oct 2026</span>
+  <h1 style="font-size:clamp(36px,5vw,64px)">Bold outside.<br>Calm inside.</h1>
+  <p class="lead">Fonts and colours come straight from promunch.in: Archivo Black, Assistant, JetBrains Mono, PROMUNCH red on warm paper. The quirk lives in titles, stickers and the yellow Maya button. Everything you work with is big, plain and quiet. One red thing per screen.</p>
+
+  <section><h2>Colour</h2><p class="ink2 mt8">Red is the only accent. Sun is only for Maya and "new" stickers. Status colours always come with a word.</p>
+    <div class="sw mt24">
+      <div><i style="background:#AF272F"></i><p><b>Red</b><span>#AF272F · primary</span></p></div>
+      <div><i style="background:#8E1F26"></i><p><b>Red deep</b><span>#8E1F26 · hover</span></p></div>
+      <div><i style="background:#F8E7E5"></i><p><b>Red soft</b><span>#F8E7E5 · active</span></p></div>
+      <div><i style="background:#1A1714"></i><p><b>Ink</b><span>#1A1714 · text</span></p></div>
+      <div><i style="background:#4A423C"></i><p><b>Ink 2</b><span>#4A423C</span></p></div>
+      <div><i style="background:#7A736C"></i><p><b>Mute</b><span>#7A736C</span></p></div>
+      <div><i style="background:#F4F1EA"></i><p><b>Paper</b><span>#F4F1EA · page</span></p></div>
+      <div><i style="background:#FFFFFF"></i><p><b>Surface</b><span>#FFFFFF · cards</span></p></div>
+      <div><i style="background:#E7E2D8"></i><p><b>Hairline</b><span>#E7E2D8</span></p></div>
+      <div><i style="background:#FEBD11"></i><p><b>Sun</b><span>#FEBD11 · Maya only</span></p></div>
+      <div><i style="background:#2E7D46"></i><p><b>Good</b><span>#2E7D46</span></p></div>
+      <div><i style="background:#A96500"></i><p><b>Warn</b><span>#A96500</span></p></div>
+      <div><i style="background:#B3261E"></i><p><b>Bad</b><span>#B3261E</span></p></div>
+      <div><i style="background:#1F7A8C"></i><p><b>Info</b><span>#1F7A8C · teal pack</span></p></div>
+    </div>
+    <h3 class="mt32">Chart series</h3>
+    <div class="legend mt16"><span><i style="background:var(--s1)"></i>Website #AF272F</span><span><i style="background:var(--s2)"></i>Amazon #D99A00</span><span><i style="background:var(--s3)"></i>HYPD #1F7A8C</span><span><i style="background:var(--s4)"></i>WhatsApp #2E7D46</span><span><i style="background:var(--s5)"></i>Email #4A423C</span><span><i style="background:var(--s6)"></i>Masala Mania #EF5B31</span></div>
+  </section>
+
+  <section><h2>Type</h2>
+    <div class="ts mt24">
+      <div><span class="k">Display · 44</span><span style="font:400 44px/1 var(--f-display);text-transform:uppercase;letter-spacing:-.02em">Chips could never.</span></div>
+      <div><span class="k">H1 · 30 caps</span><span class="h1">Campaigns</span></div>
+      <div><span class="k">H2 · 20</span><span class="h2">Sales by channel</span></div>
+      <div><span class="k">H3 · 17 / 700</span><span class="h3">Diwali hamper launch</span></div>
+      <div><span class="k">KPI · 34</span><span style="font:400 34px var(--f-display)">₹1,84,320</span></div>
+      <div><span class="k">Body · 16</span><span>Sales are up 12% this week. 7 things need you.</span></div>
+      <div><span class="k">Small · 14</span><span class="small muted">Sent 5 Oct, 11:00 am · Warm buyers</span></div>
+      <div><span class="k">Eyebrow · mono</span><span class="eyebrow" style="margin:0">★ Marketing · WhatsApp</span></div>
+    </div></section>
+
+  <section><h2>Buttons</h2><p class="ink2 mt8">One primary per screen. 46px tall, 14px corners (the storefront's exact radius).</p>
+    <div class="demo mt24"><button class="btn primary">New campaign</button><button class="btn dark">Continue</button><button class="btn">Secondary</button><button class="btn ghost">Ghost</button><button class="btn danger">Cancel order</button><button class="btn sun"><i data-lucide="sparkle"></i>Ask Maya</button><button class="btn sm">Small</button><button class="btn icon" aria-label="More"><i data-lucide="ellipsis"></i></button><button class="btn" disabled>Disabled</button></div></section>
+
+  <section><h2>Status, chips, tabs</h2>
+    <div class="demo mt24" style="flex-direction:column;align-items:stretch">
+      <div class="row wrap"><span class="pill good">Confirmed</span><span class="pill warn">Waiting</span><span class="pill bad">Overdue</span><span class="pill info">Bot</span><span class="pill red">New</span><span class="pill">Draft</span><span class="pill sun">Pinned</span><span class="sticker">New</span><span class="sla bad"><i data-lucide="alarm-clock"></i>38 min late</span><span class="sla warn"><i data-lucide="clock"></i>in 25 min</span></div>
+      <div class="chips" data-single><button class="chip on">All</button><button class="chip">Drafts <span class="n">2</span></button><button class="chip">Sent</button></div>
+      <div class="seg"><button>7 days</button><button class="on">30 days</button><button>90 days</button></div>
+      <nav class="tabs" style="width:100%;max-width:100%"><a class="on" href="#">Overview</a><a href="#">Campaigns</a><a href="#">Templates</a><a href="#">Automations</a><a href="#">Results</a></nav>
+      <p class="small muted">Max 5 tabs. More than that means the page is doing two jobs.</p>
+    </div></section>
+
+  <section><h2>Inputs</h2>
+    <div class="demo mt24" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
+      <div class="field"><label>Text</label><input class="in" value="Festive hamper"><span class="hint">Helper text sits under the field.</span></div>
+      <div class="field"><label>Select</label><select class="sel"><option>10 days</option></select></div>
+      <div class="field"><label>Search</label><div class="in-icon"><i data-lucide="search"></i><input class="in" placeholder="Search"></div></div>
+      <div class="row"><button class="switch on" aria-label="On"></button><span>Switch</span><button class="check on" data-tog aria-label="Tick"></button><span>Tick</span></div>
+      <div class="stack" data-group style="gap:10px;grid-column:1/-1"><button class="radio-card on"><span class="rd"></span><div><b>Choice card</b><span>Used instead of tiny radios for every important choice</span></div></button></div>
+    </div></section>
+
+  <section><h2>Cards, KPI tiles, lists</h2><p class="ink2 mt8">Max 3 or 4 KPI tiles in a row. The first one can be red when it's the number that matters.</p>
+    <div class="grid g3 mt24"><div class="kpi hero"><span class="l">Sales this week</span><span class="v">₹1,84,320</span><span class="d"><span class="up">▲ 12%</span> vs last week</span></div><div class="kpi"><span class="l">Orders</span><span class="v">236</span><span class="d"><span class="up">▲ 8%</span></span></div><div class="kpi"><span class="l">Open tickets</span><span class="v">9</span><span class="d"><span class="down">2 overdue</span></span></div></div>
+    <div class="card flush mt24"><div class="todo"><span class="ic red"><i data-lucide="phone-call"></i></span><div class="tx"><b>"Needs you" row</b><span>Icon, one line of what, one line of why, one action</span></div><span class="amt">₹4,410</span><button class="btn sm">Review</button></div></div>
+    <div class="card flush mt24"><table class="tbl stack"><thead><tr><th>Table</th><th class="r">Max 5 columns</th><th>Status</th></tr></thead><tbody><tr><td class="main-cell"><b>Name in bold</b><span>Detail in grey</span></td><td class="r" data-l="Number">₹31,420</td><td data-l="Status"><span class="pill good">Sent</span></td></tr></tbody></table></div>
+    <p class="small muted mt8">On phones every table becomes labelled cards.</p></section>
+
+  <section><h2>Charts</h2><p class="ink2 mt8">Red for the main series, grey dashed for comparison. Only real recorded values; no decorative sparklines.</p>
+    <div class="grid g2 mt24"><div class="card"><h3>Line / area</h3><div class="chart mt16" data-chart='{"type":"area","fmt":"inr","h":180,"labels":["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],"series":[{"name":"This","color":"var(--s1)","data":[21000,24000,22000,27000,31000,29000,26000]},{"name":"Last","color":"#CFC7B9","dash":1,"data":[19000,20000,21000,22000,25000,24000,23000]}]}'></div></div>
+    <div class="card"><h3>Bars</h3><div class="chart mt16" data-chart='{"type":"bar","stacked":1,"fmt":"inr","h":180,"labels":["W1","W2","W3","W4"],"series":[{"name":"Web","color":"var(--s1)","data":[92000,98000,104000,118000]},{"name":"Amazon","color":"var(--s2)","data":[51000,54000,58000,62000]}]}'></div></div>
+    <div class="card"><h3>Horizontal bars</h3><div class="hbars mt16"><div class="hb"><span class="lab">Instagram</span><div class="bar"><i style="width:100%"></i></div><span class="val">₹1.6L</span></div><div class="hb"><span class="lab">Google</span><div class="bar"><i style="width:62%"></i></div><span class="val">₹99k</span></div></div></div>
+    <div class="card"><h3>Funnel</h3><div class="funnel mt16"><div class="fn"><span class="lab">Read</span><div><div class="b" style="width:78%">812</div></div><span class="val">78%</span></div><div class="fn"><span class="lab">Clicked</span><div><div class="b l3" style="width:21%">214</div></div><span class="val">21%</span></div></div></div></div></section>
+
+  <section><h2>Feedback</h2>
+    <div class="grid g2 mt24">
+      <div class="stack"><div class="toast" style="position:static;animation:none"><i data-lucide="circle-check"></i><span>Campaign started. First 250 sending now.</span><button>Undo</button></div><div class="toast err" style="position:static;animation:none"><i data-lucide="circle-alert"></i><span>Couldn't save. Try again.</span></div>
+        <div class="note warn"><i data-lucide="triangle-alert"></i><div><b>Callout.</b> One sentence, one link.</div></div><button class="btn" data-toast="This is a toast" style="align-self:flex-start">Show a toast</button></div>
+      <div class="card"><div class="empty" style="padding:28px 10px"><div class="art"><i data-lucide="send"></i><span class="sticker">First one</span></div><h3>No campaigns yet</h3><p>Empty states say what goes here and give one button.</p><button class="btn primary mt8">Create one</button></div></div>
+    </div></section>
+
+  <section><h2>Modal and drawer</h2><p class="ink2 mt8">Modals ask one question. Drawers hold details and edits. On phones both become bottom sheets.</p>
+    <div class="grid g2 mt24"><div class="modal static-modal"><div class="mh"><span class="ic red"><i data-lucide="send"></i></span><div style="flex:1"><h2>Send to 1,040 people?</h2><p>250 go today. You can pause, not unsend.</p></div></div><div class="mf"><button class="btn ghost">Not yet</button><button class="btn primary">Yes, send it</button></div></div>
+    <div class="drawer static-modal" style="height:auto;border-radius:24px;width:100%"><div class="dh"><div class="t"><span class="eyebrow">★ Order</span><h2>#PM-2841</h2></div><button class="x"><i data-lucide="x"></i></button></div><div class="db"><dl class="kv"><dt>Customer</dt><dd>Ananya Iyer</dd><dt>Total</dt><dd>₹749 COD</dd></dl></div><div class="df"><button class="btn">Shopify</button><button class="btn primary">Confirm</button></div></div></div>
+    <div class="row wrap mt16"><a class="btn" href="whatsapp.html#wa-new/launch">Open a live modal</a><a class="btn" href="cod-voice.html#or-calls/call">Open a live drawer</a><a class="btn" href="index.html#home/palette">Open search (⌘K)</a></div></section>
+
+  <section><h2>Navigation</h2><p class="ink2 mt8">8 places, 3 groups. Maya pinned on top in yellow. Collapses to an icon rail on smaller laptops. Phones get 4 tabs + More.</p>
+    <div class="row wrap mt24" style="align-items:flex-start;gap:28px">
+      <div class="minisb"><div style="padding:4px 10px 12px"><img src="assets/promunch-logo.png" alt="PROMUNCH" style="height:20px"></div><span class="maya-btn"><i data-lucide="sparkle"></i><span>Ask Maya</span></span>
+        <div class="nav"><a class="on" href="#"><i data-lucide="house"></i><span>Home</span></a><a href="#"><i data-lucide="inbox"></i><span>Inbox</span><em class="badge">9</em></a><a href="#"><i data-lucide="package"></i><span>Orders & COD</span><em class="badge">6</em></a></div>
+        <div class="nav-group">Grow</div><div class="nav"><a href="#"><i data-lucide="megaphone"></i><span>Marketing</span></a><a href="#"><i data-lucide="sparkles"></i><span>Creators</span></a><a href="#"><i data-lucide="handshake"></i><span>B2B & deals</span></a></div>
+        <div class="nav-group">Know</div><div class="nav"><a href="#"><i data-lucide="users"></i><span>Customers</span></a><a href="#"><i data-lucide="chart-line"></i><span>Insights</span></a></div></div>
+      <div class="mob-nav"><div style="height:120px;display:grid;place-items:center" class="muted small">Phone screen</div><nav class="tabbar"><a class="on" href="#"><i data-lucide="house"></i>Home</a><a href="#"><i data-lucide="inbox"></i>Inbox</a><a class="mid" href="#"><span class="ic"><i data-lucide="sparkle"></i></span>Maya</a><a href="#"><i data-lucide="package"></i>Orders</a><a href="#"><i data-lucide="layout-grid"></i>More</a></nav></div>
+    </div></section>
+
+  <section><h2>Rules</h2><ol class="rules ink2" style="font-size:17px;padding-left:22px">
+    <li>One red thing per screen: the primary button or the number that matters.</li>
+    <li>Every page opens with a title, one plain sentence and at most 4 numbers.</li>
+    <li>Details live one click deeper, in a drawer or detail page.</li>
+    <li>No more than 5 tabs, 5 table columns, 3 KPI tiles on a phone row of 2.</li>
+    <li>Status = word + colour, never colour alone.</li>
+    <li>PROMUNCH in caps, no em dashes, "Your Munchy Pal" as the sign-off.</li>
+    <li>Body text never below 14px; mono labels never below 11px.</li></ol></section>
+  <p class="footer-note">Illustrative examples.</p>
+</main>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="manifest.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

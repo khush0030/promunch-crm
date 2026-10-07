@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Your PROMUNCH Collab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+body{background:var(--paper)}
+.pt{max-width:460px;margin:0 auto;padding:0 0 60px}
+.pt-hero{background:var(--red);color:#fff;padding:22px 20px 30px;background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px)}
+.pt-hero .lg{background:#fff;border-radius:14px;padding:10px 14px;display:inline-flex}
+.pt-hero .lg img{height:16px}
+.pt-hero h1{font-size:38px;line-height:1;margin-top:26px}
+.pt-hero p{opacity:.9;margin-top:10px}
+.pt-body{padding:18px 16px;display:flex;flex-direction:column;gap:14px;margin-top:-18px}
+.pt-step{display:flex;gap:6px}
+.pt-step i{flex:1;height:6px;border-radius:99px;background:rgba(255,255,255,.3)}
+.pt-step i.d{background:#fff}
+.pt-foot{text-align:center;font:700 10.5px var(--f-mono);letter-spacing:.16em;color:var(--mute);margin-top:18px;text-transform:uppercase}
+</style>
+</head>
+<body data-shell="none">
+<main class="content" style="padding:0;max-width:none">
+
+<section class="screen" id="pt-brief" data-title="Creator portal · Read the brief and agree" data-nav="creators">
+  <div class="pt">
+    <div class="pt-hero"><div class="row"><span class="lg"><img src="assets/promunch-logo.png" alt="PROMUNCH"></span><span class="sp"></span><span class="mono" style="opacity:.8">STEP 1 OF 4</span></div><div class="pt-step mt16"><i class="d"></i><i></i><i></i><i></i></div><h1>Hey Aditi,<br>let's crunch.</h1><p>Here's your brief. Read it, tap "I'm in", and your box ships.</p></div>
+    <div class="pt-body">
+      <div class="card"><span class="eyebrow">★ The idea</span><h3>"My 4pm protein fix"</h3><p class="ink2 mt8">Swap the office biscuit for roasted edamame. Real, relaxed, your style.</p></div>
+      <div class="card"><span class="eyebrow">★ Say this</span><ul style="margin:0;padding-left:18px;line-height:1.8"><li>45g protein per 100g</li><li>Roasted in olive oil</li><li>Your code <b>ADITI10</b> for 10% off</li></ul></div>
+      <div class="card"><span class="eyebrow">★ Checklist</span><div class="stack" style="gap:8px"><span class="row"><span class="check"></span>Tag @promunch.snacks</span><span class="row"><span class="check"></span>Collab invite to @promunch.snacks</span><span class="row"><span class="check"></span>1 reel (30 to 45 s) + 2 stories</span></div></div>
+      <div class="card"><span class="eyebrow">★ Please don't</span><p class="ink2">Make weight-loss or medical claims, or show other snack brands.</p></div>
+      <div class="card"><span class="eyebrow">★ Dates</span><dl class="kv"><dt>Draft due</dt><dd>10 days after your box arrives</dd><dt>Go live</dt><dd>12 Oct</dd></dl></div>
+      <a class="btn primary lg block" href="#pt-box" data-toast="Thanks Aditi! Your box ships tomorrow.">I've read it, I'm in</a>
+      <button class="btn block" data-open="pt-change">Request a change</button>
+      <p class="pt-foot">★ PROMUNCH · Your Munchy Pal</p>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="pt-box" data-title="Creator portal · My box arrived" data-nav="creators">
+  <div class="pt"><div class="pt-hero"><div class="row"><span class="lg"><img src="assets/promunch-logo.png" alt="PROMUNCH"></span><span class="sp"></span><span class="mono" style="opacity:.8">STEP 2 OF 4</span></div><div class="pt-step mt16"><i class="d"></i><i class="d"></i><i></i><i></i></div><h1>Your box<br>is coming.</h1><p>Shipped 27 Sep. Usually 2 to 4 days to Bengaluru.</p></div>
+    <div class="pt-body"><div class="card"><div class="row"><span class="pack hr">HRS</span><span class="pack mm">MM</span><span class="pack cr">CR</span></div><h3 class="mt16">Fitness kit</h3><p class="small muted">Himalayan Rock Salt, Masala Mania, Crunchies</p></div>
+      <a class="btn primary lg block" href="#pt-draft" data-toast="Yay! Your draft is due 9 Oct.">My box arrived</a><p class="small muted" style="text-align:center">Your draft is due 10 days after you tap this.</p></div></div>
+</section>
+
+<section class="screen" id="pt-draft" data-title="Creator portal · Submit draft" data-nav="creators">
+  <div class="pt"><div class="pt-hero"><div class="row"><span class="lg"><img src="assets/promunch-logo.png" alt="PROMUNCH"></span><span class="sp"></span><span class="mono" style="opacity:.8">STEP 3 OF 4</span></div><div class="pt-step mt16"><i class="d"></i><i class="d"></i><i class="d"></i><i></i></div><h1>Show us<br>the draft.</h1><p>Due Thu 9 Oct. We reply within a day.</p></div>
+    <div class="pt-body"><div class="card stack"><button class="radio-card on" style="justify-content:center;flex-direction:column;align-items:center;padding:26px;border-style:dashed"><i data-lucide="upload"></i><b>Upload video</b><span>Up to 200 MB</span></button><div class="field"><label>Or paste a link</label><input class="in" placeholder="Google Drive, Instagram or YouTube (unlisted)"></div><div class="field"><label>Note for us (optional)</label><textarea class="ta" style="min-height:70px"></textarea></div></div>
+      <a class="btn primary lg block" href="#pt-done" data-toast="Draft sent! We'll reply within a day.">Send my draft</a></div></div>
+</section>
+
+<section class="screen" id="pt-done" data-title="Creator portal · Approved, go live checklist" data-nav="creators">
+  <div class="pt"><div class="pt-hero"><div class="row"><span class="lg"><img src="assets/promunch-logo.png" alt="PROMUNCH"></span><span class="sp"></span><span class="mono" style="opacity:.8">STEP 4 OF 4</span></div><div class="pt-step mt16"><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i></div><h1>Approved.<br>Go crunch it.</h1><p>Post on Sun 12 Oct. Quick checklist below.</p></div>
+    <div class="pt-body"><div class="card"><div class="stack" style="gap:10px"><span class="row"><span class="check on"></span>Tag @promunch.snacks</span><span class="row"><span class="check on"></span>Collab invite</span><span class="row"><span class="check on"></span>Code ADITI10 in caption</span></div></div>
+      <div class="field"><label>Posted? Paste the link</label><input class="in" placeholder="instagram.com/reel/…"></div><button class="btn primary lg block" data-toast="Thank you, Aditi! You're a star.">Submit post link</button><p class="pt-foot">★ Thanks for crunching with us</p></div></div>
+</section>
+
+</main>
+<div class="overlay" id="pt-change" data-title="Creator: request a change" data-host="pt-brief"><div class="modal"><div class="mh"><div style="flex:1"><h2>What should change?</h2><p>The PROMUNCH team gets this right away.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div><textarea class="ta">Can I post on 14 Oct instead? Travelling on the 12th.</textarea><div class="mf"><button class="btn primary block" data-toast="Sent to the PROMUNCH team">Send</button></div></div></div>
+
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="manifest.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

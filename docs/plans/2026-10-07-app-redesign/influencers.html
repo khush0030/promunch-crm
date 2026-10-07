@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Creators Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+.stage{display:flex;gap:4px;flex-wrap:wrap}
+.stage span{flex:1;min-width:70px;text-align:center;padding:9px 6px;border-radius:10px;background:var(--surface-3);font-weight:700;font-size:13.5px;color:var(--mute)}
+.stage span.done{background:var(--good-soft);color:var(--good)}
+.stage span.on{background:var(--ink);color:#fff}
+.vid{aspect-ratio:9/16;max-height:320px;border-radius:16px;background:linear-gradient(160deg,#1F8E9C,#0d4a52);display:grid;place-items:center;color:#fff;position:relative;overflow:hidden}
+.vid .pb{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.92);color:var(--ink);display:grid;place-items:center}
+.vid small{position:absolute;bottom:10px;left:12px;font:700 11px var(--f-mono);letter-spacing:.08em}
+</style>
+</head>
+<body data-nav="creators">
+<main class="content">
+
+<section class="screen" id="inf-board" data-title="Creators · Board">
+  <header class="ph" data-tabs="inf">
+    <div class="t"><span class="eyebrow">★ Creators desk · barter collabs</span><h1>Creators</h1><p class="sum"><b>4 things need you today</b>: 2 drafts to watch, 1 brief to approve, 1 box to ship. 2 creators are overdue and already being nudged.</p></div>
+    <div class="acts"><button class="btn hide-m"><i data-lucide="sliders-horizontal"></i>Filter</button><button class="btn primary" data-open="add"><i data-lucide="plus"></i>Add collab</button></div>
+  </header>
+  <div class="grid g3 kpis">
+    <a class="kpi" href="#inf-deal"><span class="l">Needs you</span><span class="v num red">4</span><span class="d">Drafts 2 · brief 1 · box 1</span></a>
+    <div class="kpi"><span class="l">Overdue</span><span class="v num">2</span><span class="d">@reelswithrohan 4d · @mumbaimunchies 1d</span></div>
+    <div class="kpi"><span class="l">Posting this week</span><span class="v num">3</span><span class="d">18 collabs running</span></div>
+  </div>
+  <div class="board mt24">
+    <div class="col"><div class="colh">Briefing <span class="n">3</span></div>
+      <a class="kcard" href="#inf-deal"><div class="top"><span class="av sm sun">KJ</span><div><b>@kavyajogs</b><span>Runner · 48k</span></div></div><div class="meta"><span>Brief to approve</span><span class="sp"></span><span class="pill warn">Waiting on us</span></div></a>
+      <a class="kcard" href="#inf-deal"><div class="top"><span class="av sm">TM</span><div><b>@tiffinwithmeher</b><span>Food · 22k</span></div></div><div class="meta"><span>Read brief?</span><span class="sp"></span><span class="pill good">On track</span></div></a></div>
+    <div class="col"><div class="colh">Shipping <span class="n">4</span></div>
+      <a class="kcard" href="#inf-deal"><div class="top"><span class="av sm">AB</span><div><b>@abhi.lifts</b><span>Gym · 91k</span></div></div><div class="meta"><span>Box not sent</span><span class="sp"></span><span class="pill warn">Waiting on us</span></div></a>
+      <button class="btn sm" data-open="ship">Ship @abhi.lifts's box</button>
+      <a class="kcard" href="#inf-deal"><div class="top"><span class="av sm">NS</span><div><b>@nehasnacks</b><span>Food · 15k</span></div></div><div class="meta"><span>Arrives Thu</span><span class="sp"></span><span class="pill good">On track</span></div></a></div>
+    <div class="col"><div class="colh">Creating <span class="n">5</span></div>
+      <a class="kcard" href="#inf-deal"><div class="top"><span class="av sm red">RR</span><div><b>@reelswithrohan</b><span>Comedy · 210k</span></div></div><div class="meta"><span>Draft was due 3 Oct</span><span class="sp"></span><span class="pill bad">Overdue</span></div></a>
+      <a class="kcard" href="#inf-deal"><div class="top"><span class="av sm">PJ</span><div><b>@priyajainfit</b><span>Fitness · 64k</span></div></div><div class="meta"><span>Draft due Fri</span><span class="sp"></span><span class="pill warn">At risk</span></div></a></div>
+    <div class="col"><div class="colh">Review <span class="n">2</span></div>
+      <a class="kcard" href="#inf-deal"><div class="top"><span class="av sm info">FA</span><div><b>@fitwithaditi</b><span>Fitness · 132k</span></div></div><div class="meta"><span>Draft in, 26h ago</span><span class="sp"></span><span class="pill warn">Waiting on us</span></div></a>
+      <a class="kcard" href="#inf-deal"><div class="top"><span class="av sm">SS</span><div><b>@snackwithsid</b><span>Food · 38k</span></div></div><div class="meta"><span>Draft in, 3h ago</span><span class="sp"></span><span class="pill good">On track</span></div></a></div>
+    <div class="col"><div class="colh">Live <span class="n">4</span></div>
+      <a class="kcard" href="#inf-deal"><div class="top"><span class="av sm good">DK</span><div><b>@desikitchenkaran</b><span>Food · 77k</span></div></div><div class="meta"><span>Posted 2 Oct · 41k views</span></div></a></div>
+  </div>
+  <p class="footer-note">Illustrative data. Barter only: every collab is product for content, no fees.</p>
+</section>
+
+<section class="screen" id="inf-deal" data-title="Creators · Collab page (brief, box, drafts, timeline)">
+  <header class="ph">
+    <div class="t"><a class="back" href="#inf-board"><i data-lucide="arrow-left"></i>Board</a><div class="row wrap"><span class="av lg info">FA</span><div><h1 style="text-transform:none">@fitwithaditi</h1><p class="small muted">Aditi Rao · Fitness · 132k followers · Bengaluru</p></div><span class="pill warn">Waiting on us</span></div></div>
+    <div class="acts"><button class="btn hide-m" data-toast="Portal link copied"><i data-lucide="link"></i>Copy creator link</button><button class="btn icon ghost" data-menu="deal-menu" aria-label="More"><i data-lucide="ellipsis"></i></button><div class="menu" id="deal-menu"><a href="portal.html#pt-brief"><i data-lucide="smartphone"></i>See creator's page</a><button data-open="ghost"><i data-lucide="ghost"></i>Mark as ghosted</button><button class="dz" data-toast="Collab cancelled" data-undo><i data-lucide="circle-x"></i>Cancel collab</button></div></div>
+    <div class="stage" style="flex-basis:100%"><span class="done">Agreed</span><span class="done">Brief</span><span class="done">Box sent</span><span class="done">Arrived</span><span class="on">Draft review</span><span>Posted</span><span>Done</span></div>
+  </header>
+  <div class="grid g-2-1">
+    <div class="stack">
+      <div class="card" style="border:2px solid var(--red)"><span class="eyebrow red">★ Your move</span><h2>Watch Aditi's draft and decide</h2><p class="ink2 mt8">She sent it 26 hours ago. She can't post until you approve.</p>
+        <div class="grid g2 mt16"><div class="vid"><span class="pb"><i data-lucide="play"></i></span><small>DRAFT 1 · 0:38</small></div>
+        <div class="stack" style="gap:12px"><div class="card inset"><h3>Checklist</h3><div class="stack mt8" style="gap:8px;font-size:15px"><span class="row"><span class="check on"></span>Says 45g protein per 100g</span><span class="row"><span class="check on"></span>Shows Himalayan Rock Salt pack</span><span class="row"><span class="check on"></span>Discount code ADITI10</span><span class="row"><span class="check"></span>Collab invite to @promunch.snacks</span></div></div>
+          <button class="btn primary" data-open="approve-draft">Approve draft</button><button class="btn" data-open="changes">Ask for changes</button></div></div></div>
+      <div class="card"><div class="ch"><h2>Brief</h2><span class="sp"></span><span class="pill good">Read and agreed 26 Sep</span></div>
+        <dl class="kv"><dt>Idea</dt><dd>"My 4pm protein fix": swap the office biscuit for roasted edamame</dd><dt>Must say</dt><dd>45g protein per 100g, roasted in olive oil</dd><dt>Format</dt><dd>1 reel, 30 to 45 s, 9:16 · 2 stories</dd><dt>Don'ts</dt><dd>No weight-loss claims, no other brands</dd><dt>Dates</dt><dd>Draft by 9 Oct · go live 12 Oct</dd></dl>
+        <button class="btn sm mt16" data-open="brief">Open full brief</button></div>
+      <div class="card"><div class="ch"><h2>Box</h2><span class="sp"></span><span class="pill good">Arrived 29 Sep</span></div>
+        <div class="row"><span class="pack hr">HRS</span><span class="pack mm">MM</span><span class="pack cr">CR</span><div style="flex:1"><b>Fitness kit</b><p class="small muted">Shopify order #PM-2768 (₹0, tagged Influencer) · Bengaluru</p></div></div></div>
+    </div>
+    <div class="stack">
+      <div class="card"><h3>Timeline</h3><div class="tl mt16">
+        <div class="it done"><b>Collab agreed</b><span>24 Sep · by Riya</span></div>
+        <div class="it done"><b>Brief sent and read</b><span>26 Sep · agreed in 3h</span></div>
+        <div class="it done"><b>Box arrived</b><span>29 Sep · she tapped "My box arrived"</span></div>
+        <div class="it done"><b>Draft 1 in</b><span>6 Oct, 8:40 am</span></div>
+        <div class="it now"><b>You review</b><span>Overdue for us in 22h</span></div>
+        <div class="it"><b>Goes live</b><span>12 Oct</span></div></div></div>
+      <div class="card"><h3>Automatic reminders</h3><div class="divide mt8">
+        <div class="row" style="padding:10px 0"><span class="pill good">Sent</span><span class="small" style="flex:1">Draft due in 2 days</span><span class="small muted">4 Oct</span></div>
+        <div class="row" style="padding:10px 0"><span class="pill nodot line">Paused</span><span class="small" style="flex:1">Draft due today</span><span class="small muted">she sent it</span></div>
+        <div class="row" style="padding:10px 0"><span class="pill info">Planned</span><span class="small" style="flex:1">Posting checklist</span><span class="small muted">11 Oct</span></div></div></div>
+      <div class="card"><h3>Aditi's record</h3><p class="small ink2 mt8">2 collabs · always on time · 1 revision on average</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="inf-creators" data-title="Creators · Library">
+  <header class="ph" data-tabs="inf"><div class="t"><span class="eyebrow">★ Creators desk</span><h1>Library</h1><p class="sum">Everyone we've worked with, and how reliable they were.</p></div><div class="acts"><button class="btn primary" data-open="add"><i data-lucide="plus"></i>Add collab</button></div></header>
+  <div class="card flush"><table class="tbl stack"><thead><tr><th>Creator</th><th class="r">Followers</th><th>Niche</th><th class="r">Collabs</th><th>On time</th></tr></thead><tbody>
+    <tr onclick="location.hash='inf-creators/creator'"><td class="main-cell"><b>@fitwithaditi</b><span>Aditi Rao · Bengaluru</span></td><td class="r" data-l="Followers">132k</td><td data-l="Niche">Fitness</td><td class="r" data-l="Collabs">2</td><td data-l="On time"><span class="pill good">100%</span></td></tr>
+    <tr onclick="location.hash='inf-creators/creator'"><td class="main-cell"><b>@desikitchenkaran</b><span>Karan Mehta · Delhi</span></td><td class="r" data-l="Followers">77k</td><td data-l="Niche">Food</td><td class="r" data-l="Collabs">3</td><td data-l="On time"><span class="pill good">100%</span></td></tr>
+    <tr onclick="location.hash='inf-creators/creator'"><td class="main-cell"><b>@reelswithrohan</b><span>Rohan Das · Kolkata</span></td><td class="r" data-l="Followers">210k</td><td data-l="Niche">Comedy</td><td class="r" data-l="Collabs">1</td><td data-l="On time"><span class="pill bad">Late 4d</span></td></tr>
+    <tr onclick="location.hash='inf-creators/creator'"><td class="main-cell"><b>@mumbaimunchies</b><span>Sana Khan · Mumbai</span></td><td class="r" data-l="Followers">54k</td><td data-l="Niche">Food</td><td class="r" data-l="Collabs">2</td><td data-l="On time"><span class="pill warn">50%</span></td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="screen" id="inf-kits" data-title="Creators · Kits">
+  <header class="ph" data-tabs="inf"><div class="t"><span class="eyebrow">★ Creators desk</span><h1>Kits</h1><p class="sum">What goes in the box. The right kit is suggested from the creator's niche.</p></div><div class="acts"><button class="btn primary" data-open="kit-new"><i data-lucide="plus"></i>New kit</button></div></header>
+  <div class="grid g3">
+    <div class="card"><div class="row"><span class="pack hr">HRS</span><span class="pack mm">MM</span><span class="pack cr">CR</span></div><h3 class="mt16">Fitness kit</h3><p class="small muted">Rock Salt, Masala Mania, Crunchies · for fitness, gym, running</p></div>
+    <div class="card"><div class="row"><span class="pack mm">MM</span><span class="pack ic">IC</span><span class="pack ch">CH</span></div><h3 class="mt16">Foodie kit</h3><p class="small muted">Masala Mania, Indori Chatka, chips · for food, comedy</p></div>
+    <div class="card"><div class="row"><span class="pack cr">GIFT</span></div><h3 class="mt16">Festive hamper</h3><p class="small muted">9-pouch hamper · for 100k+ creators in Oct and Nov</p></div>
+  </div>
+</section>
+
+<section class="screen" id="inf-settings" data-title="Creators · Settings (automatic messages, timings)">
+  <header class="ph" data-tabs="inf"><div class="t"><span class="eyebrow">★ Creators desk</span><h1>Settings</h1><p class="sum">How much the desk chases, and when you hear about it.</p></div><div class="acts"><button class="btn primary" data-toast="Settings saved">Save</button></div></header>
+  <div class="grid g2">
+    <div class="card stack"><div class="row"><div style="flex:1"><h3>Automatic WhatsApp reminders</h3><p class="small muted">To creators, from the PROMUNCH number</p></div><button class="switch on" data-open="engine-on" aria-label="On"></button></div>
+      <div class="field"><label>Draft due after box arrives</label><select class="sel"><option>10 days (default)</option><option>7 days</option><option>15 days</option></select></div>
+      <div class="field"><label>Remind about the draft</label><p class="small ink2">2 days before · on the day · 1 and 3 days late · tell you at 5 days late</p></div></div>
+    <div class="card stack"><div class="row"><div style="flex:1"><h3>Morning digest to you</h3><p class="small muted">WhatsApp at 9 am</p></div><button class="switch on" aria-label="On"></button></div>
+      <div class="phone" style="width:260px"><div class="ph-top"><span class="av">PM</span>PROMUNCH Desk</div><div class="ph-body" style="min-height:170px"><div class="wa-b">Creators today<br>Due today: 3<br>Overdue: 2 (@reelswithrohan 4d, @mumbaimunchies 1d)<br>Briefs to approve: 1<br>Drafts to review: 2<br>Boxes not sent: 1<div class="btns"><span>Open the board</span></div></div></div></div></div>
+  </div>
+  <div class="sec-h"><h2>What creators receive</h2></div>
+  <div class="grid g3">
+    <div class="phone" style="width:100%"><div class="ph-top"><span class="av">PM</span>PROMUNCH</div><div class="ph-body" style="min-height:200px"><div class="wa-b">Hi Aditi, your PROMUNCH brief is ready. Please read it and tap "I'm in" so we can ship your box.<div class="btns"><span>Open my brief</span></div></div></div></div>
+    <div class="phone" style="width:100%"><div class="ph-top"><span class="av">PM</span>PROMUNCH</div><div class="ph-body" style="min-height:200px"><div class="wa-b">Did your PROMUNCH box arrive?<div class="btns"><span>Yes, it's here</span><span>Not yet</span></div></div></div></div>
+    <div class="phone" style="width:100%"><div class="ph-top"><span class="av">PM</span>PROMUNCH</div><div class="ph-body" style="min-height:200px"><div class="wa-b">Hi Aditi, your draft is due in 2 days (Thu 9 Oct). Upload it on your page when ready. Your Munchy Pal, PROMUNCH<div class="btns"><span>Submit my draft</span></div></div></div></div>
+  </div>
+</section>
+
+</main>
+
+<div class="overlay right" id="add" data-title="Add collab drawer" data-host="inf-board"><div class="drawer"><div class="dh"><div class="t"><span class="eyebrow">★ New collab</span><h2>Add a creator collab</h2><p class="small muted">After this, the desk handles brief, box and reminders.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="db stack">
+    <div class="field"><label>Instagram handle</label><div class="in-icon"><i data-lucide="at-sign"></i><input class="in" value="kavyajogs"></div><span class="hint">New creator. We'll fill followers when you tap Fetch.</span></div>
+    <div class="grid g2"><div class="field"><label>WhatsApp number</label><input class="in" value="+91 98XXX X2201"></div><div class="field"><label>Niche</label><select class="sel"><option>Running</option><option>Fitness</option><option>Food</option></select></div></div>
+    <div class="field"><label>Shipping address</label><textarea class="ta" style="min-height:80px">Flat 4B, Palm Grove, Baner, Pune 411045</textarea></div>
+    <div class="field"><label>Kit</label><select class="sel"><option>Fitness kit (suggested)</option><option>Foodie kit</option></select></div>
+    <div class="grid g2"><div class="field"><label>Draft due after delivery</label><select class="sel"><option>10 days</option><option>7 days</option><option>15 days</option></select></div><div class="field"><label>Ad rights</label><select class="sel"><option>None</option><option>30 days</option></select></div></div>
+    <div class="field"><label>What they'll post</label><div class="chips" data-multi><button class="chip on">1 reel</button><button class="chip on">2 stories</button><button class="chip">1 post</button></div></div>
+  </div>
+  <div class="df"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Collab added. AI is drafting the brief.">Add collab</button></div></div></div>
+<div class="overlay" id="approve-draft" data-title="Approve draft confirm" data-host="inf-deal"><div class="modal"><div class="mh"><span class="ic good"><i data-lucide="check"></i></span><div style="flex:1"><h2>Approve Aditi's draft?</h2><p>She gets a WhatsApp saying it's approved, with the posting checklist for 12 Oct.</p></div></div><div class="note warn"><i data-lucide="circle-alert"></i><div>Checklist item missing: collab invite. Add a note?</div></div><textarea class="ta mt16" style="min-height:70px">Looks great! Please add @promunch.snacks as a collab when you post.</textarea><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Approved. Aditi has been told.">Approve</button></div></div></div>
+<div class="overlay" id="changes" data-title="Ask for draft changes" data-host="inf-deal"><div class="modal"><div class="mh"><div style="flex:1"><h2>Ask for changes</h2><p>Be specific. She'll see this on her page and on WhatsApp.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div><textarea class="ta">Love the hook! Please say "45g protein per 100g" out loud, and show the pack front for 2 seconds at the end.</textarea><div class="field mt16"><label>New draft due</label><select class="sel"><option>In 3 days (Fri 10 Oct)</option></select></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn dark" data-toast="Sent to Aditi. Revision 1.">Send</button></div></div></div>
+<div class="overlay right" id="brief" data-title="Brief builder (AI draft, approve, send)" data-host="inf-deal"><div class="drawer wide"><div class="dh"><div class="t"><span class="eyebrow">★ Brief · version 1 · sent 26 Sep</span><h2>Brief for @fitwithaditi</h2></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="db stack"><div class="field"><label>The idea</label><textarea class="ta" style="min-height:70px">"My 4pm protein fix": swap the office biscuit for roasted edamame.</textarea></div>
+  <div class="field"><label>Hook options</label><textarea class="ta" style="min-height:70px">1. "This snack has more protein than my shake."
+2. "4pm biscuit? Not anymore."</textarea></div>
+  <div class="field"><label>Must say (from the knowledge base)</label><div class="chips"><span class="tag">45g protein per 100g</span><span class="tag">Roasted in olive oil</span><span class="tag">Code ADITI10</span></div></div>
+  <div class="field"><label>Must do</label><div class="chips"><span class="tag">Tag @promunch.snacks</span><span class="tag">Collab invite</span><span class="tag">#PROMUNCH</span></div></div>
+  <div class="field"><label>Don't</label><p class="small ink2">No weight-loss or medical claims. No other snack brands in frame.</p></div></div>
+  <div class="df"><button class="btn" data-toast="Maya wrote a fresh version"><i data-lucide="sparkle"></i>Redo with AI</button><span class="sp"></span><button class="btn primary" data-toast="Saved as version 2. Aditi must agree again.">Approve & resend</button></div></div></div>
+<div class="overlay right" id="creator" data-title="Creator profile drawer" data-host="inf-creators"><div class="drawer"><div class="dh"><span class="av lg red">RR</span><div class="t"><h2>@reelswithrohan</h2><p class="small muted">Rohan Das · Comedy · 210k · Kolkata</p></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="db stack"><div class="grid g2"><div class="kpi"><span class="l">On time</span><span class="v num red">0 of 1</span></div><div class="kpi"><span class="l">Avg days late</span><span class="v num">4</span></div></div>
+  <div class="note bad"><i data-lucide="triangle-alert"></i><div>Late on his only collab. The desk will warn you before sending him another box.</div></div>
+  <dl class="kv"><dt>Phone</dt><dd>+91 90XXX X5521</dd><dt>City</dt><dd>Kolkata</dd><dt>Engagement</dt><dd>3.1%</dd></dl></div></div></div>
+<div class="overlay" id="ghost" data-title="Mark creator as ghosted" data-host="inf-deal"><div class="modal"><div class="mh"><div style="flex:1"><h2>Mark as ghosted?</h2><p>Reminders stop and this counts against their record.</p></div></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn danger" data-toast="Marked as ghosted">Mark ghosted</button></div></div></div>
+<div class="overlay" id="engine-on" data-title="Turn creator reminders on/off" data-host="inf-settings"><div class="modal"><div class="mh"><div style="flex:1"><h2>Send WhatsApp reminders to creators?</h2><p>Only utility messages about their collab, from the PROMUNCH number. Each reminder goes once. If a creator replies, reminders for that step pause.</p></div></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Reminders on">Turn on</button></div></div></div>
+<div class="overlay" id="ship" data-title="Create Shopify order for kit" data-host="inf-board"><div class="modal"><div class="mh"><span class="ic"><i data-lucide="package"></i></span><div style="flex:1"><h2>Ship the Fitness kit to @abhi.lifts?</h2><p>Creates a ₹0 Shopify order tagged Influencer, to Abhishek Nair, Koramangala, Bengaluru. It ships with today's orders.</p></div></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Order #PM-2852 created. Box ships today.">Create order</button></div></div></div>
+<div class="overlay" id="kit-new" data-title="New kit" data-host="inf-kits"><div class="modal"><div class="mh"><div style="flex:1"><h2>New kit</h2></div><button class="x" data-close><i data-lucide="x"></i></button></div><div class="field"><label>Name</label><input class="in" value="Desk snacker kit"></div><div class="field mt16"><label>Products</label><div class="chips" data-multi><button class="chip on">Himalayan Rock Salt</button><button class="chip">Masala Mania</button><button class="chip on">Indori Chatka</button><button class="chip on">Crunchies</button><button class="chip">Chips</button></div></div><div class="field mt16"><label>Suggest for</label><select class="sel"><option>Office, productivity creators</option></select></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Kit saved">Save kit</button></div></div></div>
+
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="manifest.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

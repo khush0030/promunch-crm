@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>B2B and Deals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+.flow4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.flow4 a{background:var(--surface);border:1px solid var(--hair);border-radius:var(--r-card);padding:22px;display:flex;flex-direction:column;gap:6px;position:relative}
+.flow4 a:hover{border-color:var(--ink)}
+.flow4 .k{font:700 11px var(--f-mono);letter-spacing:.14em;color:var(--mute);text-transform:uppercase}
+.flow4 .c{font:400 34px var(--f-display)}
+.flow4 a.next{border:2px solid var(--red)}
+.flow4 a.next .sticker{position:absolute;top:-10px;right:14px;background:var(--red);color:#fff}
+@media (max-width:760px){.flow4{grid-template-columns:repeat(2,minmax(0,1fr))}.flow4 .c{font-size:28px}}
+.res{display:grid;grid-template-columns:24px minmax(0,1fr) 120px 90px;gap:14px;align-items:center;padding:14px 20px;border-bottom:1px solid var(--hair-2)}
+@media (max-width:760px){.res{grid-template-columns:24px minmax(0,1fr);padding:14px 16px}.res .rc{grid-column:2}}
+</style>
+</head>
+<body data-nav="b2b">
+<main class="content">
+
+<section class="screen" id="b2b-home" data-title="B2B · Overview (Find → Review → Send → Track)">
+  <header class="ph" data-tabs="b2b">
+    <div class="t"><span class="eyebrow">★ B2B & deals</span><h1>B2B outreach</h1><p class="sum">Find businesses that could stock PROMUNCH, check the emails, send them as Parth, and track who replies. <b>8 emails are waiting for your review.</b></p></div>
+    <div class="acts"><a class="btn primary" href="#b2b-review">Review 8 emails</a><button class="btn icon ghost" data-menu="b2b-menu" aria-label="More"><i data-lucide="ellipsis"></i></button><div class="menu" id="b2b-menu"><a href="#b2b-setup"><i data-lucide="list"></i>Saved lists</a><a href="#b2b-setup"><i data-lucide="repeat"></i>Follow-up emails</a><a href="#b2b-setup"><i data-lucide="settings"></i>Sender and limits</a></div></div>
+  </header>
+  <div class="flow4">
+    <a href="#b2b-find"><span class="k">1 · Find</span><span class="c">124</span><span class="small muted">businesses found this month</span></a>
+    <a href="#b2b-review" class="next"><span class="sticker">Next</span><span class="k">2 · Review</span><span class="c">8</span><span class="small muted">emails to check</span></a>
+    <a href="#b2b-track"><span class="k">3 · Sent</span><span class="c">64</span><span class="small muted">from parth@trypromunch.in</span></a>
+    <a href="#b2b-track"><span class="k">4 · Replies</span><span class="c">9</span><span class="small muted">3 became deals</span></a>
+  </div>
+  <div class="grid g-2-1 mt24">
+    <div class="card"><div class="ch"><h2>New replies</h2><span class="sp"></span><a class="link small" href="#b2b-track">All</a></div><div class="divide">
+      <a class="row" href="#b2b-track" style="padding:12px 0"><span class="av good">FF</span><div style="flex:1"><b>FitFuel Gym, Andheri</b><p class="small muted">"Send samples, we have 3 branches"</p></div><span class="pill good">Interested</span></a>
+      <a class="row" href="#b2b-track" style="padding:12px 0"><span class="av">BC</span><div style="flex:1"><b>Bean & Co Café, Koramangala</b><p class="small muted">"What's the shelf life?"</p></div><span class="pill info">Question</span></a></div></div>
+    <div class="card"><h2>Deals</h2><p class="small muted mt8">₹2.4L in open deals across 7 businesses</p><a class="btn sm mt16" href="#b2b-deals">Open pipeline</a></div>
+  </div>
+  <p class="footer-note">Illustrative data.</p>
+</section>
+
+<section class="screen" id="b2b-find" data-title="B2B · 1 Find businesses">
+  <header class="ph" data-tabs="b2b"><div class="t"><span class="eyebrow">★ B2B · step 1</span><h1>Find</h1><p class="sum">Say what kind of business and where. We find them, their website and a work email.</p></div></header>
+  <div class="card">
+    <div class="grid g2"><div class="field"><label>What kind of business?</label><div class="chips" data-single><button class="chip on">Gyms</button><button class="chip">Cafés</button><button class="chip">Offices</button><button class="chip">Health stores</button><button class="chip">Supermarkets</button></div></div>
+    <div class="field"><label>Where?</label><div class="row"><div class="in-icon" style="flex:1"><i data-lucide="map-pin"></i><input class="in" value="Mumbai, Andheri West"></div><button class="btn dark" data-toast="Found 42 gyms. 31 have an email.">Find</button></div></div></div>
+  </div>
+  <div class="sec-h"><h2>42 gyms in Andheri West</h2><span class="sp"></span><span class="small muted">31 with a work email</span></div>
+  <div class="card flush">
+    <div class="res"><span class="check on" data-tog></span><div><b>FitFuel Gym</b><p class="small muted">3 branches · fitfuel.in · manager@fitfuel.in</p></div><span class="pill good rc">Good fit</span><span class="small muted rc">4.6★</span></div>
+    <div class="res"><span class="check on" data-tog></span><div><b>Iron Temple Fitness</b><p class="small muted">1 branch · irontemple.co · hello@irontemple.co</p></div><span class="pill good rc">Good fit</span><span class="small muted rc">4.4★</span></div>
+    <div class="res"><span class="check on" data-tog></span><div><b>Cult Studio Lokhandwala</b><p class="small muted">Chain · partnerships@ (found)</p></div><span class="pill info rc">Maybe</span><span class="small muted rc">4.2★</span></div>
+    <div class="res"><span class="check" data-tog></span><div><b>Balance Yoga Loft</b><p class="small muted">No email found</p></div><span class="pill rc">No email</span><span class="small muted rc">4.8★</span></div>
+  </div>
+  <div class="row mt24"><span class="small muted" style="flex:1">3 picked. Already-contacted businesses are hidden.</span><a class="btn primary" href="#b2b-review" data-toast="AI is writing 3 emails. Ready in a minute.">Write emails for 3</a></div>
+</section>
+
+<section class="screen" id="b2b-review" data-title="B2B · 2 Review emails (one at a time)">
+  <header class="ph" data-tabs="b2b"><div class="t"><span class="eyebrow">★ B2B · step 2</span><h1>Review</h1><p class="sum">Read each email once. Nothing sends until all are checked. <b>3 of 8 done.</b></p></div></header>
+  <div class="bar" style="margin-bottom:22px"><i style="width:37%"></i></div>
+  <div class="grid g-1-2">
+    <div class="card"><span class="eyebrow">To</span><h2>FitFuel Gym</h2><p class="small muted mt8">Andheri West, Mumbai · 3 branches</p><dl class="kv mt16"><dt>Email</dt><dd>manager@fitfuel.in</dd><dt>Found via</dt><dd>Google Maps + website</dd><dt>Email check</dt><dd><span class="pill good">Valid</span></dd><dt>Fit</dt><dd>Gym with a café counter</dd></dl></div>
+    <div class="card">
+      <div class="field"><label>Subject</label><input class="in" value="High-protein snack for FitFuel's counter"></div>
+      <div class="field mt16"><label>Email</label><textarea class="ta" style="min-height:230px">Hi FitFuel team,
+
+I'm Parth, founder of PROMUNCH. We make roasted edamame with up to 45g protein per 100g, roasted in olive oil, plus roasted soya Crunchies.
+
+Your members already come for protein. A small shelf of PROMUNCH at your counter usually sells 60 to 80 packs a month per branch, and we handle restocks.
+
+Could I drop off samples at Andheri West this week?
+
+Parth
+PROMUNCH · Your Munchy Pal
+parth@trypromunch.in</textarea><span class="hint">Product facts checked against the knowledge base.</span></div>
+      <div class="row wrap mt16" style="gap:10px"><button class="btn ghost" data-toast="Skipped FitFuel Gym">Skip</button><button class="btn" data-open="b2b-rewrite"><i data-lucide="sparkle"></i>Rewrite</button><span class="sp"></span><button class="btn dark" data-toast="Approved. 4 of 8 done.">Looks good, next<i data-lucide="arrow-right"></i></button></div>
+    </div>
+  </div>
+  <div class="note mt24"><i data-lucide="lock"></i><div>When all 8 are checked, one button sends them: <a class="link" href="#b2b-review/b2b-send">Send 8 emails</a>.</div></div>
+</section>
+
+<section class="screen" id="b2b-track" data-title="B2B · 3 Sent & replies (track)">
+  <header class="ph" data-tabs="b2b"><div class="t"><span class="eyebrow">★ B2B · step 3</span><h1>Sent & replies</h1><p class="sum">64 sent this month. <b>58% opened</b>, 9 replied. Follow-ups go automatically after 4 days unless they reply.</p></div></header>
+  <div class="chips" data-single style="margin-bottom:16px"><button class="chip on">Replied <span class="n">9</span></button><button class="chip">Opened <span class="n">37</span></button><button class="chip">No open <span class="n">18</span></button><button class="chip">Bounced <span class="n">2</span></button></div>
+  <div class="card flush"><table class="tbl stack"><thead><tr><th>Business</th><th>Reply</th><th>Sent</th><th></th></tr></thead><tbody>
+    <tr><td class="main-cell"><b>FitFuel Gym</b><span>Gym · Mumbai</span></td><td data-l="Reply">"Send samples, we have 3 branches"</td><td data-l="Sent">2 Oct</td><td class="r"><button class="btn sm primary" data-toast="Deal created: FitFuel Gym">Make it a deal</button></td></tr>
+    <tr><td class="main-cell"><b>Bean & Co Café</b><span>Café · Bengaluru</span></td><td data-l="Reply">"What's the shelf life?"</td><td data-l="Sent">1 Oct</td><td class="r"><button class="btn sm" data-toast="Opened in Gmail as Parth">Reply</button></td></tr>
+    <tr><td class="main-cell"><b>GreenBasket Organics</b><span>Health store · Pune</span></td><td data-l="Reply">"Not right now, try in Jan"</td><td data-l="Sent">29 Sep</td><td class="r"><button class="btn sm ghost" data-toast="Reminder set for 5 Jan">Remind me in Jan</button></td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="screen" id="b2b-deals" data-title="B2B · Deals pipeline (board)">
+  <header class="ph" data-tabs="b2b"><div class="t"><span class="eyebrow">★ B2B & deals</span><h1>Deals</h1><p class="sum"><b>₹2.4L</b> open across 7 businesses. 2 are waiting on samples.</p></div><div class="acts"><div class="seg hide-m"><button class="on">Board</button><button>List</button></div><button class="btn primary" data-open="new-deal"><i data-lucide="plus"></i>New deal</button></div></header>
+  <div class="board">
+    <div class="col"><div class="colh">New <span class="n">2</span></div>
+      <a class="kcard" href="#b2b-deals/deal"><div class="top"><span class="av sm good">FF</span><div><b>FitFuel Gym</b><span>3 branches · Mumbai</span></div></div><div class="meta"><b>₹45k/yr</b><span class="sp"></span><span>Reply today</span></div></a>
+      <a class="kcard" href="#b2b-deals/deal"><div class="top"><span class="av sm">ZF</span><div><b>Zeta Foods office</b><span>Pantry · Bengaluru</span></div></div><div class="meta"><b>₹60k/yr</b><span class="sp"></span><span>From email</span></div></a></div>
+    <div class="col"><div class="colh">Talking <span class="n">2</span></div>
+      <a class="kcard" href="#b2b-deals/deal"><div class="top"><span class="av sm">BC</span><div><b>Bean & Co Café</b><span>Bengaluru</span></div></div><div class="meta"><b>₹18k/yr</b><span class="sp"></span><span class="pill warn">Due today</span></div></a>
+      <a class="kcard" href="#b2b-deals/deal"><div class="top"><span class="av sm">HN</span><div><b>HealthNest stores</b><span>6 stores · Pune</span></div></div><div class="meta"><b>₹72k/yr</b><span class="sp"></span><span>Call Thu</span></div></a></div>
+    <div class="col"><div class="colh">Sample sent <span class="n">2</span></div>
+      <a class="kcard" href="#b2b-deals/deal"><div class="top"><span class="av sm">IT</span><div><b>Iron Temple</b><span>Mumbai</span></div></div><div class="meta"><b>₹12k/yr</b><span class="sp"></span><span>Delivered 4 Oct</span></div></a>
+      <a class="kcard" href="#b2b-deals/deal"><div class="top"><span class="av sm">CK</span><div><b>Chai Kissa</b><span>Indore</span></div></div><div class="meta"><b>₹15k/yr</b><span class="sp"></span><span class="pill bad">No reply 9d</span></div></a></div>
+    <div class="col"><div class="colh">Won <span class="n">1</span></div>
+      <a class="kcard" href="#b2b-deals/deal"><div class="top"><span class="av sm red">SB</span><div><b>SnackBox Corporate</b><span>Gurugram</span></div></div><div class="meta"><b>₹38k/yr</b><span class="sp"></span><span class="pill good">Won</span></div></a></div>
+  </div>
+  <p class="small muted mt16">Lost and paused deals are under the List view.</p>
+</section>
+
+<section class="screen" id="b2b-setup" data-title="B2B · Lists, follow-ups and sender (setup)">
+  <header class="ph"><div class="t"><a class="back" href="#b2b-home"><i data-lucide="arrow-left"></i>B2B outreach</a><h1>Outreach setup</h1><p class="sum">Rarely changed. Everything here has a sensible default.</p></div></header>
+  <div class="grid g2">
+    <div class="card"><h3>Sender</h3><dl class="kv mt16"><dt>From</dt><dd>Parth · parth@trypromunch.in</dd><dt>Replies to</dt><dd>parth@trypromunch.in</dd><dt>Daily limit</dt><dd>40 emails</dd></dl></div>
+    <div class="card"><h3>Follow-ups</h3><div class="tl mt16"><div class="it done"><b>First email</b><span>Day 0</span></div><div class="it"><b>Short nudge</b><span>Day 4, if no reply</span></div><div class="it"><b>Last try with a sample offer</b><span>Day 10</span></div></div></div>
+    <div class="card"><h3>Saved lists</h3><div class="divide mt8"><div class="row" style="padding:10px 0"><span class="small" style="flex:1">Mumbai gyms</span><b class="small">42</b></div><div class="row" style="padding:10px 0"><span class="small" style="flex:1">Bengaluru offices</span><b class="small">36</b></div><div class="row" style="padding:10px 0"><span class="small" style="flex:1">Pune health stores</span><b class="small">28</b></div></div></div>
+    <div class="card"><h3>Email starters</h3><p class="small muted mt8">Gym counter, Office pantry, Café shelf, Health store. AI adapts each one to the business.</p><button class="btn sm mt16">Edit starters</button></div>
+  </div>
+</section>
+
+</main>
+
+<div class="overlay" id="b2b-send" data-title="Send approved batch as Parth" data-host="b2b-review"><div class="modal"><div class="mh"><span class="ic red"><i data-lucide="send"></i></span><div style="flex:1"><h2>Send 8 emails as Parth?</h2><p>From parth@trypromunch.in, spread over the next 2 hours so they land like normal emails. Each business gets one email, never twice.</p></div></div>
+  <div class="mf"><button class="btn ghost" data-close>Not yet</button><a class="btn primary" href="#b2b-track" data-toast="Sending 8 emails over the next 2 hours">Send 8 emails</a></div></div></div>
+<div class="overlay" id="b2b-rewrite" data-title="Rewrite email with AI" data-host="b2b-review"><div class="modal"><div class="mh"><span class="ic sun"><i data-lucide="sparkle"></i></span><div style="flex:1"><h2>Rewrite</h2><p>Tell the AI what to change.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div><div class="chips" data-multi><button class="chip">Shorter</button><button class="chip on">Mention free samples</button><button class="chip">More casual</button></div><div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn sun" data-toast="Rewritten">Rewrite</button></div></div></div>
+<div class="overlay right" id="deal" data-title="Deal drawer" data-host="b2b-deals"><div class="drawer"><div class="dh"><span class="av good">FF</span><div class="t"><span class="eyebrow">★ Deal</span><h2>FitFuel Gym</h2><p class="small muted">3 branches · Andheri West, Mumbai</p></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="db stack"><div class="field"><label>Stage</label><div class="seg"><button class="on">New</button><button>Talking</button><button>Sample sent</button><button>Won</button></div></div>
+  <div class="grid g2"><div class="field"><label>Value per year</label><input class="in" value="₹45,000"></div><div class="field"><label>Next step</label><input class="in" value="Drop samples Thu"></div></div>
+  <div class="card"><h3>History</h3><div class="tl mt16"><div class="it done"><b>Found in Mumbai gyms</b><span>30 Sep</span></div><div class="it done"><b>Email sent as Parth</b><span>2 Oct · opened 3 times</span></div><div class="it now"><b>Replied: "Send samples"</b><span>Today 9:12 am</span></div></div></div></div>
+  <div class="df"><button class="btn ghost" data-toast="Marked as lost">Lost</button><button class="btn primary" data-toast="Saved">Save</button></div></div></div>
+<div class="overlay right" id="new-deal" data-title="New deal drawer" data-host="b2b-deals"><div class="drawer"><div class="dh"><div class="t"><span class="eyebrow">★ New</span><h2>New deal</h2></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="db stack"><div class="field"><label>Business</label><input class="in" placeholder="Name"></div><div class="field"><label>Contact</label><input class="in" placeholder="Name, email or phone"></div><div class="field"><label>Value per year</label><input class="in" placeholder="₹"></div></div>
+  <div class="df"><button class="btn ghost" data-close>Cancel</button><button class="btn primary" data-toast="Deal added">Add deal</button></div></div></div>
+
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="manifest.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

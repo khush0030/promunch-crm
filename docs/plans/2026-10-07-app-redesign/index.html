@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PROMUNCH CRM Home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+</head>
+<body data-nav="home">
+<main class="content">
+
+<!-- ============ HOME / TODAY ============ -->
+<section class="screen" id="home" data-title="Home · Today" data-nav="home">
+  <header class="ph">
+    <div class="t">
+      <span class="eyebrow red">★ Tuesday, 7 Oct · 9:40 am</span>
+      <h1 style="font-size:clamp(28px,3.4vw,44px)">Good morning, Khush.</h1>
+      <p class="sum">Sales are <b>up 12%</b> this week. <b>7 things need you</b>, starting with 6 COD orders waiting since last night.</p>
+    </div>
+    <div class="acts">
+      <div class="seg hide-m"><button>Today</button><button class="on">7 days</button><button>30 days</button></div>
+      <a class="btn primary" href="cod-voice.html#or-today">Confirm COD orders</a>
+    </div>
+  </header>
+
+  <div class="grid g3 kpis">
+    <div class="kpi hero"><span class="l">Sales this week</span><span class="v num">₹1,84,320</span><span class="d"><span class="up">▲ 12%</span> vs last week · all channels</span></div>
+    <a class="kpi" href="cod-voice.html#or-all"><span class="l">Orders</span><span class="v num">236</span><span class="d">41 cash on delivery · <span class="up">▲ 8%</span></span></a>
+    <a class="kpi" href="tickets.html#tk-queue"><span class="l">Open tickets</span><span class="v num">9</span><span class="d"><span class="down">2 overdue</span> · avg reply 1h 40m</span></a>
+  </div>
+
+  <div class="grid g-2-1 mt24">
+    <div class="card flush">
+      <div class="ch" style="padding:22px 22px 4px;margin:0"><h2>Needs you</h2><span class="sp"></span><a class="link small" href="#attention">See all 7</a></div>
+      <div class="todo"><span class="ic red"><i data-lucide="phone-call"></i></span><div class="tx"><b>6 COD orders not confirmed</b><span>Voice agent tried twice. 2 did not answer.</span></div><span class="amt d-only">₹4,410</span><a class="btn sm" href="cod-voice.html#or-today">Review</a></div>
+      <div class="todo"><span class="ic bad"><i data-lucide="alarm-clock"></i></span><div class="tx"><b>2 tickets past reply time</b><span>Damaged pouch, wrong flavour</span></div><a class="btn sm" href="tickets.html#tk-ticket">Reply</a></div>
+      <div class="todo"><span class="ic sun"><i data-lucide="clapperboard"></i></span><div class="tx"><b>2 creator drafts to approve</b><span>@fitwithaditi, @snackwithsid</span></div><a class="btn sm" href="influencers.html#inf-deal">Watch</a></div>
+      <div class="todo"><span class="ic warn"><i data-lucide="package-x"></i></span><div class="tx"><b>Masala Mania 100g low on Amazon</b><span>6 days of stock left</span></div><span class="amt d-only">₹18k/wk</span><a class="btn sm" href="analytics.html#an-amazon">Plan</a></div>
+      <div class="todo"><span class="ic info"><i data-lucide="mail-check"></i></span><div class="tx"><b>4 support email drafts ready</b><span>AI wrote them from the knowledge base</span></div><a class="btn sm" href="tickets.html#tk-drafts">Approve</a></div>
+    </div>
+
+    <div class="stack">
+      <div class="card" style="background:var(--sun-soft);border-color:#F2DC93">
+        <div class="row"><span class="ic sun" style="background:var(--sun)"><i data-lucide="sparkle"></i></span><div><h3>Ask Maya</h3><p class="small ink2">Your data, in plain answers.</p></div></div>
+        <a class="search mt16" href="maya.html#maya-home" style="max-width:none;border-color:#EBD58D">Ask anything about sales, customers…</a>
+        <div class="stack mt16" style="gap:8px">
+          <a class="qcard" href="maya.html#maya-chat" style="padding:12px 14px;font-size:15px"><i data-lucide="corner-down-right"></i>Why are sales up this week?</a>
+          <a class="qcard" href="maya.html#maya-chat" style="padding:12px 14px;font-size:15px"><i data-lucide="corner-down-right"></i>Who should get the Diwali offer?</a>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Running now</h3>
+        <div class="divide mt8">
+          <div class="row" style="padding:12px 0"><span class="pill good">Sending</span><span class="small" style="flex:1">Diwali hamper · WhatsApp</span><span class="small muted">812/1,040</span></div>
+          <div class="row" style="padding:12px 0"><span class="pill info">Live</span><span class="small" style="flex:1">Cart recovery · Email</span><span class="small muted">9 today</span></div>
+          <div class="row" style="padding:12px 0"><span class="pill warn">Due</span><span class="small" style="flex:1">3 creator posts this week</span><span class="small muted">Thu</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt24">
+    <div class="ch"><div><h2>Sales, last 14 days</h2><p>All channels, ₹ per day. Dashed line is the 14 days before.</p></div><span class="sp"></span><a class="btn sm ghost hide-m" href="analytics.html#an-overview">Open Insights <i data-lucide="arrow-right"></i></a></div>
+    <div class="chart" data-chart='{"type":"area","fmt":"inr","h":240,"labels":["24 Sep","25","26","27","28","29","30","1 Oct","2","3","4","5","6","7 Oct"],"series":[{"name":"This period","color":"var(--s1)","data":[21400,23800,22100,26900,31200,28700,24400,25100,27300,29900,33800,36100,30200,27800]},{"name":"Before","color":"#CFC7B9","dash":1,"data":[19800,21100,20500,22400,24900,25800,22300,21900,23500,24800,26100,27400,25200,23900]}]}'></div>
+    <div class="legend mt16"><span><i style="background:var(--s1)"></i>This period</span><span><i style="background:#CFC7B9"></i>14 days before</span></div>
+  </div>
+  <p class="footer-note">All names, numbers and orders in this prototype are illustrative. Product names are real PROMUNCH products.</p>
+</section>
+
+<!-- ============ NEEDS YOU (ATTENTION) ============ -->
+<section class="screen" id="attention" data-title="Needs you" data-nav="home">
+  <header class="ph" data-tabs="home">
+    <div class="t"><span class="eyebrow">★ Home</span><h1>Needs you</h1><p class="sum">Everything waiting on the team, biggest money first. Snooze what can wait.</p></div>
+    <div class="acts"><div class="chips" data-single><button class="chip on">Open <span class="n">7</span></button><button class="chip">Snoozed <span class="n">2</span></button><button class="chip">Done</button></div></div>
+  </header>
+
+  <div class="sec-h" style="margin-top:0"><span class="eyebrow" style="margin:0">Money at risk · ₹22,810</span></div>
+  <div class="card flush">
+    <div class="todo"><span class="ic red"><i data-lucide="phone-call"></i></span><div class="tx"><b>6 COD orders not confirmed</b><span>Oldest: #PM-2836, placed yesterday 8:12 pm</span></div><span class="amt">₹4,410</span><a class="btn sm primary" href="cod-voice.html#or-today">Review</a><button class="btn sm ghost icon" data-open="snooze" aria-label="Snooze"><i data-lucide="clock"></i></button></div>
+    <div class="todo"><span class="ic warn"><i data-lucide="package-x"></i></span><div class="tx"><b>Masala Mania 100g runs out on Amazon in 6 days</b><span>Sells 21 a day. Last shipment took 9 days to go live.</span></div><span class="amt">₹18,400</span><a class="btn sm" href="analytics.html#an-amazon">Plan</a><button class="btn sm ghost icon" data-open="snooze" aria-label="Snooze"><i data-lucide="clock"></i></button></div>
+  </div>
+  <div class="sec-h"><span class="eyebrow" style="margin:0">Customers waiting · 3</span></div>
+  <div class="card flush">
+    <div class="todo"><span class="ic bad"><i data-lucide="alarm-clock"></i></span><div class="tx"><b>Meera Nair: pouch arrived torn</b><span>Ticket #1182 · overdue by 38 min · urgent</span></div><a class="btn sm" href="tickets.html#tk-ticket">Reply</a><button class="btn sm ghost icon" data-open="snooze" aria-label="Snooze"><i data-lucide="clock"></i></button></div>
+    <div class="todo"><span class="ic bad"><i data-lucide="alarm-clock"></i></span><div class="tx"><b>Arjun Reddy: got Indori Chatka instead of Himalayan Rock Salt</b><span>Ticket #1179 · overdue by 12 min</span></div><a class="btn sm" href="tickets.html#tk-ticket">Reply</a><button class="btn sm ghost icon" data-open="snooze" aria-label="Snooze"><i data-lucide="clock"></i></button></div>
+    <div class="todo"><span class="ic info"><i data-lucide="mail-check"></i></span><div class="tx"><b>4 support email drafts ready to send</b><span>Oldest is 5 hours old</span></div><a class="btn sm" href="tickets.html#tk-drafts">Approve</a><button class="btn sm ghost icon" data-open="snooze" aria-label="Snooze"><i data-lucide="clock"></i></button></div>
+  </div>
+  <div class="sec-h"><span class="eyebrow" style="margin:0">Marketing & creators · 2</span></div>
+  <div class="card flush">
+    <div class="todo"><span class="ic sun"><i data-lucide="clapperboard"></i></span><div class="tx"><b>2 creator drafts waiting over 24h</b><span>Creators can't post until you approve</span></div><a class="btn sm" href="influencers.html#inf-deal">Watch</a><button class="btn sm ghost icon" data-open="snooze" aria-label="Snooze"><i data-lucide="clock"></i></button></div>
+    <div class="todo"><span class="ic info"><i data-lucide="file-check"></i></span><div class="tx"><b>"Festive restock" template rejected by Meta</b><span>Reason: looks like a promotion in a utility template</span></div><a class="btn sm" href="whatsapp.html#wa-templates">Fix</a><button class="btn sm ghost icon" data-open="snooze" aria-label="Snooze"><i data-lucide="clock"></i></button></div>
+  </div>
+  <p class="footer-note">Illustrative data.</p>
+</section>
+
+<!-- ============ EMPTY / ALL CLEAR state ============ -->
+<section class="screen" id="home-clear" data-title="Home · all clear (empty state)" data-nav="home">
+  <header class="ph"><div class="t"><span class="eyebrow red">★ Sunday, 12 Oct · 8:05 am</span><h1 style="font-size:clamp(28px,3.4vw,44px)">Morning, Khush.</h1><p class="sum">Quiet one. Nothing needs you right now.</p></div></header>
+  <div class="card"><div class="empty"><div class="art"><i data-lucide="party-popper"></i><span class="sticker">All clear</span></div><h3>Crunch time is over</h3><p>No orders to confirm, no tickets waiting, no drafts to approve. We'll ping you the moment something lands.</p><a class="btn mt8" href="maya.html#maya-home">Ask Maya how the week went</a></div></div>
+</section>
+
+</main>
+
+<!-- overlays for this file -->
+<div class="overlay" id="snooze" role="dialog" aria-label="Snooze" data-title="Snooze picker" data-host="attention"><div class="modal">
+  <div class="mh"><div style="flex:1"><h2>Snooze this</h2><p>It leaves your list and comes back at the time you pick.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="stack" data-group style="gap:10px">
+    <button class="radio-card on"><span class="rd"></span><div><b>In 3 hours</b><span>Today, 12:40 pm</span></div></button>
+    <button class="radio-card"><span class="rd"></span><div><b>Tomorrow morning</b><span>Wed, 8 Oct, 9:00 am</span></div></button>
+    <button class="radio-card"><span class="rd"></span><div><b>Next week</b><span>Mon, 13 Oct, 9:00 am</span></div></button>
+  </div>
+  <div class="mf"><button class="btn ghost" data-close>Cancel</button><button class="btn dark" data-toast="Snoozed until 12:40 pm" data-undo>Snooze</button></div>
+</div></div>
+
+<div class="overlay" id="welcome" role="dialog" aria-label="Welcome" data-title="Welcome to the new CRM (first run)" data-host="home"><div class="modal" style="padding:0;overflow:hidden">
+  <div style="background:var(--red);color:#fff;padding:34px 30px 30px;background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px)">
+    <span class="eyebrow" style="color:rgba(255,255,255,.8)">★ New look</span>
+    <h1 style="font-size:34px">Same CRM.<br>Less noise.</h1>
+    <p class="mt8" style="opacity:.9">Everything you used is still here, in fewer places.</p>
+  </div>
+  <div style="padding:24px 30px 28px">
+    <div class="tl">
+      <div class="it done"><b>8 places, not 20</b><span>Home, Inbox, Orders, Marketing, Creators, B2B, Customers, Insights.</span></div>
+      <div class="it done"><b>Ask Maya is the yellow button</b><span>Ask anything, get a chart. Shortcut ⌘J.</span></div>
+      <div class="it now"><b>Search finds everything</b><span>Orders, people, tickets, pages. Shortcut ⌘K.</span></div>
+    </div>
+    <div class="mf"><button class="btn ghost" data-close>Skip</button><button class="btn primary" data-close>Show me Home</button></div>
+  </div>
+</div></div>
+
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script src="manifest.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
