@@ -7,7 +7,7 @@
 select cron.schedule(
   'wa-weekly-summary',
   '30 3 * * 1',
-  $$select net.http_post(url:='https://hlykspakpewuilttnydm.supabase.co/functions/v1/wa-weekly-summary')$$
+  $$select net.http_post(url:='https://wlungshkwfuggtbantkb.supabase.co/functions/v1/wa-weekly-summary')$$
 );
 
 -- To inspect / remove later:

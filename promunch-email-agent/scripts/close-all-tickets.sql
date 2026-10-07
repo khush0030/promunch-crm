@@ -1,7 +1,7 @@
 -- close-all-tickets.sql
 -- One-time reset: discard every existing ticket and start fresh under the new
 -- two-number WhatsApp escalation model. Run once in the Supabase SQL editor
--- (project: CRM / hlykspakpewuilttnydm).
+-- (project: CRM / wlungshkwfuggtbantkb).
 --
 -- 1) Close every open/pending ticket, stamp resolved, clear watchdog counters.
 -- 2) Hand every thread back to the bot (the old human-takeover model is retired;

@@ -26,7 +26,7 @@ Feature shape, one paragraph: when a WhatsApp cart-recovery run fails to land (n
 | `connection_id` | Deploy → Phone Numbers → the connection you just rented |
 | `agent_phone_number` | The rented number itself, E.164 (`+91...`) |
 
-**Placeholders used below** (never invented — fill in from your own dashboard): `<SARVAM_ORG_ID>`, `<SARVAM_WORKSPACE_ID>`, `<SARVAM_APP_ID>`, `<SARVAM_CONNECTION_ID>`, `<SARVAM_AGENT_PHONE>` (e.g. `+9198XXXXXXXX`), `<PROJECT_REF>` (this project's Supabase ref, `hlykspakpewuilttnydm`), `<VOICE_TOOL_SECRET>` (a shared secret you generate for the mid-call tool — see §5).
+**Placeholders used below** (never invented — fill in from your own dashboard): `<SARVAM_ORG_ID>`, `<SARVAM_WORKSPACE_ID>`, `<SARVAM_APP_ID>`, `<SARVAM_CONNECTION_ID>`, `<SARVAM_AGENT_PHONE>` (e.g. `+9198XXXXXXXX`), `<PROJECT_REF>` (this project's Supabase ref, `wlungshkwfuggtbantkb`), `<VOICE_TOOL_SECRET>` (a shared secret you generate for the mid-call tool — see §5).
 
 ## 2. Function secrets
 
@@ -191,7 +191,7 @@ WA interplay: `wa-journey-tick` refuses to send a WA cart nudge if a cart call r
 
 **Outputs:** `call_disposition` in {`confirmed`, `cancel_requested`, `callback_later`, `unclear`, `do_not_call`}, plus `call_summary`.
 
-**HTTPS tool `cod_confirm`:** POST `https://hlykspakpewuilttnydm.supabase.co/functions/v1/voice-tool-cod`, header `Authorization: Bearer <VOICE_TOOL_SECRET>` (same secret as `voice-tool-wa-link`), body `{call_id, action}` where `action` is `"confirm"` or `"cancel_request"`.
+**HTTPS tool `cod_confirm`:** POST `https://wlungshkwfuggtbantkb.supabase.co/functions/v1/voice-tool-cod`, header `Authorization: Bearer <VOICE_TOOL_SECRET>` (same secret as `voice-tool-wa-link`), body `{call_id, action}` where `action` is `"confirm"` or `"cancel_request"`.
 
 - `confirm` releases the COD fulfillment hold and sets `confirmed_via='voice'`.
 - `cancel_request` parks the order as `needs_call`, opens an urgent WA ticket and sends one ops ping. **The agent never cancels an order**; ops decide.
@@ -209,7 +209,7 @@ Prompt rules: confirm the order (`{order_items}`, `{order_value}`); call the too
 Migration FIRST: the Voice tab routes select the new `purpose` column, so deploying Next before the migration breaks them.
 
 1. Apply `20261001120000_voice_cart_cod.sql` (SQL editor); verify columns.
-2. Create/update both Sarvam agents; set `SARVAM_COD_APP_ID`, `SARVAM_COD_APP_VERSION` and the new `SARVAM_APP_VERSION`: `supabase secrets set ... --project-ref hlykspakpewuilttnydm`.
+2. Create/update both Sarvam agents; set `SARVAM_COD_APP_ID`, `SARVAM_COD_APP_VERSION` and the new `SARVAM_APP_VERSION`: `supabase secrets set ... --project-ref wlungshkwfuggtbantkb`.
 3. Deploy in order: `voice-tick voice-tool-cod voice-call-start voice-webhook voice-tool-wa-link wa-jobs-tick`, then `wa-journey-tick wa-ai-reply`, then `shopify-wa`.
 4. Apply `20261001120100_voice_tick_cron.sql` AFTER `voice-tick` is deployed; confirm `cron.job_run_details` shows voice-tick 200s.
 5. Vercel: deploy from a detached worktree of the pushed commit with `.vercel` copied in (the shared checkout drifts); check `vercel ls promunch-crm`. Set `SARVAM_COD_APP_ID` in Vercel env.

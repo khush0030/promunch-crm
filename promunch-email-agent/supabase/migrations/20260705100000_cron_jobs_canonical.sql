@@ -44,7 +44,7 @@ $fn$;
 
 DO $$
 DECLARE
-  fns text := 'https://hlykspakpewuilttnydm.supabase.co/functions/v1/';
+  fns text := 'https://wlungshkwfuggtbantkb.supabase.co/functions/v1/';
   app text := 'https://promunch-crm.vercel.app';
 BEGIN
   -- ── Edge functions (service_role bearer; gated by _shared/require-internal.ts)

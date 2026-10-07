@@ -118,7 +118,7 @@ For each entry in the JSON seed, POST to `wa-template-create` with the service-r
 ```bash
 # from promunch-email-agent/, one template at a time
 jq -c '.[]' supabase/functions/_shared/influencer-templates.json | while read -r t; do
-  curl -s -X POST "https://hlykspakpewuilttnydm.supabase.co/functions/v1/wa-template-create" \
+  curl -s -X POST "https://wlungshkwfuggtbantkb.supabase.co/functions/v1/wa-template-create" \
     -H "Authorization: Bearer $SERVICE_ROLE_KEY" -H "Content-Type: application/json" \
     -d "{\"template\": $t}"; echo
 done

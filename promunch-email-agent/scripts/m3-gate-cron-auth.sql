@@ -40,7 +40,7 @@ $fn$;
 
 DO $$
 DECLARE
-  base text := 'https://hlykspakpewuilttnydm.supabase.co/functions/v1/';
+  base text := 'https://wlungshkwfuggtbantkb.supabase.co/functions/v1/';
 BEGIN
   PERFORM cron.schedule('amazon-poll',               '*/15 * * * *',    _m3_post(base || 'amazon-poll'));
   PERFORM cron.schedule('amazon-settlements',        '0 5 * * *',       _m3_post(base || 'amazon-poll?only=settlements'));

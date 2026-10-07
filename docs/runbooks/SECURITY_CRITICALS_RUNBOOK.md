@@ -21,7 +21,7 @@ Status as of this commit: **all code + migration written and verified (build pas
 
 ## Step 1 — Rotate the leaked service_role key (C2)  ⚠️ do first
 
-The key `role: service_role`, ref `hlykspakpewuilttnydm`, is in git history (commit `6f809d5`) and still matches the live key. Rotate it:
+The key `role: service_role`, ref `wlungshkwfuggtbantkb`, is in git history (commit `6f809d5`) and still matches the live key. Rotate it:
 
 1. Supabase dashboard → **Settings → API** → rotate/roll the key.
    - ⚠️ On the legacy JWT scheme, rolling the JWT secret **also rotates the anon key**. If so, you must update `NEXT_PUBLIC_SUPABASE_ANON_KEY` too (Vercel + `.env.local`).

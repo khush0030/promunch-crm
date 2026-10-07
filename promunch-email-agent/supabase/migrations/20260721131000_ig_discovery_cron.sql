@@ -22,7 +22,7 @@ $fn$;
 
 DO $$
 DECLARE
-  fns text := 'https://hlykspakpewuilttnydm.supabase.co/functions/v1/';
+  fns text := 'https://wlungshkwfuggtbantkb.supabase.co/functions/v1/';
 BEGIN
   PERFORM cron.schedule('ig-discovery-tick', '*/5 * * * *', _cron_post(fns || 'ig-discovery-tick', 'service_role_key'));
 END $$;

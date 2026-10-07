@@ -65,7 +65,7 @@ select cron.schedule(
   'shopify-catalog-sync',
   '*/30 * * * *',
   $cmd$select net.http_post(
-    url := 'https://hlykspakpewuilttnydm.supabase.co/functions/v1/shopify-catalog-sync',
+    url := 'https://wlungshkwfuggtbantkb.supabase.co/functions/v1/shopify-catalog-sync',
     headers := jsonb_build_object(
       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key'),
       'Content-Type', 'application/json'
@@ -83,7 +83,7 @@ select cron.schedule(
   'kb-embed-nightly',
   '15 2 * * *',
   $cmd$select net.http_post(
-    url := 'https://hlykspakpewuilttnydm.supabase.co/functions/v1/kb-embed',
+    url := 'https://wlungshkwfuggtbantkb.supabase.co/functions/v1/kb-embed',
     headers := jsonb_build_object(
       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key'),
       'Content-Type', 'application/json'

@@ -47,11 +47,11 @@ Arrows describe source-code responsibilities. They are not a claim that every br
 | Component | Existing role and identity |
 |---|---|
 | CRM | Next.js dashboard and API routes on Vercel, `promunch-crm.vercel.app` |
-| Supabase | Project `hlykspakpewuilttnydm`; Postgres, Auth, Storage, Edge Functions, pg_cron and Vault |
+| Supabase | Project `wlungshkwfuggtbantkb`; Postgres, Auth, Storage, Edge Functions, pg_cron and Vault |
 | WhatsApp account | PROMUNCH WABA `798547600007401` |
 | WhatsApp sender | `+91 99813 10247`, phone-number ID `1106480032553084` |
 | Business portfolio | PROMUNCH portfolio `141290440189538`; separate from the Relay platform's portfolio |
-| Expected CRM inbound endpoint | `https://hlykspakpewuilttnydm.supabase.co/functions/v1/wa-webhook`; source-defined receiver, not a fresh export of all Meta subscription settings |
+| Expected CRM inbound endpoint | `https://wlungshkwfuggtbantkb.supabase.co/functions/v1/wa-webhook`; source-defined receiver, not a fresh export of all Meta subscription settings |
 | Storefront | `https://promunch.in`, Shopify store `a1e4f4-2` |
 | AI context | `kb_documents` / `kb_chunks`, conversation history, approved tools and order context |
 | Credentials | Existing server-side Meta and Supabase credentials; never exposed to the storefront. No credentials are included in this document. |

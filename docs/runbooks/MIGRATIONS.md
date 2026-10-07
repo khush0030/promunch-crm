@@ -10,7 +10,7 @@ so here's the map.
 | `supabase/migrations/` | Legacy CRM core: `contacts`, `orders`, `campaigns`, `campaign_emails`, `flows`, `flow_enrollments`, `email_events` (+ the RLS lockdown `004`). | Supabase dashboard SQL editor (by hand). |
 | `promunch-email-agent/supabase/migrations/` | Everything else: WhatsApp, Shopify, Amazon, Instagram, B2B leads/outreach, KB/RAG, connector events, RFM. | Supabase dashboard SQL editor (by hand). |
 
-Both projects point at the **same** Supabase database (`hlykspakpewuilttnydm`).
+Both projects point at the **same** Supabase database (`wlungshkwfuggtbantkb`).
 The split is historical (the email agent started as a separate repo) — treat the
 two dirs as one logical migration set.
 

@@ -39,7 +39,7 @@ $fn$;
 
 DO $$
 DECLARE
-  fns text := 'https://hlykspakpewuilttnydm.supabase.co/functions/v1/';
+  fns text := 'https://wlungshkwfuggtbantkb.supabase.co/functions/v1/';
 BEGIN
   -- Order-confirmation safety net (see header warning).
   PERFORM cron.schedule('wa-confirmation-sweep', '*/15 * * * *', _cron_post(fns || 'wa-confirmation-sweep', 'service_role_key'));

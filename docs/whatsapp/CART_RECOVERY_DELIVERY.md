@@ -39,7 +39,7 @@ No database migration is required. Cart priority is a selection rule, not a new 
 
 ## Rollout order
 
-1. Supabase management access to project `hlykspakpewuilttnydm` was restored on September 12. CLI function/secret metadata listing and live-source backups succeeded. The existing local service credential can read database records but the diagnostic function returned 401; do not assume these are equivalent access paths. CLI secret metadata confirms `WA_MM_LITE_ENABLED` is absent. No new credentials were retrieved.
+1. Supabase management access to project `wlungshkwfuggtbantkb` was restored on September 12. CLI function/secret metadata listing and live-source backups succeeded. The existing local service credential can read database records but the diagnostic function returned 401; do not assume these are equivalent access paths. CLI secret metadata confirms `WA_MM_LITE_ENABLED` is absent. No new credentials were retrieved.
 2. Deploy `wa-ai-reply`, `wa-journey-tick`, `wa-webhook`, and `wa-meta-info` from `promunch-email-agent/`. Shared `window-asks` consumers bundled in those functions must be deployed together.
 3. Deploy the Next application. The storefront feature remains off unless `WA_CART_REQUEST_ENABLED` resolves to the exact string `true` through Next's app_secrets/env settings.
 4. Verify the receiving worker with an owner-initiated cart request and confirm the delivery receipt. Then enable `WA_CART_REQUEST_ENABLED` and verify the existing growth embed is installed on the live storefront. The action only renders on the cart page, not product-page cart drawers or hosted checkout. The embed cache can take five minutes to refresh.

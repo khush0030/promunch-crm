@@ -24,7 +24,7 @@ select cron.schedule(
   '30 19 * * *',                       -- 19:30 UTC = 01:00 IST daily
   $$
   select net.http_post(
-    url     := 'https://hlykspakpewuilttnydm.supabase.co/functions/v1/shopify-catalog-sync',
+    url     := 'https://wlungshkwfuggtbantkb.supabase.co/functions/v1/shopify-catalog-sync',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key')

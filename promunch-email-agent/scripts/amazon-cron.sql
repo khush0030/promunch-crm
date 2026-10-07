@@ -7,14 +7,14 @@
 select cron.schedule(
   'amazon-poll',
   '*/15 * * * *',
-  $$select net.http_post(url:='https://hlykspakpewuilttnydm.supabase.co/functions/v1/amazon-poll')$$
+  $$select net.http_post(url:='https://wlungshkwfuggtbantkb.supabase.co/functions/v1/amazon-poll')$$
 );
 
 -- Daily 05:00 UTC (10:30 IST): ingest the latest settlement report + reconcile.
 select cron.schedule(
   'amazon-settlements',
   '0 5 * * *',
-  $$select net.http_post(url:='https://hlykspakpewuilttnydm.supabase.co/functions/v1/amazon-poll?only=settlements')$$
+  $$select net.http_post(url:='https://wlungshkwfuggtbantkb.supabase.co/functions/v1/amazon-poll?only=settlements')$$
 );
 
 -- To inspect / remove later:
