@@ -1,0 +1,126 @@
+/* Home · Today. Calm rules: status = coloured text + small dot, one red
+   element (the primary button), yellow only for Maya, hairlines inside cards. */
+
+/* ---------- header ---------- */
+.ph{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px 24px;padding:18px var(--pm3-gutter) 6px}
+.phText{flex:1 1 420px;min-width:0}
+.eyebrow{display:block;font:700 11.5px/1.2 var(--pm-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--pm-muted);margin-bottom:12px}
+.title{margin:0;font:400 clamp(28px,3.4vw,44px)/1.05 var(--pm-display);letter-spacing:-.01em;color:var(--pm-ink)}
+.sum{margin:10px 0 0;font-size:17.5px;line-height:1.5;color:var(--pm-ink2);max-width:62ch}
+.sum b{color:var(--pm-ink)}
+.acts{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.primary{white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+
+/* ---------- KPI tiles ---------- */
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.kpi{background:var(--pm-card);border:1px solid var(--pm-border);border-radius:var(--pm-r);padding:22px 24px;display:flex;flex-direction:column;gap:6px;min-width:0;color:var(--pm-ink);text-decoration:none;transition:border-color .15s}
+a.kpi:hover{border-color:#CFC7B9}
+.kpiL{display:flex;align-items:center;gap:8px;font:700 11.5px/1.2 var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-muted)}
+.kpiL svg{width:15px;height:15px;margin-left:auto;color:var(--pm-hint)}
+.kpiV{font:400 34px/1.1 var(--pm-display);letter-spacing:-.02em;margin-top:6px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hero .kpiV{font-size:44px}
+.kpiD{font-size:14.5px;color:var(--pm-ink2);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.up{color:var(--pm-green);font-weight:700}
+.down{color:var(--pm-terra);font-weight:700}
+.flat{color:var(--pm-muted);font-weight:700}
+
+/* ---------- 2:1 grid ---------- */
+.g21{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:20px;align-items:start}
+.stack{display:flex;flex-direction:column;gap:20px;min-width:0}
+.card{background:var(--pm-card);border:1px solid var(--pm-border);border-radius:var(--pm-r);padding:22px;min-width:0}
+.card.flush{padding:0;overflow:hidden}
+.secT{display:flex;align-items:baseline;gap:12px}
+.secT h3{flex:1;margin:0;font:700 18px/1.3 var(--pm-font);color:var(--pm-ink)}
+.flush .secT{padding:22px 22px 6px}
+.txtLink{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:15px;color:var(--pm-ink);white-space:nowrap;text-decoration:none}
+.txtLink svg{width:16px;height:16px}
+.txtLink:hover{color:var(--pm-brand)}
+
+/* needs-you rows: the whole row is a link */
+.todo{display:flex;align-items:center;gap:16px;padding:18px 22px;color:var(--pm-ink);text-decoration:none}
+.todo+.todo{border-top:1px solid var(--pm-line)}
+.todo:hover{background:var(--pm-card2)}
+.ic{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;flex-shrink:0;background:var(--pm-card3);color:var(--pm-ink2)}
+.ic svg{width:19px;height:19px}
+.ic.crit{background:var(--pm-terra-soft);color:var(--pm-terra)}
+.ic.warn{background:var(--pm-gold-soft);color:var(--pm-gold)}
+.ic.info{background:var(--pm-blue-soft);color:var(--pm-blue)}
+.tx{flex:1;min-width:0}
+.tx b{display:block;font-weight:700;font-size:16.5px;line-height:1.35}
+.tx span{display:block;color:var(--pm-muted);font-size:14.5px;line-height:1.4}
+.goV{font:400 18px var(--pm-display);white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
+.goV small{display:block;font:600 12px var(--pm-font);color:var(--pm-muted)}
+.goV.crit{color:var(--pm-terra)}
+.goC{color:var(--pm-muted);width:18px;height:18px;flex-shrink:0}
+.empty{padding:6px 22px 22px;color:var(--pm-muted);font-size:15px}
+
+/* Ask Maya: yellow is Maya's alone */
+.maya{background:var(--pm-sun-soft);border-color:#F2DC93}
+.mayaHead{display:flex;gap:14px;align-items:center}
+.mayaHead h3{margin:0;font:700 18px/1.3 var(--pm-font)}
+.mayaHead p{margin:2px 0 0;font-size:14.5px;color:var(--pm-ink2)}
+.mayaIc{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;flex-shrink:0;background:var(--pm-sun);color:var(--pm-ink)}
+.mayaIc svg{width:20px;height:20px}
+.mayaAsk{display:flex;align-items:center;gap:10px;height:46px;margin-top:16px;padding:0 16px;border-radius:999px;background:var(--pm-card);border:1px solid #EBD58D;color:var(--pm-muted);font-size:15px;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mayaAsk:hover{border-color:#D9B95A}
+.mayaAsk svg{width:17px;height:17px;flex:none;color:var(--pm-ink2)}
+.qs{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.q{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:16px;background:var(--pm-card);border:1px solid var(--pm-border);font-weight:600;font-size:15px;line-height:1.35;color:var(--pm-ink);text-decoration:none}
+.q:hover{border-color:#E7C35A}
+.q svg{width:16px;height:16px;flex:none;margin-top:2px;color:var(--pm-sun-ink)}
+
+/* running now */
+.run{display:flex;flex-direction:column;margin-top:8px}
+.rn{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--pm-line);color:var(--pm-ink);text-decoration:none}
+.rn:last-child{border-bottom:0;padding-bottom:0}
+.cj{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;flex-shrink:0;background:var(--pm-blue-soft);color:var(--pm-blue)}
+.cj svg{width:16px;height:16px}
+.rnM{flex:1;min-width:0}
+.rnT{display:flex;align-items:baseline;gap:10px}
+.rnT b{flex:1;min-width:0;font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rnS{display:block;font-size:14px;color:var(--pm-muted)}
+.bar{height:6px;border-radius:4px;background:var(--pm-card3);margin:6px 0 4px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:4px;background:var(--pm-green)}
+.tg{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;color:var(--pm-ink2);white-space:nowrap}
+.tg::before{content:"";width:7px;height:7px;border-radius:50%;background:#B9B0A3}
+.tg.good{color:var(--pm-green)}.tg.good::before{background:var(--pm-green)}
+.tg.warn{color:var(--pm-gold)}.tg.warn::before{background:#D99A00}
+.tg.info{color:var(--pm-blue)}.tg.info::before{background:var(--pm-blue)}
+.runEmpty{margin:10px 0 0;font-size:14.5px;color:var(--pm-muted)}
+
+/* sales chart */
+.takeaway{margin:6px 0 10px;font:400 22px/1.2 var(--pm-display);letter-spacing:-.01em;color:var(--pm-ink)}
+.takeaway em{font-style:normal;color:var(--pm-green)}
+.takeaway em.neg{color:var(--pm-terra)}
+.takeaway em.plain{color:var(--pm-ink)}
+.keys{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;font-size:14px;color:var(--pm-ink2)}
+.keys span{display:inline-flex;align-items:center;gap:6px}
+.keys i{width:10px;height:10px;border-radius:3px}
+.splitT{display:block;font:700 11.5px/1.2 var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-muted);margin-bottom:10px}
+
+@media (max-width:1024px){
+  .g21{grid-template-columns:minmax(0,1fr)}
+  .stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:760px){
+  .ph{padding:10px 16px 2px;align-items:stretch}
+  .phText{flex-basis:100%}
+  .sum{font-size:16px}
+  .acts{width:100%;flex-direction:column;align-items:stretch}
+  .acts .primary{width:100%}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .kpis>.kpi:first-child{grid-column:1/-1}
+  .kpi{padding:16px 18px}
+  .kpiV{font-size:27px}
+  .hero .kpiV{font-size:34px}
+  .stack{display:flex;gap:14px}
+  .g21{gap:14px}
+  .card{padding:18px 16px}
+  .flush .secT{padding:18px 16px 4px}
+  .todo{padding:16px;gap:12px}
+  .ic{width:36px;height:36px;border-radius:12px}
+  .tx b{font-size:16px}
+  .goV{font-size:15px}
+  .empty{padding:6px 16px 18px}
+  .takeaway{font-size:19px}
+}
