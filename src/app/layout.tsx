@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { archivo, archivoBlack, plexMono } from "./fonts";
+import { assistant, archivoBlack, jetbrainsMono } from "./fonts";
 import "./globals.css";
+import "./redesign.css";
 
 export const metadata: Metadata = {
   title: "PROMUNCH CRM",
@@ -13,7 +14,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${archivo.variable} ${archivoBlack.variable} ${plexMono.variable}`}>
+    // Light only for now: the redesign has no dark palette yet (open question 10).
+    <html lang="en" data-theme="light" className={`${assistant.variable} ${archivoBlack.variable} ${jetbrainsMono.variable}`}>
       <body>{children}</body>
     </html>
   );

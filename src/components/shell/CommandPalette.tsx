@@ -2,12 +2,21 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, User, MessageCircle, CornerDownLeft } from "lucide-react";
-import { NAV } from "./nav";
+import { allItems, type NavPage } from "./nav";
+import type { LucideIcon } from "lucide-react";
 import { useMediaPhone } from "./useMediaPhone";
 import { useAccess } from "./useAccess";
 import { canOpenHref } from "@/lib/access";
 
-type Result = { key: string; group: "Pages" | "Customers" | "Conversations"; label: string; sub?: string; href: string };
+type Result = {
+  key: string;
+  group: "Pages" | "Customers" | "Conversations";
+  label: string;
+  sub?: string;
+  href: string;
+  icon?: LucideIcon;
+  adminOnly?: boolean;
+};
 type Remote = { q: string; customers: Result[]; conversations: Result[] };
 
 type ContactRow = { id: string; first_name?: string | null; last_name?: string | null; email?: string | null; phone?: string | null };
@@ -19,9 +28,20 @@ type ThreadRow = {
   contact?: { name?: string | null; phone?: string | null; wa_id?: string | null } | null;
 };
 
-const PAGES: Result[] = NAV.flatMap((h) =>
-  h.items.map((it) => ({ key: `p:${h.hub}:${it.label}`, group: "Pages" as const, label: it.label, sub: h.hub, href: it.href })),
-);
+// Every page of every place, plus palette-only jumps (WhatsApp tabs, retired
+// email pages). A place with one page is listed by its own name.
+const PAGES: Result[] = allItems().flatMap((it) => {
+  const pages: NavPage[] = it.pages && it.pages.length > 1 ? it.pages : [{ label: it.label, href: it.href }];
+  return [...pages, ...(it.palette ?? [])].map((pg) => ({
+    key: `p:${it.label}:${pg.label}`,
+    group: "Pages" as const,
+    label: pg.label,
+    sub: pg.label === it.label ? undefined : it.label,
+    href: pg.href,
+    icon: it.icon,
+    adminOnly: pg.adminOnly,
+  }));
+});
 
 async function getJson<T>(url: string, signal: AbortSignal): Promise<T | null> {
   try {
@@ -48,7 +68,7 @@ export default function CommandPalette({ onClose }: { onClose: (navigated: boole
   // Only pages this teammate can open. Customer / conversation lookups that
   // their access refuses come back 403 and are simply left out.
   const access = useAccess();
-  const allowed = useMemo(() => PAGES.filter((p) => access && canOpenHref(access, p.href)), [access]);
+  const allowed = useMemo(() => PAGES.filter((p) => access && (!p.adminOnly || access.admin) && canOpenHref(access, p.href)), [access]);
 
   useEffect(() => {
     input.current?.focus();
@@ -91,7 +111,7 @@ export default function CommandPalette({ onClose }: { onClose: (navigated: boole
   const results = useMemo(() => {
     const needle = term.toLowerCase();
     const pages = needle
-      ? allowed.filter((p) => p.label.toLowerCase().includes(needle) || p.sub!.toLowerCase().includes(needle))
+      ? allowed.filter((p) => p.label.toLowerCase().includes(needle) || (p.sub ?? "").toLowerCase().includes(needle))
       : allowed;
     const live = term.length >= 2 && remote?.q === term ? remote : null;
     return [...pages, ...(live?.customers ?? []), ...(live?.conversations ?? [])];
@@ -189,8 +209,10 @@ export default function CommandPalette({ onClose }: { onClose: (navigated: boole
                       <User aria-hidden />
                     ) : r.group === "Conversations" ? (
                       <MessageCircle aria-hidden />
+                    ) : r.icon ? (
+                      <r.icon aria-hidden />
                     ) : (
-                      <HubIcon hub={r.sub} />
+                      <Search aria-hidden />
                     )}
                     <span className="lb">
                       {r.label}
@@ -209,8 +231,3 @@ export default function CommandPalette({ onClose }: { onClose: (navigated: boole
 }
 
 const GROUPS = ["Pages", "Customers", "Conversations"] as const;
-
-function HubIcon({ hub }: { hub: string | undefined }) {
-  const h = NAV.find((x) => x.hub === hub);
-  return h ? <h.icon aria-hidden /> : <Search aria-hidden />;
-}

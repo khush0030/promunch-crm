@@ -13,7 +13,7 @@ import {
   NO_ACCESS_PATH,
 } from "./access";
 import { OWNER_EMAIL } from "./rbac";
-import { NAV, navFor } from "@/components/shell/nav";
+import { NAV, SETTINGS, itemFor, navFor } from "@/components/shell/nav";
 
 const marketer = accessOf({
   email: "priya@promunch.in",
@@ -119,19 +119,19 @@ describe("api", () => {
 });
 
 describe("nav", () => {
-  it("navFor keeps only allowed items and drops empty hubs", () => {
-    const hubs = navFor(marketer);
-    expect(hubs.map((h) => h.hub)).toEqual(["Marketing"]);
-    expect(hubs[0].items.map((i) => i.label)).not.toContain("Audience");
-    expect(hubs[0].items.map((i) => i.label)).toContain("WhatsApp marketing");
+  it("navFor keeps only allowed places and drops empty groups", () => {
+    const labels = navFor(marketer).flatMap((s) => s.items.map((i) => i.label));
+    // Customers = the sign-up popup (a WhatsApp marketing tab)
+    expect(labels).toEqual(["Marketing", "Customers"]);
+    expect(navFor(marketer)[0].items[0].children?.map((c) => c.label)).toEqual(["WhatsApp", "Email"]);
     expect(navFor(null)).toEqual([]);
     expect(navFor(accessOf({ email: OWNER_EMAIL }))).toBe(NAV);
   });
-  it("Admin (sign-ins, IPs, activity log) is shown to owners/admins only", () => {
-    const labels = (a: ReturnType<typeof accessOf>) => navFor(a).flatMap((h) => h.items.map((i) => i.label));
-    expect(labels(accessOf({ email: "boss@promunch.in", app_metadata: { role: "admin" } }))).toContain("Admin");
-    expect(labels(accessOf({ email: "a@promunch.in", app_metadata: { role: "agent" } }))).not.toContain("Admin");
-    expect(labels(accessOf({ email: "a@promunch.in", app_metadata: { role: "agent", modules: ["system"] } }))).not.toContain("Admin");
+  it("Security (sign-ins, IPs, activity log) is shown to owners/admins only", () => {
+    const pages = (a: ReturnType<typeof accessOf>) => (itemFor(a, SETTINGS)?.pages ?? []).map((p) => p.label);
+    expect(pages(accessOf({ email: "boss@promunch.in", app_metadata: { role: "admin" } }))).toContain("Security");
+    expect(pages(accessOf({ email: "a@promunch.in", app_metadata: { role: "agent" } }))).not.toContain("Security");
+    expect(pages(accessOf({ email: "a@promunch.in", app_metadata: { role: "agent", modules: ["system"] } }))).not.toContain("Security");
   });
 });
 

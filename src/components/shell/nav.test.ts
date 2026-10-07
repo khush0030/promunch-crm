@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { findActive, hubHref, hubPreview, parseHref, visibleItems, NAV } from "./nav";
+import { MAYA, NAV, SETTINGS, allItems, findActive, itemFor, navFor, parseHref, sectionTabs } from "./nav";
+import { accessOf } from "@/lib/access";
 
-const label = (p: string, tab: string | null = null, hash = "") => findActive(p, tab, hash)?.item.label ?? null;
+const at = (p: string, tab: string | null = null, hash = "") => findActive(p, tab, hash);
+const place = (p: string, tab: string | null = null, hash = "") => at(p, tab, hash)?.item.label ?? null;
+const page = (p: string, tab: string | null = null, hash = "") => at(p, tab, hash)?.page?.label ?? null;
 
 describe("shell nav", () => {
   it("parses tab and hash", () => {
@@ -9,76 +12,97 @@ describe("shell nav", () => {
     expect(parseHref("/dashboard/settings#connections")).toEqual({ path: "/dashboard/settings", tab: null, hash: "#connections" });
   });
 
+  it("has eight places in three groups, Ask Maya pinned and Settings in the footer", () => {
+    expect(NAV.map((s) => s.title)).toEqual([null, "Grow", "Know"]);
+    expect(NAV.flatMap((s) => s.items.map((it) => it.label))).toEqual([
+      "Home",
+      "Inbox",
+      "Orders & COD",
+      "Marketing",
+      "Creators",
+      "B2B & deals",
+      "Customers",
+      "Insights",
+    ]);
+    expect(NAV[1].items[0].children?.map((c) => c.label)).toEqual(["WhatsApp", "Email"]);
+    expect(MAYA.href).toBe("/dashboard/assistant");
+    expect(SETTINGS.href).toBe("/dashboard/settings");
+  });
+
   it("matches home exactly and never as a prefix", () => {
-    expect(label("/dashboard")).toBe("Home");
-    expect(label("/dashboard/unknown")).toBeNull();
+    expect(place("/dashboard")).toBe("Home");
+    expect(place("/dashboard/unknown")).toBeNull();
+    expect(page("/dashboard/attention")).toBe("Needs you");
   });
 
-  it("keeps the one WhatsApp marketing entry highlighted on every marketing tab", () => {
-    for (const t of ["home", "campaigns", "flows", "templates", "growth", "analytics"]) {
-      expect(label("/dashboard/whatsapp", t)).toBe("WhatsApp marketing");
+  it("keeps WhatsApp highlighted on every marketing tab and campaign page", () => {
+    for (const t of ["home", "campaigns", "flows", "templates", "analytics"]) {
+      expect(place("/dashboard/whatsapp", t)).toBe("WhatsApp");
+      expect(at("/dashboard/whatsapp", t)?.area).toBe("Marketing");
     }
-    expect(label("/dashboard/whatsapp/campaigns/new")).toBe("WhatsApp marketing");
-    expect(label("/dashboard/whatsapp/campaigns/abc")).toBe("WhatsApp marketing");
-    expect(findActive("/dashboard/whatsapp/campaigns/abc", null, "")?.hub).toBe("Marketing");
-    expect(label("/dashboard/whatsapp", "kb")).toBe("Bot knowledge");
-    expect(findActive("/dashboard/whatsapp", "kb", "")?.hub).toBe("System");
+    expect(place("/dashboard/whatsapp")).toBe("WhatsApp");
+    expect(place("/dashboard/whatsapp/campaigns/new")).toBe("WhatsApp");
+    expect(place("/dashboard/whatsapp/campaigns/abc")).toBe("WhatsApp");
   });
 
-  it("resolves the Inbox hub", () => {
-    expect(label("/dashboard/inbox")).toBe("Conversations");
-    expect(label("/dashboard/inbox/wa-123")).toBe("Conversations");
-    expect(label("/dashboard/inbox/tickets")).toBe("Tickets");
-    expect(label("/dashboard/inbox/email")).toBe("Email drafts");
-    expect(findActive("/dashboard/inbox/wa-123", null, "")?.hub).toBe("Inbox");
+  it("sends the WhatsApp tabs that moved to their new places", () => {
+    expect(place("/dashboard/whatsapp", "kb")).toBe("Inbox");
+    expect(page("/dashboard/whatsapp", "kb")).toBe("Bot knowledge");
+    expect(place("/dashboard/whatsapp", "voice")).toBe("Orders & COD");
+    expect(place("/dashboard/whatsapp", "growth")).toBe("Customers");
   });
 
-  it("uses prefix matches and hashes", () => {
-    expect(label("/dashboard/contacts/abc")).toBe("Audience");
-    expect(label("/dashboard/settings")).toBe("Settings");
-    expect(label("/dashboard/settings", null, "#connections")).toBe("Health");
-    expect(label("/dashboard/sales/amazon")).toBe("Amazon");
-    expect(findActive("/dashboard/sales/amazon", null, "")?.hub).toBe("Sales");
+  it("resolves Inbox pages", () => {
+    expect(page("/dashboard/inbox")).toBe("Conversations");
+    expect(page("/dashboard/inbox/wa-123")).toBe("Conversations");
+    expect(page("/dashboard/inbox/tickets")).toBe("Tickets");
+    expect(page("/dashboard/inbox/email")).toBe("Email drafts");
   });
 
-  it("keeps legacy email pages resolvable but out of the sidebar", () => {
-    expect(label("/dashboard/campaigns")).toBe("Legacy email campaigns");
-    expect(label("/dashboard/flows/abc")).toBe("Legacy email automations");
-    expect(findActive("/dashboard/campaigns", null, "")?.hub).toBe("Marketing");
-    const marketing = NAV.find((h) => h.hub === "Marketing")!;
-    expect(visibleItems(marketing).map((it) => it.label)).toEqual(["WhatsApp marketing", "Email Studio", "Audience"]);
-    // Partners is down to 2 while Creators (Instagram) is hidden; restore it
-    // to the >= 3 rule when Creators comes back.
-    for (const h of NAV) {
-      expect(visibleItems(h).length).toBeGreaterThanOrEqual(h.hub === "Partners" ? 2 : 3);
-    }
+  it("prefers the longer path: orders belong to Orders, the rest of sales to Insights", () => {
+    expect(place("/dashboard/sales/orders")).toBe("Orders & COD");
+    expect(place("/dashboard/sales")).toBe("Insights");
+    expect(page("/dashboard/sales/amazon")).toBe("Amazon");
+    expect(place("/dashboard/contacts/abc")).toBe("Customers");
+    expect(place("/dashboard/deals")).toBe("B2B & deals");
+    expect(place("/dashboard/email/campaigns/abc")).toBe("Email");
+    expect(place("/dashboard/analytics")).toBe("Email");
+    expect(place("/dashboard/admin")).toBe("Settings");
   });
 
-  it("hides Instagram until its backend is live", () => {
-    const partners = NAV.find((h) => h.hub === "Partners")!;
-    expect(partners.items.map((it) => it.label)).toEqual(["B2B leads", "Deals", "Influencers"]);
-    expect(NAV.flatMap((h) => h.items).some((it) => it.href.startsWith("/dashboard/instagram"))).toBe(false);
+  it("keeps retired and palette-only pages resolvable", () => {
+    expect(place("/dashboard/campaigns")).toBe("Email");
+    expect(place("/dashboard/flows/abc")).toBe("Email");
+    expect(place("/dashboard/settings", null, "#connections")).toBe("Settings");
+    expect(at("/dashboard/campaigns")?.page).toBeNull();
   });
 
-  it("previews the first few visible items of a hub", () => {
-    const marketing = NAV.find((h) => h.hub === "Marketing")!;
-    expect(hubPreview(marketing)).toEqual({ names: ["WhatsApp marketing", "Email Studio", "Audience"], more: 0 });
-    const today = NAV.find((h) => h.hub === "Today")!;
-    expect(hubPreview(today).more).toBe(0);
-  });
-
-  it("keeps WhatsApp pages findable in the command palette", () => {
-    const hrefs = NAV.flatMap((h) => h.items).map((it) => it.href);
-    for (const t of ["campaigns", "templates", "flows", "analytics", "growth"]) {
-      expect(hrefs).toContain(`/dashboard/whatsapp?tab=${t}`);
-    }
+  it("never lists Instagram while its backend is off, keeps WhatsApp jumps in the palette", () => {
+    const hrefs = allItems().flatMap((it) => [it.href, ...(it.pages ?? []).map((p) => p.href), ...(it.palette ?? []).map((p) => p.href)]);
+    expect(hrefs.some((h) => h.startsWith("/dashboard/instagram"))).toBe(false);
+    for (const t of ["campaigns", "templates", "flows", "analytics"]) expect(hrefs).toContain(`/dashboard/whatsapp?tab=${t}`);
     expect(hrefs).toContain("/dashboard/whatsapp/campaigns/new");
   });
 
-  it("hub links land inside their hub", () => {
-    for (const h of NAV) {
-      const p = parseHref(hubHref(h.hub));
-      expect(findActive(p.path, p.tab, p.hash)?.hub).toBe(h.hub);
-    }
+  it("shows section tabs only for places with two or more pages", () => {
+    const owner = accessOf({ email: "boss@promunch.in", app_metadata: { role: "admin" } });
+    expect(sectionTabs(at("/dashboard/sales/web"), owner).map((p) => p.label)).toEqual(["Sales", "Web store", "Amazon"]);
+    expect(sectionTabs(at("/dashboard/influencers"), owner)).toEqual([]);
+    expect(sectionTabs(at("/dashboard/admin"), owner).map((p) => p.label)).toEqual(["Settings", "Security"]);
+    const agent = accessOf({ email: "a@promunch.in", app_metadata: { role: "agent" } });
+    expect(sectionTabs(at("/dashboard/settings"), agent)).toEqual([]);
+  });
+
+  it("trims places to what a restricted member can open", () => {
+    const marketer = accessOf({ email: "p@promunch.in", app_metadata: { role: "agent", modules: ["wa_marketing"] } });
+    const nav = navFor(marketer);
+    expect(nav.flatMap((s) => s.items.map((it) => it.label))).toEqual(["Marketing", "Customers"]);
+    expect(nav[0].items[0].children?.map((c) => c.label)).toEqual(["WhatsApp"]);
+    // Customers is only the sign-up popup for them, and it opens there.
+    const customers = itemFor(marketer, NAV[2].items[0]);
+    expect(customers?.href).toBe("/dashboard/whatsapp?tab=growth");
+    expect(customers?.pages?.map((p) => p.label)).toEqual(["Sign-up popup"]);
+    expect(itemFor(marketer, SETTINGS)).toBeNull();
+    expect(navFor(null)).toEqual([]);
   });
 });

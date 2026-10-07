@@ -1,6 +1,6 @@
 "use client";
-import { Suspense, useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useReducer, useRef, useState, useSyncExternalStore } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import TabBar from "./TabBar";
@@ -8,10 +8,13 @@ import CommandPalette from "./CommandPalette";
 import { findActive } from "./nav";
 import { useAttentionCounts, useHash, useShellUser } from "./useShellData";
 
-// Dashboard chrome: sidebar (desktop), top bar + tab bar (phone), ⌘K palette.
+// Dashboard chrome: sidebar (laptop), top bar (search + bell), phone tab bar,
+// ⌘K palette and ⌘J for Ask Maya.
 // Both layouts are always in the DOM; CSS media queries pick one.
 export default function Shell({ children }: { children: React.ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const router = useRouter();
+  const [rail, toggleRail] = useRail();
   const opener = useRef<HTMLElement | null>(null);
 
   const openPalette = useCallback((from?: HTMLElement | null) => {
@@ -29,22 +32,29 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "k") {
         e.preventDefault();
         if (paletteOpen) closePalette();
         else openPalette();
+      } else if (k === "j") {
+        // ⌘J: Ask Maya, from anywhere.
+        e.preventDefault();
+        if (paletteOpen) closePalette();
+        router.push("/dashboard/assistant");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [paletteOpen, openPalette, closePalette]);
+  }, [paletteOpen, openPalette, closePalette, router]);
 
   return (
-    <div className="pm2-app">
+    <div className={`pm2-app${rail ? " rail" : ""}`}>
       {/* useSearchParams needs a Suspense boundary; the fallback renders the
           same chrome without the ?tab= so prerendered HTML has no gap. */}
-      <Suspense fallback={<Chrome tab={null} onSearch={openPalette} />}>
-        <ChromeWithTab onSearch={openPalette} />
+      <Suspense fallback={<Chrome tab={null} onSearch={openPalette} rail={rail} onToggleRail={toggleRail} />}>
+        <ChromeWithTab onSearch={openPalette} rail={rail} onToggleRail={toggleRail} />
       </Suspense>
       <main className="pm2-main">{children}</main>
       {paletteOpen && <CommandPalette onClose={closePalette} />}
@@ -52,12 +62,40 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ChromeWithTab({ onSearch }: { onSearch: (from?: HTMLElement | null) => void }) {
+type ChromeProps = { onSearch: (from?: HTMLElement | null) => void; rail: boolean; onToggleRail: () => void };
+
+function ChromeWithTab(props: ChromeProps) {
   const tab = useSearchParams().get("tab");
-  return <Chrome tab={tab} onSearch={onSearch} />;
+  return <Chrome tab={tab} {...props} />;
 }
 
-function Chrome({ tab, onSearch }: { tab: string | null; onSearch: (from?: HTMLElement | null) => void }) {
+// Collapsed icon rail on laptops, remembered per browser.
+const railListeners = new Set<() => void>();
+function readRail(): boolean {
+  try {
+    return localStorage.getItem("pm:rail") === "1";
+  } catch {
+    return false;
+  }
+}
+function subscribeRail(cb: () => void) {
+  railListeners.add(cb);
+  return () => {
+    railListeners.delete(cb);
+  };
+}
+function useRail(): [boolean, () => void] {
+  const rail = useSyncExternalStore(subscribeRail, readRail, () => false);
+  const toggle = useCallback(() => {
+    try {
+      localStorage.setItem("pm:rail", readRail() ? "0" : "1");
+    } catch {}
+    railListeners.forEach((l) => l());
+  }, []);
+  return [rail, toggle];
+}
+
+function Chrome({ tab, onSearch, rail, onToggleRail }: ChromeProps & { tab: string | null }) {
   const pathname = usePathname() || "/dashboard";
   // Next's router does not fire hashchange; a nav click forces a re-read.
   const [, bump] = useReducer((n: number) => n + 1, 0);
@@ -71,15 +109,15 @@ function Chrome({ tab, onSearch }: { tab: string | null; onSearch: (from?: HTMLE
     <>
       <Sidebar
         active={active}
-        locationKey={`${pathname}?${tab ?? ""}${hash}`}
         counts={counts}
         user={user}
         signingOut={signingOut}
         onSignOut={signOut}
-        onSearch={onSearch}
         onNavigate={onNavigate}
+        rail={rail}
+        onToggleRail={onToggleRail}
       />
-      <TopBar hub={active?.hub ?? null} onSearch={onSearch} />
+      <TopBar onSearch={onSearch} alerts={counts?.open ?? 0} />
       <TabBar active={active} counts={counts} onNavigate={onNavigate} />
     </>
   );

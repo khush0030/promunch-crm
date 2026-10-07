@@ -36,6 +36,15 @@ const ITEMS: Array<{ key: PageTab; label: string }> = [
 ];
 const TABS: PageTab[] = ITEMS.map((i) => i.key);
 
+// Tabs that live in other sidebar places now: they keep their URL but show
+// as a page of that place (its title and section tabs), not as a WhatsApp
+// marketing tab.
+const ELSEWHERE: Partial<Record<PageTab, { crumb: string; title: string }>> = {
+  kb: { crumb: "Inbox", title: "Bot knowledge" },
+  voice: { crumb: "Orders & COD", title: "Voice calls" },
+  growth: { crumb: "Customers", title: "Sign-up popup" },
+};
+
 // useSearchParams needs a Suspense boundary in the App Router.
 export default function WhatsAppPage() {
   return (
@@ -83,13 +92,17 @@ function WhatsAppPageInner() {
   return (
     <>
       <div ref={tabsRef} className={h.tabsFade}>
-        <PageHeader
-          crumb="Marketing · WhatsApp"
-          title="WhatsApp marketing"
-          tabs={ITEMS.filter((it) => allowedTabs.includes(it.key))}
-          activeTab={tab}
-          onTab={(k) => setTab(k as PageTab)}
-        />
+        {ELSEWHERE[tab] ? (
+          <PageHeader crumb={ELSEWHERE[tab]!.crumb} title={ELSEWHERE[tab]!.title} />
+        ) : (
+          <PageHeader
+            crumb="Marketing · WhatsApp"
+            title="WhatsApp marketing"
+            tabs={ITEMS.filter((it) => allowedTabs.includes(it.key) && !ELSEWHERE[it.key])}
+            activeTab={tab}
+            onTab={(k) => setTab(k as PageTab)}
+          />
+        )}
       </div>
       <div className="pm2-body">
         <HealthNotice />

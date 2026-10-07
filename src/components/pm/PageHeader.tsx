@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { SectionTabs } from "@/components/shell/SectionTabs";
 
 export type PageHeaderTab = { label: string; key: string; count?: number | string };
 
@@ -7,7 +8,8 @@ export type PageHeaderTab = { label: string; key: string; count?: number | strin
 // .a-top/.a-crumb/.a-h1/.a-actions (pm2-top/pm2-crumb/pm2-h1/pm2-actions in
 // globals.css). `title` sits in the display face (--pm-display). Optional
 // `tabs` render a second row (ported from the prototype's .a-tabs, as
-// .pm2-tabs) below the crumb/title/actions row.
+// .pm2-tabs) below the crumb/title/actions row. Section tabs (the other
+// pages of the same sidebar place) render between the two automatically.
 export function PageHeader({
   crumb,
   title,
@@ -35,6 +37,7 @@ export function PageHeader({
         </div>
         {actions != null && <div className="pm2-actions">{actions}</div>}
       </div>
+      <SectionTabs />
       {tabs != null && tabs.length > 0 && (
         <div className="pm2-tabs" role="tablist">
           {tabs.map((t) => (

@@ -26,6 +26,7 @@ import GuideModal from "@/components/leads/GuideModal";
 import LeadModal from "@/components/leads/LeadModal";
 import CampaignWizard from "@/components/leads/CampaignWizard";
 import ListPickerModal from "@/components/leads/ListPickerModal";
+import { SectionTabs } from "@/components/shell/SectionTabs";
 
 export default function LeadsPage() {
   const toast = useToast();
@@ -149,6 +150,7 @@ export default function LeadsPage() {
           </button>
         </div>
       </div>
+      <SectionTabs />
 
       {showStrip && (
         <div className={styles.strip}>

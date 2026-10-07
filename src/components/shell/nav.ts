@@ -1,31 +1,42 @@
-// Six-hub navigation for the dashboard shell (sidebar, phone tab bar, More
-// sheet, command palette). The hub structure is final; hrefs that still point
-// at legacy pages go through ROUTES so Phase 1 can swap them in one place.
+// Dashboard navigation (sidebar, phone tab bar, More sheet, section tabs,
+// command palette). Eight places in three groups, plus Ask Maya pinned on top
+// and Settings in the footer (docs/plans/2026-10-07-app-redesign/04-ia.md).
+//
+// Every place points at today's URLs; a place that spans several pages lists
+// them in `pages` and the page header shows them as section tabs, so folding
+// pages into one sidebar entry never strands a page.
 import {
   Home,
-  ShoppingCart,
   Inbox,
+  Package,
   Megaphone,
+  Sparkle,
   Handshake,
+  Users,
+  LineChart,
   Settings,
+  Sparkles,
+  MessageCircle,
+  Mail,
   type LucideIcon,
 } from "lucide-react";
 import type { Attention } from "@/lib/metrics/attention";
 import { canOpenHref, type Access } from "@/lib/access";
 
-export type Hub = "Today" | "Sales" | "Inbox" | "Marketing" | "Partners" | "System";
+export type Area =
+  | "Home"
+  | "Inbox"
+  | "Orders"
+  | "Marketing"
+  | "Creators"
+  | "B2B"
+  | "Customers"
+  | "Insights"
+  | "Settings"
+  | "Maya";
 export type AttentionCounts = Omit<Attention["counts"], "byHub">;
 
-// Current targets for items whose final page does not exist yet.
-// salesOverview, salesAmazon and salesOrders now point at their real pages
-// (1.3, 1.5, 1.6).
 export const ROUTES = {
-  salesOverview: "/dashboard/sales",
-  salesWeb: "/dashboard/sales/web",
-  salesAmazon: "/dashboard/sales/amazon",
-  salesOrders: "/dashboard/sales/orders",
-  // Instagram tabs are not URL-driven yet, so Creators lands on the page.
-  creators: "/dashboard/instagram",
   inbox: "/dashboard/inbox",
   inboxTickets: "/dashboard/inbox/tickets",
   inboxEmail: "/dashboard/inbox/email",
@@ -35,111 +46,210 @@ export const ROUTES = {
   conversation: (key: string) => `/dashboard/inbox/${key}`,
 } as const;
 
+// One page inside a place. `also` lists more hrefs that count as this page
+// (other tabs of the same screen, detail pages under another path).
+export type NavPage = { label: string; href: string; adminOnly?: boolean; also?: string[] };
+
 export type NavItem = {
+  area: Area;
   label: string;
   href: string;
+  icon: LucideIcon;
+  // One-line description for the phone More sheet.
+  desc?: string;
   badge?: keyof AttentionCounts;
-  // data-tour anchor used by the onboarding spotlight (Onboarding.tsx).
-  tour?: string;
-  // Not listed in the sidebar or the More sheet, but still resolves in
-  // findActive (so the hub highlights) and shows up in the command palette.
-  // Used for legacy pages kept reachable by URL.
-  hidden?: boolean;
-  // Owners / admins only (the page's APIs refuse everyone else too).
-  adminOnly?: boolean;
-  // Other hrefs this (visible) item stands for, so it stays highlighted on
-  // them: one "WhatsApp marketing" entry covers every marketing tab and the
-  // campaign pages. A match through `covers` beats any other item.
-  covers?: string[];
+  // data-tour anchors used by the onboarding spotlight (Onboarding.tsx).
+  tours?: string[];
+  // Shown as section tabs under the page title when there are two or more.
+  pages?: NavPage[];
+  // Marketing only: WhatsApp and Email, shown under it while it is open.
+  children?: NavItem[];
+  // Command palette only: direct jumps that are not pages of their own here.
+  palette?: NavPage[];
 };
-export type NavHub = { hub: Hub; color: string; accent?: string; icon: LucideIcon; items: NavItem[] };
+export type NavSection = { title: string | null; items: NavItem[] };
 
-export const NAV: NavHub[] = [
+const WA_TABS = ["home", "campaigns", "templates", "flows", "analytics"];
+
+export const MAYA: NavItem = {
+  area: "Maya",
+  label: "Ask Maya",
+  href: "/dashboard/assistant",
+  icon: Sparkles,
+  desc: "Ask anything about sales, customers or campaigns",
+};
+
+export const SETTINGS: NavItem = {
+  area: "Settings",
+  label: "Settings",
+  href: "/dashboard/settings",
+  icon: Settings,
+  desc: "Connections, team, API keys, brand, security",
+  tours: ["settings"],
+  pages: [
+    { label: "Settings", href: "/dashboard/settings" },
+    { label: "Security", href: "/dashboard/admin", adminOnly: true },
+  ],
+  palette: [{ label: "Health", href: "/dashboard/settings#connections" }],
+};
+
+export const NAV: NavSection[] = [
   {
-    hub: "Today", color: "#1D1517", accent: "#AF272F", icon: Home,
+    title: null,
     items: [
-      { label: "Home", href: "/dashboard", tour: "dashboard" },
-      { label: "Needs attention", href: "/dashboard/attention", badge: "open" },
-      { label: "Ask Maya", href: "/dashboard/assistant" },
-    ],
-  },
-  {
-    hub: "Sales", color: "#AF272F", icon: ShoppingCart,
-    items: [
-      { label: "Overview", href: ROUTES.salesOverview },
-      { label: "Web store", href: ROUTES.salesWeb },
-      { label: "Amazon", href: ROUTES.salesAmazon },
-      { label: "Orders & COD", href: ROUTES.salesOrders, badge: "orders", tour: "order-confirmations" },
-    ],
-  },
-  {
-    hub: "Inbox", color: "#0A9CB8", icon: Inbox,
-    items: [
-      { label: "Conversations", href: ROUTES.inbox, badge: "inbox", tour: "whatsapp" },
-      { label: "Tickets", href: ROUTES.inboxTickets },
-      { label: "Email drafts", href: ROUTES.inboxEmail, tour: "support-emails" },
-    ],
-  },
-  {
-    hub: "Marketing", color: "#FFC905", icon: Megaphone,
-    items: [
-      // One entry for all of WhatsApp marketing (mirrors Email Studio). It
-      // lands on the "Start here" tab; the other tabs live on the page.
       {
-        label: "WhatsApp marketing",
-        href: "/dashboard/whatsapp?tab=home",
-        tour: "wa-marketing",
-        covers: [
-          "/dashboard/whatsapp?tab=campaigns",
-          "/dashboard/whatsapp?tab=templates",
-          "/dashboard/whatsapp?tab=flows",
-          "/dashboard/whatsapp?tab=analytics",
-          "/dashboard/whatsapp?tab=growth",
-          "/dashboard/whatsapp/campaigns",
+        area: "Home",
+        label: "Home",
+        href: "/dashboard",
+        icon: Home,
+        desc: "Today and what needs you",
+        tours: ["dashboard"],
+        pages: [
+          { label: "Today", href: "/dashboard" },
+          { label: "Needs you", href: "/dashboard/attention" },
         ],
       },
-      { label: "Email Studio", href: "/dashboard/email", tour: "email-studio" },
-      { label: "Audience", href: "/dashboard/contacts", tour: "contacts" },
-      // Direct jumps for the command palette (hidden from the sidebar; the
-      // WhatsApp marketing entry stays highlighted on all of them).
-      { label: "WhatsApp campaigns", href: "/dashboard/whatsapp?tab=campaigns", hidden: true },
-      { label: "WhatsApp message templates", href: "/dashboard/whatsapp?tab=templates", hidden: true },
-      { label: "WhatsApp automations", href: "/dashboard/whatsapp?tab=flows", hidden: true },
-      { label: "WhatsApp results", href: "/dashboard/whatsapp?tab=analytics", hidden: true },
-      { label: "WhatsApp signup popup", href: "/dashboard/whatsapp?tab=growth", hidden: true },
-      { label: "New WhatsApp campaign", href: "/dashboard/whatsapp/campaigns/new", hidden: true },
-      { label: "WhatsApp campaign report", href: "/dashboard/whatsapp/campaigns", hidden: true },
-      // Brevo hub (retiring at Email Studio cutover) and the old in-house
-      // email pages. Reachable by URL and the command palette only.
-      { label: "Email (Brevo)", href: "/dashboard/marketing/email", hidden: true },
-      { label: "Legacy email campaigns", href: "/dashboard/campaigns", hidden: true },
-      { label: "Legacy email automations", href: "/dashboard/flows", hidden: true },
+      {
+        area: "Inbox",
+        label: "Inbox",
+        href: ROUTES.inbox,
+        icon: Inbox,
+        desc: "Chats, tickets and email drafts",
+        badge: "inbox",
+        tours: ["whatsapp", "support-emails"],
+        pages: [
+          { label: "Conversations", href: ROUTES.inbox },
+          { label: "Tickets", href: ROUTES.inboxTickets },
+          { label: "Email drafts", href: ROUTES.inboxEmail },
+          { label: "Bot knowledge", href: "/dashboard/whatsapp?tab=kb" },
+        ],
+      },
+      {
+        area: "Orders",
+        label: "Orders & COD",
+        href: "/dashboard/sales/orders",
+        icon: Package,
+        desc: "Confirm COD orders and voice calls",
+        badge: "orders",
+        tours: ["order-confirmations"],
+        pages: [
+          { label: "Confirm COD", href: "/dashboard/sales/orders" },
+          { label: "Voice calls", href: "/dashboard/whatsapp?tab=voice" },
+        ],
+      },
     ],
   },
   {
-    hub: "Partners", color: "#E86A24", icon: Handshake,
+    title: "Grow",
     items: [
-      { label: "B2B leads", href: "/dashboard/leads" },
-      { label: "Deals", href: "/dashboard/deals" },
-      // Influencer delivery tracker (barter collabs: brief, box, draft, post).
-      { label: "Influencers", href: "/dashboard/influencers" },
-      // Creators (/dashboard/instagram) is off until the Instagram backend is
-      // live: its tables were never migrated in prod, so the page only errors.
-      // Re-add `{ label: "Creators", href: ROUTES.creators }` here, restore the
-      // Instagram option in the Conversations channel picker, and drop the
-      // /dashboard/instagram redirect in next.config.ts, all together.
+      {
+        area: "Marketing",
+        label: "Marketing",
+        href: "/dashboard/whatsapp?tab=home",
+        icon: Megaphone,
+        children: [
+          {
+            area: "Marketing",
+            label: "WhatsApp",
+            href: "/dashboard/whatsapp?tab=home",
+            icon: MessageCircle,
+            desc: "Campaigns, templates and automations",
+            tours: ["wa-marketing"],
+            pages: [
+              {
+                label: "WhatsApp",
+                href: "/dashboard/whatsapp?tab=home",
+                also: [...WA_TABS.map((t) => `/dashboard/whatsapp?tab=${t}`), "/dashboard/whatsapp", "/dashboard/whatsapp/campaigns"],
+              },
+            ],
+            palette: [
+              { label: "WhatsApp campaigns", href: "/dashboard/whatsapp?tab=campaigns" },
+              { label: "WhatsApp message templates", href: "/dashboard/whatsapp?tab=templates" },
+              { label: "WhatsApp automations", href: "/dashboard/whatsapp?tab=flows" },
+              { label: "WhatsApp results", href: "/dashboard/whatsapp?tab=analytics" },
+              { label: "New WhatsApp campaign", href: "/dashboard/whatsapp/campaigns/new" },
+            ],
+          },
+          {
+            area: "Marketing",
+            label: "Email",
+            href: "/dashboard/email",
+            icon: Mail,
+            desc: "Email campaigns and automations",
+            tours: ["email-studio"],
+            pages: [{ label: "Email", href: "/dashboard/email", also: ["/dashboard/analytics"] }],
+            // Brevo hub and the old in-house email pages, retiring. Reachable
+            // by URL and the command palette only.
+            palette: [
+              { label: "Email (Brevo)", href: "/dashboard/marketing/email" },
+              { label: "Legacy email campaigns", href: "/dashboard/campaigns" },
+              { label: "Legacy email automations", href: "/dashboard/flows" },
+            ],
+          },
+        ],
+      },
+      {
+        area: "Creators",
+        label: "Creators",
+        href: "/dashboard/influencers",
+        icon: Sparkle,
+        desc: "Influencer collabs: brief, box, draft, post",
+      },
+      {
+        area: "B2B",
+        label: "B2B & deals",
+        href: "/dashboard/leads",
+        icon: Handshake,
+        desc: "Find buyers, send as Parth, track deals",
+        pages: [
+          { label: "Leads", href: "/dashboard/leads" },
+          { label: "Deals", href: "/dashboard/deals" },
+        ],
+      },
     ],
   },
   {
-    hub: "System", color: "#8A7F83", icon: Settings,
+    title: "Know",
     items: [
-      { label: "Bot knowledge", href: "/dashboard/whatsapp?tab=kb" },
-      { label: "Health", href: "/dashboard/settings#connections" },
-      { label: "Settings", href: "/dashboard/settings", tour: "settings" },
-      { label: "Admin", href: "/dashboard/admin", adminOnly: true },
+      {
+        area: "Customers",
+        label: "Customers",
+        href: "/dashboard/contacts",
+        icon: Users,
+        desc: "Everyone who bought or signed up",
+        tours: ["contacts"],
+        pages: [
+          { label: "Customers", href: "/dashboard/contacts" },
+          { label: "Sign-up popup", href: "/dashboard/whatsapp?tab=growth" },
+        ],
+      },
+      {
+        area: "Insights",
+        label: "Insights",
+        href: "/dashboard/sales",
+        icon: LineChart,
+        desc: "Sales, website and Amazon",
+        pages: [
+          { label: "Sales", href: "/dashboard/sales" },
+          { label: "Web store", href: "/dashboard/sales/web" },
+          { label: "Amazon", href: "/dashboard/sales/amazon" },
+        ],
+      },
     ],
   },
 ];
+
+// Every place, flattened: the sections (Marketing's children instead of
+// Marketing itself), then Maya and Settings.
+export function allItems(sections: NavSection[] = NAV, extra: NavItem[] = [MAYA, SETTINGS]): NavItem[] {
+  const out: NavItem[] = [];
+  for (const s of sections) for (const it of s.items) out.push(...(it.children ?? [it]));
+  return [...out, ...extra];
+}
+
+function pageList(it: NavItem): NavPage[] {
+  return it.pages ?? [{ label: it.label, href: it.href }];
+}
 
 export function parseHref(href: string): { path: string; tab: string | null; hash: string } {
   const [beforeHash, hashPart] = href.split("#");
@@ -147,15 +257,15 @@ export function parseHref(href: string): { path: string; tab: string | null; has
   return { path, tab: new URLSearchParams(query).get("tab"), hash: hashPart ? `#${hashPart}` : "" };
 }
 
-// Tabs / hashes that some NAV item claims on a given path. An untabbed item
-// on that path (e.g. Conversations on /dashboard/whatsapp) does not match
-// when the URL carries a claimed tab.
+// Tabs / hashes that some page claims on a given path. A plain href on that
+// path (e.g. /dashboard/whatsapp) does not match when the URL carries a
+// claimed tab (?tab=kb belongs to Inbox, not WhatsApp).
 const claimed = (() => {
   const tabs = new Map<string, Set<string>>();
   const hashes = new Map<string, Set<string>>();
-  for (const h of NAV) {
-    for (const it of h.items) {
-      for (const href of [it.href, ...(it.covers ?? [])]) {
+  for (const it of allItems()) {
+    for (const pg of [...pageList(it), ...(it.palette ?? [])]) {
+      for (const href of [pg.href, ...(pg.also ?? [])]) {
         const p = parseHref(href);
         if (p.tab) tabs.set(p.path, (tabs.get(p.path) ?? new Set()).add(p.tab));
         if (p.hash) hashes.set(p.path, (hashes.get(p.path) ?? new Set()).add(p.hash));
@@ -165,56 +275,33 @@ const claimed = (() => {
   return { tabs, hashes };
 })();
 
-export type ActiveNav = { hub: Hub; item: NavItem };
+// `item` is the place (WhatsApp / Email for Marketing), `page` the matching
+// page within it (null when the match came from a palette-only jump).
+export type ActiveNav = { area: Area; item: NavItem; page: NavPage | null };
 
-// Items shown in the sidebar and the More sheet.
-export function visibleItems(h: NavHub): NavItem[] {
-  return h.items.filter((it) => !it.hidden);
-}
-
-// NAV trimmed to the areas a member can open (lib/access.ts); hubs left with
-// no items drop out. Null access (still loading) shows nothing, so a
-// restricted member never sees a flash of areas they can't open.
-export function navFor(access: Access | null): NavHub[] {
-  if (access?.admin) return NAV;
-  return NAV.map((h) => ({
-    ...h,
-    items: h.items.filter((it) => access && !it.adminOnly && canOpenHref(access, it.href)),
-  })).filter((h) => h.items.length > 0);
-}
-
-// Short preview of a collapsed hub: the first few item names, plus how many
-// more it holds.
-export const PREVIEW_ITEMS = 3;
-export function hubPreview(h: NavHub): { names: string[]; more: number } {
-  const items = visibleItems(h);
-  return { names: items.slice(0, PREVIEW_ITEMS).map((it) => it.label), more: Math.max(0, items.length - PREVIEW_ITEMS) };
-}
-
-// The nav item for the current location. Exact path beats a prefix match
-// (/dashboard/contacts/123 -> Audience), a matching tab or hash beats none,
-// and on a tie the first item in NAV order wins. "/dashboard" never matches
-// as a prefix.
+// The place for the current location. Exact path beats a prefix match
+// (/dashboard/contacts/123 -> Customers, /dashboard/sales/orders -> Orders
+// rather than Insights), a matching tab or hash beats none, and on a tie the
+// first place in order wins. "/dashboard" never matches as a prefix.
 export function findActive(pathname: string, tab: string | null, hash: string): ActiveNav | null {
   let best: ActiveNav | null = null;
   let bestScore = -1;
-  for (const h of NAV) {
-    for (const item of h.items) {
-      let score = hrefScore(item.href, pathname, tab, hash);
-      for (const c of item.covers ?? []) {
-        const cs = hrefScore(c, pathname, tab, hash);
-        if (cs >= 0) score = Math.max(score, COVER_BONUS + cs);
-      }
+  for (const item of allItems()) {
+    const consider = (page: NavPage | null, href: string) => {
+      const score = hrefScore(href, pathname, tab, hash);
       if (score > bestScore) {
-        best = { hub: h.hub, item };
+        best = { area: item.area, item, page };
         bestScore = score;
       }
+    };
+    for (const pg of pageList(item)) {
+      consider(pg, pg.href);
+      for (const a of pg.also ?? []) consider(pg, a);
     }
+    for (const pg of item.palette ?? []) consider(null, pg.href);
   }
   return best;
 }
-
-const COVER_BONUS = 5000;
 
 // How well one href matches the location; -1 = no match.
 function hrefScore(href: string, pathname: string, tab: string | null, hash: string): number {
@@ -234,14 +321,48 @@ function hrefScore(href: string, pathname: string, tab: string | null, hash: str
   return score;
 }
 
-// Where a hub-level link (phone tab bar) goes: the first item in the hub that
-// actually resolves to that hub. While Sales Overview still shares
-// /dashboard with Home, the Sales tab opens Web store instead.
-export function hubHref(hub: Hub, nav: NavHub[] = NAV): string {
-  const h = nav.find((x) => x.hub === hub) ?? NAV.find((x) => x.hub === hub)!;
-  for (const item of visibleItems(h)) {
-    const p = parseHref(item.href);
-    if (findActive(p.path, p.tab, p.hash)?.hub === hub) return item.href;
+// Same place, even when one side is an access-trimmed copy (itemFor).
+export function samePlace(a: NavItem | null | undefined, b: NavItem | null | undefined): boolean {
+  return !!a && !!b && a.area === b.area && a.label === b.label;
+}
+
+// --- access ---------------------------------------------------------------
+
+function canSee(access: Access, href: string, adminOnly?: boolean): boolean {
+  if (adminOnly && !access.admin) return false;
+  return canOpenHref(access, href);
+}
+
+// A place trimmed to what a member can open: pages they can't open drop out,
+// its href moves to the first page left, and it disappears when none are left.
+export function itemFor(access: Access | null, it: NavItem): NavItem | null {
+  if (!access) return null;
+  if (it.children) {
+    const children = it.children.map((c) => itemFor(access, c)).filter((c): c is NavItem => !!c);
+    if (!children.length) return null;
+    return { ...it, href: children[0].href, children };
   }
-  return h.items[0].href;
+  const pages = it.pages?.filter((pg) => canSee(access, pg.href, pg.adminOnly));
+  if (it.pages && !pages?.length) return null;
+  if (!it.pages && !canSee(access, it.href)) return null;
+  return { ...it, href: pages?.[0]?.href ?? it.href, pages };
+}
+
+// NAV trimmed to the places a member can open; sections left empty drop out.
+// Null access (still loading) shows nothing, so a restricted member never
+// sees a flash of places they can't open.
+export function navFor(access: Access | null): NavSection[] {
+  if (!access) return [];
+  if (access.admin) return NAV;
+  return NAV.map((s) => ({ ...s, items: s.items.map((it) => itemFor(access, it)).filter((it): it is NavItem => !!it) })).filter(
+    (s) => s.items.length > 0,
+  );
+}
+
+// Section tabs for the place the member is on: shown when it has two or more
+// pages they can open.
+export function sectionTabs(active: ActiveNav | null, access: Access | null): NavPage[] {
+  if (!active || !access) return [];
+  const it = itemFor(access, active.item);
+  return it?.pages && it.pages.length > 1 ? it.pages : [];
 }
