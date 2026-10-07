@@ -89,6 +89,7 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 
 | Doc | What it answers |
 |---|---|
+| [Google tag / Ads attribution fix](audits/2026-10-07-google-tag-fix/README.md) | Oct 2026: Speedien script blocked Google tags on storefront; theme fix, rollback theme, Ads goal setup |
 | [Domain migration final verification](audits/2026-09-13-domain-migration-evidence/REPORT.md) | Full-day results: domain/auth verified; operational failures and unverified jobs remain |
 | [12 Sep dashboard refinement (superseded)](archive/2026-09-12-dashboard-refinement/2026-09-12-dashboard-refinement-review.html) | Earlier proposal that kept the old navigation and Geist; replaced by the 15 Sep redesign |
 | [Earlier broad UI proposal (superseded)](archive/2026-09-12-broad-ui-proposal/audits/2026-09-12-ui-redesign-review.html) | Interactive visual review: 209 app views plus a component reference, laptop/mobile previews, states and local approval notes |
