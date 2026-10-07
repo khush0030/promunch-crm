@@ -12,20 +12,11 @@ export function PayoutsTab({ data }: { data: AmazonMetrics }) {
   const deposited = [...settlements].filter((x) => !x.scheduled).sort((a, b) => (a.depositDate ?? "").localeCompare(b.depositDate ?? ""));
 
   const cats = deposited.map((x) => fmtDate(x.depositDate));
-  // BarChart draws against a zero-based, all-positive axis; it has no
-  // baseline for a negative bar. A settlement can deposit a negative amount
-  // (refunds outweighing sales), so floor the bar at 0. `tipValues` keeps the
-  // real figure in the tooltip, and the table below always shows it too.
+  // A settlement can deposit a negative amount (refunds or a reserve
+  // clawback outweighing sales); BarChart draws those below the zero line.
   const negCount = deposited.filter((x) => x.deposit < 0).length;
   const hasNegativeDeposit = negCount > 0;
-  const series: BarSeries[] = [
-    {
-      name: "Paid out",
-      color: "var(--pm-s-amz)",
-      values: deposited.map((x) => Math.max(0, x.deposit)),
-      tipValues: deposited.map((x) => x.deposit),
-    },
-  ];
+  const series: BarSeries[] = [{ name: "Paid out", color: "var(--pm-s-amz)", values: deposited.map((x) => x.deposit) }];
   const biggest = deposited.length ? deposited.reduce((a, b) => (b.deposit > a.deposit ? b : a)) : null;
   const firstShort = settlements.find((x) => !x.matched && !x.scheduled);
 
@@ -71,7 +62,7 @@ export function PayoutsTab({ data }: { data: AmazonMetrics }) {
           <>
             <BarChart cats={cats} series={series} fmt={formatLakh} yFormat="money" labels aria="Amazon payouts per deposit" />
             {hasNegativeDeposit && (
-              <p className={s.note}>{negCount === 1 ? "One payout was" : `${negCount} payouts were`} negative (refunds or a reserve clawback); bars show 0, the table shows the real figure.</p>
+              <p className={s.note}>{negCount === 1 ? "One payout was" : `${negCount} payouts were`} negative (refunds or a reserve clawback); those bars sit below the line.</p>
             )}
           </>
         )}
