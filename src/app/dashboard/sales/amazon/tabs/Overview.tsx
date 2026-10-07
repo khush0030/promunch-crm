@@ -1,19 +1,27 @@
-import { KpiStrip, Kpi, Card, MoneyFlow, Pill, Callout } from "@/components/pm";
+import { ArrowRight, PackageX } from "lucide-react";
+import { MoneyFlow } from "@/components/pm";
 import type { MoneyFlowRow } from "@/components/pm";
 import { formatLakh, formatINR } from "@/lib/metrics/money";
 import { pctChange } from "@/lib/metrics/period";
+import { sortForProfit, sortForStock } from "@/lib/amazon/economics";
 import type { AmazonMetrics } from "@/lib/amazon/economics";
 import type { AmazonTabKey } from "../types";
-import { fmtDate, PERIOD_LABEL, COST_COVERAGE_TIP } from "../format";
+import { PERIOD_LABEL, COST_COVERAGE_TIP } from "../format";
+import { Kpi, DeltaText, ChartCard, signedINR } from "../../insights-ui";
+import { RunwayRow, RunwayNote, stockTakeaway, ProfitKeys, ProfitRow, profitTakeaway, PayoutRow } from "../parts";
+import s from "../../insights.module.css";
 
-// Amazon · Overview: the crit stock callout (only when something with sales
-// is actually out), the 4 headline KPIs, the "Where the money went" bars and
-// three small facts linking into the other tabs.
+const OVERVIEW_ROWS = 5;
+
+// Amazon · Overview, the one-page view: headline numbers, a heads-up when
+// something that sells is out of stock, where the money went, stock runway,
+// profit split and payouts. Each block links to its full tab.
 export function OverviewTab({ data, onTab }: { data: AmazonMetrics; onTab: (tab: AmazonTabKey) => void }) {
-  const { money, refunds, stock, payouts, skus } = data;
+  const { money, refunds, stock, payouts, skus, settlements } = data;
+  const periodLabel = PERIOD_LABEL[data.period];
 
-  const outOfStockSkus = skus.filter((s) => s.outOfStock);
-  const inboundTotal = outOfStockSkus.reduce((a, s) => a + (s.inbound ?? 0), 0);
+  const outOfStockSkus = skus.filter((x) => x.outOfStock);
+  const inboundTotal = outOfStockSkus.reduce((a, x) => a + (x.inbound ?? 0), 0);
 
   const pct = (v: number) => (money.customersPaid ? Math.round((v / money.customersPaid) * 1000) / 10 : 0);
   const moneyRows: MoneyFlowRow[] = [
@@ -35,113 +43,156 @@ export function OverviewTab({ data, onTab }: { data: AmazonMetrics; onTab: (tab:
       color: "var(--pm-hint)",
       sub:
         money.costCoverage < 100
-          ? `from the cost prices you entered · cost prices cover ${Math.round(money.costCoverage)}% of units sold`
+          ? `from the cost prices you entered · they cover ${Math.round(money.costCoverage)}% of units sold`
           : "from the cost prices you entered",
     },
     { label: "Your profit", value: formatINR(money.profit), pct: pct(money.profit), color: "var(--pm-green)" },
   ];
+  const keptShare = money.customersPaid > 0 ? Math.round((money.paidToYou / money.customersPaid) * 100) : null;
+
+  const stockRows = sortForStock(skus).slice(0, OVERVIEW_ROWS);
+  const profitRows = sortForProfit(skus).slice(0, OVERVIEW_ROWS);
+  const recentPayouts = [...settlements]
+    .sort((a, b) => (b.depositDate ?? "").localeCompare(a.depositDate ?? ""))
+    .slice(0, 3);
+
+  const tabLink = (tab: AmazonTabKey, label: string) => (
+    <button type="button" className={s.txtLink} onClick={() => onTab(tab)}>
+      {label}
+      <ArrowRight />
+    </button>
+  );
 
   return (
     <>
+      <div className={`${s.kpis} ${s.k4}`}>
+        <Kpi label="Customers paid" value={formatLakh(money.customersPaid)}>
+          <DeltaText value={pctChange(money.customersPaid, money.customersPaidPrev)} /> · {data.orders.count.toLocaleString("en-IN")} orders
+        </Kpi>
+        <Kpi label="Paid to you" value={formatLakh(money.paidToYou)} red>
+          <DeltaText value={pctChange(money.paidToYou, money.paidToYouPrev)} /> · after Amazon&apos;s fees
+        </Kpi>
+        <Kpi label="Your profit" value={formatLakh(money.profit)} title={money.costCoverage < 100 ? COST_COVERAGE_TIP : undefined}>
+          <DeltaText value={pctChange(money.profit, money.profitPrev)} />
+          {money.costCoverage < 100 ? ` · ${Math.round(money.costCoverage)}% of units costed` : " · after product cost"}
+        </Kpi>
+        <Kpi label="Profit margin" value={`${Math.round(money.marginPct)}%`} title={money.costCoverage < 100 ? COST_COVERAGE_TIP : undefined}>
+          <DeltaText value={money.marginPct - money.marginPctPrev} unit="pts" /> · of sales
+        </Kpi>
+      </div>
+
       {outOfStockSkus.length > 0 && (
-        <Callout
-          tone="crit"
-          title={
-            outOfStockSkus.length === 1
-              ? `${outOfStockSkus[0].shortTitle} is out of stock. Losing ${formatLakh(stock.lostProfitPerDay)}/day.`
-              : `${outOfStockSkus.length} products are out of stock. Losing ${formatLakh(stock.lostProfitPerDay)} a day.`
-          }
-          body={inboundTotal > 0 ? `${inboundTotal.toLocaleString("en-IN")} units on the way` : "Nothing on the way"}
-          action={
-            <button type="button" className="pm2-btn sm" onClick={() => onTab("stock")}>
-              Stock
-            </button>
-          }
-        />
+        <div className={s.alert}>
+          <span className={s.alertIc} aria-hidden>
+            <PackageX />
+          </span>
+          <div className={s.alertM}>
+            <b>
+              {outOfStockSkus.length === 1
+                ? `${outOfStockSkus[0].shortTitle} is out of stock. Losing ${formatLakh(stock.lostProfitPerDay)} a day.`
+                : `${outOfStockSkus.length} products are out of stock. Losing ${formatLakh(stock.lostProfitPerDay)} a day.`}
+            </b>
+            <span>{inboundTotal > 0 ? `${inboundTotal.toLocaleString("en-IN")} units on the way` : "Nothing on the way"}</span>
+          </div>
+          <button type="button" className="pm2-btn sm" onClick={() => onTab("stock")}>
+            See stock
+          </button>
+        </div>
       )}
 
-      <KpiStrip>
-        <Kpi
-          label="Customers paid"
-          value={formatLakh(money.customersPaid)}
-          delta={pctChange(money.customersPaid, money.customersPaidPrev)}
-          sub={`${data.orders.count.toLocaleString("en-IN")} orders`}
-        />
-        <Kpi
-          label="Paid to you"
-          value={formatLakh(money.paidToYou)}
-          delta={pctChange(money.paidToYou, money.paidToYouPrev)}
-          sub="after Amazon's fees"
-        />
-        <Kpi
-          label="Your profit"
-          value={formatLakh(money.profit)}
-          delta={pctChange(money.profit, money.profitPrev)}
-          sub={money.costCoverage < 100 ? `after product cost · ${Math.round(money.costCoverage)}% of units costed` : "after product cost"}
-          tip={money.costCoverage < 100 ? COST_COVERAGE_TIP : undefined}
-        />
-        <Kpi
-          label="Profit margin"
-          value={`${Math.round(money.marginPct)}%`}
-          delta={Math.round(money.marginPct - money.marginPctPrev)}
-          deltaUnit="pts"
-          sub={money.costCoverage < 100 ? `of sales · ${Math.round(money.costCoverage)}% of units costed` : "of sales"}
-          tip={money.costCoverage < 100 ? COST_COVERAGE_TIP : undefined}
-        />
-      </KpiStrip>
-
-      <Card title="Where the money went" basis={PERIOD_LABEL[data.period]}>
+      <ChartCard
+        id="amz-money"
+        title="Where the money went"
+        basis={periodLabel}
+        takeaway={
+          keptShare != null ? (
+            <>
+              Amazon pays you <em className={s.plain}>{keptShare}%</em> of what customers pay
+            </>
+          ) : (
+            "No Amazon sales in this period"
+          )
+        }
+      >
         <MoneyFlow rows={moneyRows} />
-      </Card>
+        <div className={s.foot}>
+          <span>
+            Refunds <b>{refunds.pct}%</b>
+          </span>
+          <span>
+            {refunds.count.toLocaleString("en-IN")} refunds · {formatINR(refunds.amount)}
+          </span>
+        </div>
+      </ChartCard>
 
-      <div className="pm2-g3">
-        <Card
-          title="Stock"
-          foot={
-            <button type="button" className="pm2-lnk" style={{ background: "none", border: 0, cursor: "pointer", padding: 0 }} onClick={() => onTab("stock")}>
-              Stock →
-            </button>
-          }
+      <div className={s.g2}>
+        <ChartCard
+          id="amz-stock"
+          title="Stock left"
+          right={tabLink("stock", `All ${stock.total}`)}
+          takeaway={stockTakeaway(skus)}
         >
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-            <span style={{ fontSize: 30, fontWeight: 700, letterSpacing: "-.02em" }}>{stock.atRisk}</span>
-            <span style={{ color: "var(--pm-muted)", fontSize: 13 }}>
-              of {stock.total} products
-              <br />
-              at risk
-            </span>
-          </div>
-        </Card>
+          {stockRows.length === 0 ? (
+            <p className={s.empty}>No Amazon products yet</p>
+          ) : (
+            <div className={s.runway}>
+              {stockRows.map((x) => (
+                <RunwayRow key={x.sku} sku={x} />
+              ))}
+            </div>
+          )}
+          <RunwayNote />
+        </ChartCard>
 
-        <Card title="Refunds">
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-            <span style={{ fontSize: 30, fontWeight: 700, letterSpacing: "-.02em" }}>{refunds.pct}%</span>
-          </div>
-          <div style={{ color: "var(--pm-muted)", fontSize: 13, marginTop: 4 }}>
-            {refunds.count} refunds · {formatINR(refunds.amount)}
-          </div>
-        </Card>
-
-        <Card
-          title="Last payout"
-          foot={
-            <button type="button" className="pm2-lnk" style={{ background: "none", border: 0, cursor: "pointer", padding: 0 }} onClick={() => onTab("payouts")}>
-              Payouts →
-            </button>
-          }
+        <ChartCard
+          id="amz-profit"
+          title="Where each ₹ of sales goes"
+          right={tabLink("profit", "All products")}
+          takeaway={profitTakeaway(skus)}
         >
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-            <span style={{ fontSize: 30, fontWeight: 700, letterSpacing: "-.02em" }}>
-              {payouts.last ? formatLakh(payouts.last.deposit) : "—"}
-            </span>
-            {payouts.last && <Pill tone={payouts.last.matched ? "good" : "warn"}>{payouts.last.matched ? "Matched" : `₹${Math.round(Math.abs(payouts.last.variance)).toLocaleString("en-IN")} short`}</Pill>}
-          </div>
-          <div style={{ color: "var(--pm-muted)", fontSize: 13, marginTop: 4 }}>
-            {payouts.last ? fmtDate(payouts.last.depositDate) : "no payouts yet"}
-            {payouts.next ? ` · next ${fmtDate(payouts.next.depositDate)}` : ""}
-          </div>
-        </Card>
+          <ProfitKeys />
+          {profitRows.length === 0 ? (
+            <p className={s.empty}>No Amazon products yet</p>
+          ) : (
+            <div className={s.pfl}>
+              {profitRows.map((x) => (
+                <ProfitRow key={x.sku} sku={x} onAddCost={() => onTab("profit")} />
+              ))}
+            </div>
+          )}
+        </ChartCard>
       </div>
+
+      <ChartCard
+        id="amz-payouts"
+        title="Payouts"
+        right={tabLink("payouts", "All payouts")}
+        takeaway={
+          payouts.count > 0 && payouts.paidOut < 0 ? (
+            <>
+              Payouts net to <em className={s.neg}>{signedINR(payouts.paidOut)}</em> across {payouts.count}{" "}
+              {payouts.count === 1 ? "payout" : "payouts"}
+            </>
+          ) : payouts.count > 0 ? (
+            <>
+              Amazon paid out <em className={s.plain}>{formatLakh(payouts.paidOut)}</em> in {payouts.count}{" "}
+              {payouts.count === 1 ? "payout" : "payouts"}
+            </>
+          ) : (
+            "No payouts in this period yet"
+          )
+        }
+      >
+        {recentPayouts.length === 0 ? (
+          <p className={s.empty}>No settlements in this period</p>
+        ) : (
+          <div className={s.pay}>
+            {recentPayouts.map((st) => (
+              <PayoutRow key={st.id} st={st} />
+            ))}
+          </div>
+        )}
+      </ChartCard>
     </>
   );
 }

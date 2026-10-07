@@ -1,25 +1,21 @@
 "use client";
 
 import { Suspense, useCallback } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import { PageHeader, KpiStrip, Kpi, Card, BarChart, Table, Delta, PeriodPicker, Callout } from "@/components/pm";
-import type { TableCol } from "@/components/pm";
+import { BarChart, HBars, PeriodPicker, Callout } from "@/components/pm";
+import type { HBarItem } from "@/components/pm";
 import { formatLakh, formatINR } from "@/lib/metrics/money";
 import { pctChange } from "@/lib/metrics/period";
 import type { SalesMetrics } from "@/lib/metrics/sales-aggregate";
 import type { ChannelKey } from "@/lib/metrics/channel";
+import { InsightsHead, Kpi, DeltaText, ChartCard, changeWords, shortName } from "./insights-ui";
+import s from "./insights.module.css";
 
 type Period = "7d" | "30d" | "90d" | "12m";
 const PERIODS: readonly Period[] = ["7d", "30d", "90d", "12m"];
-
-const PERIOD_CAPTION: Record<Period, string> = {
-  "7d": "vs previous 7 days",
-  "30d": "vs previous 30 days",
-  "90d": "vs previous 90 days",
-  "12m": "vs previous 12 months",
-};
 
 const PERIOD_LABEL: Record<Period, string> = {
   "7d": "7 days",
@@ -32,44 +28,63 @@ function parsePeriodParam(raw: string | null): Period {
   return raw === "7d" || raw === "90d" || raw === "12m" ? raw : "30d";
 }
 
-// ISO-8601 week number for a UTC date.
-function isoWeekNumber(d: Date): number {
-  const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  const dayNum = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-}
+const fmtDay = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { timeZone: "UTC", day: "numeric", month: "short" });
 
-// Group SalesMetrics.daily into ISO weeks, summing revenue only — the daily
-// rows carry one combined revenue figure (no per-channel split), so this is
-// the weekly TOTAL, not a channel breakdown. Ordered oldest first.
-function groupByWeek(daily: SalesMetrics["daily"]): { label: string; revenue: number }[] {
-  const map = new Map<string, { order: number; wk: number; revenue: number }>();
+type Bucket = { label: string; revenue: number; days: number };
+
+// Monday-start weeks (UTC), labelled by the first day that falls in the
+// window. Sums revenue only: daily rows carry one all-channel figure.
+function groupByWeek(daily: SalesMetrics["daily"]): Bucket[] {
+  const out: (Bucket & { key: string })[] = [];
   for (const d of daily) {
     const date = new Date(`${d.date}T00:00:00Z`);
-    const wk = isoWeekNumber(date);
-    const key = `${date.getUTCFullYear()}-${wk}`;
-    const cur = map.get(key) ?? { order: date.getTime(), wk, revenue: 0 };
-    cur.revenue += d.revenue;
-    if (date.getTime() < cur.order) cur.order = date.getTime();
-    map.set(key, cur);
+    const monday = new Date(date);
+    monday.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+    const key = monday.toISOString().slice(0, 10);
+    const last = out[out.length - 1];
+    if (last && last.key === key) {
+      last.revenue += d.revenue;
+      last.days += 1;
+    } else {
+      out.push({ key, label: fmtDay(d.date), revenue: d.revenue, days: 1 });
+    }
   }
-  return [...map.values()]
-    .sort((a, b) => a.order - b.order)
-    .map((v) => ({ label: `Wk ${v.wk}`, revenue: v.revenue }));
+  return out;
 }
 
-const CHANNEL_ORDER: ChannelKey[] = ["web", "amazon", "hypd", "other"];
-const CHANNEL_COLOR: Record<string, string> = {
+function groupByMonth(daily: SalesMetrics["daily"]): Bucket[] {
+  const out: (Bucket & { key: string })[] = [];
+  for (const d of daily) {
+    const key = d.date.slice(0, 7);
+    const last = out[out.length - 1];
+    if (last && last.key === key) {
+      last.revenue += d.revenue;
+      last.days += 1;
+    } else {
+      const label = new Date(`${d.date}T00:00:00Z`).toLocaleDateString("en-GB", { timeZone: "UTC", month: "short" });
+      out.push({ key, label, revenue: d.revenue, days: 1 });
+    }
+  }
+  return out;
+}
+
+const CHANNEL_COLOR: Record<ChannelKey, string> = {
   web: "var(--pm-s-web)",
   amazon: "var(--pm-s-amz)",
   hypd: "var(--pm-s-hypd)",
   other: "var(--pm-muted)",
+  creator: "var(--pm-muted)",
 };
 
 type ChannelRow = SalesMetrics["channels"][number];
-type ProductRow = SalesMetrics["topProducts"][number];
+
+// Channel name as it reads mid-sentence ("the web store", "other marketplaces").
+function midLabel(label: string): string {
+  if (label === "Web store") return "the web store";
+  if (label === "Other marketplaces") return "other marketplaces";
+  return label;
+}
 
 // useSearchParams needs a Suspense boundary in the App Router.
 export default function SalesPage() {
@@ -83,17 +98,15 @@ export default function SalesPage() {
 function SalesFallback() {
   return (
     <div className="pm2-body">
-      <KpiStrip>
-        <Kpi label="Total sales" value="—" sub="—" />
-        <Kpi label="Average order" value="—" sub="—" />
-        <Kpi label="New customers" value="—" sub="—" />
-        <Kpi label="Repeat buyers" value="—" sub="—" />
-      </KpiStrip>
-      <div className="pm2-g21">
+      <div className={s.kpis}>
+        <div className="pm2-skel" />
         <div className="pm2-skel" />
         <div className="pm2-skel" />
       </div>
-      <div className="pm2-skel" />
+      <div className={s.g21}>
+        <div className="pm2-skel" />
+        <div className="pm2-skel" />
+      </div>
     </div>
   );
 }
@@ -125,13 +138,36 @@ function SalesPageInner() {
     placeholderData: keepPreviousData,
   });
 
-  const header = (
-    <PageHeader
-      crumb="Sales · Overview"
-      title="Sales overview"
-      actions={<PeriodPicker options={PERIODS} value={period} onChange={setPeriod} caption={PERIOD_CAPTION[period]} />}
-    />
-  );
+  const sales = salesQ.data;
+  const periodLabel = PERIOD_LABEL[period];
+  const actions = <PeriodPicker options={PERIODS} value={period} onChange={setPeriod} />;
+
+  // Channels with any money in either window, biggest first.
+  const channels: ChannelRow[] = sales
+    ? sales.channels.filter((c) => c.revenue !== 0 || c.prevRevenue !== 0).sort((a, b) => b.revenue - a.revenue)
+    : [];
+  const channelSum = channels.reduce((t, c) => t + Math.max(0, c.revenue), 0);
+  const shareOf = (v: number) => (channelSum > 0 ? Math.round((Math.max(0, v) / channelSum) * 100) : 0);
+  const salesDelta = sales ? pctChange(sales.total.revenue, sales.total.prevRevenue) : null;
+
+  const summary = sales ? (
+    <>
+      <b>{formatLakh(sales.total.revenue)}</b> in the last {periodLabel}
+      {changeWords(salesDelta) ? `, ${changeWords(salesDelta)} on the ${periodLabel} before` : ""}.
+      {channelSum > 0 && (
+        <>
+          {" "}
+          {channels
+            .filter((c) => shareOf(c.revenue) >= 1)
+            .map((c, i) => `${i === 0 ? c.label : midLabel(c.label)} ${i === 0 ? "brings " : ""}${shareOf(c.revenue)}%`)
+            .join(", ")}
+          .
+        </>
+      )}
+    </>
+  ) : null;
+
+  const header = <InsightsHead title="Sales" summary={summary} actions={actions} />;
 
   if (salesQ.isLoading) {
     return (
@@ -142,7 +178,7 @@ function SalesPageInner() {
     );
   }
 
-  if (salesQ.isError || !salesQ.data) {
+  if (salesQ.isError || !sales) {
     return (
       <>
         {header}
@@ -152,7 +188,7 @@ function SalesPageInner() {
             title="Couldn't load sales data"
             body={salesQ.error instanceof Error ? salesQ.error.message : "Something went wrong."}
             action={
-              <button type="button" className="pm2-btn pri sm" onClick={() => salesQ.refetch()}>
+              <button type="button" className="pm2-btn sm" onClick={() => salesQ.refetch()}>
                 <RefreshCw size={14} /> Retry
               </button>
             }
@@ -162,139 +198,165 @@ function SalesPageInner() {
     );
   }
 
-  const sales = salesQ.data;
-  const periodLabel = PERIOD_LABEL[period];
-
   const aov = sales.total.orders > 0 ? sales.total.revenue / sales.total.orders : 0;
   const prevAov = sales.total.prevOrders > 0 ? sales.total.prevRevenue / sales.total.prevOrders : 0;
 
-  const useDaily = period === "7d";
-  const weeks = useDaily ? null : groupByWeek(sales.daily);
-  const dailyLabels = sales.daily.map((d) =>
-    new Date(d.date).toLocaleDateString("en-GB", { timeZone: "UTC", day: "numeric", month: "short" }),
-  );
+  const buckets: Bucket[] =
+    period === "7d"
+      ? sales.daily.map((d) => ({ label: fmtDay(d.date), revenue: d.revenue, days: 1 }))
+      : period === "12m"
+        ? groupByMonth(sales.daily)
+        : groupByWeek(sales.daily);
+  const unit = period === "7d" ? "day" : period === "12m" ? "month" : "week";
+  const full = unit === "week" ? 7 : 28;
+  const partFirst = unit !== "day" && buckets.length > 1 && buckets[0].days < full ? buckets[0] : null;
+  const partLast = unit !== "day" && buckets.length > 1 && buckets[buckets.length - 1].days < full ? buckets[buckets.length - 1] : null;
+  const partNote = [
+    partFirst ? `The first bar covers ${partFirst.days} ${partFirst.days === 1 ? "day" : "days"}` : null,
+    partLast ? `${partFirst ? "the last" : "The last"} bar covers ${partLast.days} ${partLast.days === 1 ? "day" : "days"}` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
-  const barCats = useDaily ? dailyLabels : (weeks ?? []).map((w) => w.label);
-  const barValues = useDaily ? sales.daily.map((d) => d.revenue) : (weeks ?? []).map((w) => w.revenue);
+  const lead = channels[0] && channelSum > 0 ? channels[0] : null;
+  const periodQ = period === "30d" || period === "12m" ? "" : `?period=${period}`;
+  const channelHref = (k: ChannelKey): string | null =>
+    k === "web" ? `/dashboard/sales/web${periodQ}` : k === "amazon" ? `/dashboard/sales/amazon${periodQ}` : null;
 
-  const channelRows = CHANNEL_ORDER.map((key) => sales.channels.find((c) => c.key === key))
-    .filter((c): c is ChannelRow => !!c)
-    .filter((c) => c.revenue !== 0 || c.prevRevenue !== 0);
-
-  // Three columns so the card fits its 1fr slot at laptop width: orders sit
-  // under the channel name, the change under the sales figure.
-  const channelCols: TableCol<ChannelRow>[] = [
-    {
-      h: "Channel",
-      render: (r) => (
-        <>
-          <span className="pm2-legend" style={{ margin: 0 }}>
-            <span>
-              <i style={{ background: CHANNEL_COLOR[r.key] ?? "var(--pm-muted)" }} />
-              {r.label}
-            </span>
-          </span>
-          <span className="sub">{r.orders.toLocaleString("en-IN")} orders</span>
-        </>
-      ),
-    },
-    {
-      h: "Sales",
-      num: true,
-      render: (r) => (
-        <>
-          {formatLakh(r.revenue)}
-          <span className="sub"><Delta value={pctChange(r.revenue, r.prevRevenue)} /></span>
-        </>
-      ),
-    },
-    { h: "Avg order", num: true, render: (r) => formatINR(r.aov) },
-  ];
-
-  const productCols: TableCol<ProductRow>[] = [
-    { h: "Product", key: "title" },
-    { h: "Units", num: true, render: (r) => r.units.toLocaleString("en-IN") },
-    { h: "Sales", num: true, render: (r) => formatLakh(r.revenue) },
-    { h: "Share", num: true, render: (r) => `${r.share}%` },
-  ];
+  const products = sales.topProducts;
+  const productItems: HBarItem[] = products.map((p) => ({
+    label: p.title,
+    value: p.revenue,
+    text: formatLakh(p.revenue),
+    sub: `${p.units.toLocaleString("en-IN")} sold`,
+    color: "var(--pm-s-web)",
+    tip: `${p.title}: ${formatINR(p.revenue)} · ${p.units.toLocaleString("en-IN")} units · ${p.share}% of sales`,
+  }));
+  const topProduct = products[0];
 
   return (
     <>
       {header}
       <div className="pm2-body">
-        <KpiStrip>
+        <div className={s.kpis}>
           <Kpi
-            label="Total sales"
-            value={formatLakh(sales.total.revenue)}
-            delta={pctChange(sales.total.revenue, sales.total.prevRevenue)}
-            sub={`${sales.total.orders.toLocaleString("en-IN")} orders`}
-          />
-          <Kpi
-            label="Average order"
-            value={formatINR(aov)}
-            delta={pctChange(aov, prevAov)}
-            sub="per order"
-          />
-          <Kpi
-            label="New customers"
-            value={sales.newCustomers.count.toLocaleString("en-IN")}
-            delta={pctChange(sales.newCustomers.count, sales.newCustomers.prevCount)}
-            sub="first order ever"
-          />
-          <Kpi
-            label="Repeat buyers"
-            value={`${Math.round(sales.repeat.pct)}%`}
-            delta={Math.round(sales.repeat.pct - sales.repeat.prevPct)}
-            deltaUnit="pts"
-            sub="of orders"
-            tip="Substitutes for a returning-revenue figure the API doesn't return yet."
-          />
-        </KpiStrip>
-
-        <div className="pm2-g21">
-          <Card title="Sales by channel per week" basis={useDaily ? "gross · ₹ per day" : "gross · ₹ per week"}>
-            <BarChart
-              cats={barCats}
-              series={[{ name: "All channels", color: "var(--pm-s-web)", values: barValues }]}
-              fmt={formatLakh}
-              yFormat="money"
-              labels
-              aria={useDaily ? "Daily sales, all channels" : "Weekly sales, all channels"}
-            />
-          </Card>
-
-          <Card title="Channel scorecard" basis={periodLabel}>
-            <Table
-              cols={channelCols}
-              rows={channelRows}
-              rowKey={(r) => r.key}
-              card={(r) => ({
-                title: r.label,
-                value: formatLakh(r.revenue),
-                meta: (
-                  <>
-                    <Delta value={pctChange(r.revenue, r.prevRevenue)} /> · {r.orders.toLocaleString("en-IN")} orders
-                    · AOV {formatINR(r.aov)}
-                  </>
-                ),
-              })}
-            />
-          </Card>
+            hero
+            label={`Sales · ${periodLabel}`}
+            value={formatINR(sales.total.revenue)}
+            title="Web store + Amazon + HYPD. Excludes ₹0.01 creator seed orders."
+          >
+            <DeltaText value={salesDelta} /> vs the {periodLabel} before
+          </Kpi>
+          <Kpi label="Orders" value={sales.total.orders.toLocaleString("en-IN")}>
+            <DeltaText value={pctChange(sales.total.orders, sales.total.prevOrders)} /> ·{" "}
+            {sales.newCustomers.count.toLocaleString("en-IN")} new customers
+          </Kpi>
+          <Kpi label="Average order" value={formatINR(aov)}>
+            <DeltaText value={pctChange(aov, prevAov)} /> · {Math.round(sales.repeat.pct)}% from repeat buyers
+          </Kpi>
         </div>
 
-        <Card title="Top products" basis={`${periodLabel} · web store + HYPD`}>
-          <Table
-            cols={productCols}
-            rows={sales.topProducts}
-            rowKey={(r) => r.title}
-            card={(r) => ({
-              title: r.title,
-              value: formatLakh(r.revenue),
-              meta: `${r.units.toLocaleString("en-IN")} units · ${r.share}% of sales`,
-            })}
-            empty="No product sales in this period"
-          />
-        </Card>
+        <div className={s.g21}>
+          <ChartCard
+            id="ins-sales-chart"
+            title={`Sales per ${unit}`}
+            basis="all channels"
+            takeaway={
+              <>
+                {formatLakh(sales.total.revenue)}
+                {salesDelta !== null ? (
+                  <>
+                    ,{" "}
+                    <em className={Math.round(salesDelta) < 0 ? s.neg : undefined}>{changeWords(salesDelta)}</em> on the{" "}
+                    {periodLabel} before
+                  </>
+                ) : (
+                  " this period, nothing in the period before"
+                )}
+              </>
+            }
+          >
+            <BarChart
+              cats={buckets.map((b) => b.label)}
+              series={[{ name: "All channels", color: "var(--pm-s-web)", values: buckets.map((b) => b.revenue) }]}
+              fmt={formatLakh}
+              yFormat="money"
+              labels={buckets.length <= 16}
+              aria={`Sales per ${unit}, all channels`}
+            />
+            {partNote && <p className={s.note}>{partNote}. Bars are labelled by their first day.</p>}
+          </ChartCard>
+
+          <ChartCard
+            id="ins-channels"
+            title="By channel"
+            basis={periodLabel}
+            takeaway={
+              lead ? (
+                <>
+                  {lead.label} brings <em className={s.plain}>{shareOf(lead.revenue)}%</em> of sales
+                </>
+              ) : (
+                "No channel sales in this period"
+              )
+            }
+          >
+            <div className={s.chan}>
+              {channels.map((c) => {
+                const href = channelHref(c.key);
+                const amz = c.key === "amazon" ? sales.amazon : null;
+                const body = (
+                  <>
+                    <span className={s.chTop}>
+                      <span className={s.dot} style={{ background: CHANNEL_COLOR[c.key] }} />
+                      <b>{c.label}</b>
+                      <span className={s.chV}>{formatLakh(c.revenue)}</span>
+                      <span className={s.chD}>
+                        <DeltaText value={pctChange(c.revenue, c.prevRevenue)} />
+                      </span>
+                    </span>
+                    <span className={s.btBar}>
+                      <i style={{ width: `${shareOf(c.revenue)}%`, background: CHANNEL_COLOR[c.key] }} />
+                    </span>
+                    <span className={s.chS}>
+                      {shareOf(c.revenue)}% · {c.orders.toLocaleString("en-IN")} orders · avg {formatINR(c.aov)}
+                      {amz ? ` · ${formatLakh(amz.net)} after Amazon fees` : ""}
+                    </span>
+                  </>
+                );
+                return href ? (
+                  <Link key={c.key} href={href} className={s.chR}>
+                    {body}
+                  </Link>
+                ) : (
+                  <div key={c.key} className={s.chR}>
+                    {body}
+                  </div>
+                );
+              })}
+            </div>
+          </ChartCard>
+        </div>
+
+        <ChartCard
+          id="ins-products"
+          title="Top products"
+          basis="web store + HYPD"
+          takeaway={
+            topProduct ? (
+              <>
+                {shortName(topProduct.title)} leads with <em className={s.plain}>{Math.round(topProduct.share)}%</em> of sales
+              </>
+            ) : undefined
+          }
+        >
+          {productItems.length === 0 ? <p className={s.empty}>No product sales in this period</p> : <HBars items={productItems} />}
+        </ChartCard>
+
+        <p className={s.footerNote}>
+          Web store, Amazon and HYPD. Excludes ₹0.01 HYPD creator seed orders. New and repeat buyers count web store and HYPD
+          orders.
+        </p>
       </div>
     </>
   );

@@ -1,93 +1,95 @@
-import { KpiStrip, Kpi, Card, BarChart, Table, Pill } from "@/components/pm";
+import { BarChart, Table } from "@/components/pm";
 import type { TableCol, BarSeries } from "@/components/pm";
 import { formatLakh, formatINR } from "@/lib/metrics/money";
 import type { AmazonMetrics, AmazonSettlement } from "@/lib/amazon/economics";
 import { fmtDate, PERIOD_LABEL } from "../format";
+import { Kpi, ChartCard, signedINR } from "../../insights-ui";
+import { PayoutTag } from "../parts";
+import s from "../../insights.module.css";
 
 export function PayoutsTab({ data }: { data: AmazonMetrics }) {
   const { payouts, settlements, period } = data;
-  const deposited = [...settlements].filter((s) => !s.scheduled).sort((a, b) => (a.depositDate ?? "").localeCompare(b.depositDate ?? ""));
+  const deposited = [...settlements].filter((x) => !x.scheduled).sort((a, b) => (a.depositDate ?? "").localeCompare(b.depositDate ?? ""));
 
-  const cats = deposited.map((s) => fmtDate(s.depositDate));
-  // BarChart draws a single-series bar chart against a zero-based, all-positive
-  // axis; it has no baseline for a negative bar. A settlement can legitimately
-  // deposit a negative amount (refunds outweighing sales in that period) — floor
-  // the chart's height (and its "₹0" label) at 0 so that rare case doesn't
-  // render a broken bar. `tipValues` keeps the true, possibly-negative figure
-  // in the hover tooltip, and the table below always shows the real amount too.
-  const hasNegativeDeposit = deposited.some((s) => s.deposit < 0);
+  const cats = deposited.map((x) => fmtDate(x.depositDate));
+  // BarChart draws against a zero-based, all-positive axis; it has no
+  // baseline for a negative bar. A settlement can deposit a negative amount
+  // (refunds outweighing sales), so floor the bar at 0. `tipValues` keeps the
+  // real figure in the tooltip, and the table below always shows it too.
+  const negCount = deposited.filter((x) => x.deposit < 0).length;
+  const hasNegativeDeposit = negCount > 0;
   const series: BarSeries[] = [
     {
       name: "Paid out",
       color: "var(--pm-s-amz)",
-      values: deposited.map((s) => Math.max(0, s.deposit)),
-      tipValues: deposited.map((s) => s.deposit),
+      values: deposited.map((x) => Math.max(0, x.deposit)),
+      tipValues: deposited.map((x) => x.deposit),
     },
   ];
+  const biggest = deposited.length ? deposited.reduce((a, b) => (b.deposit > a.deposit ? b : a)) : null;
+  const firstShort = settlements.find((x) => !x.matched && !x.scheduled);
 
   const cols: TableCol<AmazonSettlement>[] = [
-    { h: "Deposited", render: (s) => fmtDate(s.depositDate) },
-    { h: "Period", render: (s) => `${fmtDate(s.periodStart)} to ${fmtDate(s.periodEnd)}` },
-    { h: "Sales", num: true, render: (s) => formatINR(s.gross) },
-    { h: "Amazon kept", num: true, render: (s) => `−${formatINR(s.fees)}` },
-    { h: "Refunds", num: true, render: (s) => `−${formatINR(Math.abs(s.refunds))}` },
-    { h: "Paid to bank", num: true, render: (s) => formatINR(s.deposit) },
-    {
-      h: "Check",
-      render: (s) =>
-        s.matched ? (
-          <Pill tone="good">Matched</Pill>
-        ) : (
-          <Pill
-            tone="warn"
-            tip={`Amazon's line items add to ${formatINR(s.lineSum)} but the deposit was ${formatINR(s.deposit)}. Usually a reserve held for returns.`}
-          >
-            {formatINR(Math.abs(s.variance))} short
-          </Pill>
-        ),
-    },
+    { h: "Deposited", render: (x) => fmtDate(x.depositDate) },
+    { h: "Period", render: (x) => `${fmtDate(x.periodStart)} to ${fmtDate(x.periodEnd)}` },
+    { h: "Sales", num: true, render: (x) => formatINR(x.gross) },
+    { h: "Amazon kept", num: true, render: (x) => `−${formatINR(x.fees)}` },
+    { h: "Refunds", num: true, render: (x) => `−${formatINR(Math.abs(x.refunds))}` },
+    { h: "Paid to bank", num: true, render: (x) => signedINR(x.deposit) },
+    { h: "Check", render: (x) => <PayoutTag st={x} /> },
   ];
 
   return (
     <>
-      <KpiStrip cols={3}>
-        <Kpi label={`Paid out, ${PERIOD_LABEL[period]}`} value={formatLakh(payouts.paidOut)} sub={`${payouts.count} payouts`} />
-        <Kpi label="Matched" value={`${payouts.matched} of ${settlements.length}`} sub="reconcile within ₹50" />
-        <Kpi
-          label="Needs a look"
-          value={formatINR(payouts.needsLook)}
-          sub={settlements.find((s) => !s.matched) ? `short on ${fmtDate(settlements.find((s) => !s.matched)!.depositDate)}` : "all matched"}
-        />
-      </KpiStrip>
+      <div className={s.kpis}>
+        <Kpi label={`Paid out · ${PERIOD_LABEL[period]}`} value={payouts.paidOut < 0 ? `−${formatLakh(-payouts.paidOut)}` : formatLakh(payouts.paidOut)}>
+          {payouts.count} {payouts.count === 1 ? "payout" : "payouts"}
+        </Kpi>
+        <Kpi label="Matched" value={`${payouts.matched} of ${settlements.length}`}>
+          reconcile within ₹50
+        </Kpi>
+        <Kpi label="Needs a look" value={formatINR(payouts.needsLook)}>
+          {firstShort ? `short on ${fmtDate(firstShort.depositDate)}` : "all matched"}
+        </Kpi>
+      </div>
 
-      <Card title="What you kept per payout" basis="₹ deposited">
+      <ChartCard
+        id="amz-payout-chart"
+        title="What you kept per payout"
+        basis="₹ deposited"
+        takeaway={
+          biggest ? (
+            <>
+              Biggest payout <em className={s.plain}>{formatLakh(biggest.deposit)}</em> on {fmtDate(biggest.depositDate)}
+            </>
+          ) : undefined
+        }
+      >
         {cats.length === 0 ? (
-          <div className="pm2-empty">No payouts yet</div>
+          <p className={s.empty}>No payouts yet</p>
         ) : (
           <>
-            <BarChart cats={cats} series={series} fmt={formatLakh} labels />
+            <BarChart cats={cats} series={series} fmt={formatLakh} yFormat="money" labels aria="Amazon payouts per deposit" />
             {hasNegativeDeposit && (
-              <p style={{ fontSize: 12.5, color: "var(--pm-hint)", margin: "8px 0 0" }}>
-                One payout was negative (a reserve clawback); the bar shows 0, the table shows the real figure
-              </p>
+              <p className={s.note}>{negCount === 1 ? "One payout was" : `${negCount} payouts were`} negative (refunds or a reserve clawback); bars show 0, the table shows the real figure.</p>
             )}
           </>
         )}
-      </Card>
+      </ChartCard>
 
-      <Card title="Payouts" basis="from Amazon settlement reports">
+      <ChartCard id="amz-payout-table" title="Payouts" basis="from Amazon settlement reports">
         <Table
           cols={cols}
           rows={settlements}
-          rowKey={(s) => s.id}
-          card={(s) => ({
-            title: `${fmtDate(s.depositDate)} · ${formatINR(s.deposit)}`,
-            value: s.matched ? <Pill tone="good">Matched</Pill> : <Pill tone="warn">{formatINR(Math.abs(s.variance))} short</Pill>,
-            meta: `${fmtDate(s.periodStart)} to ${fmtDate(s.periodEnd)} · sales ${formatINR(s.gross)}`,
+          rowKey={(x) => x.id}
+          card={(x) => ({
+            title: `${fmtDate(x.depositDate)} · ${signedINR(x.deposit)}`,
+            value: <PayoutTag st={x} />,
+            meta: `${fmtDate(x.periodStart)} to ${fmtDate(x.periodEnd)} · sales ${formatINR(x.gross)}`,
           })}
           empty="No settlements in this period"
         />
-      </Card>
+      </ChartCard>
     </>
   );
 }

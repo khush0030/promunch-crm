@@ -4,11 +4,14 @@ import { Suspense, useCallback, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { RefreshCw, DownloadCloud } from "lucide-react";
-import { PageHeader, KpiStrip, Kpi, Callout, PeriodPicker } from "@/components/pm";
+import { Callout, PeriodPicker } from "@/components/pm";
 import type { PageHeaderTab } from "@/components/pm";
+import { formatLakh } from "@/lib/metrics/money";
 import type { AmazonMetrics } from "@/lib/amazon/economics";
 import type { AmazonTabKey } from "./types";
-import { timeAgo } from "./format";
+import { timeAgo, PERIOD_LABEL } from "./format";
+import { InsightsHead, shortName } from "../insights-ui";
+import s from "../insights.module.css";
 import { OverviewTab } from "./tabs/Overview";
 import { StockTab } from "./tabs/Stock";
 import { ProfitTab } from "./tabs/Profit";
@@ -18,19 +21,6 @@ import { OrdersTab } from "./tabs/Orders";
 type Period = "7d" | "30d" | "90d";
 const PERIODS: readonly Period[] = ["7d", "30d", "90d"];
 
-const PERIOD_CAPTION: Record<Period, string> = {
-  "7d": "vs previous 7 days",
-  "30d": "vs previous 30 days",
-  "90d": "vs previous 90 days",
-};
-
-const TAB_TITLE: Record<AmazonTabKey, string> = {
-  overview: "Amazon",
-  stock: "Amazon · Stock",
-  profit: "Amazon · Product profit",
-  payouts: "Amazon · Payouts",
-  orders: "Amazon · Orders",
-};
 
 function parsePeriodParam(raw: string | null): Period {
   return raw === "7d" || raw === "90d" ? raw : "30d";
@@ -52,15 +42,14 @@ export default function AmazonSalesPage() {
 function AmazonFallback() {
   return (
     <div className="pm2-body">
-      <KpiStrip>
-        <Kpi label="Customers paid" value="—" sub="—" />
-        <Kpi label="Paid to you" value="—" sub="—" />
-        <Kpi label="Your profit" value="—" sub="—" />
-        <Kpi label="Profit margin" value="—" sub="—" />
-      </KpiStrip>
-      <div className="pm2-skel" />
-      <div className="pm2-g3">
+      <div className={`${s.kpis} ${s.k4}`}>
         <div className="pm2-skel" />
+        <div className="pm2-skel" />
+        <div className="pm2-skel" />
+        <div className="pm2-skel" />
+      </div>
+      <div className="pm2-skel" />
+      <div className={s.g2}>
         <div className="pm2-skel" />
         <div className="pm2-skel" />
       </div>
@@ -146,17 +135,51 @@ function AmazonSalesPageInner() {
     { label: "Orders", key: "orders" },
   ];
 
+  // One plain-words summary from real data: what Amazon paid out of what
+  // customers paid, and the worst stock fact.
+  const summary = data
+    ? (() => {
+        const { money, skus } = data;
+        const oos = skus.filter((x) => x.outOfStock);
+        const soonest = skus
+          .filter((x) => typeof x.daysLeft === "number" && x.daysLeft < 14)
+          .sort((a, b) => (a.daysLeft as number) - (b.daysLeft as number))[0];
+        const share = money.customersPaid > 0 ? Math.round((money.paidToYou / money.customersPaid) * 100) : null;
+        return (
+          <>
+            {share != null ? (
+              <>
+                Amazon paid you <b>{formatLakh(money.paidToYou)}</b> from {formatLakh(money.customersPaid)} of sales in{" "}
+                {PERIOD_LABEL[period]} ({share}%).{" "}
+              </>
+            ) : (
+              <>No Amazon sales in the last {PERIOD_LABEL[period]}. </>
+            )}
+            {oos.length > 1 ? (
+              <b>{oos.length} products are out of stock.</b>
+            ) : oos.length === 1 ? (
+              <b>{shortName(oos[0].shortTitle)} is out of stock.</b>
+            ) : soonest ? (
+              <b>
+                {shortName(soonest.shortTitle)} runs out in {soonest.daysLeft as number} {soonest.daysLeft === 1 ? "day" : "days"}.
+              </b>
+            ) : null}
+          </>
+        );
+      })()
+    : null;
+
   const header = (
-    <PageHeader
-      crumb="Sales · Amazon"
-      title={TAB_TITLE[tab]}
+    <InsightsHead
+      title="Amazon"
+      summary={summary}
       tabs={tabs}
       activeTab={tab}
       onTab={(k) => setTab(k as AmazonTabKey)}
       actions={
         <>
-          <PeriodPicker options={PERIODS} value={period} onChange={setPeriod} caption={PERIOD_CAPTION[period]} />
-          <span className="pm2-cmp pm2-d-only">{data ? `synced ${timeAgo(data.sync.lastSyncedAt)}` : ""}</span>
+          <PeriodPicker options={PERIODS} value={period} onChange={setPeriod} />
+          <span className={`${s.synced} pm2-d-only`}>{data ? `synced ${timeAgo(data.sync.lastSyncedAt)}` : ""}</span>
           <button type="button" className="pm2-btn ghost pm2-d-only" disabled={syncing} onClick={syncNow}>
             <DownloadCloud size={14} /> {syncing ? "Syncing…" : "Sync now"}
           </button>
@@ -184,7 +207,7 @@ function AmazonSalesPageInner() {
             title="Couldn't load Amazon data"
             body={amzQ.error instanceof Error ? amzQ.error.message : "Something went wrong."}
             action={
-              <button type="button" className="pm2-btn pri sm" onClick={() => amzQ.refetch()}>
+              <button type="button" className="pm2-btn sm" onClick={() => amzQ.refetch()}>
                 <RefreshCw size={14} /> Retry
               </button>
             }
@@ -200,7 +223,7 @@ function AmazonSalesPageInner() {
       <div className="pm2-body">
         {syncError && (
           <Callout
-            tone="sun"
+            tone="plain"
             title="Sync failed"
             body={syncError}
             action={

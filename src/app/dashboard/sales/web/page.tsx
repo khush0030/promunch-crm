@@ -4,20 +4,18 @@ import { Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import { PageHeader, KpiStrip, Kpi, Card, HBars, StackBar, Table, PeriodPicker, Callout } from "@/components/pm";
+import { HBars, StackBar, Table, PeriodPicker, Callout } from "@/components/pm";
 import type { TableCol, HBarItem, StackPart } from "@/components/pm";
 import { formatLakh, formatINR } from "@/lib/metrics/money";
 import { pctChange } from "@/lib/metrics/period";
 import type { WebMetrics } from "@/lib/metrics/web-aggregate";
+import { InsightsHead, Kpi, DeltaText, ChartCard, changeWords } from "../insights-ui";
+import s from "../insights.module.css";
 
 type Period = "7d" | "30d" | "90d";
 const PERIODS: readonly Period[] = ["7d", "30d", "90d"];
 
-const PERIOD_CAPTION: Record<Period, string> = {
-  "7d": "vs previous 7 days",
-  "30d": "vs previous 30 days",
-  "90d": "vs previous 90 days",
-};
+const PERIOD_LABEL: Record<Period, string> = { "7d": "7 days", "30d": "30 days", "90d": "90 days" };
 
 function parsePeriodParam(raw: string | null): Period {
   return raw === "7d" || raw === "90d" ? raw : "30d";
@@ -29,10 +27,12 @@ const SOURCE_COLOR: Record<string, string> = {
   "Instagram ads": "var(--pm-s-web)",
   WhatsApp: "var(--pm-s-wa)",
   Creators: "var(--pm-s-hypd)",
-  "Not tracked": "var(--pm-line)",
+  "Not tracked": "#CFC7B9",
 };
 
 type CampaignRow = WebMetrics["campaigns"][number];
+
+const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
 
 // useSearchParams needs a Suspense boundary in the App Router.
 export default function WebStorePage() {
@@ -46,18 +46,17 @@ export default function WebStorePage() {
 function WebStoreFallback() {
   return (
     <div className="pm2-body">
-      <KpiStrip>
-        <Kpi label="Web sales" value="—" sub="—" />
-        <Kpi label="Average order" value="—" sub="—" />
-        <Kpi label="Repeat buyers" value="—" sub="—" />
-        <Kpi label="Untracked" value="—" sub="—" />
-      </KpiStrip>
-      <div className="pm2-skel" />
-      <div className="pm2-g21">
+      <div className={`${s.kpis} ${s.k4}`}>
+        <div className="pm2-skel" />
+        <div className="pm2-skel" />
         <div className="pm2-skel" />
         <div className="pm2-skel" />
       </div>
       <div className="pm2-skel" />
+      <div className={s.g2}>
+        <div className="pm2-skel" />
+        <div className="pm2-skel" />
+      </div>
     </div>
   );
 }
@@ -89,12 +88,20 @@ function WebStorePageInner() {
     placeholderData: keepPreviousData,
   });
 
+  const web = webQ.data;
+  const periodLabel = PERIOD_LABEL[period];
+  const salesDelta = web ? pctChange(web.total.revenue, web.total.prevRevenue) : null;
+
+  const summary = web ? (
+    <>
+      The web store sold <b>{formatLakh(web.total.revenue)}</b> in {periodLabel}
+      {changeWords(salesDelta) ? `, ${changeWords(salesDelta)} on the ${periodLabel} before` : ""}.{" "}
+      <b>{Math.round(web.repeat.pct)}% of orders</b> came from people who had bought before.
+    </>
+  ) : null;
+
   const header = (
-    <PageHeader
-      crumb="Sales · Web store"
-      title="Web store"
-      actions={<PeriodPicker options={PERIODS} value={period} onChange={setPeriod} caption={PERIOD_CAPTION[period]} />}
-    />
+    <InsightsHead title="Web store" summary={summary} actions={<PeriodPicker options={PERIODS} value={period} onChange={setPeriod} />} />
   );
 
   if (webQ.isLoading) {
@@ -106,7 +113,7 @@ function WebStorePageInner() {
     );
   }
 
-  if (webQ.isError || !webQ.data) {
+  if (webQ.isError || !web) {
     return (
       <>
         {header}
@@ -116,7 +123,7 @@ function WebStorePageInner() {
             title="Couldn't load web store data"
             body={webQ.error instanceof Error ? webQ.error.message : "Something went wrong."}
             action={
-              <button type="button" className="pm2-btn pri sm" onClick={() => webQ.refetch()}>
+              <button type="button" className="pm2-btn sm" onClick={() => webQ.refetch()}>
                 <RefreshCw size={14} /> Retry
               </button>
             }
@@ -126,24 +133,18 @@ function WebStorePageInner() {
     );
   }
 
-  const web = webQ.data;
-
-  const hbarItems: HBarItem[] = web.sources.map((s) => ({
-    label: s.label,
-    value: s.revenue,
-    text: formatLakh(s.revenue),
-    sub: `${s.orders.toLocaleString("en-IN")} orders`,
-    color: SOURCE_COLOR[s.label] ?? "var(--pm-muted)",
+  const hbarItems: HBarItem[] = web.sources.map((x) => ({
+    label: x.label,
+    value: x.revenue,
+    text: formatLakh(x.revenue),
+    sub: `${x.orders.toLocaleString("en-IN")} ${x.orders === 1 ? "order" : "orders"}`,
+    color: SOURCE_COLOR[x.label] ?? "var(--pm-muted)",
   }));
 
+  const { newRevenue, returningRevenue, newAov, returningAov } = web.newVsReturning;
   const stackParts: StackPart[] = [
-    { label: "New", value: web.newVsReturning.newRevenue, text: formatLakh(web.newVsReturning.newRevenue), color: "var(--pm-s-web)" },
-    {
-      label: "Returning",
-      value: web.newVsReturning.returningRevenue,
-      text: formatLakh(web.newVsReturning.returningRevenue),
-      color: "var(--pm-orange)",
-    },
+    { label: "Returning", value: returningRevenue, text: formatLakh(returningRevenue), color: "var(--pm-s-web)" },
+    { label: "New", value: newRevenue, text: formatLakh(newRevenue), color: "#CFC7B9" },
   ];
 
   const campaignCols: TableCol<CampaignRow>[] = [
@@ -160,83 +161,102 @@ function WebStorePageInner() {
     { h: "Sales", num: true, render: (r) => formatLakh(r.revenue) },
   ];
 
-  const showHonestyCallout = web.tracking.totalOrders > 0 && web.tracking.attributedOrders / web.tracking.totalOrders < 0.5;
   const untrackedOrders = web.tracking.totalOrders - web.tracking.attributedOrders;
-  const stoppedDate = web.tracking.lastAttributedAt
-    ? new Date(web.tracking.lastAttributedAt).toLocaleDateString("en-GB", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" })
-    : null;
+  const mostlyUntracked = web.tracking.totalOrders > 0 && web.tracking.attributedOrders / web.tracking.totalOrders < 0.5;
+  const tracked = web.sources.filter((x) => x.label !== "Not tracked" && x.revenue > 0).sort((a, b) => b.revenue - a.revenue);
+  const trackedSum = tracked.reduce((t, x) => t + x.revenue, 0);
+  const topSource = tracked[0];
+
+  const sourceTakeaway = mostlyUntracked ? (
+    <>
+      <em className={s.plain}>{pct(untrackedOrders, web.tracking.totalOrders)}%</em> of orders have no source
+    </>
+  ) : topSource ? (
+    <>
+      {topSource.label} brings <em className={s.plain}>{pct(topSource.revenue, trackedSum)}%</em> of tracked sales
+    </>
+  ) : (
+    "No orders in this period"
+  );
+
+  const nrTotal = newRevenue + returningRevenue;
+  const nrTakeaway =
+    nrTotal <= 0 ? (
+      "No orders in this period"
+    ) : returningAov > 0 && newAov > 0 && Math.abs(returningAov - newAov) >= 1 ? (
+      <>
+        Returning buyers spend <em className={s.plain}>{formatINR(Math.abs(returningAov - newAov))}</em>{" "}
+        {returningAov > newAov ? "more" : "less"} per order
+      </>
+    ) : (
+      <>
+        Returning buyers bring <em className={s.plain}>{pct(returningRevenue, nrTotal)}%</em> of sales
+      </>
+    );
+
+  const bestCampaign = web.campaigns.length > 0 ? [...web.campaigns].sort((a, b) => b.revenue - a.revenue)[0] : null;
 
   return (
     <>
       {header}
       <div className="pm2-body">
-        <KpiStrip>
-          <Kpi
-            label="Web sales"
-            value={formatLakh(web.total.revenue)}
-            delta={pctChange(web.total.revenue, web.total.prevRevenue)}
-            sub={`${web.total.orders.toLocaleString("en-IN")} orders`}
-          />
-          <Kpi
-            label="Average order"
-            value={formatINR(web.aov.value)}
-            delta={pctChange(web.aov.value, web.aov.prev)}
-            sub="per order"
-          />
-          <Kpi
-            label="Repeat buyers"
-            value={`${Math.round(web.repeat.pct)}%`}
-            delta={Math.round(web.repeat.pct - web.repeat.prevPct)}
-            deltaUnit="pts"
-            sub="of orders"
-          />
-          <Kpi
-            label="Untracked"
-            value={`${Math.round(web.untracked.pct)}%`}
-            delta={Math.round(web.untracked.pct - web.untracked.prevPct)}
-            deltaUnit="pts"
-            sub="orders with no source"
-            invert
-            tip="Orders where Shopify recorded no traffic source. Lower is better."
-          />
-        </KpiStrip>
+        <div className={`${s.kpis} ${s.k4}`}>
+          <Kpi label="Sales" value={formatLakh(web.total.revenue)}>
+            <DeltaText value={salesDelta} /> vs the {periodLabel} before
+          </Kpi>
+          <Kpi label="Orders" value={web.total.orders.toLocaleString("en-IN")}>
+            <DeltaText value={pctChange(web.total.orders, web.total.prevOrders)} />
+          </Kpi>
+          <Kpi label="Average order" value={formatINR(web.aov.value)}>
+            <DeltaText value={pctChange(web.aov.value, web.aov.prev)} />
+          </Kpi>
+          <Kpi label="Returning" value={`${Math.round(web.repeat.pct)}%`}>
+            <DeltaText value={web.repeat.pct - web.repeat.prevPct} unit="pts" /> of orders
+          </Kpi>
+        </div>
 
-        {showHonestyCallout && (
-          <Callout
-            tone="sun"
-            title="Shopify isn't reporting where orders come from"
-            body={
-              stoppedDate
-                ? `${untrackedOrders.toLocaleString("en-IN")} of ${web.tracking.totalOrders.toLocaleString("en-IN")} orders in this period have no traffic source. Attribution stopped on 2 June 2026, when the storefront's sales channel changed. Until Shopify sends it again, this chart can only show what it knows.`
-                : `${untrackedOrders.toLocaleString("en-IN")} of ${web.tracking.totalOrders.toLocaleString("en-IN")} orders in this period have no traffic source. Until Shopify sends it again, this chart can only show what it knows.`
-            }
-          />
-        )}
-
-        <Card title="Where orders came from" basis="first source that brought the customer">
+        <ChartCard id="ins-web-sources" title="Where orders came from" basis="first source that brought the customer" takeaway={sourceTakeaway}>
           <HBars items={hbarItems} />
-        </Card>
+          {mostlyUntracked && (
+            <p className={s.note}>
+              <span className={`${s.tg} ${s.warn}`}>Source missing</span>{" "}
+              {untrackedOrders.toLocaleString("en-IN")} of {web.tracking.totalOrders.toLocaleString("en-IN")} orders have no
+              traffic source.
+              {web.tracking.lastAttributedAt
+                ? " Shopify stopped sending it on 2 June 2026, when the storefront's sales channel changed."
+                : ""}{" "}
+              Until it comes back, this chart only shows what Shopify knows.
+            </p>
+          )}
+        </ChartCard>
 
-        <div className="pm2-g21">
-          <Card title="New vs returning" basis="per order">
+        <div className={s.g2}>
+          <ChartCard id="ins-web-nr" title="New vs returning" basis={`${periodLabel} · sales`} takeaway={nrTakeaway}>
             <StackBar parts={stackParts} />
-            <div style={{ display: "flex", marginTop: 14, gap: 20 }}>
+            <div className={s.nr}>
               <div>
-                <div style={{ fontSize: 12.5, color: "var(--pm-muted)" }}>Returning pay</div>
-                <div style={{ fontSize: 26, fontWeight: 650, letterSpacing: "-.02em", marginTop: 4 }}>
-                  {formatINR(web.newVsReturning.returningAov)}
-                </div>
+                <span>Returning buyers pay</span>
+                <b>{formatINR(returningAov)}</b>
               </div>
               <div>
-                <div style={{ fontSize: 12.5, color: "var(--pm-muted)" }}>New pay</div>
-                <div style={{ fontSize: 26, fontWeight: 650, letterSpacing: "-.02em", marginTop: 4 }}>
-                  {formatINR(web.newVsReturning.newAov)}
-                </div>
+                <span>New buyers pay</span>
+                <b>{formatINR(newAov)}</b>
               </div>
             </div>
-          </Card>
+          </ChartCard>
 
-          <Card title="Best campaigns" basis="from utm_campaign">
+          <ChartCard
+            id="ins-web-campaigns"
+            title="Best campaigns"
+            basis="from utm_campaign"
+            takeaway={
+              bestCampaign ? (
+                <>
+                  {bestCampaign.name} brought <em className={s.plain}>{formatLakh(bestCampaign.revenue)}</em>
+                </>
+              ) : undefined
+            }
+          >
             <Table
               cols={campaignCols}
               rows={web.campaigns}
@@ -248,8 +268,10 @@ function WebStorePageInner() {
               })}
               empty="No campaign links in this period"
             />
-          </Card>
+          </ChartCard>
         </div>
+
+        <p className={s.footerNote}>promunch.in orders only. Excludes ₹0.01 HYPD creator seed orders.</p>
       </div>
     </>
   );
