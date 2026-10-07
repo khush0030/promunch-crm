@@ -7,7 +7,7 @@
 import { useEffect, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { StatusBadge, type BadgeTone } from "@/components/pm";
+import { Pill, type BadgeTone, type PillTone } from "@/components/pm";
 import type {
   BoardSummary,
   DealHealth,
@@ -40,6 +40,24 @@ export const HEALTH_TONE: Record<DealHealth, BadgeTone> = {
   waiting_on_us: "blue",
   on_track: "green",
   closed: "gray",
+};
+
+/** Status as coloured text + dot (redesign rule: never a filled block). */
+export const HEALTH_PILL: Record<DealHealth, PillTone> = {
+  overdue: "crit",
+  at_risk: "warn",
+  waiting_on_us: "info",
+  on_track: "good",
+  closed: "neu",
+};
+
+/** Map the older BadgeTone palette onto the dot pills. */
+export const TONE_PILL: Record<BadgeTone, PillTone> = {
+  green: "good",
+  gold: "warn",
+  terra: "crit",
+  blue: "info",
+  gray: "neu",
 };
 
 export const STAGE_LABEL: Record<DealStage, string> = {
@@ -147,8 +165,8 @@ export function pct(n: number | null | undefined): string {
 
 export function HealthChip({ health, reason }: { health: DealHealth; reason?: string | null }) {
   return (
-    <span title={reason ?? undefined}>
-      <StatusBadge tone={HEALTH_TONE[health]}>{HEALTH_LABEL[health]}</StatusBadge>
+    <span title={reason ?? undefined} style={{ display: "inline-flex" }}>
+      <Pill tone={HEALTH_PILL[health]}>{HEALTH_LABEL[health]}</Pill>
     </span>
   );
 }
@@ -158,8 +176,12 @@ export function TierTag({ tier }: { tier: InfluencerTier | null }) {
   return <span className={s.tier}>{TIER_LABEL[tier]}</span>;
 }
 
-export function Initial({ handle }: { handle: string }) {
-  return <span className={s.initial}>{(handle.replace(/^@/, "")[0] ?? "?").toUpperCase()}</span>;
+export function Initial({ handle, large }: { handle: string; large?: boolean }) {
+  return (
+    <span className={`${s.initial}${large ? ` ${s.initialLg}` : ""}`} aria-hidden="true">
+      {(handle.replace(/^@/, "")[0] ?? "?").toUpperCase()}
+    </span>
+  );
 }
 
 export function at(handle: string): string {

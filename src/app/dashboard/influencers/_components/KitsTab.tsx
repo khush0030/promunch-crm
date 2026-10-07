@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Package, Plus, Trash2 } from "lucide-react";
-import { ConfirmDialog, EmptyState, Panel, StatusBadge } from "@/components/pm";
+import { ConfirmDialog, EmptyState, Pill } from "@/components/pm";
 import type { Kit, KitItem, KitRule } from "@/lib/influencers/types";
 import { api, errText, QK } from "./api";
 import { Field, Switch, useKitRules, useKits } from "./ui";
@@ -38,58 +38,86 @@ export function KitsTab() {
 
   return (
     <>
-      <Panel
-        title="Kits"
-        icon={<Package size={16} />}
-        caption="A kit is the box a creator gets. Items are Shopify variant IDs with a quantity, so the Shopify order is built from them."
-        more={
-          !editing && (
-            <button type="button" className="pm-btn primary sm" onClick={() => setEditing({ ...BLANK_KIT, items: [] })}>
-              <Plus size={13} /> New kit
-            </button>
-          )
-        }
-      >
-        {editing && !editing.id && <KitEditor initial={editing} onDone={() => setEditing(null)} />}
-        {kits.isLoading ? (
-          <p className={s.hint}>Loading kits…</p>
-        ) : kits.error ? (
-          <p className={s.err}>{errText(kits.error)}</p>
-        ) : (kits.data ?? []).length === 0 && !editing ? (
-          <EmptyState icon={<Package />} title="No kits yet" style={{ marginTop: 10 }}>
-            Create your first kit, for example a Starter box with 4 packs.
-          </EmptyState>
-        ) : (
-          <div style={{ marginTop: 10 }}>
-            {(kits.data ?? []).map((k) =>
-              editing?.id === k.id ? (
-                <KitEditor key={k.id} initial={editing} onDone={() => setEditing(null)} />
-              ) : (
-                <div key={k.id} className={s.draftItem}>
-                  <div className={s.row}>
-                    <strong style={{ fontSize: 13.5 }}>{k.name}</strong>
-                    <StatusBadge tone={k.active ? "green" : "gray"}>{k.active ? "In use" : "Hidden"}</StatusBadge>
-                    {k.cogs != null && <span className={s.hint}>Cost ₹{k.cogs}</span>}
-                    <span className={s.spacer} />
-                    <button type="button" className="pm-btn ghost sm" onClick={() => setEditing({ ...k, items: [...k.items] })}>
-                      Edit
-                    </button>
-                  </div>
-                  {k.description && <p className={s.muted} style={{ margin: "4px 0 0" }}>{k.description}</p>}
-                  <p className={s.hint} style={{ margin: "4px 0 0" }}>
-                    {k.items.length ? k.items.map((i) => `${i.qty} × ${i.title}`).join(", ") : "No items"}
-                  </p>
-                </div>
-              ),
-            )}
-          </div>
+      <div className={s.secH}>
+        <div>
+          <h2>Kits</h2>
+          <p>
+            A kit is the box a creator gets. Items are Shopify variant IDs with a quantity, so the Shopify order is built from
+            them.
+          </p>
+        </div>
+        {!editing && (
+          <button type="button" className="pm-btn sm" onClick={() => setEditing({ ...BLANK_KIT, items: [] })}>
+            <Plus size={14} /> New kit
+          </button>
         )}
-      </Panel>
+      </div>
+      {kits.isLoading ? (
+        <p className={s.hint}>Loading kits…</p>
+      ) : kits.error ? (
+        <p className={s.err}>{errText(kits.error)}</p>
+      ) : (kits.data ?? []).length === 0 && !editing ? (
+        <EmptyState icon={<Package />} title="No kits yet">
+          Create your first kit, for example a Starter box with 4 packs.
+        </EmptyState>
+      ) : (
+        <div className={s.g3}>
+          {editing && !editing.id && (
+            <div className={s.editor}>
+              <KitEditor initial={editing} onDone={() => setEditing(null)} />
+            </div>
+          )}
+          {(kits.data ?? []).map((k) =>
+            editing?.id === k.id ? (
+              <div key={k.id} className={s.editor}>
+                <KitEditor initial={editing} onDone={() => setEditing(null)} />
+              </div>
+            ) : (
+              <div key={k.id} className={`${s.pcard} ${s.kitCard}`}>
+                {k.items.length > 0 && (
+                  <div className={s.packs} aria-hidden="true">
+                    {k.items.slice(0, 4).map((i, n) => (
+                      <span key={n} className={s.pack}>
+                        {packCode(i.title)}
+                      </span>
+                    ))}
+                    {k.items.length > 4 && <span className={s.pack}>+{k.items.length - 4}</span>}
+                  </div>
+                )}
+                <h3>{k.name}</h3>
+                {k.description && <p className={s.muted} style={{ margin: 0 }}>{k.description}</p>}
+                <p className={s.kitItems}>
+                  {k.items.length ? k.items.map((i) => `${i.qty} × ${i.title}`).join(", ") : "No items"}
+                </p>
+                <div className={s.kitFoot}>
+                  <Pill tone={k.active ? "good" : "neu"}>{k.active ? "In use" : "Hidden"}</Pill>
+                  {k.cogs != null && <span className={s.hint}>Cost ₹{k.cogs}</span>}
+                  <span className={s.spacer} />
+                  <button type="button" className="pm-btn ghost sm" onClick={() => setEditing({ ...k, items: [...k.items] })}>
+                    Edit
+                  </button>
+                </div>
+              </div>
+            ),
+          )}
+        </div>
+      )}
 
-      <div style={{ height: 16 }} />
       <RulesPanel kits={kits.data ?? []} />
     </>
   );
+}
+
+/** "Himalayan Rock Salt" → "HRS": a short tag for the pack strip. */
+function packCode(title: string): string {
+  const words = title.replace(/[^A-Za-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "•";
+  if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
+  return words
+    .slice(0, 3)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
 }
 
 function KitEditor({ initial, onDone }: { initial: KitDraft; onDone: () => void }) {
@@ -112,7 +140,7 @@ function KitEditor({ initial, onDone }: { initial: KitDraft; onDone: () => void 
   };
 
   return (
-    <div className={s.section} style={{ marginTop: 10 }}>
+    <div className={s.pcard}>
       <div className={s.form}>
         <div className={s.grid2}>
           <Field label="Kit name *">
@@ -277,21 +305,26 @@ function RulesPanel({ kits }: { kits: Kit[] }) {
   );
 
   return (
-    <Panel
-      title="Kit rules"
-      caption="When you add a collab, the first matching rule (lowest priority number) suggests the kit. Leave a field empty to match anything."
-      more={
-        !draft && (
+    <>
+      <div className={s.secH}>
+        <div>
+          <h2>Kit rules</h2>
+          <p>
+            When you add a collab, the first matching rule (lowest priority number) suggests the kit. Leave a field empty to
+            match anything.
+          </p>
+        </div>
+        {!draft && (
           <button type="button" className="pm-btn sm" disabled={kits.length === 0} onClick={() => setDraft(toDraft())}>
-            <Plus size={13} /> New rule
+            <Plus size={14} /> New rule
           </button>
-        )
-      }
-    >
+        )}
+      </div>
       {rules.error ? (
         <p className={s.err}>{errText(rules.error)}</p>
       ) : (
-        <div className="pm-tablewrap" style={{ marginTop: 10 }}>
+        <div className={s.tblCard} style={{ marginTop: 0 }}>
+          <div className="pm-tablewrap">
           <table className="pm-tbl">
             <thead>
               <tr>
@@ -339,9 +372,10 @@ function RulesPanel({ kits }: { kits: Kit[] }) {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
       {crud.error && <p className={s.err}>{errText(crud.error)}</p>}
-    </Panel>
+    </>
   );
 }
