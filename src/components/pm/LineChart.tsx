@@ -29,7 +29,8 @@ const PB = 26;
 
 // Hand-written SVG line chart. The last point of each series is labelled
 // directly (no legend lookup). Two SVGs are rendered: a 640-wide one for
-// desktop and a 360-wide one with fewer x labels for phones, swapped by CSS
+// desktop and a 360-wide one with fewer x labels and value-only end labels
+// for phones, swapped by CSS
 // so axis text stays legible at phone width. Hover a column for the values.
 export function LineChart({
   series,
@@ -52,7 +53,7 @@ export function LineChart({
         <LineSvg series={series} labels={labels} fmt={fmt} yFormat={yFormat} aria={aria} W={640} pl={50} pr={116} maxXLabels={6} h={height} />
       </div>
       <div className="pm2-chart-m">
-        <LineSvg series={series} labels={labels} fmt={fmt} yFormat={yFormat} aria={aria} W={360} pl={46} pr={108} maxXLabels={3} h={height} />
+        <LineSvg series={series} labels={labels} fmt={fmt} yFormat={yFormat} aria={aria} W={360} pl={46} pr={62} maxXLabels={2} h={height} endNames={false} />
       </div>
     </div>
   );
@@ -69,6 +70,7 @@ function LineSvg({
   pr,
   maxXLabels,
   h,
+  endNames = true,
 }: {
   series: LineSeries[];
   labels: string[];
@@ -80,6 +82,9 @@ function LineSvg({
   pr: number;
   maxXLabels: number;
   h: number;
+  // Phones have no room for "This period ₹12.4k": the end label is the value
+  // alone (the chart's key names the series) and dashed series get none.
+  endNames?: boolean;
 }) {
   const f = (v: number) => (fmt ? fmt(v) : String(Math.round(v)));
   const n = Math.max(labels.length, ...series.map((s) => s.values.length));
@@ -94,6 +99,7 @@ function LineSvg({
 
   // End labels: place at the last point, then push apart so they never overlap.
   const ends = series
+    .filter((s) => endNames || !s.dash)
     .map((s, idx) => {
       const last = s.values[s.values.length - 1] ?? 0;
       return { idx, s, last, ly: y(last) + 4 };
@@ -142,8 +148,8 @@ function LineSvg({
       })}
       {ends.map(({ idx, s, last, ly }) => (
         <text key={`e${idx}`} className="lbl" x={W - pr + 8} y={ly} style={s.dash ? { fill: "var(--pm-hint)" } : undefined}>
-          {s.name}
-          {s.dash ? "" : ` ${f(last)}`}
+          {endNames ? s.name : ""}
+          {s.dash ? "" : `${endNames ? " " : ""}${f(last)}`}
         </text>
       ))}
       {Array.from({ length: n }, (_, i) => (
