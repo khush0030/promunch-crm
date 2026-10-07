@@ -13,13 +13,13 @@
 figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:10px}
 figcaption{font:700 11.5px var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2)}
 iframe{border:10px solid var(--ink);border-radius:44px;background:var(--paper);box-shadow:var(--sh-soft);max-width:100%}
-@media (max-width:760px){.mf-wrap{padding:20px 0 60px}.mf-wrap>header{padding:0 16px}.mf-grid{grid-template-columns:1fr}iframe{border:0;border-radius:0;width:100%}}
+.mf-phone{display:none}@media (max-width:760px){.mf-wrap{padding:20px 16px 60px}.mf-grid{display:none}.mf-phone{display:flex;flex-direction:column;gap:10px;margin-top:20px}.mf-phone a{background:var(--surface);border:1px solid var(--hair);border-radius:16px;padding:16px;font-weight:700;display:flex;justify-content:space-between}}
 </style>
 </head>
 <body data-shell="none">
 <main class="content" style="padding:0;max-width:none">
 <div class="mf-wrap"><header><span class="eyebrow red">★ Phone · 390 px</span><h1>Phone frames</h1><p class="ink2 mt8" style="max-width:70ch;font-size:17px">The same prototype pages at phone width. Every screen in the prototype is responsive, so any page can also be opened on a real phone. Bottom tabs: Home, Inbox, Maya, Orders, More.</p></header>
-<div class="mf-grid">
+<div class="mf-phone"><p class="ink2">You are already on a phone, so open any screen directly:</p><a href="index.html#home">Home<span>→</span></a><a href="tickets.html#tk-queue">Tickets<span>→</span></a><a href="tickets.html#tk-ticket">Ticket detail<span>→</span></a><a href="cod-voice.html#or-today">Confirm COD<span>→</span></a><a href="whatsapp.html#wa-new">New WhatsApp campaign<span>→</span></a><a href="email.html#em-home">Email<span>→</span></a><a href="analytics.html#an-retention">Repeat & cohorts<span>→</span></a><a href="maya.html#maya-chat">Maya answer<span>→</span></a><a href="influencers.html#inf-board">Creators board<span>→</span></a><a href="portal.html#pt-brief">Creator page<span>→</span></a><a href="b2b.html#b2b-review">B2B review<span>→</span></a></div><div class="mf-grid">
 <figure><figcaption>Home · Today</figcaption><iframe loading="lazy" src="index.html?frame=1&s=home" title="Home · Today" width="390" height="844"></iframe></figure>
 <figure><figcaption>More sheet</figcaption><iframe loading="lazy" src="index.html?frame=1&s=home/more" title="More sheet" width="390" height="844"></iframe></figure>
 <figure><figcaption>Tickets queue</figcaption><iframe loading="lazy" src="tickets.html?frame=1&s=tk-queue" title="Tickets queue" width="390" height="844"></iframe></figure>

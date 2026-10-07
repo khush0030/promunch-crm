@@ -638,3 +638,39 @@ h3,.h3{font-weight:700;font-size:17px;line-height:1.35}
 .wave i{flex:0 0 5px;width:5px;border-radius:3px}
 .board{grid-auto-columns:minmax(220px,1fr)}
 .kcard .meta{flex-wrap:wrap}
+
+/* ---------- polish pass (owner phone review, 7 Oct) ---------- */
+/* logo PNG has a white box: blend it into the paper */
+.side .brand img,.mtop img,.minisb img{mix-blend-mode:multiply}
+/* KPI footers flow as text, so separators and arrows never strand on their own line */
+.kpi .d{display:block}
+.kpi .d .up,.kpi .d .down{white-space:nowrap}
+/* composer controls never stack or overflow */
+.composer .mode{flex-wrap:wrap;align-items:center}
+.composer .mode button{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.composer .bar2{flex-wrap:wrap}
+.composer .bar2 .btn{white-space:nowrap}
+@media (max-width:760px){
+  /* tab bar: every item the same height, Maya a flat yellow pill so labels line up */
+  .tabbar{align-items:end}
+  .tabbar a,.tabbar button{height:58px;justify-content:center;gap:4px}
+  .tabbar a svg,.tabbar button svg{width:22px;height:22px;margin:4px 0}
+  .tabbar .mid span.ic{width:56px;height:30px;border-radius:999px;margin-top:0;box-shadow:none}
+  .tabbar .mid span.ic svg{margin:0}
+  /* "needs you" rows: text gets the full width, actions drop below */
+  .todo{flex-wrap:wrap;align-items:flex-start}
+  .todo .tx{flex:1 1 calc(100% - 52px)}
+  .todo .amt{margin-left:48px}
+  .todo>.btn:first-of-type{margin-left:auto}
+  /* ticket composer */
+  .composer{padding:12px 14px 14px}
+  .composer .mode .sp{display:none}
+  .composer .mode .small{flex-basis:100%;margin-top:6px}
+  .composer .bar2 .rel{flex-basis:100%;margin-top:6px}
+  .composer .bar2 .rel>.btn{width:100%;white-space:normal}
+  .composer .bar2>.btn.primary{flex:1}
+  .ph .acts .btn{white-space:normal}
+  .prop .sel{width:auto;flex:1;max-width:60%}
+  .kpi .v{font-size:26px;overflow-wrap:anywhere}
+  .mtop{border-bottom:0}
+}
