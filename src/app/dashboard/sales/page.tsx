@@ -282,6 +282,8 @@ function SalesPageInner() {
               fmt={formatLakh}
               yFormat="money"
               labels={buckets.length <= 16}
+              // The best bucket stays full colour; the rest are muted.
+              highlight={buckets.length > 1 ? buckets.reduce((bi, b, i) => (b.revenue > buckets[bi].revenue ? i : bi), 0) : undefined}
               aria={`Sales per ${unit}, all channels`}
             />
             {partNote && <p className={s.note}>{partNote}. Bars are labelled by their first day.</p>}
