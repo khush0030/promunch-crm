@@ -2,10 +2,11 @@
 // keyed off the contact's name so the same person always renders the same
 // colour across the inbox list, thread header and kanban cards.
 
-// Ordered token list per the design brief; "sun" gets dark ink text, every
-// other tone gets white text (contrast).
+// Ordered token list. Avatars render as a soft tint of the tone with the
+// initials in the tone itself (Avatar.tsx); yellow is Maya's alone, so the
+// warm slot is amber (gold), not sun.
 export const AVATAR_COLOR_TOKENS = [
-  "var(--pm-sun)",
+  "var(--pm-gold)",
   "var(--pm-cyan)",
   "var(--pm-brand)",
   "var(--pm-orange)",
@@ -23,8 +24,13 @@ export function avatarColorToken(name: string): (typeof AVATAR_COLOR_TOKENS)[num
   return AVATAR_COLOR_TOKENS[idx];
 }
 
+// Initials take the tone; the background is a soft tint of it (avatarTint).
 export function avatarTextColor(token: string): string {
-  return token === "var(--pm-sun)" ? "#1D1517" : "#fff";
+  return token;
+}
+
+export function avatarTint(token: string): string {
+  return `color-mix(in srgb, ${token} 15%, var(--pm-card))`;
 }
 
 export function initials(name: string): string {

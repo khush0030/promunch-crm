@@ -1,10 +1,11 @@
-import { avatarColorToken, avatarTextColor, initials } from "@/lib/pm/avatar";
+import { avatarColorToken, avatarTextColor, avatarTint, initials } from "@/lib/pm/avatar";
 
 export type Channel = "wa" | "ig" | "em";
 
 const CHANNEL_LETTER: Record<Channel, string> = { wa: "W", ig: "I", em: "E" };
 
-// Contact avatar: initials on a colour picked by a stable hash of the name,
+// Contact avatar: initials in a tone picked by a stable hash of the name, on a
+// soft tint of it (calm: no filled colour blocks),
 // with an optional small channel badge overlay (WhatsApp/Instagram/email).
 export function Avatar({
   name,
@@ -20,7 +21,7 @@ export function Avatar({
     <span className="pm2-av-wrap" style={{ width: size, height: size }}>
       <span
         className={`pm2-av${size === 34 ? " lg" : ""}`}
-        style={{ background: token, color: avatarTextColor(token) }}
+        style={{ background: avatarTint(token), color: avatarTextColor(token) }}
       >
         {initials(name)}
       </span>

@@ -21,10 +21,12 @@ describe("avatarColorToken", () => {
 });
 
 describe("avatarTextColor", () => {
-  it("is dark ink on the sun token and white otherwise", () => {
-    expect(avatarTextColor("var(--pm-sun)")).toBe("#1D1517");
-    expect(avatarTextColor("var(--pm-cyan)")).toBe("#fff");
-    expect(avatarTextColor("var(--pm-muted)")).toBe("#fff");
+  it("uses the tone itself for the initials (the background is a soft tint)", () => {
+    expect(avatarTextColor("var(--pm-cyan)")).toBe("var(--pm-cyan)");
+    expect(avatarTextColor("var(--pm-muted)")).toBe("var(--pm-muted)");
+  });
+  it("never uses Maya's yellow", () => {
+    expect(AVATAR_COLOR_TOKENS).not.toContain("var(--pm-sun)");
   });
 });
 
