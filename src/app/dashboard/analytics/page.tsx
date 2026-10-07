@@ -73,7 +73,8 @@ export default function AnalyticsPage() {
         campaigns.slice(0, 5).map((c) => ({
           name: c.name,
           sent: c.total_sent > 0 ? c.total_sent.toLocaleString() : "—",
-          openRate: c.total_sent > 0 ? ((c.total_opened / c.total_sent) * 100).toFixed(1) + "%" : "—",
+          // A resend can count more opens than sends; a rate never reads above 100%.
+          openRate: c.total_sent > 0 ? Math.min(100, (c.total_opened / c.total_sent) * 100).toFixed(1) + "%" : "—",
           clickRate: c.total_sent > 0 ? ((c.total_clicked / c.total_sent) * 100).toFixed(1) + "%" : "—",
           revenue: c.revenue_attributed > 0 ? `₹${Number(c.revenue_attributed).toLocaleString()}` : "—",
         }))
@@ -109,13 +110,13 @@ export default function AnalyticsPage() {
     { header: "Sent", cell: (c) => c.sent },
     { header: "Open", cell: (c) => c.openRate },
     { header: "Click", cell: (c) => c.clickRate },
-    { header: "Revenue", cell: (c) => <span className="pm-b7" style={{ color: "var(--pm-green)" }}>{c.revenue}</span> },
+    { header: "Revenue", cell: (c) => <span className="pm-b7">{c.revenue}</span> },
   ];
   const flowCols: Column<FlowPerf>[] = [
     { header: "Flow", cell: (f) => <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 130, fontWeight: 600 }}>{f.name}</div> },
     { header: "Trigger", cell: (f) => <span className="pm-dim" style={{ textTransform: "capitalize" }}>{f.trigger}</span> },
-    { header: "Revenue", cell: (f) => <span className="pm-b7" style={{ color: "var(--pm-green)" }}>{f.revenue}</span> },
-    { header: "Conv.", cell: (f) => <span style={{ color: "var(--pm-gold)" }}>{f.conversion}</span> },
+    { header: "Revenue", cell: (f) => <span className="pm-b7">{f.revenue}</span> },
+    { header: "Conv.", cell: (f) => f.conversion },
   ];
 
   const healthEmpty = !loaded || emailHealth.every((h) => h.value === "—");
@@ -147,15 +148,14 @@ export default function AnalyticsPage() {
               <StatLine
                 items={[
                   { n: `+${growth.newSubs}`, l: "New subscribers", color: "var(--pm-green)" },
-                  { n: `−${growth.unsubscribed}`, l: "Unsubscribed", color: "var(--pm-terra)" },
+                  { n: growth.unsubscribed > 0 ? `−${growth.unsubscribed}` : "0", l: "Unsubscribed", color: growth.unsubscribed > 0 ? "var(--pm-terra)" : "var(--pm-ink)" },
                   { n: `${growth.net >= 0 ? "+" : ""}${growth.net}`, l: "Net growth", color: growth.net >= 0 ? "var(--pm-green)" : "var(--pm-terra)" },
                 ]}
               />
-              <div style={{ marginTop: 16, background: "var(--pm-green-soft)", borderRadius: 12, padding: 18, textAlign: "center" }}>
-                <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.6px", color: "var(--pm-green)" }}>
-                  {growth.totalActive.toLocaleString("en-IN")}
-                </div>
-                <div className="pm-dim" style={{ fontSize: 12, marginTop: 2 }}>Total active subscribers</div>
+              {/* Calm: a hairline row, not a filled block. */}
+              <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--pm-line)", display: "flex", alignItems: "baseline", gap: 10 }}>
+                <span style={{ font: "400 28px/1 var(--pm-display)", color: "var(--pm-ink)" }}>{growth.totalActive.toLocaleString("en-IN")}</span>
+                <span style={{ fontSize: 14.5, color: "var(--pm-ink2)" }}>active subscribers</span>
               </div>
             </>
           ) : (
@@ -168,7 +168,7 @@ export default function AnalyticsPage() {
             <MiniBar key={item.label} label={item.label} value={item.value} pct={item.pct} color={item.color} />
           ))}
           {healthEmpty && (
-            <div style={{ marginTop: 10, background: "var(--pm-card2)", border: "1px solid var(--pm-line)", borderRadius: 10, padding: "9px 12px", fontSize: 12, color: "var(--pm-hint)" }}>
+            <div style={{ marginTop: 12, fontSize: 14, color: "var(--pm-muted)" }}>
               Health metrics populate after your first campaign is sent.
             </div>
           )}
