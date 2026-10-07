@@ -777,8 +777,6 @@ button.sla{cursor:pointer;border:0}
 .footer-note{font-size:14px}
 /* ticket header + tiles on phone */
 @media (max-width:760px){
-  #tk-ticket .ph{position:relative}
-  #tk-ticket .ph .acts{position:absolute;top:-6px;right:0}
   .tkt .side-panel .props-blk{padding:14px}
 }
 .ptile>b{display:block;min-width:0}
@@ -869,3 +867,133 @@ button.sla{cursor:pointer;border:0}
 .final-link .small{overflow-wrap:anywhere}
 @media (max-width:760px){.upl{flex-direction:column;align-items:flex-start}.br{grid-template-columns:minmax(0,1fr)}.br .small{grid-column:1}.wiz .seg{flex-wrap:wrap}}
 .br .pill{justify-self:start}
+
+/* ============ calm pass (owner review 7 Oct, round 3) ============
+   One rule set: status = coloured text + small icon (no filled blocks), no thick side stripes,
+   numbers sit on a hairline row (no boxes inside cards), quick actions are quiet text buttons. */
+
+/* lanes (Confirm COD) */
+.lane-h{margin:36px 0 10px;gap:10px}
+.lane-h .lic{width:26px;height:26px;border-radius:8px}
+.lane-h .lic svg{width:15px;height:15px}
+.lane-h b{font-size:16.5px}
+.lane-h .n{background:none!important;padding:0;font:700 14px var(--f-mono);color:var(--mute)!important}
+.lane-h .lh-hint{font-size:14px}
+.card.lane{border-left-width:1px;border-left-color:var(--hair)!important}
+.todo .tx .st{background:none!important;padding:0;margin-top:4px;font-weight:600;font-size:14px;border-radius:0;display:flex;align-items:flex-start;gap:6px;line-height:1.4}
+.todo .tx .st svg{margin-top:2px;flex-shrink:0}
+.todo .tx .meta{font-size:14.5px;color:var(--mute)}
+.todo .tx .meta b{font-size:14.5px;font-weight:700;color:var(--ink-2)}
+.todo .tx>b{font-size:16px}
+.acts-r{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.lane .todo .av{width:34px;height:34px;font-size:12px;align-self:flex-start;margin-top:2px}
+.lane .todo{align-items:flex-start;padding:16px 20px;gap:14px}
+.kpi.acc{border-top-width:1px;border-top-color:var(--hair)!important}
+.kpi.acc .l::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:1px}
+.kpi.acc.good .l::before{background:var(--good)}.kpi.acc.warn .l::before{background:#D99A00}.kpi.acc.bad .l::before{background:var(--bad)}.kpi.acc.info .l::before{background:var(--info)}
+
+/* hairline stat row (replaces boxes-in-boxes) */
+.statline,.vj-foot,.pc-stats,.peek-stats{display:flex;gap:0;border-top:1px solid var(--hair-2);border-bottom:1px solid var(--hair-2);padding:12px 0;margin:0}
+.statline>div,.vj-foot>div,.pc-stats>div,.peek-stats>div{flex:1;min-width:0;background:none!important;border:0!important;border-radius:0!important;padding:0 12px!important;display:flex;flex-direction:column;gap:1px}
+.statline>div:first-child,.vj-foot>div:first-child{padding-left:0!important}
+.statline>div+div,.vj-foot>div+div{border-left:1px solid var(--hair-2)!important}
+.statline b{font:400 19px/1.2 var(--f-display);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.statline span{font-size:14px;color:var(--mute)}
+.vj-foot{margin-top:18px}
+.vj-foot b{font:400 19px/1.2 var(--f-display)}
+.vj-foot span{order:2;font:600 14px var(--f-body);letter-spacing:0;text-transform:none;color:var(--mute)}
+
+/* quiet tags + quick actions */
+.taglist{display:flex;flex-wrap:wrap;gap:4px 14px;margin:0;font-size:14px;font-weight:600;color:var(--ink-2)}
+.tg{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+.tg::before{content:'';width:7px;height:7px;border-radius:50%;background:#B9B0A3}
+.tg.good{color:var(--good)}.tg.good::before{background:var(--good)}
+.tg.red{color:var(--red-deep)}.tg.red::before{background:var(--red)}
+.tg.info{color:var(--info)}.tg.info::before{background:var(--info)}
+.tg.warn{color:var(--warn)}.tg.warn::before{background:#D99A00}
+.qacts{display:flex;border-top:1px solid var(--hair-2);margin:2px -16px -16px;padding:0}
+.qacts>*{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;height:46px;font-weight:700;font-size:14.5px;color:var(--ink-2)}
+.qacts>*+*{border-left:1px solid var(--hair-2)}
+.qacts>*:hover{background:var(--surface-2);color:var(--ink)}
+.qacts svg{width:16px;height:16px}
+.drawer .qacts{margin:0;border:1px solid var(--hair);border-radius:14px;overflow:hidden}
+
+/* side cards: one surface, no card-in-panel borders */
+.side-panel .pcard{border:0;border-radius:0;padding:0;gap:12px;background:none}
+.side-panel .pcard .qacts{margin:2px 0 0;border:1px solid var(--hair);border-radius:14px;overflow:hidden}
+.pc-name{font-size:16.5px}
+.pack.sm{width:38px;height:46px;font-size:8px}
+.pc-items{border-top:0}
+.pc-items li{border-bottom:1px solid var(--hair-2);padding:8px 0}
+.pc-items li:last-child{border-bottom:0}
+.pc-acts .btn{flex:0 1 auto}
+
+/* ticket property tiles: lighter */
+.ptile{border-color:var(--hair-2);background:var(--surface-2)}
+.ptile:hover{background:var(--surface);border-color:var(--hair)}
+
+/* chat window strip: a line, not a block */
+.win{background:none!important;padding:2px 0;gap:4px}
+.win .meter{height:3px}
+.win .wh{font-size:14px;color:var(--mute)}
+.chat-status{padding:10px 16px 12px}
+
+/* campaign results tiles: hairline row */
+.roi-tiles{gap:0;border-top:1px solid var(--hair-2);border-bottom:1px solid var(--hair-2);padding:16px 0}
+.rt{background:none!important;border:0!important;border-radius:0;padding:0 16px}
+.rt+.rt{border-left:1px solid var(--hair-2)!important}
+.rt:first-child{padding-left:0}
+.rt span{color:var(--mute)!important}.rt em{color:var(--mute)!important}
+.rt b{color:var(--ink)!important}
+.rt.good b{color:var(--good)!important}
+.rt.roi b{color:var(--good)!important;font-size:30px}
+
+/* cart call: rows, not boxes */
+.cart-items{gap:0}
+.ci{border:0;border-bottom:1px solid var(--hair-2);border-radius:0;background:none;padding:10px 0}
+.ci:last-child{border-bottom:0}
+.ci .btn{height:34px;padding:0 10px;font-size:14px;border-radius:10px}
+
+@media (max-width:760px){
+  .lane .todo{padding:14px;gap:12px;flex-wrap:nowrap}
+  .lane .todo .tx{flex:1 1 auto}
+  .acts-r .btn .bl{display:none}
+  .acts-r .btn{width:40px;height:40px;padding:0;border-radius:12px;justify-content:center}
+  .acts-r .btn[data-open="manual-confirm"]{background:var(--good-soft);border-color:transparent;color:var(--good)}
+  .lane-h .lh-hint{padding-left:36px;margin-top:-8px}
+  .roi-tiles{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:14px}
+  .rt{padding:0 12px}
+  .rt:nth-child(odd){padding-left:0;border-left:0!important}
+  .rt.roi{grid-column:auto}
+  .statline b,.vj-foot b{font-size:17px}
+  .ci{flex-wrap:nowrap}.ci .btn{flex-basis:auto}
+  .ci .btn .bl{display:none}
+}
+@media (max-width:760px){.tkt .side-panel .blk:not(.props-blk){border-top:1px solid var(--hair)}}
+
+/* calm pass: nested inset cards become a hairline section, page-level "…" sits top-right on phones */
+.card .card.inset{background:none;border:0;border-top:1px solid var(--hair-2);border-radius:0;padding:16px 0 0}
+@media (max-width:760px){
+  .ph{position:relative}
+  .ph .acts{position:static}
+  .ph .acts>.btn.icon.ghost{position:absolute;top:0;right:0}
+  .ph .acts .menu{top:46px;right:0}
+}
+/* calm pass: phone tables read as a two-line row (title, then compact facts) instead of label/value stacks */
+@media (max-width:760px){
+  .tbl.stack tr{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;padding:14px 16px}
+  .tbl.stack td{display:inline-flex;width:auto;padding:0;gap:5px;font-size:14.5px;align-items:center;justify-content:flex-start}
+  .tbl.stack td[data-l]::before{font:600 14px var(--f-body);letter-spacing:0;text-transform:none;color:var(--mute);padding:0}
+  .tbl.stack td:has(.pill)::before,.tbl.stack td:has(.tg)::before{display:none}
+  .tbl.stack td.main-cell{display:block;flex-basis:100%;padding-bottom:2px}
+  .tbl.stack td .pill{height:24px;font-size:13px;padding:0 9px}
+}
+/* calm pass: on phones the KPI boxes become one card split by hairlines */
+@media (max-width:760px){
+  .grid.kpis{gap:1px;background:var(--hair-2);border:1px solid var(--hair);border-radius:20px;overflow:hidden}
+  .grid.kpis .kpi{border:0!important;border-radius:0;padding:14px 16px;gap:2px}
+  .grid.kpis .kpi .v{font-size:24px;margin-top:2px}
+  .grid.kpis .kpi .d{font-size:14px}
+  .grid.kpis .kpi.hero{background-image:none}
+}
+@media (max-width:760px){.camp-roi .ch{flex-wrap:wrap;gap:10px}.camp-roi .ch>div{flex-basis:100%}.camp-roi .ch .sp{display:none}}

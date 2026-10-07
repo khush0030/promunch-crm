@@ -9,10 +9,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Assistant:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app.css">
 <style>
-.stage{display:flex;gap:4px;flex-wrap:wrap}
-.stage span{flex:1;min-width:70px;text-align:center;padding:9px 6px;border-radius:10px;background:var(--surface-3);font-weight:700;font-size:13.5px;color:var(--mute)}
-.stage span.done{background:var(--good-soft);color:var(--good)}
-.stage span.on{background:var(--ink);color:#fff}
+.stage{display:flex;gap:4px;flex-wrap:nowrap}
+.stage span{flex:1;min-width:0;padding:8px 0 0;border-top:4px solid var(--hair);font-weight:600;font-size:13.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stage span.done{border-top-color:#7DB68D;color:var(--good)}
+.stage span.on{border-top-color:var(--ink);color:var(--ink);font-weight:700}
+@media (max-width:760px){.stage span:not(.on){font-size:0}.stage span.on{flex:3}}
 .vid{aspect-ratio:9/16;max-height:320px;border-radius:16px;background:linear-gradient(160deg,#1F8E9C,#0d4a52);display:grid;place-items:center;color:#fff;position:relative;overflow:hidden}
 .vid .pb{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.92);color:var(--ink);display:grid;place-items:center}
 .vid small{position:absolute;bottom:10px;left:12px;font:700 11px var(--f-mono);letter-spacing:.08em}
