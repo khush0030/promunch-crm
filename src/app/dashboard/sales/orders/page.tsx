@@ -3,11 +3,27 @@
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { RefreshCw, Send } from "lucide-react";
-import { PageHeader, Card, Table, Pill, StackBar, Callout, PeriodPicker, ConfirmDialog } from "@/components/pm";
+import type { ReactNode } from "react";
+import {
+  RefreshCw,
+  Send,
+  Phone,
+  PhoneMissed,
+  MessageCircle,
+  Check,
+  CheckCheck,
+  X,
+  Clock,
+  AlertCircle,
+  Info,
+  Minus,
+} from "lucide-react";
+import { PageHeader, Card, Table, StackBar, Callout, PeriodPicker, ConfirmDialog, KpiStrip, Kpi } from "@/components/pm";
 import type { PageHeaderTab, TableCol, StackPart } from "@/components/pm";
 import { formatINR } from "@/lib/metrics/money";
+import { initials } from "@/lib/pm/avatar";
 import { useToast } from "@/components/ui/Toast";
+import s from "./orders.module.css";
 
 // Orders & COD (Task 1.6) — replaces /dashboard/order-confirmations. Joins
 // two existing reads: confirmation coverage (every Shopify order in the
@@ -69,7 +85,7 @@ type GateOrder = {
 
 type GateData = { orders: GateOrder[] };
 
-const isOutstanding = (s: ConfirmStatus) => s === "missing" || s === "failed" || s === "gave_up";
+const isOutstanding = (st: ConfirmStatus) => st === "missing" || st === "failed" || st === "gave_up";
 
 function telHref(phone: string | null): string | undefined {
   if (!phone) return undefined;
@@ -79,11 +95,11 @@ function telHref(phone: string | null): string | undefined {
 
 function timeAgo(iso: string | null): string {
   if (!iso) return "—";
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+  const sec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+  return `${Math.floor(sec / 86400)}d ago`;
 }
 
 function hoursSince(iso: string | null): number | null {
@@ -91,24 +107,33 @@ function hoursSince(iso: string | null): number | null {
   return (Date.now() - new Date(iso).getTime()) / 3600_000;
 }
 
-// Waiting pill: crit past 12h, warn past 4h, neu below. Minutes under 1h,
-// hours below 24, days above — properly pluralised ("1 hour" vs "2 hours").
-function waitingPill(iso: string | null) {
+type Tone = "good" | "warn" | "bad" | "info" | "mute";
+
+// Status = coloured text + small icon, never a filled block.
+function StatusText({ tone, icon, inline, children }: { tone: Tone; icon: ReactNode; inline?: boolean; children: ReactNode }) {
+  return (
+    <span className={`${s.st} ${tone === "mute" ? "" : s[tone]} ${inline ? s.stI : ""}`}>
+      {icon}
+      <span>{children}</span>
+    </span>
+  );
+}
+
+// Waiting time: minutes under 1h, hours below 24, days above — properly
+// pluralised ("1 hour" vs "2 hours").
+function waitingText(iso: string | null): string {
   const h = hoursSince(iso);
-  if (h == null) return <Pill tone="neu">—</Pill>;
-  const tone = h > 12 ? "crit" : h > 4 ? "warn" : "neu";
-  let text: string;
+  if (h == null) return "—";
   if (h < 1) {
     const m = Math.max(1, Math.round(h * 60));
-    text = `${m} min`;
-  } else if (h < 24) {
-    const hr = Math.round(h);
-    text = `${hr} ${hr === 1 ? "hour" : "hours"}`;
-  } else {
-    const d = Math.floor(h / 24);
-    text = `${d} ${d === 1 ? "day" : "days"}`;
+    return `${m} min`;
   }
-  return <Pill tone={tone as "crit" | "warn" | "neu"}>{text}</Pill>;
+  if (h < 24) {
+    const hr = Math.round(h);
+    return `${hr} ${hr === 1 ? "hour" : "hours"}`;
+  }
+  const d = Math.floor(h / 24);
+  return `${d} ${d === 1 ? "day" : "days"}`;
 }
 
 // The confirmations feed only tells us "delivered" vs "not" (it collapses
@@ -122,14 +147,19 @@ function waLabel(status: ConfirmStatus | undefined): string {
 }
 
 function gateChip(status: GateStatus | null | undefined, via: "button" | "manual" | null | undefined) {
-  if (!status) return <Pill tone="neu">Prepaid</Pill>;
-  if (status === "pending") return <Pill tone="neu">Pending</Pill>;
-  if (status === "needs_call") return <Pill tone="crit">Needs a call</Pill>;
-  if (status === "cancelled") return <Pill tone="neu">Cancelled</Pill>;
-  return <Pill tone="good">{via === "manual" ? "Confirmed by call" : "Confirmed"}</Pill>;
+  const ic = (I: typeof Check) => <I aria-hidden="true" />;
+  if (!status) return <StatusText inline tone="mute" icon={ic(Minus)}>Prepaid</StatusText>;
+  if (status === "pending") return <StatusText inline tone="info" icon={ic(MessageCircle)}>Waiting for tap</StatusText>;
+  if (status === "needs_call") return <StatusText inline tone="warn" icon={ic(PhoneMissed)}>Needs a call</StatusText>;
+  if (status === "cancelled") return <StatusText inline tone="mute" icon={ic(X)}>Cancelled</StatusText>;
+  return (
+    <StatusText inline tone="good" icon={ic(Check)}>
+      {via === "manual" ? "Confirmed by call" : "Confirmed"}
+    </StatusText>
+  );
 }
 
-// Shared by "Needs a call" and "Confirmation coverage" tabs.
+// Used by the "Confirmation coverage" tab.
 function CoverageCards({
   confirmData,
   gateOrders,
@@ -326,16 +356,24 @@ function OrdersPageInner() {
   );
   const outstanding = useMemo(() => (confirmData?.orders ?? []).filter((o) => isOutstanding(o.status)), [confirmData]);
   const sumOnHold = useMemo(() => needsCall.reduce((sum, o) => sum + (o.total_price ?? 0), 0), [needsCall]);
+  const pendingTap = useMemo(() => gateOrders.filter((o) => o.confirmation_status === "pending"), [gateOrders]);
+  const sumWaiting = useMemo(
+    () => sumOnHold + pendingTap.reduce((sum, o) => sum + (o.total_price ?? 0), 0),
+    [sumOnHold, pendingTap],
+  );
+  const confirmedTap = gateOrders.filter((o) => o.confirmation_status === "confirmed" && o.confirmed_via === "button").length;
+  const confirmedCall = gateOrders.filter((o) => o.confirmation_status === "confirmed" && o.confirmed_via === "manual").length;
+  const cancelledCount = gateOrders.filter((o) => o.confirmation_status === "cancelled").length;
 
   const tabs: PageHeaderTab[] = [
     { label: "Needs a call", key: "call", count: needsCall.length },
     { label: "All orders", key: "all", count: confirmData?.summary.total },
-    { label: "Confirmation coverage", key: "coverage" },
+    { label: "Coverage", key: "coverage" },
   ];
 
   const header = (
     <PageHeader
-      crumb="Sales · Orders & COD"
+      crumb="Orders & COD · confirm"
       title="Orders & COD"
       tabs={tabs}
       activeTab={tab}
@@ -344,7 +382,7 @@ function OrdersPageInner() {
         <>
           <PeriodPicker options={PERIODS} value={period} onChange={setPeriod} />
           {outstanding.length > 0 && (
-            <button type="button" className="pm2-btn pri pm2-d-only" onClick={() => setResendOpen(true)}>
+            <button type="button" className="pm2-btn pri" onClick={() => setResendOpen(true)}>
               <Send size={14} /> Resend {outstanding.length} missing
             </button>
           )}
@@ -385,41 +423,80 @@ function OrdersPageInner() {
     );
   }
 
-  const callCols: TableCol<GateOrder>[] = [
-    { h: "Order", render: (o) => o.order_number },
-    {
-      h: "Customer",
-      render: (o) => (
-        <div>
-          <div>{o.customer_name || "—"}</div>
-          {o.customer_phone && <span className="sub">{o.customer_phone}</span>}
+  // Right-hand actions for a COD order. Same handlers as before: Call is a
+  // tel: link, Confirm runs gateAction(o, "confirm"), Cancel opens the
+  // ConfirmDialog via setCancelTarget (never cancels directly).
+  const callLink = (o: GateOrder) => (
+    <a
+      className={s.btn}
+      href={telHref(o.customer_phone)}
+      aria-label={`Call ${o.customer_name || "customer"}`}
+      aria-disabled={!o.customer_phone || undefined}
+      style={!o.customer_phone ? { opacity: 0.5, pointerEvents: "none" } : undefined}
+    >
+      <Phone aria-hidden="true" />
+      <span className={s.bl}>Call</span>
+    </a>
+  );
+
+  const codRow = (o: GateOrder, lane: "warn" | "good") => {
+    const name = o.customer_name || o.customer_phone || "Customer";
+    const wa = waLabel(confirmByOrderNumber.get(o.order_number)?.status);
+    const waiting = waitingText(o.confirmation_sent_at);
+    return (
+      <div className={s.row} key={o.shopify_id}>
+        <span className={`${s.av} ${s[lane]}`} aria-hidden="true">
+          {initials(name)}
+        </span>
+        <div className={s.tx}>
+          <b className={s.name}>{name}</b>
+          <span className={s.meta}>
+            <b>{o.order_number}</b> · {formatINR(o.total_price ?? 0)} COD
+            {o.customer_name && o.customer_phone && <span className={s.phone}> · {o.customer_phone}</span>}
+          </span>
+          {lane === "warn" ? (
+            <StatusText
+              tone={wa === "Sent" ? "warn" : "bad"}
+              icon={wa === "Sent" ? <Clock aria-hidden="true" /> : <AlertCircle aria-hidden="true" />}
+            >
+              Waiting {waiting} · {wa === "Sent" ? "no WhatsApp tap" : `WhatsApp ${wa.toLowerCase()}`}
+            </StatusText>
+          ) : (
+            <StatusText tone="good" icon={<CheckCheck aria-hidden="true" />}>
+              WhatsApp sent {waiting} ago · moves to Needs a call after 6 hours
+            </StatusText>
+          )}
         </div>
-      ),
-    },
-    { h: "Amount", num: true, render: (o) => formatINR(o.total_price ?? 0) },
-    { h: "Waiting", render: (o) => waitingPill(o.confirmation_sent_at) },
-    { h: "WhatsApp", render: (o) => waLabel(confirmByOrderNumber.get(o.order_number)?.status) },
-    {
-      h: "",
-      render: (o) => (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <a
-            className="pm2-btn sm"
-            href={telHref(o.customer_phone)}
-            style={!o.customer_phone ? { opacity: 0.5, pointerEvents: "none" } : undefined}
-          >
-            Call
-          </a>
-          <button type="button" className="pm2-btn sm" disabled={gateBusy !== null} onClick={() => gateAction(o, "confirm")}>
-            {gateBusy === `${o.shopify_id}:confirm` ? "Confirming…" : "Confirm"}
-          </button>
-          <button type="button" className="pm2-btn ghost sm" disabled={gateBusy !== null} onClick={() => setCancelTarget(o)}>
-            Cancel
-          </button>
+        <div className={s.acts}>
+          {callLink(o)}
+          {lane === "warn" && (
+            <>
+              <button
+                type="button"
+                className={s.btn}
+                disabled={gateBusy !== null}
+                onClick={() => gateAction(o, "confirm")}
+                aria-label={`Confirm order ${o.order_number}`}
+              >
+                <Check aria-hidden="true" />
+                <span className={s.bl}>{gateBusy === `${o.shopify_id}:confirm` ? "Confirming…" : "Confirm"}</span>
+              </button>
+              <button
+                type="button"
+                className={`${s.btn} ${s.ghost} ${s.icon}`}
+                disabled={gateBusy !== null}
+                onClick={() => setCancelTarget(o)}
+                aria-label={`Cancel order ${o.order_number}`}
+                title="Cancel order"
+              >
+                <X aria-hidden="true" />
+              </button>
+            </>
+          )}
         </div>
-      ),
-    },
-  ];
+      </div>
+    );
+  };
 
   const allCols: TableCol<ConfirmOrder>[] = [
     { h: "Order", render: (o) => o.order_number },
@@ -438,7 +515,7 @@ function OrdersPageInner() {
       h: "Confirmation",
       render: (o) => {
         const canResend = o.status === "missing" || o.status === "failed";
-        const tone = o.status === "sent" ? "good" : canResend ? "crit" : o.status === "gave_up" ? "warn" : "neu";
+        const tone: Tone = o.status === "sent" ? "good" : canResend ? "warn" : o.status === "gave_up" ? "warn" : "mute";
         const label =
           o.status === "sent"
             ? "Sent"
@@ -451,9 +528,13 @@ function OrdersPageInner() {
                   : o.status === "no_phone"
                     ? "No phone"
                     : "Cancelled";
+        const icon =
+          o.status === "sent" ? <Check aria-hidden="true" /> : tone === "warn" ? <AlertCircle aria-hidden="true" /> : <Minus aria-hidden="true" />;
         return (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <Pill tone={tone}>{label}</Pill>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "nowrap" }}>
+            <StatusText inline tone={tone} icon={icon}>
+              {label}
+            </StatusText>
             {canResend && (
               <button
                 type="button"
@@ -497,46 +578,86 @@ function OrdersPageInner() {
       <div className="pm2-body">
         {tab === "call" && (
           <>
-            {needsCall.length > 0 && (
-              <Callout
-                tone="sun"
-                title={`${needsCall.length} cash-on-delivery order${needsCall.length === 1 ? "" : "s"} haven't been confirmed by the customer`}
-                body="They got the WhatsApp Confirm / Cancel buttons and didn't tap either within 6 hours. Shipping is on hold until someone confirms."
+            <p className={s.sum}>
+              {needsCall.length > 0 ? (
+                <>
+                  <b>
+                    {needsCall.length} cash-on-delivery order{needsCall.length === 1 ? "" : "s"} ({formatINR(sumOnHold)})
+                  </b>{" "}
+                  {needsCall.length === 1 ? "isn't" : "aren't"} confirmed yet. {needsCall.length === 1 ? "It won't" : "They won't"} ship
+                  until someone confirms.
+                </>
+              ) : pendingTap.length > 0 ? (
+                <>
+                  Nothing needs a call. <b>{pendingTap.length} cash-on-delivery order{pendingTap.length === 1 ? " is" : "s are"}</b>{" "}
+                  waiting for a WhatsApp tap.
+                </>
+              ) : (
+                <>All cash-on-delivery orders in the last {PERIOD_LABEL[period]} are confirmed or cancelled.</>
+              )}
+            </p>
+
+            <KpiStrip>
+              <Kpi
+                label={<span className={`${s.dot} ${s.good}`}>Confirmed</span>}
+                value={confirmedTap + confirmedCall}
+                sub={`${confirmedTap} by tap · ${confirmedCall} by call`}
               />
+              <Kpi
+                label={<span className={`${s.dot} ${s.warn}`}>Waiting</span>}
+                value={needsCall.length + pendingTap.length}
+                sub={`${formatINR(sumWaiting)} on hold`}
+              />
+              <Kpi
+                label={<span className={`${s.dot} ${s.bad}`}>Cancelled</span>}
+                value={cancelledCount}
+                sub="Stopped before shipping"
+              />
+              <Kpi
+                label={<span className={`${s.dot} ${s.info}`}>WhatsApp sent</span>}
+                value={`${confirmData.summary.coveragePct}%`}
+                sub={`of orders · last ${PERIOD_LABEL[period]}`}
+              />
+            </KpiStrip>
+
+            <div className={`${s.laneH} ${s.warn}`}>
+              <span className={s.lic} aria-hidden="true">
+                <PhoneMissed />
+              </span>
+              <b>Needs a call</b>
+              <span className={s.laneN}>{needsCall.length}</span>
+              <span className={s.hint}>No WhatsApp tap in 6 hours · {formatINR(sumOnHold)} on hold</span>
+            </div>
+            <div className={s.lane}>
+              {needsCall.length === 0 ? (
+                <div className={s.empty}>No COD orders waiting for a call</div>
+              ) : (
+                needsCall.map((o) => codRow(o, "warn"))
+              )}
+            </div>
+
+            {pendingTap.length > 0 && (
+              <>
+                <div className={`${s.laneH} ${s.good}`}>
+                  <span className={s.lic} aria-hidden="true">
+                    <MessageCircle />
+                  </span>
+                  <b>Waiting for WhatsApp tap</b>
+                  <span className={s.laneN}>{pendingTap.length}</span>
+                  <span className={s.hint}>Moves to Needs a call after 6 hours</span>
+                </div>
+                <div className={s.lane}>{pendingTap.map((o) => codRow(o, "good"))}</div>
+              </>
             )}
-            <Card title={`Call list · ${formatINR(sumOnHold)} on hold`}>
-              <Table
-                cols={callCols}
-                rows={needsCall}
-                rowKey={(o) => o.shopify_id}
-                empty="No COD orders waiting for a call"
-                card={(o) => ({
-                  title: `${o.order_number} · ${o.customer_name || o.customer_phone || "—"}`,
-                  value: formatINR(o.total_price ?? 0),
-                  meta: (
-                    <>
-                      {waitingPill(o.confirmation_sent_at)}
-                      <span>{waLabel(confirmByOrderNumber.get(o.order_number)?.status)}</span>
-                      <span style={{ width: "100%" }} />
-                      <a
-                        className="pm2-btn sm"
-                        href={telHref(o.customer_phone)}
-                        style={!o.customer_phone ? { opacity: 0.5, pointerEvents: "none" } : undefined}
-                      >
-                        Call
-                      </a>
-                      <button type="button" className="pm2-btn sm" disabled={gateBusy !== null} onClick={() => gateAction(o, "confirm")}>
-                        {gateBusy === `${o.shopify_id}:confirm` ? "Confirming…" : "Confirm"}
-                      </button>
-                      <button type="button" className="pm2-btn ghost sm" disabled={gateBusy !== null} onClick={() => setCancelTarget(o)}>
-                        Cancel
-                      </button>
-                    </>
-                  ),
-                })}
-              />
-            </Card>
-            <CoverageCards confirmData={confirmData} gateOrders={gateOrders} period={period} />
+
+            <div className={s.note}>
+              <Info aria-hidden="true" />
+              <div>
+                <b>How it works:</b> every cash-on-delivery order gets WhatsApp Confirm / Cancel buttons and shipping waits
+                for a tap. After 6 hours without a tap, the order shows up under Needs a call so someone can ring the
+                customer.
+              </div>
+            </div>
           </>
         )}
 
@@ -583,17 +704,14 @@ function OrdersPageInner() {
         {tab === "coverage" && (
           <>
             <CoverageCards confirmData={confirmData} gateOrders={gateOrders} period={period} />
-            <Card title="How confirmations work">
-              <p style={{ margin: "0 0 8px", fontSize: 13.5, color: "var(--pm-ink)" }}>
-                Every order gets a WhatsApp confirmation within a minute of coming in.
-              </p>
-              <p style={{ margin: "0 0 8px", fontSize: 13.5, color: "var(--pm-ink)" }}>
-                Cash-on-delivery orders get Confirm / Cancel buttons, and shipping waits for a tap.
-              </p>
-              <p style={{ margin: 0, fontSize: 13.5, color: "var(--pm-ink)" }}>
-                After 6 hours without a tap, the order shows up on Needs a call so someone can ring the customer.
-              </p>
-            </Card>
+            <div className={s.note}>
+              <Info aria-hidden="true" />
+              <div>
+                <b>How confirmations work:</b> every order gets a WhatsApp confirmation within a minute of coming in.
+                Cash-on-delivery orders get Confirm / Cancel buttons, and shipping waits for a tap. After 6 hours without
+                a tap, the order shows up on Needs a call so someone can ring the customer.
+              </div>
+            </div>
           </>
         )}
       </div>
