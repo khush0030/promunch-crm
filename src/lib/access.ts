@@ -107,6 +107,8 @@ const PAGE_PREFIXES: Array<[string, ModuleKey]> = [
   ["/dashboard/leads", "partners"],
   ["/dashboard/deals", "partners"],
   ["/dashboard/instagram", "partners"],
+  // Influencer delivery tracker (creators, collabs, kits).
+  ["/dashboard/influencers", "partners"],
   ["/dashboard/settings", "system"],
   ["/dashboard/audit-log", "system"],
   // Admin → security & activity. The page and its APIs are Admin-only on top.
@@ -203,6 +205,7 @@ export const API_RULES: ApiRule[] = [
   { prefix: "/api/leads", modules: ["partners"] },
   { prefix: "/api/deals", modules: ["partners"] },
   { prefix: "/api/instagram", modules: ["partners"] },
+  { prefix: "/api/influencers", modules: ["partners"] },
 
   { prefix: "/api/settings", modules: ["system"] },
   { prefix: "/api/audit", modules: ["system"] },

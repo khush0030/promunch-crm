@@ -183,3 +183,9 @@ verify_jwt = false                    # pg_cron; real auth is requireInternal
 
 [functions.email-draft-action]
 verify_jwt = false                    # called by Next.js API with service role bearer; gated by requireInternal
+
+[functions.influencer-send]
+verify_jwt = false                    # called by Next.js API + influencer-tick with service role bearer; gated by requireInternal
+
+[functions.influencer-tick]
+verify_jwt = false                    # invoked by pg_cron (*/15) with service-role bearer; gated by requireInternal

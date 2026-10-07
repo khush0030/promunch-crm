@@ -121,6 +121,8 @@ export const NAV: NavHub[] = [
     items: [
       { label: "B2B leads", href: "/dashboard/leads" },
       { label: "Deals", href: "/dashboard/deals" },
+      // Influencer delivery tracker (barter collabs: brief, box, draft, post).
+      { label: "Influencers", href: "/dashboard/influencers" },
       // Creators (/dashboard/instagram) is off until the Instagram backend is
       // live: its tables were never migrated in prod, so the page only errors.
       // Re-add `{ label: "Creators", href: ROUTES.creators }` here, restore the

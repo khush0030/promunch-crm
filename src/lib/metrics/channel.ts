@@ -44,12 +44,20 @@ export function channelOf(o: ChannelOrderInput): ChannelKey {
 export type RevenueOrderInput = {
   financial_status?: string | null;
   is_creator?: boolean | null;
+  total_price?: number | string | null;
 };
 
 // Whether an order should count toward revenue metrics: excludes voided and
-// refunded orders (any casing Shopify sends) and HYPD ₹0.01 creator seeds.
+// refunded orders (any casing Shopify sends), HYPD ₹0.01 creator seeds, and
+// ₹0 orders (influencer barter kits tagged "Influencer", 100%-off gifts):
+// they are shipments, not sales, and would drag AOV / inflate order counts.
+// total_price is optional so callers that never select it keep old behaviour.
 export function isRevenueOrder(o: RevenueOrderInput): boolean {
   if (o.is_creator) return false;
+  if (o.total_price != null && o.total_price !== "") {
+    const total = Number(o.total_price);
+    if (Number.isFinite(total) && Math.round(total * 100) <= 0) return false;
+  }
   const status = (o.financial_status ?? "").toLowerCase();
   if (status === "voided" || status === "refunded") return false;
   return true;

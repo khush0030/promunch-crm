@@ -100,6 +100,14 @@ describe("isRevenueOrder", () => {
   });
   it("includes a normal paid order", () => {
     expect(isRevenueOrder({ financial_status: "paid" })).toBe(true);
+    expect(isRevenueOrder({ financial_status: "paid", total_price: "499.00" })).toBe(true);
+  });
+  it("excludes ₹0 orders (influencer barter kits)", () => {
+    expect(isRevenueOrder({ financial_status: "paid", total_price: "0.00" })).toBe(false);
+    expect(isRevenueOrder({ financial_status: "paid", total_price: 0 })).toBe(false);
+  });
+  it("keeps old behaviour when total_price is absent", () => {
+    expect(isRevenueOrder({ financial_status: "paid", total_price: null })).toBe(true);
   });
 });
 

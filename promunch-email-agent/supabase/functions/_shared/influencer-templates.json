@@ -1,0 +1,138 @@
+[
+  {
+    "name": "influencer_brief_ready",
+    "language": "en",
+    "category": "utility",
+    "body": "Hi {{1}}, your PROMUNCH collab brief is ready. It has the concept, the key points to cover and your dates.\n\nPlease read it and tap \"I'm in\" on your collab page so we can ship your box.",
+    "body_samples": ["Priya"],
+    "body_labels": { "1": "Creator first name" },
+    "footer": "Your Munchy Pal",
+    "buttons": [
+      {
+        "type": "URL",
+        "text": "Open my brief",
+        "url": "https://promunch-crm.vercel.app/c/{{1}}",
+        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+      }
+    ]
+  },
+  {
+    "name": "influencer_brief_reminder",
+    "language": "en",
+    "category": "utility",
+    "body": "Hi {{1}}, a quick reminder that your PROMUNCH collab brief is waiting for you.\n\nOnce you confirm it on your collab page, we will pack and ship your box.",
+    "body_samples": ["Priya"],
+    "body_labels": { "1": "Creator first name" },
+    "footer": "Your Munchy Pal",
+    "buttons": [
+      {
+        "type": "URL",
+        "text": "Open my brief",
+        "url": "https://promunch-crm.vercel.app/c/{{1}}",
+        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+      }
+    ]
+  },
+  {
+    "name": "influencer_box_check",
+    "language": "en",
+    "category": "utility",
+    "body": "Hi {{1}}, your PROMUNCH collab box was shipped on {{2}}. Has it reached you?\n\nPlease tap \"My box arrived\" on your collab page so we can confirm your draft date.",
+    "body_samples": ["Priya", "12 Oct"],
+    "body_labels": { "1": "Creator first name", "2": "Dispatch date" },
+    "footer": "Your Munchy Pal",
+    "buttons": [
+      {
+        "type": "URL",
+        "text": "Open collab page",
+        "url": "https://promunch-crm.vercel.app/c/{{1}}",
+        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+      }
+    ]
+  },
+  {
+    "name": "influencer_draft_reminder",
+    "language": "en",
+    "category": "utility",
+    "body": "Hi {{1}}, a reminder that your PROMUNCH collab draft is due on {{2}}.\n\nYou can share a link or upload the video on your collab page.",
+    "body_samples": ["Priya", "22 Oct"],
+    "body_labels": { "1": "Creator first name", "2": "Draft due date" },
+    "footer": "Your Munchy Pal",
+    "buttons": [
+      {
+        "type": "URL",
+        "text": "Submit my draft",
+        "url": "https://promunch-crm.vercel.app/c/{{1}}",
+        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+      }
+    ]
+  },
+  {
+    "name": "influencer_draft_overdue",
+    "language": "en",
+    "category": "utility",
+    "body": "Hi {{1}}, your PROMUNCH collab draft was due on {{2}} and we have not received it yet.\n\nIf you need a little more time, just reply here and let us know. You can submit it on your collab page.",
+    "body_samples": ["Priya", "22 Oct"],
+    "body_labels": { "1": "Creator first name", "2": "Draft due date" },
+    "footer": "Your Munchy Pal",
+    "buttons": [
+      {
+        "type": "URL",
+        "text": "Submit my draft",
+        "url": "https://promunch-crm.vercel.app/c/{{1}}",
+        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+      }
+    ]
+  },
+  {
+    "name": "influencer_draft_feedback",
+    "language": "en",
+    "category": "utility",
+    "body": "Hi {{1}}, we have reviewed your PROMUNCH collab draft. Update: {{2}}.\n\nThe full notes and next steps are on your collab page.",
+    "body_samples": ["Priya", "your draft is approved, please post it on 25 Oct"],
+    "body_labels": { "1": "Creator first name", "2": "Review outcome" },
+    "footer": "Your Munchy Pal",
+    "buttons": [
+      {
+        "type": "URL",
+        "text": "See feedback",
+        "url": "https://promunch-crm.vercel.app/c/{{1}}",
+        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+      }
+    ]
+  },
+  {
+    "name": "influencer_post_reminder",
+    "language": "en",
+    "category": "utility",
+    "body": "Hi {{1}}, your approved PROMUNCH collab video is scheduled to go live on {{2}}.\n\nOnce it is posted, please add the post link on your collab page.",
+    "body_samples": ["Priya", "25 Oct"],
+    "body_labels": { "1": "Creator first name", "2": "Go-live date" },
+    "footer": "Your Munchy Pal",
+    "buttons": [
+      {
+        "type": "URL",
+        "text": "Add post link",
+        "url": "https://promunch-crm.vercel.app/c/{{1}}",
+        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+      }
+    ]
+  },
+  {
+    "name": "influencer_post_fix",
+    "language": "en",
+    "category": "utility",
+    "body": "Hi {{1}}, thanks for posting your PROMUNCH collab. One detail needs a small fix: {{2}}.\n\nThe details are on your collab page.",
+    "body_samples": ["Priya", "please tag @promunch.snacks in the caption"],
+    "body_labels": { "1": "Creator first name", "2": "What to fix" },
+    "footer": "Your Munchy Pal",
+    "buttons": [
+      {
+        "type": "URL",
+        "text": "Open collab page",
+        "url": "https://promunch-crm.vercel.app/c/{{1}}",
+        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+      }
+    ]
+  }
+]

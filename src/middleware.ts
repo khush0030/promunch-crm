@@ -7,7 +7,9 @@ import { accessOf, canCallApi, canOpenPage, landingFor } from "@/lib/access";
 // /r/* = public click-tracking redirects (WhatsApp short links) — must be
 // reachable without a dashboard session.
 // /u/* = the email unsubscribe confirmation page (HMAC token is the auth).
-const PUBLIC_PATHS = ["/login", "/auth", "/r", "/u"];
+// /c/* = the influencer creator portal (the unguessable deal code is the auth;
+//        its API lives under /api/public/collab/*).
+const PUBLIC_PATHS = ["/login", "/auth", "/r", "/u", "/c"];
 // API routes reachable WITHOUT a browser session. Everything else under /api/*
 // requires an allowed, logged-in user. These self-authenticate instead:
 //   /api/cron/*     → CRON_SECRET (Vercel sends it as a Bearer token)

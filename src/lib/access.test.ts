@@ -38,6 +38,16 @@ describe("accessOf", () => {
   });
 });
 
+describe("influencer tracker", () => {
+  it("lives in the partners area (page + API)", () => {
+    const partner = accessOf({ email: "c@promunch.in", app_metadata: { role: "agent", modules: ["partners"] } });
+    expect(pageModule("/dashboard/influencers", null)).toBe("partners");
+    expect(canCallApi(partner, "/api/influencers/deals/abc/drafts/def/review", "POST")).toBe(true);
+    expect(canCallApi(marketer, "/api/influencers/deals", "GET")).toBe(false);
+    expect(apiRule("/api/influencers/settings")?.modules).toEqual(["partners"]);
+  });
+});
+
 describe("pages", () => {
   it("WhatsApp tabs split between inbox, marketing and bot knowledge", () => {
     expect(pageModule("/dashboard/whatsapp", null)).toBe("inbox");

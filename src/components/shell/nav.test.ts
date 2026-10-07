@@ -56,7 +56,7 @@ describe("shell nav", () => {
 
   it("hides Instagram until its backend is live", () => {
     const partners = NAV.find((h) => h.hub === "Partners")!;
-    expect(partners.items.map((it) => it.label)).toEqual(["B2B leads", "Deals"]);
+    expect(partners.items.map((it) => it.label)).toEqual(["B2B leads", "Deals", "Influencers"]);
     expect(NAV.flatMap((h) => h.items).some((it) => it.href.startsWith("/dashboard/instagram"))).toBe(false);
   });
 

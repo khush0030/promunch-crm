@@ -31,6 +31,7 @@ Rule: every doc lives in exactly one subfolder below. Superseded docs move to `a
 | Doc | What it answers |
 |---|---|
 | [META_WHATSAPP_TEMPLATE_RULES.md](whatsapp/META_WHATSAPP_TEMPLATE_RULES.md) | Meta template/component rules, media headers, error codes (#132012, #131049) |
+| [influencer-templates.md](whatsapp/influencer-templates.md) | 8 UTILITY templates for influencer reminders (brief, box check, draft, post), each with a portal button |
 | [WA_CAMPAIGN_HANDOFF.md](whatsapp/WA_CAMPAIGN_HANDOFF.md) | Campaign engine: send lock, worker cron, Meta daily tier, failure handling |
 | [whatsapp-customer-flow.md](whatsapp/whatsapp-customer-flow.md) | Customer journey design across the WhatsApp lifecycle |
 | [AUDIENCE_QUALITY.md](whatsapp/AUDIENCE_QUALITY.md) | Engagement tiers (`tier:*` tags), why 1,410 "opted-in" contacts are really 73 engaged, the campaign audience default, and the storefront consent trail |
@@ -78,6 +79,8 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 | [2026-08-26-sarvam-voice-cart-recovery.md](plans/2026-08-26-sarvam-voice-cart-recovery.md) | Sarvam voice cart recovery implementation plan (10 tasks) |
 | [2026-08-27-custom-domain-migration.md](plans/2026-08-27-custom-domain-migration.md) | Contingency runbook for moving off `promunch-crm.vercel.app` to a custom domain (not decided, not started) |
 | [2026-09-17-brevo-integration.md](plans/2026-09-17-brevo-integration.md) | Brevo email marketing integration: contact sync, order events, unsubscribe webhook, campaign stats page (plan, not built) |
+| [2026-10-07-influencer-automation.md](plans/2026-10-07-influencer-automation.md) | Replace influencer agency: delivery tracker first (brief, dispatch, reminders), IG bot later; owner decisions locked |
+| [2026-10-07-influencer-build-spec.md](plans/2026-10-07-influencer-build-spec.md) | Influencer delivery tracker v1 build contract: stages, portal, API, edge engine, Shopify dispatch |
 | [2026-09-05-wa-bot-quality-audit.md](plans/2026-09-05-wa-bot-quality-audit.md) | WhatsApp bot quality audit (Aug 15 to Sep 3 convos): stale KB embeddings, KB gaps, loop/escalation failures, phased fix plan |
 
 ## audits/ — point-in-time audit deliverables
