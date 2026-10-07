@@ -6,7 +6,7 @@
 // Schedule every 10 minutes (Supabase SQL editor):
 //   select cron.schedule('wa-health', '*/10 * * * *',
 //     $$select net.http_post(
-//        url:='https://hlykspakpewuilttnydm.supabase.co/functions/v1/wa-health')$$);
+//        url:='https://wlungshkwfuggtbantkb.supabase.co/functions/v1/wa-health')$$);
 
 import { logConnector } from "../_shared/connector-log.ts";
 import { requireInternal } from "../_shared/require-internal.ts";

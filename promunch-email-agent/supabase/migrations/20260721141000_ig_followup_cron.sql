@@ -28,7 +28,7 @@ $fn$;
 
 DO $$
 DECLARE
-  fns text := 'https://hlykspakpewuilttnydm.supabase.co/functions/v1/';
+  fns text := 'https://wlungshkwfuggtbantkb.supabase.co/functions/v1/';
 BEGIN
   PERFORM cron.schedule('ig-jobs-tick', '* * * * *', _cron_post(fns || 'ig-jobs-tick', 'service_role_key'));
   PERFORM cron.schedule('ig-followup-tick', '*/15 * * * *', _cron_post(fns || 'ig-followup-tick', 'service_role_key'));

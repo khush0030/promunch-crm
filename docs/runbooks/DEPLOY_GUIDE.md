@@ -6,8 +6,9 @@ isn't set first, so secrets/keys come before deploys, and the RLS migration come
 *after* the app deploy.
 
 Reference values for this project:
-- Supabase project ref: **`hlykspakpewuilttnydm`**
-- Supabase URL: **`https://hlykspakpewuilttnydm.supabase.co`**
+- Supabase project ref: **`wlungshkwfuggtbantkb`**
+- Supabase URL: **`https://wlungshkwfuggtbantkb.supabase.co`** (Mumbai, ap-south-1, org "Admin Oltaflock"; moved from Seoul on 2026-10-07)
+- Vercel functions region: **`bom1`** (pinned in `vercel.json`, next to the database)
 - Production app: **`https://promunch-crm.vercel.app`**
 - `CRON_SECRET` (already chosen): **`w1xcPz5K2mFm-N2N7Mfh-0YGGPDtbKS8voUpyXd0YJ0`**
 
@@ -40,7 +41,7 @@ vercel link                     # pick the promunch-crm project (once, in repo r
 
 # Supabase
 supabase login                  # opens browser; paste the access token
-supabase link --project-ref hlykspakpewuilttnydm
+supabase link --project-ref wlungshkwfuggtbantkb
 # it will ask for the DB password — from Supabase → Settings → Database
 ```
 
@@ -72,7 +73,7 @@ The old key is still live (verified). Nothing else matters until this is dead.
 4. **Verify the old key is dead** (should now return `401`, not an email):
 
 ```bash
-URL=https://hlykspakpewuilttnydm.supabase.co
+URL=https://wlungshkwfuggtbantkb.supabase.co
 OLD=<the old service_role key from .env.local>
 curl -s -o /dev/null -w '%{http_code}\n' \
   "$URL/rest/v1/oauth_tokens?select=email&limit=1" \
@@ -168,7 +169,7 @@ supabase functions deploy wa-ai-reply
 **Verify a gated function rejects unauthenticated calls (expect 401):**
 
 ```bash
-URL=https://hlykspakpewuilttnydm.supabase.co
+URL=https://wlungshkwfuggtbantkb.supabase.co
 curl -s -o /dev/null -w '%{http_code}\n' -X POST "$URL/functions/v1/wa-send" -d '{}'   # 401 ✅
 ```
 
@@ -208,7 +209,7 @@ Run in this order:
 `42501`, using the NEW anon key):
 
 ```bash
-URL=https://hlykspakpewuilttnydm.supabase.co
+URL=https://wlungshkwfuggtbantkb.supabase.co
 ANON=<new anon key>
 curl -s "$URL/rest/v1/contacts?select=*&limit=1" -H "apikey: $ANON" -H "Authorization: Bearer $ANON"
 curl -s "$URL/rest/v1/orders?select=*&limit=1"   -H "apikey: $ANON" -H "Authorization: Bearer $ANON"

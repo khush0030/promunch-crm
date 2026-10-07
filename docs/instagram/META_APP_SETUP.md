@@ -50,7 +50,7 @@ Set them with `supabase secrets set KEY=value` from `promunch-email-agent/`.
 
 App dashboard → **Webhooks → Instagram** (or Messenger → Instagram settings → webhooks):
 
-1. Callback URL: `https://hlykspakpewuilttnydm.supabase.co/functions/v1/ig-webhook`
+1. Callback URL: `https://wlungshkwfuggtbantkb.supabase.co/functions/v1/ig-webhook`
 2. Verify token: the exact `INSTAGRAM_VERIFY_TOKEN` value you set in Supabase.
    (Deploy `ig-webhook` FIRST — Meta hits it with a GET challenge on save.)
 3. Subscribe to fields: **`messages`**, **`comments`**. (`messaging_postbacks` optional;

@@ -27,7 +27,7 @@ select cron.schedule(
   '15 4 * * *',   -- 09:45 IST daily
   $$
   select net.http_post(
-    url := 'https://hlykspakpewuilttnydm.supabase.co/functions/v1/shopify-webhooks-ensure',
+    url := 'https://wlungshkwfuggtbantkb.supabase.co/functions/v1/shopify-webhooks-ensure',
     headers := jsonb_build_object(
       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key'),
       'Content-Type', 'application/json'

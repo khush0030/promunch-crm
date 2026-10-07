@@ -4,7 +4,7 @@ _Last updated: 2026-06-29. Paste this into a fresh chat to continue without re-r
 
 ## Repos & deploy
 - **Dashboard (Next.js 16, App Router):** `/Users/khush/Projects/promunch-crm` → deploy with `vercel --prod --yes`. Vercel **Hobby plan** (daily-only crons). Org `oltaflock-ai`, prod URL **promunch-crm.vercel.app**.
-- **Edge functions (Supabase/Deno):** `/Users/khush/Projects/promunch-crm/promunch-email-agent/supabase/functions` → deploy with `supabase functions deploy <name> --project-ref hlykspakpewuilttnydm`. Project ref **hlykspakpewuilttnydm**. CLI is linked.
+- **Edge functions (Supabase/Deno):** `/Users/khush/Projects/promunch-crm/promunch-email-agent/supabase/functions` → deploy with `supabase functions deploy <name> --project-ref wlungshkwfuggtbantkb`. Project ref **wlungshkwfuggtbantkb**. CLI is linked.
 - **Migrations:** run manually in the Supabase SQL editor (no `db push`).
 - **Commit straight to main.** Local `.env.local` has `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY` (used for one-off node scripts).
 - **CRON_SECRET** (Vercel prod, created this session): `1ddea5a4491fce69343616f9ed196b247f8cf5408657e9f410acdd4076a6be85`
@@ -40,7 +40,7 @@ _Last updated: 2026-06-29. Paste this into a fresh chat to continue without re-r
 Carousel templates; WhatsApp Pay (needs payment onboarding); visual flow builder; baking `utm_source=whatsapp` into campaign template buttons (Meta re-approval; `edamame_launch` edit was rate-limited 24h but the conversion view already matches its existing `utm_medium=whatsapp`).
 
 ## Useful
-- Diagnostic: `GET https://hlykspakpewuilttnydm.supabase.co/functions/v1/wa-meta-info` → number quality/verification (tier not exposed by Meta API; use WhatsApp Manager UI).
+- Diagnostic: `GET https://wlungshkwfuggtbantkb.supabase.co/functions/v1/wa-meta-info` → number quality/verification (tier not exposed by Meta API; use WhatsApp Manager UI).
 - Memory files: `wa-analytics-dashboard.md`, `wa-campaign-durable-engine.md` in the project memory.
 
 ## IMMEDIATE NEXT STEP

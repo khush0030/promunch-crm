@@ -48,7 +48,7 @@ line item equal the money Amazon actually deposited? Variance = unaccounted mone
 
 ## Architecture (files added)
 
-Edge function (Supabase project `hlykspakpewuilttnydm` = promunch-email-agent):
+Edge function (Supabase project `wlungshkwfuggtbantkb` = promunch-email-agent):
 - `supabase/functions/_shared/amazon.ts` — SP-API client: LWA token cache, RDT, getOrders,
   getOrderItems, getInventorySummaries, listFinancialEvents (paginated), fee breakdown
   (`shipmentEconomics`), Reports API + settlement TSV parsing.
@@ -95,7 +95,7 @@ AMAZON_ITEM_BATCH            = 8      # line-item fetches per run
 
 ```
 # combined steady-state sync (orders + inventory + finances)
-curl "https://hlykspakpewuilttnydm.supabase.co/functions/v1/amazon-poll"
+curl "https://wlungshkwfuggtbantkb.supabase.co/functions/v1/amazon-poll"
 
 # single section
 curl ".../amazon-poll?only=orders&days=7"      # widen window for a deliberate order backfill

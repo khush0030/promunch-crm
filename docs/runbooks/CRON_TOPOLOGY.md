@@ -106,6 +106,12 @@ authorize every pg_cron job. Rotating either key without
 `vault.update_secret(...)` turns the whole schedule into silent 401s — the
 Vercel watchdog is what catches that now.
 
+## 2026-10-07 update (Supabase moved Seoul → Mumbai)
+
+The CRM database moved to a new Supabase project, **`wlungshkwfuggtbantkb`** (ap-south-1, Mumbai). All 38 live jobs were recreated there from the live Seoul `cron.job` rows with the URL swapped; the old Seoul project (`hlykspakpewuilttnydm`) has every job switched off.
+
+**Vault key gotcha on the new project:** edge functions on Mumbai receive the new-format secret key (`sb_secret_…`) as their injected `SUPABASE_SERVICE_ROLE_KEY`, not the legacy `service_role` JWT shown under "Legacy API keys". `requireInternal` compares against the injected value, so Vault `service_role_key` **must hold the `sb_secret_…` key**. Putting the legacy JWT there makes every job 401 (seen at cutover, fixed within a minute). Read it with the Management API: `GET /v1/projects/wlungshkwfuggtbantkb/api-keys?reveal=true`, the entry with `type: secret`. The same key is what to send when calling an internal-only function with curl.
+
 ## 2026-08-20 update (Disk IO budget rescue)
 
 Supabase flagged the project for depleting its **Disk IO budget**. It was not a

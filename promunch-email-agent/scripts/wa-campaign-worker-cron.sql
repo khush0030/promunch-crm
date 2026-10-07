@@ -19,7 +19,7 @@ exception when others then null; end $$;
 select cron.schedule(
   'wa-campaign-worker',
   '*/2 * * * *',
-  $$select net.http_post(url:='https://hlykspakpewuilttnydm.supabase.co/functions/v1/wa-campaign-worker')$$
+  $$select net.http_post(url:='https://wlungshkwfuggtbantkb.supabase.co/functions/v1/wa-campaign-worker')$$
 );
 
 -- Verify:

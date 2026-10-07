@@ -82,6 +82,7 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 | [2026-10-07-app-redesign/](plans/2026-10-07-app-redesign/README.md) | Full-app UI redesign prototype in the promunch.in brand: brand, prior work, 55-route inventory, new 8-item IA, clickable screens + pop-ups (design only, not built) |
 | [2026-10-07-influencer-automation.md](plans/2026-10-07-influencer-automation.md) | Replace influencer agency: delivery tracker first (brief, dispatch, reminders), IG bot later; owner decisions locked |
 | [2026-10-07-influencer-build-spec.md](plans/2026-10-07-influencer-build-spec.md) | Influencer delivery tracker v1 build contract: stages, portal, API, edge engine, Shopify dispatch |
+| [2026-10-07-supabase-mumbai-migration.md](plans/2026-10-07-supabase-mumbai-migration.md) | Supabase moved from Seoul to Mumbai (done Oct 7): inventory, webhook repoints, no-double-send cutover, what actually happened |
 | [2026-09-05-wa-bot-quality-audit.md](plans/2026-09-05-wa-bot-quality-audit.md) | WhatsApp bot quality audit (Aug 15 to Sep 3 convos): stale KB embeddings, KB gaps, loop/escalation failures, phased fix plan |
 
 ## audits/ — point-in-time audit deliverables

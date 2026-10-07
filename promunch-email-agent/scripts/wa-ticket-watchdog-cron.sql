@@ -12,14 +12,14 @@
 select cron.schedule(
   'wa-ticket-watchdog-reping',
   '*/15 * * * *',
-  $$select net.http_post(url:='https://hlykspakpewuilttnydm.supabase.co/functions/v1/wa-ticket-watchdog')$$
+  $$select net.http_post(url:='https://wlungshkwfuggtbantkb.supabase.co/functions/v1/wa-ticket-watchdog')$$
 );
 
 -- Daily 03:30 UTC = 09:00 IST: post the open-ticket digest to Slack.
 select cron.schedule(
   'wa-ticket-watchdog-digest',
   '30 3 * * *',
-  $$select net.http_post(url:='https://hlykspakpewuilttnydm.supabase.co/functions/v1/wa-ticket-watchdog?mode=digest')$$
+  $$select net.http_post(url:='https://wlungshkwfuggtbantkb.supabase.co/functions/v1/wa-ticket-watchdog?mode=digest')$$
 );
 
 -- Inspect / remove later:

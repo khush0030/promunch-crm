@@ -128,7 +128,7 @@ exception when duplicate_object then null; end $$;
 -- 20260705100000_cron_jobs_canonical.sql.
 select cron.unschedule('voice-tick') where exists (select 1 from cron.job where jobname = 'voice-tick');
 select cron.schedule('voice-tick', '* * * * *',
-  _cron_post('https://hlykspakpewuilttnydm.supabase.co/functions/v1/voice-tick', 'service_role_key'));
+  _cron_post('https://wlungshkwfuggtbantkb.supabase.co/functions/v1/voice-tick', 'service_role_key'));
 ```
 
 - [ ] **Step 2b: flow-settings.ts** (`promunch-email-agent/supabase/functions/_shared/flow-settings.ts`) — add to `FlowSettings` (after `voice_language`) and `FLOW_DEFAULTS`:
@@ -1419,8 +1419,8 @@ Expected: no FAIL lines, all tests green, build passes, lint shows no new errors
 ### Task 15: Sarvam agents (via Sarvam MCP tools)
 
 - [ ] Read `sarvam://playbooks/agents`. Update agent `Conversatio-f80ceadc-9535` ("Cart Recovery Assistant - PROMUNCH"): opening becomes a call minutes after the cart was left ("Hi {customer_name}, this is PROMUNCH. You were just checking out {cart_items}, did something go wrong?"); keep variables/tool/dispositions; no em dashes; commit a new version.
-- [ ] Create the COD agent "COD Confirmation - PROMUNCH" (clone settings: voice, language, connection). Inputs: `customer_name, order_ref, order_items, order_value, call_id, gender`. Outputs: `call_disposition` ∈ {confirmed, cancel_requested, callback_later, unclear, do_not_call}, `call_summary`. HTTPS tool `cod_confirm`: POST `https://hlykspakpewuilttnydm.supabase.co/functions/v1/voice-tool-cod`, header `Authorization: Bearer <VOICE_TOOL_SECRET>`, body `{call_id, action}`. Prompt: confirm the COD order ({order_items}, {order_value}); on yes call the tool with `confirm`; on cancel call it with `cancel_request` and say the team will confirm on WhatsApp; never promise refunds or discounts; product facts only from the Master KB upload. Commit.
-- [ ] Set secrets: `supabase secrets set SARVAM_COD_APP_ID=... SARVAM_COD_APP_VERSION=... SARVAM_APP_VERSION=<new cart version> --project-ref hlykspakpewuilttnydm`.
+- [ ] Create the COD agent "COD Confirmation - PROMUNCH" (clone settings: voice, language, connection). Inputs: `customer_name, order_ref, order_items, order_value, call_id, gender`. Outputs: `call_disposition` ∈ {confirmed, cancel_requested, callback_later, unclear, do_not_call}, `call_summary`. HTTPS tool `cod_confirm`: POST `https://wlungshkwfuggtbantkb.supabase.co/functions/v1/voice-tool-cod`, header `Authorization: Bearer <VOICE_TOOL_SECRET>`, body `{call_id, action}`. Prompt: confirm the COD order ({order_items}, {order_value}); on yes call the tool with `confirm`; on cancel call it with `cancel_request` and say the team will confirm on WhatsApp; never promise refunds or discounts; product facts only from the Master KB upload. Commit.
+- [ ] Set secrets: `supabase secrets set SARVAM_COD_APP_ID=... SARVAM_COD_APP_VERSION=... SARVAM_APP_VERSION=<new cart version> --project-ref wlungshkwfuggtbantkb`.
 
 ### Task 16: Ship + live test
 
