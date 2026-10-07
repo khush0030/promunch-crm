@@ -11,7 +11,7 @@ Checked live on 7 Oct 2026: `https://promunch.in` loaded in Playwright at 1440px
 | Label font | **JetBrains Mono** uppercase, wide tracking | Nav ("HOME · GIFT HAMPER · ROASTED EDAMAME BEANS"), eyebrows ("★ MASALA MANIA"), "SCROLL ↓" |
 | Brand red | **#AF272F** (`--accent`, `--pg-accent`) | Full-bleed hero, primary buttons, logo, links |
 | Deep red | **#8E1F26** (`--accent-deep`) | Hover / pressed |
-| Ink | **#1A1714** (`--ink`), ink-2 **#4A423C**, mute **#7A736C** / #8A8278 | Text |
+| Ink | **#1A1714** (`--ink`), ink-2 **#3B342E**, mute **#5C554E** | Text |
 | Paper | **#F4F1EA** (`--pg-paper`), white **#FFFFFF** | Light sections, cards |
 | Hairline | **#E7E2D8** / #E5E0D6 | Dividers |
 | Sun yellow | **#FEBD11** (theme scheme) | Highlight scheme, sticker accents |
@@ -61,8 +61,8 @@ Minimum readable size anywhere in the app: 13px (mono labels), 14px (any sentenc
 | `--surface-2` | #FAF8F3 | Inset rows, inputs, hover | |
 | `--hair` | #E7E2D8 | Borders | 1px only |
 | `--ink` | #1A1714 | Text, dark buttons | |
-| `--ink-2` | #4A423C | Secondary text | |
-| `--mute` | #7A736C | Captions, placeholders | AA on white for 14px+ |
+| `--ink-2` | #3B342E | Secondary text | darkened 7 Oct after owner review |
+| `--mute` | #5C554E | Captions, subtext, placeholders | ~7:1 on white, darkened 7 Oct after owner review |
 | `--red` | #AF272F | **The one accent**: primary button, active nav, key number, links | Max one red-filled element per view |
 | `--red-deep` | #8E1F26 | Hover/pressed | |
 | `--red-soft` | #F8E7E5 | Active nav fill, selected row | |
