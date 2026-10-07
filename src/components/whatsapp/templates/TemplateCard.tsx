@@ -56,37 +56,49 @@ export function TemplateCard({
 
   return (
     <article className={`${s.card} ${editable ? "" : s.cardReadonly}`} aria-label={friendly}>
+      <div className={s.mini}>
+        <div className={s.miniBubble}>
+          {media && <HeaderThumb kind={media} url={t.header_media_url} />}
+          {t.header_type === "TEXT" && t.header_text && <div className={s.headerText}>{t.header_text}</div>}
+          <div className={s.bodyText}>
+            <BlankText text={t.body ?? ""} labels={labelsOf(t)} />
+          </div>
+          {t.footer && <div className={s.footLine}>{t.footer}</div>}
+        </div>
+      </div>
+
       <div className={s.cardHead}>
         <div className={s.grow}>
-          <div className={s.cardTitle}>{friendly}</div>
-          <div className={s.mono}>{t.name}</div>
+          <div className={s.cardTitle} title={t.name}>{friendly}</div>
+          <div className={s.cardMeta}>
+            <span>{CATEGORY_LABEL[t.category] ?? t.category}</span>
+            <span aria-hidden="true">·</span>
+            <span>{languageLabel(t.language)}</span>
+            {media && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>with {media === "document" ? "PDF" : media === "image" ? "picture" : "video"}</span>
+              </>
+            )}
+          </div>
         </div>
         <StatusPill status={t.status} />
       </div>
 
-      <div className={s.cardMeta}>
-        <span>{CATEGORY_LABEL[t.category] ?? t.category}</span>
-        <span>{languageLabel(t.language)}</span>
-        {q && (
+      {q && (
+        <div className={s.cardMeta}>
           <span className={s.pillWrap}>
             <span className={`pm2-pill ${q.tone}`}>{q.label}</span>
             <HelpTip term="quality_rating" label="What is the quality rating?" />
           </span>
-        )}
-      </div>
+        </div>
+      )}
 
       {t.previous_category && t.previous_category !== t.category && (
         <div className={s.catNote}>
           Meta changed this from {CATEGORY_LABEL[t.previous_category] ?? t.previous_category} to {CATEGORY_LABEL[t.category] ?? t.category}.
         </div>
       )}
-
-      {media && <HeaderThumb kind={media} url={t.header_media_url} />}
-      {t.header_type === "TEXT" && t.header_text && <div className={s.headerText}>{t.header_text}</div>}
-      <div className={s.bodyText}>
-        <BlankText text={t.body ?? ""} labels={labelsOf(t)} />
-      </div>
-      {t.footer && <div className={s.footLine}>{t.footer}</div>}
 
       {showAttach && media && (
         <div className={`${s.box} ${s.boxWarn}`}>
@@ -111,33 +123,35 @@ export function TemplateCard({
       {editable ? (
         <div className={s.actions}>
           {(rejected || paused) && (
-            <button type="button" className={`pm2-btn pri ${s.bigBtn}`} onClick={() => onEdit(t)}>
+            <button type="button" className="pm2-btn sm dark" onClick={() => onEdit(t)}>
               <Wrench aria-hidden="true" /> Fix and resubmit
             </button>
           )}
           {t.status === "approved" && !automatic && (
-            <Link href={`/dashboard/whatsapp/campaigns/new?template=${t.id}`} className="pm2-btn sm pri">
+            <Link href={`/dashboard/whatsapp/campaigns/new?template=${t.id}`} className="pm2-btn sm">
               <Send aria-hidden="true" /> Use in campaign
             </Link>
           )}
           {t.status === "draft" && !atMeta && (
-            <button type="button" className="pm2-btn sm pri" onClick={() => onEdit(t)}>
+            <button type="button" className="pm2-btn sm" onClick={() => onEdit(t)}>
               <Pencil aria-hidden="true" /> Continue editing
             </button>
           )}
-          {!(rejected || paused) && atMeta && (
-            <button type="button" className="pm2-btn sm" onClick={() => onEdit(t)}>
-              <Pencil aria-hidden="true" /> Edit &amp; resubmit
+          <span className={s.actionsEnd}>
+            {!(rejected || paused) && atMeta && (
+              <button type="button" className={s.iconBtn} onClick={() => onEdit(t)} aria-label={`Edit and resubmit ${friendly}`} title="Edit and resubmit">
+                <Pencil aria-hidden="true" />
+              </button>
+            )}
+            <button type="button" className={s.iconBtn} onClick={() => onDuplicate(t)} aria-label={`Duplicate ${friendly} as a new version`} title="Duplicate as a new version">
+              <Copy aria-hidden="true" />
             </button>
-          )}
-          <button type="button" className="pm2-btn sm" onClick={() => onDuplicate(t)} title="Copy into a new template with a _v2 style name">
-            <Copy aria-hidden="true" /> Duplicate as new version
-          </button>
-          {!automatic && (
-            <button type="button" className={`pm2-btn sm ${s.iconOnly} ${s.danger}`} onClick={() => onDelete(t)} aria-label={`Delete ${friendly}`}>
-              <Trash2 aria-hidden="true" />
-            </button>
-          )}
+            {!automatic && (
+              <button type="button" className={s.iconBtn} onClick={() => onDelete(t)} aria-label={`Delete ${friendly}`} title="Delete">
+                <Trash2 aria-hidden="true" />
+              </button>
+            )}
+          </span>
         </div>
       ) : (
         <div className={s.readonly}>

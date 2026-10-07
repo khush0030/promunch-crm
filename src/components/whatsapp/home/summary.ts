@@ -90,3 +90,47 @@ export function latestCampaign<T extends Pick<Campaign, "created_at" | "sent_cou
   const sorted = [...list].sort((a, b) => at(b) - at(a));
   return sorted.find((c) => n(c.sent_count) > 0) ?? sorted[0];
 }
+
+/* ------------------------------------------------------------------------ */
+/* Campaign return (Start here ROI block). Only figures the data provides.   */
+/* ------------------------------------------------------------------------ */
+
+export type ReturnCard = { orders: number; revenue: number; cost: number; roi: number | null };
+
+/** "34×" for big multiples, "2.8×" for small ones, null when there is no cost yet. */
+export function returnMultiple(roi: number | null | undefined): string | null {
+  if (roi == null || !Number.isFinite(roi)) return null;
+  return `${roi >= 10 ? Math.round(roi) : Math.round(roi * 10) / 10}×`;
+}
+
+/** Colour for a return multiple: good at 3× or more, warn below, bad under 1×. */
+export function returnTone(roi: number | null | undefined): "good" | "warn" | "crit" | "neu" {
+  if (roi == null || !Number.isFinite(roi)) return "neu";
+  if (roi >= 3) return "good";
+  if (roi >= 1) return "warn";
+  return "crit";
+}
+
+/** Average order value in rupees, or null with no orders. */
+export function avgOrder(c: Pick<ReturnCard, "orders" | "revenue">): number | null {
+  return c.orders > 0 ? Math.round(c.revenue / c.orders) : null;
+}
+
+export type FunnelStep = { key: string; label: string; count: number; pct: number };
+
+/**
+ * Message-to-purchase steps for one campaign, as a share of people who got it.
+ * Link taps only appear when the campaign records them.
+ */
+export function campaignFunnel(
+  c: Pick<Campaign, "delivered_count" | "read_count" | "clicked_count">,
+  orders: number | null,
+): FunnelStep[] {
+  const delivered = n(c.delivered_count);
+  const share = (v: number) => (delivered > 0 ? Math.round((v / delivered) * 1000) / 10 : 0);
+  const steps: FunnelStep[] = [{ key: "delivered", label: "Got it", count: delivered, pct: delivered > 0 ? 100 : 0 }];
+  steps.push({ key: "read", label: "Read it", count: n(c.read_count), pct: share(n(c.read_count)) });
+  if (c.clicked_count != null) steps.push({ key: "clicked", label: "Tapped the link", count: n(c.clicked_count), pct: share(n(c.clicked_count)) });
+  if (orders != null) steps.push({ key: "bought", label: "Bought", count: n(orders), pct: share(n(orders)) });
+  return steps;
+}

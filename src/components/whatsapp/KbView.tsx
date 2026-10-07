@@ -8,14 +8,14 @@
 
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, FileText, RefreshCw, Trash2, Upload } from "lucide-react";
+import { Bot, FileText, RefreshCw, Trash2, Upload } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/pm";
 import { HelpTip } from "@/components/guide";
-import { timeAgo } from "@/app/dashboard/whatsapp/format";
 import type { KbDoc } from "./types";
-import { inputStyle, cardStyle } from "./styles";
+import { inputStyle } from "./styles";
 import { Modal, Field } from "./primitives";
+import k from "./KbView.module.css";
 
 const SOURCE_LABEL: Record<string, string> = { upload: "Uploaded file", manual: "Pasted text", text: "Pasted text", url: "Web page" };
 
@@ -68,57 +68,68 @@ export default function KbView() {
     }
   }
 
+  const ready = docs.filter((d) => d.status === "ready").length;
+  const newest = docs.reduce<string | null>((a, d) => (!a || d.created_at > a ? d.created_at : a), null);
+
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-        <div style={{ fontSize: 13, color: "var(--pm-muted)", maxWidth: 640, lineHeight: 1.5, minWidth: 0, flex: "1 1 280px" }}>
-          <strong style={{ color: "var(--pm-ink)" }}>What the WhatsApp bot knows.</strong> The bot only answers from these
-          documents, never from guesswork. Upload a PDF or text file, or paste text like a policy or FAQ. The bot can use it a
-          minute or two later.
-          <HelpTip text="Each document is split into short sections and indexed (embedded) so the bot can find the right part of it for each question. Email and B2B drafts use the same knowledge." />
+    <div className={k.page}>
+      <div className={k.head}>
+        <div className={k.headText}>
+          <p className={k.sum}>
+            The only place the WhatsApp bot, email drafts and B2B emails learn facts from.{" "}
+            {docs.length > 0 && (
+              <>
+                <b>{docs.length} {docs.length === 1 ? "document" : "documents"}</b>
+                {newest ? `, last added ${addedWhen(newest)}.` : "."}
+              </>
+            )}
+            <HelpTip text="Each document is split into short sections and indexed (embedded) so the bot can find the right part of it for each question. Email and B2B drafts use the same knowledge." />
+          </p>
+          {docs.length > 0 && ready < docs.length && (
+            <p className={k.help}>{ready} of {docs.length} ready. The rest are still being read.</p>
+          )}
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button type="button" onClick={() => setManualOpen(true)} className="pm2-btn"><FileText size={14} /> Paste text</button>
+        <div className={k.acts}>
+          <button type="button" onClick={() => setManualOpen(true)} className="pm2-btn"><FileText size={15} aria-hidden /> Paste text</button>
           <button type="button" onClick={() => fileRef.current?.click()} className="pm2-btn pri" disabled={uploading}>
-            <Upload size={14} /> {uploading ? "Uploading…" : "Upload a file"}
+            <Upload size={15} aria-hidden /> {uploading ? "Uploading…" : "Upload a file"}
           </button>
           <input ref={fileRef} type="file" accept=".pdf,.txt,.md" hidden
             onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ""; }} />
         </div>
       </div>
 
-      <div className="pm-autogrid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(100%,280px),1fr))", gap: 12 }}>
+      <div className={k.card}>
         {docs.length === 0 && (
-          <div style={{ gridColumn: "1/-1", padding: 32, textAlign: "center", color: "var(--pm-hint)", fontSize: 13 }}>
-            Nothing here yet. Upload a file or paste text so the bot has something to answer from.
-          </div>
+          <div className={k.empty}>Nothing here yet. Upload a file or paste text so the bot has something to answer from.</div>
         )}
         {docs.map((d) => (
-          <div key={d.id} style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{d.name}</div>
-              <KbStatus s={d.status} />
+          <div key={d.id} className={k.row}>
+            <span className={k.ic} aria-hidden><FileText /></span>
+            <div className={k.tx}>
+              <b className={k.name}>{d.name}</b>
+              <span className={k.meta}>
+                {SOURCE_LABEL[d.source_type] ?? d.source_type} · added {addedWhen(d.created_at)} · {d.chunk_count} section{d.chunk_count === 1 ? "" : "s"} the bot can search
+              </span>
+              {d.error && <span className={k.err}>Couldn&apos;t read it: {d.error}</span>}
             </div>
-            <div style={{ fontSize: 12, color: "var(--pm-muted)", marginBottom: 8 }}>
-              {SOURCE_LABEL[d.source_type] ?? d.source_type} · added {timeAgo(d.created_at)} ago
-            </div>
-            <div style={{ fontSize: 12, color: "var(--pm-ink)", display: "flex", alignItems: "center", gap: 2 }}>
-              {d.chunk_count} section{d.chunk_count === 1 ? "" : "s"} the bot can search
-              <HelpTip text="The document is split into short sections (chunks) so the bot can pick the exact part that answers a question." />
-            </div>
-            {d.error && <div style={{ fontSize: 11, color: "var(--pm-terra)", marginTop: 6 }}>Couldn&apos;t read it: {d.error}</div>}
-            <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-              <button type="button" onClick={() => refresh(d)} className="pm2-btn sm">
-                <RefreshCw size={12} /> Refresh what the bot knows
+            <KbStatus s={d.status} />
+            <div className={k.rowActs}>
+              <button type="button" onClick={() => refresh(d)} className={k.iconBtn} aria-label={`Refresh what the bot knows from ${d.name}`} title="Read it again (use if the bot gives old answers)">
+                <RefreshCw aria-hidden />
               </button>
-              <HelpTip text="Reads this document again from the start. Use it if the bot seems to give old answers, or if reading failed." />
-              <button type="button" aria-label={`Delete ${d.name}`} onClick={() => setToDelete(d)} className="pm2-btn sm ghost">
-                <Trash2 size={12} />
+              <button type="button" aria-label={`Delete ${d.name}`} title="Delete" onClick={() => setToDelete(d)} className={k.iconBtn}>
+                <Trash2 aria-hidden />
               </button>
             </div>
           </div>
         ))}
       </div>
+
+      <p className={k.note}>
+        <Bot size={16} aria-hidden />
+        <span>The bot never answers from its own memory. If a fact isn&apos;t here, it says it will check with the team and creates a ticket. The refresh button reads a document again if the bot seems to give old answers.</span>
+      </p>
 
       {manualOpen && <ManualKbModal onClose={() => { setManualOpen(false); load(); }} />}
       {toDelete && (
@@ -135,14 +146,25 @@ export default function KbView() {
 }
 
 function KbStatus({ s }: { s: KbDoc["status"] }) {
-  const map: Record<KbDoc["status"], { cls: string; icon: typeof CheckCircle2; label: string }> = {
-    ready: { cls: "good", icon: CheckCircle2, label: "Bot knows this" },
-    processing: { cls: "info", icon: RefreshCw, label: "Reading it…" },
-    pending: { cls: "warn", icon: RefreshCw, label: "Waiting to read" },
-    failed: { cls: "crit", icon: AlertTriangle, label: "Couldn't read" },
+  const map: Record<KbDoc["status"], { cls: string; label: string }> = {
+    ready: { cls: "good", label: "Bot knows this" },
+    processing: { cls: "info", label: "Reading it" },
+    pending: { cls: "neu", label: "Waiting to read" },
+    failed: { cls: "crit", label: "Couldn't read" },
   };
   const m = map[s] ?? map.pending;
-  return <span className={`pm2-pill plain ${m.cls}`}><m.icon size={11} aria-hidden="true" /> {m.label}</span>;
+  return <span className={`pm2-pill ${m.cls} ${k.status}`}>{m.label}</span>;
+}
+
+// "today", "3 days ago", or "22 May" for older ones.
+function addedWhen(iso: string): string {
+  const t = Date.parse(iso);
+  if (!t) return "recently";
+  const days = Math.floor((Date.now() - t) / 86_400_000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days} days ago`;
+  return new Date(t).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
 function ManualKbModal({ onClose }: { onClose: () => void }) {

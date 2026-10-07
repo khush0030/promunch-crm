@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { campaignNextStep, campaignSentence, latestCampaign } from "./summary";
+import { avgOrder, campaignFunnel, campaignNextStep, campaignSentence, latestCampaign, returnMultiple, returnTone } from "./summary";
 
 const base = {
   name: "Diwali",
@@ -54,5 +54,30 @@ describe("latestCampaign", () => {
     expect(latestCampaign(list)?.id).toBe("c");
     expect(latestCampaign([list[1]])?.id).toBe("b");
     expect(latestCampaign([])).toBeNull();
+  });
+});
+
+describe("campaign return", () => {
+  it("formats multiples", () => {
+    expect(returnMultiple(34.2)).toBe("34×");
+    expect(returnMultiple(2.84)).toBe("2.8×");
+    expect(returnMultiple(null)).toBeNull();
+  });
+  it("colours multiples", () => {
+    expect(returnTone(5)).toBe("good");
+    expect(returnTone(1.5)).toBe("warn");
+    expect(returnTone(0.4)).toBe("crit");
+    expect(returnTone(null)).toBe("neu");
+  });
+  it("averages orders", () => {
+    expect(avgOrder({ orders: 4, revenue: 2000 })).toBe(500);
+    expect(avgOrder({ orders: 0, revenue: 0 })).toBeNull();
+  });
+  it("builds the funnel from what the campaign records", () => {
+    const f = campaignFunnel({ delivered_count: 200, read_count: 150, clicked_count: 20 }, 5);
+    expect(f.map((s) => s.key)).toEqual(["delivered", "read", "clicked", "bought"]);
+    expect(f[1].pct).toBe(75);
+    expect(f[3].pct).toBe(2.5);
+    expect(campaignFunnel({ delivered_count: 10, read_count: 5, clicked_count: null }, null).map((s) => s.key)).toEqual(["delivered", "read"]);
   });
 });

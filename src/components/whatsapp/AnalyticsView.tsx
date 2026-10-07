@@ -7,12 +7,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  AlertTriangle, Clock, CornerUpLeft, Megaphone, Radio, RefreshCw, ShoppingBag, TrendingUp, Users,
-} from "lucide-react";
-import { Card, DataTable, Kpi, KpiStrip } from "@/components/pm";
-import type { Column } from "@/components/pm";
-import { GlossaryTerm, HelpTip, PlainSummary } from "@/components/guide";
+import { Clock, CornerUpLeft, Megaphone, RefreshCw, ShoppingBag, Users } from "lucide-react";
+import { Kpi, KpiStrip } from "@/components/pm";
+import { GlossaryTerm, HelpTip } from "@/components/guide";
 import { apiFetch } from "@/lib/api-fetch";
 import { canGrade, inHundred, isTestCampaign, lastCampaignSentence, MIN_SENDS_TO_GRADE, periodSentences } from "./results/logic";
 import s from "./results/results.module.css";
@@ -110,16 +107,19 @@ export default function AnalyticsView() {
   return (
     <div className={s.wrap}>
       <div className={s.toolbar}>
-        <div className="pm2-chips" role="group" aria-label="Period">
-          {WINDOWS.map((w) => (
-            <button key={w} type="button" className={`pm2-chip${days === w ? " on" : ""}`} aria-pressed={days === w} onClick={() => setDays(w)}>
-              Last {w} days
-            </button>
-          ))}
+        <p className={s.intro}>Every rupee WhatsApp brought in, from campaigns and automations.</p>
+        <div className={s.toolbarActs}>
+          <div className="pm2-seg" role="group" aria-label="Period">
+            {WINDOWS.map((w) => (
+              <button key={w} type="button" className={days === w ? "on" : ""} aria-pressed={days === w} onClick={() => setDays(w)}>
+                {w} days
+              </button>
+            ))}
+          </div>
+          <button type="button" className={s.iconBtn} onClick={load} disabled={loading} aria-label={loading ? "Refreshing" : "Refresh"} title="Refresh">
+            <RefreshCw aria-hidden="true" className={loading ? s.spin : undefined} />
+          </button>
         </div>
-        <button type="button" className="pm2-btn sm" onClick={load} disabled={loading}>
-          <RefreshCw aria-hidden="true" /> {loading ? "Refreshing…" : "Refresh"}
-        </button>
       </div>
 
       {loading && !d ? (
@@ -160,47 +160,51 @@ function Body({ d, c, conv, act, days, stale }: {
     <>
       {stale && <p className={s.note}>Couldn&apos;t refresh. Showing the last numbers we loaded.</p>}
 
-      <div className={s.health}>
-        <span className={`pm2-pill ${d.health.tone === "g" ? "good" : d.health.tone === "a" ? "warn" : "crit"}`}>{d.health.label}</span>
-        <span>{healthNote}</span>
-      </div>
-
-      <PlainSummary title={`Last ${days} days in plain words`} sentences={sentences} />
+      <p className={s.headline}>
+        {h.orders > 0 ? (
+          <>WhatsApp brought in <b>{inr(h.revenue)}</b> from {num(h.orders)} order{h.orders === 1 ? "" : "s"} in the last {days} days.</>
+        ) : (
+          <>No orders came from people we messaged in the last {days} days yet.</>
+        )}{" "}
+        <span className={s.healthLine}>
+          <span className={`pm2-pill ${d.health.tone === "g" ? "good" : d.health.tone === "a" ? "warn" : "crit"}`}>{d.health.label}</span>
+          <span>{healthNote}</span>
+        </span>
+      </p>
 
       <KpiStrip>
-        <Kpi label="Messages sent" value={num(h.sent)} sub={`${num(d.today.sent)} today`} />
-        <Kpi label={<span className={s.kpiLabel}><GlossaryTerm k="delivered" /></span>} value={`${h.deliveredPct}%`} sub={deliveredVerdict(h.deliveredPct)} />
-        <Kpi label={<span className={s.kpiLabel}><GlossaryTerm k="read" /></span>} value={`${h.readPct}%`} sub={readVerdict(h.readPct)} />
-        <Kpi label={<span className={s.kpiLabel}><GlossaryTerm k="reply">Replies</GlossaryTerm></span>} value={num(h.replies)} sub={`${num(d.today.replies)} today`} />
-      </KpiStrip>
-      <KpiStrip>
-        <Kpi label="Orders after a message" value={num(h.orders)} sub="from people we messaged first" />
-        <Kpi label="Revenue from those orders" value={inr(h.revenue)} sub="in this period" />
-        <Kpi label="Message cost" value={inr(h.spend)} sub="estimated Meta charges" />
+        <Kpi label="Revenue" value={<span className={s.red}>{inr(h.revenue)}</span>} sub={`${num(h.orders)} orders after a message`} />
+        <Kpi label="Messages sent" value={num(h.sent)} sub={`${h.deliveredPct}% delivered · ${num(d.today.sent)} today`} />
+        <Kpi label={<span className={s.kpiLabel}><GlossaryTerm k="read">Read rate</GlossaryTerm></span>} value={`${h.readPct}%`} sub={readVerdict(h.readPct)} />
         <Kpi
           label={
             <span className={s.kpiLabel}>
-              Estimated return
-              <HelpTip term="attributed_order" text="Here it counts orders placed in this period by people who got a WhatsApp message from us before ordering, divided by the estimated Meta cost. A strong signal, not proof." />
+              Cost to Meta
+              <HelpTip term="attributed_order" text="Estimated Meta charges. The return counts orders placed in this period by people who got a WhatsApp message from us before ordering, divided by this cost. A strong signal, not proof." />
             </span>
           }
-          value={h.roi != null ? `${h.roi.toFixed(1)}x` : "Not yet"}
-          sub={roiVerdict(h.roi)}
+          value={inr(h.spend)}
+          sub={h.roi != null ? `₹${h.roi >= 10 ? Math.round(h.roi) : h.roi.toFixed(1)} back for every ₹1` : roiVerdict(h.roi)}
         />
       </KpiStrip>
-      {conv && (
-        <p className={s.note}>
-          &ldquo;Orders after a message&rdquo; is a broad measure. The &ldquo;Orders from WhatsApp links&rdquo; panel below is the
-          strict one: only orders where the customer tapped a WhatsApp link and then bought.
-        </p>
-      )}
 
-      {c?.hints && (c.hints.bestTime || c.hints.topSegment) && <HintsRow hints={c.hints} />}
+      <details className={s.words}>
+        <summary>Last {days} days in plain words</summary>
+        <ul>{sentences.map((t, i) => <li key={i}>{t}</li>)}</ul>
+        {conv && (
+          <p className={s.note}>
+            &ldquo;Orders after a message&rdquo; is a broad measure. &ldquo;Orders from WhatsApp links&rdquo; below is the strict one: only
+            orders where the customer tapped a WhatsApp link and then bought.
+          </p>
+        )}
+      </details>
 
       <div className={s.g2}>
         <FunnelPanel d={d} />
         <FailurePanel d={d} attempted={attempted} />
       </div>
+
+      {c?.hints && (c.hints.bestTime || c.hints.topSegment) && <HintsRow hints={c.hints} />}
 
       {c && c.campaigns.length > 0 && <CampaignCards cards={c.campaigns} />}
       {conv && <ConversionPanel conv={conv} />}
@@ -209,28 +213,58 @@ function Body({ d, c, conv, act, days, stale }: {
   );
 }
 
+/* ---- a calm panel: title, one-line takeaway, then the detail ---- */
+
+function Panel({ title, takeaway, aside, children, flush }: {
+  title: string; takeaway: React.ReactNode; aside?: React.ReactNode; children?: React.ReactNode; flush?: boolean;
+}) {
+  return (
+    <section className={`${s.panel} ${flush ? s.panelFlush : ""}`}>
+      <div className={s.panelHead}>
+        <div className={s.panelHeadText}>
+          <h3 className={s.panelTitle}>{title}</h3>
+          <p className={s.take}>{takeaway}</p>
+        </div>
+        {aside}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 /* ---- orders from tagged links ---- */
 
 function ConversionPanel({ conv }: { conv: ConvData }) {
   const t = conv.totals;
-  const cols: Column<ConvRow>[] = [
-    { header: "Campaign", cell: (r) => <span style={{ fontWeight: 600, wordBreak: "break-word" }}>{r.campaign}</span> },
-    { header: "Via", cell: (r) => <span className="pm-dim">{r.medium}</span> },
-    { header: "Orders", align: "right", cell: (r) => num(r.orders) },
-    { header: "Revenue", align: "right", cell: (r) => <span style={{ fontWeight: 700 }}>{inr(r.revenue)}</span> },
-  ];
+  const top = [...conv.rows].sort((a, b) => b.revenue - a.revenue)[0];
   return (
-    <Card
-      title={<><TrendingUp size={16} aria-hidden="true" /> Orders from WhatsApp links</>}
-      basis={`${num(t.orders)} orders, ${inr(t.revenue)}`}
+    <Panel
+      title="Orders from WhatsApp links"
+      takeaway={
+        conv.rows.length === 0
+          ? "No orders from WhatsApp links yet. They show up once customers tap a link and buy."
+          : <><b>{num(t.orders)} order{t.orders === 1 ? "" : "s"} ({inr(t.revenue)})</b> came straight from a tapped link{top ? `, most from "${top.campaign}".` : "."}</>
+      }
+      flush={conv.rows.length > 0}
     >
-      <p className={s.note}>Orders Shopify matched to a WhatsApp link the customer tapped, grouped by campaign.</p>
-      {conv.rows.length === 0 ? (
-        <div className={s.empty}>No orders from WhatsApp links yet. They show up here once customers tap a link and buy.</div>
-      ) : (
-        <DataTable columns={cols} rows={conv.rows} rowKey={(r) => r.campaign} />
+      {conv.rows.length > 0 && (
+        <table className={s.tbl}>
+          <thead>
+            <tr><th scope="col">Campaign</th><th scope="col">Via</th><th scope="col" className={s.r}>Orders</th><th scope="col" className={s.r}>Revenue</th></tr>
+          </thead>
+          <tbody>
+            {conv.rows.map((r) => (
+              <tr key={r.campaign}>
+                <td className={s.mainCell}><b>{r.campaign}</b></td>
+                <td data-l="Via" className={s.dim}>{r.medium}</td>
+                <td data-l="Orders" className={s.r}>{num(r.orders)}</td>
+                <td data-l="Revenue" className={s.r}><b>{inr(r.revenue)}</b></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
-    </Card>
+    </Panel>
   );
 }
 
@@ -249,8 +283,19 @@ function ActivityFeed({ items }: { items: ActItem[] }) {
   const tone = (t: ActItem["tone"]) => (t === "g" ? s.tG : t === "b" ? s.tB : s.tO);
   const ico = (t: ActItem["type"]) =>
     t === "order" ? <ShoppingBag /> : t === "reply" ? <CornerUpLeft /> : <Megaphone />;
+  const replies = items.filter((x) => x.type === "reply").length;
+  const orders = items.filter((x) => x.type === "order").length;
+  const latest = items[0];
   return (
-    <Card title={<><Radio size={16} aria-hidden="true" /> Live activity</>} basis="latest replies, campaigns and orders">
+    <Panel
+      title="Live activity"
+      takeaway={
+        <>
+          Latest {num(items.length)}: {num(replies)} repl{replies === 1 ? "y" : "ies"}, {num(orders)} order{orders === 1 ? "" : "s"}
+          {latest ? `. Newest ${timeAgo(latest.at)}.` : "."}
+        </>
+      }
+    >
       <div>
         {items.slice(0, shown).map((it, i) => (
           <div key={`${it.at}-${i}`} className={s.act}>
@@ -265,33 +310,38 @@ function ActivityFeed({ items }: { items: ActItem[] }) {
       </div>
       {items.length > shown && (
         <button type="button" className={`pm2-btn sm ${s.more}`} onClick={() => setShown((n) => n + ACTIVITY_STEP)}>
-          Show more ({items.length - shown} more)
+          Show {Math.min(ACTIVITY_STEP, items.length - shown)} more
         </button>
       )}
-    </Card>
+    </Panel>
   );
 }
 
 /* ---- hints ---- */
 
+// API notes can carry em dashes and lower-case sentence starts.
+function sentenceCase(t: string): string {
+  return t.replace(/\s*\u2014\s*/g, ". ").replace(/(^|[.!?]\s+)([a-z])/g, (_, a: string, b: string) => a + b.toUpperCase());
+}
+
 function HintsRow({ hints }: { hints: Hints }) {
   return (
     <div className={s.g2}>
       {hints.bestTime && (
-        <Card title={<><Clock size={16} aria-hidden="true" /> Best time to send</>}>
+        <Panel title="Best time to send" takeaway={sentenceCase(hints.bestTime.note)}>
           <div className={s.hint}>
+            <Clock aria-hidden="true" />
             <span className={s.hintBig}>{hints.bestTime.label.replace(/\u2013|\u2014/g, " to ")}</span>
-            <span className={s.hintText}>{hints.bestTime.note.replace(/\s*\u2014\s*/g, ". ")}</span>
           </div>
-        </Card>
+        </Panel>
       )}
       {hints.topSegment && (
-        <Card title={<><Users size={16} aria-hidden="true" /> Customers who respond best</>}>
+        <Panel title="Customers who respond best" takeaway={sentenceCase(hints.topSegment.note)}>
           <div className={s.hint}>
+            <Users aria-hidden="true" />
             <span className={s.hintBig}>{hints.topSegment.name}</span>
-            <span className={s.hintText}>{hints.topSegment.note.replace(/\s*\u2014\s*/g, ". ")}</span>
           </div>
-        </Card>
+        </Panel>
       )}
     </div>
   );
@@ -306,43 +356,62 @@ function gradeClass(g: string) {
 function CampaignCards({ cards }: { cards: CampCard[] }) {
   const real = cards.filter((x) => !isTestCampaign(x));
   const tests = cards.filter(isTestCampaign);
+  const best = [...real].sort((a, b) => b.revenue - a.revenue)[0];
+  const takeaway =
+    real.length === 0
+      ? "No real campaigns in this period yet. Tests are listed below and never graded."
+      : best && best.revenue > 0
+      ? <>&ldquo;{best.name}&rdquo; earned the most: <b>{inr(best.revenue)}</b> from {num(best.orders)} order{best.orders === 1 ? "" : "s"}.</>
+      : `${num(real.length)} campaign${real.length === 1 ? "" : "s"} this period, no orders from them yet.`;
   return (
-    <Card title={<><Megaphone size={16} aria-hidden="true" /> Campaign report cards</>} basis={`graded A to F once ${MIN_SENDS_TO_GRADE}+ people got it`}>
-      {real.length === 0 ? (
-        <div className={s.empty}>No real campaigns in this period yet.</div>
-      ) : (
-        <div className={s.cards}>
-          {real.map((x) => {
-            const graded = canGrade(x);
-            return (
-              <div key={x.id} className={s.camp}>
-                <div className={s.campHead}>
-                  <Link href={`/dashboard/whatsapp/campaigns/${x.id}`} className={s.campName}>{x.name}</Link>
-                  {graded ? (
-                    <span className={`${s.grade} ${gradeClass(x.grade)}`} aria-label={`Grade ${x.grade}`}>{x.grade}</span>
-                  ) : (
-                    <span className="pm2-pill neu plain">Too early to grade</span>
-                  )}
-                </div>
-                <p className={s.verdict}>
-                  {graded ? x.verdict.replace(/\s*\u2014\s*/g, ". ") : `Only ${num(x.sent)} people so far. We grade once at least ${MIN_SENDS_TO_GRADE} have got it.`}
-                </p>
-                <div className={s.minis}>
-                  <Mini label="Sent" value={num(x.sent)} />
-                  <Mini label={<GlossaryTerm k="read" />} value={`${x.readPct}%`} />
-                  <Mini label="Orders" value={num(x.orders)} />
-                  <Mini label="Revenue" value={inr(x.revenue)} />
-                  <Mini label="Cost" value={inr(x.cost)} />
-                  <Mini
-                    label={<>Est. return <HelpTip term="attributed_order" text="Counts orders placed within 7 days by people who received this campaign, divided by its estimated Meta cost." /></>}
-                    value={x.roi != null ? `${x.roi.toFixed(1)}x` : "Not yet"}
-                    bad={x.roi != null && x.roi < 1}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+    <Panel title="Campaign report cards" takeaway={takeaway} flush={real.length > 0}>
+      {real.length > 0 && (
+        <table className={s.tbl}>
+          <thead>
+            <tr>
+              <th scope="col">Campaign</th>
+              <th scope="col" className={s.r}><GlossaryTerm k="read">Read</GlossaryTerm></th>
+              <th scope="col" className={s.r}>Orders</th>
+              <th scope="col" className={s.r}>Revenue</th>
+              <th scope="col" className={s.r}>
+                <span className={s.kpiLabel}>Return <HelpTip term="attributed_order" text="Counts orders placed within 7 days by people who received this campaign, divided by its estimated Meta cost." /></span>
+              </th>
+              <th scope="col">Verdict</th>
+            </tr>
+          </thead>
+          <tbody>
+            {real.map((x) => {
+              const graded = canGrade(x);
+              return (
+                <tr key={x.id}>
+                  <td className={s.mainCell}>
+                    <Link href={`/dashboard/whatsapp/campaigns/${x.id}`} className={s.campName}>{x.name}</Link>
+                    <span className={s.sub}>{num(x.sent)} people · {inr(x.cost)} cost</span>
+                  </td>
+                  <td data-l="Read" className={s.r}>{x.readPct}%</td>
+                  <td data-l="Orders" className={s.r}>{num(x.orders)}</td>
+                  <td data-l="Revenue" className={s.r}><b>{inr(x.revenue)}</b></td>
+                  <td data-l="Return" className={`${s.r} ${x.roi != null && x.roi < 1 ? s.bad : ""}`}>
+                    <b>{x.roi != null ? `${x.roi >= 10 ? Math.round(x.roi) : x.roi.toFixed(1)}×` : "Not yet"}</b>
+                  </td>
+                  <td data-l="Verdict" className={s.verdictCell}>
+                    {graded ? (
+                      <>
+                        <span className={`${s.grade} ${gradeClass(x.grade)}`}>Grade {x.grade}</span>
+                        <span className={s.sub}>{x.verdict.replace(/\s*\u2014\s*/g, ". ")}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className={`${s.grade} ${s.gNeu}`}>Too early</span>
+                        <span className={s.sub}>Graded once {MIN_SENDS_TO_GRADE}+ people get it.</span>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       )}
       {tests.length > 0 && (
         <div className={s.tests}>
@@ -352,24 +421,10 @@ function CampaignCards({ cards }: { cards: CampCard[] }) {
           ))}
         </div>
       )}
-    </Card>
+    </Panel>
   );
 }
 
-function Mini({ label, value, bad }: { label: React.ReactNode; value: string; bad?: boolean }) {
-  return (
-    <div>
-      <div className={s.miniL}>{label}</div>
-      <div className={`${s.miniV} ${bad ? s.miniBad : ""}`}>{value}</div>
-    </div>
-  );
-}
-
-function deliveredVerdict(pct: number) {
-  if (pct >= 85) return "Most messages arrive. Good.";
-  if (pct >= 60) return "Some not arriving. Check below.";
-  return "Many not arriving. See below.";
-}
 function readVerdict(pct: number) {
   if (pct >= 50) return "Strong. People open them.";
   if (pct >= 25) return "Average. Try a better first line.";
@@ -396,32 +451,40 @@ function funnelLabel(f: Funnel) {
   return f.label;
 }
 
+function funnelTakeaway(d: Data): string {
+  const sent = d.headline.sent;
+  if (!sent) return "Nothing went out in this period.";
+  const read = inHundred(d.headline.read, sent) ?? 0;
+  const bought = inHundred(d.headline.orders, sent);
+  return bought != null && d.headline.orders > 0
+    ? `Out of every 100 messages, ${read} were read and ${bought || "under 1"} led to an order.`
+    : `Out of every 100 messages, ${read} were read. No orders yet.`;
+}
+
 function FunnelPanel({ d }: { d: Data }) {
   const sent = d.headline.sent || 1;
   return (
-    <Card title="From message to order" basis="how many people move on at each step">
-      {d.funnel.map((f, i) => {
-        const width = f.count == null ? 0 : Math.max(2, Math.round((f.count / sent) * 100));
-        const prev = i > 0 ? d.funnel[i - 1] : null;
-        const rate = prev && prev.count && f.count != null ? inHundred(f.count, prev.count) : null;
-        return (
-          <div key={f.key} className={s.funnelRow}>
-            <div className={s.funnelTop}>
-              <span className={s.funnelName}>{funnelLabel(f)}{f.soon && " (coming soon)"}</span>
-              <span className={s.funnelVal}>
-                {f.count == null ? "Not yet" : `${num(f.count)} ${f.unit}`}
-                {rate != null && prev && (
-                  <span className={s.funnelRate}> · {rate} in 100 {FUNNEL_WORD[f.key] ?? "moved on"}</span>
-                )}
-              </span>
+    <Panel title="From message to order" takeaway={funnelTakeaway(d)}>
+      <div className={s.funnel}>
+        {d.funnel.map((f, i) => {
+          const width = f.count == null ? 0 : Math.max(1.5, Math.round((f.count / sent) * 100));
+          const prev = i > 0 ? d.funnel[i - 1] : null;
+          const rate = prev && prev.count && f.count != null ? inHundred(f.count, prev.count) : null;
+          return (
+            <div key={f.key} className={s.funnelRow}>
+              <div className={s.funnelTop}>
+                <span className={s.funnelName}>{funnelLabel(f)}{f.soon && " (coming soon)"}</span>
+                <span className={s.funnelVal}>{f.count == null ? "Not yet" : num(f.count)}</span>
+              </div>
+              <div className={s.bar}>
+                <span className={`${s.barFill} ${s[`step${Math.min(i, 4)}`]} ${f.soon ? s.barSoon : ""}`} style={{ width: `${width}%` }} />
+              </div>
+              {rate != null && prev && <span className={s.funnelRate}>{rate} in 100 {FUNNEL_WORD[f.key] ?? "moved on"}</span>}
             </div>
-            <div className={s.bar}>
-              <span className={`${s.barFill} ${f.soon ? s.barSoon : ""}`} style={{ width: `${width}%` }} />
-            </div>
-          </div>
-        );
-      })}
-    </Card>
+          );
+        })}
+      </div>
+    </Panel>
   );
 }
 
@@ -429,14 +492,16 @@ function FunnelPanel({ d }: { d: Data }) {
 
 function FailurePanel({ d, attempted }: { d: Data; attempted: number }) {
   const f = d.failures;
+  const needFix = f.groups.filter((g) => !g.willRetry && g.tone === "r").reduce((a, g) => a + g.count, 0);
+  const takeaway =
+    f.total === 0
+      ? "Every message went through. Nothing to fix."
+      : needFix > 0
+      ? `${num(f.total)} of ${num(attempted)} did not arrive. ${num(needFix)} need fixing.`
+      : `${num(f.total)} of ${num(attempted)} did not arrive. All normal, nothing to fix.`;
   return (
-    <Card
-      title={<><AlertTriangle size={16} aria-hidden="true" /> Messages that did not arrive</>}
-      basis={f.total ? `${num(f.total)} of ${num(attempted)}` : "none this period"}
-    >
-      {f.total === 0 ? (
-        <div className={s.empty}>Every message went through. Nothing to fix.</div>
-      ) : (
+    <Panel title="Messages that did not arrive" takeaway={takeaway}>
+      {f.total > 0 && (
         <div>
           {f.groups.map((g) => {
             const txt = FAIL_TEXT[g.category];
@@ -445,9 +510,9 @@ function FailurePanel({ d, attempted }: { d: Data; attempted: number }) {
                 <span className={s.failTitle}>
                   {txt?.title ?? g.title}
                   {txt?.heldBack && <HelpTip term="held_back" />}
-                  <span className={s.failCount}>· {num(g.count)}</span>
                 </span>
-                <span className={`pm2-pill ${g.willRetry ? "info" : g.tone === "r" ? "crit" : "neu"}`}>
+                <span className={s.failCount}>{num(g.count)}</span>
+                <span className={`pm2-pill ${g.willRetry ? "info" : g.tone === "r" ? "crit" : "neu"} ${s.failPill}`}>
                   {g.willRetry ? "Tries again by itself" : g.tone === "r" ? "Needs fixing" : "Normal, no retry"}
                 </span>
                 <span className={s.failSub}>{(txt?.action ?? g.action).replace(/\s*\u2014\s*/g, ". ")}</span>
@@ -456,6 +521,6 @@ function FailurePanel({ d, attempted }: { d: Data; attempted: number }) {
           })}
         </div>
       )}
-    </Card>
+    </Panel>
   );
 }

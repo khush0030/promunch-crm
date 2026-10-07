@@ -156,6 +156,16 @@ function TriggerPresets({ value, onChange }: { value: PopupConfig["trigger"]; on
 
 /* ============================ preview ============================ */
 
+// "promunch-hrs-pack.jpg" from a storage URL, for the picture field.
+function imageName(url: string): string {
+  try {
+    const last = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
+    return last.replace(/^\d{10,}[-_]/, "") || "Picture";
+  } catch {
+    return "Picture";
+  }
+}
+
 function Preview({ cfg, tab, device }: { cfg: GrowthConfig; tab: "popup" | "widget"; device: "desktop" | "mobile" }) {
   useEffect(() => {
     const href = cfg.popup.layout === "promunch" ? BRAND_FONT_HREF : fontHref(cfg.popup.theme.font);
@@ -174,14 +184,14 @@ function Preview({ cfg, tab, device }: { cfg: GrowthConfig; tab: "popup" | "widg
   const side = cfg.widget.side === "left" ? { left: 14 } : { right: 14 };
   const pos = cfg.popup.position;
   const wrap: React.CSSProperties =
-    pos === "center" ? { inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(0,0,0,.45)" }
+    pos === "center" ? { inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(26,23,20,.5)" }
     : pos === "bottom-bar" ? { left: 0, right: 0, bottom: 0 }
     : pos === "bottom-left" ? { left: 14, bottom: 14, maxWidth: 300 }
     : { right: 14, bottom: 14, maxWidth: 300 };
   const wide = cfg.popup.layout === "image-left" || cfg.popup.layout === "image-right";
   const brand = cfg.popup.layout === "promunch";
   const cardW = pos === "bottom-bar" ? frameW
-    : pos === "center" ? Math.min(brand ? 640 : wide ? 440 : 360, frameW - 32)
+    : pos === "center" ? Math.min(brand ? 600 : wide ? 420 : 340, frameW - 40)
     : wide ? Math.min(400, frameW - 24) : 290;
 
   return (
@@ -193,12 +203,24 @@ function Preview({ cfg, tab, device }: { cfg: GrowthConfig; tab: "popup" | "widg
           <span className={s.chromeDot} style={{ background: "#5FB878" }} />
           <span className={s.chromeUrl}>promunch.in</span>
         </div>
-        <div className={s.viewport} style={{ height: device === "mobile" ? 500 : 420 }}>
-          <div className={s.faux}>
-            <div className={s.fauxBlock} style={{ height: 26, width: "44%", marginBottom: 14 }} />
-            <div className={s.fauxBlock} style={{ height: 120, marginBottom: 14 }} />
-            <div className={s.fauxBlock} style={{ height: 12, width: "88%", marginBottom: 8 }} />
-            <div className={s.fauxBlock} style={{ height: 12, width: "70%" }} />
+        <div className={s.viewport} style={{ height: device === "mobile" ? 560 : 460 }}>
+          {/* A calm mock of promunch.in, so the popup is seen in place. */}
+          <div className={s.site} aria-hidden="true">
+            <div className={s.siteTop}>
+              <span className={s.siteMenu} />
+              <span className={s.siteLogo}>PROMUNCH</span>
+              <span className={s.siteCart} />
+            </div>
+            <div className={s.siteHero}>
+              <span className={s.siteHeroLine} style={{ width: "58%" }} />
+              <span className={s.siteHeroLine} style={{ width: "40%" }} />
+              <span className={s.siteHeroBtn} />
+            </div>
+            <div className={s.siteGrid} style={{ gridTemplateColumns: device === "mobile" ? "repeat(2, 1fr)" : "repeat(4, 1fr)" }}>
+              {["#AF272F", "#1F7A8C", "#D99A00", "#2E7D46"].map((c) => (
+                <span key={c} className={s.siteCard}><i style={{ background: c }} /><b /><b style={{ width: "50%" }} /></span>
+              ))}
+            </div>
           </div>
           {showPopup && (
             <div style={{ position: "absolute", ...wrap, zIndex: 5 }}>
@@ -247,7 +269,7 @@ function ConnectionCard({ data, probe, busy, onInstall, onRemove, onRecheck }: {
   } else if (probe?.state === "connected") {
     dot = "var(--pm-green)";
     title = "Connected to Shopify"; note = `Ready to go live on ${shop} with one click.`;
-    actions = <button type="button" className={`${s.btn} ${s.primary}`} onClick={onInstall} disabled={busy}><Power size={14} /> {busy ? "Publishing…" : "Publish to store"}</button>;
+    actions = <button type="button" className={`${s.btn} ${s.dark}`} onClick={onInstall} disabled={busy}><Power size={14} /> {busy ? "Publishing…" : "Publish to store"}</button>;
   } else if (probe?.state === "no_scope") {
     cls = `${s.conn} ${s.warn}`; dot = "var(--pm-gold)";
     title = "Almost there: one permission needed"; note = "The Shopify app is connected but can't add scripts yet.";
@@ -498,21 +520,38 @@ export default function GrowthView() {
                 <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 10 }}>Pick a ready-made layout, then edit the text, colours and image below.</div>
               </Section>
 
-              <Section title="Image">
+              <Section title="Picture">
                 <input ref={fileRef} type="file" accept="image/png,image/jpeg" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f); e.target.value = ""; }} />
-                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  <button type="button" className={s.btn} onClick={() => fileRef.current?.click()} disabled={uploading}>
-                    {uploading ? "Uploading…" : <><Upload size={13} /> {p.imageUrl ? "Replace image" : "Upload image"}</>}
-                  </button>
-                  {p.imageUrl && <button type="button" className={`${s.btn} ${s.danger}`} onClick={() => setPopup((x) => ({ ...x, imageUrl: null }))}><Trash2 size={12} /> Remove</button>}
+                <div className={s.pickPic}>
+                  <span className={s.picThumb}>
+                    {p.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.imageUrl} alt="" />
+                    ) : (
+                      <ImageIcon size={18} aria-hidden />
+                    )}
+                  </span>
+                  <span className={s.picTx}>
+                    <b>{p.imageUrl ? imageName(p.imageUrl) : "No picture yet"}</b>
+                    <span>
+                      {needsImage && !p.imageUrl
+                        ? "This layout needs one, or it shows as text only."
+                        : p.imageUrl
+                        ? "Used by image and background layouts"
+                        : "JPG or PNG, up to 5 MB"}
+                    </span>
+                  </span>
+                  <span className={s.picActs}>
+                    <button type="button" className={s.btn} onClick={() => fileRef.current?.click()} disabled={uploading}>
+                      {uploading ? "Uploading…" : p.imageUrl ? "Change" : <><Upload size={13} /> Add</>}
+                    </button>
+                    {p.imageUrl && (
+                      <button type="button" className={s.iconBtn} onClick={() => setPopup((x) => ({ ...x, imageUrl: null }))} aria-label="Remove picture" title="Remove picture">
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </span>
                 </div>
-                {needsImage && !p.imageUrl ? (
-                  <div style={{ fontSize: 11.5, color: "var(--pm-terra)", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}>
-                    <ImageIcon size={12} /> This layout needs an image. Upload one, or it shows as text only on your site.
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}><ImageIcon size={11} /> JPG or PNG, up to 5 MB. Used by image and background layouts.</div>
-                )}
               </Section>
 
               <Section title="Design">

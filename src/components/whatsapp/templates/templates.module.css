@@ -259,3 +259,50 @@
 .typeConfirmBody { display: grid; gap: 6px; }
 .typeConfirm { display: grid; gap: 6px; margin-top: 4px; }
 .typeConfirm .input { max-width: 360px; }
+
+/* ---------- redesign: calm template cards ---------- */
+.grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: 16px; }
+.card { padding: 0 0 14px; gap: 10px; overflow: hidden; }
+.card > :not(.mini) { margin-left: 16px; margin-right: 16px; }
+.cardReadonly { background: var(--pm-card); }
+.mini { background: var(--pm-card2); border-bottom: 1px solid var(--pm-line); padding: 16px 16px 14px; height: 190px; box-sizing: border-box; overflow: hidden; position: relative; }
+.mini::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 28px; background: linear-gradient(transparent, var(--pm-card2)); pointer-events: none; }
+.miniBubble { background: var(--pm-card); border: 1px solid var(--pm-line); border-radius: 4px 14px 14px 14px; padding: 10px 12px; max-width: 92%; box-shadow: 0 1px 2px rgba(26,23,20,.06); display: grid; gap: 6px; }
+.miniBubble .thumb { aspect-ratio: 16 / 7; border-radius: 8px; border: 0; }
+.miniBubble .bodyText { font-size: 13.5px; -webkit-line-clamp: 5; color: var(--pm-ink2); }
+.miniBubble .footLine { font-size: 12px; }
+.cardTitle { font-weight: 700; font-size: 16px; }
+.cardHead { align-items: flex-start; }
+.cardMeta { font-size: 14px; margin-top: 3px; gap: 4px 6px; }
+.catNote { font-size: 13.5px; }
+.actions { flex-wrap: nowrap; gap: 6px; padding-top: 2px; }
+.actions :global(.pm2-btn) { white-space: nowrap; }
+.actionsEnd { margin-left: auto; display: inline-flex; gap: 2px; flex: none; }
+.iconBtn { appearance: none; border: 0; background: none; color: var(--pm-muted); width: 34px; height: 34px; border-radius: 10px; display: inline-grid; place-items: center; cursor: pointer; }
+.iconBtn:hover { background: var(--pm-card3); color: var(--pm-ink); }
+.iconBtn:focus-visible { outline: 2px solid var(--pm-ink); outline-offset: 1px; }
+.iconBtn svg { width: 17px; height: 17px; }
+.readonly { font-size: 13.5px; }
+.lead { font-size: 15px; color: var(--pm-ink2); max-width: 70ch; }
+.headActions :global(.pm2-btn) { white-space: nowrap; }
+.groupTitle { font: 400 20px/1.2 var(--pm-display); letter-spacing: -.01em; }
+.groupCount { font-size: 13px; }
+.groupSub { font-size: 14px; }
+.box { font-size: 14px; background: var(--pm-card) !important; border: 0 !important; border-left: 2px solid var(--pm-border) !important; border-radius: 0; padding: 4px 0 4px 12px; }
+.boxBad { border-left-color: var(--pm-terra) !important; }
+.boxWarn { border-left-color: var(--pm-gold) !important; }
+.hint { font-size: 13.5px; color: var(--pm-muted); }
+@media (max-width: 640px) {
+  .headActions { width: 100%; }
+  .headActions :global(.pm2-btn) { flex: 1 1 0; justify-content: center; }
+  .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+  .chips :global(.pm2-chip) { white-space: nowrap; flex: none; }
+}
+.boxGood { border-left-color: var(--pm-green) !important; }
+/* starter cards: one red element per screen, so "Use this" stays neutral */
+.starterGrid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+.starterGrid :global(.pm2-btn.pri) { background: var(--pm-card); color: var(--pm-ink); border-color: var(--pm-border); box-shadow: none; }
+.starterGrid :global(.pm2-btn.pri:hover) { border-color: var(--pm-ink); }
+.starterGrid :global(.pm2-pill.brand) { color: var(--pm-ink2); }
+.starterGrid > article > div:first-child { flex-wrap: wrap; }
+.benefit { color: var(--pm-ink2); font-size: 13.5px; }

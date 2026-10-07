@@ -14,7 +14,7 @@
 //   Order messages: confirmation, COD confirm, shipping, voice call, sign-off.
 //     Owner/Admin only (the API enforces the same, see flows/permissions.ts).
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Plus, RefreshCw } from "lucide-react";
 import { ConfirmDialog } from "@/components/pm";
@@ -22,6 +22,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useAccess } from "@/components/shell/useAccess";
 import { apiFetch } from "@/lib/api-fetch";
 import type { Template } from "../types";
+import { AutomationDisplay } from "./AutomationCard";
 import { LockNote } from "./bits";
 import type { FlowsCtx } from "./context";
 import { TOGGLE_COPY } from "./copy";
@@ -67,7 +68,8 @@ export default function AutomationsView() {
   const [view, setView] = useState<View>({ kind: "list" });
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
-  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // Which automation is open on its own page (list when null). UI only.
+  const [openKey, setOpenKey] = useState<string | null>(null);
 
   // Adopt fresh server data (first load, refetch) without clobbering edits.
   if (flowsQ.data && flowsQ.data !== seen) {
@@ -181,9 +183,14 @@ export default function AutomationsView() {
     });
   }
 
+  function openAutomation(key: string | null) {
+    setOpenKey(key);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+  }
+
   function showBuiltIn(card: string) {
     setView({ kind: "list" });
-    requestAnimationFrame(() => cardRefs.current[card]?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    openAutomation(card);
   }
 
   if (!draft || !saved) {
@@ -247,70 +254,103 @@ export default function AutomationsView() {
     );
   }
 
-  const anchor = (key: string) => (el: HTMLDivElement | null) => { cardRefs.current[key] = el; };
+  // Every automation once, keyed, so the list and the detail page render the
+  // exact same component (same props, same handlers).
+  const marketing: Array<[string, ReactNode]> = [
+    ["abandoned_cart", <CartCard key="abandoned_cart" c={ctx} />],
+    ["review", <ReviewCard key="review" c={ctx} />],
+    ["restock", <RestockCard key="restock" c={ctx} />],
+    ...(custom ?? []).map((f): [string, ReactNode] => [
+      `custom:${f.id}`,
+      <CustomFlowCard key={f.id} c={ctx} flow={f}
+        onToggle={() => toggleCustom(f)}
+        onEdit={() => setView({ kind: "builder", flow: f, recipe: null })}
+        onDelete={() => deleteCustom(f)} />,
+    ]),
+  ];
+  const orders: Array<[string, ReactNode]> = [
+    ["confirmation", <ConfirmationCard key="confirmation" c={ctx} />],
+    ["cod", <CodCard key="cod" c={ctx} />],
+    ["shipping", <ShippingCard key="shipping" c={ctx} />],
+    ["voice", <VoiceCard key="voice" c={ctx} />],
+    ["signoff", <SignOffCard key="signoff" c={ctx} />],
+  ];
+  const opened = openKey ? [...marketing, ...orders].find(([k]) => k === openKey) : undefined;
+  const isOrder = !!openKey && orders.some(([k]) => k === openKey);
+  const onCount = [saved.abandoned_cart_enabled, saved.review_request_enabled, saved.replenishment_enabled].filter(Boolean).length
+    + (custom ?? []).filter((f) => f.enabled).length;
+
+  const rows = (items: Array<[string, ReactNode]>) => (
+    <div className={s.list}>
+      {items.map(([k, node]) => (
+        <AutomationDisplay.Provider key={k} value={{ mode: "row", onOpen: () => openAutomation(k) }}>
+          {node}
+        </AutomationDisplay.Provider>
+      ))}
+    </div>
+  );
 
   return (
     <div className={s.wrap}>
-      <div className={s.intro}>
-        <div className={s.introText}>
-          <h2 className={s.introTitle}>Messages that send themselves</h2>
-          <p className={s.introSub}>
-            Each automation waits for something a customer does, like leaving a cart, then sends a WhatsApp message at the
-            right time. Change a wait or a coupon and press Save. Switching one off pauses it without losing anything.
-          </p>
-        </div>
-        <div className={s.introActs}>
-          <button type="button" className="pm2-btn pri" onClick={() => setView({ kind: "gallery" })}>
-            <Plus aria-hidden="true" /> Create an automation
-          </button>
-        </div>
-      </div>
-
-      {view.kind === "gallery" && (
-        <RecipeGallery
-          builtInOn={{ abandoned_cart: saved.abandoned_cart_enabled, review: saved.review_request_enabled, restock: saved.replenishment_enabled }}
-          onUse={(r) => setView({ kind: "builder", flow: null, recipe: r })}
-          onBlank={() => setView({ kind: "builder", flow: null, recipe: null })}
-          onShowBuiltIn={showBuiltIn}
-          onClose={() => setView({ kind: "list" })}
-        />
-      )}
-
-      <section className={s.section} aria-labelledby="mk-title">
-        <div className={s.sectionHead}>
-          <h2 id="mk-title" className={s.sectionTitle}>Marketing automations</h2>
-          <p className={s.sectionSub}>Reminders and offers. These count towards each person&apos;s 1 marketing message a day.</p>
-        </div>
-        <div ref={anchor("abandoned_cart")}><CartCard c={ctx} /></div>
-        <div ref={anchor("review")}><ReviewCard c={ctx} /></div>
-        <div ref={anchor("restock")}><RestockCard c={ctx} /></div>
-        {(custom ?? []).map((f) => (
-          <CustomFlowCard key={f.id} c={ctx} flow={f}
-            onToggle={() => toggleCustom(f)}
-            onEdit={() => setView({ kind: "builder", flow: f, recipe: null })}
-            onDelete={() => deleteCustom(f)} />
-        ))}
-        {(custom ?? []).length === 0 && (
-          <div className={`pm2-panel ${s.empty}`}>
-            No automations of your own yet. Press <strong>Create an automation</strong> to pick a ready-made idea.
+      {opened ? (
+        <>
+          {isOrder && !isAdmin && (
+            <LockNote>Only the owner can change order messages because they affect every order. You can see how it works below.</LockNote>
+          )}
+          <AutomationDisplay.Provider value={{ mode: "detail", onBack: () => openAutomation(null) }}>
+            {opened[1]}
+          </AutomationDisplay.Provider>
+        </>
+      ) : (
+        <>
+          <div className={s.intro}>
+            <div className={s.introText}>
+              <p className={s.introSub}>
+                Messages that send themselves when something happens. <b>{onCount} marketing {onCount === 1 ? "automation is" : "automations are"} on.</b>{" "}
+                Open one to see its steps, change a wait or switch it off.
+              </p>
+            </div>
+            <div className={s.introActs}>
+              <button type="button" className="pm2-btn pri" onClick={() => setView({ kind: "gallery" })}>
+                <Plus aria-hidden="true" /> New automation
+              </button>
+            </div>
           </div>
-        )}
-      </section>
 
-      <section className={s.section} aria-labelledby="om-title">
-        <div className={s.sectionHead}>
-          <h2 id="om-title" className={s.sectionTitle}>Order messages</h2>
-          <p className={s.sectionSub}>Sent for every order. These are service messages, not marketing.</p>
-        </div>
-        {!isAdmin && (
-          <LockNote>Only the owner can change these because they affect every order. You can see how each one works below.</LockNote>
-        )}
-        <ConfirmationCard c={ctx} />
-        <CodCard c={ctx} />
-        <ShippingCard c={ctx} />
-        <VoiceCard c={ctx} />
-        <SignOffCard c={ctx} />
-      </section>
+          {view.kind === "gallery" && (
+            <RecipeGallery
+              builtInOn={{ abandoned_cart: saved.abandoned_cart_enabled, review: saved.review_request_enabled, restock: saved.replenishment_enabled }}
+              onUse={(r) => setView({ kind: "builder", flow: null, recipe: r })}
+              onBlank={() => setView({ kind: "builder", flow: null, recipe: null })}
+              onShowBuiltIn={showBuiltIn}
+              onClose={() => setView({ kind: "list" })}
+            />
+          )}
+
+          <section className={s.section} aria-labelledby="mk-title">
+            <div className={s.sectionHead}>
+              <h2 id="mk-title" className={s.sectionTitle}>Marketing automations</h2>
+              <p className={s.sectionSub}>Reminders and offers. These count towards each person&apos;s 1 marketing message a day.</p>
+            </div>
+            {rows(marketing)}
+            {(custom ?? []).length === 0 && (
+              <p className={s.listNote}>
+                No automations of your own yet. Press <strong>New automation</strong> to pick a ready-made idea.
+              </p>
+            )}
+          </section>
+
+          <section className={s.section} aria-labelledby="om-title">
+            <div className={s.sectionHead}>
+              <h2 id="om-title" className={s.sectionTitle}>Order messages</h2>
+              <p className={s.sectionSub}>
+                Sent for every order. Service messages, not marketing.{!isAdmin && " Only the owner can change these."}
+              </p>
+            </div>
+            {rows(orders)}
+          </section>
+        </>
+      )}
 
       {dirtyKeys.length > 0 && (
         <div className={s.saveBar} role="region" aria-label="Unsaved changes">
