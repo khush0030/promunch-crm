@@ -1082,3 +1082,31 @@ button.sla{cursor:pointer;border:0}
   .cr-roi{width:100%}
   .cl-roi b{font-size:21px}
 }
+/* voice tracker v4 (owner review round 4) */
+.job-h{display:flex;gap:12px;align-items:flex-start}
+.job-h h3{font-size:18px}
+.job-h .lic{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex-shrink:0}
+.job-h .lic.info{background:var(--info-soft);color:var(--info)}.job-h .lic.good{background:var(--good-soft);color:var(--good)}
+.job .cr-hero{margin-top:18px}
+.job .cr-big{font-size:40px}
+.f2.neg .f2-bar i{background:var(--bad)}.f2.neg em{color:var(--bad)}
+.lift{padding-top:14px;border-top:1px solid var(--hair-2);display:grid;gap:8px}
+.lift-row{display:grid;grid-template-columns:84px minmax(0,1fr) 44px;gap:10px;align-items:center;font-size:14.5px;color:var(--ink-2)}
+.lift-row b{text-align:right;color:var(--good)}
+.lift-bar{height:10px;border-radius:6px;background:var(--surface-3);overflow:hidden}
+.lift-bar i{display:block;height:100%;background:var(--good);border-radius:6px}
+.lift-row.base .lift-bar i{background:#B9B0A3}.lift-row.base b{color:var(--mute)}
+.bt-p{font-style:normal;font:700 13px var(--f-mono);color:var(--mute);min-width:40px;text-align:right}
+.idea{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;background:var(--surface-2);font-size:14.5px;color:var(--ink-2)}
+.idea svg{color:#A06F00;width:17px;height:17px;margin-top:2px;flex-shrink:0}
+.tg.bad{color:var(--bad)}.tg.bad::before{background:var(--bad)}
+.call-list{display:flex;flex-direction:column}
+.cll{display:flex;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid var(--hair-2)}
+.cll:last-child{border-bottom:0;padding-bottom:0}
+.cll:hover .cl-m b{color:var(--red)}
+.cj{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;flex-shrink:0}
+.cj svg{width:16px;height:16px}
+.cj.info{background:var(--info-soft);color:var(--info)}.cj.good{background:var(--good-soft);color:var(--good)}
+.cl-o{display:flex;flex-direction:column;align-items:flex-end;gap:2px;text-align:right}
+.cl-o time{font-size:13.5px;color:var(--mute)}
+@media (max-width:760px){.job .cr-big{font-size:34px}.cll .cl-m span{white-space:normal}}
