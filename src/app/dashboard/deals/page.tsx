@@ -19,6 +19,7 @@ import {
 } from "@/components/deals/constants";
 import { timeAgo } from "@/components/deals/format";
 import type { Deal, DealsResponse, DealStage } from "@/components/deals/types";
+import css from "@/components/deals/deals.module.css";
 
 const VIEW_KEY = "deals_view_v1";
 
@@ -158,21 +159,8 @@ export default function DealsPage() {
   const rows = byBucket[bucket];
   const scan = data?.scan;
 
-  const segBtn = (active: boolean): React.CSSProperties => ({
-    border: "none",
-    background: active ? "var(--pm-ink)" : "transparent",
-    color: active ? "#fff" : "var(--pm-muted)",
-    borderRadius: 999,
-    padding: "6px 14px",
-    fontSize: 12.5,
-    fontWeight: 600,
-    cursor: "pointer",
-    font: "inherit",
-    whiteSpace: "nowrap",
-  });
-
   return (
-    <div className="pm-page">
+    <div className={`pm-page ${css.scope}`}>
       <PageHead
         title="Deals"
         subtitle={
@@ -185,7 +173,7 @@ export default function DealsPage() {
         actions={
           <button
             type="button"
-            className="pm-btn ghost sm"
+            className="pm-btn sm"
             disabled={scanNow.isPending}
             onClick={() => scanNow.mutate()}
           >
@@ -194,80 +182,69 @@ export default function DealsPage() {
         }
       />
 
+      <div className={css.statLine}>
+        <div>
+          <b>{byBucket.inquiries.length + byBucket.discussions.length + byBucket.samples.length}</b>
+          <span>open</span>
+        </div>
+        <div>
+          <b data-tone={followUps > 0 ? "warn" : undefined}>{followUps}</b>
+          <span>need follow-up</span>
+        </div>
+        <div>
+          <b>{byBucket.samples.length}</b>
+          <span>at samples</span>
+        </div>
+        <div>
+          <b data-tone={byBucket.orders.length > 0 ? "good" : undefined}>{byBucket.orders.length}</b>
+          <span>won</span>
+        </div>
+      </div>
+
       {(scanNow.error instanceof Error || scan?.last_error) && (
-        <p style={{ color: "var(--pm-terra)", fontSize: 12.5, marginTop: 0 }}>
+        <p className={css.err}>
           {scanNow.error instanceof Error ? scanNow.error.message : `Last scan error: ${scan?.last_error}`}
         </p>
       )}
 
       {/* View toggle + segmented buckets (list only) + compact filters, one row */}
-      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
-        <div
-          style={{
-            display: "flex",
-            gap: 2,
-            background: "var(--pm-card)",
-            border: "1px solid var(--pm-border)",
-            borderRadius: 999,
-            padding: 3,
-          }}
-        >
-          <button type="button" style={segBtn(view === "board")} onClick={() => switchView("board")}>
-            <LayoutGrid size={12} style={{ verticalAlign: -1, marginRight: 5 }} />
+      <div className={css.bar}>
+        <div className={css.seg}>
+          <button type="button" className={css.segBtn} data-on={view === "board"} onClick={() => switchView("board")}>
+            <LayoutGrid size={13} />
             Board
           </button>
-          <button type="button" style={segBtn(view === "list")} onClick={() => switchView("list")}>
-            <List size={12} style={{ verticalAlign: -1, marginRight: 5 }} />
+          <button type="button" className={css.segBtn} data-on={view === "list"} onClick={() => switchView("list")}>
+            <List size={13} />
             List
           </button>
         </div>
         {view === "list" && (
           <>
-            <div
-              style={{
-                display: "flex",
-                gap: 2,
-                background: "var(--pm-card)",
-                border: "1px solid var(--pm-border)",
-                borderRadius: 999,
-                padding: 3,
-              }}
-            >
+            <div className={css.seg}>
               {BUCKETS.map((b) => (
-                <button key={b.key} type="button" style={segBtn(bucket === b.key)} onClick={() => setBucket(b.key)}>
-                  {b.label} {byBucket[b.key].length > 0 && <span style={{ opacity: 0.75 }}>{byBucket[b.key].length}</span>}
+                <button key={b.key} type="button" className={css.segBtn} data-on={bucket === b.key} onClick={() => setBucket(b.key)}>
+                  {b.label} {byBucket[b.key].length > 0 && <span className={css.segN}>{byBucket[b.key].length}</span>}
                 </button>
               ))}
             </div>
             <button
               type="button"
-              style={{
-                ...segBtn(bucket === "closed"),
-                background: bucket === "closed" ? "var(--pm-card2)" : "transparent",
-                color: "var(--pm-hint)",
-                border: bucket === "closed" ? "1px solid var(--pm-border)" : "1px solid transparent",
-              }}
+              className={css.closedBtn}
+              data-on={bucket === "closed"}
               onClick={() => setBucket("closed")}
             >
               Closed {byBucket.closed.length}
             </button>
           </>
         )}
-        <span style={{ flex: 1 }} />
+        <span className={css.spacer} />
         <SearchBar value={q} onChange={setQ} placeholder="Search deals…" />
         <select
           value={kind}
           aria-label="Filter by kind"
           onChange={(e) => setKind(e.target.value)}
-          style={{
-            border: "1px solid var(--pm-border)",
-            borderRadius: "var(--pm-r3)",
-            background: "var(--pm-card)",
-            color: "inherit",
-            font: "inherit",
-            fontSize: 12.5,
-            padding: "7px 10px",
-          }}
+          className={css.kindSelect}
         >
           <option value="all">All kinds</option>
           {ALL_KINDS.map((k) => (
@@ -278,7 +255,8 @@ export default function DealsPage() {
         </select>
         <button
           type="button"
-          className={`pm-btn sm${onlyFollowUp ? " primary" : " ghost"}`}
+          className={`pm-btn sm${onlyFollowUp ? ` ${css.onBtn}` : " ghost"}`}
+          aria-pressed={onlyFollowUp}
           onClick={() => setOnlyFollowUp(!onlyFollowUp)}
         >
           Needs follow-up
@@ -288,20 +266,20 @@ export default function DealsPage() {
       {/* Kanban board */}
       {view === "board" &&
         (isLoading ? (
-          <p style={{ color: "var(--pm-hint)", padding: 20 }}>Loading deals…</p>
+          <p className={css.hint}>Loading deals…</p>
         ) : error instanceof Error ? (
-          <p style={{ color: "var(--pm-terra)", padding: 20 }}>{error.message}</p>
+          <p className={css.err} style={{ padding: 20 }}>{error.message}</p>
         ) : filtered.length === 0 ? (
           <EmptyState icon={<Handshake />} title="Nothing here" style={{ marginTop: 14 }}>
             {deals.length === 0
-              ? "Hit “Scan now” — the pipeline builds itself from hello@promunch.in."
+              ? "Hit “Scan now”. The pipeline builds itself from hello@promunch.in."
               : "No deals match the current filters."}
           </EmptyState>
         ) : (
           <>
-            <p style={{ fontSize: 11.5, color: "var(--pm-hint)", margin: "10px 0 0" }}>
-              Drag a card to move it between stages — the scanner respects manual moves. Drop on
-              Closed to mark a deal lost; click any card for the full story.
+            <p className={css.hint}>
+              Drag a card to move it between stages; the scanner respects manual moves. Drop on
+              Closed to mark a deal lost. Click any card for the full story.
             </p>
             <DealsBoard
               deals={[...filtered].sort(rank)}
@@ -313,82 +291,35 @@ export default function DealsPage() {
 
       {/* The list */}
       {view === "list" && (
-      <div
-        style={{
-          marginTop: 14,
-          background: "var(--pm-card)",
-          border: "1px solid var(--pm-border)",
-          borderRadius: "var(--pm-r2)",
-          overflow: "hidden",
-        }}
-      >
+      <div className={css.list}>
         {isLoading ? (
-          <p style={{ color: "var(--pm-hint)", padding: 20, margin: 0 }}>Loading deals…</p>
+          <p className={css.hint} style={{ padding: 20, margin: 0 }}>Loading deals…</p>
         ) : error instanceof Error ? (
-          <p style={{ color: "var(--pm-terra)", padding: 20, margin: 0 }}>{error.message}</p>
+          <p className={css.err} style={{ padding: 20 }}>{error.message}</p>
         ) : rows.length === 0 ? (
           <EmptyState icon={<Handshake />} title="Nothing here" style={{ border: "none" }}>
             {deals.length === 0
-              ? "Hit “Scan now” — the pipeline builds itself from hello@promunch.in."
+              ? "Hit “Scan now”. The pipeline builds itself from hello@promunch.in."
               : "No deals in this lane with the current filters."}
           </EmptyState>
         ) : (
-          rows.map((d, i) => (
+          rows.map((d) => (
             <button
               key={d.id}
               type="button"
               onClick={() => setOpenId(d.id)}
-              className="deal-row"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                width: "100%",
-                textAlign: "left",
-                background: "none",
-                border: "none",
-                borderTop: i === 0 ? "none" : "1px solid var(--pm-line)",
-                padding: "11px 16px",
-                cursor: "pointer",
-                font: "inherit",
-                color: "inherit",
-              }}
+              className={`deal-row ${css.row}`}
             >
               <span
                 title={d.interest_temp ? `${TEMP_LABEL[d.interest_temp]} lead` : "Not analysed yet"}
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 999,
-                  flexShrink: 0,
-                  background: d.interest_temp ? TEMP_DOT[d.interest_temp] : "var(--pm-line)",
-                }}
+                className={css.tempDot}
+                style={{ background: d.interest_temp ? TEMP_DOT[d.interest_temp] : "var(--pm-line)" }}
               />
-              <span style={{ fontWeight: 600, fontSize: 13, minWidth: 160, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {d.company_name}
-              </span>
+              <span className={css.rowName}>{d.company_name}</span>
               <StatusBadge tone={KIND_TONE[d.kind]}>{KIND_LABEL[d.kind]}</StatusBadge>
-              <span
-                style={{
-                  flex: 1,
-                  color: "var(--pm-muted)",
-                  fontSize: 12.5,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  minWidth: 0,
-                }}
-              >
-                {d.next_step || d.summary || "—"}
-              </span>
-              {d.follow_up_needed && (
-                <span style={{ color: "var(--pm-terra)", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
-                  ● follow up
-                </span>
-              )}
-              <span style={{ fontSize: 11.5, color: "var(--pm-hint)", whiteSpace: "nowrap", width: 56, textAlign: "right" }}>
-                {timeAgo(d.last_email_at)}
-              </span>
+              <span className={css.rowNext}>{d.next_step || d.summary || "—"}</span>
+              {d.follow_up_needed && <span className={css.followUp}>Follow up</span>}
+              <span className={css.rowAge}>{timeAgo(d.last_email_at)}</span>
             </button>
           ))
         )}

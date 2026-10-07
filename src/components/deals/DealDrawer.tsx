@@ -22,6 +22,7 @@ import {
 } from "./constants";
 import { daysSince, shortDate, timeAgo } from "./format";
 import type { Deal, DealDetailResponse, DealEmail, DealKind, DealStage } from "./types";
+import css from "./deals.module.css";
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -34,7 +35,7 @@ const inputStyle: React.CSSProperties = {
   padding: "7px 10px",
 };
 const flab: React.CSSProperties = {
-  fontSize: 10.5,
+  fontSize: 12.5,
   letterSpacing: "0.12em",
   textTransform: "uppercase",
   color: "var(--pm-hint)",
@@ -85,8 +86,10 @@ export function DealDrawer({ dealId, onClose }: { dealId: string; onClose: () =>
           background: "var(--pm-card)",
           borderLeft: "1px solid var(--pm-border)",
           overflowY: "auto",
-          padding: "20px 24px 40px",
+          padding: "24px 26px 40px",
+          boxShadow: "var(--pm-shadow-pop)",
         }}
+        className={css.scope}
       >
         {isLoading && <p style={{ color: "var(--pm-hint)" }}>Loading…</p>}
         {error instanceof Error && <p style={{ color: "var(--pm-terra)" }}>{error.message}</p>}
@@ -153,12 +156,12 @@ function StageStepper({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <div style={flab}>Where this deal is</div>
         {inStageDays !== null && (
-          <span style={{ fontSize: 11, color: "var(--pm-hint)" }}>
+          <span style={{ fontSize: 12.5, color: "var(--pm-hint)" }}>
             in this stage {inStageDays <= 0 ? "since today" : `for ${inStageDays}d`}
           </span>
         )}
       </div>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 0 }}>
+      <div className={css.stepper} style={{ display: "flex", alignItems: "flex-start", gap: 0 }}>
         {BOARD_STAGES.map((s, i) => {
           const done = i < currentIdx || deal.stage === "won";
           const current = s === deal.stage;
@@ -168,6 +171,7 @@ function StageStepper({
               type="button"
               disabled={busy || current}
               title={current ? "Current stage" : `Move to ${STAGE_LABEL[s]}`}
+              className={css.stepBtn}
               onClick={() => onMove(s)}
               style={{
                 flex: 1,
@@ -184,7 +188,7 @@ function StageStepper({
                   style={{
                     flex: 1,
                     height: 3,
-                    background: i === 0 ? "transparent" : done || current ? "var(--pm-green)" : "var(--pm-line)",
+                    background: i === 0 ? "transparent" : done || current ? "var(--pm-ink)" : "var(--pm-line)",
                   }}
                 />
                 <span
@@ -196,8 +200,8 @@ function StageStepper({
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    background: done ? "var(--pm-green)" : current ? "var(--pm-card)" : "var(--pm-card2)",
-                    border: current ? "3px solid var(--pm-green)" : done ? "none" : "2px solid var(--pm-line)",
+                    background: done ? "var(--pm-ink)" : current ? "var(--pm-card)" : "var(--pm-card2)",
+                    border: current ? "3px solid var(--pm-ink)" : done ? "none" : "2px solid var(--pm-line)",
                     color: "#fff",
                   }}
                 >
@@ -208,19 +212,20 @@ function StageStepper({
                     flex: 1,
                     height: 3,
                     background:
-                      i === BOARD_STAGES.length - 1 ? "transparent" : done ? "var(--pm-green)" : "var(--pm-line)",
+                      i === BOARD_STAGES.length - 1 ? "transparent" : done ? "var(--pm-ink)" : "var(--pm-line)",
                   }}
                 />
               </div>
               <div
+                className={css.stepLabel}
                 style={{
                   marginTop: 5,
-                  fontSize: 10.5,
+                  fontSize: 12,
                   lineHeight: 1.25,
                   textAlign: "center",
                   fontWeight: current ? 750 : 550,
-                  color: current ? "var(--pm-ink)" : done ? "var(--pm-green)" : "var(--pm-hint)",
-                  padding: "0 2px",
+                  color: current ? "var(--pm-ink)" : done ? "var(--pm-ink2)" : "var(--pm-muted)",
+                  padding: "0 3px",
                 }}
               >
                 {STAGE_LABEL[s]}
@@ -229,8 +234,8 @@ function StageStepper({
           );
         })}
       </div>
-      <p style={{ margin: "6px 0 0", fontSize: 10.5, color: "var(--pm-hint)", textAlign: "center" }}>
-        Click a stage to move the deal — the mail scanner respects manual moves.
+      <p style={{ margin: "8px 0 0", fontSize: 12.5, color: "var(--pm-muted)", textAlign: "center" }}>
+        Click a stage to move the deal. The mail scanner respects manual moves.
       </p>
     </div>
   );
@@ -277,23 +282,23 @@ function BallInCourt({
     <div
       style={{
         marginTop: 16,
-        background: ours ? "var(--pm-green-soft, #E9F1E6)" : "var(--pm-card2)",
-        border: `1px solid ${ours ? "var(--pm-green)" : "var(--pm-border)"}`,
+        background: "var(--pm-card2)",
+        border: "1px solid var(--pm-line)",
         borderRadius: "var(--pm-r2)",
         padding: "13px 15px",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         {ours ? (
-          <Zap size={13} style={{ color: "var(--pm-green)" }} />
+          <Zap size={13} style={{ color: "var(--pm-ink)" }} />
         ) : (
           <Hourglass size={13} style={{ color: "var(--pm-gold)" }} />
         )}
-        <span style={{ ...flab, marginBottom: 0, color: ours ? "var(--pm-green)" : "var(--pm-hint)" }}>
+        <span style={{ ...flab, marginBottom: 0, color: ours ? "var(--pm-ink)" : "var(--pm-muted)" }}>
           {ours ? "Your move" : "Waiting on them"}
         </span>
         {sinceLast !== null && (
-          <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--pm-hint)" }}>
+          <span style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--pm-hint)" }}>
             last email {sinceLast <= 0 ? "today" : `${sinceLast}d ago`}
             {deal.last_email_direction ? (deal.last_email_direction === "inbound" ? " (theirs)" : " (ours)") : ""}
           </span>
@@ -306,8 +311,8 @@ function BallInCourt({
         <p style={{ margin: "5px 0 0", fontSize: 12, color: "var(--pm-muted)" }}>{deal.follow_up_reason}</p>
       )}
       {stale && (
-        <p style={{ margin: "5px 0 0", fontSize: 12, color: "var(--pm-terra)", fontWeight: 600 }}>
-          Quiet for {sinceLast}d — a short nudge keeps it warm.
+        <p style={{ margin: "5px 0 0", fontSize: 13, color: "var(--pm-gold)", fontWeight: 600 }}>
+          Quiet for {sinceLast}d. A short nudge keeps it warm.
         </p>
       )}
 
@@ -430,7 +435,7 @@ function DrawerBody({ deal, emails, onClose }: { deal: Deal; emails: DealEmail[]
                 }}
               />
             </div>
-            <span style={{ fontSize: 11.5, color: "var(--pm-hint)", whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 12.5, color: "var(--pm-hint)", whiteSpace: "nowrap" }}>
               {ins.willingness}/100 willing to buy
             </span>
           </div>
@@ -463,7 +468,7 @@ function DrawerBody({ deal, emails, onClose }: { deal: Deal; emails: DealEmail[]
                 <span
                   key={e}
                   style={{
-                    fontSize: 11,
+                    fontSize: 12.5,
                     padding: "2px 9px",
                     borderRadius: 999,
                     background: "var(--pm-card2)",
@@ -513,7 +518,7 @@ function DrawerBody({ deal, emails, onClose }: { deal: Deal; emails: DealEmail[]
       <button
         type="button"
         onClick={() => setShowEdit(!showEdit)}
-        style={{ marginTop: 22, display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pm-hint)" }}
+        style={{ marginTop: 22, display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit", fontSize: 12.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pm-hint)" }}
       >
         {showEdit ? <ChevronDown size={12} /> : <ChevronRight size={12} />} Edit deal
       </button>
@@ -562,7 +567,7 @@ function DrawerBody({ deal, emails, onClose }: { deal: Deal; emails: DealEmail[]
           <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
             <button
               type="button"
-              className="pm-btn primary sm"
+              className={`pm-btn sm ${css.onBtn}`}
               disabled={!dirty || save.isPending}
               onClick={() =>
                 save.mutate({
@@ -587,7 +592,7 @@ function DrawerBody({ deal, emails, onClose }: { deal: Deal; emails: DealEmail[]
       <button
         type="button"
         onClick={() => setShowEmails(!showEmails)}
-        style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pm-hint)" }}
+        style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit", fontSize: 12.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pm-hint)" }}
       >
         {showEmails ? <ChevronDown size={12} /> : <ChevronRight size={12} />} Emails ({emails.length})
       </button>
@@ -596,7 +601,7 @@ function DrawerBody({ deal, emails, onClose }: { deal: Deal; emails: DealEmail[]
           {emails.length === 0 && <p style={{ color: "var(--pm-hint)", fontSize: 12.5 }}>No emails linked yet.</p>}
           {emails.map((m) => (
             <div key={m.id} style={{ borderTop: "1px solid var(--pm-line)", padding: "9px 0" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 11.5, color: "var(--pm-hint)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12.5, color: "var(--pm-hint)" }}>
                 <span style={{ color: m.direction === "inbound" ? "var(--pm-blue)" : "var(--pm-green)", fontWeight: 700 }}>
                   {m.direction === "inbound" ? `← ${m.from_email ?? "them"}` : "→ us"}
                 </span>

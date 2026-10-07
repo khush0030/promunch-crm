@@ -6,14 +6,14 @@
 // loop ("Keep going") with the hourly pg_cron as the hands-free driver.
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
-  Search, Play, RefreshCw, Settings2, X, BookOpen, ChevronRight, Send,
+  Search, Play, RefreshCw, Settings2, BookOpen, Send, Repeat, ArrowRight,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "./leads.module.css";
 import type { ApiResponse, Lead, ListSummary } from "@/components/leads/types";
-import { GUIDE_DISMISS_KEY, GUIDE_STEPS, PROCESSING_STATUSES, TABS } from "@/components/leads/constants";
-import Kpi from "@/components/leads/Kpi";
+import { PROCESSING_STATUSES, TABS } from "@/components/leads/constants";
 import LeadTable from "@/components/leads/LeadTable";
 import ListsView from "@/components/leads/ListsView";
 import ListDetail from "@/components/leads/ListDetail";
@@ -28,6 +28,16 @@ import CampaignWizard from "@/components/leads/CampaignWizard";
 import ListPickerModal from "@/components/leads/ListPickerModal";
 import { SectionTabs } from "@/components/shell/SectionTabs";
 
+type FlowStep = {
+  n: string;
+  title: string;
+  sub: string;
+  subTone?: "warn";
+  count: number;
+  countTone?: "good";
+  onClick: () => void;
+};
+
 export default function LeadsPage() {
   const toast = useToast();
   const [data, setData] = useState<ApiResponse | null>(null);
@@ -41,20 +51,10 @@ export default function LeadsPage() {
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
-  const [showStrip, setShowStrip] = useState(true);
   const [running, setRunning] = useState(false);
   const [runProgress, setRunProgress] = useState("");
   const [showPicker, setShowPicker] = useState(false);
   const [campaignListId, setCampaignListId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setShowStrip(localStorage.getItem(GUIDE_DISMISS_KEY) !== "1");
-  }, []);
-
-  function dismissStrip() {
-    localStorage.setItem(GUIDE_DISMISS_KEY, "1");
-    setShowStrip(false);
-  }
 
   // KPI numbers + the Replies tab come from the classic leads endpoint.
   const load = useCallback(async () => {
@@ -115,22 +115,49 @@ export default function LeadsPage() {
   const counts = data?.statusCounts ?? {};
   const totalLeads = Object.values(counts).reduce((a, b) => a + b, 0);
   const processing = PROCESSING_STATUSES.reduce((a, s) => a + (counts[s] ?? 0), 0);
+  const withEmail = lists.reduce((a, l) => a + l.withEmail, 0);
+  const sender = data?.settings?.from_name?.split(" ")[0] || "Parth";
+  const dailyCap = data?.settings?.daily_cap;
+  const replied = counts.replied ?? 0;
+
+  function goTab(key: string) {
+    setTab(key);
+    setOpenListId(null);
+  }
+
+  // The six steps of the outreach flow. Each one opens the place that step
+  // lives (modal or tab); nothing here sends or runs anything.
+  const flow: FlowStep[] = [
+    { n: "1", title: "Find", sub: "Pick a business type and city", count: totalLeads, onClick: () => setShowSearch(true) },
+    { n: "2", title: "Save as a list", sub: `${lists.length} lists · work emails found`, count: withEmail, onClick: () => goTab("lists") },
+    { n: "3", title: "Review emails", sub: "Pick a list, preview each email", count: counts.drafted ?? 0, onClick: () => setShowPicker(true) },
+    {
+      n: "4",
+      title: `Send as ${sender}`,
+      sub: data?.settings?.paused ? "Paused" : dailyCap ? `Up to ${dailyCap} a day, spread out` : "Spread out over the day",
+      subTone: data?.settings?.paused ? "warn" : undefined,
+      count: counts.contacted ?? 0,
+      onClick: () => goTab("sequences"),
+    },
+    { n: "auto", title: "Follow-ups", sub: "Automatic until someone replies", count: data?.activeEnrollments ?? 0, onClick: () => goTab("sequences") },
+    { n: "5", title: "Replies become deals", sub: "Reply, then track it in Deals", count: replied, countTone: replied > 0 ? "good" : undefined, onClick: () => goTab("replies") },
+  ];
 
   return (
-    <div className="pm-page">
-      <div className="pm-head">
+    <div className={`pm-page ${styles.page}`}>
+      <div className={`pm-head ${styles.head}`}>
         <div>
-          <h1>B2B Leads</h1>
+          <h1>B2B outreach</h1>
           <p>
             {running
               ? `Working… discovering companies and sending due emails ${runProgress}`
               : processing > 0
-                ? `${processing} leads still processing — hit “Keep going” to push them along.`
-                : "Find companies, save them as lists, send them email campaigns."}
+                ? `${processing} leads still processing. Hit “Keep going” to push them along.`
+                : `Find businesses, save them as lists, email them as ${sender}. Replies are tracked for you.`}
           </p>
         </div>
-        <div className={styles.toolbar}>
-          <button type="button" className="pm-btn primary" onClick={() => setShowPicker(true)}>
+        <div className={styles.headActs}>
+          <button type="button" className={`pm-btn primary ${styles.headPrimary}`} onClick={() => setShowPicker(true)}>
             <Send size={14} /> New email campaign
           </button>
           <button type="button" className="pm-btn" onClick={() => setShowSearch(true)}>
@@ -139,63 +166,75 @@ export default function LeadsPage() {
           <button type="button" className="pm-btn" onClick={() => runPipeline(10)} disabled={running}>
             <Play size={14} /> {running ? `Working ${runProgress}` : "Keep going"}
           </button>
-          <button type="button" className="pm-btn ghost" onClick={() => setShowGuide(true)}>
-            <BookOpen size={14} /> Guide
-          </button>
-          <button type="button" className="pm-btn" onClick={() => setShowSettings(true)} aria-label="Settings">
-            <Settings2 size={14} />
-          </button>
-          <button type="button" className="pm-btn" onClick={reloadAll} aria-label="Refresh">
-            <RefreshCw size={14} />
-          </button>
+          <span className={styles.iconActs}>
+            <button type="button" className={`pm-btn ghost ${styles.iconBtn}`} onClick={() => setShowGuide(true)} aria-label="Guide" title="Guide">
+              <BookOpen size={16} />
+            </button>
+            <button type="button" className={`pm-btn ghost ${styles.iconBtn}`} onClick={() => setShowSettings(true)} aria-label="Settings" title="Sender and daily limit">
+              <Settings2 size={16} />
+            </button>
+            <button type="button" className={`pm-btn ghost ${styles.iconBtn}`} onClick={reloadAll} aria-label="Refresh" title="Refresh">
+              <RefreshCw size={16} />
+            </button>
+          </span>
         </div>
       </div>
       <SectionTabs />
 
-      {showStrip && (
-        <div className={styles.strip}>
-          <button type="button" className={styles.stripClose} onClick={dismissStrip} aria-label="Hide guide">
-            <X size={14} />
-          </button>
-          <div className={styles.stripSteps}>
-            {GUIDE_STEPS.map((s, i) => (
-              <div key={s.title} className={styles.stripStep}>
-                <s.icon size={18} className={styles.stripIcon} />
-                <div>
-                  <div className={styles.stripTitle}>{s.title}</div>
-                  <div className={styles.stripBlurb}>{s.blurb}</div>
-                </div>
-                {i < GUIDE_STEPS.length - 1 && <ChevronRight size={16} className={styles.stripArrow} />}
-              </div>
-            ))}
-          </div>
+      <section className={styles.flowCard} aria-label="How outreach flows">
+        <div className={styles.secHead}>
+          <h3>How it flows</h3>
+          <Link href="/dashboard/deals" className={styles.txtLink}>
+            Deals <ArrowRight size={14} />
+          </Link>
         </div>
-      )}
+        <ol className={styles.flow}>
+          {flow.map((f) => (
+            <li key={f.title}>
+              <button type="button" className={styles.flowStep} onClick={f.onClick}>
+                <span className={styles.flowNum} data-auto={f.n === "auto" ? "true" : undefined}>
+                  {f.n === "auto" ? <Repeat size={13} /> : f.n}
+                </span>
+                <span className={styles.flowText}>
+                  <b>{f.title}</b>
+                  <span data-tone={f.subTone}>{f.sub}</span>
+                </span>
+                <span className={styles.flowCount} data-tone={f.countTone}>{f.count}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      </section>
 
-      <div className="pm-kpis" style={{ marginBottom: 18 }}>
-        <Kpi
-          label="Sent today"
-          value={`${data?.sentToday ?? 0}/${data?.settings?.daily_cap ?? "—"}`}
-          accent={data?.settings?.paused ? "Paused" : undefined}
-        />
-        <Kpi label="In sequences now" value={data?.activeEnrollments ?? 0} />
-        <Kpi label="Replied" value={counts.replied ?? 0} />
-        <Kpi label="Total leads" value={totalLeads} />
+      <div className={styles.statLine}>
+        <div>
+          <b>
+            {data?.sentToday ?? 0}
+            <small>/{dailyCap ?? "—"}</small>
+          </b>
+          <span>
+            sent today
+            {data?.settings?.paused ? <em className={styles.statWarn}> · paused</em> : null}
+          </span>
+        </div>
+        <div><b>{data?.activeEnrollments ?? 0}</b><span>in campaigns now</span></div>
+        <div><b data-tone={replied > 0 ? "good" : undefined}>{replied}</b><span>replied</span></div>
+        <div><b>{totalLeads}</b><span>total leads</span></div>
       </div>
 
       <div className={styles.tabsRow}>
         <div className={styles.tabsScroll}>
-          <div className="pm-tabs" style={{ marginBottom: 0, border: "none" }}>
+          <div className={`pm-tabs ${styles.tabs}`}>
             {TABS.map((t) => (
               <button
                 key={t.key}
                 type="button"
                 className={`pm-tab${tab === t.key ? " on" : ""}`}
-                onClick={() => { setTab(t.key); setOpenListId(null); }}
+                onClick={() => goTab(t.key)}
               >
                 {t.label}
-                {t.key === "lists" && lists.length ? ` (${lists.length})` : ""}
-                {t.key === "replies" && (counts.replied ?? 0) > 0 ? ` (${counts.replied})` : ""}
+                {t.key === "lists" && lists.length ? <span className={styles.tabN}>{lists.length}</span> : null}
+                {t.key === "replies" && replied > 0 ? <span className={styles.tabN}>{replied}</span> : null}
               </button>
             ))}
           </div>

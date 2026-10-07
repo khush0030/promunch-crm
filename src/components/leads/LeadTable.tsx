@@ -123,7 +123,7 @@ export default function LeadTable({
               you just review and send.
             </p>
             <div className={styles.getStartedActions}>
-              <button type="button" className="pm-btn primary" onClick={() => setShowSearch(true)}>
+              <button type="button" className={`pm-btn ${styles.inkBtn}`} onClick={() => setShowSearch(true)}>
                 <Search size={14} /> Find companies
               </button>
               <button type="button" className="pm-btn ghost" onClick={() => setShowGuide(true)}>

@@ -156,7 +156,7 @@ export default function ListDetail({
         </div>
         <div className={styles.toolbar}>
           <button type="button" className="pm-btn" onClick={rename}><Pencil size={13} /> Rename</button>
-          <button type="button" className="pm-btn primary" onClick={() => { setWizardSeed(undefined); setShowWizard(true); }}>
+          <button type="button" className={`pm-btn ${styles.inkBtn}`} onClick={() => { setWizardSeed(undefined); setShowWizard(true); }}>
             <Send size={13} /> Email this list
           </button>
         </div>
@@ -186,7 +186,7 @@ export default function ListDetail({
                 <span>{checked.size} lead{checked.size === 1 ? "" : "s"} selected</span>
                 <button
                   type="button"
-                  className="pm-btn primary"
+                  className={`pm-btn ${styles.inkBtn}`}
                   disabled={revealing !== null}
                   onClick={() => { setWizardSeed([...checked]); setShowWizard(true); }}
                 >

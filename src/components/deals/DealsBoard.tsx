@@ -17,6 +17,7 @@ import {
 } from "./constants";
 import { timeAgo } from "./format";
 import type { Deal, DealStage } from "./types";
+import css from "./deals.module.css";
 
 const TEMP_DOT: Record<string, string> = {
   hot: "var(--pm-terra)",
@@ -74,16 +75,7 @@ export default function DealsBoard({
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        gap: 12,
-        overflowX: "auto",
-        alignItems: "flex-start",
-        paddingBottom: 10,
-        marginTop: 14,
-      }}
-    >
+    <div className={css.board}>
       {COLUMNS.map((col) => {
         const cards = deals.filter((d) => columnOf(d) === col.key);
         const isOver = overCol === col.key;
@@ -93,38 +85,19 @@ export default function DealsBoard({
             onDragOver={(e) => { e.preventDefault(); setOverCol(col.key); }}
             onDragLeave={() => setOverCol((prev) => (prev === col.key ? null : prev))}
             onDrop={(e) => { e.preventDefault(); handleDrop(col.key); }}
-            style={{
-              flex: "0 0 262px",
-              width: 262,
-              background: isOver ? "var(--pm-green-soft, rgba(47,125,91,0.08))" : "var(--pm-card2)",
-              border: `1px ${isOver ? "dashed var(--pm-green)" : "solid var(--pm-border)"}`,
-              borderRadius: "var(--pm-r2)",
-              padding: 10,
-              minHeight: 120,
-              transition: "background 120ms",
-            }}
+            className={css.lane}
+            data-over={isOver ? "true" : undefined}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "2px 4px 8px" }}>
-              <span style={{ width: 8, height: 8, borderRadius: 999, background: COLUMN_DOT[col.key] }} />
-              <span style={{ fontSize: 12.5, fontWeight: 700 }}>{col.label}</span>
-              <span style={{ fontSize: 11.5, color: "var(--pm-hint)", fontWeight: 600 }}>{cards.length}</span>
-              {col.hint && <span style={{ fontSize: 10.5, color: "var(--pm-hint)", marginLeft: "auto" }}>{col.hint}</span>}
+            <div className={css.laneHead}>
+              <span className={css.laneDot} style={{ background: COLUMN_DOT[col.key] }} />
+              <span className={css.laneName}>{col.label}</span>
+              <span className={css.laneN}>{cards.length}</span>
+              {col.hint && <span className={css.laneHint}>{col.hint}</span>}
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className={css.laneCards}>
               {cards.length === 0 && (
-                <div
-                  style={{
-                    border: "1px dashed var(--pm-border)",
-                    borderRadius: "var(--pm-r3)",
-                    padding: "14px 10px",
-                    fontSize: 11.5,
-                    color: "var(--pm-hint)",
-                    textAlign: "center",
-                  }}
-                >
-                  {isOver ? "Drop here" : "No deals"}
-                </div>
+                <div className={css.laneEmpty}>{isOver ? "Drop here" : "No deals"}</div>
               )}
               {cards.map((d) => (
                 <div
@@ -140,68 +113,29 @@ export default function DealsBoard({
                   onDragEnd={() => { setDraggingId(null); setOverCol(null); }}
                   onClick={() => onOpen(d.id)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(d.id); } }}
-                  style={{
-                    background: "var(--pm-card)",
-                    border: "1px solid var(--pm-border)",
-                    borderRadius: "var(--pm-r3)",
-                    padding: "10px 11px",
-                    cursor: "grab",
-                    opacity: draggingId === d.id ? 0.45 : 1,
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-                  }}
+                  className={css.card}
+                  data-dragging={draggingId === d.id ? "true" : undefined}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
+                  <div className={css.cardTop}>
                     <span
                       title={d.interest_temp ? `${TEMP_LABEL[d.interest_temp]} lead` : "Not analysed yet"}
-                      style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: 999,
-                        flexShrink: 0,
-                        background: d.interest_temp ? TEMP_DOT[d.interest_temp] : "var(--pm-line)",
-                      }}
+                      className={css.tempDot}
+                      style={{ background: d.interest_temp ? TEMP_DOT[d.interest_temp] : "var(--pm-line)" }}
                     />
-                    <span
-                      style={{
-                        fontWeight: 650,
-                        fontSize: 12.5,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {d.company_name}
-                    </span>
+                    <span className={css.cardName}>{d.company_name}</span>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 5 }}>
+                  <div className={css.cardTags}>
                     <StatusBadge tone={KIND_TONE[d.kind]}>{KIND_LABEL[d.kind]}</StatusBadge>
                     {col.key === "closed" && (
                       <StatusBadge tone={STAGE_TONE[d.stage]}>{STAGE_LABEL[d.stage]}</StatusBadge>
                     )}
                   </div>
                   {(d.next_step || d.summary) && (
-                    <div
-                      style={{
-                        fontSize: 11.5,
-                        color: "var(--pm-muted)",
-                        lineHeight: 1.45,
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
-                        marginBottom: 5,
-                      }}
-                    >
-                      {d.next_step || d.summary}
-                    </div>
+                    <div className={css.cardNext}>{d.next_step || d.summary}</div>
                   )}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    {d.follow_up_needed && (
-                      <span style={{ color: "var(--pm-terra)", fontSize: 10.5, fontWeight: 700 }}>● follow up</span>
-                    )}
-                    <span style={{ marginLeft: "auto", fontSize: 10.5, color: "var(--pm-hint)" }}>
-                      {timeAgo(d.last_email_at)}
-                    </span>
+                  <div className={css.cardFoot}>
+                    {d.follow_up_needed && <span className={css.followUp}>Follow up</span>}
+                    <span className={css.cardAge}>{timeAgo(d.last_email_at)}</span>
                   </div>
                 </div>
               ))}

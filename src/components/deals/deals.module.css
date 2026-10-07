@@ -1,0 +1,307 @@
+/* Deals: calm board (soft lanes, hairline cards) + list + drawer touches.
+   Status = coloured text with a small dot, never a filled block. */
+
+.board {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  align-items: flex-start;
+  padding-bottom: 10px;
+  margin-top: 14px;
+  scrollbar-width: thin;
+}
+
+.lane {
+  flex: 0 0 272px;
+  width: 272px;
+  background: var(--pm-card3);
+  border: 1px solid transparent;
+  border-radius: var(--pm-r);
+  padding: 12px 10px 10px;
+  min-height: 120px;
+  transition: background 120ms, border-color 120ms;
+}
+.lane[data-over="true"] {
+  background: var(--pm-card2);
+  border: 1px dashed var(--pm-ink2);
+}
+
+.laneHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px 10px;
+}
+.laneDot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.laneName { font-size: 14.5px; font-weight: 700; color: var(--pm-ink); white-space: nowrap; }
+.laneN { font: 600 12.5px var(--pm-mono); color: var(--pm-muted); }
+.laneHint { font-size: 12px; color: var(--pm-muted); margin-left: auto; white-space: nowrap; }
+
+/* long lanes scroll inside themselves so the page stays a single screen */
+.laneCards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100vh - 300px);
+  min-height: 60px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: 1px;
+}
+
+.laneEmpty {
+  border: 1px dashed var(--pm-border);
+  border-radius: var(--pm-r2);
+  padding: 16px 10px;
+  font-size: 13px;
+  color: var(--pm-muted);
+  text-align: center;
+}
+
+.card {
+  background: var(--pm-card);
+  border: 1px solid var(--pm-line);
+  border-radius: var(--pm-r2);
+  padding: 12px 13px;
+  cursor: grab;
+  flex: none;
+  transition: border-color 120ms;
+}
+.card:hover { border-color: var(--pm-border); }
+.card:focus-visible { outline: 2px solid var(--pm-ink); outline-offset: 1px; }
+.card[data-dragging="true"] { opacity: 0.45; }
+
+.cardTop { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; min-width: 0; }
+.tempDot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.cardName {
+  font-weight: 700;
+  font-size: 14.5px;
+  color: var(--pm-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.cardTags {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.cardNext {
+  font-size: 13px;
+  color: var(--pm-muted);
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.cardFoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--pm-line);
+}
+.followUp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--pm-gold);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.followUp::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.cardAge { margin-left: auto; font-size: 12.5px; color: var(--pm-muted); white-space: nowrap; }
+
+/* status badges inside the deals screens get a small dot */
+.scope :global(.pm-badge2)::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.scope :global(.pm-badge2.bg-gray) { color: var(--pm-muted); }
+
+/* ---- page toolbar ---- */
+.bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.seg {
+  display: flex;
+  gap: 2px;
+  background: var(--pm-card);
+  border: 1px solid var(--pm-border);
+  border-radius: 999px;
+  padding: 3px;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.seg::-webkit-scrollbar { display: none; }
+.segBtn {
+  border: none;
+  background: transparent;
+  color: var(--pm-muted);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font: 600 14px var(--pm-font);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.segBtn[data-on="true"] { background: var(--pm-ink); color: #fff; }
+.segN { opacity: 0.75; font-variant-numeric: tabular-nums; }
+.closedBtn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--pm-muted);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font: 600 14px var(--pm-font);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.closedBtn[data-on="true"] { background: var(--pm-card2); border-color: var(--pm-border); color: var(--pm-ink); }
+.spacer { flex: 1; }
+.kindSelect {
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-r3);
+  background: var(--pm-card);
+  color: var(--pm-ink);
+  font: 500 14px var(--pm-font);
+  padding: 8px 10px;
+}
+.onBtn {
+  background: var(--pm-ink) !important;
+  border-color: var(--pm-ink) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+.hint { font-size: 13px; color: var(--pm-muted); margin: 12px 0 0; }
+.err { color: var(--pm-terra); font-size: 14px; margin: 0; }
+
+/* ---- list view ---- */
+.list {
+  margin-top: 14px;
+  background: var(--pm-card);
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-r);
+  overflow: hidden;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--pm-line);
+  padding: 14px 18px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  font-size: 14px;
+}
+.row:first-child { border-top: none; }
+.row:hover { background: var(--pm-card2); }
+.rowName {
+  font-weight: 700;
+  font-size: 15px;
+  min-width: 160px;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowNext {
+  flex: 1;
+  color: var(--pm-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.rowAge { font-size: 13px; color: var(--pm-muted); white-space: nowrap; width: 64px; text-align: right; }
+
+@media (max-width: 640px) {
+  .lane { flex-basis: 84vw; width: 84vw; }
+  .laneCards { max-height: calc(100vh - 340px); }
+  .spacer { display: none; }
+  .bar > :global(*) { max-width: 100%; }
+  .row { flex-wrap: wrap; gap: 6px 10px; padding: 12px 14px; }
+  .rowName { min-width: 0; max-width: calc(100% - 40px); }
+  .rowNext { flex-basis: 100%; order: 5; }
+  .rowAge { width: auto; margin-left: auto; }
+}
+
+/* hairline numbers under the header */
+.statLine {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 18px;
+  border-top: 1px solid var(--pm-border);
+  border-bottom: 1px solid var(--pm-border);
+}
+.statLine > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 18px;
+  border-left: 1px solid var(--pm-line);
+  min-width: 0;
+}
+.statLine > div:first-child { border-left: none; padding-left: 0; }
+.statLine b {
+  font: 400 var(--pm-kpi)/1.05 var(--pm-display);
+  color: var(--pm-ink);
+  font-variant-numeric: tabular-nums;
+}
+.statLine b[data-tone="good"] { color: var(--pm-green); }
+.statLine b[data-tone="warn"] { color: var(--pm-gold); }
+.statLine span { font-size: 14px; color: var(--pm-muted); }
+
+@media (max-width: 640px) {
+  .statLine { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .statLine > div { padding: 12px 0 12px 14px; }
+  .statLine > div:nth-child(odd) { border-left: none; padding-left: 0; }
+  .statLine > div:nth-child(n + 3) { border-top: 1px solid var(--pm-line); }
+  .statLine b { font-size: 26px; }
+}
+
+/* the kind (HoReCa, Corporate...) is a category, not a status: quiet text */
+.cardTags :global(.pm-badge2:first-child),
+.row :global(.pm-badge2) { color: var(--pm-muted); font-weight: 600; white-space: nowrap; }
+.cardTags :global(.pm-badge2:first-child)::before,
+.row :global(.pm-badge2)::before { display: none; }
+
+@media (max-width: 640px) {
+  .scope :global(.pm-head) { align-items: stretch; }
+}
+
+@media (max-width: 640px) {
+  .stepper { overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .stepper::-webkit-scrollbar { display: none; }
+  .stepBtn { flex: 1 0 70px !important; min-width: 70px !important; }
+  .stepLabel { font-size: 11.5px !important; }
+}

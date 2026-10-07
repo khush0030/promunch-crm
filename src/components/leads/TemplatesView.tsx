@@ -99,7 +99,7 @@ export default function TemplatesView({ onChanged }: { onChanged: () => void }) 
         <button type="button" className="pm-btn" onClick={() => setShowAi(true)}>
           <Sparkles size={14} /> Draft with AI
         </button>
-        <button type="button" className="pm-btn primary" onClick={() => setEditor(EMPTY)}>
+        <button type="button" className={`pm-btn ${styles.inkBtn}`} onClick={() => setEditor(EMPTY)}>
           <Plus size={14} /> New template
         </button>
       </div>
@@ -112,7 +112,7 @@ export default function TemplatesView({ onChanged }: { onChanged: () => void }) 
             {"{company}"} and {"{city}"}, or describe your pitch and let AI draft three options to pick from.
           </p>
           <div className={styles.getStartedActions}>
-            <button type="button" className="pm-btn primary" onClick={() => setShowAi(true)}>
+            <button type="button" className={`pm-btn ${styles.inkBtn}`} onClick={() => setShowAi(true)}>
               <Sparkles size={14} /> Draft with AI
             </button>
             <button type="button" className="pm-btn" onClick={() => setEditor(EMPTY)}>Write by hand</button>
@@ -215,7 +215,7 @@ export default function TemplatesView({ onChanged }: { onChanged: () => void }) 
               )}
               <span style={{ flex: 1 }} />
               <button type="button" className="pm-btn" onClick={() => setEditor(null)}>Cancel</button>
-              <button type="button" className="pm-btn primary" disabled={busy} onClick={save}>
+              <button type="button" className={`pm-btn ${styles.inkBtn}`} disabled={busy} onClick={save}>
                 {busy ? "Saving…" : "Save template"}
               </button>
             </div>

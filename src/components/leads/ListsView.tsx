@@ -174,7 +174,7 @@ export default function ListsView({
           as a list here. Open a list and hit “Email this list” to send it a campaign.
         </p>
         <div className={styles.getStartedActions}>
-          <button type="button" className="pm-btn primary" onClick={onFind}>Find companies</button>
+          <button type="button" className={`pm-btn ${styles.inkBtn}`} onClick={onFind}>Find companies</button>
         </div>
       </div>
     );
@@ -223,7 +223,7 @@ export default function ListsView({
           <span>{the(n)} selected</span>
           <div style={{ flex: 1 }} />
           {n === 1 && selectedList[0] && (
-            <button type="button" className="pm-btn primary sm" onClick={() => onEmail(selectedList[0].id)}>
+            <button type="button" className={`pm-btn sm ${styles.inkBtn}`} onClick={() => onEmail(selectedList[0].id)}>
               <Send size={13} /> Email this list
             </button>
           )}
@@ -303,9 +303,9 @@ export default function ListsView({
                           </span>
                           <span className={styles.listRowActivity}>
                             {l.active_sequence ? (
-                              <span className="pm-badge2 bg-green">● {l.active_sequence}</span>
+                              <span className={`${styles.dot} ${styles.dotGood}`}>{l.active_sequence}</span>
                             ) : l.replied > 0 ? (
-                              <span className="pm-badge2 bg-gold">{l.replied} replied</span>
+                              <span className={`${styles.dot} ${styles.dotWarn}`}>{l.replied} replied</span>
                             ) : l.contacted > 0 ? (
                               <span className="pm-dim">{l.contacted} of {l.leads} contacted</span>
                             ) : null}

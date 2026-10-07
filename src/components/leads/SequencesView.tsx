@@ -73,7 +73,7 @@ export default function SequencesView({ onChanged }: { onChanged: () => void }) 
   return (
     <div className={styles.seqLayout}>
       <div className={styles.seqIndex}>
-        <button type="button" className="pm-btn primary" style={{ width: "100%", justifyContent: "center" }} onClick={createSequence}>
+        <button type="button" className={`pm-btn ${styles.inkBtn}`} style={{ width: "100%", justifyContent: "center" }} onClick={createSequence}>
           <Plus size={14} /> New sequence
         </button>
         {sequences.length === 0 ? (
@@ -183,7 +183,7 @@ function SequenceBuilder({
         </div>
         <div className={styles.toolbar}>
           {dirty && (
-            <button type="button" className="pm-btn primary" disabled={busy} onClick={() => save()}>
+            <button type="button" className={`pm-btn ${styles.inkBtn}`} disabled={busy} onClick={() => save()}>
               {busy ? "Saving…" : "Save changes"}
             </button>
           )}
