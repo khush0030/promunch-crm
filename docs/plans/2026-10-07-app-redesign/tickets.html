@@ -26,6 +26,7 @@
 .tkt{display:grid;grid-template-columns:minmax(0,1fr) 340px;background:var(--surface);border:1px solid var(--hair);border-radius:var(--r-card);overflow:hidden;min-height:680px}
 .tkt .thread{display:flex;flex-direction:column;border-right:1px solid var(--hair);min-width:0}
 @media (max-width:1180px){.tkt{grid-template-columns:minmax(0,1fr)}.tkt .side-panel{border-top:1px solid var(--hair)}}
+@media (max-width:760px){.tkt{display:flex;flex-direction:column}.tkt .side-panel{display:contents}.tkt .props-blk{order:-1;padding:14px;border-bottom:1px solid var(--hair)}.tkt .thread{border-right:0}.tkt .side-panel .blk:not(.props-blk){padding:14px;border-bottom:0}}
 @media (max-width:1024px){.tq{grid-template-columns:minmax(0,1fr)}.tq .views{display:none}.trow,.thead{grid-template-columns:20px minmax(0,1fr) 110px}.trow .hc,.thead .hc{display:none}}
 @media (max-width:760px){.thead{display:none}.trow{grid-template-columns:14px minmax(0,1fr);padding:14px 16px}.trow .mc{display:none}.trow .s .mob{display:flex!important;gap:6px;margin-top:8px;flex-wrap:wrap}}
 </style>
@@ -80,14 +81,14 @@
   <div class="tkt">
     <div class="thread">
       <div class="msgs" style="flex:1;padding:22px;display:flex;flex-direction:column;gap:14px;background:var(--surface-2)">
-        <span class="sysmsg">Today</span>
-        <div class="bub cin"><span class="who">Meera · WhatsApp</span>Hi, my order came today but the Himalayan Rock Salt pouch was torn and half the beans spilled in the box 😕 photo attached<time>9:02 am</time></div>
-        <div class="bub bot"><span class="who">PROMUNCH bot</span>So sorry about that, Meera! I've passed this to our team with your photo. Someone will reply here shortly.<time>9:02 am</time></div>
-        <span class="sysmsg">Bot handed over · ticket created · urgent</span>
-        <div class="bub inote"><span class="who">Internal note · Narendra</span>Checked with the packer. Batch HRS-0926 had weak seals on 3 pouches. @Khush ok to send a replacement + 10% code?<time>9:31 am</time></div>
+        <span class="sysmsg day">Today</span>
+        <div class="bub cin">Hi, my order came today but the Himalayan Rock Salt pouch was torn and half the beans spilled in the box 😕 photo attached<time>9:02 am</time></div>
+        <div class="bub bot"><span class="who"><i data-lucide="bot"></i>PROMUNCH bot</span>So sorry about that, Meera! I've passed this to our team with your photo. Someone will reply here shortly.<time>9:02 am</time></div>
+        <span class="sysmsg"><i data-lucide="hand"></i>Bot handed over · ticket created · urgent</span>
+        <div class="bub inote"><span class="who"><i data-lucide="sticky-note"></i>Internal note · Narendra</span>Checked with the packer. Batch HRS-0926 had weak seals on 3 pouches. @Khush ok to send a replacement + 10% code?<time>9:31 am</time></div>
       </div>
       <div class="composer">
-        <div class="mode"><button class="on" data-mode="reply"><i data-lucide="reply"></i> Reply</button><button class="nt" data-mode="note"><i data-lucide="sticky-note"></i> Internal note</button><span class="sp"></span><span class="small muted" style="align-self:center">WhatsApp window open · 23h left</span></div>
+        <div class="mode"><button class="on" data-mode="reply"><i data-lucide="reply"></i> Reply</button><button class="nt" data-mode="note"><i data-lucide="sticky-note"></i> Internal note</button><span class="sp"></span><button class="sla good" data-open="wa-window" style="align-self:center"><i data-lucide="clock"></i>Window open · 23h left</button></div>
         <div class="box">Reply to the customer on WhatsApp. Type / for a saved reply.</div>
         <div class="bar2"><button class="btn sm" data-open="macros"><i data-lucide="zap"></i>Saved replies</button><button class="btn sm ghost icon" aria-label="Attach"><i data-lucide="paperclip"></i></button><button class="btn sm ghost icon" aria-label="Order link"><i data-lucide="receipt"></i></button><span class="sp"></span>
           <div class="rel"><button class="btn primary" data-menu="send-as">Send & set to <b>Waiting</b><i data-lucide="chevron-down"></i></button>
@@ -95,22 +96,34 @@
       </div>
     </div>
     <aside class="side-panel">
-      <div class="blk">
-        <div class="prop"><span>Status</span><select class="sel"><option>Open</option><option>New</option><option>Waiting on customer</option><option>On hold</option><option>Solved</option><option>Closed</option></select></div>
-        <div class="prop"><span>Priority</span><select class="sel"><option>Urgent</option><option>High</option><option>Normal</option><option>Low</option></select></div>
-        <div class="prop"><span>Assigned to</span><select class="sel"><option>Khush Mutha</option><option>Narendra (ops)</option><option>Parth</option><option>Riya</option></select></div>
-        <div class="prop"><span>Topic</span><select class="sel"><option>Damaged item</option><option>Delivery</option><option>Wrong item</option></select></div>
-        <div class="row wrap mt8" style="gap:6px"><span class="tag">damaged</span><span class="tag">batch-HRS-0926</span><button class="tag" style="border:1px dashed var(--hair);background:none">+ tag</button></div>
+      <div class="blk props-blk">
+        <div class="ptiles">
+          <div class="rel"><button class="ptile" data-menu="pm-status"><span>Status</span><b data-val><span class="pill info">Open</span></b><i data-lucide="chevron-down"></i></button>
+            <div class="menu" id="pm-status"><button data-pick><span class="pill red">New</span></button><button data-pick><span class="pill info">Open</span></button><button data-pick><span class="pill warn">Waiting on customer</span></button><button data-pick><span class="pill">On hold</span></button><button data-pick><span class="pill good">Solved</span></button></div></div>
+          <div class="rel"><button class="ptile" data-menu="pm-prio"><span>Priority</span><b data-val><span class="prio-tag urgent"><i data-lucide="flame"></i>Urgent</span></b><i data-lucide="chevron-down"></i></button>
+            <div class="menu" id="pm-prio"><button data-pick><span class="prio-tag urgent"><i data-lucide="flame"></i>Urgent</span></button><button data-pick><span class="prio-tag high"><i data-lucide="arrow-up"></i>High</span></button><button data-pick><span class="prio-tag normal"><i data-lucide="minus"></i>Normal</span></button><button data-pick><span class="prio-tag low"><i data-lucide="arrow-down"></i>Low</span></button></div></div>
+          <div class="rel"><button class="ptile" data-menu="pm-who"><span>Assigned to</span><b data-val><span class="who-tag"><span class="av sm red">KM</span>Khush</span></b><i data-lucide="chevron-down"></i></button>
+            <div class="menu" id="pm-who"><button data-pick><span class="who-tag"><span class="av sm red">KM</span>Khush</span></button><button data-pick><span class="who-tag"><span class="av sm info">NA</span>Narendra (ops)</span></button><button data-pick><span class="who-tag"><span class="av sm good">PA</span>Parth</span></button><button data-pick><span class="who-tag"><span class="av sm">RI</span>Riya</span></button><button data-pick><span class="who-tag"><span class="av sm" style="background:none;border:1px dashed var(--hair)">?</span>Nobody</span></button></div></div>
+          <div class="rel"><button class="ptile" data-menu="pm-topic"><span>Topic</span><b data-val><span class="topic-tag"><i data-lucide="package-x"></i>Damaged item</span></b><i data-lucide="chevron-down"></i></button>
+            <div class="menu" id="pm-topic"><button data-pick><span class="topic-tag"><i data-lucide="package-x"></i>Damaged item</span></button><button data-pick><span class="topic-tag"><i data-lucide="truck"></i>Delivery</span></button><button data-pick><span class="topic-tag"><i data-lucide="shuffle"></i>Wrong item</span></button><button data-pick><span class="topic-tag"><i data-lucide="wallet"></i>Refund</span></button><button data-pick><span class="topic-tag"><i data-lucide="circle-help"></i>Product question</span></button></div></div>
+        </div>
+        <div class="row wrap mt16" style="gap:6px"><span class="tag">damaged</span><span class="tag">batch-HRS-0926</span><button class="tag" style="border:1px dashed var(--hair);background:none">+ tag</button></div>
       </div>
       <div class="blk">
-        <div class="row"><span class="av red">MN</span><div style="flex:1"><b>Meera Nair</b><p class="small muted">Kochi · customer since Mar</p></div><a class="btn sm ghost icon" href="other.html#cu-profile" aria-label="Open profile"><i data-lucide="arrow-up-right"></i></a></div>
-        <dl class="kv mt16"><dt>Orders</dt><dd>5 · ₹3,910</dd><dt>Phone</dt><dd>+91 94XXX X1187</dd><dt>Email</dt><dd class="muted">None</dd><dt>Past tickets</dt><dd>1, solved, 5 stars</dd></dl>
+        <div class="pcard">
+          <a class="row" href="other.html#cu-profile"><span class="av lg red">MN</span><div style="flex:1;min-width:0"><b class="pc-name">Meera Nair</b><p class="small muted">Kochi · customer since Mar 2026</p></div><i data-lucide="chevron-right" class="muted"></i></a>
+          <div class="pc-stats"><div><span>Orders</span><b>5</b></div><div><span>Spent</span><b>₹3,910</b></div><div><span>Tickets</span><b>1 · ★5</b></div></div>
+          <div class="row wrap" style="gap:6px"><span class="pill red nodot">Loyal</span><span class="pill good">WhatsApp opted in</span><span class="pill nodot line">No email</span></div>
+          <div class="pc-acts"><button class="btn sm" data-toast="Calling +91 94XXX X1187"><i data-lucide="phone"></i>Call</button><button class="btn sm" data-toast="Number copied"><i data-lucide="copy"></i>Copy</button><a class="btn sm" href="other.html#cu-profile"><i data-lucide="user-round"></i>Profile</a></div>
+        </div>
       </div>
       <div class="blk">
-        <span class="eyebrow">This order</span>
-        <a class="row" href="cod-voice.html#or-all/order"><span class="pack hr">HRS</span><div style="flex:1"><b>#PM-2790 · ₹749</b><p class="small muted">Delivered yesterday · prepaid</p></div></a>
-        <p class="small ink2 mt8">2 × Himalayan Rock Salt 100g, 1 × Crunchies Classic</p>
-        <div class="row mt16" style="gap:8px"><button class="btn sm" data-toast="Replacement order #PM-2851 created in Shopify (₹0)">Send replacement</button><button class="btn sm ghost" data-toast="Refund needs owner approval">Refund</button></div>
+        <div class="pcard">
+          <div class="row"><span class="eyebrow" style="flex:1">This order</span><span class="pill good">Delivered yesterday</span></div>
+          <a class="row" href="cod-voice.html#or-all/order"><span class="pack hr">HRS</span><div style="flex:1;min-width:0"><b class="pc-name">#PM-2790</b><p class="small muted">₹749 · prepaid · Bluedart</p></div><i data-lucide="chevron-right" class="muted"></i></a>
+          <ul class="pc-items"><li><span>Himalayan Rock Salt 100g</span><b>× 2</b></li><li><span>Crunchies Classic</span><b>× 1</b></li></ul>
+          <div class="pc-acts"><button class="btn sm dark" data-toast="Replacement order #PM-2851 created in Shopify (₹0)"><i data-lucide="repeat"></i>Send replacement</button><button class="btn sm ghost" data-toast="Refund needs owner approval">Refund</button></div>
+        </div>
       </div>
     </aside>
   </div>
@@ -123,20 +136,22 @@
     <nav class="views"><div class="vg">Chats</div><a class="on" href="#tk-chats"><i data-lucide="hand"></i>Need a human<span class="n">3</span></a><a href="#tk-chats"><i data-lucide="user"></i>Mine<span class="n">2</span></a><a href="#tk-chats"><i data-lucide="bot"></i>Bot handling<span class="n">27</span></a><a href="#tk-chats"><i data-lucide="messages-square"></i>All<span class="n">412</span></a><div class="vg">Channels</div><a href="#tk-chats"><i data-lucide="message-circle"></i>WhatsApp</a><a href="#tk-chats"><i data-lucide="instagram"></i>Instagram<span class="n">off</span></a></nav>
     <div class="list">
       <div class="lh"><div class="in-icon" style="flex:1"><i data-lucide="search"></i><input class="in" placeholder="Search chats" style="height:38px"></div></div>
-      <div class="tk unread on"><span class="av info">SK</span><div class="tx"><div class="a"><b>Sneha Kulkarni</b><time>2m</time></div><p>Bot: I've asked the team to check on your order…</p><div class="m"><span class="pill red">Needs human</span><span class="sla warn"><i data-lucide="clock"></i>22h window</span></div></div></div>
-      <div class="tk unread"><span class="av sun">RV</span><div class="tx"><div class="a"><b>Rahul Verma</b><time>9m</time></div><p>Do you deliver to Leh?</p><div class="m"><span class="pill red">Needs human</span></div></div></div>
+      <div class="tk unread on"><span class="av info">SK</span><div class="tx"><div class="a"><b>Sneha Kulkarni</b><time>2m</time></div><p>Bot: I've asked the team to check on your order…</p><div class="m"><span class="pill red">Needs human</span><span class="sla good"><i data-lucide="clock"></i>22h left</span></div></div></div>
+      <div class="tk unread"><span class="av sun">RV</span><div class="tx"><div class="a"><b>Rahul Verma</b><time>9m</time></div><p>Do you deliver to Leh?</p><div class="m"><span class="pill red">Needs human</span><span class="sla warn"><i data-lucide="clock"></i>Closes in 1h</span></div></div></div>
       <div class="tk"><span class="av good">AI</span><div class="tx"><div class="a"><b>Ananya Iyer</b><time>14m</time></div><p>You: Done! Your COD order is confirmed 🎉</p><div class="m"><span class="pill nodot line">You</span></div></div></div>
-      <div class="tk"><span class="av">DP</span><div class="tx"><div class="a"><b>Deepak Patel</b><time>31m</time></div><p>Bot: Indori Chatka has 42g protein per 100g…</p><div class="m"><span class="pill info">Bot</span></div></div></div>
+      <div class="tk"><span class="av">DP</span><div class="tx"><div class="a"><b>Deepak Patel</b><time>31m</time></div><p>Bot: Indori Chatka has 42g protein per 100g…</p><div class="m"><span class="pill info">Bot</span><span class="sla"><i data-lucide="lock"></i>Window closed</span></div></div></div>
     </div>
     <div class="conv conv-pane" style="grid-template-columns:minmax(0,1fr)">
       <div class="thread">
-        <div class="th-h"><button class="btn sm ghost icon m-only" data-ibx-back aria-label="Back"><i data-lucide="arrow-left"></i></button><span class="av info">SK</span><div style="flex:1;min-width:0"><b>Sneha Kulkarni</b><p class="small muted">+91 98XXX X7731 · Pune · 2 orders</p></div><button class="btn sm" data-toast="You took over. The bot is paused for this chat.">Take over</button><a class="btn sm ghost d-only" href="#tk-ticket">Open ticket</a></div>
+        <div class="th-h chat-h"><button class="btn sm ghost icon m-only" data-ibx-back aria-label="Back"><i data-lucide="arrow-left"></i></button><button class="who-btn" data-open="cust-peek" aria-label="View Sneha Kulkarni's profile"><span class="av info">SK</span><span class="nm"><b>Sneha Kulkarni</b><span>Pune · 2 orders · <u>View profile</u></span></span><i data-lucide="chevron-right"></i></button><a class="btn sm ghost d-only" href="#tk-ticket">Open ticket</a></div>
+        <div class="chat-status"><button class="win open" data-open="wa-window" aria-label="About the 24 hour WhatsApp window"><span class="wl"><span class="dot"></span><b>Chat window open</b><span class="left">22h 14m left</span></span><span class="meter"><i style="width:92%"></i></span><span class="wh">Reply freely until 9:43 am tomorrow</span></button><div class="hand"><span class="small ink2"><i data-lucide="bot"></i>Bot handed over</span><button class="btn sm dark" data-toast="You took over. The bot is paused for this chat.">Take over</button></div></div>
         <div class="msgs">
-          <div class="bub cin"><span class="who">Sneha</span>Hi my order #PM-2811 hasn't come yet, placed on Friday<time>9:41 am</time></div>
-          <div class="bub bot"><span class="who">Bot</span>Hi Sneha! It shipped on Saturday. Here's your order page: promunch.in/orders/2811. Want me to ask the team to check with the courier?<time>9:41 am</time></div>
-          <div class="bub cin"><span class="who">Sneha</span>Yes please, it says delivered but I didn't get it<time>9:43 am</time></div>
-          <div class="bub bot"><span class="who">Bot</span>Oh no. I've asked the team to check right away. Someone will reply here soon.<time>9:43 am</time></div>
-          <span class="sysmsg">Handed to a human · ticket #1186 created</span>
+          <span class="sysmsg day">Today</span>
+          <div class="bub cin">Hi my order #PM-2811 hasn't come yet, placed on Friday<time>9:41 am</time></div>
+          <div class="bub bot"><span class="who"><i data-lucide="bot"></i>PROMUNCH bot</span>Hi Sneha! It shipped on Saturday. Here's your order page: <a class="lk" href="#">promunch.in/orders/2811</a>. Want me to ask the team to check with the courier?<time>9:41 am</time></div>
+          <div class="bub cin">Yes please, it says delivered but I didn't get it<time>9:43 am</time></div>
+          <div class="bub bot"><span class="who"><i data-lucide="bot"></i>PROMUNCH bot</span>Oh no. I've asked the team to check right away. Someone will reply here soon.<time>9:43 am</time></div>
+          <span class="sysmsg"><i data-lucide="hand"></i>Handed to a human · <a href="#tk-ticket">ticket #1186</a></span>
         </div>
         <div class="composer"><div class="mode"><button class="on" data-mode="reply">Reply</button><button class="nt" data-mode="note">Internal note</button></div><div class="box">Reply to the customer on WhatsApp. Type / for a saved reply.</div><div class="bar2"><button class="btn sm" data-open="macros"><i data-lucide="zap"></i>Saved replies</button><button class="btn sm ghost icon" aria-label="Picture"><i data-lucide="image"></i></button><span class="sp"></span><button class="btn primary" data-toast="Sent">Send</button></div></div>
       </div>
@@ -210,6 +225,26 @@ Team PROMUNCH</textarea><span class="hint">Grounded in: Wholesale policy, Shippi
 </main>
 
 <!-- overlays -->
+<div class="overlay right" id="cust-peek" data-title="Customer quick profile (from chat)" data-host="tk-chats"><div class="drawer"><div class="dh"><span class="av lg info">SK</span><div class="t"><h2 style="text-transform:none">Sneha Kulkarni</h2><p class="small muted">Pune · customer since Aug 2026</p><div class="row wrap mt8" style="gap:6px"><span class="pill info">New customer</span><span class="pill good">WhatsApp opted in</span></div></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="db stack">
+    <div class="pc-acts"><button class="btn sm" data-toast="Calling +91 98XXX X7731"><i data-lucide="phone"></i>Call</button><button class="btn sm" data-toast="Number copied"><i data-lucide="copy"></i>Copy</button><button class="btn sm" data-toast="Email not on file"><i data-lucide="mail"></i>Email</button></div>
+    <div class="peek-stats"><div><span>Orders</span><b>2</b></div><div><span>Spent</span><b>₹1,148</b></div><div><span>Tickets</span><b>1 open</b></div></div>
+    <div><span class="eyebrow">Orders</span>
+      <a class="row peek-ord" href="cod-voice.html#or-all/order"><span class="pack mm">MM</span><div style="flex:1;min-width:0"><b>#PM-2811 · ₹599</b><p class="small muted">Placed Fri · shipped Sat · prepaid</p></div><span class="pill warn">Says delivered</span></a>
+      <a class="row peek-ord" href="cod-voice.html#or-all/order"><span class="pack hr">HRS</span><div style="flex:1;min-width:0"><b>#PM-2514 · ₹549</b><p class="small muted">12 Aug · COD, confirmed on WhatsApp</p></div><span class="pill good">Delivered</span></a></div>
+    <dl class="kv"><dt>WhatsApp</dt><dd>+91 98XXX X7731</dd><dt>Email</dt><dd class="muted">None</dd><dt>Address</dt><dd>Baner, Pune 411045</dd><dt>Came from</dt><dd>Instagram ad · Masala Mania</dd><dt>Favourite</dt><dd>Masala Mania</dd></dl>
+    <div><span class="eyebrow">Tags</span><div class="row wrap mt8" style="gap:6px"><span class="tag">delivery-issue</span><span class="tag">pune</span><button class="tag" style="border:1px dashed var(--hair);background:none">+ tag</button></div></div>
+    <div class="field"><label>Note for the team</label><textarea class="ta" style="min-height:80px" placeholder="Only your team sees this"></textarea></div>
+  </div>
+  <div class="df"><button class="btn ghost" data-close>Back to chat</button><a class="btn dark" href="other.html#cu-profile">Full profile<i data-lucide="arrow-up-right"></i></a></div></div></div>
+<div class="overlay" id="wa-window" data-title="WhatsApp 24 hour window explained" data-host="tk-chats"><div class="modal"><div class="mh"><span class="ic good"><i data-lucide="clock"></i></span><div style="flex:1"><h2>The 24 hour window</h2><p>WhatsApp's rule. When a customer messages us, we can reply with anything for 24 hours. Each new message from them restarts the clock.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div>
+  <div class="stack">
+    <div class="win-state"><span class="sla good"><i data-lucide="clock"></i>Open</span><p>Type anything: text, photos, order links. Free.</p></div>
+    <div class="win-state"><span class="sla warn"><i data-lucide="clock"></i>Closes in under 2h</span><p>The chat turns amber. Reply now or you'll need a template.</p></div>
+    <div class="win-state"><span class="sla"><i data-lucide="lock"></i>Closed</span><p>Only a Meta approved template can go out. The reply box swaps to a template picker, like this:</p></div>
+    <div class="composer closed-demo"><div class="box"><i data-lucide="lock"></i>Sneha's window closed 3h ago. Send a template to restart the chat. Once she replies, you can type freely again.</div><div class="bar2"><span class="sp"></span><button class="btn sm dark" data-toast="Template picker opens here"><i data-lucide="layout-template"></i>Choose a template</button></div></div>
+  </div>
+  <div class="mf"><button class="btn" data-close>Got it</button></div></div></div>
 <div class="overlay" id="macros" data-title="Saved replies (macros) picker" data-host="tk-ticket"><div class="modal wide"><div class="mh"><div style="flex:1"><h2>Saved replies</h2><p>Pick one. It fills the reply and can also set status and tags.</p></div><button class="x" data-close><i data-lucide="x"></i></button></div>
   <div class="in-icon"><i data-lucide="search"></i><input class="in" placeholder="Search saved replies" value="damaged"></div>
   <div class="divide mt16">
@@ -246,5 +281,8 @@ Team PROMUNCH</textarea><span class="hint">Grounded in: Wholesale policy, Shippi
 <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 <script src="manifest.js"></script>
 <script src="app.js"></script>
+<script>
+document.addEventListener('click',e=>{const b=e.target.closest('[data-pick]');if(!b)return;const m=b.closest('.menu');const t=document.querySelector('[data-menu="'+m.id+'"] [data-val]');if(t){t.innerHTML=b.innerHTML;}m.classList.remove('open');});
+</script>
 </body>
 </html>

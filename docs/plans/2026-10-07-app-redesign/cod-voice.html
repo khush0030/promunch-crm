@@ -45,32 +45,52 @@
 
 <section class="screen" id="or-calls" data-title="Orders · Voice agent tracker">
   <header class="ph" data-tabs="or">
-    <div class="t"><span class="eyebrow">★ Orders & COD</span><h1>Voice calls</h1><p class="sum">The voice agent made <b>412 calls</b> in 30 days. <b>58% ended in a confirmed order</b>, and it stopped 49 orders that would have come back.</p></div>
+    <div class="t"><span class="eyebrow">★ Orders & COD</span><h1>Voice calls</h1><p class="sum">The voice agent does two jobs. <b>COD:</b> 58% of called orders confirmed, 49 bad orders stopped. <b>Carts:</b> 20 people bought after a call, <b>₹17,960 back</b>.</p></div>
     <div class="acts"><div class="seg"><button>7 days</button><button class="on">30 days</button></div></div>
   </header>
   <div class="grid g4 kpis">
     <div class="kpi"><span class="l">Calls</span><span class="v num">412</span><span class="d">COD 318 · carts 94</span></div>
-    <div class="kpi"><span class="l">Picked up</span><span class="v num">71%</span><span class="d">Avg 2.1 tries</span></div>
-    <div class="kpi"><span class="l">Confirmed</span><span class="v num red">58%</span><span class="d"><span class="up">▲ 7 pts</span> since script v1.2</span></div>
-    <div class="kpi"><span class="l">RTO saved</span><span class="v num">₹38,200</span><span class="d">49 cancels × ₹780 avg return cost + product</span></div>
+    <div class="kpi"><span class="l">Picked up</span><span class="v num">71%</span><span class="d">COD 73% · carts 65%</span></div>
+    <div class="kpi"><span class="l">COD confirmed</span><span class="v num red">58%</span><span class="d"><span class="up">▲ 7 pts</span> since script v1.2</span></div>
+    <div class="kpi"><span class="l">Carts recovered</span><span class="v num">21%</span><span class="d">20 of 94 · <span class="up">₹17,960</span></span></div>
   </div>
   <div class="grid g2 mt24">
-    <div class="card"><h2>What happened on calls</h2><div class="funnel mt16">
-      <div class="fn"><span class="lab">Called</span><div><div class="b" style="width:100%">412</div></div><span class="val">100%</span></div>
-      <div class="fn"><span class="lab">Picked up</span><div><div class="b l2" style="width:71%">293</div></div><span class="val">71%</span></div>
-      <div class="fn"><span class="lab">Confirmed</span><div><div class="b l3" style="width:58%">239</div></div><span class="val">58%</span></div>
-      <div class="fn"><span class="lab">Cancelled</span><div><div class="b l4" style="width:12%">49</div></div><span class="val">12%</span></div>
-      <div class="fn"><span class="lab">Call back</span><div><div class="b l5" style="width:4%">5</div></div><span class="val">1%</span></div>
-    </div><p class="small muted mt16">119 never picked up after 3 tries. Those orders were held and the team was told.</p></div>
-    <div class="card"><h2>Confirm rate by week</h2><div class="chart mt16" data-chart='{"type":"line","fmt":"pct","h":220,"labels":["8 Sep","15 Sep","22 Sep","29 Sep","6 Oct"],"series":[{"name":"Confirmed","color":"var(--s1)","data":[49,52,55,59,61]},{"name":"Picked up","color":"#CFC7B9","dash":1,"data":[66,68,70,73,74]}]}'></div><div class="legend mt8"><span><i style="background:var(--s1)"></i>Confirmed %</span><span><i style="background:#CFC7B9"></i>Picked up %</span></div></div>
+    <div class="card"><div class="row"><span class="ic info"><i data-lucide="banknote"></i></span><div style="flex:1"><h2>COD confirmation</h2><p class="small muted">Calls when nobody taps Confirm on WhatsApp in 45 min</p></div></div>
+      <div class="funnel mt16">
+        <div class="fn"><span class="lab">Called</span><div><div class="b" style="width:100%">318</div></div><span class="val">100%</span></div>
+        <div class="fn"><span class="lab">Picked up</span><div><div class="b l2" style="width:73%">232</div></div><span class="val">73%</span></div>
+        <div class="fn"><span class="lab">Confirmed</span><div><div class="b l3" style="width:58%">184</div></div><span class="val">58%</span></div>
+        <div class="fn"><span class="lab">Cancelled</span><div><div class="b l4" style="width:15%">49</div></div><span class="val">15%</span></div>
+      </div>
+      <div class="vj-foot"><div><span>RTO saved</span><b>₹38,200</b></div><div><span>Never answered</span><b>86 held</b></div></div></div>
+    <div class="card"><div class="row"><span class="ic good"><i data-lucide="shopping-cart"></i></span><div style="flex:1"><h2>Cart recovery</h2><p class="small muted">Calls 1 hour after a cart is left, if WhatsApp didn't bring them back</p></div></div>
+      <div class="funnel mt16 cart">
+        <div class="fn"><span class="lab">Called</span><div><div class="b" style="width:100%">94</div></div><span class="val">100%</span></div>
+        <div class="fn"><span class="lab">Picked up</span><div><div class="b l2" style="width:65%">61</div></div><span class="val">65%</span></div>
+        <div class="fn"><span class="lab">Interested</span><div><div class="b l3" style="width:40%">38</div></div><span class="val">40%</span></div>
+        <div class="fn"><span class="lab">Bought in 48h</span><div><div class="b l4" style="width:21%">20</div></div><span class="val">21%</span></div>
+      </div>
+      <div class="vj-foot"><div><span>Revenue back</span><b>₹17,960</b></div><div><span>Avg cart</span><b>₹898</b></div><div><span>Lift vs no call</span><b class="good-t">+15 pts</b></div></div>
+      <p class="small muted mt8">Carts we didn't call came back at 6%. Called carts came back at 21%.</p></div>
   </div>
-  <div class="sec-h"><h2>Latest calls</h2><span class="sp"></span><div class="chips" data-single><button class="chip on">All</button><button class="chip">Confirmed</button><button class="chip">Cancelled</button><button class="chip">No answer</button></div></div>
+  <div class="grid g2 mt24">
+    <div class="card"><h2>Success by week</h2><div class="chart mt16" data-chart='{"type":"line","fmt":"pct","h":220,"labels":["8 Sep","15 Sep","22 Sep","29 Sep","6 Oct"],"series":[{"name":"COD confirmed","color":"var(--s1)","data":[49,52,55,59,61]},{"name":"Carts recovered","color":"var(--s4)","data":[14,17,19,22,24]}]}'></div><div class="legend mt8"><span><i style="background:var(--s1)"></i>COD confirmed %</span><span><i style="background:var(--s4)"></i>Carts recovered %</span></div></div>
+    <div class="card"><h2>Why carts didn't buy</h2><p class="small muted">From the 41 people who picked up and said no</p><div class="funnel mt16 neutral">
+        <div class="fn"><span class="lab">Shipping cost</span><div><div class="b l2" style="width:100%">14</div></div><span class="val">34%</span></div>
+        <div class="fn"><span class="lab">Just browsing</span><div><div class="b l2" style="width:79%">11</div></div><span class="val">27%</span></div>
+        <div class="fn"><span class="lab">Buy later</span><div><div class="b l2" style="width:64%">9</div></div><span class="val">22%</span></div>
+        <div class="fn"><span class="lab">Price</span><div><div class="b l2" style="width:50%">7</div></div><span class="val">17%</span></div>
+      </div><p class="small ink2 mt16"><b>Idea:</b> mention free shipping over ₹599 earlier in the cart script.</p></div>
+  </div>
+  <div class="sec-h"><h2>Latest calls</h2><span class="sp"></span><div class="chips" data-single><button class="chip on">All</button><button class="chip">COD</button><button class="chip">Carts</button><button class="chip">No answer</button></div></div>
   <div class="card flush"><table class="tbl stack"><thead><tr><th>Customer</th><th>Outcome</th><th class="r">Try</th><th class="r">Length</th><th>When</th></tr></thead><tbody>
     <tr onclick="location.hash='or-calls/call'"><td class="main-cell"><b>Rohit Gupta · #PM-2843</b><span>COD · ₹1,047 · Hindi</span></td><td data-l="Outcome"><span class="pill info">Call back 2 pm</span></td><td class="r" data-l="Try">1</td><td class="r" data-l="Length">0:48</td><td data-l="When">9:51 am</td></tr>
     <tr onclick="location.hash='or-calls/call'"><td class="main-cell"><b>Kavya Menon · #PM-2838</b><span>COD · ₹749 · English</span></td><td data-l="Outcome"><span class="pill good">Confirmed</span></td><td class="r" data-l="Try">1</td><td class="r" data-l="Length">0:36</td><td data-l="When">9:40 am</td></tr>
     <tr onclick="location.hash='or-calls/call'"><td class="main-cell"><b>Vikram Singh · #PM-2836</b><span>COD · ₹749 · Hindi</span></td><td data-l="Outcome"><span class="pill warn">No answer</span></td><td class="r" data-l="Try">2</td><td class="r" data-l="Length">·</td><td data-l="When">9:31 am</td></tr>
     <tr onclick="location.hash='or-calls/call'"><td class="main-cell"><b>Imran Qureshi · #PM-2831</b><span>COD · ₹1,198 · Hindi</span></td><td data-l="Outcome"><span class="pill bad">Cancelled</span></td><td class="r" data-l="Try">1</td><td class="r" data-l="Length">0:52</td><td data-l="When">Yesterday</td></tr>
     <tr onclick="location.hash='or-calls/call'"><td class="main-cell"><b>Neha Bansal · cart</b><span>Cart recovery · ₹899 hamper</span></td><td data-l="Outcome"><span class="pill good">Bought after call</span></td><td class="r" data-l="Try">1</td><td class="r" data-l="Length">1:14</td><td data-l="When">Yesterday</td></tr>
+    <tr onclick="location.hash='or-calls/call'"><td class="main-cell"><b>Aditya Rao · cart</b><span>Cart recovery · ₹548 · English</span></td><td data-l="Outcome"><span class="pill info">Will buy later</span></td><td class="r" data-l="Try">1</td><td class="r" data-l="Length">0:41</td><td data-l="When">Yesterday</td></tr>
+    <tr onclick="location.hash='or-calls/call'"><td class="main-cell"><b>Pooja Desai · cart</b><span>Cart recovery · ₹1,196 · Hindi</span></td><td data-l="Outcome"><span class="pill warn">Shipping cost</span></td><td class="r" data-l="Try">1</td><td class="r" data-l="Length">0:58</td><td data-l="When">2 days ago</td></tr>
   </tbody></table></div>
   <p class="footer-note">Illustrative data. Calls by the Sarvam voice agent.</p>
 </section>
