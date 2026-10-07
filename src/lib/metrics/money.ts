@@ -2,8 +2,11 @@
 // formatINR — full precision with Indian digit grouping (2,42,300).
 // formatLakh — compact lakh/thousand notation for tight card/chart labels.
 
+// Negatives put the sign before the rupee: "−₹22,261", never "₹-22,261".
+const sign = (n: number) => (n < 0 && Math.round(Math.abs(n)) !== 0 ? "−" : "");
+
 export function formatINR(n: number): string {
-  return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+  return `${sign(n)}₹${Math.abs(n).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
 // Strip a trailing ".0" so whole numbers don't render as "9.0L"/"86.0k".
@@ -12,9 +15,10 @@ function stripTrailingZero(s: string): string {
 }
 
 export function formatLakh(n: number): string {
-  if (Math.abs(n) >= 1e5) return `₹${stripTrailingZero((n / 1e5).toFixed(1))}L`;
-  if (Math.abs(n) >= 1e3) return `₹${stripTrailingZero((n / 1e3).toFixed(1))}k`;
-  return `₹${Math.round(n)}`;
+  const a = Math.abs(n);
+  if (a >= 1e5) return `${sign(n)}₹${stripTrailingZero((a / 1e5).toFixed(1))}L`;
+  if (a >= 1e3) return `${sign(n)}₹${stripTrailingZero((a / 1e3).toFixed(1))}k`;
+  return `${sign(n)}₹${Math.round(a)}`;
 }
 
 // Y-axis tick labels for money charts. Every tick shares ONE unit, chosen
@@ -27,10 +31,10 @@ export function formatAxisTicks(values: number[]): string[] {
   const [div, suffix] = top >= 1e5 ? [1e5, "L"] : top >= 1e3 ? [1e3, "k"] : [1, ""];
   const render = (decimals: number) =>
     values.map((v) => {
-      if (div === 1) return `${v < 0 ? "-" : ""}₹${Math.round(Math.abs(v))}`;
+      if (div === 1) return `${v < 0 ? "−" : ""}₹${Math.round(Math.abs(v))}`;
       const s = stripTrailingZero((Math.abs(v) / div).toFixed(decimals));
       if (s === "0") return "₹0";
-      return `${v < 0 ? "-" : ""}₹${s}${suffix}`;
+      return `${v < 0 ? "−" : ""}₹${s}${suffix}`;
     });
   const whole = render(0);
   return new Set(whole).size === whole.length ? whole : render(1);

@@ -121,11 +121,19 @@ describe("formatLakh", () => {
   it("formats sub-thousand as whole rupees", () => {
     expect(formatLakh(980)).toBe("₹980");
   });
+  it("puts the minus before the rupee sign", () => {
+    expect(formatLakh(-22261)).toBe("−₹22.3k");
+    expect(formatLakh(-150000)).toBe("−₹1.5L");
+    expect(formatLakh(-0.2)).toBe("₹0");
+  });
 });
 
 describe("formatINR", () => {
   it("formats with Indian digit grouping", () => {
     expect(formatINR(142300)).toBe("₹1,42,300");
+  });
+  it("puts the minus before the rupee sign", () => {
+    expect(formatINR(-22261)).toBe("−₹22,261");
   });
 });
 
@@ -143,7 +151,7 @@ describe("formatAxisTicks", () => {
     expect(formatAxisTicks([0, 25, 50, 75, 100])).toEqual(["₹0", "₹25", "₹50", "₹75", "₹100"]);
   });
   it("picks the unit from the largest absolute tick", () => {
-    expect(formatAxisTicks([-200000, 0, 200000])).toEqual(["-₹2L", "₹0", "₹2L"]);
+    expect(formatAxisTicks([-200000, 0, 200000])).toEqual(["−₹2L", "₹0", "₹2L"]);
   });
   it("handles an empty list", () => {
     expect(formatAxisTicks([])).toEqual([]);
