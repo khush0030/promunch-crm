@@ -20,6 +20,7 @@ import { claimSend, markSendSent, releaseSend } from "../_shared/confirmations.t
 import { enrolCustomFlows } from "../_shared/custom-flows.ts";
 import { enrolEmailFlow, exitFlowsOnCheckout, exitOrderEmailFlows } from "../_shared/email-flows.ts";
 import { REACHED_MIN_SECONDS, VOICE_TEMPLATE } from "../_shared/voice-eligibility.ts";
+import { isInfluencerOrder } from "../_shared/influencer-order.ts";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method", { status: 405 });
@@ -80,9 +81,13 @@ async function handleOrderFulfilled(order: any) {
   const name = firstName(order.customer?.first_name, order.shipping_address?.first_name);
 
   // User-created flows on this trigger (own atomic claim per flow+order;
-  // independent of the built-in shipping-update toggle).
-  await enrolCustomFlows("order_fulfilled", { waId, name, entityRef: orderRef })
-    .catch((e) => console.warn("[shopify-wa] custom enrol (fulfilled):", e));
+  // independent of the built-in shipping-update toggle). Influencer kit orders
+  // skip these automations (owner-approved Oct 7 2026); they still get the
+  // built-in shipping update below so the creator knows the kit shipped.
+  if (!isInfluencerOrder(order)) {
+    await enrolCustomFlows("order_fulfilled", { waId, name, entityRef: orderRef })
+      .catch((e) => console.warn("[shopify-wa] custom enrol (fulfilled):", e));
+  }
 
   // Dashboard kill-switch (Flows tab).
   if (!(await getFlowSettings()).shipping_update_enabled) return;

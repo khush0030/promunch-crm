@@ -24,6 +24,7 @@ import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { logConnector } from "../_shared/connector-log.ts";
 import { firstName, toWaId } from "../_shared/journeys.ts";
+import { isInfluencerOrder } from "../_shared/influencer-order.ts";
 import { getFlowSettings } from "../_shared/flow-settings.ts";
 import {
   attemptedOrderRefs,
@@ -156,6 +157,10 @@ Deno.serve(async (req) => {
 
     const raw = (o.raw ?? {}) as Record<string, any>;
 
+    // Influencer kit orders never get a confirmation (owner-approved Oct 7
+    // 2026; handleOrderCreated skips them too). Every mode, including force.
+    if (isInfluencerOrder(raw)) { skipped++; report[orderRef] = "influencer order — skipped"; continue; }
+
     // never confirm a cancelled / reversed order — even in force mode
     const fin = String(o.financial_status ?? raw.financial_status ?? "").toLowerCase();
     if (raw.cancelled_at || fin === "voided" || fin === "refunded") {
@@ -271,6 +276,8 @@ Deno.serve(async (req) => {
         // never raise a false "confirmation_stuck" alert for them here.
         if (o.confirmation_status) return false;
         const r = (o.raw ?? {}) as Record<string, unknown>;
+        // Influencer kit orders are skipped on purpose, never "stuck".
+        if (isInfluencerOrder(r)) return false;
         const fin = String(o.financial_status ?? r.financial_status ?? "").toLowerCase();
         if (fin === "voided" || fin === "refunded" || r.cancelled_at) return false;
         return !confirmed.has(norm(o.order_number));

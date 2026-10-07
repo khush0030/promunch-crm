@@ -21,6 +21,7 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import { PageHead, KpiCard, Panel, StatusBadge, EmptyState } from "@/components/pm";
 import type { KpiTone, BadgeTone } from "@/components/pm";
+import { isLinkValue } from "@/lib/influencers/crm-contact";
 
 type Contact = {
   id: string;
@@ -235,7 +236,12 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const tags = contact.tags || [];
   const lists = contact.klaviyo_lists || [];
   const segments = contact.klaviyo_segments || [];
-  const propEntries = contact.properties ? Object.entries(contact.properties).filter(([k]) => !k.startsWith("$")) : [];
+  // instagram_url (influencer creators) first so the 12-field cap never hides it.
+  const propEntries = contact.properties
+    ? Object.entries(contact.properties)
+        .filter(([k]) => !k.startsWith("$"))
+        .sort(([a], [b]) => (a === "instagram_url" ? -1 : b === "instagram_url" ? 1 : 0))
+    : [];
 
   const timeline: Activity[] = [
     ...orders.filter((o) => o.placed_at).map((o) => ({ kind: "order" as const, at: o.placed_at!, order: o })),
@@ -444,7 +450,11 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             {propEntries.slice(0, 12).map(([k, v]) => (
               <div key={k}>
                 <div className="pm-dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600, marginBottom: 4 }}>{k}</div>
-                <div style={{ fontSize: 13.5, wordBreak: "break-word" }}>{typeof v === "object" ? JSON.stringify(v) : String(v)}</div>
+                <div style={{ fontSize: 13.5, wordBreak: "break-word" }}>
+                  {isLinkValue(v) ? (
+                    <a href={v.trim()} target="_blank" rel="noopener noreferrer" style={{ color: "var(--pm-brand)", textDecoration: "underline" }}>{v.trim()}</a>
+                  ) : typeof v === "object" ? JSON.stringify(v) : String(v)}
+                </div>
               </div>
             ))}
           </div>

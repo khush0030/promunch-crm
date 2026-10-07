@@ -22,6 +22,7 @@ import { handleOrderCreated } from "../_shared/order-confirmation.ts";
 import { addOrderTags, isCreatorOrder, isHypdOrder, linkOrderToCustomer, normalizeName, upsertShopifyCustomerFromOrder } from "../_shared/shopify-customer.ts";
 import { fetchOrderAttribution } from "../_shared/shopify-attribution.ts";
 import { syncContactFromOrder } from "../_shared/crm-contact.ts";
+import { isInfluencerOrder } from "../_shared/influencer-order.ts";
 
 const ok = (extra: Record<string, unknown> = {}) =>
   new Response(JSON.stringify({ ok: true, ...extra }), { headers: { "content-type": "application/json" } });
@@ -91,7 +92,10 @@ Deno.serve(async (req) => {
     customer_phone: customerPhone,
     line_items: lineItems,
     shopify_created_at: shopifyCreatedAt,
-    is_creator: isCreatorOrder(order),
+    // HYPD ₹0.01 seeds AND influencer kit orders (₹0 barter, tagged
+    // "Influencer"): both are gifts, so every is_creator exclusion (revenue,
+    // RFM, warm audience, Brevo, analytics) applies to both.
+    is_creator: isCreatorOrder(order) || isInfluencerOrder(order),
     raw: order,
   }, { onConflict: "shopify_id" }).select("id, attribution_synced_at").maybeSingle();
 
@@ -277,7 +281,9 @@ Deno.serve(async (req) => {
   // Source tag for the Slack card: creator seed vs HYPD marketplace vs own store.
   // 🎨 = HYPD Creator (₹0.01 influencer seed — checked first, it's the headline),
   // 🟣 = HYPD marketplace, 🟢 = direct (web/POS) so it's scannable at a glance.
-  const sourceTag = isCreatorOrder(order)
+  const sourceTag = isInfluencerOrder(order)
+    ? "🎁 Influencer kit (barter, no customer automations)"
+    : isCreatorOrder(order)
     ? "🎨 HYPD Creator"
     : isHypdOrder(order)
     ? "🟣 HYPD Marketplace"

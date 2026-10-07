@@ -29,6 +29,7 @@ import {
   isCodOrder,
 } from "./cod-gate.ts";
 import { adminGraphQL, isCreatorOrder } from "./shopify-customer.ts";
+import { isInfluencerOrder } from "./influencer-order.ts";
 import { buildCartPermalink } from "./shopify-cart.ts";
 import { buildSupportComponents } from "./quick-replies.ts";
 import { holdOrderFulfillments } from "./shopify-fulfillment.ts";
@@ -85,6 +86,21 @@ async function isFirstOrder(order: any, email: string, phone10: string | null): 
 // Idempotent — safe to call from multiple trigger paths concurrently.
 export async function handleOrderCreated(order: any): Promise<OrderConfirmationResult> {
   const orderRef: string = order.name || `#${order.order_number}` || String(order.id);
+
+  // Influencer kit orders (₹0 barter, tagged "Influencer" by the influencer
+  // tracker) skip EVERY automation here: no WhatsApp confirmation, no
+  // review / replenishment / custom journeys, no order_placed email flows, no
+  // cart-flow conversion. Owner-approved Oct 7 2026. The order is still stored
+  // (shopify-webhook, is_creator = true) and the creator's CRM contact tagged.
+  // Checked first so nothing below can message the creator.
+  if (isInfluencerOrder(order)) {
+    await logConnector({
+      connector: "shopify_wa", level: "info", event: "influencer_order_skipped",
+      message: `Order ${orderRef}: influencer kit order — WhatsApp + email automations skipped.`,
+      ref: orderRef,
+    }).catch(() => {});
+    return { orderRef, status: "not_active", detail: "influencer order" };
+  }
 
   // never send "your order is confirmed!" for an order already cancelled / reversed
   if (order?.cancelled_at) return { orderRef, status: "not_active", detail: "cancelled" };

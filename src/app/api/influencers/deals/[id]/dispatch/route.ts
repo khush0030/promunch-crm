@@ -8,6 +8,7 @@ import {
   ShopifyDispatchError,
   validateDispatchAddress,
 } from "@/lib/influencers/shopify-dispatch";
+import { upsertInfluencerContact } from "@/lib/influencers/crm-contact-server";
 import type { DealStage, Influencer, InfluencerAddress, Kit } from "@/lib/influencers/types";
 
 export const dynamic = "force-dynamic";
@@ -174,6 +175,23 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     stageMoved = !!moved;
   }
 
+  // CRM: tag the creator's contact "influencer" + "creator" and store their
+  // Instagram link (contacts.properties.instagram_url) now, ahead of the
+  // Shopify order webhook (which applies the same merge). Same email/phone the
+  // order carries, so both sides land on one row. Never blocks the dispatch.
+  let crmContact: string;
+  try {
+    const c = await upsertInfluencerContact({
+      handle: inf.handle,
+      email: inf.email,
+      phone: check.address.phone,
+      fullName: inf.full_name ?? check.address.name,
+    });
+    crmContact = c.ok ? c.action : `failed: ${c.reason}`.slice(0, 200);
+  } catch (e) {
+    crmContact = `failed: ${e instanceof Error ? e.message : String(e)}`.slice(0, 200);
+  }
+
   const opsText = buildOpsDispatchMessage({
     handle: inf.handle,
     kitName: k.name,
@@ -190,6 +208,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     from_stage: deal.stage,
     to_stage: stageMoved ? "dispatched" : deal.stage,
     ops_ping: ops,
+    crm_contact: crmContact,
   });
 
   return NextResponse.json({ ok: true, ...order, stage: stageMoved ? "dispatched" : deal.stage, ops_ping: ops });

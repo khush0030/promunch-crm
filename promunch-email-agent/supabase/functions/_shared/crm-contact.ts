@@ -27,6 +27,7 @@
 import { db } from "./supabase.ts";
 import { adminGraphQL, normalizeName } from "./shopify-customer.ts";
 import { toWaId } from "./journeys.ts";
+import { influencerContactFields, influencerHandleFromOrder, isInfluencerOrder } from "./influencer-order.ts";
 
 const CUSTOMER_STATS = `
 query CustomerStats($id: ID!) {
@@ -54,11 +55,13 @@ type ContactRow = {
   first_purchase_date: string | null;
   last_purchase_date: string | null;
   status: string | null;
+  tags?: string[] | null;
+  properties?: Record<string, unknown> | null;
 };
 
 const CONTACT_COLS = "id,email,first_name,last_name,phone,city,state,country," +
   "shopify_customer_id,total_orders,total_spent,first_purchase_date," +
-  "last_purchase_date,status,anonymized_at";
+  "last_purchase_date,status,anonymized_at,tags,properties";
 
 // "+919876543210", "919876543210" and "9876543210" are the same person —
 // contacts hold Shopify's E.164 while shopify_orders holds bare wa_ids.
@@ -169,6 +172,16 @@ export async function syncContactFromOrder(order: any): Promise<SyncResult> {
     first_purchase_date: firstPurchase,
     last_purchase_date: lastPurchase,
   };
+
+  // Influencer kit order: tag the creator "influencer" + "creator" and keep
+  // their Instagram link in properties.instagram_url (the CRM's custom-field
+  // column). Merged onto existing tags/properties, never removing anything.
+  // Normal orders leave tags/properties untouched.
+  if (isInfluencerOrder(order)) {
+    const f = influencerContactFields(existing, influencerHandleFromOrder(order));
+    row.tags = f.tags;
+    row.properties = f.properties;
+  }
 
   if (existing) {
     // a purchase never resurrects an unsubscribed/bounced contact — update
