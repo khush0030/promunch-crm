@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, Rocket } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Rocket } from "lucide-react";
 import { Callout, ConfirmDialog, PageHeader } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
 import { friendlyTemplateName } from "@/lib/whatsapp/templateKind";
@@ -78,6 +78,7 @@ import { StepSchedule } from "./StepSchedule";
 import { StepTemplate } from "./StepTemplate";
 import { useAutosave } from "./useAutosave";
 import s from "../campaigns.module.css";
+import w from "./wizard.module.css";
 
 type Form = ContentValue & { templateId: string | null; audience: AudienceState; schedule: ScheduleState; followups: FollowupDraft[] };
 
@@ -529,22 +530,28 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
     <>
       {header}
       <div className="pm2-body">
-        <nav aria-label="Campaign steps">
-          <ol className={s.steps}>
-            {STEPS.map((st, i) => (
-              <li key={st.key} style={{ flex: "1 1 0", minWidth: 88 }}>
-                <button
-                  type="button"
-                  className={`${s.step} ${i === step ? s.stepOn : i < step || i <= maxStep ? s.stepDone : ""}`}
-                  aria-current={i === step ? "step" : undefined}
-                  disabled={i > maxStep && i > step}
-                  onClick={() => goTo(i)}
-                >
-                  <b>STEP {i + 1}</b>
-                  {st.label}
-                </button>
-              </li>
-            ))}
+        <nav aria-label="Campaign steps" className={w.stepsNav}>
+          <ol className={w.steps}>
+            {STEPS.map((st, i) => {
+              const on = i === step;
+              const done = !on && (i < step || i <= maxStep);
+              return (
+                <li key={st.key} className={w.stepItem}>
+                  {i > 0 && <i className={`${w.line} ${i <= maxStep || i <= step ? w.lineDone : ""}`} aria-hidden />}
+                  <button
+                    type="button"
+                    className={`${w.step} ${on ? w.on : done ? w.done : ""}`}
+                    aria-current={on ? "step" : undefined}
+                    aria-label={`Step ${i + 1}: ${st.label}`}
+                    disabled={i > maxStep && i > step}
+                    onClick={() => goTo(i)}
+                  >
+                    <span className={w.n} aria-hidden>{done ? <Check strokeWidth={3} /> : i + 1}</span>
+                    <span className={w.label}>{st.label}</span>
+                  </button>
+                </li>
+              );
+            })}
           </ol>
         </nav>
 
@@ -627,17 +634,17 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
               <div className={s.err} role="alert">{stepProblems[2].slice(audProblems.length).map((p) => <div key={p}>{p}</div>)}</div>
             )}
 
-            <div className={s.footerBar}>
-              <div className={s.inline}>
+            <div className={w.footer}>
+              <div className={w.footLeft}>
                 {step > 0 && (
-                  <button type="button" className="pm2-btn" onClick={() => goTo(step - 1)}>
+                  <button type="button" className="pm2-btn ghost" onClick={() => goTo(step - 1)}>
                     <ArrowLeft size={14} aria-hidden /> Back
                   </button>
                 )}
-                <span className={s.saveState} role="status">{saveText}</span>
+                <span className={w.saveState} role="status">{saveText}</span>
               </div>
               {stepKey !== "review" ? (
-                <button type="button" className="pm2-btn pri" onClick={next} disabled={stepKey === "template" && !tpl}>
+                <button type="button" className="pm2-btn dark" onClick={next} disabled={stepKey === "template" && !tpl}>
                   {STEPS[step + 1].next} <ArrowRight size={14} aria-hidden />
                 </button>
               ) : (
@@ -661,7 +668,12 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
           </div>
 
           <aside className={s.side} aria-label="Preview">
-            {stepKey !== "review" && stepKey !== "followups" && <CampaignPreview tpl={tpl} vars={form.vars} mediaUrl={form.mediaUrl} />}
+            {stepKey !== "review" && stepKey !== "followups" && (
+              <>
+                <div className={w.frameLabel}>Preview on a phone</div>
+                <CampaignPreview tpl={tpl} vars={form.vars} mediaUrl={form.mediaUrl} />
+              </>
+            )}
             {step >= 2 && (
               <section className="pm2-panel">
                 <div className="pm2-p-head"><h3>Who gets it</h3></div>

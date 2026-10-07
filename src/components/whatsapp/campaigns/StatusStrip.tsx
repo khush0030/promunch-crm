@@ -1,13 +1,13 @@
 "use client";
 
 // Today's sending budget, Meta standing and the rules the engine follows, in
-// four compact tiles above the campaign list.
+// one calm hairline card above the campaign list.
 
 import { Pill } from "@/components/pm";
 import { HelpTip } from "@/components/guide";
 import { useQuota } from "./api";
 import { fmtInt, inQuietHours } from "./logic";
-import s from "./campaigns.module.css";
+import s from "./list.module.css";
 import { useNow } from "./useNow";
 
 const QUALITY: Record<string, { label: string; tone: "good" | "warn" | "crit" }> = {
@@ -58,7 +58,7 @@ export function StatusStrip() {
           <div className={s.stripLabel}>Meta standing</div>
           <HelpTip term="meta_tier" text="Set by Meta from how customers react to our messages. Nobody at PROMUNCH can change it directly; good messages to warm audiences keep it healthy." />
         </div>
-        <div className={s.stripValue} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <div className={s.stripValue}>
           {quality ? <Pill tone={quality.tone}>{quality.label}</Pill> : <span>Not rated yet</span>}
         </div>
         <div className={s.stripSub}>
@@ -69,7 +69,7 @@ export function StatusStrip() {
               : "Meta hasn't given our number a daily tier yet. That's normal for us and nothing you need to do."}
         </div>
         {q?.mm_lite_enabled != null && (
-          <div style={{ marginTop: 6 }}>
+          <div className={s.stripPill}>
             <Pill
               tone={q.mm_lite_enabled ? "good" : "neu"}
               tip={

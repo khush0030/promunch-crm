@@ -150,7 +150,8 @@ export function ActionButtons({
             onClick={() => run(a, campaign)}
             aria-label={`${LABEL[a]} ${campaign.name}`}
             title={iconOnly ? LABEL[a] : undefined}
-            style={a === "delete" || a === "cancel" ? { color: "var(--pm-terra)" } : undefined}
+            // Destructive buttons stay neutral on the page (one red element per
+            // screen); their confirm dialog carries the danger styling.
           >
             {ICON[a]}
             {!iconOnly && LABEL[a]}

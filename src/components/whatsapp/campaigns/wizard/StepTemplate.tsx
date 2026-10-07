@@ -135,7 +135,7 @@ export function StepTemplate({
               <div className={s.inline}>
                 {quality && <Pill tone={quality.tone}>{quality.label}</Pill>}
                 {missingMedia && <Pill tone="warn">Needs a picture</Pill>}
-                {on && <Pill tone="brand">Selected</Pill>}
+                {on && <Pill tone="neu">Selected</Pill>}
               </div>
             </button>
           );

@@ -60,7 +60,7 @@ export function JourneyCard({
         right={<HelpTip term="journey" />}
         foot={
           <div className={s.inline}>
-            <button type="button" className="pm2-btn sm pri" onClick={() => add()} disabled={!!limit || !q.data} aria-describedby={limit ? "journey-limit" : undefined}>
+            <button type="button" className="pm2-btn sm" onClick={() => add()} disabled={!!limit || !q.data} aria-describedby={limit ? "journey-limit" : undefined}>
               <Plus size={14} aria-hidden /> Add a follow-up{c.followup_of ? " to this step" : ""}
             </button>
             {limit && <span id="journey-limit" className={s.help}>{limit}</span>}

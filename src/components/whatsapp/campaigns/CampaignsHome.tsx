@@ -1,15 +1,15 @@
 "use client";
 
-// WhatsApp marketing home (Campaigns tab): status strip, searchable campaign
-// list with status filters and per-row actions, and folded-away audience
-// insights. Creating/editing happens on the full-page wizard.
+// WhatsApp marketing home (Campaigns tab): status strip, a calm searchable
+// campaign table with status filters and per-row actions (in a small menu),
+// and folded-away audience insights. Creating/editing happens on the full-page wizard.
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Plus, Search } from "lucide-react";
 import { Callout, Chips } from "@/components/pm";
 import { GlossaryTerm } from "@/components/guide";
-import { errorMessage, useCampaigns } from "./api";
+import { errorMessage, useCampaignAnalytics, useCampaigns } from "./api";
 import { AudienceInsights } from "./AudienceInsights";
 import { CampaignRow } from "./CampaignRow";
 import { descendantCount, filterJourneyList } from "./journey";
@@ -17,6 +17,7 @@ import { LIST_FILTERS, matchesListFilter, matchesSearch, type ListFilter } from 
 import { StatusStrip } from "./StatusStrip";
 import { useCampaignActions } from "./useCampaignActions";
 import s from "./campaigns.module.css";
+import l from "./list.module.css";
 
 export const NEW_CAMPAIGN_HREF = "/dashboard/whatsapp/campaigns/new";
 
@@ -35,28 +36,60 @@ export default function CampaignsHome() {
   // (with the parents a matching follow-up hangs from).
   const shown = filterJourneyList(list, (c) => matchesListFilter(c.status, filter) && matchesSearch(c, search));
 
+  // Revenue per campaign, from the same read-only analytics the campaign page
+  // and Start here use (orders attributed within the campaign window).
+  const anySent = list.some((c) => (c.sent_count ?? 0) > 0);
+  const analytics = useCampaignAnalytics(365, anySent);
+  const revenueById = useMemo(
+    () => new Map((analytics.data?.campaigns ?? []).map((a) => [a.id, a.revenue] as const)),
+    [analytics.data],
+  );
+  const nameById = useMemo(() => new Map(list.map((c) => [c.id, c.name] as const)), [list]);
+  const campaignName = (id: string) => nameById.get(id);
+
+  const summary = [
+    counts.sending ? `${counts.sending} sending` : "",
+    counts.scheduled ? `${counts.scheduled} scheduled` : "",
+    counts.paused ? `${counts.paused} paused` : "",
+    counts.draft ? `${counts.draft} ${counts.draft === 1 ? "draft" : "drafts"}` : "",
+  ].filter(Boolean);
+
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <div className={s.toolbar}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontFamily: "var(--pm-display)" }}>Campaigns</h2>
-          <div className={s.help}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 20, minWidth: 0 }}>
+      <div className={l.head}>
+        <div className={l.headText}>
+          <h2 className={l.title}>Campaigns</h2>
+          <p className={l.sum}>
+            One message to many people.{summary.length ? ` ${summary.join(", ")}.` : ""}
+          </p>
+          <p className={l.help}>
             A campaign sends one approved <GlossaryTerm k="template">template</GlossaryTerm> to a group of customers, plus optional{" "}
             <GlossaryTerm k="followup">follow-ups</GlossaryTerm> later. Meta charges only for <GlossaryTerm k="delivered">delivered</GlossaryTerm> messages.
-          </div>
+          </p>
         </div>
-        <Link href={NEW_CAMPAIGN_HREF} className="pm2-btn pri">
+        <Link href={NEW_CAMPAIGN_HREF} className={`pm2-btn pri ${l.newBtn}`}>
           <Plus size={15} aria-hidden /> New campaign
         </Link>
       </div>
 
       <StatusStrip />
 
-      <div className={s.toolbar}>
-        <div className={s.searchBox}>
+      <div className={l.bar}>
+        <div className={l.chipsWrap}>
+          <Chips
+            ariaLabel="Filter campaigns by status"
+            items={LIST_FILTERS.map((f) => ({
+              key: f.key,
+              label: f.key === "completed" ? "Sent" : f.label,
+              count: f.key === "all" ? undefined : counts[f.key],
+            }))}
+            value={filter}
+            onChange={(k) => setFilter(k as ListFilter)}
+          />
+        </div>
+        <div className={l.search}>
           <Search aria-hidden />
           <input
-            className={s.input}
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -64,12 +97,6 @@ export default function CampaignsHome() {
             aria-label="Search campaigns"
           />
         </div>
-        <Chips
-          ariaLabel="Filter campaigns by status"
-          items={LIST_FILTERS.map((f) => ({ key: f.key, label: f.label, count: counts[f.key] }))}
-          value={filter}
-          onChange={(k) => setFilter(k as ListFilter)}
-        />
       </div>
 
       {q.isError && (
@@ -77,7 +104,7 @@ export default function CampaignsHome() {
           tone="crit"
           title="Couldn't load campaigns"
           body={errorMessage(q.error)}
-          action={<button type="button" className="pm2-btn sm pri" onClick={() => q.refetch()}>Try again</button>}
+          action={<button type="button" className="pm2-btn sm" onClick={() => q.refetch()}>Try again</button>}
         />
       )}
       {q.isLoading && <div className="pm2-skel" aria-label="Loading campaigns" />}
@@ -95,20 +122,42 @@ export default function CampaignsHome() {
               <li>Send yourself a test, then launch. You can pause any time.</li>
             </ol>
           }
-          action={<Link href={NEW_CAMPAIGN_HREF} className="pm2-btn sm pri"><Plus size={14} aria-hidden /> Send your first campaign</Link>}
+          action={<Link href={NEW_CAMPAIGN_HREF} className="pm2-btn sm"><Plus size={14} aria-hidden /> Send your first campaign</Link>}
         />
       )}
       {!q.isLoading && list.length > 0 && shown.length === 0 && (
         <div className="pm2-empty">No campaigns match. Clear the search or pick another filter.</div>
       )}
 
-      <div className={s.list}>
-        {shown.map(({ item: c, depth }) => (
-          <div key={c.id} className={depth > 0 ? s.fuChild : undefined} style={depth > 1 ? { marginLeft: 22 * depth } : undefined}>
-            <CampaignRow c={c} run={run} busy={busy} />
-          </div>
-        ))}
-      </div>
+      {shown.length > 0 && (
+        <div className={l.card}>
+          <table className={l.tbl}>
+            <thead>
+              <tr>
+                <th scope="col">Campaign</th>
+                <th scope="col">Status</th>
+                <th scope="col" className={l.r}>People</th>
+                <th scope="col" className={l.r}>Read</th>
+                <th scope="col" className={l.r}>Revenue</th>
+                <th scope="col" className={l.end}><span className="pm2-sr">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map(({ item: c, depth }) => (
+                <CampaignRow
+                  key={c.id}
+                  c={c}
+                  run={run}
+                  busy={busy}
+                  depth={depth}
+                  revenue={revenueById.get(c.id) ?? null}
+                  campaignName={campaignName}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <AudienceInsights />
       {dialog}
