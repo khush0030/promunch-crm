@@ -1,0 +1,91 @@
+/* Settings (Oct 2026 redesign, other.html #set-home / #set-team / #set-brand).
+   Calm rules: status = coloured text + small dot, hairline rows inside one
+   card, green only for good status, ink for actions. */
+
+.sum{margin:0 0 18px;font-size:16.5px;color:var(--pm-ink2);max-width:760px}
+.sum b{color:var(--pm-ink);font-weight:800}
+
+/* one card, rows split by hairlines */
+.card{background:var(--pm-card);border:1px solid var(--pm-border);border-radius:var(--pm-r);overflow:hidden}
+.card + .card,.card + .secH{margin-top:22px}
+.cardPad{padding:22px}
+.secH{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:26px 0 10px}
+.secH h2{margin:0;font:700 17px/1.3 var(--pm-font);color:var(--pm-ink)}
+.secH span{font-size:14px;color:var(--pm-muted)}
+
+.row{display:flex;align-items:center;gap:14px;padding:16px 22px;border-top:1px solid var(--pm-line);min-width:0}
+.row:first-child{border-top:0}
+.ic{width:42px;height:42px;border-radius:13px;background:var(--pm-card3);display:grid;place-items:center;flex:none;color:var(--pm-ink2)}
+.ic svg{width:19px;height:19px}
+.tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.tx b{font-size:16px;font-weight:700;color:var(--pm-ink);overflow-wrap:anywhere}
+.tx > span{font-size:14px;color:var(--pm-muted);overflow-wrap:anywhere}
+.right{flex:none;display:flex;align-items:center;gap:8px}
+
+/* status: coloured text + small dot */
+.st{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:14.5px;white-space:nowrap}
+.st::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.good{color:var(--pm-green)}
+.warn{color:var(--pm-gold)}
+.bad{color:var(--pm-terra)}
+.off{color:var(--pm-muted)}
+
+/* Shopify store facts */
+.facts{display:grid;grid-template-columns:140px minmax(0,1fr);gap:10px 18px;margin:0;font-size:15px}
+.facts dt{font:700 11px/1.9 var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-muted)}
+.facts dd{margin:0;color:var(--pm-ink);overflow-wrap:anywhere}
+.btnRow{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.quiet{color:var(--pm-ink2)!important}
+.note{margin:12px 0 0;font-size:13.5px;color:var(--pm-muted);line-height:1.5}
+
+/* team rows */
+.member{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 14px;align-items:center;padding:16px 22px;border-top:1px solid var(--pm-line)}
+.member:first-child{border-top:0}
+.mBody{min-width:0;display:flex;flex-direction:column;gap:3px}
+.mName{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:16px;font-weight:700;color:var(--pm-ink)}
+.mMail{font-size:14px;color:var(--pm-muted);overflow-wrap:anywhere}
+.role{font:700 10.5px/1 var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-ink2);border:1px solid var(--pm-border);border-radius:6px;padding:4px 6px}
+.roleOwner{color:var(--pm-brand);border-color:var(--pm-brand-line)}
+.roleSel{appearance:auto;font:700 11px var(--pm-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--pm-ink2);border:1px solid var(--pm-border);border-radius:7px;padding:3px 4px;background:var(--pm-card);cursor:pointer}
+.areas{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.areas em{font-style:normal;font-size:13px;font-weight:600;color:var(--pm-ink2);background:var(--pm-card3);border-radius:999px;padding:3px 10px}
+.seen{font-size:13.5px;color:var(--pm-muted);margin-top:2px}
+.link{appearance:none;border:0;background:none;padding:6px 2px;font:700 15px var(--pm-font);color:var(--pm-ink);text-decoration:underline;text-underline-offset:4px;text-decoration-color:var(--pm-border);cursor:pointer;white-space:nowrap}
+.link:hover{text-decoration-color:var(--pm-ink)}
+.link:disabled{opacity:.5;cursor:default}
+.empty{padding:32px 22px;font-size:15px;color:var(--pm-muted)}
+
+/* brand & email */
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
+.g2 > .card{margin-top:0}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.field:last-child{margin-bottom:0}
+.field label,.lab{font:700 11px var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-muted)}
+.in{width:100%;height:44px;padding:0 14px;border:1px solid var(--pm-border);border-radius:12px;background:var(--pm-card);font:500 15.5px var(--pm-font);color:var(--pm-ink);outline:none}
+.in:focus{border-color:var(--pm-ink2)}
+.swatchRow{display:flex;align-items:center;gap:10px}
+.swatch{width:44px;height:44px;border-radius:12px;border:1px solid var(--pm-border);flex:none}
+.upload{width:100%;justify-content:flex-start!important;border-style:dashed!important}
+.logo{margin-top:12px;height:48px;border-radius:8px;border:1px solid var(--pm-border)}
+.auth{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+
+/* dialogs */
+.dlg{width:440px!important}
+.dlgWide{width:480px!important;max-height:90vh;overflow-y:auto}
+.form{display:flex;flex-direction:column;gap:14px;margin-top:16px}
+.check{display:flex;gap:10px;align-items:flex-start;padding:10px 0;cursor:pointer;font-size:15px}
+.check input{margin-top:4px}
+.check b{display:block;color:var(--pm-ink)}
+.check small{display:block;font-size:13px;color:var(--pm-muted)}
+.checkAll{border-bottom:1px solid var(--pm-line)}
+.dim{opacity:.45}
+
+@media (max-width:760px){
+  .row{padding:14px 16px;gap:12px}
+  .ic{width:38px;height:38px;border-radius:12px}
+  .member{padding:14px 16px;gap:4px 12px}
+  .cardPad{padding:16px}
+  .g2{grid-template-columns:minmax(0,1fr)}
+  .facts{grid-template-columns:minmax(0,1fr);gap:2px}
+  .facts dd{margin-bottom:10px}
+}

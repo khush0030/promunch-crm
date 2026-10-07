@@ -3,11 +3,12 @@
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { PageHead, Tabs, DataTable, StatusBadge, Panel, type Column } from "@/components/pm";
+import { PageHeader, Avatar } from "@/components/pm";
 import { apiFetch, ApiError } from "@/lib/api-fetch";
 import { MODULES } from "@/lib/access";
 import ActivityLog from "@/components/admin/ActivityLog";
 import { ago, fmtTime } from "@/components/admin/format";
+import css from "@/components/admin/admin.module.css";
 
 type Person = {
   id: string;
@@ -39,10 +40,9 @@ type Security = { users: Person[]; sessions: Session[]; sessionsAvailable: boole
 
 const TABS = [
   { key: "people", label: "People" },
-  { key: "sessions", label: "Live sessions" },
+  { key: "sessions", label: "Signed in now" },
   { key: "activity", label: "Activity log" },
 ];
-const ROLE_TONE: Record<string, "terra" | "gold" | "blue"> = { owner: "terra", admin: "gold", agent: "blue" };
 
 function accessText(p: Person): string {
   if (p.admin) return "Everything";
@@ -50,8 +50,6 @@ function accessText(p: Person): string {
   if (!p.modules.length) return "No areas";
   return MODULES.filter((m) => p.modules!.includes(m.key)).map((m) => m.label).join(", ");
 }
-
-const small = { fontSize: 12, color: "var(--pm-hint)" } as const;
 
 export default function AdminPage() {
   return (
@@ -75,117 +73,133 @@ function AdminInner() {
     refetchInterval: 60000,
   });
 
+  const onTab = (t: string) => router.replace(`/dashboard/admin${t === "people" ? "" : `?tab=${t}`}`);
+  const header = (
+    <PageHeader crumb="Settings · admins only" title="Security" tabs={TABS} activeTab={tab} onTab={onTab} />
+  );
+
   if (q.error instanceof ApiError && q.error.status === 403) {
     return (
-      <div className="pm-page">
-        <PageHead title="Admin" subtitle="Security and activity for the whole team." />
-        <Panel title="Admins only">
-          <p className="pm-muted">Only owners and admins can see sign-ins, IP addresses and the activity log.</p>
-        </Panel>
-      </div>
+      <>
+        <PageHeader crumb="Settings · admins only" title="Security" />
+        <div className="pm2-body">
+          <div className={css.card}>
+            <div className={css.empty}>Only owners and admins can see sign-ins, IP addresses and the activity log.</div>
+          </div>
+        </div>
+      </>
     );
   }
 
   const data = q.data;
   const people = data?.users ?? [];
+  const sessions = data?.sessions ?? [];
+  const nameByEmail = new Map(people.filter((p) => p.email).map((p) => [p.email!, p.name]));
 
-  const peopleCols: Column<Person>[] = [
-    {
-      header: "Member",
-      cell: (p) => (
-        <div>
-          <div className="pm-b7">{p.name}</div>
-          <div style={small}>{p.email}</div>
-        </div>
-      ),
-    },
-    {
-      header: "Role & access",
-      cell: (p) => (
-        <div>
-          <StatusBadge tone={ROLE_TONE[p.role] ?? "blue"}>{p.role[0].toUpperCase() + p.role.slice(1)}</StatusBadge>
-          <div style={{ ...small, marginTop: 4, maxWidth: 240 }}>{accessText(p)}</div>
-        </div>
-      ),
-    },
-    {
-      header: "Last sign-in",
-      cell: (p) =>
-        p.confirmed || p.last_sign_in_at ? (
-          <div>
-            <div>{ago(p.last_sign_in_at)}</div>
-            <div style={small}>{fmtTime(p.last_sign_in_at)}</div>
-          </div>
-        ) : (
-          <StatusBadge tone="gold">Invite not accepted</StatusBadge>
-        ),
-    },
-    {
-      header: "Last active",
-      cell: (p) => (
-        <div>
-          <div>{ago(p.last_active_at)}</div>
-          <div style={small}>{fmtTime(p.last_active_at)}</div>
-        </div>
-      ),
-    },
-    {
-      header: "Last IP · device",
-      cell: (p) => (
-        <div>
-          <div style={{ fontFamily: "var(--pm-mono, monospace)", fontSize: 13 }}>{p.last_ip ?? "—"}</div>
-          <div style={small}>{p.last_device ?? "—"}</div>
-        </div>
-      ),
-    },
-    {
-      header: "Sessions",
-      cell: (p) => (
-        <div>
-          <div>{p.active_sessions} live</div>
-          <div style={small}>
-            {p.logins_30d} sign-ins / 30d
-            {p.distinct_ips_30d > 1 ? ` · ${p.distinct_ips_30d} IPs` : ""}
-          </div>
-        </div>
-      ),
-    },
-  ];
-
-  const sessionCols: Column<Session>[] = [
-    { header: "Who", cell: (s) => s.email ?? "—" },
-    { header: "Signed in", cell: (s) => fmtTime(s.created_at) },
-    { header: "Last active", cell: (s) => <span title={fmtTime(s.last_active_at)}>{ago(s.last_active_at)}</span> },
-    { header: "IP", cell: (s) => <span style={{ fontFamily: "var(--pm-mono, monospace)", fontSize: 13 }}>{s.ip ?? "—"}</span> },
-    { header: "Device", cell: (s) => s.device },
-  ];
-
-  const empty = (what: string) =>
-    q.isLoading ? "Loading…"
-    : q.isError ? (
-      <span>
-        Couldn’t load {what}.{" "}
-        <button className="pm-btn ghost sm" style={{ marginLeft: 8 }} onClick={() => q.refetch()}>Retry</button>
-      </span>
-    )
-    : `No ${what} yet.`;
+  const empty = (what: string) => (
+    <div className={css.empty}>
+      {q.isLoading ? "Loading…"
+      : q.isError ? (
+        <>
+          Couldn’t load {what}.
+          <button type="button" className="pm2-btn ghost sm" onClick={() => q.refetch()}>Retry</button>
+        </>
+      )
+      : `No ${what} yet.`}
+    </div>
+  );
 
   return (
-    <div className="pm-page">
-      <PageHead title="Admin" subtitle="Who is on the team, when they signed in, from where, and everything they changed." />
-      <Tabs tabs={TABS} active={tab} onSelect={(t) => router.replace(`/dashboard/admin${t === "people" ? "" : `?tab=${t}`}`)} />
+    <>
+      {header}
+      <div className="pm2-body">
+        <div>
+          <p className={css.sum}>
+            Who signed in, from where, and what they changed.
+            {data?.sessionsAvailable ? <> <b>{sessions.length} signed in now.</b></> : null}
+          </p>
 
-      {data && !data.sessionsAvailable && tab !== "activity" && (
-        <p className="pm-muted" style={{ margin: "4px 0 12px", fontSize: 13 }}>
-          Live sessions and sign-in history switch on once database migration 015 is applied. Last sign-in times below are already live.
-        </p>
-      )}
+          {data && !data.sessionsAvailable && tab !== "activity" && (
+            <p className={css.note}>
+              Live sessions and sign-in history switch on once database migration 015 is applied. Last sign-in times below are already live.
+            </p>
+          )}
 
-      {tab === "people" && <DataTable columns={peopleCols} rows={people} rowKey={(p) => p.id} empty={empty("team members")} />}
-      {tab === "sessions" && (
-        <DataTable columns={sessionCols} rows={data?.sessions ?? []} rowKey={(s) => s.id} empty={empty("live sessions")} />
-      )}
-      {tab === "activity" && <ActivityLog people={people.map((p) => p.email).filter((e): e is string => !!e)} />}
-    </div>
+          {tab === "people" && (
+            <div className={css.card}>
+              {people.length === 0 ? empty("team members") : (
+                <>
+                  <div className={`${css.thead} ${css.people}`}>
+                    <span>Person</span><span>Last active</span><span>Last IP · device</span><span>Sessions</span>
+                  </div>
+                  {people.map((p) => (
+                    <div key={p.id} className={`${css.row} ${css.people}`}>
+                      <div className={css.who}>
+                        <Avatar name={p.name} size={34} />
+                        <div className={css.cell}>
+                          <span className={css.name}>
+                            {p.name}
+                            <span className={css.role}>{p.role[0].toUpperCase() + p.role.slice(1)}</span>
+                          </span>
+                          <span className={css.sub}>{p.email}</span>
+                          <span className={css.sub}>{accessText(p)}</span>
+                        </div>
+                      </div>
+                      <div className={css.cell} data-l="Last active">
+                        <span title={fmtTime(p.last_active_at)}>{ago(p.last_active_at)}</span>
+                        {p.confirmed || p.last_sign_in_at ? (
+                          <span className={css.sub}>Signed in {fmtTime(p.last_sign_in_at)}</span>
+                        ) : (
+                          <span className={`${css.st} ${css.warn}`}>Invite not accepted</span>
+                        )}
+                      </div>
+                      <div className={css.cell} data-l="IP · device">
+                        <span className={css.mono}>{p.last_ip ?? "—"}</span>
+                        <span className={css.sub}>{p.last_device ?? "—"}</span>
+                      </div>
+                      <div className={css.cell} data-l="Sessions">
+                        {p.active_sessions > 0 ? <span className={`${css.st} ${css.live}`}>{p.active_sessions} live</span> : <span>None live</span>}
+                        <span className={css.sub}>
+                          {p.logins_30d} sign-ins / 30d
+                          {p.distinct_ips_30d > 1 ? ` · ${p.distinct_ips_30d} IPs` : ""}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+
+          {tab === "sessions" && (
+            <div className={css.card}>
+              {sessions.length === 0 ? empty("live sessions") : (
+                <>
+                  <div className={`${css.thead} ${css.sess}`}>
+                    <span>Person</span><span>Device</span><span>Where (IP)</span><span>Last active</span>
+                  </div>
+                  {sessions.map((s) => (
+                    <div key={s.id} className={`${css.row} ${css.sess}`}>
+                      <div className={css.cell}>
+                        <span className={css.name}>{(s.email && nameByEmail.get(s.email)) || s.email || "—"}</span>
+                        <span className={css.sub}>{s.email && nameByEmail.get(s.email) ? s.email : `Signed in ${fmtTime(s.created_at)}`}</span>
+                      </div>
+                      <div className={css.cell} data-l="Device"><span>{s.device}</span></div>
+                      <div className={css.cell} data-l="Where"><span className={css.mono}>{s.ip ?? "—"}</span></div>
+                      <div className={css.cell} data-l="Last active">
+                        <span title={fmtTime(s.last_active_at)}>{ago(s.last_active_at)}</span>
+                        <span className={css.sub}>Signed in {fmtTime(s.created_at)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+
+          {tab === "activity" && <ActivityLog people={people.map((p) => p.email).filter((e): e is string => !!e)} />}
+        </div>
+      </div>
+    </>
   );
 }

@@ -1,28 +1,43 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, Plus, UserPlus, Store, ShoppingBag } from "lucide-react";
-import { Avatar } from "@/components/ui/Avatar";
+import { Plus, UserPlus, ShoppingBag, Mail, Inbox, Sparkles, MessageSquare, Plug, type LucideIcon } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { PageHead, Tabs, Panel, HealthPill, StatusBadge, DataTable } from "@/components/pm";
+import { PageHeader, Avatar } from "@/components/pm";
 import { ApiKeysPanel } from "@/components/settings/ApiKeysPanel";
-import type { Column, HealthStatus } from "@/components/pm";
 import { MODULES, type ModuleKey } from "@/lib/access";
+import { ago } from "@/components/admin/format";
+import css from "@/components/settings/Settings.module.css";
 
 type Status = "healthy" | "degraded" | "down" | "unknown";
 type Connector = { id: string; label: string; description: string; status: Status; headline: string; metrics: { label: string; value: string }[] };
 type Health = { connectors: Connector[] };
 
-const statusToHealth: Record<Status, HealthStatus> = { healthy: "ok", degraded: "warn", down: "off", unknown: "off" };
-const statusLabel: Record<Status, string> = { healthy: "Healthy", degraded: "Degraded", down: "Down", unknown: "No data" };
+const statusLabel: Record<Status, string> = { healthy: "Working", degraded: "Needs a look", down: "Broken", unknown: "No data" };
+const STATUS_CLASS: Record<Status, "good" | "warn" | "bad" | "off"> = { healthy: "good", degraded: "warn", down: "bad", unknown: "off" };
+
+function connectorIcon(id: string): LucideIcon {
+  if (id.includes("slack")) return MessageSquare;
+  if (id.includes("gmail")) return Inbox;
+  if (id.includes("shopify")) return ShoppingBag;
+  if (id.includes("anthropic") || id.includes("openai") || id.includes("ai")) return Sparkles;
+  return Plug;
+}
 
 const TABS = [
   { key: "connections", label: "Connections" },
+  { key: "team", label: "Team & access" },
   { key: "apikeys", label: "API keys" },
-  { key: "email", label: "Email" },
-  { key: "brand", label: "Brand" },
-  { key: "team", label: "Team" },
+  { key: "brand", label: "Brand & email" },
 ];
+const TAB_META: Record<string, { crumb: string; title: string }> = {
+  connections: { crumb: "Settings", title: "Settings" },
+  team: { crumb: "Settings", title: "Team & access" },
+  apikeys: { crumb: "Settings · owner only", title: "API keys" },
+  brand: { crumb: "Settings", title: "Brand & email" },
+};
+// Older deep links (#email) land on the merged Brand & email tab.
+const HASH_ALIAS: Record<string, string> = { email: "brand" };
 
 export default function SettingsPage() {
   const toast = useToast();
@@ -34,7 +49,8 @@ export default function SettingsPage() {
   // Deep-link support: /dashboard/settings#team opens the Team tab (used by the
   // legacy /integrations and /team route redirects).
   useEffect(() => {
-    const h = window.location.hash.replace("#", "");
+    const raw = window.location.hash.replace("#", "");
+    const h = HASH_ALIAS[raw] ?? raw;
     if (h && TABS.some((t) => t.key === h)) setTab(h);
   }, []);
   const [disconnectBusy, setDisconnectBusy] = useState(false);
@@ -141,132 +157,177 @@ export default function SettingsPage() {
     }
   }
 
+  const tabMeta = TAB_META[tab] ?? TAB_META.connections;
+  const connectors = health?.connectors ?? [];
+  const total = connectors.length + 2; // + Shopify and Resend, always listed
+  const working = connectors.filter((c) => c.status === "healthy").length + 2;
+  const needLook = connectors.filter((c) => c.status === "degraded" || c.status === "down").length;
+
   return (
-    <div className="pm-page">
-      <PageHead title="Settings" subtitle="Manage your PROMUNCH CRM configuration" />
-      <Tabs tabs={TABS} active={tab} onSelect={setTab} />
-
-      {tab === "connections" && (
-        <div className="pm-grid g-11">
-          <Panel title="Connections" icon={<Store className="tic" />} caption="Live status of every integration">
-            <HealthPill name="Shopify" status="ok" statusLabel="Connected" />
-            <HealthPill name="Email · Resend" status="ok" statusLabel="SPF·DKIM·DMARC" />
-            {(health?.connectors ?? []).map((c) => (
-              <HealthPill key={c.id} name={c.label} status={statusToHealth[c.status]} statusLabel={statusLabel[c.status]} />
-            ))}
-          </Panel>
-          <Panel title="Shopify store" caption="Sync your Shopify store data">
-            <div className="pm-pill"><span className="nm">Store URL</span><span className="pm-muted">{process.env.NEXT_PUBLIC_SHOPIFY_STORE_URL || "—"}</span></div>
-            <div className="pm-pill"><span className="nm">Status</span><StatusBadge tone="green" icon={<CheckCircle2 />}>Connected</StatusBadge></div>
-            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-              <button className="pm-btn primary" onClick={handleCatalogSync} disabled={catalogBusy}>
-                <ShoppingBag size={15} /> {catalogBusy ? "Syncing…" : "Sync catalog to WhatsApp"}
-              </button>
-              <button className="pm-btn ghost" style={{ color: "var(--pm-terra)" }} onClick={handleDisconnect} disabled={disconnectBusy}>
-                {disconnectBusy ? "Disconnecting…" : "Disconnect Shopify"}
-              </button>
-            </div>
-            <p className="pm-muted" style={{ marginTop: 8, fontSize: 12 }}>
-              Pulls active products into the WhatsApp catalog so customers can order in chat. Build your Meta catalog with Content ID = Shopify variant id.
+    <>
+      <PageHeader
+        crumb={tabMeta.crumb}
+        title={tabMeta.title}
+        tabs={TABS}
+        activeTab={tab}
+        onTab={setTab}
+        actions={
+          tab === "team" ? (
+            <button type="button" className="pm2-btn pri" onClick={() => setInviteOpen(true)} disabled={inviteBusy}>
+              <UserPlus /> Invite
+            </button>
+          ) : tab === "brand" ? (
+            <button type="button" className="pm2-btn pri" onClick={handleSaveBrand}>Save</button>
+          ) : undefined
+        }
+      />
+      <div className="pm2-body">
+        {tab === "connections" && (
+          <div>
+            <p className={css.sum}>
+              {!health ? (
+                "Checking every connection…"
+              ) : working === total ? (
+                <><b>All {total} connections are working.</b> Checked when you opened this page.</>
+              ) : (
+                <><b>{working} of {total} connections are working.</b>{needLook > 0 ? ` ${needLook} need a look.` : " The rest have no recent data."}</>
+              )}
             </p>
-          </Panel>
-        </div>
-      )}
+            <div className={css.card}>
+              <div className={css.row}>
+                <span className={css.ic}><ShoppingBag /></span>
+                <div className={css.tx}><b>Shopify</b><span>Orders, customers and catalog</span></div>
+                <span className={`${css.st} ${css.good}`}>Connected</span>
+              </div>
+              <div className={css.row}>
+                <span className={css.ic}><Mail /></span>
+                <div className={css.tx}><b>Email sending (Resend)</b><span>SPF · DKIM · DMARC verified</span></div>
+                <span className={`${css.st} ${css.good}`}>Working</span>
+              </div>
+              {connectors.map((c) => {
+                const Icon = connectorIcon(c.id);
+                return (
+                  <div key={c.id} className={css.row}>
+                    <span className={css.ic}><Icon /></span>
+                    <div className={css.tx}><b>{c.label}</b><span>{c.headline || c.description}</span></div>
+                    <span className={`${css.st} ${css[STATUS_CLASS[c.status]]}`}>{statusLabel[c.status]}</span>
+                  </div>
+                );
+              })}
+            </div>
 
-      {tab === "apikeys" && (
-        <Panel title="API keys" caption="Connect or rotate service keys. Locked to the workspace owner.">
-          <ApiKeysPanel />
-        </Panel>
-      )}
-
-      {tab === "email" && (
-        <Panel
-          title="Email sending"
-          caption="Configure your email provider and sender details"
-          more={<button className="pm-btn primary sm" onClick={handleSaveBrand}>Save</button>}
-        >
-          <div className="pm-frow">
-            <div className="pm-field"><label>Provider</label><input title="Provider" value={brand.provider} onChange={(e) => setBrand({ ...brand, provider: e.target.value })} /></div>
-            <div className="pm-field"><label>From name</label><input title="From name" value={brand.fromName} onChange={(e) => setBrand({ ...brand, fromName: e.target.value })} /></div>
-            <div className="pm-field"><label>From email</label><input type="email" title="From email" value={brand.fromEmail} onChange={(e) => setBrand({ ...brand, fromEmail: e.target.value })} /></div>
-          </div>
-          <div style={{ marginTop: 6 }}>
-            <div className="pm-dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600, marginBottom: 8 }}>Domain authentication</div>
-            <StatusBadge tone="green" icon={<CheckCircle2 />}>SPF</StatusBadge>{" "}
-            <StatusBadge tone="green" icon={<CheckCircle2 />}>DKIM</StatusBadge>{" "}
-            <StatusBadge tone="green" icon={<CheckCircle2 />}>DMARC</StatusBadge>
-          </div>
-        </Panel>
-      )}
-
-      {tab === "brand" && (
-        <Panel
-          title="Brand"
-          caption="Customise your brand appearance"
-          more={<button className="pm-btn primary sm" onClick={handleSaveBrand}>Save</button>}
-        >
-          <div className="pm-frow">
-            <div className="pm-field"><label>Brand name</label><input title="Brand name" value={brand.name} onChange={(e) => setBrand({ ...brand, name: e.target.value })} /></div>
-            <div className="pm-field"><label>Primary colour</label><input title="Primary colour" value={brand.color} onChange={(e) => setBrand({ ...brand, color: e.target.value })} /></div>
-            <div className="pm-field">
-              <label>Logo</label>
-              <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} title="Upload logo" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); }} />
-              <button className="pm-btn ghost" onClick={() => fileRef.current?.click()} disabled={logoBusy} style={{ width: "100%", justifyContent: "flex-start", borderStyle: "dashed" }}>
-                <Plus size={14} /> {logoBusy ? "Uploading…" : logoUrl ? "Replace logo" : "Click to upload logo"}
-              </button>
+            <div className={css.secH}><h2>Shopify store</h2><span>Sync your Shopify store data</span></div>
+            <div className={`${css.card} ${css.cardPad}`}>
+              <dl className={css.facts}>
+                <dt>Store URL</dt><dd>{process.env.NEXT_PUBLIC_SHOPIFY_STORE_URL || "Not set"}</dd>
+                <dt>Status</dt><dd><span className={`${css.st} ${css.good}`}>Connected</span></dd>
+              </dl>
+              <div className={css.btnRow}>
+                <button type="button" className="pm2-btn" onClick={handleCatalogSync} disabled={catalogBusy}>
+                  <ShoppingBag /> {catalogBusy ? "Syncing…" : "Sync catalog to WhatsApp"}
+                </button>
+                <button type="button" className={`pm2-btn ghost ${css.quiet}`} onClick={handleDisconnect} disabled={disconnectBusy}>
+                  {disconnectBusy ? "Disconnecting…" : "Disconnect Shopify"}
+                </button>
+              </div>
+              <p className={css.note}>
+                Pulls active products into the WhatsApp catalog so customers can order in chat. Build your Meta catalog with Content ID = Shopify variant id.
+              </p>
             </div>
           </div>
-          {logoUrl && (
-            <div style={{ marginTop: 14 }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={logoUrl} alt="Brand logo" style={{ height: 48, borderRadius: 8, border: "1px solid var(--pm-border)" }} />
-            </div>
-          )}
-        </Panel>
-      )}
+        )}
 
-      {tab === "team" && (
-        <Panel
-          title="Team members"
-          caption="Manage access to PROMUNCH CRM"
-          more={<button type="button" className="pm-btn ghost sm" onClick={() => setInviteOpen(true)} disabled={inviteBusy}><UserPlus size={14} /> Invite member</button>}
-        >
-          <div style={{ marginTop: 4 }}><TeamTable /></div>
-        </Panel>
-      )}
+        {tab === "apikeys" && (
+          <div>
+            <p className={css.sum}>Keys for the services the CRM talks to. Changing one takes effect within a minute, no redeploy.</p>
+            <ApiKeysPanel />
+          </div>
+        )}
+
+        {tab === "brand" && (
+          <div>
+            <p className={css.sum}>Used by every email, popup and creator page.</p>
+            <div className={css.g2}>
+              <div className={`${css.card} ${css.cardPad}`}>
+                <div className={css.field}>
+                  <label htmlFor="brand-name">Brand name</label>
+                  <input id="brand-name" className={css.in} title="Brand name" value={brand.name} onChange={(e) => setBrand({ ...brand, name: e.target.value })} />
+                </div>
+                <div className={css.field}>
+                  <label htmlFor="brand-color">Primary colour</label>
+                  <div className={css.swatchRow}>
+                    <span className={css.swatch} style={{ background: brand.color }} aria-hidden />
+                    <input id="brand-color" className={css.in} title="Primary colour" value={brand.color} onChange={(e) => setBrand({ ...brand, color: e.target.value })} />
+                  </div>
+                </div>
+                <div className={css.field}>
+                  <span className={css.lab}>Logo</span>
+                  <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} title="Upload logo" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); }} />
+                  <button type="button" className={`pm2-btn ${css.upload}`} onClick={() => fileRef.current?.click()} disabled={logoBusy}>
+                    <Plus /> {logoBusy ? "Uploading…" : logoUrl ? "Replace logo" : "Click to upload logo"}
+                  </button>
+                  {logoUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logoUrl} alt="Brand logo" className={css.logo} />
+                  )}
+                </div>
+              </div>
+              <div className={`${css.card} ${css.cardPad}`}>
+                <div className={css.field}>
+                  <label htmlFor="mail-provider">Provider</label>
+                  <input id="mail-provider" className={css.in} title="Provider" value={brand.provider} onChange={(e) => setBrand({ ...brand, provider: e.target.value })} />
+                </div>
+                <div className={css.field}>
+                  <label htmlFor="mail-from-name">From name</label>
+                  <input id="mail-from-name" className={css.in} title="From name" value={brand.fromName} onChange={(e) => setBrand({ ...brand, fromName: e.target.value })} />
+                </div>
+                <div className={css.field}>
+                  <label htmlFor="mail-from-email">Send emails from</label>
+                  <input id="mail-from-email" type="email" className={css.in} title="From email" value={brand.fromEmail} onChange={(e) => setBrand({ ...brand, fromEmail: e.target.value })} />
+                </div>
+                <div className={css.field}>
+                  <span className={css.lab}>Domain authentication</span>
+                  <div className={css.auth}>
+                    <span className={`${css.st} ${css.good}`}>SPF</span>
+                    <span className={`${css.st} ${css.good}`}>DKIM</span>
+                    <span className={`${css.st} ${css.good}`}>DMARC</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === "team" && <div><TeamTable /></div>}
+      </div>
 
       {inviteOpen && (
-        <div
-          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(36,30,24,0.5)", display: "grid", placeItems: "center", padding: 20 }}
-          onClick={() => !inviteBusy && setInviteOpen(false)}
-        >
-          <div
-            className="card card-pad"
-            style={{ width: "100%", maxWidth: 420, padding: 28 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 4px" }}>Invite a teammate</h3>
-            <div className="sub" style={{ marginBottom: 16 }}>
+        <div className="pm2-dialog-backdrop" onClick={() => !inviteBusy && setInviteOpen(false)}>
+          <div className={`pm2-dialog ${css.dlg}`} role="dialog" aria-modal="true" aria-label="Invite a teammate" onClick={(e) => e.stopPropagation()}>
+            <div className="t">Invite a teammate</div>
+            <div className="c">
               They&apos;ll get a PROMUNCH email with a link to set a password and join. Only @vippysoya.com, @promunch.in or @trypromunch.in addresses are allowed.
             </div>
             <form
               onSubmit={(e) => { e.preventDefault(); submitInvite(); }}
-              style={{ display: "flex", flexDirection: "column", gap: 12 }}
+              className={css.form}
             >
-              <div className="field">
-                <label>Name (optional)</label>
+              <div className={css.field}>
+                <label htmlFor="invite-name">Name (optional)</label>
                 <input
-                  className="input"
+                  id="invite-name"
+                  className={css.in}
                   placeholder="Priya Sharma"
                   value={inviteName}
                   onChange={(e) => setInviteName(e.target.value)}
                   autoFocus
                 />
               </div>
-              <div className="field">
-                <label>Work email</label>
+              <div className={css.field}>
+                <label htmlFor="invite-email">Work email</label>
                 <input
-                  className="input"
+                  id="invite-email"
+                  className={css.in}
                   type="email"
                   placeholder="priya@promunch.in"
                   required
@@ -274,25 +335,23 @@ export default function SettingsPage() {
                   onChange={(e) => setInviteEmail(e.target.value)}
                 />
               </div>
-              <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-                <button type="submit" className="btn primary" disabled={inviteBusy} style={{ justifyContent: "center" }}>
-                  {inviteBusy ? "Sending…" : "Send invite"}
-                </button>
-                <button type="button" className="btn" onClick={() => setInviteOpen(false)} disabled={inviteBusy} style={{ justifyContent: "center" }}>
+              <div className="act">
+                <button type="button" className="pm2-btn" onClick={() => setInviteOpen(false)} disabled={inviteBusy}>
                   Cancel
+                </button>
+                <button type="submit" className="pm2-btn pri" disabled={inviteBusy}>
+                  {inviteBusy ? "Sending…" : "Send invite"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
-type Member = { id: string; name: string; email: string | null; role: string; modules: ModuleKey[] | null; confirmed: boolean };
-
-const ROLE_TONE: Record<string, "terra" | "gold" | "blue"> = { owner: "terra", admin: "gold", agent: "blue" };
+type Member = { id: string; name: string; email: string | null; role: string; modules: ModuleKey[] | null; confirmed: boolean; last_sign_in_at?: string | null };
 
 function TeamTable() {
   const [members, setMembers] = useState<Member[]>([]);
@@ -322,42 +381,64 @@ function TeamTable() {
     load();
   }
 
-  const accessLabel = (m: Member) =>
-    m.role !== "agent" ? "Everything" : m.modules === null ? "All areas" : m.modules.length === 0 ? "No areas" : `${m.modules.length} of ${MODULES.length} areas`;
-
-  const columns: Column<Member>[] = [
-    { header: "Member", cell: (m) => <div className="pm-cellname"><Avatar name={m.name} size={30} /><span className="pm-b7">{m.name}</span></div> },
-    { header: "Email", cell: (m) => <span className="pm-dim">{m.email}</span> },
-    {
-      header: "Role",
-      cell: (m) =>
-        canManage && m.id !== currentId ? (
-          <select className="select" value={m.role} onChange={(e) => setRole(m.id, e.target.value)} aria-label={`Role for ${m.name}`}>
-            <option value="owner">Owner</option>
-            <option value="admin">Admin</option>
-            <option value="agent">Agent</option>
-          </select>
-        ) : (
-          <StatusBadge tone={ROLE_TONE[m.role] ?? "gold"}>{m.role[0].toUpperCase() + m.role.slice(1)}</StatusBadge>
-        ),
-    },
-    {
-      header: "Access",
-      cell: (m) =>
-        canManage && m.id !== currentId && m.role === "agent" ? (
-          <button type="button" className="pm-btn ghost sm" onClick={() => setEditing(m)} title="Choose which areas this member can use">
-            {accessLabel(m)}
-          </button>
-        ) : (
-          <span className="pm-dim" title={m.role !== "agent" ? "Owners and admins can use every area" : undefined}>{accessLabel(m)}</span>
-        ),
-    },
-    { header: "Status", cell: (m) => <StatusBadge tone={m.confirmed ? "green" : "gold"}>{m.confirmed ? "Active" : "Invited"}</StatusBadge> },
-  ];
+  const roleName = (r: string) => r[0].toUpperCase() + r.slice(1);
+  const areaChips = (m: Member): string[] =>
+    m.role !== "agent"
+      ? ["Everything"]
+      : m.modules === null
+        ? ["All areas"]
+        : m.modules.length === 0
+          ? ["No areas"]
+          : MODULES.filter((x) => m.modules!.includes(x.key)).map((x) => x.label);
 
   return (
     <>
-      <DataTable columns={columns} rows={members} rowKey={(m) => m.id} empty="No team data yet" />
+      <p className={css.sum}>
+        {members.length ? <><b>{members.length} {members.length === 1 ? "person" : "people"}.</b> Choose which areas each person can open.</> : "Choose which areas each person can open."}
+      </p>
+      <div className={css.card}>
+        {members.length === 0 && <div className={css.empty}>No team data yet</div>}
+        {members.map((m) => {
+          const editable = canManage && m.id !== currentId;
+          return (
+            <div key={m.id} className={css.member}>
+              <Avatar name={m.name} size={34} />
+              <div className={css.mBody}>
+                <div className={css.mName}>
+                  <span>{m.name}</span>
+                  {editable ? (
+                    <select className={css.roleSel} value={m.role} onChange={(e) => setRole(m.id, e.target.value)} aria-label={`Role for ${m.name}`}>
+                      <option value="owner">Owner</option>
+                      <option value="admin">Admin</option>
+                      <option value="agent">Agent</option>
+                    </select>
+                  ) : (
+                    <span className={css.role}>{roleName(m.role)}</span>
+                  )}
+                </div>
+                {m.email && <span className={css.mMail}>{m.email}</span>}
+                <span className={css.areas} title={m.role !== "agent" ? "Owners and admins can use every area" : undefined}>
+                  {areaChips(m).map((a) => <em key={a}>{a}</em>)}
+                </span>
+                <span className={css.seen}>
+                  {m.confirmed ? (
+                    <>Last seen {ago(m.last_sign_in_at ?? null).toLowerCase()}</>
+                  ) : (
+                    <span className={`${css.st} ${css.warn}`}>Invited, not joined yet</span>
+                  )}
+                </span>
+              </div>
+              {editable && m.role === "agent" ? (
+                <button type="button" className={css.link} onClick={() => setEditing(m)} title="Choose which areas this member can use">
+                  Change
+                </button>
+              ) : (
+                <span />
+              )}
+            </div>
+          );
+        })}
+      </div>
       {editing && (
         <AccessDialog
           member={editing}
@@ -409,55 +490,50 @@ function AccessDialog({ member, onClose, onSaved }: { member: Member; onClose: (
   }
 
   return (
-    <div
-      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(36,30,24,0.5)", display: "grid", placeItems: "center", padding: 20 }}
-      onClick={() => !busy && onClose()}
-    >
+    <div className="pm2-dialog-backdrop" onClick={() => !busy && onClose()}>
       <div
-        className="card card-pad"
+        className={`pm2-dialog ${css.dlgWide}`}
         role="dialog"
         aria-modal="true"
         aria-label={`Access for ${member.name}`}
-        style={{ width: "100%", maxWidth: 480, padding: 28, maxHeight: "90vh", overflowY: "auto" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 4px" }}>Access for {member.name}</h3>
-        <div className="sub" style={{ marginBottom: 16 }}>
+        <div className="t">Access for {member.name}</div>
+        <div className="c">
           Choose which parts of the CRM {member.email ?? "this member"} can open. Everything else is hidden and blocked.
         </div>
 
-        <label style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0", borderBottom: "1px solid var(--pm-border)", cursor: "pointer" }}>
-          <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} style={{ marginTop: 3 }} />
+        <label className={`${css.check} ${css.checkAll}`}>
+          <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
           <span>
-            <span className="pm-b7">All areas</span>
-            <span className="pm-dim" style={{ display: "block", fontSize: 12 }}>Everything a member can use today, plus any area added later.</span>
+            <b>All areas</b>
+            <small>Everything a member can use today, plus any area added later.</small>
           </span>
         </label>
 
-        <div style={{ opacity: all ? 0.45 : 1 }}>
+        <div className={all ? css.dim : undefined}>
           {MODULES.map((m) => (
-            <label key={m.key} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "9px 0", cursor: all ? "default" : "pointer" }}>
+            <label key={m.key} className={css.check} style={{ cursor: all ? "default" : "pointer" }}>
               <input
                 type="checkbox"
                 disabled={all}
                 checked={all || picked.has(m.key)}
                 onChange={() => toggle(m.key)}
-                style={{ marginTop: 3 }}
               />
               <span>
-                <span className="pm-b7">{m.label}</span>
-                <span className="pm-dim" style={{ display: "block", fontSize: 12 }}>{m.hint}</span>
+                <b>{m.label}</b>
+                <small>{m.hint}</small>
               </span>
             </label>
           ))}
         </div>
 
-        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-          <button type="button" className="btn primary" onClick={save} disabled={busy} style={{ justifyContent: "center" }}>
-            {busy ? "Saving…" : "Save access"}
-          </button>
-          <button type="button" className="btn" onClick={onClose} disabled={busy} style={{ justifyContent: "center" }}>
+        <div className="act">
+          <button type="button" className="pm2-btn" onClick={onClose} disabled={busy}>
             Cancel
+          </button>
+          <button type="button" className="pm2-btn pri" onClick={save} disabled={busy}>
+            {busy ? "Saving…" : "Save access"}
           </button>
         </div>
       </div>

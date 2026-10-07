@@ -5,7 +5,7 @@
 // Values are write-only from here — the API only ever returns a masked tail.
 
 import { useCallback, useEffect, useState } from "react";
-import { Lock, Plus, RefreshCw } from "lucide-react";
+import { KeyRound, Lock, Plus, RefreshCw } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "./ApiKeysPanel.module.css";
 
@@ -23,9 +23,9 @@ type KeyRow = {
 };
 
 const SOURCE_LABEL: Record<KeyRow["source"], string> = {
-  dashboard: "Connected · set from dashboard",
+  dashboard: "Connected · set here",
   env: "Connected · from environment",
-  missing: "Not configured",
+  missing: "Not set",
 };
 
 export function ApiKeysPanel() {
@@ -139,86 +139,91 @@ export function ApiKeysPanel() {
       {groups.map((g) => (
         <div key={g} className={styles.group}>
           <div className={styles.groupLabel}>{g}</div>
-          {keys
-            .filter((k) => k.group === g)
-            .map((k) => (
-              <div key={k.name} className={styles.row}>
-                <span
-                  className={`${styles.dot} ${
-                    k.source === "missing" ? styles.dotMissing : k.source === "env" ? styles.dotEnv : styles.dotOk
-                  }`}
-                  aria-hidden
-                />
-                <div className={styles.id}>
-                  <div className={styles.label}>{k.label}</div>
-                  <div className={styles.name}>{k.name}</div>
-                  <div className={styles.hint}>{k.hint}</div>
-                </div>
-                <div className={styles.meta}>
-                  <div className={styles.masked}>{k.masked ?? "—"}</div>
-                  <div>{SOURCE_LABEL[k.source]}</div>
-                  {k.updatedAt && <div>updated {new Date(k.updatedAt).toLocaleDateString("en-IN")}</div>}
-                </div>
-                <div className={styles.actions}>
-                  {k.testable && (
-                    <button type="button" className={styles.btn} disabled={busy === k.name} onClick={() => runTest(k.name)}>
-                      <RefreshCw size={11} /> Test
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className={styles.btn}
-                    onClick={() => {
-                      setEditing(editing === k.name ? null : k.name);
-                      setDraft("");
-                      setTestNote(null);
-                    }}
-                  >
-                    Replace
-                  </button>
-                  {k.custom && (
-                    <button type="button" className={`${styles.btn} ${styles.btnDanger}`} onClick={() => removeCustom(k.name)}>
-                      Remove
-                    </button>
-                  )}
-                </div>
-
-                {editing === k.name && (
-                  <div className={styles.editor}>
-                    <input
-                      className={styles.input}
-                      type="password"
-                      placeholder={`Paste the new ${k.label} key`}
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      autoComplete="off"
-                    />
+          <div className={styles.card}>
+            {keys
+              .filter((k) => k.group === g)
+              .map((k) => (
+                <div key={k.name} className={styles.row}>
+                  <span className={styles.ic} aria-hidden>
+                    <KeyRound />
+                  </span>
+                  <div className={styles.id}>
+                    <div className={styles.label}>{k.label}</div>
+                    <div className={styles.meta}>
+                      <span className={styles.mono}>{k.name}</span>
+                      {k.masked && <span className={styles.mono}> · {k.masked}</span>}
+                      {k.updatedAt && <span> · changed {new Date(k.updatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>}
+                    </div>
+                    <div
+                      className={`${styles.status} ${
+                        k.source === "missing" ? styles.stMissing : styles.stOk
+                      }`}
+                    >
+                      {SOURCE_LABEL[k.source]}
+                    </div>
+                    <div className={styles.hint}>{k.hint}</div>
+                  </div>
+                  <div className={styles.actions}>
+                    {k.testable && (
+                      <button type="button" className={styles.btn} disabled={busy === k.name} onClick={() => runTest(k.name)}>
+                        <RefreshCw size={13} /> Test
+                      </button>
+                    )}
                     <button
                       type="button"
-                      className={styles.saveBtn}
-                      disabled={draft.trim().length < 8 || busy === k.name}
-                      onClick={() => save(k.name, draft.trim())}
+                      className={styles.btn}
+                      onClick={() => {
+                        setEditing(editing === k.name ? null : k.name);
+                        setDraft("");
+                        setTestNote(null);
+                      }}
                     >
-                      {k.testable ? "Test & save" : "Save"}
+                      {k.source === "missing" ? "Add" : "Replace"}
                     </button>
-                    {testNote?.name === k.name && !testNote.ok && (
-                      <button type="button" className={styles.btn} onClick={() => save(k.name, draft.trim(), { skipTest: true })}>
-                        Save anyway
+                    {k.custom && (
+                      <button type="button" className={`${styles.btn} ${styles.btnDanger}`} onClick={() => removeCustom(k.name)}>
+                        Remove
                       </button>
                     )}
                   </div>
-                )}
-                {testNote?.name === k.name && (
-                  <div className={`${styles.testNote} ${testNote.ok ? styles.testOk : styles.testFail}`}>{testNote.detail}</div>
-                )}
-              </div>
-            ))}
+
+                  {editing === k.name && (
+                    <div className={styles.editor}>
+                      <input
+                        className={styles.input}
+                        type="password"
+                        placeholder={`Paste the new ${k.label} key`}
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        autoComplete="off"
+                      />
+                      <button
+                        type="button"
+                        className={styles.saveBtn}
+                        disabled={draft.trim().length < 8 || busy === k.name}
+                        onClick={() => save(k.name, draft.trim())}
+                      >
+                        {k.testable ? "Test & save" : "Save"}
+                      </button>
+                      {testNote?.name === k.name && !testNote.ok && (
+                        <button type="button" className={styles.btn} onClick={() => save(k.name, draft.trim(), { skipTest: true })}>
+                          Save anyway
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {testNote?.name === k.name && (
+                    <div className={`${styles.testNote} ${testNote.ok ? styles.testOk : styles.testFail}`}>{testNote.detail}</div>
+                  )}
+                </div>
+              ))}
+          </div>
         </div>
       ))}
 
       <div className={styles.group}>
         <div className={styles.groupLabel}>Add a custom key</div>
-        <div className={styles.addRow}>
+        <div className={`${styles.card} ${styles.addRow}`}>
           <input
             className={`${styles.input} ${styles.addName}`}
             placeholder="KEY_NAME"

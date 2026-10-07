@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { DataTable, type Column } from "@/components/pm";
 import { apiFetch } from "@/lib/api-fetch";
 import { describeDevice } from "@/lib/device";
 import { fmtTime } from "./format";
+import css from "./admin.module.css";
 
 type AuditEntry = {
   id: string;
@@ -27,10 +27,6 @@ const KINDS = [
 ];
 
 const PAGE = 200;
-const selectStyle = {
-  padding: "8px 10px", border: "1px solid var(--pm-border)", borderRadius: 8,
-  fontSize: 13, background: "var(--pm-card)", color: "var(--pm-ink)",
-} as const;
 
 // Full audit trail: sign-ins (from the auth.sessions trigger) plus every
 // sensitive action recorded by recordAudit(). Admin-only API.
@@ -54,50 +50,52 @@ export default function ActivityLog({ people }: { people: string[] }) {
   });
   const entries = useMemo(() => q.data?.pages.flat() ?? [], [q.data]);
 
-  const columns: Column<AuditEntry>[] = [
-    { header: "When", width: "150px", cell: (e) => <span className="pm-dim" style={{ fontSize: 13 }}>{fmtTime(e.created_at)}</span> },
-    { header: "Who", width: "210px", cell: (e) => e.actor_email ?? <span style={{ color: "var(--pm-hint)" }}>system</span> },
-    { header: "Action", width: "150px", cell: (e) => <code style={{ fontSize: 12 }}>{e.action}</code> },
-    {
-      header: "Details",
-      cell: (e) => {
-        const ua = typeof e.metadata?.user_agent === "string" ? e.metadata.user_agent : null;
-        const base = e.summary ?? `${e.entity_type ?? ""} ${e.entity_id ?? ""}`.trim();
-        return e.action.startsWith("auth.") ? `${base} · ${describeDevice(ua)}` : base;
-      },
-    },
-    { header: "IP", width: "140px", cell: (e) => <span style={{ color: "var(--pm-hint)", fontSize: 12 }}>{e.ip ?? "—"}</span> },
-  ];
+  const details = (e: AuditEntry) => {
+    const ua = typeof e.metadata?.user_agent === "string" ? e.metadata.user_agent : null;
+    const base = e.summary ?? `${e.entity_type ?? ""} ${e.entity_id ?? ""}`.trim();
+    return e.action.startsWith("auth.") ? `${base} · ${describeDevice(ua)}` : base;
+  };
 
   return (
     <>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "4px 0 12px" }}>
-        <select aria-label="Filter by type" value={kind} onChange={(e) => setKind(e.target.value)} style={selectStyle}>
+      <div className={css.filters}>
+        <select aria-label="Filter by type" value={kind} onChange={(e) => setKind(e.target.value)}>
           {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
         </select>
-        <select aria-label="Filter by person" value={actor} onChange={(e) => setActor(e.target.value)} style={selectStyle}>
+        <select aria-label="Filter by person" value={actor} onChange={(e) => setActor(e.target.value)}>
           <option value="">Everyone</option>
           {people.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
       </div>
-      <DataTable
-        columns={columns}
-        rows={entries}
-        rowKey={(e) => e.id}
-        empty={
-          q.isLoading ? "Loading…"
-          : q.isError ? (
-            <span>
-              Couldn’t load the activity log.{" "}
-              <button className="pm-btn ghost sm" style={{ marginLeft: 8 }} onClick={() => q.refetch()}>Retry</button>
-            </span>
-          )
-          : "Nothing recorded yet."
-        }
-      />
+      <div className={css.card}>
+        {entries.length === 0 ? (
+          <div className={css.empty}>
+            {q.isLoading ? "Loading…"
+            : q.isError ? (
+              <>
+                Couldn’t load the activity log.
+                <button type="button" className="pm2-btn ghost sm" onClick={() => q.refetch()}>Retry</button>
+              </>
+            )
+            : "Nothing recorded yet."}
+          </div>
+        ) : (
+          <ol className={css.tl}>
+            {entries.map((e) => (
+              <li key={e.id} className={`${css.it}${e.action.startsWith("auth.") ? ` ${css.itAuth}` : ""}`}>
+                <b>{details(e) || e.action}</b>
+                <span>
+                  {e.actor_email ?? "system"} · {fmtTime(e.created_at)}
+                  {e.ip ? ` · ${e.ip}` : ""} · <code>{e.action}</code>
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
       {q.hasNextPage && (
-        <div style={{ marginTop: 12 }}>
-          <button className="pm-btn ghost sm" onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>
+        <div className={css.more}>
+          <button type="button" className="pm2-btn sm" onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>
             {q.isFetchingNextPage ? "Loading…" : "Load older"}
           </button>
         </div>

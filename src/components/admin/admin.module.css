@@ -1,0 +1,54 @@
+/* Settings · Security (Oct 2026 redesign, other.html #set-security).
+   Calm rules: hairline rows in one card, status as coloured text + dot,
+   activity as a quiet timeline with small dots. */
+
+.sum{margin:0 0 18px;font-size:16.5px;color:var(--pm-ink2);max-width:760px}
+.sum b{color:var(--pm-ink);font-weight:800}
+.note{margin:-6px 0 16px;font-size:14px;color:var(--pm-muted)}
+
+.card{background:var(--pm-card);border:1px solid var(--pm-border);border-radius:var(--pm-r);overflow:hidden}
+
+/* table-like grid rows */
+.thead,.row{display:grid;gap:6px 18px;align-items:center;padding:0 22px}
+.people{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,1.1fr) minmax(0,.8fr)}
+.sess{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,.9fr) minmax(0,.8fr)}
+.thead{padding-top:13px;padding-bottom:13px;border-bottom:1px solid var(--pm-border);font:700 11px var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-muted)}
+.row{padding-top:15px;padding-bottom:15px;border-top:1px solid var(--pm-line)}
+.thead + .row{border-top:0}
+.cell{min-width:0;display:flex;flex-direction:column;gap:2px;font-size:15px;color:var(--pm-ink)}
+.cell > span{overflow-wrap:anywhere}
+.sub{font-size:13.5px;color:var(--pm-muted);overflow-wrap:anywhere}
+.mono{font-family:var(--pm-mono);font-size:13px}
+.who{display:flex;align-items:center;gap:12px;min-width:0}
+.who .cell{flex:1}
+.name{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:700;font-size:15.5px}
+.role{font:700 10.5px/1 var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-ink2);border:1px solid var(--pm-border);border-radius:6px;padding:4px 6px}
+.st{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:14px;white-space:nowrap}
+.st::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.warn{color:var(--pm-gold)}
+.live{color:var(--pm-green)}
+.empty{padding:32px 22px;font-size:15px;color:var(--pm-muted)}
+.empty button{margin-left:8px}
+
+/* activity log */
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.filters select{appearance:auto;height:40px;padding:0 10px;border:1px solid var(--pm-border);border-radius:12px;background:var(--pm-card);font:600 14.5px var(--pm-font);color:var(--pm-ink);max-width:100%;cursor:pointer}
+.tl{list-style:none;margin:0;padding:10px 22px}
+.it{position:relative;padding:12px 0 12px 24px}
+.it::before{content:"";position:absolute;left:3px;top:20px;width:7px;height:7px;border-radius:50%;background:var(--pm-hint)}
+.it::after{content:"";position:absolute;left:6px;top:32px;bottom:-12px;width:1px;background:var(--pm-line)}
+.it:last-child::after{display:none}
+.itAuth::before{background:var(--pm-border);box-shadow:inset 0 0 0 1px var(--pm-hint)}
+.it b{display:block;font-size:15.5px;font-weight:700;color:var(--pm-ink);overflow-wrap:anywhere}
+.it span{display:block;font-size:13.5px;color:var(--pm-muted);overflow-wrap:anywhere;margin-top:2px}
+.it code{font:600 12px var(--pm-mono);color:var(--pm-ink2)}
+.more{margin-top:14px}
+
+@media (max-width:760px){
+  .thead{display:none}
+  .row{grid-template-columns:minmax(0,1fr)!important;padding:14px 16px;gap:6px}
+  .row > .cell[data-l]{flex-direction:row;flex-wrap:wrap;gap:0 8px;align-items:baseline;padding-left:46px}
+  .sess > .cell[data-l]{padding-left:0}
+  .row > .cell[data-l]::before{content:attr(data-l);font:700 10.5px var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-muted);flex:none;min-width:84px}
+  .tl{padding:6px 16px}
+}
