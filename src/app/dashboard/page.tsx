@@ -86,7 +86,8 @@ function eyebrowDate(d: Date): string {
   return `${weekday}, ${day} · ${time}`;
 }
 
-// Plain-words button label for the top attention item (the page's one red element).
+// Plain-words button label for the top attention item. The button is neutral:
+// the red sales tile is the page's one red element (owner call, 9 Oct).
 function primaryLabel(item: AttentionItem): string {
   if (item.id === "cod-needs-call") return "Confirm COD orders";
   if (item.id === "wa-tickets-open") return "Answer tickets";
@@ -286,7 +287,7 @@ function DashboardPageInner() {
             ))}
           </span>
           {top && (
-            <Link href={top.href} className={`pm2-btn pri ${s.primary}`}>
+            <Link href={top.href} className={`pm2-btn ${s.primary}`}>
               {primaryLabel(top)}
             </Link>
           )}

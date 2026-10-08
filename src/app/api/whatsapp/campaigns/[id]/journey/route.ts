@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { orderJourney, TERMINAL_STATUSES, type JourneyRow } from "@/lib/wa-campaigns";
 import { descendants, journeyRoot, TEMPLATE_JOIN } from "@/lib/wa-campaign-journeys";
+import { loadCampaignAttribution } from "@/lib/whatsapp/campaign-attribution";
 
 export const dynamic = "force-dynamic";
 
@@ -13,9 +14,11 @@ export const dynamic = "force-dynamic";
 // The whole journey containing [id] (root + every follow-up), parent first,
 // siblings oldest first. For the root, eligible_now / next_eligible_at are
 // null and waiting_for_time 0 (it has no per-person timing). For a finished
-// (completed / cancelled / failed) follow-up the same. ordered_count = people
-// the step reached who then placed a paid order (same rule as the 'ordered'
-// stage). Counts come from the same SQL the engine sends with.
+// (completed / cancelled / failed) follow-up the same. ordered_count = orders
+// the step earned under the shared 7-day last-touch rule, the exact number the
+// campaign report's Orders tile shows (src/lib/whatsapp/campaign-attribution).
+// The "Thank people who ordered" follow-up audience still uses the engine's
+// own SQL rule (wa_campaign_ordered_count); that is targeting, not reporting.
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   try {
@@ -25,6 +28,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const { data, error } = await supabaseAdmin.from("wa_campaigns").select(TEMPLATE_JOIN).in("id", ids);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const ordered = orderJourney((data ?? []) as unknown as JourneyRow[], root.id);
+    const earliest = (data ?? [])
+      .map((r) => String((r as { created_at?: string }).created_at ?? ""))
+      .filter(Boolean)
+      .sort()[0];
+    const earned = earliest ? await loadCampaignAttribution(earliest) : new Map();
 
     const steps = await Promise.all(ordered.map(async (s) => {
       const row = s.row as JourneyRow & { status: string; audience_filter?: unknown };
@@ -42,7 +50,6 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         waiting_for_time = typeof counts.waiting_for_time === "number" ? counts.waiting_for_time : 0;
         next_eligible_at = typeof counts.next_eligible_at === "string" ? counts.next_eligible_at : null;
       }
-      const { data: oc } = await supabaseAdmin.rpc("wa_campaign_ordered_count", { p_campaign: row.id });
       return {
         ...row,
         depth: s.depth,
@@ -50,7 +57,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
         eligible_now,
         waiting_for_time,
         next_eligible_at,
-        ordered_count: typeof oc === "number" ? oc : null,
+        ordered_count: earned.get(row.id)?.orders ?? 0,
       };
     }));
     return NextResponse.json({ root_id: root.id, steps });

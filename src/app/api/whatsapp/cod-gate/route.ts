@@ -5,9 +5,13 @@ import { recordAudit } from "@/lib/audit";
 
 // COD confirmation gate — dashboard needs-call queue + manual confirm/cancel.
 // GET returns gate-managed orders (confirmation_status non-null, i.e. the
-// order actually went through the gate) for the Task 10 UI, windowed by
-// ?hours= (default 336 = 14 days, matching the old fixed window; clamped
-// 1..720 so it can follow the Orders & COD page's period picker). POST
+// order actually went through the gate) for the Task 10 UI: settled orders
+// (confirmed/cancelled) windowed by ?hours= (default 336 = 14 days; clamped
+// 1..720 so it can follow the Orders & COD page's period picker), plus EVERY
+// order still waiting (pending/needs_call, not shipped, not cancelled) at any
+// age. That waiting rule matches /api/metrics/attention, so the nav badge and
+// the page agree. Waiting-status orders ops already shipped or cancelled in
+// Shopify are not waiting and are left out. POST
 // proxies to the cod-gate-action edge function (service-role auth),
 // mirroring the same confirm/cancel logic the customer's WhatsApp buttons
 // trigger, but with confirmed_via="manual" — no outbound WhatsApp message is
@@ -22,15 +26,30 @@ export async function GET(req: NextRequest) {
   const raw = Number(new URL(req.url).searchParams.get("hours"));
   const hours = Math.min(Math.max(Number.isFinite(raw) ? raw : 336, 1), 720);
   const since = new Date(Date.now() - hours * 3600_000).toISOString();
-  const { data, error } = await supabaseAdmin
-    .from("shopify_orders")
-    .select("shopify_id, order_number, customer_name, customer_phone, total_price, currency, confirmation_status, confirmation_sent_at, confirmed_at, confirmed_via, shopify_created_at")
-    .not("confirmation_status", "is", null)
-    .gte("shopify_created_at", since)
-    .order("shopify_created_at", { ascending: false })
-    .limit(300);
+  const cols = "shopify_id, order_number, customer_name, customer_phone, total_price, currency, confirmation_status, confirmation_sent_at, confirmed_at, confirmed_via, shopify_created_at";
+  const [settled, waiting] = await Promise.all([
+    supabaseAdmin
+      .from("shopify_orders")
+      .select(cols)
+      .in("confirmation_status", ["confirmed", "cancelled"])
+      .gte("shopify_created_at", since)
+      .order("shopify_created_at", { ascending: false })
+      .limit(300),
+    supabaseAdmin
+      .from("shopify_orders")
+      .select(cols)
+      .in("confirmation_status", ["pending", "needs_call"])
+      .is("fulfillment_status", null)
+      .is("cancelled_at", null)
+      .order("shopify_created_at", { ascending: false })
+      .limit(300),
+  ]);
+  const error = settled.error ?? waiting.error;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ orders: data ?? [] });
+  const orders = [...(waiting.data ?? []), ...(settled.data ?? [])].sort((a, b) =>
+    String(b.shopify_created_at ?? "").localeCompare(String(a.shopify_created_at ?? "")),
+  );
+  return NextResponse.json({ orders });
 }
 
 export async function POST(req: NextRequest) {

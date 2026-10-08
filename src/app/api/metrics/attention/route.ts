@@ -64,7 +64,6 @@ export async function GET(req: Request) {
 
   const now = new Date();
   const since30 = new Date(now.getTime() - 30 * DAY_MS).toISOString();
-  const since14 = new Date(now.getTime() - 14 * DAY_MS).toISOString();
   const since4h = new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString();
 
   const [amazonInventory, amazonFinanceItems, codOrders, tickets, emailDrafts, pausedCampaigns] = await Promise.all([
@@ -83,15 +82,18 @@ export async function GET(req: Request) {
         .order("posted_date", { ascending: true })
         .range(from, to),
     ),
-    // COD orders stuck on a confirmation call, opened in the last 14 days
-    // (mirrors /api/whatsapp/cod-gate's GET query and the order-confirmations
-    // page, which read the gate-managed queue the same way).
-    fetchAll<CodOrderRow>("shopify_orders (needs_call)", (from, to) =>
+    // COD orders still waiting on a confirmation: gate status pending or
+    // needs_call, not yet shipped and not cancelled, at any age. Same rule as
+    // the Confirm COD page's "Waiting" count (/api/whatsapp/cod-gate GET), so
+    // the badge and the page always agree. Orders ops ship straight from
+    // Shopify drop out on their own.
+    fetchAll<CodOrderRow>("shopify_orders (cod waiting)", (from, to) =>
       supabaseAdmin
         .from("shopify_orders")
         .select("shopify_id, total_price, shopify_created_at")
-        .eq("confirmation_status", "needs_call")
-        .gte("shopify_created_at", since14)
+        .in("confirmation_status", ["pending", "needs_call"])
+        .is("fulfillment_status", null)
+        .is("cancelled_at", null)
         .order("shopify_created_at", { ascending: true })
         .range(from, to),
     ),
