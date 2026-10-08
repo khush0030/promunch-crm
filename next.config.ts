@@ -21,6 +21,12 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        // Retired Brevo hub; Email Studio replaced it.
+        source: "/dashboard/marketing/:path*",
+        destination: "/dashboard/email",
+        permanent: false,
+      },
+      {
         source: "/dashboard/shopify-attribution",
         destination: "/dashboard/sales/web",
         permanent: false,

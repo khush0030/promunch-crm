@@ -111,9 +111,7 @@ export const NAV: NavHub[] = [
       { label: "WhatsApp signup popup", href: "/dashboard/whatsapp?tab=growth", hidden: true },
       { label: "New WhatsApp campaign", href: "/dashboard/whatsapp/campaigns/new", hidden: true },
       { label: "WhatsApp campaign report", href: "/dashboard/whatsapp/campaigns", hidden: true },
-      // Brevo hub (retiring at Email Studio cutover) and the old in-house
-      // email pages. Reachable by URL and the command palette only.
-      { label: "Email (Brevo)", href: "/dashboard/marketing/email", hidden: true },
+      // Old in-house email pages. Reachable by URL and the command palette only.
       { label: "Legacy email campaigns", href: "/dashboard/campaigns", hidden: true },
       { label: "Legacy email automations", href: "/dashboard/flows", hidden: true },
     ],
