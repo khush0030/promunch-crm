@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -42,7 +42,15 @@ export function StudioHeader({
 }) {
   const router = useRouter();
   const elsewhere = ELSEWHERE[tab];
+  // On a phone the tab row scrolls sideways: keep the current tab in view.
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const on = ref.current?.querySelector<HTMLElement>(".pm2-tabs button.on");
+    const strip = on?.parentElement;
+    if (on && strip && strip.scrollWidth > strip.clientWidth) strip.scrollTo({ left: Math.max(0, on.offsetLeft - 24) });
+  }, [tab]);
   return (
+    <div ref={ref}>
     <PageHeader
       crumb={
         back ? (
@@ -63,5 +71,6 @@ export function StudioHeader({
         if (t) router.push(t.href);
       }}
     />
+    </div>
   );
 }

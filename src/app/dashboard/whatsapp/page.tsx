@@ -114,11 +114,12 @@ function WhatsAppPageInner() {
   return (
     <WaHeaderContext.Provider value={slot}>
       <div ref={tabsRef} className={h.tabsFade}>
-        {elsewhere ? (
+        {elsewhere && tab !== "kb" && tab !== "voice" ? (
           <PageHeader crumb={elsewhere.crumb} title={elsewhere.title} summary={elsewhere.summary} />
         ) : (
           // Each marketing tab portals its own header (title, sentence,
-          // action, tabs) in here.
+          // action, tabs) in here. Voice calls and Bot knowledge portal their
+          // own place's header (KbView/VoiceView) without the marketing tabs.
           <div ref={setSlotEl} />
         )}
       </div>
