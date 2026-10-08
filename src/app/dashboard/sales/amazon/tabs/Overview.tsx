@@ -28,7 +28,7 @@ export function OverviewTab({ data, onTab }: { data: AmazonMetrics; onTab: (tab:
     { label: "Customers paid", value: formatINR(money.customersPaid), pct: 100, color: "var(--pm-muted)" },
     {
       label: "Amazon kept",
-      value: `−${formatINR(money.amazonKept)}`,
+      value: `−${formatINR(Math.abs(money.amazonKept))}`,
       pct: pct(money.amazonKept),
       color: "var(--pm-s-amz)",
       sub: `referral ${pct(money.amazonKeptBreakdown.referral)}% · FBA shipping ${pct(money.amazonKeptBreakdown.fba)}% · closing and promos ${pct(
@@ -38,7 +38,7 @@ export function OverviewTab({ data, onTab }: { data: AmazonMetrics; onTab: (tab:
     { label: "Paid to you", value: formatINR(money.paidToYou), pct: pct(money.paidToYou), color: "var(--pm-cyan)" },
     {
       label: "Product cost",
-      value: `−${formatINR(money.productCost)}`,
+      value: `−${formatINR(Math.abs(money.productCost))}`,
       pct: pct(money.productCost),
       color: "var(--pm-hint)",
       sub:
@@ -69,7 +69,7 @@ export function OverviewTab({ data, onTab }: { data: AmazonMetrics; onTab: (tab:
         <Kpi label="Customers paid" value={formatLakh(money.customersPaid)}>
           <DeltaText value={pctChange(money.customersPaid, money.customersPaidPrev)} /> · {data.orders.count.toLocaleString("en-IN")} orders
         </Kpi>
-        <Kpi label="Paid to you" value={formatLakh(money.paidToYou)} red>
+        <Kpi label="Paid to you" value={formatLakh(money.paidToYou)}>
           <DeltaText value={pctChange(money.paidToYou, money.paidToYouPrev)} /> · after Amazon&apos;s fees
         </Kpi>
         <Kpi label="Your profit" value={formatLakh(money.profit)} title={money.costCoverage < 100 ? COST_COVERAGE_TIP : undefined}>

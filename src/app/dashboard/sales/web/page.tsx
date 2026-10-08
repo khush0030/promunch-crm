@@ -196,6 +196,14 @@ function WebStorePageInner() {
 
   const bestCampaign = web.campaigns.length > 0 ? [...web.campaigns].sort((a, b) => b.revenue - a.revenue)[0] : null;
 
+  // Last order Shopify gave a source for, in IST. Only claim tracking
+  // "stopped" when that was more than 3 days ago.
+  const lastAttr = web.tracking.lastAttributedAt ? new Date(web.tracking.lastAttributedAt) : null;
+  const stoppedDate =
+    lastAttr && Date.now() - lastAttr.getTime() > 3 * 86_400_000
+      ? lastAttr.toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", day: "numeric", month: "long", year: "numeric" })
+      : null;
+
   return (
     <>
       {header}
@@ -222,9 +230,7 @@ function WebStorePageInner() {
               <span className={`${s.tg} ${s.warn}`}>Source missing</span>{" "}
               {untrackedOrders.toLocaleString("en-IN")} of {web.tracking.totalOrders.toLocaleString("en-IN")} orders have no
               traffic source.
-              {web.tracking.lastAttributedAt
-                ? " Shopify stopped sending it on 2 June 2026, when the storefront's sales channel changed."
-                : ""}{" "}
+              {stoppedDate ? ` Shopify stopped sending it after ${stoppedDate}.` : ""}{" "}
               Until it comes back, this chart only shows what Shopify knows.
             </p>
           )}

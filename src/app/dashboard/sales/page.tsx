@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useCallback } from "react";
+import { Fragment, Suspense, useCallback } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
@@ -23,6 +24,14 @@ const PERIOD_LABEL: Record<Period, string> = {
   "90d": "90 days",
   "12m": "12 months",
 };
+
+// A % change is only shown when the earlier window is a real baseline: a
+// near-empty one (0, under 5% of now, or under `minPrev`) gives "▲ 207400%".
+const MIN_PREV_ORDERS = 10;
+function steadyChange(current: number, previous: number, minPrev = 0): number | null {
+  if (previous <= 0 || previous < minPrev || previous < Math.abs(current) * 0.05) return null;
+  return pctChange(current, previous);
+}
 
 function parsePeriodParam(raw: string | null): Period {
   return raw === "7d" || raw === "90d" || raw === "12m" ? raw : "30d";
@@ -148,7 +157,7 @@ function SalesPageInner() {
     : [];
   const channelSum = channels.reduce((t, c) => t + Math.max(0, c.revenue), 0);
   const shareOf = (v: number) => (channelSum > 0 ? Math.round((Math.max(0, v) / channelSum) * 100) : 0);
-  const salesDelta = sales ? pctChange(sales.total.revenue, sales.total.prevRevenue) : null;
+  const salesDelta = sales ? steadyChange(sales.total.revenue, sales.total.prevRevenue) : null;
 
   const summary = sales ? (
     <>
@@ -200,6 +209,19 @@ function SalesPageInner() {
 
   const aov = sales.total.orders > 0 ? sales.total.revenue / sales.total.orders : 0;
   const prevAov = sales.total.prevOrders > 0 ? sales.total.prevRevenue / sales.total.prevOrders : 0;
+  const ordersDelta = steadyChange(sales.total.orders, sales.total.prevOrders, MIN_PREV_ORDERS);
+  // Average order is only comparable when the earlier window had real orders.
+  const aovDelta = sales.total.prevOrders >= MIN_PREV_ORDERS ? steadyChange(aov, prevAov) : null;
+  const ordersSub = [
+    ordersDelta !== null ? <DeltaText key="d" value={ordersDelta} /> : null,
+    `${sales.newCustomers.count.toLocaleString("en-IN")} new customers`,
+  ].filter(Boolean);
+  const aovSub = [
+    aovDelta !== null ? <DeltaText key="d" value={aovDelta} /> : null,
+    `${Math.round(sales.repeat.pct)}% from repeat buyers`,
+  ].filter(Boolean);
+  const dot = (parts: ReactNode[]) => parts.map((x, i) => (i === 0 ? x : <Fragment key={i}> · {x}</Fragment>));
+  const flat = salesDelta !== null && Math.round(salesDelta) === 0;
 
   const buckets: Bucket[] =
     period === "7d"
@@ -245,14 +267,17 @@ function SalesPageInner() {
             value={formatINR(sales.total.revenue)}
             title="Web store + Amazon + HYPD. Excludes ₹0.01 creator seed orders."
           >
-            <DeltaText value={salesDelta} /> vs the {periodLabel} before
+            {salesDelta !== null ? (
+              <>
+                <DeltaText value={salesDelta} /> vs the {periodLabel} before
+              </>
+            ) : null}
           </Kpi>
           <Kpi label="Orders" value={sales.total.orders.toLocaleString("en-IN")}>
-            <DeltaText value={pctChange(sales.total.orders, sales.total.prevOrders)} /> ·{" "}
-            {sales.newCustomers.count.toLocaleString("en-IN")} new customers
+            {dot(ordersSub)}
           </Kpi>
           <Kpi label="Average order" value={formatINR(aov)}>
-            <DeltaText value={pctChange(aov, prevAov)} /> · {Math.round(sales.repeat.pct)}% from repeat buyers
+            {dot(aovSub)}
           </Kpi>
         </div>
 
@@ -267,11 +292,13 @@ function SalesPageInner() {
                 {salesDelta !== null ? (
                   <>
                     ,{" "}
-                    <em className={Math.round(salesDelta) < 0 ? s.neg : undefined}>{changeWords(salesDelta)}</em> on the{" "}
+                    <em className={flat ? s.plain : Math.round(salesDelta) < 0 ? s.neg : undefined}>{changeWords(salesDelta)}</em> on the{" "}
                     {periodLabel} before
                   </>
-                ) : (
+                ) : sales.total.prevRevenue <= 0 ? (
                   " this period, nothing in the period before"
+                ) : (
+                  " this period"
                 )}
               </>
             }
@@ -314,7 +341,7 @@ function SalesPageInner() {
                       <b>{c.label}</b>
                       <span className={s.chV}>{formatLakh(c.revenue)}</span>
                       <span className={s.chD}>
-                        <DeltaText value={pctChange(c.revenue, c.prevRevenue)} />
+                        <DeltaText value={steadyChange(c.revenue, c.prevRevenue)} />
                       </span>
                     </span>
                     <span className={s.btBar}>

@@ -392,7 +392,7 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
           )}
         </div>
         {pollFailed ? <ConnectionNotice /> : null}
-        {compact ? null : <WindowStrip lastInboundAt={lastInbound} now={now} />}
+        {compact || !windowOpen ? null : <WindowStrip lastInboundAt={lastInbound} now={now} />}
         <div className="pm2-thread-foot">
           {pickingTemplate ? (
             <div className="pm2-panel">

@@ -20,7 +20,9 @@
 .tile{display:flex;flex-direction:column;gap:4px;padding:12px 14px;min-width:0}
 .tile:nth-child(odd){border-right:1px solid var(--pm-line)}
 .tile:nth-child(-n+2){border-bottom:1px solid var(--pm-line)}
-.tl{font:700 10.5px var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl{font:700 10.5px var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-muted);overflow-wrap:break-word}
+/* ticket number: tighter tracking and never split, so "#10897" shows in full */
+.tlN{letter-spacing:.04em;white-space:nowrap}
 .tv{font-size:15px;font-weight:700;color:var(--pm-ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dot{display:inline-flex;align-items:center;gap:7px}
 .dot::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
@@ -76,7 +78,10 @@
 .acts > *{flex:none}
 .main :global(.pm2-composer .reason){color:var(--pm-muted)}
 @media (max-width:760px){
-  .acts{width:100%;gap:4px}
+  /* phones: stay on one row when it fits; the longest set (human mode:
+     "Hand back to bot" + Resolve + Share) wraps instead of pushing the page
+     1px sideways */
+  .acts{width:100%;gap:4px;flex-wrap:wrap;row-gap:6px}
   .acts :global(.pm2-btn){padding:6px 10px;font-size:14px;border-radius:11px}
   .acts :global(.pm2-pill){margin-right:auto;font-size:14px}
 }

@@ -382,7 +382,7 @@ function OrdersPageInner() {
         <>
           <PeriodPicker options={PERIODS} value={period} onChange={setPeriod} />
           {outstanding.length > 0 && (
-            <button type="button" className="pm2-btn pri" onClick={() => setResendOpen(true)}>
+            <button type="button" className="pm2-btn pri pm2-d-only" onClick={() => setResendOpen(true)}>
               <Send size={14} /> Resend {outstanding.length} missing
             </button>
           )}

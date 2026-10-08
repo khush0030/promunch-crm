@@ -57,21 +57,21 @@ export function VoiceTracker({ calls }: { calls: VoiceCall[] }) {
           <div className={s.hero}>
             <div className={s.heroMain}>
               <span className={s.heroL}>Confirmed</span>
-              <b className={s.big}>{pct(cod.confirmed, cod.placed)}%</b>
-              <span className={s.heroS}>{cod.confirmed} of {cod.placed} COD calls</span>
+              <b className={s.big}>{pct(cod.confirmed, cod.called)}%</b>
+              <span className={s.heroS}>{cod.confirmed} of {cod.called} COD calls</span>
             </div>
             <div className={s.heroSide}>
               <b>{cod.pickedUp}</b>
               <span>picked up</span>
             </div>
           </div>
-          {cod.placed > 0 ? (
+          {cod.called > 0 ? (
             <Funnel2
               steps={[
-                { label: "Called", value: cod.placed, of: cod.placed, tone: "s1" },
-                { label: "Picked up", value: cod.pickedUp, of: cod.placed, tone: "s2", drop: `${pct(cod.pickedUp, cod.placed)}% picked up` },
-                { label: "Confirmed", value: cod.confirmed, of: cod.placed, tone: "s5", drop: `${pct(cod.confirmed, cod.pickedUp)}% of those said yes` },
-                { label: "Asked to cancel", value: cod.cancelled, of: cod.placed, tone: "neg" },
+                { label: "Called", value: cod.called, of: cod.called, tone: "s1" },
+                { label: "Picked up", value: cod.pickedUp, of: cod.called, tone: "s2", drop: `${pct(cod.pickedUp, cod.called)}% picked up` },
+                { label: "Confirmed", value: cod.confirmed, of: cod.called, tone: "s5", drop: `${pct(cod.confirmed, cod.pickedUp)}% of those said yes` },
+                { label: "Asked to cancel", value: cod.cancelled, of: cod.called, tone: "neg" },
               ]}
             />
           ) : (
@@ -95,21 +95,21 @@ export function VoiceTracker({ calls }: { calls: VoiceCall[] }) {
           <div className={s.hero}>
             <div className={s.heroMain}>
               <span className={s.heroL}>Ordered after the call</span>
-              <b className={s.big}>{pct(cart.ordered, cart.placed)}%</b>
-              <span className={s.heroS}>{cart.ordered} of {cart.placed} called carts</span>
+              <b className={s.big}>{pct(cart.ordered, cart.called)}%</b>
+              <span className={s.heroS}>{cart.ordered} of {cart.called} called carts</span>
             </div>
             <div className={s.heroSide}>
               <b className={cart.orderedValue > 0 ? s.goodT : undefined}>{fmtInr(cart.orderedValue)}</b>
               <span>likely back</span>
             </div>
           </div>
-          {cart.placed > 0 ? (
+          {cart.called > 0 ? (
             <Funnel2
               steps={[
-                { label: "Called", value: cart.placed, of: cart.placed, tone: "s1" },
-                { label: "Picked up", value: cart.pickedUp, of: cart.placed, tone: "s2", drop: `${pct(cart.pickedUp, cart.placed)}% picked up` },
-                { label: "Link sent", value: cart.linkSent, of: cart.placed, tone: "s3", drop: `${pct(cart.linkSent, cart.pickedUp)}% of those got the link` },
-                { label: "Ordered within 3 days", value: cart.ordered, of: cart.placed, tone: "s5" },
+                { label: "Called", value: cart.called, of: cart.called, tone: "s1" },
+                { label: "Picked up", value: cart.pickedUp, of: cart.called, tone: "s2", drop: `${pct(cart.pickedUp, cart.called)}% picked up` },
+                { label: "Link sent", value: cart.linkSent, of: cart.called, tone: "s3", drop: `${pct(cart.linkSent, cart.pickedUp)}% of those got the link` },
+                { label: "Ordered within 3 days", value: cart.ordered, of: cart.called, tone: "s5" },
               ]}
             />
           ) : (

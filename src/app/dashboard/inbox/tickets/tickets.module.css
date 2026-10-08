@@ -80,8 +80,16 @@
   .tq{grid-template-columns:minmax(0,1fr)}
   .views{display:none}
   .viewSelect{display:block;max-width:100%}
-  .thead,.row{grid-template-columns:minmax(0,1fr) 130px 64px 40px}
-  .stCell,.thead span:nth-child(3){display:none}
+  /* tablet: the queue column is too narrow for five table columns, so every
+     row becomes the two-line card (subject, then due · status · who · actions) */
+  .thead{display:none}
+  .row{grid-template-columns:auto minmax(0,1fr) auto auto;grid-template-areas:"subj subj subj subj" "due st who act";row-gap:8px;column-gap:14px}
+  .subj{grid-area:subj}
+  .title{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .dueCell{grid-area:due;min-width:0}
+  .stCell{grid-area:st;display:block}
+  .who{grid-area:who}
+  .act{grid-area:act}
 }
 
 @media (max-width:760px){
@@ -94,14 +102,7 @@
   .search{order:-1;flex:1 1 100%;min-width:0}
   .viewSelect{flex:1 1 100%!important}
   .tools select{flex:1 1 0;min-width:0}
-  .thead{display:none}
-  /* two-line card: subject block, then due · status · who · actions */
-  .row{grid-template-columns:auto minmax(0,1fr) auto auto;grid-template-areas:"subj subj subj subj" "due st who act";row-gap:8px;column-gap:14px;padding:14px 14px}
-  .subj{grid-area:subj}
-  .title{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-  .dueCell{grid-area:due;min-width:0}
-  .stCell{grid-area:st;display:block}
-  .who{grid-area:who}
-  .act{grid-area:act}
+  /* two-line card rows (set up in the 1024 block); tighter padding on phones */
+  .row{padding:14px 14px}
   .menu{right:0;top:auto;bottom:40px}
 }

@@ -57,7 +57,7 @@ export function TicketProperties({
     <div className={t.props}>
       <div className={t.tiles}>
         <div className={t.tile}>
-          <span className={t.tl}>Status{hasTicket && ticketNumber ? ` · #${ticketNumber}` : ""}</span>
+          <span className={t.tl}>Status{hasTicket && ticketNumber ? <span className={t.tlN}> · #{ticketNumber}</span> : null}</span>
           <b className={`${t.tv} ${t.dot} ${statusClass(ticketStatus, ticketAssignee)}`}>{statusWord}</b>
         </div>
         <div className={t.tile}>

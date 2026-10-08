@@ -24,7 +24,7 @@ export function PayoutsTab({ data }: { data: AmazonMetrics }) {
     { h: "Deposited", render: (x) => fmtDate(x.depositDate) },
     { h: "Period", render: (x) => `${fmtDate(x.periodStart)} to ${fmtDate(x.periodEnd)}` },
     { h: "Sales", num: true, render: (x) => formatINR(x.gross) },
-    { h: "Amazon kept", num: true, render: (x) => `−${formatINR(x.fees)}` },
+    { h: "Amazon kept", num: true, render: (x) => `−${formatINR(Math.abs(x.fees))}` },
     { h: "Refunds", num: true, render: (x) => `−${formatINR(Math.abs(x.refunds))}` },
     { h: "Paid to bank", num: true, render: (x) => signedINR(x.deposit) },
     { h: "Check", render: (x) => <PayoutTag st={x} /> },

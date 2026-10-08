@@ -25,6 +25,7 @@ import { categoryWord } from "@/components/inbox/labels";
 import { formatWhen } from "@/lib/inbox/when";
 import { useMediaPhone } from "@/components/shell/useMediaPhone";
 import type { InboxFilter, InboxItem } from "@/lib/inbox/conversations";
+import st from "./inbox.module.css";
 
 type Channel = "all" | "wa" | "ig" | "em";
 
@@ -258,7 +259,7 @@ function InboxPageInner() {
       {header}
       <div className="pm2-body">
         <div className="pm2-inbox-grid" style={{ display: "grid", gap: 0 }}>
-          <div className="pm2-panel pm2-inbox-list" style={{ borderRadius: 0, borderWidth: "0 1px 0 0" }}>
+          <div className={`pm2-panel pm2-inbox-list ${st.list}`} style={{ borderRadius: 0, borderWidth: "0 1px 0 0" }}>
             <div className="pm2-p-body" style={{ padding: "12px 14px 6px" }}>
               <SearchBar value={qDraft} onChange={setQDraft} placeholder="Search name, phone, order…" />
               <div style={{ marginTop: 8 }}>{channelSelect("pm2-m-only")}</div>

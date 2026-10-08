@@ -30,8 +30,8 @@ function takeaway(calls: VoiceCall[]): string {
   const cod = scoreJob(calls.filter((c) => c.purpose === "cod_confirm"));
   const cart = scoreJob(calls.filter((c) => c.purpose === "cart"));
   const parts: string[] = [];
-  if (cod.placed) parts.push(`COD: ${cod.confirmed} of ${cod.placed} calls confirmed, ${pct(cod.pickedUp, cod.placed)}% picked up.`);
-  if (cart.placed) {
+  if (cod.called) parts.push(`COD: ${cod.confirmed} of ${cod.called} calls confirmed, ${pct(cod.pickedUp, cod.called)}% picked up.`);
+  if (cart.called) {
     parts.push(
       `Carts: ${cart.ordered ? `${cart.ordered} ordered after a call (${fmtInr(cart.orderedValue)})` : "no orders after a call yet"}, ${cart.linkSent} ${cart.linkSent === 1 ? "link" : "links"} sent.`,
     );
@@ -107,7 +107,7 @@ export default function VoiceView() {
     <div className={s.wrap}>
       <div className={s.head}>
         <div className={s.headT}>
-          <p className={s.sum}>{isLoading ? "Loading calls…" : takeaway(allCalls)}</p>
+          <p className={s.sum}>{isLoading ? "Loading calls…" : hasFilters ? "Showing the calls that match your filters." : takeaway(allCalls)}</p>
           <p className={s.sub}>
             {stats.placed} calls loaded{hasFilters ? " (filtered)" : ""} · {stats.doNotCall} asked us not to call
             {stats.dialing > 0 ? ` · ${stats.dialing} result not in yet` : ""}
@@ -142,7 +142,19 @@ export default function VoiceView() {
         </p>
       )}
 
-      {!isLoading && allCalls.length > 0 && <VoiceTracker calls={allCalls} />}
+      {/* The list fetch is server-filtered, so scorecards built from it would
+          only describe the matching calls (filter to "Picked up" and every
+          rate reads ~100%). Hide them while a filter is on. */}
+      {!isLoading && hasFilters ? (
+        <p className={s.filteredNote}>
+          Totals hidden while filtered ·{" "}
+          <button type="button" className={s.txtBtn} onClick={() => { setStatus(""); setOutcome(""); setQ(""); }}>
+            Clear filters
+          </button>
+        </p>
+      ) : (
+        !isLoading && allCalls.length > 0 && <VoiceTracker calls={allCalls} />
+      )}
 
       <section className={s.card} aria-labelledby="vc-list-h">
         <div className={s.listH}>

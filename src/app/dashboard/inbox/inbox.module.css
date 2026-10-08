@@ -1,0 +1,3 @@
+/* Conversation list: the status pill keeps its full width; the name is the
+   part that truncates (the shared `.t span` rule would otherwise clip both). */
+.list :global(.pm2-list-row .t > .pm2-pill){flex:none}

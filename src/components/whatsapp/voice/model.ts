@@ -153,6 +153,7 @@ export function groupTries(calls: VoiceCall[]): Map<string, VoiceCall[]> {
 
 export type JobScore = {
   placed: number;
+  called: number; // placed minus calls that never started (start_failed)
   pickedUp: number;
   noAnswer: number; // no answer, busy or did not connect
   notStarted: number;
@@ -170,7 +171,7 @@ export type JobScore = {
 
 export function scoreJob(calls: VoiceCall[]): JobScore {
   const s: JobScore = {
-    placed: calls.length, pickedUp: 0, noAnswer: 0, notStarted: 0, waiting: 0,
+    placed: calls.length, called: 0, pickedUp: 0, noAnswer: 0, notStarted: 0, waiting: 0,
     confirmed: 0, cancelled: 0, interested: 0, linkSent: 0, ordered: 0, orderedValue: 0, dnd: 0,
   };
   for (const c of calls) {
@@ -185,6 +186,7 @@ export function scoreJob(calls: VoiceCall[]): JobScore {
     if (c.link_sent_at) s.linkSent++;
     if (c.order) { s.ordered++; s.orderedValue += Number(c.order.total_price) || 0; }
   }
+  s.called = s.placed - s.notStarted;
   return s;
 }
 
