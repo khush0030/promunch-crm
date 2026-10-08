@@ -178,7 +178,7 @@ export default function ListsView({
           as a list here. Open a list and hit “Email this list” to send it a campaign.
         </p>
         <div className={styles.getStartedActions}>
-          <button type="button" className={`pm-btn ${styles.inkBtn}`} onClick={onFind}>Find companies</button>
+          <button type="button" className="pm-btn primary" onClick={onFind}>Find businesses</button>
         </div>
       </div>
     );
@@ -209,14 +209,10 @@ export default function ListsView({
 
   return (
     <div>
-      <div className={styles.listsHowTo}>
-        <b>How to send a bulk campaign:</b> open any list below, then hit{" "}
-        <b>Email this list</b>. A short wizard lets you pick recipients, find missing verified
-        emails, choose the product angle, write or AI-draft the copy, and preview the exact email
-        per company before anything sends. Tick lists to <b>merge</b> or <b>delete</b> them.
-      </div>
-
-      <div className={styles.tplToolbar} style={{ marginBottom: 10 }}>
+      <div className={styles.tplToolbar} style={{ marginBottom: 10, justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 14, color: "var(--pm-muted)" }}>
+          Open a list to see every business and its stage. Tick lists to merge or delete them.
+        </span>
         <button type="button" className="pm-btn" onClick={() => setDialog({ kind: "new" })} disabled={busy}>
           <Plus size={13} /> New empty list
         </button>
@@ -303,15 +299,15 @@ export default function ListsView({
                         <button type="button" className={styles.listRow} onClick={() => onOpen(l.id)}>
                           <span className={styles.listRowName}>{rowLabel(l)}</span>
                           <span className={styles.listRowStat}>
-                            {l.leads} leads · {l.withEmail} ✉
+                            {l.leads} found · {l.withEmail} emails · {l.contacted} sent
                           </span>
                           <span className={styles.listRowActivity}>
                             {l.active_sequence ? (
                               <span className={`${styles.dot} ${styles.dotGood}`}>{l.active_sequence}</span>
                             ) : l.replied > 0 ? (
-                              <span className={`${styles.dot} ${styles.dotWarn}`}>{l.replied} replied</span>
-                            ) : l.contacted > 0 ? (
-                              <span className="pm-dim">{l.contacted} of {l.leads} contacted</span>
+                              <span className={`${styles.dot} ${styles.dotGood}`}>{l.replied} replied</span>
+                            ) : l.withEmail > l.contacted ? (
+                              <span className="pm-dim">{l.withEmail - l.contacted} not emailed yet</span>
                             ) : null}
                           </span>
                           <span className={styles.listRowDate}>{fmtDay(l.updated_at)}</span>

@@ -115,7 +115,7 @@
 .cj[data-tone="good"] { background: var(--pm-green-soft); color: var(--pm-green); }
 .cj[data-tone="info"] { background: var(--pm-blue-soft); color: var(--pm-blue); }
 .cj[data-tone="warn"] { background: var(--pm-gold-soft); color: var(--pm-gold); }
-.clM { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.clM { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
 .clM b { font-size: 16px; color: var(--pm-ink); }
 .clM > span { font-size: 14px; color: var(--pm-muted); overflow-wrap: anywhere; }
 .clM .q { color: var(--pm-ink); font-size: 15px; margin: 2px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -243,7 +243,24 @@
   .of[data-state="next"] .ofM b { color: var(--pm-brand); }
   .statline b { font-size: 18px; }
   .statline > div { padding: 0 8px; }
-  .clO { max-width: 42%; }
+  .clO { max-width: 40%; }
+  .bz .cj { display: none; }
+  .clM b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .clM > span { word-break: break-word; }
   .actbar { bottom: 84px; }
   .who { font-size: 21px; }
+}
+
+/* ---- business drawer (lead details) ---- */
+.drawerOverlay { position: fixed; inset: 0; z-index: 70; background: rgba(26,23,20,.32); display: flex; justify-content: flex-end; }
+.drawer {
+  width: min(620px, 100%); height: 100%; background: var(--pm-card); box-shadow: var(--pm-shadow-pop);
+  display: flex; flex-direction: column; overflow: hidden; font-size: 15px;
+}
+.dh { display: flex; gap: 12px; align-items: flex-start; padding: 22px 24px 18px; border-bottom: 1px solid var(--pm-line); }
+.db { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 18px 24px 28px; }
+.db :global(.pm-tbl) { font-size: 14px; }
+@media (max-width: 760px) {
+  .dh { padding: 18px 16px 14px; }
+  .db { padding: 16px 16px 96px; }
 }

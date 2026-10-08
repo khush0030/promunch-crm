@@ -9,6 +9,8 @@ import type { Lead } from "./types";
 import { CONFIDENCE_PILL } from "./styles";
 import { fitPill } from "./format";
 import PipelineSteps from "./PipelineSteps";
+import b from "./b2b.module.css";
+import { leadStage, STAGE_TAG } from "./stages";
 
 // ------------------------------------------------------------- lead modal --
 
@@ -70,38 +72,41 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
   }
 
   return (
-    <div className={styles.overlay} onClick={onClose}>
+    <div className={b.drawerOverlay} onClick={onClose}>
       <div
-        role="dialog" aria-modal="true" aria-label="Lead details"
-        className={`pm-panel ${styles.modal} ${styles.modalLg}`}
+        role="dialog" aria-modal="true" aria-label={`${lead.name} details`}
+        className={b.drawer}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-          <div>
-            <div className="card-title">
-              {lead.name}{" "}
-              <span className={`pm-badge2 ${fp.cls}`} title="ProMunch fit score (AI, 0–100)">fit {fp.label}</span>
-            </div>
-            <div className="pm-muted" style={{ fontSize: 12.5 }}>
+        <div className={b.dh}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <span className={b.eyebrow}>Business</span>
+            <h2 className={b.who} style={{ fontSize: 22 }}>{lead.name}</h2>
+            <p className={b.muted} style={{ margin: "6px 0 0", fontSize: 15 }}>
               {[lead.category, lead.city].filter(Boolean).join(" · ")}
               {lead.website ? (
                 <>
                   {" · "}
-                  <a href={lead.website} target="_blank" rel="noreferrer">{lead.domain ?? "website"}</a>
+                  <a href={lead.website} target="_blank" rel="noreferrer" style={{ color: "inherit" }}>{lead.domain ?? "website"}</a>
                 </>
               ) : null}
+            </p>
+            <div className={b.row} style={{ marginTop: 8, gap: 14 }}>
+              <span className={b.tg} data-tone={STAGE_TAG[leadStage(lead)].tone}>{STAGE_TAG[leadStage(lead)].label}</span>
+              {lead.fit_score != null ? (
+                <span className={b.tg} data-tone={lead.fit_score >= 70 ? "good" : lead.fit_score >= 50 ? "warn" : "bad"} title="PROMUNCH fit score (AI, 0 to 100)">
+                  Fit {fp.label}/100
+                </span>
+              ) : null}
             </div>
-            {lead.fit_reason ? (
-              <div className="pm-muted" style={{ fontSize: 12.5, marginTop: 4 }}>{lead.fit_reason}</div>
-            ) : null}
+            {lead.fit_reason ? <p style={{ margin: "8px 0 0", fontSize: 14.5, color: "var(--pm-ink2)" }}>{lead.fit_reason}</p> : null}
             {lead.products?.length ? (
-              <div className="pm-muted" style={{ fontSize: 12, marginTop: 4 }}>
-                Pitching: {lead.products.join(", ")}
-              </div>
+              <p className={b.muted} style={{ margin: "4px 0 0", fontSize: 14 }}>Pitching: {lead.products.join(", ")}</p>
             ) : null}
           </div>
-          <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
+          <button type="button" className="pm-btn ghost" onClick={onClose} aria-label="Close"><X size={16} /></button>
         </div>
+        <div className={b.db}>
         {lead.error ? (
           <div className="pm-muted" style={{ fontSize: 12, color: "var(--amber)" }}>Last error: {lead.error}</div>
         ) : null}
@@ -422,6 +427,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
           >
             <Ban size={14} /> Suppress (do not contact)
           </button>
+        </div>
         </div>
       </div>
     </div>
