@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getFullKnowledgeBase } from "@/lib/leads/kb";
-import { DRAFT_MODEL } from "@/lib/leads/draft";
 import { getSecret } from "@/lib/secrets";
 import { getSettings, jsonError, logEvent, requireUser } from "@/lib/influencers/db";
 import { UUID_RE } from "@/lib/influencers/normalize";
 import { enforceBriefRules, formatIstDate, validateBriefContent } from "@/lib/influencers/brief-content";
-import { BRIEF_JSON_SCHEMA, BRIEF_SYSTEM_PROMPT, buildBriefKb, buildBriefUserPrompt } from "@/lib/influencers/brief-prompt";
+import { BRIEF_JSON_SCHEMA, BRIEF_MODEL, BRIEF_SYSTEM_PROMPT, buildBriefKb, buildBriefUserPrompt } from "@/lib/influencers/brief-prompt";
 import type { Deliverables, UsageRights } from "@/lib/influencers/types";
 
 export const dynamic = "force-dynamic";
@@ -84,7 +83,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: DRAFT_MODEL,
+      model: BRIEF_MODEL,
       max_tokens: 1800,
       temperature: 0.7,
       response_format: { type: "json_schema", json_schema: BRIEF_JSON_SCHEMA },

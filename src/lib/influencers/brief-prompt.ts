@@ -61,6 +61,10 @@ export function buildBriefKb(full: string, focus: string | null | undefined): st
   return `${head}\n\n## Rest of the knowledge base\n${rest}`.slice(0, KB_BUDGET);
 }
 
+// Briefs are low volume and creator-facing, so they use the stronger model
+// (gpt-4o-mini wrote generic hooks and mixed per-100 g with per-serving facts).
+export const BRIEF_MODEL = "gpt-4.1";
+
 export const BRIEF_SYSTEM_PROMPT =
   `You write creator briefs for PROMUNCH, an Indian high-protein snack brand ("Your Munchy Pal"). ` +
   `The brief goes to an Instagram creator doing a barter collab (free product for content, no fee).\n` +
@@ -107,9 +111,10 @@ export function buildBriefUserPrompt(input: BriefPromptInput, kb: string): strin
     focus
       ? `- The WHOLE brief is about ${focus}. Concept, all 3 hooks, the script, talking points and must_say centre on ${focus} and its facts from the "${focus} facts" section (what makes it different, protein, flavours, how it is made). Do not feature or name any other PROMUNCH product, even if the kit has other items. If the kit lists other products, ignore them in the creative.`
       : ``,
-    `- concept: 2 to 3 sentences, the idea of the video, built around their niche.`,
-    `- hooks: exactly 3 different opening lines (first 3 seconds) they can choose from.`,
-    `- script: a short, natural spoken script for a ${input.deliverables.reels ? "Reel" : "post"} of about 30 to 45 seconds, written for this creator's style. Plain lines, one beat per line.`,
+    `- concept: 2 to 3 sentences describing ONE specific, filmable scene from this creator's real day (where they are, what happens on camera, the payoff moment), built on a product fact. Not a generic "show how it fits your lifestyle" or "taste test" idea.`,
+    `- hooks: exactly 3 opening lines for the first 3 seconds, each a DIFFERENT angle: (a) a surprising, specific fact or comparison from the KB, (b) a relatable POV moment from their niche, (c) a visual reveal or challenge. Write each as "On screen: <what we see>. Say: <the line>". Never open with a generic question like "Looking for a snack?".`,
+    `- script: a ${input.deliverables.reels ? "Reel" : "post"} of about 30 to 45 seconds in this creator's voice. One beat per line, each line starting with the shot in square brackets, then the spoken line, e.g. "[close-up, pouring beans into palm] Roasted in olive oil, not fried." End on the discount code${input.discount_code ? ` ${input.discount_code}` : ""} and the product name.`,
+    `- Avoid empty praise words: healthy, wholesome, guilt-free, game changer, upgrade, delicious and healthy, must-try. Let specific facts do the selling.`,
     `- talking_points: 3 to 5 points to weave in, product facts only from the KB.`,
     `- must_say: 1 to 3 short lines that must be said or shown (brand name PROMUNCH, product name).`,
     `- checklist: include "Tag ${PROMUNCH_IG_HANDLE}", "Send ${PROMUNCH_IG_HANDLE} an Instagram Collab invite",` +
