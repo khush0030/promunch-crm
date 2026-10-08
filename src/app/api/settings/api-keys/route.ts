@@ -1,6 +1,6 @@
 // Owner-only API key management. GET = list (masked), POST = live-test a key,
-// PUT = replace/save, DELETE = remove a custom key. Values never leave the
-// server unmasked; audit entries record actions, never values.
+// PUT = replace/save, DELETE = remove dashboard-stored keys (one or many).
+// Values never leave the server unmasked; audit entries record actions, never values.
 
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -128,22 +128,32 @@ export async function DELETE(req: Request) {
   const gate = await requireSecretsOwner();
   if (!gate.ok) return gate.response;
 
-  const { name } = (await req.json().catch(() => ({}))) as { name?: string };
-  if (!name || REGISTRY.has(name)) {
-    // Built-in keys fall back to env when the row is gone, which reads as a
-    // silent un-rotation — force explicit replacement instead of deletion.
-    return NextResponse.json({ error: "only custom keys can be deleted" }, { status: 400 });
+  // Accepts { name } (single) or { names: [...] } (bulk). Built-in keys only
+  // lose their dashboard override and fall back to the environment value (or
+  // read "Not configured"); the panel says so in its confirm before calling.
+  const body = (await req.json().catch(() => ({}))) as { name?: string; names?: string[] };
+  const raw = Array.isArray(body.names) ? body.names : body.name ? [body.name] : [];
+  const names = [...new Set(raw)];
+  if (names.length === 0 || names.length > 100 || !names.every((n) => typeof n === "string" && KEY_NAME_RE.test(n))) {
+    return NextResponse.json({ error: "invalid key names" }, { status: 400 });
   }
-  const { error } = await supabaseAdmin.from("app_secrets").delete().eq("name", name);
+
+  const { data, error } = await supabaseAdmin.from("app_secrets").delete().in("name", names).select("name");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  bustSecretCache(name);
-  await recordAudit({
-    action: "secrets.delete",
-    entityType: "app_secret",
-    entityId: name,
-    summary: `Custom API key ${name} removed`,
-    actor: gate.user,
-  });
-  return NextResponse.json({ ok: true });
+  const removed = (data ?? []).map((r) => r.name as string);
+  for (const name of removed) {
+    bustSecretCache(name);
+    const builtIn = REGISTRY.has(name);
+    await recordAudit({
+      action: "secrets.delete",
+      entityType: "app_secret",
+      entityId: name,
+      summary: builtIn
+        ? `API key ${name} dashboard value removed (falls back to environment)`
+        : `Custom API key ${name} removed`,
+      actor: gate.user,
+    });
+  }
+  return NextResponse.json({ ok: true, removed });
 }

@@ -5,7 +5,7 @@
 // Values are write-only from here — the API only ever returns a masked tail.
 
 import { useCallback, useEffect, useState } from "react";
-import { Lock, Plus, RefreshCw } from "lucide-react";
+import { Lock, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "./ApiKeysPanel.module.css";
 
@@ -39,6 +39,7 @@ export function ApiKeysPanel() {
   const [testNote, setTestNote] = useState<{ name: string; ok: boolean; detail: string } | null>(null);
   const [newName, setNewName] = useState("");
   const [newValue, setNewValue] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     const res = await fetch("/api/settings/api-keys", { cache: "no-store" });
@@ -101,17 +102,50 @@ export function ApiKeysPanel() {
     }
   }
 
-  async function removeCustom(name: string) {
-    if (!confirm(`Remove custom key ${name}?`)) return;
-    const res = await fetch("/api/settings/api-keys", {
-      method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name }),
+  // Only dashboard-stored values can be removed here; env keys live in Vercel.
+  const removable = (k: KeyRow) => k.source === "dashboard";
+
+  function toggle(name: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
     });
-    if (res.ok) {
-      toast.push({ kind: "success", text: `${name} removed` });
+  }
+
+  async function removeKeys(names: string[]) {
+    if (names.length === 0 || !keys) return;
+    const rows = keys.filter((k) => names.includes(k.name));
+    const builtIn = rows.filter((k) => !k.custom).map((k) => k.name);
+    const lines = [
+      names.length === 1 ? `Remove ${names[0]}?` : `Remove ${names.length} keys?\n\n${names.join("\n")}`,
+    ];
+    if (builtIn.length) {
+      lines.push(
+        `\n${builtIn.join(", ")} will fall back to the environment value, or stop working if none is set.`
+      );
+    }
+    if (!confirm(lines.join("\n"))) return;
+    setBusy("__bulk");
+    try {
+      const res = await fetch("/api/settings/api-keys", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ names }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.push({ kind: "error", text: j.error ?? "delete failed" });
+        return;
+      }
+      const n = (j.removed ?? names).length;
+      toast.push({ kind: "success", text: n === 1 ? `${names[0]} removed` : `${n} keys removed` });
+      setSelected(new Set());
       load();
-    } else toast.push({ kind: "error", text: "delete failed" });
+    } finally {
+      setBusy(null);
+    }
   }
 
   if (restricted) {
@@ -126,6 +160,9 @@ export function ApiKeysPanel() {
   if (!keys) return <div className={styles.restricted}>Loading…</div>;
 
   const groups = [...new Set(keys.map((k) => k.group))];
+  const removableNames = keys.filter(removable).map((k) => k.name);
+  const picked = removableNames.filter((n) => selected.has(n));
+  const allPicked = removableNames.length > 0 && picked.length === removableNames.length;
 
   return (
     <div>
@@ -136,6 +173,30 @@ export function ApiKeysPanel() {
         </div>
       )}
 
+      {removableNames.length > 0 && (
+        <div className={styles.bulkBar}>
+          <label className={styles.check}>
+            <input
+              type="checkbox"
+              checked={allPicked}
+              ref={(el) => {
+                if (el) el.indeterminate = picked.length > 0 && !allPicked;
+              }}
+              onChange={() => setSelected(allPicked ? new Set() : new Set(removableNames))}
+            />
+            {picked.length ? `${picked.length} selected` : "Select all removable"}
+          </label>
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnDanger}`}
+            disabled={picked.length === 0 || busy === "__bulk"}
+            onClick={() => removeKeys(picked)}
+          >
+            <Trash2 size={11} /> Remove selected{picked.length ? ` (${picked.length})` : ""}
+          </button>
+        </div>
+      )}
+
       {groups.map((g) => (
         <div key={g} className={styles.group}>
           <div className={styles.groupLabel}>{g}</div>
@@ -143,6 +204,15 @@ export function ApiKeysPanel() {
             .filter((k) => k.group === g)
             .map((k) => (
               <div key={k.name} className={styles.row}>
+                <input
+                  type="checkbox"
+                  className={styles.rowCheck}
+                  aria-label={`Select ${k.name}`}
+                  disabled={!removable(k)}
+                  title={removable(k) ? undefined : k.source === "env" ? "Set in the Vercel environment, remove it there" : "Nothing stored"}
+                  checked={selected.has(k.name)}
+                  onChange={() => toggle(k.name)}
+                />
                 <span
                   className={`${styles.dot} ${
                     k.source === "missing" ? styles.dotMissing : k.source === "env" ? styles.dotEnv : styles.dotOk
@@ -176,8 +246,13 @@ export function ApiKeysPanel() {
                   >
                     Replace
                   </button>
-                  {k.custom && (
-                    <button type="button" className={`${styles.btn} ${styles.btnDanger}`} onClick={() => removeCustom(k.name)}>
+                  {removable(k) && (
+                    <button
+                      type="button"
+                      className={`${styles.btn} ${styles.btnDanger}`}
+                      disabled={busy === "__bulk"}
+                      onClick={() => removeKeys([k.name])}
+                    >
                       Remove
                     </button>
                   )}
