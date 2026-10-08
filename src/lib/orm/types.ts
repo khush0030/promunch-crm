@@ -1,10 +1,11 @@
 // Reputation (ORM) shared types. Column names mirror
 // supabase/migrations/20261008200000_orm.sql exactly; the build contract is
 // docs/plans/2026-10-08-orm-build-spec.md.
+import type { ReputationScore } from "./score";
 
 // "whatsapp" = Not happy taps on the WhatsApp review feedback ask (written by
 // wa-webhook, never collected; hidden from the Settings source list).
-export const ORM_SOURCE_KEYS = ["judgeme", "youtube", "reddit", "rss", "amazon", "instagram", "whatsapp"] as const;
+export const ORM_SOURCE_KEYS = ["judgeme", "youtube", "reddit", "rss", "amazon", "instagram", "competitors", "whatsapp"] as const;
 export type OrmSourceKey = (typeof ORM_SOURCE_KEYS)[number];
 
 export const ORM_STATUSES = ["new", "seen", "replied", "ignored", "escalated"] as const;
@@ -57,11 +58,23 @@ export interface OrmMention {
   replied_by: string | null;
   note: string | null;
   updated_at: string;
+  // complaint cases + reply channel (v2)
+  case_status: OrmCaseStatus | null;
+  case_outcome: OrmCaseOutcome | null;
+  case_opened_at: string | null;
+  case_resolved_at: string | null;
+  reply_channel: "manual" | "judgeme_api" | null;
+  reply_external_id: string | null;
 }
+
+export const ORM_CASE_STATUSES = ["open", "in_progress", "resolved"] as const;
+export type OrmCaseStatus = (typeof ORM_CASE_STATUSES)[number];
+export const ORM_CASE_OUTCOMES = ["recovered", "refund", "replacement", "explained", "no_response", "not_actionable"] as const;
+export type OrmCaseOutcome = (typeof ORM_CASE_OUTCOMES)[number];
 
 /** Every column except `raw` (kept server-side; it can be large). */
 export const MENTION_COLUMNS =
-  "id, source, external_id, url, author_name, author_handle, author_followers, title, body, rating, posted_at, collected_at, is_owned, product_ref, parent_external_id, enriched_at, relevant, sentiment, summary, topics, intent, urgency, product, language, order_ref, contact_id, enrich_error, enrich_attempts, status, assignee, reply_draft, reply_text, replied_at, replied_by, note, updated_at";
+  "id, source, external_id, url, author_name, author_handle, author_followers, title, body, rating, posted_at, collected_at, is_owned, product_ref, parent_external_id, enriched_at, relevant, sentiment, summary, topics, intent, urgency, product, language, order_ref, contact_id, enrich_error, enrich_attempts, status, assignee, reply_draft, reply_text, replied_at, replied_by, note, updated_at, case_status, case_outcome, case_opened_at, case_resolved_at, reply_channel, reply_external_id";
 
 export interface OrmSource {
   key: OrmSourceKey;
@@ -91,7 +104,22 @@ export interface OrmSettings {
   apify_monthly_budget_usd: number;
   apify_month: string | null;
   apify_spent_usd: number;
+  // v2: weekly digest, spike alerts, auto cases, competitor benchmark
+  weekly_digest_enabled: boolean;
+  weekly_digest_dow: number; // 0 = Sunday .. 6 = Saturday (IST)
+  weekly_digest_hour_ist: number;
+  spike_alerts_enabled: boolean;
+  spike_threshold: number;
+  spike_window_days: number;
+  auto_case_on_negative: boolean;
+  competitor_asins: CompetitorAsin[];
   updated_at: string | null;
+}
+
+export interface CompetitorAsin {
+  asin: string;
+  brand: string;
+  label: string;
 }
 
 export type OrmAlertKind = "critical" | "low_rating" | "negative" | "spike";
@@ -132,6 +160,55 @@ export interface OrmSummary {
     OrmSource,
     "key" | "label" | "enabled" | "last_run_at" | "last_status" | "last_error" | "last_count" | "next_run_at"
   >[];
+  // ---- v2 (docs/plans/2026-10-09-orm-v2-spec.md §2) ----
+  score: ReputationScore;
+  score_prev: ReputationScore;
+  score_weekly: { week_start: string; score: number | null; mentions: number }[];
+  products: ProductRow[];
+  drivers: { topic: string; praise: number; complaints: number; neutral: number }[];
+  response: ResponseStats;
+  channels: ChannelStats[];
+  competitors: CompetitorSnapshot[];
+}
+
+export interface ProductRow {
+  product: string;
+  mentions: number;
+  avg_rating: number | null;
+  rated: number;
+  pct_negative: number | null;
+  top_complaint_topic: string | null;
+  trend: "up" | "down" | "flat";
+}
+
+export interface ResponseStats {
+  open_negatives: number;
+  open_critical: number;
+  median_reply_hours: number | null;
+  oldest_unanswered_days: number | null;
+  reply_rate: number | null;
+  cases: { open: number; in_progress: number; resolved: number; recovered: number; recovery_rate: number | null };
+}
+
+export interface ChannelStats {
+  key: OrmSourceKey;
+  label: string;
+  avg_rating: number | null;
+  reviews: number;
+  star_mix: Record<"1" | "2" | "3" | "4" | "5", number>;
+  weekly: { week_start: string; avg_rating: number | null; count: number }[];
+  velocity_per_week: number;
+}
+
+export interface CompetitorSnapshot {
+  asin: string;
+  brand: string | null;
+  label: string | null;
+  is_ours: boolean;
+  rating: number | null;
+  review_count: number | null;
+  price_inr: number | null;
+  taken_on: string;
 }
 
 export function isSourceKey(v: unknown): v is OrmSourceKey {

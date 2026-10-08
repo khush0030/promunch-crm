@@ -1,0 +1,127 @@
+{
+  "about": "Shared test vectors for the ORM Reputation Score (docs/plans/2026-10-09-orm-v2-spec.md §1). Asserted by promunch-email-agent/supabase/functions/_shared/orm-score_test.ts and must be asserted by the Next.js copy (src/lib/orm/score.ts). computeScore(mentions) must deep-equal `expected` exactly. Rules: drop relevant === false and enriched_at === null (explicit null; a missing key counts as enriched). Ratings outside 1..5 are ignored; numeric strings are accepted. score = Math.round(weighted mean of UNROUNDED parts, missing parts dropped and weights re-normalised). parts and net_sentiment_raw rounded to 1 decimal, avg_rating to 2 decimals, Math.round semantics (half toward +infinity).",
+  "weights": { "rating": 0.4, "net_sentiment": 0.3, "reply_rate": 0.2, "critical": 0.1 },
+  "vectors": [
+    {
+      "name": "empty",
+      "mentions": [],
+      "expected": {
+        "score": null,
+        "parts": { "rating": null, "net_sentiment": null, "reply_rate": null, "critical": null },
+        "net_sentiment_raw": null,
+        "avg_rating": null,
+        "counts": { "mentions": 0, "rated": 0, "scored": 0, "positive": 0, "negative": 0, "negatives_handled": 0, "open_critical": 0 }
+      },
+      "band": null
+    },
+    {
+      "name": "only excluded rows is empty",
+      "mentions": [
+        { "rating": 1, "sentiment": -2, "status": "new", "case_status": null, "urgency": "critical", "relevant": false, "enriched_at": "2026-10-01T00:00:00Z" },
+        { "rating": 1, "sentiment": null, "status": "new", "case_status": null, "urgency": null, "relevant": null, "enriched_at": null }
+      ],
+      "expected": {
+        "score": null,
+        "parts": { "rating": null, "net_sentiment": null, "reply_rate": null, "critical": null },
+        "net_sentiment_raw": null,
+        "avg_rating": null,
+        "counts": { "mentions": 0, "rated": 0, "scored": 0, "positive": 0, "negative": 0, "negatives_handled": 0, "open_critical": 0 }
+      },
+      "band": null
+    },
+    {
+      "name": "one 5 star positive",
+      "mentions": [
+        { "rating": 5, "sentiment": 2, "status": "new", "case_status": null, "urgency": "low", "relevant": true, "enriched_at": "2026-10-01T00:00:00Z" }
+      ],
+      "expected": {
+        "score": 100,
+        "parts": { "rating": 100, "net_sentiment": 100, "reply_rate": 100, "critical": 100 },
+        "net_sentiment_raw": 100,
+        "avg_rating": 5,
+        "counts": { "mentions": 1, "rated": 1, "scored": 1, "positive": 1, "negative": 0, "negatives_handled": 0, "open_critical": 0 }
+      },
+      "band": "Excellent"
+    },
+    {
+      "name": "mixed fixture",
+      "mentions": [
+        { "rating": 5, "sentiment": 2, "status": "new", "case_status": null, "urgency": "low", "relevant": true, "enriched_at": "2026-10-01T00:00:00Z" },
+        { "rating": 4, "sentiment": 1, "status": "seen", "case_status": null, "urgency": "normal", "relevant": true, "enriched_at": "2026-10-01T00:00:00Z" },
+        { "rating": 1, "sentiment": -2, "status": "replied", "case_status": "open", "urgency": "critical", "relevant": true, "enriched_at": "2026-10-01T00:00:00Z" },
+        { "rating": 2, "sentiment": -1, "status": "new", "case_status": "resolved", "urgency": "high", "relevant": true, "enriched_at": "2026-10-01T00:00:00Z" },
+        { "rating": null, "sentiment": -1, "status": "new", "case_status": "in_progress", "urgency": "normal", "relevant": true, "enriched_at": "2026-10-01T00:00:00Z" },
+        { "rating": null, "sentiment": 0, "status": "new", "case_status": null, "urgency": "normal", "relevant": null, "enriched_at": "2026-10-01T00:00:00Z" },
+        { "rating": 3, "sentiment": null, "status": "new", "case_status": null, "urgency": null, "relevant": true },
+        { "rating": null, "sentiment": -2, "status": "escalated", "case_status": "open", "urgency": "critical", "relevant": true, "enriched_at": "2026-10-01T00:00:00Z" },
+        { "rating": 1, "sentiment": -2, "status": "new", "case_status": null, "urgency": "critical", "relevant": false, "enriched_at": "2026-10-01T00:00:00Z" },
+        { "rating": 1, "sentiment": null, "status": "new", "case_status": null, "urgency": null, "relevant": null, "enriched_at": null }
+      ],
+      "expected": {
+        "score": 46,
+        "parts": { "rating": 50, "net_sentiment": 35.7, "reply_rate": 50, "critical": 50 },
+        "net_sentiment_raw": -28.6,
+        "avg_rating": 3,
+        "counts": { "mentions": 8, "rated": 5, "scored": 7, "positive": 2, "negative": 4, "negatives_handled": 2, "open_critical": 1 }
+      },
+      "band": "At risk"
+    },
+    {
+      "name": "no ratings: weights re-normalised",
+      "mentions": [
+        { "rating": null, "sentiment": 1, "status": "new", "case_status": null, "urgency": "normal", "relevant": true, "enriched_at": "2026-10-01T00:00:00Z" },
+        { "rating": null, "sentiment": -1, "status": "replied", "case_status": null, "urgency": "normal", "relevant": true, "enriched_at": "2026-10-01T00:00:00Z" }
+      ],
+      "expected": {
+        "score": 75,
+        "parts": { "rating": null, "net_sentiment": 50, "reply_rate": 100, "critical": 100 },
+        "net_sentiment_raw": 0,
+        "avg_rating": null,
+        "counts": { "mentions": 2, "rated": 0, "scored": 2, "positive": 1, "negative": 1, "negatives_handled": 1, "open_critical": 0 }
+      },
+      "band": "Good"
+    },
+    {
+      "name": "three open critical floors the critical part at 0",
+      "mentions": [
+        { "rating": null, "sentiment": null, "status": "new", "case_status": null, "urgency": "critical", "relevant": true, "enriched_at": "2026-10-01T00:00:00Z" },
+        { "rating": null, "sentiment": null, "status": "seen", "case_status": "open", "urgency": "critical", "relevant": true, "enriched_at": "2026-10-01T00:00:00Z" },
+        { "rating": null, "sentiment": null, "status": "escalated", "case_status": "in_progress", "urgency": "critical", "relevant": true, "enriched_at": "2026-10-01T00:00:00Z" }
+      ],
+      "expected": {
+        "score": 67,
+        "parts": { "rating": null, "net_sentiment": null, "reply_rate": 100, "critical": 0 },
+        "net_sentiment_raw": null,
+        "avg_rating": null,
+        "counts": { "mentions": 3, "rated": 0, "scored": 0, "positive": 0, "negative": 0, "negatives_handled": 0, "open_critical": 3 }
+      },
+      "band": "Needs work"
+    },
+    {
+      "name": "string rating, ignored + resolved count as handled",
+      "mentions": [
+        { "rating": "4.0", "sentiment": -1, "status": "ignored", "case_status": null, "urgency": "normal", "relevant": true, "enriched_at": "2026-10-01T00:00:00Z" },
+        { "rating": 3, "sentiment": -2, "status": "new", "case_status": "resolved", "urgency": "critical", "relevant": true, "enriched_at": "2026-10-01T00:00:00Z" }
+      ],
+      "expected": {
+        "score": 55,
+        "parts": { "rating": 62.5, "net_sentiment": 0, "reply_rate": 100, "critical": 100 },
+        "net_sentiment_raw": -100,
+        "avg_rating": 3.5,
+        "counts": { "mentions": 2, "rated": 2, "scored": 2, "positive": 0, "negative": 2, "negatives_handled": 2, "open_critical": 0 }
+      },
+      "band": "Needs work"
+    }
+  ],
+  "bands": [
+    { "score": 100, "band": "Excellent" },
+    { "score": 85, "band": "Excellent" },
+    { "score": 84, "band": "Good" },
+    { "score": 70, "band": "Good" },
+    { "score": 69, "band": "Needs work" },
+    { "score": 50, "band": "Needs work" },
+    { "score": 49, "band": "At risk" },
+    { "score": 0, "band": "At risk" },
+    { "score": null, "band": null }
+  ]
+}

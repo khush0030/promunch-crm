@@ -21,6 +21,14 @@ export const DEFAULT_ORM_SETTINGS: OrmSettings = {
   apify_monthly_budget_usd: 5,
   apify_month: null,
   apify_spent_usd: 0,
+  weekly_digest_enabled: false,
+  weekly_digest_dow: 1,
+  weekly_digest_hour_ist: 9,
+  spike_alerts_enabled: false,
+  spike_threshold: 3,
+  spike_window_days: 7,
+  auto_case_on_negative: true,
+  competitor_asins: [],
   updated_at: null,
 };
 
@@ -45,11 +53,19 @@ export async function getOrmSettings(): Promise<OrmSettings> {
     apify_monthly_budget_usd: Number(data.apify_monthly_budget_usd ?? 5),
     apify_month: data.apify_month ?? null,
     apify_spent_usd: sameMonth ? Number(data.apify_spent_usd ?? 0) : 0,
+    weekly_digest_enabled: !!data.weekly_digest_enabled,
+    weekly_digest_dow: data.weekly_digest_dow ?? 1,
+    weekly_digest_hour_ist: data.weekly_digest_hour_ist ?? 9,
+    spike_alerts_enabled: !!data.spike_alerts_enabled,
+    spike_threshold: data.spike_threshold ?? 3,
+    spike_window_days: data.spike_window_days ?? 7,
+    auto_case_on_negative: data.auto_case_on_negative ?? true,
+    competitor_asins: Array.isArray(data.competitor_asins) ? data.competitor_asins : [],
     updated_at: data.updated_at ?? null,
   };
 }
 
-const SOURCE_ORDER = ["judgeme", "amazon", "youtube", "reddit", "rss", "instagram"];
+const SOURCE_ORDER = ["judgeme", "amazon", "youtube", "reddit", "rss", "instagram", "competitors"];
 
 export async function listSources(): Promise<OrmSource[]> {
   const { data, error } = await supabaseAdmin.from("orm_sources").select(SOURCE_COLUMNS);

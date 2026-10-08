@@ -30,6 +30,7 @@ describe("parseMentionFilters", () => {
     expect(p("status=new")).toMatchObject({ view: null, statuses: ["new"] });
     expect(p("status=needs_reply").view).toBe("needs_reply");
     expect(p("status=handled").view).toBe("handled");
+    expect(p("status=cases")).toMatchObject({ view: "cases", statuses: null });
     expect(p("status=all")).toMatchObject({ view: null, statuses: null });
     expect(p("status=seen,escalated,bogus").statuses).toEqual(["seen", "escalated"]);
     expect(p("status=bogus").statuses).toBeNull();
