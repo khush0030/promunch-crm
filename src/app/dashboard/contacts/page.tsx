@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Download, ChevronLeft, ChevronRight, ChevronDown, Users, UserPlus, ShoppingBag, UserMinus, X } from "lucide-react";
+import { Upload, Download, ChevronLeft, ChevronRight, Users, UserPlus, ShoppingBag, UserMinus, X } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/Toast";
 import { PageHead, Toolbar, SearchBar, FilterChips, DataTable, StatusBadge, EmptyState, KpiCard } from "@/components/pm";
@@ -65,7 +65,6 @@ export default function ContactsPage() {
   const [sort, setSort] = useState("created_at");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
   const [showFilters, setShowFilters] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
   const [audience, setAudience] = useState<{ type: "list" | "segment"; value: string } | null>(null);
   const [facets, setFacets] = useState<{
     lists: { name: string; count: number }[];
@@ -159,7 +158,7 @@ export default function ContactsPage() {
       .catch(() => {});
   }, []);
 
-  async function runImport(source: "klaviyo" | "shopify") {
+  async function runImport(source: "shopify") {
     setImporting(true);
     setImportMsg(`Importing from ${source}…`);
     try {
@@ -292,27 +291,9 @@ export default function ContactsPage() {
             <button className="pm-btn ghost" onClick={exportCsv} title="Download the current filtered view as CSV">
               <Download size={15} /> Export CSV
             </button>
-            <div style={{ position: "relative" }}>
-              <button className="pm-btn primary" disabled={importing} onClick={() => setImportOpen((o) => !o)}>
-                <Upload size={15} /> {importing ? "Importing…" : "Import / Sync"} <ChevronDown size={13} />
-              </button>
-              {importOpen && (
-                <>
-                  <div onClick={() => setImportOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 19 }} />
-                  <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", background: "var(--pm-card)", border: "1px solid var(--pm-border)", borderRadius: 10, boxShadow: "0 8px 22px rgba(67,55,32,.12)", zIndex: 20, minWidth: 190, overflow: "hidden" }}>
-                    {(["klaviyo", "shopify"] as const).map((src) => (
-                      <button
-                        key={src}
-                        onClick={() => { setImportOpen(false); runImport(src); }}
-                        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 12px", fontSize: 13, background: "none", border: "none", textAlign: "left", color: "var(--pm-ink)" }}
-                      >
-                        <Upload size={13} /> Import from {src === "klaviyo" ? "Klaviyo" : "Shopify"}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+            <button className="pm-btn primary" disabled={importing} onClick={() => runImport("shopify")}>
+              <Upload size={15} /> {importing ? "Importing…" : "Sync from Shopify"}
+            </button>
           </>
         }
       />
@@ -434,7 +415,7 @@ export default function ContactsPage() {
           title={loaded ? "No contacts yet" : "Loading…"}
           cta={loaded ? <button className="pm-btn primary" disabled={importing} onClick={() => runImport("shopify")}><Upload size={15} /> Import from Shopify</button> : undefined}
         >
-          {loaded ? "Import contacts from Shopify or Klaviyo to get started, or add them manually." : undefined}
+          {loaded ? "Sync contacts from Shopify to get started, or add them manually." : undefined}
         </EmptyState>
       )}
 
