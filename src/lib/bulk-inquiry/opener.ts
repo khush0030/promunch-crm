@@ -19,7 +19,11 @@ Rules:
 - Do not ask questions. Do not greet by name (the email already does).
 - No em dashes or en dashes. No emoji. No exclamation marks.
 - Write the brand as PROMUNCH in capitals if you mention it.
-- Plain Indian business English, friendly, not salesy.
+- Plain Indian business English, friendly, not salesy. Sound like a person, not a form letter: avoid "Thank you for your interest" and "needs".
+Good examples:
+- "Diwali gifting for the Navan team, love it."
+- "Healthy snacks for the Infosys pantry, great call."
+- "Thanks for thinking of PROMUNCH for the Pune marathon."
 Return JSON: {"sentence": "..."}`;
 
 /** Validate a model sentence; null when it breaks a rule. Exported for tests. */
