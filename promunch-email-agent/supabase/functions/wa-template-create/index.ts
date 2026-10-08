@@ -246,11 +246,11 @@ const TEMPLATES: TemplateDef[] = [
     language: "en",
     category: "MARKETING",
     body:
-      "Hey {{1}}, you forgot something tasty 👀\n\n" +
-      "Your PROMUNCH picks are still sitting in the cart, waiting for you. Tap below to finish in seconds — right where you left off.\n\n" +
-      "— Your Munchy Pal 💚",
+      "Hi {{1}}, you left some PROMUNCH goodies in your cart 🛒\n\n" +
+      "Complete your order before they sell out. Tap below to pick up right where you left off!\n\n" +
+      "Your Munchy Pal 💚",
     bodyExample: ["Aarav"],
-    footer: "Reply STOP to unsubscribe",
+    footer: "Reply STOP to opt out",
     button: {
       text: "Complete Order",
       url: "https://promunch.in/{{1}}",
@@ -266,11 +266,11 @@ const TEMPLATES: TemplateDef[] = [
     language: "en",
     category: "MARKETING",
     body:
-      "Still thinking it over, {{1}}? Let's make it easy 😉\n\n" +
-      "We've unlocked a special discount on your cart — already applied, no code needed. Just tap below and it's done.\n\n" +
-      "— Your Munchy Pal 💚",
+      "Hi {{1}}, you left some PROMUNCH goodies in your cart 🛒\n\n" +
+      "We've applied a special discount for you. Tap below to grab them before they sell out!\n\n" +
+      "Your Munchy Pal 💚",
     bodyExample: ["Aarav"],
-    footer: "Reply STOP to unsubscribe",
+    footer: "Reply STOP to opt out",
     button: {
       text: "Checkout Now",
       url: "https://promunch.in/{{1}}",
