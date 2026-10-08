@@ -1,6 +1,6 @@
 # Online Reputation Management (ORM): plan
 
-Status: **PLAN, not built.** Owner request Oct 8 2026: track PROMUNCH brand activity across the internet and social media, see every comment, review and mention in one place, and respond fast.
+Status: **BUILDING (free-tier v1), Oct 9 2026.** Build contract: [2026-10-08-orm-build-spec.md](2026-10-08-orm-build-spec.md). Owner request Oct 8 2026: track PROMUNCH brand activity across the internet and social media, see every comment, review and mention in one place, and respond fast.
 
 ## 1. Goal
 
@@ -109,11 +109,12 @@ Access: new area in `src/lib/access.ts` so agents can be given Reputation only.
 
 Phase 1 + 2 work **before** Meta approval and already cover website, Amazon, YouTube, Reddit and news.
 
-## 7. Monthly running cost (estimate)
+## 7. Monthly running cost (owner chose the free tier, Oct 8 2026)
 
-- Apify (Amazon reviews daily, X + hashtags + marketplaces): roughly $20 to $50, capped by a daily budget in Settings
-- OpenAI enrichment + reply drafts: a few hundred mentions a month, under $10
-- YouTube, Reddit, Google Alerts, Judge.me, Meta, Google Business APIs: free
+- Free official APIs: Judge.me, YouTube Data API, Reddit, Google Alerts RSS, Meta Graph, Google Business Profile.
+- Amazon reviews: weekly, top 10 ASINs only, via Apify inside the free monthly credit, with a hard budget cap in Settings (a run that would exceed it is skipped, never charged).
+- AI enrichment on new mentions only with a small model: under Rs 100 a month at current volume.
+- Dropped for now (paid scraping): X, Flipkart, Blinkit, Zepto, Instamart, BigBasket, competitor share of voice.
 
 ## 8. Risks
 
