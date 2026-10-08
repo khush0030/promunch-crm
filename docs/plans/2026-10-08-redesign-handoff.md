@@ -1,6 +1,6 @@
 # Redesign handoff: continue in any session (local or cloud)
 
-**Keep this file current.** Updated at every milestone. Last update: **8 Oct 2026, 12:10 IST**, branch `redesign/app-v2` @ see `git log -1`.
+**Keep this file current.** Updated at every milestone. Last update: **8 Oct 2026, evening**, branch `redesign/app-v2` @ see `git log -1`.
 
 Read first: `AGENTS.md`, `CLAUDE.md`, `promunch-email-agent/CLAUDE.md` §0 (never message a customer twice).
 
@@ -71,7 +71,8 @@ The full CRM redesign lives on branch **`redesign/app-v2`** (pushed; ~32 commits
     - Settings: one row, ending in Security (`/dashboard/admin`).
   - `PageHeader` has a `summary` prop (eyebrow → TITLE → sentence → actions, then tabs).
   - Same-page `#hash` section tabs fire hashchange. Tests updated (1440 pass).
-- **In progress:** 5 build agents, uncommitted work in the worktree. Each owns separate files:
+- **Done:** (2) login, set-password, unsubscribe, 404 (+ dashboard catch-all `[...missing]`), no-access, error, committed in `428ee48`.
+- **In progress:** agents 1, 3, 4 and 5. Their partial work is pushed as WIP commit `448ab88` (typechecks, NOT reviewed). Each agent owns separate files:
   1. Home (red pinstripe hero tile, uppercase greeting, full-width area chart, all-clear state) + welcome pop-up (`dashboard/page.tsx`, `home.module.css`, the Onboarding component).
   2. Login, set-password, unsubscribe, `not-found.tsx` (root + dashboard), no-access, `dashboard/error.tsx`.
   3. Inbox + Orders/Voice/KB headers and tabs (incl. Orders `?tab=all|rules`).
@@ -143,6 +144,7 @@ The full CRM redesign lives on branch **`redesign/app-v2`** (pushed; ~32 commits
 
 ## 9. Update log
 
+- 2026-10-08 evening: public pages done (428ee48); remaining 4 areas pushed as WIP 448ab88 after repeated rate limits; agents resumed. Machine load is high; the 3218/3219 servers were stopped to free CPU (restart them for final checks).
 - 2026-10-08 12:10 IST: owner said "start with top 5"; IA tab sets + header slot committed (f6584ef); 5 build agents running.
 - 2026-10-08 11:45 IST: fidelity audit finished (6 areas), written to docs/audits/2026-10-08-redesign-fidelity.md. Prod-build click-through passed. Waiting on owner to pick fixes.
 - 2026-10-08 10:15 IST: file created. QA + fixes done and pushed; fidelity review running; final prod click-through running.
