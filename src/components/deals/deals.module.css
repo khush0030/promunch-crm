@@ -321,9 +321,3 @@
 .body { display: flex; flex-direction: column; gap: 14px; padding: 18px var(--pm3-gutter) 48px; min-width: 0; }
 .body .board { margin-top: 0; }
 
-/* phone: lanes stack (prototype b2b-deals at 390px); drag still works on desktop */
-@media (max-width: 760px) {
-  .board { flex-direction: column; align-items: stretch; overflow: visible; }
-  .lane, .lane[data-over="true"] { flex: none; width: 100%; min-height: 0; }
-  .laneCards { max-height: none; }
-}
