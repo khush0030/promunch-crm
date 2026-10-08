@@ -230,7 +230,7 @@ function InboxPageInner() {
             <b>
               {counts.human} {counts.human === 1 ? "chat needs" : "chats need"} a human.
             </b>{" "}
-            The bot is answering {counts.bot} {counts.bot === 1 ? "chat" : "chats"}.
+            {counts.bot.toLocaleString("en-IN")} {counts.bot === 1 ? "chat is" : "chats are"} with the bot.
           </>
         ) : undefined
       }
