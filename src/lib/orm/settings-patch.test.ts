@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateMentionPatch, validateSettingsPatch } from "./settings-patch";
+import { validateCompetitors, validateMentionPatch, validateSettingsPatch, withCaseOpened } from "./settings-patch";
 import { topAsins } from "./asins";
 
 describe("validateSettingsPatch", () => {
@@ -67,7 +67,7 @@ describe("validateMentionPatch", () => {
   it("replied stamps who and when", () => {
     expect(validateMentionPatch({ status: "replied", reply_text: " Thanks! " }, "a@promunch.in", NOW)).toEqual({
       ok: true,
-      value: { status: "replied", replied_at: NOW, replied_by: "a@promunch.in", reply_text: "Thanks!", updated_at: NOW },
+      value: { status: "replied", replied_at: NOW, replied_by: "a@promunch.in", reply_text: "Thanks!", reply_channel: "manual", updated_at: NOW },
     });
   });
   it("blank text clears, bad status refused", () => {
@@ -75,6 +75,111 @@ describe("validateMentionPatch", () => {
     expect(validateMentionPatch({ status: "done" }, "a", NOW)).toMatchObject({ ok: false });
     expect(validateMentionPatch({ note: 5 }, "a", NOW)).toMatchObject({ ok: false });
     expect(validateMentionPatch({}, "a", NOW)).toMatchObject({ ok: false });
+  });
+});
+
+describe("complaint cases (PATCH mention)", () => {
+  const NOW = "2026-10-09T06:30:00.000Z";
+  it("resolve needs an outcome and stamps case_resolved_at", () => {
+    expect(validateMentionPatch({ case_status: "resolved" }, "a", NOW)).toMatchObject({ ok: false });
+    expect(validateMentionPatch({ case_status: "resolved", case_outcome: "magic" }, "a", NOW)).toMatchObject({ ok: false });
+    expect(validateMentionPatch({ case_status: "resolved", case_outcome: "recovered" }, "a", NOW)).toEqual({
+      ok: true,
+      value: { case_status: "resolved", case_outcome: "recovered", case_resolved_at: NOW, updated_at: NOW },
+    });
+  });
+  it("reopen clears outcome and resolved time", () => {
+    expect(validateMentionPatch({ case_status: "open" }, "a", NOW)).toEqual({
+      ok: true,
+      value: { case_status: "open", case_outcome: null, case_resolved_at: null, updated_at: NOW },
+    });
+    expect(validateMentionPatch({ case_status: "in_progress", assignee: "Narendra" }, "a", NOW)).toEqual({
+      ok: true,
+      value: { assignee: "Narendra", case_status: "in_progress", case_outcome: null, case_resolved_at: null, updated_at: NOW },
+    });
+  });
+  it("null removes the case; outcome alone or a bad status is refused", () => {
+    expect(validateMentionPatch({ case_status: null }, "a", NOW)).toEqual({
+      ok: true,
+      value: { case_status: null, case_outcome: null, case_opened_at: null, case_resolved_at: null, updated_at: NOW },
+    });
+    expect(validateMentionPatch({ case_outcome: "refund" }, "a", NOW)).toMatchObject({ ok: false });
+    expect(validateMentionPatch({ case_status: "closed" }, "a", NOW)).toMatchObject({ ok: false });
+  });
+  it("copy-and-open reply is recorded as a manual reply", () => {
+    expect(validateMentionPatch({ status: "replied", reply_text: "Thanks" }, "a", NOW)).toMatchObject({
+      ok: true,
+      value: { reply_channel: "manual" },
+    });
+  });
+  it("opening a case for the first time stamps case_opened_at", () => {
+    const p = { case_status: "open" };
+    expect(withCaseOpened(p, { case_opened_at: null }, NOW)).toEqual({ case_status: "open", case_opened_at: NOW });
+    expect(withCaseOpened(p, { case_opened_at: "2026-10-01T00:00:00Z" }, NOW)).toEqual(p);
+    expect(withCaseOpened({ note: "x" }, { case_opened_at: null }, NOW)).toEqual({ note: "x" });
+  });
+});
+
+describe("v2 settings", () => {
+  it("digest, spike and auto-case fields", () => {
+    expect(
+      validateSettingsPatch({
+        weekly_digest_enabled: true,
+        weekly_digest_dow: 1,
+        weekly_digest_hour_ist: 9,
+        spike_alerts_enabled: false,
+        spike_threshold: 3,
+        spike_window_days: 7,
+        auto_case_on_negative: true,
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        settings: {
+          weekly_digest_enabled: true,
+          spike_alerts_enabled: false,
+          auto_case_on_negative: true,
+          weekly_digest_dow: 1,
+          weekly_digest_hour_ist: 9,
+          spike_threshold: 3,
+          spike_window_days: 7,
+        },
+        sources: {},
+      },
+    });
+    expect(validateSettingsPatch({ weekly_digest_dow: 7 })).toMatchObject({ ok: false });
+    expect(validateSettingsPatch({ weekly_digest_hour_ist: 24 })).toMatchObject({ ok: false });
+    expect(validateSettingsPatch({ spike_threshold: 1 })).toMatchObject({ ok: false });
+    expect(validateSettingsPatch({ spike_window_days: 31 })).toMatchObject({ ok: false });
+    expect(validateSettingsPatch({ auto_case_on_negative: "yes" })).toMatchObject({ ok: false });
+  });
+  it("competitor list: cleans, skips empty rows, refuses bad ASINs and duplicates", () => {
+    expect(
+      validateCompetitors([
+        { asin: " b0comp0001 ", brand: " Other Brand ", label: "Roasted chana 200g" },
+        { asin: "", brand: "", label: "" },
+        { asin: "B0COMP0002", brand: "Third", label: "" },
+      ]),
+    ).toEqual({
+      ok: true,
+      value: [
+        { asin: "B0COMP0001", brand: "Other Brand", label: "Roasted chana 200g" },
+        { asin: "B0COMP0002", brand: "Third", label: "Third" },
+      ],
+    });
+    expect(validateCompetitors([{ asin: "nope", brand: "x", label: "" }])).toMatchObject({ ok: false });
+    expect(validateCompetitors([{ asin: "B0COMP0001", brand: "", label: "" }])).toMatchObject({ ok: false });
+    expect(
+      validateCompetitors([
+        { asin: "B0COMP0001", brand: "a", label: "" },
+        { asin: "b0comp0001", brand: "b", label: "" },
+      ]),
+    ).toMatchObject({ ok: false });
+    expect(validateSettingsPatch({ competitor_asins: [] })).toEqual({ ok: true, value: { settings: { competitor_asins: [] }, sources: {} } });
+    expect(validateSettingsPatch({ sources: { competitors: { enabled: true } } })).toEqual({
+      ok: true,
+      value: { settings: {}, sources: { competitors: { enabled: true } } },
+    });
   });
 });
 

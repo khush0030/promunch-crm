@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { jsonError, requireUser } from "@/lib/orm/db";
-import { combineOrGroups, HANDLED_STATUSES, nextBefore, OPEN_STATUSES, orGroups, parseMentionFilters } from "@/lib/orm/filters";
+import {
+  combineOrGroups,
+  HANDLED_STATUSES,
+  nextBefore,
+  OPEN_CASE_STATUSES,
+  OPEN_STATUSES,
+  orGroups,
+  parseMentionFilters,
+} from "@/lib/orm/filters";
 import { MENTION_COLUMNS, type OrmMention } from "@/lib/orm/types";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/orm/mentions?status=&source=&sentiment=&urgency=&q=&owned=&before=&limit=
+// GET /api/orm/mentions?status=new|needs_reply|handled|cases|all|<status list>&source=&sentiment=&urgency=&q=&owned=&before=&limit=
 // Newest first by posted_at; `before` is the posted_at cursor of the last row.
 export async function GET(req: NextRequest) {
   const gate = await requireUser();
@@ -24,6 +32,7 @@ export async function GET(req: NextRequest) {
   if (f.statuses) q = q.in("status", f.statuses);
   if (f.view === "needs_reply") q = q.in("status", OPEN_STATUSES);
   if (f.view === "handled") q = q.in("status", HANDLED_STATUSES);
+  if (f.view === "cases") q = q.in("case_status", [...OPEN_CASE_STATUSES]);
   if (f.source) q = q.eq("source", f.source);
   if (f.sentiment === "neg") q = q.lt("sentiment", 0);
   if (f.sentiment === "neu") q = q.eq("sentiment", 0);

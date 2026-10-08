@@ -1,7 +1,7 @@
 // Pure validation for PATCH /api/orm/settings and PATCH /api/orm/mentions/[id]
 // (unit-tested). Returns clean column patches or a plain-English error.
 import { normalizePhone } from "@/lib/influencers/normalize";
-import { isSourceKey, isStatus, type OrmSourceKey } from "./types";
+import { isSourceKey, isStatus, ORM_CASE_OUTCOMES, ORM_CASE_STATUSES, type CompetitorAsin, type OrmSourceKey } from "./types";
 
 type Ok<T> = { ok: true; value: T };
 type Err = { ok: false; error: string };
@@ -108,6 +108,33 @@ export function validateSettingsPatch(body: Record<string, unknown>): Ok<Setting
     settings.apify_monthly_budget_usd = Math.round(n * 100) / 100;
   }
 
+  for (const k of ["weekly_digest_enabled", "spike_alerts_enabled", "auto_case_on_negative"] as const) {
+    if (!has(body, k)) continue;
+    if (typeof body[k] !== "boolean") return { ok: false, error: `${k} must be true or false` };
+    settings[k] = body[k];
+  }
+  if (has(body, "weekly_digest_dow")) {
+    if (!intIn(body.weekly_digest_dow, 0, 6)) return { ok: false, error: "Pick a day of the week for the weekly summary" };
+    settings.weekly_digest_dow = body.weekly_digest_dow;
+  }
+  if (has(body, "weekly_digest_hour_ist")) {
+    if (!intIn(body.weekly_digest_hour_ist, 0, 23)) return { ok: false, error: "Weekly summary hour must be 0 to 23" };
+    settings.weekly_digest_hour_ist = body.weekly_digest_hour_ist;
+  }
+  if (has(body, "spike_threshold")) {
+    if (!intIn(body.spike_threshold, 2, 20)) return { ok: false, error: "Batch alert needs 2 to 20 complaints" };
+    settings.spike_threshold = body.spike_threshold;
+  }
+  if (has(body, "spike_window_days")) {
+    if (!intIn(body.spike_window_days, 1, 30)) return { ok: false, error: "Batch alert window must be 1 to 30 days" };
+    settings.spike_window_days = body.spike_window_days;
+  }
+  if (has(body, "competitor_asins")) {
+    const c = validateCompetitors(body.competitor_asins);
+    if (!c.ok) return c;
+    settings.competitor_asins = c.value;
+  }
+
   if (has(body, "sources")) {
     if (!isObj(body.sources)) return { ok: false, error: "sources must be an object" };
     for (const [key, v] of Object.entries(body.sources)) {
@@ -164,7 +191,69 @@ export function validateMentionPatch(
     else if (typeof v === "string" && v.length <= max) patch[k] = v.trim();
     else return { ok: false, error: `${k} must be text up to ${max} characters` };
   }
+  // ---- complaint case (v2 §3) ----
+  if (has(body, "case_status")) {
+    const cs = body.case_status;
+    if (cs === null) {
+      Object.assign(patch, { case_status: null, case_outcome: null, case_opened_at: null, case_resolved_at: null });
+    } else if (typeof cs === "string" && (ORM_CASE_STATUSES as readonly string[]).includes(cs)) {
+      patch.case_status = cs;
+      if (cs === "resolved") {
+        const out = body.case_outcome;
+        if (typeof out !== "string" || !(ORM_CASE_OUTCOMES as readonly string[]).includes(out))
+          return { ok: false, error: "Pick how the case ended before resolving it" };
+        patch.case_outcome = out;
+        patch.case_resolved_at = now;
+      } else {
+        // reopened (or moved back to in progress): no outcome, not resolved
+        patch.case_outcome = null;
+        patch.case_resolved_at = null;
+      }
+    } else return { ok: false, error: "case_status must be open, in_progress or resolved" };
+  } else if (has(body, "case_outcome")) {
+    return { ok: false, error: "Set the case to resolved together with its outcome" };
+  }
+  if (patch.status === "replied" && typeof patch.reply_text === "string") patch.reply_channel = "manual";
+
   if (!Object.keys(patch).length) return { ok: false, error: "nothing to update" };
   patch.updated_at = now;
   return { ok: true, value: patch };
+}
+
+/**
+ * Opening, moving or resolving a case on a mention that never had one stamps
+ * case_opened_at (the route reads the current row first). Pure.
+ */
+export function withCaseOpened(
+  patch: Record<string, unknown>,
+  current: { case_opened_at: string | null } | null,
+  now: string,
+): Record<string, unknown> {
+  if (typeof patch.case_status === "string" && current && !current.case_opened_at) return { ...patch, case_opened_at: now };
+  return patch;
+}
+
+function intIn(v: unknown, lo: number, hi: number): v is number {
+  return typeof v === "number" && Number.isInteger(v) && v >= lo && v <= hi;
+}
+
+/** Competitor list for the benchmark (v2 §6). Pure. */
+export function validateCompetitors(v: unknown): Ok<CompetitorAsin[]> | Err {
+  if (!Array.isArray(v)) return { ok: false, error: "Competitors must be a list" };
+  const out: CompetitorAsin[] = [];
+  for (const raw of v) {
+    if (!isObj(raw)) return { ok: false, error: "Each competitor needs an ASIN, a brand and a label" };
+    const asin = typeof raw.asin === "string" ? raw.asin.trim().toUpperCase() : "";
+    const brand = typeof raw.brand === "string" ? raw.brand.trim() : "";
+    const label = typeof raw.label === "string" ? raw.label.trim() : "";
+    if (!asin && !brand && !label) continue; // empty row in the editor
+    if (!ASIN_RE.test(asin)) return { ok: false, error: `Not an Amazon ASIN: ${asin.slice(0, 20) || "(empty)"} (10 letters or numbers, like B0CXYZ1234)` };
+    if (!brand) return { ok: false, error: `Add the brand name for ${asin}` };
+    if (brand.length > 60) return { ok: false, error: `Brand name for ${asin} is too long (max 60)` };
+    if (label.length > 120) return { ok: false, error: `Label for ${asin} is too long (max 120)` };
+    if (out.some((c) => c.asin === asin)) return { ok: false, error: `${asin} is in the list twice` };
+    out.push({ asin, brand, label: label || brand });
+  }
+  if (out.length > 10) return { ok: false, error: "At most 10 competitor products" };
+  return { ok: true, value: out };
 }

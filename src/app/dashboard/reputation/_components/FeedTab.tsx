@@ -10,6 +10,8 @@ import type { OrmMention } from "@/lib/orm/types";
 import { errText } from "./api";
 import {
   authorOf,
+  CASE_LABEL,
+  CASE_TONE,
   compact,
   Mark,
   relTime,
@@ -29,6 +31,7 @@ import s from "../reputation.module.css";
 const STATUS_CHIPS: { key: string; label: string }[] = [
   { key: "new", label: "New" },
   { key: "needs_reply", label: "Needs reply" },
+  { key: "cases", label: "Cases" },
   { key: "all", label: "All" },
   { key: "handled", label: "Handled" },
 ];
@@ -53,6 +56,7 @@ const EMPTY_TEXT: Record<string, string> = {
   new: "Nothing new. You are all caught up.",
   needs_reply: "Nothing needs a reply right now.",
   handled: "Nothing handled yet. Replied and ignored mentions show here.",
+  cases: "No open cases. Unhappy customers we are still helping show here.",
   all: "No mentions match these filters.",
 };
 
@@ -207,6 +211,9 @@ function MentionRow({ m, onOpen }: { m: OrmMention; onOpen: (id: string) => void
             {topicLabel(t)}
           </span>
         ))}
+        {m.case_status && m.case_status !== "resolved" && (
+          <Mark tone={CASE_TONE[m.case_status]}>Case {CASE_LABEL[m.case_status].toLowerCase()}</Mark>
+        )}
         {m.status !== "new" ? (
           <Mark tone={STATUS_TONE[m.status]}>{STATUS_LABEL[m.status]}</Mark>
         ) : reply ? (
