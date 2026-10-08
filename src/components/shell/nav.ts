@@ -100,6 +100,8 @@ export const NAV: NavHub[] = [
       },
       { label: "Email Studio", href: "/dashboard/email", tour: "email-studio" },
       { label: "Audience", href: "/dashboard/contacts", tour: "contacts" },
+      // Reviews, comments and mentions across the web (ORM feed).
+      { label: "Reputation", href: "/dashboard/reputation" },
       // Direct jumps for the command palette (hidden from the sidebar; the
       // WhatsApp marketing entry stays highlighted on all of them).
       { label: "WhatsApp campaigns", href: "/dashboard/whatsapp?tab=campaigns", hidden: true },

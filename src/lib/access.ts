@@ -29,6 +29,12 @@ export const MODULES = [
     hint: "Email Studio: campaigns, builder, templates, audiences, reports",
     landing: "/dashboard/email",
   },
+  {
+    key: "reputation",
+    label: "Reputation",
+    hint: "Reviews, comments and mentions across the web",
+    landing: "/dashboard/reputation",
+  },
   { key: "audience", label: "Audience", hint: "Contacts list, import & export", landing: "/dashboard/contacts" },
   { key: "partners", label: "B2B leads & deals", hint: "Lead lists, outreach, deals, creators", landing: "/dashboard/leads" },
   { key: "bot_knowledge", label: "Bot knowledge", hint: "Master KB the WhatsApp bot answers from", landing: "/dashboard/whatsapp?tab=kb" },
@@ -151,6 +157,8 @@ const PAGE_PREFIXES: Array<[string, ModuleKey]> = [
   ["/dashboard/flows", "email_marketing"],
   // Email marketing analytics (Resend era), not WhatsApp analytics.
   ["/dashboard/analytics", "email_marketing"],
+  // Reputation: reviews, comments and mentions feed (ORM).
+  ["/dashboard/reputation", "reputation"],
   ["/dashboard/contacts", "audience"],
   ["/dashboard/leads", "partners"],
   ["/dashboard/deals", "partners"],
@@ -246,6 +254,8 @@ export const API_RULES: ApiRule[] = [
   { prefix: "/api/brevo", modules: ["email_marketing"] },
   { prefix: "/api/campaigns", modules: ["email_marketing"] },
   { prefix: "/api/flows", modules: ["email_marketing"] },
+
+  { prefix: "/api/orm", modules: ["reputation"] },
 
   { prefix: "/api/contacts", modules: ["audience"] },
   { prefix: "/api/import", modules: ["audience"] },
