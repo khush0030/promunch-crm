@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { formatLakh, formatINR } from "@/lib/metrics/money";
 import { sortForProfit } from "@/lib/amazon/economics";
 import type { AmazonMetrics } from "@/lib/amazon/economics";
@@ -8,10 +9,14 @@ import { ChartCard } from "../../insights-ui";
 import { ProfitKeys, ProfitRow, profitTakeaway } from "../parts";
 import s from "../../insights.module.css";
 
+const LIMIT = 8;
+
 // Amazon · Product profit: every product's split of each ₹ a customer pays,
 // with an inline cost-price editor for products that have none yet.
 export function ProfitTab({ data, onCostSaved }: { data: AmazonMetrics; onCostSaved: () => void }) {
   const rows = sortForProfit(data.skus);
+  const [all, setAll] = useState(false);
+  const shown = all ? rows : rows.slice(0, LIMIT);
   const withProfit = data.skus.filter((x) => x.profit != null);
   const missingCost = data.skus.filter((x) => x.costPerUnit == null && x.units > 0);
   const best = withProfit.length
@@ -39,10 +44,15 @@ export function ProfitTab({ data, onCostSaved }: { data: AmazonMetrics; onCostSa
           <p className={s.empty}>No Amazon products yet</p>
         ) : (
           <div className={s.pfl}>
-            {rows.map((x) => (
+            {shown.map((x) => (
               <ProfitRow key={x.sku} sku={x} onCostSaved={onCostSaved} />
             ))}
           </div>
+        )}
+        {rows.length > LIMIT && (
+          <button type="button" className={s.txtLink} style={{ marginTop: 14 }} onClick={() => setAll((v) => !v)} aria-expanded={all}>
+            {all ? "Show fewer" : `Show all ${rows.length}`}
+          </button>
         )}
       </ChartCard>
     </>

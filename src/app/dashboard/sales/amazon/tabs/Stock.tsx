@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { formatLakh } from "@/lib/metrics/money";
 import { sortForStock } from "@/lib/amazon/economics";
 import type { AmazonMetrics } from "@/lib/amazon/economics";
@@ -5,10 +8,15 @@ import { ChartCard } from "../../insights-ui";
 import { RunwayRow, RunwayNote, stockTakeaway } from "../parts";
 import s from "../../insights.module.css";
 
+// Worst first, so the first rows are the ones that need a shipment.
+const LIMIT = 8;
+
 // Amazon · Stock section: every product as a runway bar, worst first.
 export function StockTab({ data }: { data: AmazonMetrics }) {
   const { stock } = data;
   const rows = sortForStock(data.skus);
+  const [all, setAll] = useState(false);
+  const shown = all ? rows : rows.slice(0, LIMIT);
 
   return (
     <>
@@ -41,10 +49,15 @@ export function StockTab({ data }: { data: AmazonMetrics }) {
           <p className={s.empty}>No Amazon products yet</p>
         ) : (
           <div className={s.runway}>
-            {rows.map((x) => (
+            {shown.map((x) => (
               <RunwayRow key={x.sku} sku={x} links />
             ))}
           </div>
+        )}
+        {rows.length > LIMIT && (
+          <button type="button" className={s.txtLink} style={{ marginTop: 14 }} onClick={() => setAll((v) => !v)} aria-expanded={all}>
+            {all ? "Show fewer" : `Show all ${rows.length}`}
+          </button>
         )}
         <RunwayNote />
       </ChartCard>

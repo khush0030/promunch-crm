@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { Table } from "@/components/pm";
 import type { TableCol } from "@/components/pm";
 import { formatINR } from "@/lib/metrics/money";
@@ -20,8 +23,11 @@ function Status({ status }: { status: string }) {
   return <span className={`${s.tg} ${statusTone(status)}`}>{status || "Unknown"}</span>;
 }
 
+const LIMIT = 8;
+
 export function OrdersTab({ data }: { data: AmazonMetrics }) {
   const rows = data.orders.recent;
+  const [all, setAll] = useState(false);
   const waiting = rows.filter((o) => {
     const v = o.status.toLowerCase();
     return v.includes("pending") || v.includes("unshipped");
@@ -52,7 +58,7 @@ export function OrdersTab({ data }: { data: AmazonMetrics }) {
     >
       <Table
         cols={cols}
-        rows={rows}
+        rows={all ? rows : rows.slice(0, LIMIT)}
         rowKey={(o) => o.id}
         card={(o) => ({
           title: o.id,
@@ -65,6 +71,11 @@ export function OrdersTab({ data }: { data: AmazonMetrics }) {
         })}
         empty="No orders yet"
       />
+      {rows.length > LIMIT && (
+          <button type="button" className={s.txtLink} style={{ marginTop: 14 }} onClick={() => setAll((v) => !v)} aria-expanded={all}>
+            {all ? "Show fewer" : `Show all ${rows.length}`}
+          </button>
+        )}
     </ChartCard>
   );
 }

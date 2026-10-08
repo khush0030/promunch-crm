@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { BarChart, Table } from "@/components/pm";
 import type { TableCol, BarSeries } from "@/components/pm";
 import { formatLakh, formatINR } from "@/lib/metrics/money";
@@ -7,8 +10,12 @@ import { ChartCard, signedINR } from "../../insights-ui";
 import { PayoutTag } from "../parts";
 import s from "../../insights.module.css";
 
+const LIMIT = 6;
+
 export function PayoutsTab({ data }: { data: AmazonMetrics }) {
   const { payouts, settlements, period } = data;
+  const [all, setAll] = useState(false);
+  const shownRows = all ? settlements : settlements.slice(0, LIMIT);
   const deposited = [...settlements].filter((x) => !x.scheduled).sort((a, b) => (a.depositDate ?? "").localeCompare(b.depositDate ?? ""));
 
   const cats = deposited.map((x) => fmtDate(x.depositDate));
@@ -74,7 +81,7 @@ export function PayoutsTab({ data }: { data: AmazonMetrics }) {
       <ChartCard id="amz-payout-table" title="Every payout" basis="from Amazon settlement reports">
         <Table
           cols={cols}
-          rows={settlements}
+          rows={shownRows}
           rowKey={(x) => x.id}
           card={(x) => ({
             title: `${fmtDate(x.depositDate)} · ${signedINR(x.deposit)}`,
@@ -83,6 +90,11 @@ export function PayoutsTab({ data }: { data: AmazonMetrics }) {
           })}
           empty="No settlements in this period"
         />
+        {settlements.length > LIMIT && (
+          <button type="button" className={s.txtLink} style={{ marginTop: 14 }} onClick={() => setAll((v) => !v)} aria-expanded={all}>
+            {all ? "Show fewer" : `Show all ${settlements.length}`}
+          </button>
+        )}
       </ChartCard>
     </>
   );
