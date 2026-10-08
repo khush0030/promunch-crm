@@ -374,7 +374,7 @@ function DashboardPageInner() {
               channels
             </span>
           </Link>
-          <Link href="/dashboard/sales/orders" className={s.kpi}>
+          <Link href={`/dashboard/sales?period=${days}d`} className={s.kpi}>
             <span className={s.kpiL}>Orders</span>
             <span className={s.kpiV}>
               {sales.total.orders.toLocaleString("en-IN")}

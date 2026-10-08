@@ -90,7 +90,7 @@ export const SETTINGS: NavItem = {
     { label: "Connections", href: "/dashboard/settings#connections", also: ["/dashboard/settings"] },
     { label: "Team & access", href: "/dashboard/settings#team" },
     { label: "API keys", href: "/dashboard/settings#apikeys", adminOnly: true },
-    { label: "Brand & email", href: "/dashboard/settings#brand", also: ["/dashboard/email/settings"] },
+    { label: "Brand & email", href: "/dashboard/settings#brand", also: ["/dashboard/email/settings", "/dashboard/settings#email"] },
     { label: "Security", href: "/dashboard/admin", adminOnly: true },
   ],
 };
@@ -137,7 +137,7 @@ export const NAV: NavSection[] = [
         pages: [
           { label: "Confirm COD", href: "/dashboard/sales/orders" },
           { label: "Voice calls", href: "/dashboard/whatsapp?tab=voice" },
-          { label: "All orders", href: "/dashboard/sales/orders?tab=all" },
+          { label: "All orders", href: "/dashboard/sales/orders?tab=all", also: ["/dashboard/sales/orders?tab=coverage"] },
           { label: "Call rules", href: "/dashboard/sales/orders?tab=rules", needs: "wa_marketing" },
         ],
       },

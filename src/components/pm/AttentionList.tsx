@@ -4,8 +4,8 @@ import type { AttentionItem } from "@/lib/metrics/attention";
 const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
 function iconText(item: AttentionItem): string {
-  if (item.severity === "info") return "?";
   if (item.count != null) return item.count > 99 ? "99+" : String(item.count);
+  if (item.severity === "info") return "i";
   return item.severity === "crit" ? "₹" : "!";
 }
 

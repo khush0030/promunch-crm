@@ -24,8 +24,9 @@ export default function TabBar({ active, counts, onNavigate }: Props) {
   );
   const tabs = TABS.map((a) => visible.find((it) => it.area === a)).filter((x): x is NavItem => !!x);
   const more = visible.filter((it) => !TABS.includes(it.area));
-  const activeArea = active?.area ?? "Home";
-  const moreOn = !TABS.includes(activeArea);
+  const activeArea = active?.area ?? null;
+  // Unknown pages (404) highlight nothing.
+  const moreOn = activeArea != null && !TABS.includes(activeArea);
 
   return (
     <>
