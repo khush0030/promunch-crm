@@ -122,8 +122,18 @@
 }
 
 /* ---- customer detail (contacts/[id]) ---- */
-/* Destructive items in the header "⋯" menu read red, icon included. */
-.menu button.menuDanger, .menu button.menuDanger svg { color: var(--pm-terra); }
+/* Header actions: calm bordered buttons, destructive ones in red text (never
+   filled). Phones: an even grid (2x2, or one row of 3), no lone button. */
+.headActions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; flex: 1 1 auto; }
+.headActions :global(.pm-btn) { justify-content: center; white-space: nowrap; }
+.headActions .dangerBtn { color: var(--pm-terra); }
+.headActions .dangerBtn:hover:not(:disabled) { border-color: var(--pm-terra); }
+@media (max-width: 768px) {
+  .headActions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; }
+  .headActions3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .headActions :global(.pm-btn) { min-height: 44px; padding: 10px 8px; font-size: 14.5px; min-width: 0; }
+  .wideOnly { display: none; }
+}
 /* Orders table "Items": wrap to at most two lines and end with an ellipsis
    (full list in the cell's title tooltip), so it never runs off the card. */
 .itemsCell { min-width: 140px; max-width: 280px; }

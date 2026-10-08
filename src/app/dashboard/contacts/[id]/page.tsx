@@ -13,12 +13,9 @@ import {
   Receipt,
   Wallet,
   Clock,
-  Trash2,
   MessageSquare,
   History,
   ExternalLink,
-  MoreHorizontal,
-  ShieldOff,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { PageHead, KpiCard, Panel, StatusBadge, EmptyState } from "@/components/pm";
@@ -121,7 +118,6 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [loaded, setLoaded] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -238,6 +234,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const ltv = contact.total_spent ? `₹${Number(contact.total_spent).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "₹0";
   const aov = contact.average_order_value ? `₹${Number(contact.average_order_value).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "–";
   const sp = statusMeta[contact.status || "active"] || { tone: "gray" as BadgeTone, label: contact.status || "–" };
+  const actionCount = 2 + (contact.status !== "unsubscribed" ? 1 : 0) + (contact.anonymized_at ? 0 : 1);
   const tags = contact.tags || [];
   const lists = contact.klaviyo_lists || [];
   const segments = contact.klaviyo_segments || [];
@@ -279,43 +276,20 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           </span>
         }
         actions={
-          <>
+          // All four actions stay visible. On phones they wrap into an even
+          // grid (2x2, or one row of 3) so no button sits alone on a row.
+          <div className={`${css.headActions} ${actionCount === 3 ? css.headActions3 : ""}`}>
             {contact.status !== "unsubscribed" && (
-              <button className="pm-btn ghost" onClick={handleUnsubscribe} disabled={busy}>Unsubscribe</button>
+              <button type="button" className="pm-btn" onClick={handleUnsubscribe} disabled={busy}>Unsubscribe</button>
             )}
-            <button className="pm-btn ghost" onClick={handleExport} disabled={busy}>Export data</button>
-            {/* Less-used, destructive actions sit behind one "⋯" so the row
-                stays on one line at phone width. Same handlers + confirms. */}
-            <div className={css.menuWrap}>
-              <button
-                type="button"
-                className="pm-btn ghost"
-                aria-label="More actions"
-                title="Anonymize or deactivate"
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                disabled={busy}
-                onClick={() => setMenuOpen((o) => !o)}
-              >
-                <MoreHorizontal size={16} />
-              </button>
-              {menuOpen && (
-                <>
-                  <div className={css.menuScrim} onClick={() => setMenuOpen(false)} />
-                  <div className={css.menu} role="menu">
-                    {!contact.anonymized_at && (
-                      <button type="button" role="menuitem" className={css.menuDanger} disabled={busy} onClick={() => { setMenuOpen(false); handleAnonymize(); }}>
-                        <ShieldOff /> Anonymize
-                      </button>
-                    )}
-                    <button type="button" role="menuitem" className={css.menuDanger} disabled={busy} onClick={() => { setMenuOpen(false); handleDelete(); }}>
-                      <Trash2 /> Deactivate contact
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </>
+            <button type="button" className="pm-btn" onClick={handleExport} disabled={busy}>Export data</button>
+            {!contact.anonymized_at && (
+              <button type="button" className={`pm-btn ${css.dangerBtn}`} onClick={handleAnonymize} disabled={busy}>Anonymize</button>
+            )}
+            <button type="button" className={`pm-btn ${css.dangerBtn}`} onClick={handleDelete} disabled={busy} aria-label="Deactivate contact">
+              <span>Deactivate<span className={css.wideOnly}> contact</span></span>
+            </button>
+          </div>
         }
       />
 

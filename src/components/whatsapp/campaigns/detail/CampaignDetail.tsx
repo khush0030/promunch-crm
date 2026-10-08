@@ -190,10 +190,14 @@ function Detail({ c, run, busy }: { c: Campaign; run: (a: CampaignAction, c: Cam
       )}
 
       <KpiStrip>
-        <Kpi label="Reached" value={fmtInt(sent)} sub={prog.total != null ? `of ${fmtInt(prog.total)} in the audience` : "people"} />
-        <Kpi label={<>Delivered <HelpTip term="delivered" /></>} value={fmtPct(pct(c.delivered_count, sent))} sub={`${fmtInt(c.delivered_count)} people`} />
-        <Kpi label={<>Read <HelpTip term="read" /></>} value={fmtPct(pct(c.read_count, sent))} sub={`${fmtInt(c.read_count)} people`} />
-        <Kpi label={<>Replies <HelpTip term="reply" /></>} value={fmtInt(c.replied_count ?? 0)} sub={`${fmtInt(c.clicked_count ?? 0)} link clicks`} />
+        <Kpi label={<>Delivered <HelpTip term="delivered" /></>} value={fmtInt(c.delivered_count)} sub={`${fmtPct(pct(c.delivered_count, sent))} of ${fmtInt(sent)} reached`} />
+        <Kpi label={<>Read <HelpTip term="read" /></>} value={fmtInt(c.read_count)} sub={`${fmtPct(pct(c.read_count, sent))} · ${fmtInt(c.replied_count ?? 0)} replied`} />
+        <Kpi label={<>Clicked <HelpTip term="click" /></>} value={fmtInt(c.clicked_count ?? 0)} sub={`${fmtPct(pct(c.clicked_count ?? 0, sent))} tapped a link`} />
+        <Kpi
+          label={<>Orders <HelpTip term="attributed_order" /></>}
+          value={<span style={{ color: "var(--pm-brand)" }}>{card ? fmtInt(card.orders) : sent > 0 && analytics.isLoading ? "…" : "–"}</span>}
+          sub={card ? (card.orders > 0 ? `${fmtInr(card.revenue)} · avg ${fmtInr(card.revenue / card.orders)}` : "none yet") : sent > 0 && analytics.isLoading ? "loading" : "within 7 days"}
+        />
       </KpiStrip>
 
       <JourneyCard c={c} run={run} busy={busy} onOpenDrawer={setDrawer} />
