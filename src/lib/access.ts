@@ -123,7 +123,8 @@ const under = (path: string, prefix: string) => path === prefix || path.startsWi
 // refused, so a new page stays closed until it is added here).
 export function pageModule(path: string, tab: string | null): ModuleKey | "open" | null {
   if (under(path, NO_ACCESS_PATH)) return "open";
-  // The catch-all that shows the dashboard 404 inside the shell.
+  // The catch-all route file behind the in-shell 404 (keeps access.test
+  // coverage green; real unknown URLs are still refused for restricted members).
   if (path === "/dashboard/[...missing]") return "open";
   if (path === "/dashboard") return "home";
   // Full-page campaign screens (wizard, campaign report) live under the

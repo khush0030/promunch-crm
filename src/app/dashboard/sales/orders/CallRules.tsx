@@ -13,6 +13,7 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 import { ConfirmDialog } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
 import { useAccess } from "@/components/shell/useAccess";
+import { canUse } from "@/lib/access";
 import { apiFetch } from "@/lib/api-fetch";
 import type { Template } from "@/components/whatsapp/types";
 import type { FlowsCtx } from "@/components/whatsapp/flows/context";
@@ -30,20 +31,25 @@ export function CallRules() {
   const toast = useToast();
   const access = useAccess();
   const isAdmin = access?.admin === true;
+  // The settings live behind WhatsApp marketing; Orders-only teammates get a note.
+  const canView = access ? canUse(access, "wa_marketing") : false;
 
   // Same query keys as AutomationsView, so both screens share one cache.
   const flowsQ = useQuery({
     queryKey: ["wa-flows"],
     queryFn: () => apiFetch<FlowsPayload>("/api/whatsapp/flows"),
+    enabled: canView,
   });
   const tplQ = useQuery({
     queryKey: ["wa-templates-all"],
     queryFn: () => apiFetch<{ templates?: Template[] }>("/api/whatsapp/templates").then((r) => r.templates ?? []),
+    enabled: canView,
     staleTime: 60_000,
   });
   const voiceQ = useQuery({
     queryKey: ["cart-recovery"],
     queryFn: () => apiFetch<{ stats?: { voice?: VoiceStats } }>("/api/whatsapp/cart-recovery").then((r) => r.stats),
+    enabled: canView,
   });
 
   const [saved, setSaved] = useState<FlowSettings | null>(null);
@@ -118,6 +124,14 @@ export function CallRules() {
     toast.push({ kind: "success", text: "Saved. New timings apply to customers who start an automation from now on." });
   }
 
+  if (access && !canView) {
+    return (
+      <div className={fs.center}>
+        <span>Call rules are managed in WhatsApp → Automations. Ask an admin for access to WhatsApp marketing to see them.</span>
+      </div>
+    );
+  }
+
   if (!draft || !saved) {
     if (flowsQ.isError) {
       return (
@@ -147,7 +161,7 @@ export function CallRules() {
   return (
     <div className={fs.wrap}>
       {!isAdmin && (
-        <LockNote>Only the owner can change call rules because they affect every order. You can see how they work below.</LockNote>
+        <LockNote>Only the owner or an admin can change call rules because they affect every order. You can see how they work below.</LockNote>
       )}
       <CodCard c={ctx} />
       <VoiceCard c={ctx} />

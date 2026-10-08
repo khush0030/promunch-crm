@@ -32,6 +32,21 @@ function textOf(m: UIMessage): string {
     .join("\n\n");
 }
 
+// Tools a message used: its live tool parts, or (for an answer reopened from
+// history, which comes back as text only) the records it was saved with.
+function toolsOf(m: UIMessage): { type: string; state: string | null }[] {
+  const live = m.parts
+    .filter((p) => p.type.startsWith("tool-"))
+    .map((p) => ({ type: p.type, state: (p as { state?: string }).state ?? null }));
+  if (live.length) return live;
+  const stored = (m.metadata as { storedTools?: unknown } | undefined)?.storedTools;
+  return Array.isArray(stored)
+    ? stored
+        .filter((t): t is { type: string; state?: unknown } => typeof (t as { type?: unknown })?.type === "string")
+        .map((t) => ({ type: t.type, state: typeof t.state === "string" ? t.state : null }))
+    : [];
+}
+
 async function persist(conversationId: string, messages: UIMessage[]) {
   const rows = messages
     .filter((m) => m.role === "user" || m.role === "assistant")
@@ -39,11 +54,7 @@ async function persist(conversationId: string, messages: UIMessage[]) {
       conversation_id: conversationId,
       role: m.role,
       content: textOf(m),
-      meta: {
-        tools: m.parts
-          .filter((p) => p.type.startsWith("tool-"))
-          .map((p) => ({ type: p.type, state: (p as { state?: string }).state ?? null })),
-      },
+      meta: { tools: toolsOf(m) },
     }))
     .filter((r) => r.content || r.meta.tools.length);
 

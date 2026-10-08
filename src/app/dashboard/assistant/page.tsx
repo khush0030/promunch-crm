@@ -33,7 +33,8 @@ type StoredMessage = {
 
 // Reopened answers are rebuilt from stored text only; the tools each answer
 // used are kept in meta, so their business names ride along as metadata.
-type MessageMeta = { storedSources?: string[] };
+// storedTools round-trips the saved tool records so the next save keeps them.
+type MessageMeta = { storedSources?: string[]; storedTools?: unknown[] };
 
 function storedSourcesOf(m: StoredMessage): string[] {
   const tools = Array.isArray(m.meta?.tools) ? m.meta.tools : [];
@@ -160,7 +161,7 @@ function AssistantInner() {
           (m): UIMessage<MessageMeta> => ({
             id: m.id,
             role: m.role,
-            metadata: { storedSources: storedSourcesOf(m) },
+            metadata: { storedSources: storedSourcesOf(m), storedTools: Array.isArray(m.meta?.tools) ? m.meta.tools : [] },
             parts: [{ type: "text", text: m.content }],
           })
         )

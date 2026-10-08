@@ -58,7 +58,8 @@ export default function SettingsPage() {
   useEffect(() => {
     const raw = hash.replace("#", "");
     const h = HASH_ALIAS[raw] ?? raw;
-    if (h && TABS.some((t) => t.key === h)) setTab(h);
+    // No/unknown hash (e.g. Back to /dashboard/settings) = the first section.
+    setTab(h && TABS.some((t) => t.key === h) ? h : "connections");
   }, [hash]);
   const [disconnectBusy, setDisconnectBusy] = useState(false);
   const [catalogBusy, setCatalogBusy] = useState(false);

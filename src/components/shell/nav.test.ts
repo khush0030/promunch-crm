@@ -107,6 +107,13 @@ describe("shell nav", () => {
     expect(sectionTabs(at("/dashboard/settings"), agent).map((p) => p.label)).toEqual(["Connections", "Team & access", "Brand & email"]);
   });
 
+  it("hides Call rules from members without WhatsApp marketing (its data lives there)", () => {
+    const salesOnly = accessOf({ email: "o@promunch.in", app_metadata: { role: "agent", modules: ["sales"] } });
+    expect(sectionTabs(at("/dashboard/sales/orders"), salesOnly).map((p) => p.label)).not.toContain("Call rules");
+    const both = accessOf({ email: "o@promunch.in", app_metadata: { role: "agent", modules: ["sales", "wa_marketing"] } });
+    expect(sectionTabs(at("/dashboard/sales/orders"), both).map((p) => p.label)).toContain("Call rules");
+  });
+
   it("trims places to what a restricted member can open", () => {
     const marketer = accessOf({ email: "p@promunch.in", app_metadata: { role: "agent", modules: ["wa_marketing"] } });
     const nav = navFor(marketer);

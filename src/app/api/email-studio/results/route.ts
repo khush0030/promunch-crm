@@ -5,7 +5,8 @@ import { caller, isResponse } from "@/lib/email-studio/route-helpers";
 
 // Email -> Results: the same numbers as the Email overview
 // (/api/email-studio/overview), for a chosen 7 / 30 / 90 day window, plus
-// per-campaign and per-automation breakdowns that add up to those totals.
+// per-campaign and per-automation breakdowns (rows without a campaign or
+// automation id count in the totals but not in any breakdown line).
 //
 // Definitions are copied from the overview route on purpose, so the two
 // screens can never disagree for the same period:

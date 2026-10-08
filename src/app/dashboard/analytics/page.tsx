@@ -88,7 +88,7 @@ export default function AnalyticsPage() {
     },
     {
       label: "Can email",
-      value: d?.subscribers != null ? n(d.subscribers) : "…",
+      value: d ? (d.subscribers != null ? n(d.subscribers) : "–") : "…",
       icon: <Users />,
       tone: "g" as const,
       sub: "said yes and have an email",

@@ -21,7 +21,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { Attention } from "@/lib/metrics/attention";
-import { canOpenHref, type Access } from "@/lib/access";
+import { canOpenHref, canUse, type Access, type ModuleKey } from "@/lib/access";
 
 export type Area =
   | "Home"
@@ -48,7 +48,7 @@ export const ROUTES = {
 
 // One page inside a place. `also` lists more hrefs that count as this page
 // (other tabs of the same screen, detail pages under another path).
-export type NavPage = { label: string; href: string; adminOnly?: boolean; also?: string[] };
+export type NavPage = { label: string; href: string; adminOnly?: boolean; also?: string[]; /** Extra area the page's data needs (hidden without it). */ needs?: ModuleKey };
 
 export type NavItem = {
   area: Area;
@@ -138,7 +138,7 @@ export const NAV: NavSection[] = [
           { label: "Confirm COD", href: "/dashboard/sales/orders" },
           { label: "Voice calls", href: "/dashboard/whatsapp?tab=voice" },
           { label: "All orders", href: "/dashboard/sales/orders?tab=all" },
-          { label: "Call rules", href: "/dashboard/sales/orders?tab=rules" },
+          { label: "Call rules", href: "/dashboard/sales/orders?tab=rules", needs: "wa_marketing" },
         ],
       },
     ],
@@ -333,8 +333,9 @@ export function samePlace(a: NavItem | null | undefined, b: NavItem | null | und
 
 // --- access ---------------------------------------------------------------
 
-function canSee(access: Access, href: string, adminOnly?: boolean): boolean {
+function canSee(access: Access, href: string, adminOnly?: boolean, needs?: ModuleKey): boolean {
   if (adminOnly && !access.admin) return false;
+  if (needs && !canUse(access, needs)) return false;
   return canOpenHref(access, href);
 }
 
@@ -347,7 +348,7 @@ export function itemFor(access: Access | null, it: NavItem): NavItem | null {
     if (!children.length) return null;
     return { ...it, href: children[0].href, children };
   }
-  const pages = it.pages?.filter((pg) => canSee(access, pg.href, pg.adminOnly));
+  const pages = it.pages?.filter((pg) => canSee(access, pg.href, pg.adminOnly, pg.needs));
   if (it.pages && !pages?.length) return null;
   if (!it.pages && !canSee(access, it.href)) return null;
   return { ...it, href: pages?.[0]?.href ?? it.href, pages };

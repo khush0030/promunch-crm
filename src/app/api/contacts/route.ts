@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
   if (error) {
     // 23505 = unique_violation (duplicate email) — a user mistake, not a server fault
     if (error.code === '23505') {
-      return NextResponse.json({ error: 'A contact with this email already exists.' }, { status: 409 });
+      return NextResponse.json({ error: 'A customer with this email or phone number already exists.' }, { status: 409 });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
