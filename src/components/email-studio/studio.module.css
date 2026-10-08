@@ -32,7 +32,7 @@
 }
 .grip { cursor: grab; color: var(--pm-hint); display: inline-flex; padding: 2px; }
 .blockName { font-weight: 650; }
-.blockPeek { color: var(--pm-hint); font-size: 12.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; flex: 1; min-width: 0; }
+.blockPeek { color: var(--pm-hint); font-size: 12.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; flex: 1; min-width: 0; margin-right: 6px; }
 .iconBtn {
   appearance: none; border: 0; background: transparent; color: var(--pm-muted); border-radius: 6px; padding: 4px;
   display: inline-flex; cursor: pointer;
@@ -106,10 +106,12 @@
 .step.on b { background: var(--pm-ink); border-color: var(--pm-ink); color: var(--pm-card); }
 .step:focus-visible { outline: 2px solid var(--pm-ink); outline-offset: 2px; border-radius: 8px; }
 .nextBtn { white-space: nowrap; flex: none; }
+.stepShort { display: none; }
 @media (max-width: 560px) {
+  .step { gap: 6px; }
   .step + .step::before { width: 14px; margin: 0 6px 0 2px; }
-  .step span { display: none; }
-  .step.on span { display: inline; }
+  .stepLong { display: none; }
+  .stepShort { display: inline; }
 }
 
 /* Checks: coloured text + small mark, never filled blocks */
@@ -231,3 +233,7 @@
 .trust b { font-size: 18px; color: var(--pm-ink); font-variant-numeric: tabular-nums; text-align: right; }
 .trust b.bad { color: var(--pm-terra); }
 .trust em { font-style: normal; font-size: 13px; color: var(--pm-muted); text-align: right; white-space: nowrap; }
+
+/* plain text toggle under a short list ("Show all 14") */
+.moreLink { appearance: none; border: 0; background: none; padding: 0; justify-self: start; font: 700 14px var(--pm-font); color: var(--pm-ink2); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.moreLink:hover { color: var(--pm-ink); }

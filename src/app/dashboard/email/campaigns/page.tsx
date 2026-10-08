@@ -23,7 +23,6 @@ type Row = {
   created_at: string;
   total_recipients: number | null;
   total_sent: number | null;
-  total_opened?: number | null;
   total_clicked: number | null;
   approval_status?: string;
   created_by?: string | null;
@@ -113,8 +112,8 @@ export default function CampaignsPage() {
                   <tr>
                     <th>Campaign</th>
                     <th>Status</th>
-                    <th className={l.r}>People</th>
-                    <th className={l.r}>Opened</th>
+                    <th className={l.r}>Sent</th>
+                    <th className={l.r}>Click rate</th>
                     <th className={l.r}>Revenue</th>
                     <th aria-label="Actions" />
                   </tr>
@@ -122,9 +121,11 @@ export default function CampaignsPage() {
                 <tbody>
                   {rows.map((r) => {
                     const st = statusOf(r);
-                    const people = r.total_sent || r.total_recipients || 0;
-                    // opens can be counted more than once per person; never show over 100%
-                    const opened = r.total_sent ? pct(Math.min(1, (r.total_opened ?? 0) / r.total_sent)) : null;
+                    // Only real sends count, so a draft never looks sent. The list only
+                    // has open EVENTS (not unique openers), so the one rate shown is the
+                    // click rate, computed exactly as before the redesign.
+                    const sent = r.total_sent || 0;
+                    const clickRate = r.total_sent ? pct((r.total_clicked ?? 0) / r.total_sent) : null;
                     const href = `/dashboard/email/campaigns/${r.id}`;
                     const canDelete = ["draft", "paused"].includes(r.status) && !r.total_sent;
                     return (
@@ -134,13 +135,13 @@ export default function CampaignsPage() {
                           <span className={l.sub}>{greyLine(r)}</span>
                         </td>
                         <td className={l.meta}><span className={`${l.status} ${st.cls}`}>{st.label}</span></td>
-                        <td className={`${l.meta} ${l.r}`}>{people ? <span className={l.num}>{people.toLocaleString("en-IN")}</span> : <Nil />}</td>
-                        <td className={`${l.meta} ${l.r}`}>{opened ? <span className={l.num}>{opened}</span> : <Nil />}</td>
+                        <td className={`${l.meta} ${l.r}`}>{sent ? <span className={l.num}>{sent.toLocaleString("en-IN")}</span> : <Nil />}</td>
+                        <td className={`${l.meta} ${l.r}`}>{clickRate ? <span className={l.num}>{clickRate}</span> : <Nil />}</td>
                         <td className={`${l.meta} ${l.r}`}>{r.revenue ? <b className={l.money}>{inr(r.revenue)}</b> : <Nil />}</td>
                         <td className={l.metaLine}>
                           <span className={`${l.status} ${st.cls}`}>{st.label}</span>
-                          {people > 0 && <span className={l.metaPart}><b>{people.toLocaleString("en-IN")}</b> <span>people</span></span>}
-                          {opened && <span className={l.metaPart}><b>{opened}</b> <span>opened</span></span>}
+                          {sent > 0 && <span className={l.metaPart}><b>{sent.toLocaleString("en-IN")}</b> <span>{sent === 1 ? "person" : "people"}</span></span>}
+                          {clickRate && <span className={l.metaPart}><b>{clickRate}</b> <span>click rate</span></span>}
                           {!!r.revenue && <span className={l.metaPart}><b>{inr(r.revenue)}</b></span>}
                         </td>
                         <td className={l.end}>

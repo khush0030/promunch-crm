@@ -239,7 +239,8 @@ function Editor({ initial }: { initial: Campaign }) {
                 }}
               >
                 <b>{i + 1}</b>
-                <span>{k === "email" ? "Write" : k === "audience" ? "Who gets it" : "Check & send"}</span>
+                <span className={s.stepLong}>{k === "email" ? "Write" : k === "audience" ? "Who gets it" : "Check & send"}</span>
+                <span className={s.stepShort}>{k === "email" ? "Write" : k === "audience" ? "Who" : "Send"}</span>
               </button>
             ))}
           </div>

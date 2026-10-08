@@ -3,8 +3,6 @@
    mono text with a clock on a continuous vertical line. The side cards keep
    their own height (they never stretch to the timeline). */
 
-.back { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14.5px; color: var(--pm-muted); text-decoration: none; }
-.back:hover { color: var(--pm-ink); }
 .sum { margin: 0; font-size: 17px; line-height: 1.5; color: var(--pm-ink2); max-width: 72ch; }
 .sum b { color: var(--pm-ink); }
 
@@ -66,8 +64,15 @@
 .edTitle { min-width: 0; }
 .edTitle span { display: block; font: 700 11px var(--pm-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--pm-muted); }
 .edTitle b { display: block; font-size: 18px; margin-top: 4px; overflow-wrap: anywhere; }
-.edBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between; }
-.editor { display: grid; gap: 12px; min-width: 0; scroll-margin-top: 16px; }
+/* tabs + test + save stay pinned while scrolling a long email (the page
+   header with Save scrolls away) */
+.edBar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between;
+  position: sticky; top: 62px; z-index: 5; padding: 10px 0; margin: -10px 0; /* under the app top bar */
+  background: var(--pm-app); border-bottom: 1px solid var(--pm-line);
+}
+.edActs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.editor { display: grid; gap: 12px; min-width: 0; scroll-margin-top: 80px; }
 
 @media (max-width: 1000px) {
   .grid { grid-template-columns: minmax(0, 1fr); }
@@ -79,5 +84,5 @@
   .ic { width: 38px; height: 38px; border-radius: 12px; }
   .wait { padding-left: 52px; }
   .wait::before { left: 18px; }
-  .edBar > * { flex: 1 1 auto; }
+  .edBar > *, .edActs > * { flex: 1 1 auto; }
 }

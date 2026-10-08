@@ -9,10 +9,9 @@
 // gets a live automation, switch it on/off or delete it.
 
 import { Fragment, Suspense, use, useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, CheckCircle2, Clock, Copy, Mail, Monitor, OctagonAlert, Plus, Send, Smartphone, TicketPercent, Trash2, X, Zap } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, Clock, Copy, Mail, Monitor, OctagonAlert, Plus, Send, Smartphone, TicketPercent, Trash2, X, Zap } from "lucide-react";
 import { Callout, ConfirmDialog, Pill } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
 import { StudioHeader } from "@/components/email-studio/StudioHeader";
@@ -58,6 +57,16 @@ function waitLabel(hours: number): string {
   if (hours < 1) { const m = Math.round(hours * 60); return `${m} minute${m === 1 ? "" : "s"}`; }
   if (hours < 48 && hours % 24 !== 0) { const h = hours < 3 ? r(hours) : Math.round(hours); return `${h} hour${h === 1 ? "" : "s"}`; }
   const d = r(hours / 24);
+  return `${d} day${d === 1 ? "" : "s"}`;
+}
+
+/** "30 hours", "3 days", "2.5 days" for how long a cart reminder keeps trying. */
+function stopLabel(hours: number): string {
+  if (hours < 24) { const h = Math.max(1, Math.round(hours)); return `${h} hour${h === 1 ? "" : "s"}`; }
+  const halfDays = Math.round((hours / 24) * 2) / 2;
+  // an odd number of hours under 4 days reads better as hours than as a rounded day count
+  if (hours < 96 && Math.abs(halfDays * 24 - hours) >= 1) return `${Math.round(hours)} hours`;
+  const d = hours < 96 ? halfDays : Math.round(hours / 24);
   return `${d} day${d === 1 ? "" : "s"}`;
 }
 
@@ -236,7 +245,7 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
   if (q.error) {
     return (
       <>
-        <StudioHeader tab="automations" title="Automation" />
+        <StudioHeader tab="automations" title="Automation" back={{ href: "/dashboard/email/automations", label: "Automations" }} />
         <div className="pm2-body"><Callout tone="crit" title="Could not load this automation" body={(q.error as Error).message} /></div>
       </>
     );
@@ -244,7 +253,7 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
   if (!draft || !flow) {
     return (
       <>
-        <StudioHeader tab="automations" title="Automation" />
+        <StudioHeader tab="automations" title="Automation" back={{ href: "/dashboard/email/automations", label: "Automations" }} />
         <div className="pm2-body"><div className="pm2-panel" style={{ padding: 16 }}><span className={s.hint}>Loading…</span></div></div>
       </>
     );
@@ -259,11 +268,14 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
   const statsRow = listQ.data?.flows.find((f) => f.id === id)?.stats;
   const abandoned = draft.trigger_type === "checkout_abandoned";
   const stopNote = abandoned ? "stops if they buy" : cfg.exit_on_reorder === true || cfg.exit_on_order === true ? "stops if they order again" : "";
-  const rules = describeFlowRules(draft.trigger_type, cfg).slice(1).filter((r) => r !== "Stops when they buy");
+  const rules = describeFlowRules(draft.trigger_type, cfg)
+    .slice(1)
+    .filter((r) => r !== "Stops when they buy")
+    .map((r) => (r.startsWith("Stops after ") && typeof cfg.deadline_hours === "number" ? `Stops after ${stopLabel(cfg.deadline_hours)}` : r));
   const inProgress = q.data!.inProgress;
+  // Picking another email keeps the current tab (Preview stays Preview).
   const openEmail = (i: number) => {
     setSel(i);
-    setTab("edit");
     requestAnimationFrame(() => document.getElementById("email-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
@@ -272,6 +284,7 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
       <StudioHeader
         tab="automations"
         title={draft.name || "Untitled automation"}
+        back={{ href: "/dashboard/email/automations", label: "Automations" }}
         actions={
           <>
             {admin && (on ? (
@@ -286,10 +299,6 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
         }
       />
       <div className="pm2-body">
-        <Link href="/dashboard/email/automations" className={f.back}>
-          <ArrowLeft size={15} /> Automations
-        </Link>
-
         <p className={f.sum}>
           <Pill tone={st.tone}>{st.label}</Pill>{" "}
           {on ? (
@@ -346,10 +355,10 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
                           {x.subject_variants?.length ? ` · testing ${x.subject_variants.length + 1} subject lines` : ""}
                         </p>
                       </div>
-                      {picked && tab === "edit" ? (
-                        <span className={f.editing}>Editing</span>
+                      {picked ? (
+                        <span className={f.editing}>{tab === "edit" ? "Editing" : "Previewing"}</span>
                       ) : (
-                        <button type="button" className="pm2-btn sm" onClick={() => openEmail(i)}>Edit</button>
+                        <button type="button" className="pm2-btn sm" onClick={() => openEmail(i)}>{tab === "edit" ? "Edit" : "Preview"}</button>
                       )}
                     </div>
                   </Fragment>
@@ -357,7 +366,7 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
               })}
               {!rulesLocked && draft.steps.length < 10 && (
                 <div className={f.addRow}>
-                  <button type="button" className="pm2-btn ghost sm" onClick={() => { setDraft({ ...draft, steps: [...draft.steps, blankStep(draft.steps.length)] }); openEmail(draft.steps.length); }}>
+                  <button type="button" className="pm2-btn ghost sm" onClick={() => { setDraft({ ...draft, steps: [...draft.steps, blankStep(draft.steps.length)] }); setTab("edit"); openEmail(draft.steps.length); }}>
                     <Plus size={14} /> Add an email
                   </button>
                 </div>
@@ -464,9 +473,17 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
                 <button type="button" className={tab === "edit" ? s.on : ""} onClick={() => setTab("edit")}>Edit the words</button>
                 <button type="button" className={tab === "preview" ? s.on : ""} onClick={() => setTab("preview")}>Preview as a customer</button>
               </div>
-              <button type="button" className="pm2-btn" disabled={busy !== null || dirty} title={dirty ? "Save first. Tests send the saved version." : undefined} onClick={() => test(sel)}>
-                <Send size={14} /> {busy === "test" ? "Sending…" : "Send me this email"}
-              </button>
+              <div className={f.edActs}>
+                <button type="button" className="pm2-btn" disabled={busy !== null || dirty} title={dirty ? "Save first. Tests send the saved version." : undefined} onClick={() => test(sel)}>
+                  <Send size={14} /> {busy === "test" ? "Sending…" : "Send me this email"}
+                </button>
+                {/* the header scrolls away on a long email; keep Save in reach here */}
+                {(dirty || busy === "save") && (
+                  <button type="button" className="pm2-btn pri" disabled={busy !== null || !dirty || (on && blockers)} title={on && blockers ? "Fix the red issues first" : undefined} onClick={save}>
+                    {busy === "save" ? "Saving…" : "Save changes"}
+                  </button>
+                )}
+              </div>
             </div>
 
             {tab === "edit" ? (

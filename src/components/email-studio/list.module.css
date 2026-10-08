@@ -1,7 +1,8 @@
 /* Email Studio lists (campaigns, automations, templates, audiences).
    Calm style: one-line summary, hairlines, status as coloured text with a
    small dot (never a filled block), big numbers, one red element per screen.
-   At phone width every table row becomes a two-line card. */
+   When the list card is too narrow for every column (phones, tablets, a
+   laptop with the sidebar open) each table row becomes a two-line card. */
 
 .sum { margin: 0; font-size: 15.5px; color: var(--pm-ink2); line-height: 1.5; max-width: 820px; }
 .sum b { color: var(--pm-ink); font-weight: 700; }
@@ -13,7 +14,7 @@
 .chipsWrap :global(.pm2-chip) { white-space: nowrap; }
 
 /* the table */
-.card { background: var(--pm-card); border: 1px solid var(--pm-border); border-radius: var(--pm-r, 20px); overflow: hidden; }
+.card { background: var(--pm-card); border: 1px solid var(--pm-border); border-radius: var(--pm-r, 20px); overflow: hidden; container: estable / inline-size; }
 .tbl { width: 100%; border-collapse: collapse; table-layout: auto; }
 .tbl th {
   font: 700 11px/1.2 var(--pm-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--pm-muted);
@@ -57,7 +58,7 @@
 .iconBtn:focus-visible { outline: 2px solid var(--pm-ink); outline-offset: 1px; }
 .iconBtn svg { width: 17px; height: 17px; }
 
-@media (max-width: 720px) {
+@container estable (max-width: 679px) {
   .tbl thead { display: none; }
   .tbl, .tbl tbody { display: block; width: 100%; }
   .tbl tbody tr {
@@ -74,7 +75,7 @@
   .metaLine .status { font-size: 14px; }
   .chev { display: none !important; }
 }
-@media (min-width: 721px) {
+@container estable (min-width: 680px) {
   .metaLine { display: none !important; }
 }
 .metaPart b { font-weight: 700; color: var(--pm-ink); font-variant-numeric: tabular-nums; }
@@ -127,8 +128,9 @@
 .homeRow small { display: block; font-size: 13.5px; color: var(--pm-muted); margin-top: 2px; }
 .kv { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--pm-line); font-size: 15px; color: var(--pm-ink2); }
 .kv:last-child { border-bottom: 0; }
-.kv > b { color: var(--pm-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.kv > span:first-child { min-width: 0; }
+.kv { flex-wrap: wrap; }
+.kv > b { color: var(--pm-ink); font-variant-numeric: tabular-nums; margin-left: auto; text-align: right; min-width: 0; }
+.kv > span:first-child { min-width: 0; flex: 1 1 12em; }
 .note {
   display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border: 1px solid var(--pm-border); border-radius: 14px;
   background: var(--pm-card); font-size: 14.5px; color: var(--pm-ink2); line-height: 1.5;

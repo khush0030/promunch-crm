@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { KpiStrip, Kpi, Card, HBars, Table, Callout } from "@/components/pm";
 import { getJson, inr, pct, when } from "./api";
@@ -21,9 +22,10 @@ export function ReportView({ id }: { id: string }) {
     queryFn: () => getJson<Report>(`/api/email-studio/campaigns/${id}/report`),
     refetchInterval: 60_000,
   });
+  const [allLinks, setAllLinks] = useState(false);
   if (q.isLoading) return <div className="pm2-skel" style={{ minHeight: 300 }} />;
   if (q.error || !q.data) return <Callout tone="crit" title="Could not load the report" body={(q.error as Error)?.message} />;
-  const { funnel: f, links, orders, revenue, campaign } = q.data;
+  const { funnel: f, links, orders, revenue } = q.data;
   const base = f.accepted || 1;
 
   const topLink = links[0];
@@ -34,14 +36,14 @@ export function ReportView({ id }: { id: string }) {
     <div className={s.stack} style={{ gap: 16 }}>
       <p className={s.sumLine}>
         <span>
-          Went to <b>{f.accepted.toLocaleString("en-IN")}</b> people{campaign.sent_at ? ` on ${when(campaign.sent_at)}` : ""}.{" "}
+          Went to <b>{f.accepted.toLocaleString("en-IN")}</b> {f.accepted === 1 ? "person" : "people"}.{" "}
           <b>{orders.length} order{orders.length === 1 ? "" : "s"}, {inr(revenue)}.</b>
         </span>
       </p>
       <KpiStrip>
         <Kpi label="Delivered" value={f.delivered.toLocaleString("en-IN")} sub={`${pct(f.delivered / base)} of ${f.accepted.toLocaleString("en-IN")} sent`} />
-        <Kpi label="Opened" value={pct(f.opened / base)} sub={`${f.opened.toLocaleString("en-IN")} people · inflated by Apple Mail`} tip="Apple Mail opens every email automatically for privacy, so opens run high. Trust clicks and revenue more." />
-        <Kpi label="Clicked" value={pct(f.clicked / base)} sub={`${f.clicked.toLocaleString("en-IN")} people`} tip="People who tapped at least one link." />
+        <Kpi label="Opened" value={pct(f.opened / base)} sub={`${f.opened.toLocaleString("en-IN")} ${f.opened === 1 ? "person" : "people"} · inflated by Apple Mail`} tip="Apple Mail opens every email automatically for privacy, so opens run high. Trust clicks and revenue more." />
+        <Kpi label="Clicked" value={pct(f.clicked / base)} sub={`${f.clicked.toLocaleString("en-IN")} ${f.clicked === 1 ? "person" : "people"}`} tip="People who tapped at least one link." />
         <Kpi label="Revenue" value={inr(revenue)} sub={`${orders.length} order${orders.length === 1 ? "" : "s"} from this email`} tip="Orders with this email's link tag, or placed within 5 days of clicking it. Updated every 3 hours." />
       </KpiStrip>
       <div className="pm2-g2">
@@ -54,8 +56,13 @@ export function ReportView({ id }: { id: string }) {
                 <b>{linkLabel(topLink.url)}</b> got the most clicks ({topLink.count}).
               </p>
               <HBars
-                items={links.slice(0, 8).map((x) => ({ label: linkLabel(x.url), value: x.count, text: x.count.toLocaleString("en-IN"), tip: x.url, color: "var(--pm-ink2)" }))}
+                items={(allLinks ? links : links.slice(0, 8)).map((x) => ({ label: linkLabel(x.url), value: x.count, text: x.count.toLocaleString("en-IN"), tip: x.url, color: "var(--pm-ink2)" }))}
               />
+              {links.length > 8 && (
+                <button type="button" className={s.moreLink} onClick={() => setAllLinks((v) => !v)}>
+                  {allLinks ? "Show top 8" : `Show all ${links.length}`}
+                </button>
+              )}
             </div>
           )}
         </Card>
