@@ -12,6 +12,7 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { sendEmail } from "@/lib/resend";
 import { renderBulkInquiryEmail } from "./email";
+import { TEAM_ALERT_FROM, renderTeamAlertEmail } from "./team-email";
 import { buildOpener } from "./opener";
 import {
   PRODUCTS,
@@ -85,6 +86,13 @@ export async function intakeBulkInquiry(q: BulkInquiryInput, userAgent: string |
 
   // 3. Auto-reply.
   const emailStatus = await sendAutoReply(row, q);
+
+  // 4. Team email alert. Never blocks or fails the customer flow.
+  try {
+    await sendTeamAlert(row, q, emailStatus);
+  } catch (e) {
+    console.error("[bulk-inquiry] team alert failed", e);
+  }
   return { refNo: row.ref_no, duplicate: false, emailStatus };
 }
 
@@ -213,5 +221,39 @@ async function sendAutoReply(row: Row, q: BulkInquiryInput): Promise<string> {
       email_opener: opener,
     }).eq("id", row.id);
     return "failed";
+  }
+}
+
+const DEFAULT_TEAM = ["hello@promunch.in", "parth.mutha@vippysoya.com"];
+
+/** One internal email per inquiry to the team list (claimed pending→sending). */
+async function sendTeamAlert(row: Row, q: BulkInquiryInput, emailStatus: string) {
+  const db = supabaseAdmin;
+  const { data: claimed } = await db
+    .from("bulk_inquiries")
+    .update({ team_email_status: "sending" })
+    .eq("id", row.id)
+    .eq("team_email_status", "pending")
+    .select("id")
+    .maybeSingle();
+  if (!claimed) return;
+
+  const { data: settings } = await db.from("bulk_inquiry_settings").select("team_alert_emails").eq("id", 1).maybeSingle();
+  const to = ((settings?.team_alert_emails as string[] | null) ?? DEFAULT_TEAM).filter((e) => /@/.test(e));
+  if (!to.length) {
+    await db.from("bulk_inquiries").update({ team_email_status: "skipped" }).eq("id", row.id);
+    return;
+  }
+
+  const base = (process.env.SITE_APP_URL || "https://admin.promunch.in").replace(/\/+$/, "");
+  const mail = renderTeamAlertEmail({ inquiry: q, refNo: row.ref_no, autoReply: emailStatus, crmUrl: `${base}/dashboard/deals` });
+  try {
+    const res = await sendEmail({ to, subject: mail.subject, html: mail.html, text: mail.text, from: TEAM_ALERT_FROM, replyTo: q.email });
+    const err = (res as { error?: { message?: string } | null }).error;
+    if (err) throw new Error(err.message || "Resend error");
+    await db.from("bulk_inquiries").update({ team_email_status: "sent", team_email_at: new Date().toISOString() }).eq("id", row.id);
+  } catch (e) {
+    await db.from("bulk_inquiries").update({ team_email_status: "failed" }).eq("id", row.id);
+    throw e;
   }
 }

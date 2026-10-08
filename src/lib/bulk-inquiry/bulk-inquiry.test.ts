@@ -152,3 +152,17 @@ describe("bulkFormScript", () => {
     expect(js).not.toMatch(/—/);
   });
 });
+
+describe("renderTeamAlertEmail", () => {
+  it("lists every field, escapes input and has no em dashes", async () => {
+    const { renderTeamAlertEmail, TEAM_ALERT_FROM } = await import("./team-email");
+    const parsed = parseBulkInquiry({ ...valid, notes: "<b>200</b> people" });
+    if (!parsed.ok) throw new Error("fixture");
+    const m = renderTeamAlertEmail({ inquiry: parsed.value, refNo: 1015, autoReply: "sent", crmUrl: "https://x/dashboard/deals" });
+    expect(m.subject).toBe("New bulk enquiry B-1015: Navan India (Corporate gifting, Bengaluru)");
+    for (const v of ["riya@navan.com", "+919876543210", "100 to 500 units", "Roasted edamame, Gift hampers", "Sent automatically"]) expect(m.html).toContain(v);
+    expect(m.html).not.toContain("<b>200</b>");
+    expect(m.html + m.text).not.toMatch(/—/);
+    expect(TEAM_ALERT_FROM).toMatch(/no-reply@promunch\.in/);
+  });
+});
