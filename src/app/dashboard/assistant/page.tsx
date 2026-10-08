@@ -20,10 +20,25 @@ import {
 import { PageHeader } from "@/components/pm";
 import { Markdown } from "@/components/assistant/Markdown";
 import { ToolResult } from "@/components/assistant/ToolResult";
+import { scrubInternalNames, sourcesOf } from "@/components/assistant/toolLabels";
 import styles from "./assistant.module.css";
 
 type Convo = { id: string; title: string | null; updated_at: string };
-type StoredMessage = { id: string; role: "user" | "assistant"; content: string };
+type StoredMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  meta?: { tools?: { type?: string }[] } | null;
+};
+
+// Reopened answers are rebuilt from stored text only; the tools each answer
+// used are kept in meta, so their business names ride along as metadata.
+type MessageMeta = { storedSources?: string[] };
+
+function storedSourcesOf(m: StoredMessage): string[] {
+  const tools = Array.isArray(m.meta?.tools) ? m.meta.tools : [];
+  return sourcesOf(tools.filter((t): t is { type: string } => typeof t?.type === "string"));
+}
 
 // Suggested questions, grouped the way people think about the business.
 const SUGGESTION_GROUPS = [
@@ -32,29 +47,6 @@ const SUGGESTION_GROUPS = [
   { kicker: "B2B & Amazon", qs: ["How is the B2B pipeline looking?", "How is Amazon doing this week?"] },
   { kicker: "Health & policy", qs: ["Is everything working right now?", "What is our shipping and COD policy?"] },
 ];
-
-// Where an answer's numbers came from, by the tool Maya used.
-const SOURCE_LABELS: Record<string, string> = {
-  query_orders: "Shopify orders",
-  get_whatsapp_stats: "WhatsApp",
-  get_system_health: "System health",
-  get_leads_pipeline: "B2B pipeline",
-  get_email_stats: "Email",
-  get_amazon_stats: "Amazon",
-  search_customer: "Customers",
-  search_kb: "Knowledge base",
-  get_audit_log: "Audit log",
-};
-
-function sourcesOf(parts: { type: string }[]): string[] {
-  const out = new Set<string>();
-  for (const p of parts) {
-    if (!p.type.startsWith("tool-")) continue;
-    const name = p.type.slice(5);
-    out.add(SOURCE_LABELS[name] ?? name.replace(/_/g, " "));
-  }
-  return [...out];
-}
 
 function ago(iso: string): string {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -165,9 +157,10 @@ function AssistantInner() {
       stored
         .filter((m) => m.content)
         .map(
-          (m): UIMessage => ({
+          (m): UIMessage<MessageMeta> => ({
             id: m.id,
             role: m.role,
+            metadata: { storedSources: storedSourcesOf(m) },
             parts: [{ type: "text", text: m.content }],
           })
         )
@@ -264,12 +257,17 @@ function AssistantInner() {
                     </div>
                   );
                 }
-                const fullText = m.parts
-                  .filter((p) => p.type === "text")
-                  .map((p) => (p as { text: string }).text)
-                  .join("\n\n");
+                const fullText = scrubInternalNames(
+                  m.parts
+                    .filter((p) => p.type === "text")
+                    .map((p) => (p as { text: string }).text)
+                    .join("\n\n")
+                );
                 const isStreamingThis = busy && mi === messages.length - 1;
-                const sources = sourcesOf(m.parts);
+                // Reopened answers carry their sources in metadata (text-only parts).
+                const stored = (m.metadata as MessageMeta | undefined)?.storedSources;
+                const reopened = stored !== undefined;
+                const sources = reopened ? stored : sourcesOf(m.parts);
                 return (
                   <div key={m.id} className={styles.mayaBlock}>
                     <div className={styles.mayaName}>
@@ -284,7 +282,7 @@ function AssistantInner() {
                           if (!t) return null;
                           return (
                             <div key={i} className={styles.prose}>
-                              <Markdown text={t} className={styles.md} />
+                              <Markdown text={scrubInternalNames(t)} className={styles.md} />
                             </div>
                           );
                         }
@@ -301,10 +299,14 @@ function AssistantInner() {
                     </div>
                     {fullText && !isStreamingThis && (
                       <div className={styles.ansFoot}>
-                        <span className={styles.sources}>
-                          <Database size={14} aria-hidden />
-                          {sources.length ? `Sources: ${sources.join(", ")}` : "Answered from what Maya already knows about PROMUNCH"}
-                        </span>
+                        {/* A reopened answer with no stored tools says nothing rather
+                            than claiming it came from memory. */}
+                        {(sources.length > 0 || !reopened) && (
+                          <span className={styles.sources}>
+                            <Database size={14} aria-hidden />
+                            {sources.length ? `Sources: ${sources.join(", ")}` : "Answered from what Maya already knows about PROMUNCH"}
+                          </span>
+                        )}
                         <button
                           type="button"
                           className={styles.copyBtn}

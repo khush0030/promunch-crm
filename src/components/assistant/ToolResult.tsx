@@ -9,29 +9,12 @@
 import { useState } from "react";
 import { Activity, CircleAlert, MessageCircle, Sparkles, Store } from "lucide-react";
 import styles from "./ToolResult.module.css";
+import { fieldLabel, humanize, toolDoneLabel, toolPendingLabel, toolSourceLabel } from "./toolLabels";
 
 export type ToolPartLike = {
   type: string;
   state?: string;
   output?: unknown;
-};
-
-const PENDING_LABELS: Record<string, string> = {
-  query_orders: "Reading Shopify orders",
-  get_whatsapp_stats: "Reading WhatsApp stats",
-  get_system_health: "Running health checks",
-  get_leads_pipeline: "Reading the B2B pipeline",
-  get_email_stats: "Reading email stats",
-  get_amazon_stats: "Reading Amazon data",
-  search_customer: "Looking up the customer",
-  search_kb: "Reading the knowledge base",
-  get_audit_log: "Reading the audit log",
-};
-
-const DONE_LABELS: Record<string, string> = {
-  search_customer: "Customer records pulled",
-  search_kb: "Knowledge base read",
-  get_audit_log: "Audit log read",
 };
 
 const CHANNEL_COLORS: Record<string, string> = {
@@ -109,7 +92,7 @@ function OrdersCard({ out }: { out: Rec }) {
       {byDay.length > 2 && <Sparkline points={byDay} />}
 
       <div className={styles.footnote}>
-        shopify_orders · creator seed orders {out.creator_seed_orders_excluded ? `excluded (${num(asNum(out.creator_seed_orders_excluded) ?? 0)})` : "included"}
+        Shopify orders · creator seed orders {out.creator_seed_orders_excluded ? `excluded (${num(asNum(out.creator_seed_orders_excluded) ?? 0)})` : "included"}
       </div>
     </div>
   );
@@ -185,10 +168,10 @@ function HealthCard({ out }: { out: Rec }) {
   const errs = rec(out.connector_errors_24h);
   const errCount = asNum(errs.count);
   if (errCount !== null) {
-    const names = Object.keys(rec(errs.by_connector)).slice(0, 3).join(", ");
+    const names = Object.keys(rec(errs.by_connector)).slice(0, 3).map(humanize).join(", ");
     rows.push({
       tone: errCount === 0 ? "good" : errCount < 5 ? "warn" : "bad",
-      label: "Connector errors · 24h",
+      label: "Integration errors · 24h",
       pill: errCount === 0 ? "none" : `${errCount}${names ? ` (${names})` : ""}`,
     });
   }
@@ -200,11 +183,11 @@ function HealthCard({ out }: { out: Rec }) {
     const bad = failing.length + inactive.length;
     rows.push({
       tone: bad === 0 ? "good" : "warn",
-      label: `Cron jobs (${jobs.length})`,
+      label: `Scheduled jobs (${jobs.length})`,
       pill: bad === 0 ? "all recent runs ok" : `${failing.length} failing · ${inactive.length} inactive`,
     });
   } else if (rec(out.cron_jobs).error) {
-    rows.push({ tone: "unknown", label: "Cron jobs", pill: "unavailable" });
+    rows.push({ tone: "unknown", label: "Scheduled jobs", pill: "unavailable" });
   }
 
   const waJobs = rec(out.wa_jobs_by_status);
@@ -234,7 +217,7 @@ function HealthCard({ out }: { out: Rec }) {
       {rows.map((r) => (
         <StatusRow key={r.label} {...r} />
       ))}
-      <div className={styles.footnote}>connector_events · cron.job · wa_jobs · shopify_orders</div>
+      <div className={styles.footnote}>WhatsApp · integrations · scheduled jobs · Shopify orders</div>
     </div>
   );
 }
@@ -295,7 +278,7 @@ function WhatsappCard({ out }: { out: Rec }) {
           </div>
         </>
       )}
-      <div className={styles.footnote}>wa_messages · sent means accepted, awaiting delivery receipt</div>
+      <div className={styles.footnote}>WhatsApp messages · sent means accepted, awaiting delivery receipt</div>
     </div>
   );
 }
@@ -306,7 +289,7 @@ function collectFacts(out: Rec, prefix = "", depth = 0): { label: string; value:
   const facts: { label: string; value: string }[] = [];
   for (const [k, v] of Object.entries(out)) {
     if (k === "window_days" || k === "note" || k === "error") continue;
-    const label = prefix ? `${prefix} ${k.replaceAll("_", " ")}` : k.replaceAll("_", " ");
+    const label = prefix ? `${prefix} · ${fieldLabel(k).toLowerCase()}` : fieldLabel(k);
     if (typeof v === "number") facts.push({ label, value: num(v) });
     else if (depth < 1 && v && typeof v === "object" && !Array.isArray(v)) facts.push(...collectFacts(v as Rec, label, depth + 1));
     else if (Array.isArray(v) && v.length) facts.push({ label, value: `${v.length} rows` });
@@ -320,7 +303,7 @@ function FactsCard({ name, out }: { name: string; out: Rec }) {
   return (
     <div className={styles.card}>
       <div className={styles.cardHead}>
-        <Sparkles size={13} /> {name.replaceAll("_", " ").replace(/^get /, "")}
+        <Sparkles size={13} /> {toolSourceLabel(name)}
       </div>
       <div className={styles.facts}>
         {facts.map((f) => (
@@ -339,7 +322,7 @@ function FactsCard({ name, out }: { name: string; out: Rec }) {
 function DoneChip({ name }: { name: string }) {
   return (
     <span className={styles.chip}>
-      <Sparkles size={12} /> {DONE_LABELS[name] ?? `${name.replaceAll("_", " ")} done`}
+      <Sparkles size={12} /> {toolDoneLabel(name)}
     </span>
   );
 }
@@ -350,14 +333,14 @@ export function ToolResult({ part }: { part: ToolPartLike }) {
   if (part.state === "output-error") {
     return (
       <span className={`${styles.chip} ${styles.chipError}`}>
-        <CircleAlert size={12} /> {PENDING_LABELS[name] ?? name} failed
+        <CircleAlert size={12} /> {toolSourceLabel(name)} could not be read
       </span>
     );
   }
   if (part.state !== "output-available") {
     return (
       <span className={`${styles.chip} ${styles.chipPending}`}>
-        <Sparkles size={12} /> {PENDING_LABELS[name] ?? `Running ${name.replaceAll("_", " ")}`}…
+        <Sparkles size={12} /> {toolPendingLabel(name)}…
       </span>
     );
   }
@@ -366,7 +349,7 @@ export function ToolResult({ part }: { part: ToolPartLike }) {
   if (out.error) {
     return (
       <span className={`${styles.chip} ${styles.chipError}`}>
-        <CircleAlert size={12} /> {name.replaceAll("_", " ")}: {String(out.error).slice(0, 80)}
+        <CircleAlert size={12} /> {toolSourceLabel(name)} is unavailable right now
       </span>
     );
   }
