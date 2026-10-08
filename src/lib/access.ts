@@ -42,6 +42,54 @@ export function isModuleKey(v: unknown): v is ModuleKey {
   return typeof v === "string" && (MODULE_KEYS as string[]).includes(v);
 }
 
+// Named job roles for Agents: a one-click area list in the invite form and the
+// Access dialog. Only `modules` is stored (app_metadata.modules); the role name
+// is derived back from the list, so editing a preset here doesn't silently
+// change anyone's stored access.
+export const ROLE_PRESETS = [
+  {
+    key: "marketing",
+    label: "Marketing (email + WhatsApp)",
+    hint: "Email Studio plus WhatsApp campaigns, automations and templates. No customer chats, orders or settings.",
+    modules: ["wa_marketing", "email_marketing"],
+  },
+  {
+    key: "email_marketing",
+    label: "Email marketing",
+    hint: "Email Studio only: campaigns, flows, templates, audiences, reports.",
+    modules: ["email_marketing"],
+  },
+  {
+    key: "wa_automation",
+    label: "WhatsApp automation",
+    hint: "WhatsApp campaigns, automations (flows, cart recovery), templates, popup and analytics.",
+    modules: ["wa_marketing"],
+  },
+  {
+    key: "support",
+    label: "Customer support",
+    hint: "Inbox: WhatsApp chats, tickets, support email and voice calls.",
+    modules: ["inbox"],
+  },
+] as const satisfies ReadonlyArray<{ key: string; label: string; hint: string; modules: readonly ModuleKey[] }>;
+
+export type RolePresetKey = (typeof ROLE_PRESETS)[number]["key"];
+
+export function rolePreset(key: unknown) {
+  return ROLE_PRESETS.find((p) => p.key === key) ?? null;
+}
+
+// The preset a stored area list matches exactly (order-insensitive), or null
+// for a custom pick / no restriction.
+export function presetForModules(modules: readonly ModuleKey[] | null) {
+  if (!modules) return null;
+  return (
+    ROLE_PRESETS.find(
+      (p) => p.modules.length === modules.length && p.modules.every((m) => modules.includes(m))
+    ) ?? null
+  );
+}
+
 // restricted=false means "every area" (admin, or a member never restricted).
 export type Access = { admin: boolean; restricted: boolean; modules: ModuleKey[] };
 

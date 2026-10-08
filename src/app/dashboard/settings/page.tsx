@@ -7,7 +7,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { PageHead, Tabs, Panel, HealthPill, StatusBadge, DataTable } from "@/components/pm";
 import { ApiKeysPanel } from "@/components/settings/ApiKeysPanel";
 import type { Column, HealthStatus } from "@/components/pm";
-import { MODULES, type ModuleKey } from "@/lib/access";
+import { MODULES, ROLE_PRESETS, presetForModules, rolePreset, type ModuleKey } from "@/lib/access";
 
 type Status = "healthy" | "degraded" | "down" | "unknown";
 type Connector = { id: string; label: string; description: string; status: Status; headline: string; metrics: { label: string; value: string }[] };
@@ -43,6 +43,10 @@ export default function SettingsPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
+  // "all" = every area (no restriction), else a ROLE_PRESETS key.
+  const [inviteRole, setInviteRole] = useState<string>("all");
+  // Bumped after an invite so the team list shows the new member.
+  const [teamVersion, setTeamVersion] = useState(0);
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
@@ -101,7 +105,7 @@ export default function SettingsPage() {
       const r = await fetch("/api/team", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name }),
+        body: JSON.stringify({ email, name, modules: rolePreset(inviteRole)?.modules ?? null }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d?.error || "Invite failed.");
@@ -109,6 +113,8 @@ export default function SettingsPage() {
       setInviteOpen(false);
       setInviteEmail("");
       setInviteName("");
+      setInviteRole("all");
+      setTeamVersion((v) => v + 1);
     } catch (e) {
       toast.push({ kind: "error", text: `Invite failed: ${e instanceof Error ? e.message : "unknown"}` });
     } finally {
@@ -231,7 +237,7 @@ export default function SettingsPage() {
           caption="Manage access to PROMUNCH CRM"
           more={<button type="button" className="pm-btn ghost sm" onClick={() => setInviteOpen(true)} disabled={inviteBusy}><UserPlus size={14} /> Invite member</button>}
         >
-          <div style={{ marginTop: 4 }}><TeamTable /></div>
+          <div style={{ marginTop: 4 }}><TeamTable key={teamVersion} /></div>
         </Panel>
       )}
 
@@ -273,6 +279,18 @@ export default function SettingsPage() {
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                 />
+              </div>
+              <div className="field">
+                <label>Role</label>
+                <select className="select" value={inviteRole} onChange={(e) => setInviteRole(e.target.value)} aria-label="Role for the new member">
+                  <option value="all">All areas (Agent)</option>
+                  {ROLE_PRESETS.map((p) => (
+                    <option key={p.key} value={p.key}>{p.label}</option>
+                  ))}
+                </select>
+                <div className="pm-dim" style={{ fontSize: 12, marginTop: 4 }}>
+                  {rolePreset(inviteRole)?.hint ?? "Every area a member can use. You can narrow it later from the Access column."}
+                </div>
               </div>
               <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
                 <button type="submit" className="btn primary" disabled={inviteBusy} style={{ justifyContent: "center" }}>
@@ -323,7 +341,13 @@ function TeamTable() {
   }
 
   const accessLabel = (m: Member) =>
-    m.role !== "agent" ? "Everything" : m.modules === null ? "All areas" : m.modules.length === 0 ? "No areas" : `${m.modules.length} of ${MODULES.length} areas`;
+    m.role !== "agent"
+      ? "Everything"
+      : m.modules === null
+        ? "All areas"
+        : m.modules.length === 0
+          ? "No areas"
+          : presetForModules(m.modules)?.label ?? `Custom: ${m.modules.length} of ${MODULES.length} areas`;
 
   const columns: Column<Member>[] = [
     { header: "Member", cell: (m) => <div className="pm-cellname"><Avatar name={m.name} size={30} /><span className="pm-b7">{m.name}</span></div> },
@@ -424,6 +448,30 @@ function AccessDialog({ member, onClose, onSaved }: { member: Member; onClose: (
         <h3 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 4px" }}>Access for {member.name}</h3>
         <div className="sub" style={{ marginBottom: 16 }}>
           Choose which parts of the CRM {member.email ?? "this member"} can open. Everything else is hidden and blocked.
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div className="pm-b7" style={{ fontSize: 13, marginBottom: 6 }}>Quick roles</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {ROLE_PRESETS.map((p) => {
+              const on = !all && presetForModules([...picked])?.key === p.key;
+              return (
+                <button
+                  key={p.key}
+                  type="button"
+                  className={`pm-btn sm ${on ? "primary" : "ghost"}`}
+                  aria-pressed={on}
+                  title={p.hint}
+                  onClick={() => {
+                    setAll(false);
+                    setPicked(new Set(p.modules));
+                  }}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <label style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0", borderBottom: "1px solid var(--pm-border)", cursor: "pointer" }}>

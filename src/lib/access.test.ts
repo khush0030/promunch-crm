@@ -11,6 +11,9 @@ import {
   pageModule,
   MODULE_KEYS,
   NO_ACCESS_PATH,
+  ROLE_PRESETS,
+  presetForModules,
+  rolePreset,
 } from "./access";
 import { OWNER_EMAIL } from "./rbac";
 import { NAV, navFor } from "@/components/shell/nav";
@@ -35,6 +38,53 @@ describe("accessOf", () => {
     expect(a).toEqual({ admin: false, restricted: true, modules: ["inbox"] });
     const self = accessOf({ email: "a@promunch.in", app_metadata: { role: "agent", modules: [] }, user_metadata: { modules: MODULE_KEYS } });
     expect(self.modules).toEqual([]);
+  });
+});
+
+describe("role presets", () => {
+  const as = (key: string) =>
+    accessOf({ email: "r@promunch.in", app_metadata: { role: "agent", modules: [...(rolePreset(key)?.modules ?? [])] } });
+
+  it("every preset uses real areas, lands somewhere it can open, and is unique", () => {
+    for (const p of ROLE_PRESETS) {
+      expect(p.modules.every((m) => MODULE_KEYS.includes(m))).toBe(true);
+      const a = as(p.key);
+      expect(a.restricted).toBe(true);
+      expect(canOpenHref(a, landingFor(a))).toBe(true);
+      expect(presetForModules([...p.modules])?.key).toBe(p.key);
+    }
+  });
+  it("presetForModules matches exact lists only, in any order", () => {
+    expect(presetForModules(["email_marketing", "wa_marketing"])?.key).toBe("marketing");
+    expect(presetForModules(["wa_marketing", "audience"])).toBeNull();
+    expect(presetForModules([])).toBeNull();
+    expect(presetForModules(null)).toBeNull();
+  });
+  it("email marketing: Email Studio only, no WhatsApp", () => {
+    const a = as("email_marketing");
+    expect(canOpenHref(a, "/dashboard/email/campaigns/abc")).toBe(true);
+    expect(canCallApi(a, "/api/email-studio/flows/test", "POST")).toBe(true);
+    expect(canOpenHref(a, "/dashboard/whatsapp?tab=campaigns")).toBe(false);
+    expect(canCallApi(a, "/api/whatsapp/campaigns/abc/send", "POST")).toBe(false);
+    expect(canCallApi(a, "/api/contacts/export", "GET")).toBe(false);
+  });
+  it("WhatsApp automation: flows, cart recovery, campaigns, templates; no chats or email", () => {
+    const a = as("wa_automation");
+    expect(canOpenHref(a, "/dashboard/whatsapp?tab=flows")).toBe(true);
+    expect(canCallApi(a, "/api/whatsapp/flows/custom", "POST")).toBe(true);
+    expect(canCallApi(a, "/api/whatsapp/cart-recovery", "PUT")).toBe(true);
+    expect(canCallApi(a, "/api/whatsapp/templates/submit", "POST")).toBe(true);
+    expect(canOpenHref(a, "/dashboard/whatsapp?tab=inbox")).toBe(false);
+    expect(canCallApi(a, "/api/whatsapp/send", "POST")).toBe(false);
+    expect(canCallApi(a, "/api/whatsapp/kb", "POST")).toBe(false);
+    expect(canOpenHref(a, "/dashboard/email")).toBe(false);
+  });
+  it("marketing gets both, and still no sales, contacts or settings", () => {
+    const a = as("marketing");
+    expect(canOpenHref(a, "/dashboard/email")).toBe(true);
+    expect(canOpenHref(a, "/dashboard/whatsapp?tab=flows")).toBe(true);
+    expect(canOpenPage(a, "/dashboard/sales", null)).toBe(false);
+    expect(canOpenPage(a, "/dashboard/settings", null)).toBe(false);
   });
 });
 
