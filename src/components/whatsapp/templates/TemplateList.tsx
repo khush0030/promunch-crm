@@ -135,7 +135,7 @@ export function TemplateList({
             <span className={s.groupCount}>{shown.customer_service.length}</span>
             <span className={s.groupSub}>
               Sent automatically by Automations, for example order updates. These are{" "}
-              <GlossaryTerm k="utility">utility</GlossaryTerm> messages, so they can&apos;t be used in campaigns.
+              <GlossaryTerm k="utility">utility</GlossaryTerm>{" "}messages, so they can&apos;t be used in campaigns.
               {h.isAdmin ? " Changes go to every customer, so edit with care." : " Only the owner can change them."}
             </span>
           </summary>

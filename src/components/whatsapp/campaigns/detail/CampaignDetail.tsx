@@ -73,7 +73,7 @@ export default function CampaignDetail({ id }: { id: string }) {
           </div>
         }
       />
-      <div className="pm2-body">
+      <div className={`pm2-body ${s.detailBody}`}>
         {c.followup_of && (
           <div className={s.help} style={{ marginBottom: 12 }}>
             {followupShortLabel(c.followup_after_hours, c.followup_stage)} ·{" "}

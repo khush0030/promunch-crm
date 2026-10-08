@@ -1,7 +1,7 @@
 "use client";
 
 // One campaign in the calm list table: name + a grey "when · who" line,
-// status as coloured text with a dot, people, read %, revenue, then a
+// status as coloured text with a dot, people reached, read %, revenue, then a
 // more-actions menu and a chevron. At phone width the row becomes a two-line
 // card (see list.module.css). Every action still goes through `run` exactly
 // as before; this file only lays them out.
@@ -37,9 +37,11 @@ const STATUS_CLASS: Record<string, string> = {
   cancelled: l.stPlain,
 };
 
-export function StatusText({ status, followup = false }: { status: string; followup?: boolean }) {
+export function StatusText({ status, followup = false, sent }: { status: string; followup?: boolean; sent?: number }) {
   const m = followup ? followupStatusMeta(status) : statusMeta(status);
-  const label = status === "completed" ? "Sent" : m.label;
+  // "Sent" only when something actually went out; a finished campaign that
+  // reached nobody (e.g. all held back by Meta) keeps main's "Completed".
+  const label = status === "completed" && (sent ?? 0) > 0 ? "Sent" : m.label;
   return (
     <span className={`${l.status} ${STATUS_CLASS[status] ?? ""}`} title={m.hint || undefined}>
       {label}
@@ -72,7 +74,8 @@ function whenWords(c: Campaign): string {
     case "failed":
       return `Stopped, started ${fmtIst(c.started_at ?? c.created_at)}`;
     default:
-      return `Sent ${fmtIst(c.started_at ?? c.created_at)}`;
+      // Nothing went out (e.g. all held back by Meta): don't say "Sent".
+      return `${(c.sent_count ?? 0) > 0 ? "Sent" : "Finished"} ${fmtIst(c.started_at ?? c.created_at)}`;
   }
 }
 
@@ -100,7 +103,10 @@ export function CampaignRow({
   const now = useNow();
   const sent = c.sent_count ?? 0;
   const future = c.resume_at && Date.parse(c.resume_at) > now;
-  const people = c.total_audience ?? (sent > 0 ? sent : null);
+  // People actually reached (sent), never the planned audience: a finished
+  // campaign where nothing went out must not read as delivered.
+  const started = !["draft", "scheduled"].includes(c.status) || sent > 0;
+  const people = started ? sent : null;
   const read = pct(c.read_count, sent);
   const tplName = c.template?.name ? friendlyTemplateName(c.template.name) : "No message picked yet";
   const who = audienceWords(c, campaignName);
@@ -113,7 +119,7 @@ export function CampaignRow({
     run("open", c);
   }
 
-  const peopleCell = people != null && people > 0 ? <span className={l.num}>{fmtInt(people)}</span> : <Nil />;
+  const peopleCell = people != null ? <span className={people > 0 ? l.num : l.zero}>{fmtInt(people)}</span> : <Nil />;
   const readCell = read != null ? <span className={l.num}>{read}%</span> : <Nil />;
   const revenueCell = revenue != null && (revenue > 0 || sent > 0) ? <b className={l.money}>{fmtInr(revenue)}</b> : <Nil />;
 
@@ -151,15 +157,15 @@ export function CampaignRow({
         )}
       </td>
       <td className={l.meta}>
-        <StatusText status={c.status} followup={isFu} />
+        <StatusText status={c.status} followup={isFu} sent={sent} />
       </td>
       <td className={`${l.meta} ${l.r}`}>{peopleCell}</td>
       <td className={`${l.meta} ${l.r}`}>{readCell}</td>
       <td className={`${l.meta} ${l.r}`}>{revenueCell}</td>
       <td className={l.metaLine}>
-        <StatusText status={c.status} followup={isFu} />
-        {people != null && people > 0 && (
-          <span className={l.metaPart}><b>{fmtInt(people)}</b> <span>people</span></span>
+        <StatusText status={c.status} followup={isFu} sent={sent} />
+        {people != null && (
+          <span className={l.metaPart}><b>{fmtInt(people)}</b> <span>reached</span></span>
         )}
         {read != null && (
           <span className={l.metaPart}><b>{read}%</b> <span>read</span></span>

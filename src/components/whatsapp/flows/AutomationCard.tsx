@@ -137,6 +137,15 @@ const KIND: Record<FlowStep["kind"], { Icon: LucideIcon; label: string; cls: str
   stop: { Icon: OctagonX, label: "Stops if", cls: s.kStop },
 };
 
+/** "Right away", "After 1 hour · if they still have not ordered", "15 min after the cart goes quiet". */
+function waitWords(title: string, detail?: string): string {
+  const t = title.trim();
+  const now = /^right away$/i.test(t);
+  if (detail && /^after\b/i.test(detail)) return `${now ? "Right away" : t} ${detail}`;
+  const lead = now ? "Right away" : `After ${t.charAt(0).toLowerCase()}${t.slice(1)}`;
+  return detail ? `${lead} · ${detail}` : lead;
+}
+
 /** One continuous vertical line: nodes for events, waits as mono text with a clock. */
 function StepLine({ steps }: { steps: FlowStep[] }) {
   return (
@@ -147,10 +156,7 @@ function StepLine({ steps }: { steps: FlowStep[] }) {
           return (
             <li key={i} className={s.tlWait}>
               <span className={s.tlClock} aria-hidden="true"><Clock /></span>
-              <span className={s.tlWaitText}>
-                Wait {st.title}
-                {st.detail ? ` · ${st.detail}` : ""}
-              </span>
+              <span className={s.tlWaitText}>{waitWords(st.title, st.detail)}</span>
             </li>
           );
         }

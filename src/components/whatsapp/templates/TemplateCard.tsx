@@ -57,7 +57,7 @@ export function TemplateCard({
   return (
     <article className={`${s.card} ${editable ? "" : s.cardReadonly}`} aria-label={friendly}>
       <div className={s.mini}>
-        <div className={s.miniBubble}>
+        <div className={`${s.miniBubble} ${media && media !== "document" ? s.miniMedia : ""}`}>
           {media && <HeaderThumb kind={media} url={t.header_media_url} />}
           {t.header_type === "TEXT" && t.header_text && <div className={s.headerText}>{t.header_text}</div>}
           <div className={s.bodyText}>
@@ -69,7 +69,9 @@ export function TemplateCard({
 
       <div className={s.cardHead}>
         <div className={s.grow}>
-          <div className={s.cardTitle} title={t.name}>{friendly}</div>
+          <div className={s.cardTitle}>{friendly}</div>
+          {/* Meta's exact template name: ops need it to match Meta's dashboard. */}
+          {t.name !== friendly && <div className={s.metaName}>{t.name}</div>}
           <div className={s.cardMeta}>
             <span>{CATEGORY_LABEL[t.category] ?? t.category}</span>
             <span aria-hidden="true">·</span>

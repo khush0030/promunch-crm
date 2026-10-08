@@ -129,7 +129,6 @@
 .checklist { min-width: 0; }
 
 @media (max-width: 720px) {
-  .hideM { display: none !important; }
   .card { padding: 16px; }
   .sum { font-size: 16px; }
   .acts { width: 100%; }

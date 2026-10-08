@@ -14,7 +14,7 @@
 //   Order messages: confirmation, COD confirm, shipping, voice call, sign-off.
 //     Owner/Admin only (the API enforces the same, see flows/permissions.ts).
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Plus, RefreshCw } from "lucide-react";
 import { ConfirmDialog } from "@/components/pm";
@@ -24,7 +24,7 @@ import { apiFetch } from "@/lib/api-fetch";
 import type { Template } from "../types";
 import { AutomationDisplay } from "./AutomationCard";
 import { LockNote } from "./bits";
-import type { FlowsCtx } from "./context";
+import { WA_TAB_RESELECT, type FlowsCtx } from "./context";
 import { TOGGLE_COPY } from "./copy";
 import { CustomFlowCard } from "./CustomFlowCard";
 import { FlowBuilder } from "./FlowBuilder";
@@ -182,6 +182,15 @@ export default function AutomationsView() {
       },
     });
   }
+
+  // Clicking the "Automations" tab while one is open goes back to the list.
+  useEffect(() => {
+    function onReselect(e: Event) {
+      if ((e as CustomEvent<string>).detail === "flows") setOpenKey(null);
+    }
+    window.addEventListener(WA_TAB_RESELECT, onReselect);
+    return () => window.removeEventListener(WA_TAB_RESELECT, onReselect);
+  }, []);
 
   function openAutomation(key: string | null) {
     setOpenKey(key);

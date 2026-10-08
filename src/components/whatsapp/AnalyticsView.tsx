@@ -440,7 +440,7 @@ function roiVerdict(roi: number | null) {
 /* ---- journey funnel ---- */
 
 const FUNNEL_WORD: Record<string, string> = {
-  delivered: "arrived", read: "were read", replied: "got a reply", bought: "ordered", clicked: "were tapped",
+  delivered: "arrived", read: "were read", replied: "got a reply", bought: "led to an order", clicked: "were tapped",
 };
 
 function funnelLabel(f: Funnel) {
@@ -451,14 +451,23 @@ function funnelLabel(f: Funnel) {
   return f.label;
 }
 
+// Headline and rows share one base (every 100 messages sent) and the same
+// counts, so the sentence above the bars always matches the bars.
+function per100(count: number, sent: number): string | null {
+  const r = inHundred(count, sent);
+  if (r == null) return null;
+  return r === 0 && count > 0 ? "Under 1" : String(r);
+}
+
 function funnelTakeaway(d: Data): string {
   const sent = d.headline.sent;
   if (!sent) return "Nothing went out in this period.";
-  const read = inHundred(d.headline.read, sent) ?? 0;
-  const bought = inHundred(d.headline.orders, sent);
-  return bought != null && d.headline.orders > 0
-    ? `Out of every 100 messages, ${read} were read and ${bought || "under 1"} led to an order.`
-    : `Out of every 100 messages, ${read} were read. No orders yet.`;
+  const at = (key: string, fallback: number) => d.funnel.find((f) => f.key === key)?.count ?? fallback;
+  const read = per100(at("read", d.headline.read), sent) ?? "0";
+  const orders = at("bought", d.headline.orders);
+  return orders > 0
+    ? `Out of every 100 messages sent, ${read.toLowerCase()} were read and ${(per100(orders, sent) ?? "0").toLowerCase()} led to an order.`
+    : `Out of every 100 messages sent, ${read.toLowerCase()} were read. No orders yet.`;
 }
 
 function FunnelPanel({ d }: { d: Data }) {
@@ -468,8 +477,7 @@ function FunnelPanel({ d }: { d: Data }) {
       <div className={s.funnel}>
         {d.funnel.map((f, i) => {
           const width = f.count == null ? 0 : Math.max(1.5, Math.round((f.count / sent) * 100));
-          const prev = i > 0 ? d.funnel[i - 1] : null;
-          const rate = prev && prev.count && f.count != null ? inHundred(f.count, prev.count) : null;
+          const rate = i > 0 && f.count != null && d.headline.sent ? per100(f.count, d.headline.sent) : null;
           return (
             <div key={f.key} className={s.funnelRow}>
               <div className={s.funnelTop}>
@@ -479,7 +487,7 @@ function FunnelPanel({ d }: { d: Data }) {
               <div className={s.bar}>
                 <span className={`${s.barFill} ${s[`step${Math.min(i, 4)}`]} ${f.soon ? s.barSoon : ""}`} style={{ width: `${width}%` }} />
               </div>
-              {rate != null && prev && <span className={s.funnelRate}>{rate} in 100 {FUNNEL_WORD[f.key] ?? "moved on"}</span>}
+              {rate != null && <span className={s.funnelRate}>{rate} in 100 sent {FUNNEL_WORD[f.key] ?? "moved on"}</span>}
             </div>
           );
         })}

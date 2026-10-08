@@ -17,3 +17,6 @@ export type FlowsCtx = {
   voice: VoiceStats;
   isAdmin: boolean;
 };
+
+/** Window event the WhatsApp page fires when the already-open tab is clicked again (detail = tab key). */
+export const WA_TAB_RESELECT = "wa:tab-reselect";

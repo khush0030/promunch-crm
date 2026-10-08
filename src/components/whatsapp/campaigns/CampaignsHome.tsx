@@ -55,7 +55,7 @@ export default function CampaignsHome() {
   ].filter(Boolean);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 20, minWidth: 0 }}>
+    <div className={l.wrap}>
       <div className={l.head}>
         <div className={l.headText}>
           <h2 className={l.title}>Campaigns</h2>
@@ -80,7 +80,7 @@ export default function CampaignsHome() {
             ariaLabel="Filter campaigns by status"
             items={LIST_FILTERS.map((f) => ({
               key: f.key,
-              label: f.key === "completed" ? "Sent" : f.label,
+              label: f.label,
               count: f.key === "all" ? undefined : counts[f.key],
             }))}
             value={filter}
@@ -136,7 +136,7 @@ export default function CampaignsHome() {
               <tr>
                 <th scope="col">Campaign</th>
                 <th scope="col">Status</th>
-                <th scope="col" className={l.r}>People</th>
+                <th scope="col" className={l.r}>Reached</th>
                 <th scope="col" className={l.r}>Read</th>
                 <th scope="col" className={l.r}>Revenue</th>
                 <th scope="col" className={l.end}><span className="pm2-sr">Actions</span></th>

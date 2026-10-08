@@ -259,3 +259,14 @@
   .fuChild::before { left: -10px; width: 7px; }
   .branches { padding-left: 10px; }
 }
+
+/* ---------- campaign page ---------- */
+/* The page body is measured, not the viewport: at tablet widths the sidebar
+   leaves ~580px, too narrow for the two-column cards or the 5-column
+   recipients table, so they stack / switch to the card list like a phone. */
+.detailBody { container-type: inline-size; }
+@container (max-width: 760px) {
+  .detailBody :global(.pm2-g21), .detailBody :global(.pm2-g2) { grid-template-columns: minmax(0, 1fr); }
+  .detailBody :global(.pm2-tbl-wrap.swap) { display: none; }
+  .detailBody :global(.pm2-cards) { display: block; }
+}

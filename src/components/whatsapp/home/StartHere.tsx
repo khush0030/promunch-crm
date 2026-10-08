@@ -85,7 +85,7 @@ export default function StartHere() {
           )}
         </p>
         <div className={h.acts}>
-          <Link href={NEW_TEMPLATE_HREF} className={`pm2-btn ${h.hideM}`}>New template</Link>
+          <Link href={NEW_TEMPLATE_HREF} className="pm2-btn">New template</Link>
           <Link href={NEW_CAMPAIGN_HREF} className="pm2-btn pri">
             <Plus aria-hidden /> New campaign
           </Link>
@@ -106,7 +106,11 @@ export default function StartHere() {
             sub={quota.data?.limit != null ? `of ${int(quota.data.limit)} a day, Meta's marketing limit` : "Meta's daily marketing limit"}
           />
         ) : (
-          <Kpi label="Sent · last 24 hours" value={int(quota.data.used24h)} sub="No daily limit set. Meta still holds back extras." />
+          <Kpi
+            label="Sent · last 24 hours"
+            value={int(quota.data.used24h)}
+            sub={quota.data.standing_error ? "Couldn't read the daily limit. Meta still holds back extras." : "No daily limit set. Meta still holds back extras."}
+          />
         )}
       </KpiStrip>
 
@@ -236,9 +240,11 @@ function CampaignReturn({
           </span>
         </div>
         <div className={`${h.crRoi} ${h[`tone_${tone}`]}`}>
-          <b className={multiple ? undefined : h.crRoiNone}>{multiple ?? "Not yet"}</b>
+          <b className={multiple ? undefined : h.crRoiNone}>{multiple ?? (loading && !card ? "…" : "Not yet")}</b>
           <span>
-            {roi === 0
+            {loading && !card
+              ? "return · counting"
+              : roi === 0
               ? "return · no orders from it yet"
               : roi != null && multiple
               ? `return · ₹${roi >= 10 ? Math.round(roi) : roi.toFixed(1)} for every ₹1 spent`

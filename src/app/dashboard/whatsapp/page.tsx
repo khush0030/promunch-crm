@@ -9,6 +9,7 @@ import TemplatesView from "@/components/whatsapp/TemplatesView";
 import KbView from "@/components/whatsapp/KbView";
 import CampaignsView from "@/components/whatsapp/CampaignsView";
 import FlowsView from "@/components/whatsapp/FlowsView";
+import { WA_TAB_RESELECT } from "@/components/whatsapp/flows/context";
 import VoiceView from "@/components/whatsapp/VoiceView";
 import GrowthView from "@/components/whatsapp/GrowthView";
 import StartHere from "@/components/whatsapp/home/StartHere";
@@ -100,7 +101,12 @@ function WhatsAppPageInner() {
             title="WhatsApp marketing"
             tabs={ITEMS.filter((it) => allowedTabs.includes(it.key) && !ELSEWHERE[it.key])}
             activeTab={tab}
-            onTab={(k) => setTab(k as PageTab)}
+            onTab={(k) => {
+              // Re-clicking the open tab returns it to its start (e.g. the
+              // Automations list from an open automation). UI only.
+              if (k === tab) window.dispatchEvent(new CustomEvent(WA_TAB_RESELECT, { detail: k }));
+              setTab(k as PageTab);
+            }}
           />
         )}
       </div>
