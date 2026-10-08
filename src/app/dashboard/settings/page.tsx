@@ -7,6 +7,7 @@ import { PageHeader, Avatar } from "@/components/pm";
 import { ApiKeysPanel } from "@/components/settings/ApiKeysPanel";
 import { MODULES, type ModuleKey } from "@/lib/access";
 import { ago } from "@/components/admin/format";
+import { useHash } from "@/components/shell/useShellData";
 import css from "@/components/settings/Settings.module.css";
 
 type Status = "healthy" | "degraded" | "down" | "unknown";
@@ -47,12 +48,18 @@ export default function SettingsPage() {
   const [tab, setTab] = useState("connections");
 
   // Deep-link support: /dashboard/settings#team opens the Team tab (used by the
-  // legacy /integrations and /team route redirects).
+  // legacy /integrations and /team route redirects, and the ⌘K palette). The
+  // hash is followed while the page is open, and a tab click writes it back.
+  const hash = useHash();
   useEffect(() => {
-    const raw = window.location.hash.replace("#", "");
+    const raw = hash.replace("#", "");
     const h = HASH_ALIAS[raw] ?? raw;
     if (h && TABS.some((t) => t.key === h)) setTab(h);
-  }, []);
+  }, [hash]);
+  const pickTab = (key: string) => {
+    setTab(key);
+    window.history.replaceState(null, "", `#${key}`);
+  };
   const [disconnectBusy, setDisconnectBusy] = useState(false);
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(false);
@@ -170,7 +177,7 @@ export default function SettingsPage() {
         title={tabMeta.title}
         tabs={TABS}
         activeTab={tab}
-        onTab={setTab}
+        onTab={pickTab}
         actions={
           tab === "team" ? (
             <button type="button" className="pm2-btn pri" onClick={() => setInviteOpen(true)} disabled={inviteBusy}>

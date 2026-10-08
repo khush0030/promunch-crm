@@ -100,7 +100,8 @@ function MoreSheet({
   });
 
   useEffect(() => {
-    sheet.current?.querySelector<HTMLElement>(".pm3-sheet-item")?.focus();
+    // Focus the sheet itself so no item looks pre-selected.
+    sheet.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") closeRef.current();
     };
@@ -110,7 +111,7 @@ function MoreSheet({
 
   return (
     <div className="pm2-sheet-backdrop" onClick={onClose}>
-      <div ref={sheet} className="pm3-sheet" role="dialog" aria-modal="true" aria-label="More" onClick={(e) => e.stopPropagation()}>
+      <div ref={sheet} tabIndex={-1} className="pm3-sheet" role="dialog" aria-modal="true" aria-label="More" onClick={(e) => e.stopPropagation()}>
         <i className="grab" aria-hidden />
         <div className="pm3-sheet-head">
           <b>More</b>

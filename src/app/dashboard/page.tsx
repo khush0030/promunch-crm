@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { LineChart, StackBar, PeriodPicker, Callout } from "@/components/pm";
 import { useShellUser } from "@/components/shell/useShellData";
+import { SectionTabs } from "@/components/shell/SectionTabs";
 import { useCampaigns } from "@/components/whatsapp/campaigns/api";
 import { progressOf } from "@/components/whatsapp/campaigns/logic";
 import type { Campaign } from "@/components/whatsapp/types";
@@ -249,25 +250,28 @@ function DashboardPageInner() {
   })();
 
   const header = (
-    <header className={s.ph}>
-      <div className={s.phText}>
-        <span className={s.eyebrow} suppressHydrationWarning>
-          ★ {eyebrowDate(now)}
-        </span>
-        <h1 className={s.title} suppressHydrationWarning>
-          Good {greetingWord(now)}, {firstName}.
-        </h1>
-        {summary.length > 0 && <p className={s.sum}>{summary}</p>}
-      </div>
-      <div className={s.acts}>
-        <PeriodPicker options={PERIODS} value={period} onChange={setPeriod} />
-        {top && (
-          <Link href={top.href} className={`pm2-btn pri ${s.primary}`}>
-            {primaryLabel(top)}
-          </Link>
-        )}
-      </div>
-    </header>
+    <>
+      <header className={s.ph}>
+        <div className={s.phText}>
+          <span className={s.eyebrow} suppressHydrationWarning>
+            ★ {eyebrowDate(now)}
+          </span>
+          <h1 className={s.title} suppressHydrationWarning>
+            Good {greetingWord(now)}, {firstName}.
+          </h1>
+          {summary.length > 0 && <p className={s.sum}>{summary}</p>}
+        </div>
+        <div className={s.acts}>
+          <PeriodPicker options={PERIODS} value={period} onChange={setPeriod} />
+          {top && (
+            <Link href={top.href} className={`pm2-btn pri ${s.primary}`}>
+              {primaryLabel(top)}
+            </Link>
+          )}
+        </div>
+      </header>
+      <SectionTabs />
+    </>
   );
 
   if (salesQ.isLoading) {

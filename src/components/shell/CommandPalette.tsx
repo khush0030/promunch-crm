@@ -126,7 +126,11 @@ export default function CommandPalette({ onClose }: { onClose: (navigated: boole
   function open(r: Result | undefined) {
     if (!r) return;
     onClose(true);
-    router.push(r.href);
+    // Same page, new #section: set the hash so the page hears a hashchange
+    // (router.push only does pushState, which pages listening for it miss).
+    const [path, hash] = r.href.split("#");
+    if (hash && path === window.location.pathname) window.location.hash = hash;
+    else router.push(r.href);
   }
 
   function onKeyDown(e: React.KeyboardEvent) {

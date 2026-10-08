@@ -50,7 +50,8 @@ a.kpi:hover{border-color:#CFC7B9}
 .tx span{display:block;color:var(--pm-muted);font-size:14.5px;line-height:1.4}
 .goV{font:400 18px var(--pm-display);white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
 .goV small{display:block;font:600 12px var(--pm-font);color:var(--pm-muted)}
-.goV.crit{color:var(--pm-terra)}
+/* urgency is carried by the row icon; amounts stay ink (one red per screen) */
+.goV.crit{color:var(--pm-ink)}
 .goC{color:var(--pm-muted);width:18px;height:18px;flex-shrink:0}
 .empty{padding:6px 22px 22px;color:var(--pm-muted);font-size:15px}
 

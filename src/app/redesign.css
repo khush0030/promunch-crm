@@ -110,6 +110,10 @@ body{font-family:var(--pm-font);font-size:16px;line-height:1.5;color:var(--pm-in
 .pm3-sectabs a.on{color:var(--pm-ink);font-weight:700}
 .pm3-sectabs a.on::after{content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:2px;border-radius:2px;background:var(--pm-brand)}
 .pm-head+.pm3-sectabs{margin:6px 0 20px;padding:0}
+/* first tab lines up with the page title */
+.pm3-sectabs a:first-child{padding-left:0}
+.pm3-sectabs a:first-child.on::after{left:0}
+.pm3-sheet:focus{outline:0}
 
 /* phone: top bar with logo, bottom tabs, More sheet */
 .pm3-tabbar{display:none}
@@ -128,12 +132,19 @@ body{font-family:var(--pm-font);font-size:16px;line-height:1.5;color:var(--pm-in
 .pm3-sheet-item.on .ic svg{color:var(--pm-brand)}
 
 @media (max-width:1024px){
-  :root{--pm3-gutter:28px}
+  :root,:root[data-theme]{--pm3-gutter:28px}
 }
 @media (max-width:760px){
-  :root{--pm3-gutter:16px}
+  :root,:root[data-theme]{--pm3-gutter:16px}
   .pm2-app,.pm2-app.rail{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr;grid-template-areas:"top" "main";padding-bottom:calc(72px + env(safe-area-inset-bottom))}
   .pm3-side{display:none}
+  /* tabs that run off screen fade out at the edge so it reads as scrollable */
+  .pm3-sectabs{padding-right:40px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent)}
+  .pm3-sectabs a{padding:11px 11px 12px;font-size:15px}
+  .pm3-sectabs a.on::after{left:11px;right:11px}
+  .pm2-tabs{padding-right:40px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent)}
+  .pm3-sectabs+.pm2-tabs{padding-left:var(--pm3-gutter)}
+  .pm3-sectabs+.pm2-tabs button{padding:6px 11px;font-size:14px}
   .pm3-top{padding:calc(10px + env(safe-area-inset-top)) 16px 8px;gap:8px;background:var(--pm-app)}
   .pm3-top-logo{display:flex;align-items:center;margin-right:auto}
   .pm3-top-logo img{height:18px;width:auto}
@@ -263,7 +274,7 @@ table.pm2-tbl,.pm-tbl{font-size:15.5px}
 
 /* dialogs, sheets, palette */
 .pm2-dialog{border-radius:24px;padding:26px;box-shadow:var(--pm-shadow-pop)}
-.pm2-dialog .t{font:400 20px/1.2 var(--pm-display);text-transform:uppercase;margin-bottom:8px}
+.pm2-dialog .t{font:700 20px/1.25 var(--pm-font);margin-bottom:8px;overflow-wrap:anywhere}
 .pm2-dialog .c{font-size:15.5px;color:var(--pm-ink2)}
 .pm2-dialog .act{margin-top:22px}
 .pm2-dialog-backdrop,.pm2-overlay,.pm2-sheet-backdrop{background:rgba(26,23,20,.42)}

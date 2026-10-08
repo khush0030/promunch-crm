@@ -90,6 +90,13 @@ function AssistantInner() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // A prefilled question should be in view (on phones the box sits below the fold).
+  const prefilled = params.get("q");
+  useEffect(() => {
+    if (!prefilled) return;
+    inputRef.current?.focus({ preventScroll: true });
+    inputRef.current?.scrollIntoView({ block: "center" });
+  }, [prefilled]);
 
   const { messages, sendMessage, status, setMessages, error, stop } = useChat({
     transport: new DefaultChatTransport({ api: "/api/assistant/chat" }),

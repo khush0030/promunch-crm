@@ -69,26 +69,39 @@ function ChromeWithTab(props: ChromeProps) {
   return <Chrome tab={tab} {...props} />;
 }
 
-// Collapsed icon rail on laptops, remembered per browser.
+// Collapsed icon rail, remembered per browser. Tablets (761-1099px) start
+// collapsed so the page keeps its width; desktops start expanded. Each size
+// remembers its own choice.
+const TABLET = "(max-width: 1099px)";
 const railListeners = new Set<() => void>();
+function isTablet(): boolean {
+  return typeof window !== "undefined" && window.matchMedia(TABLET).matches;
+}
+function railKey(): string {
+  return isTablet() ? "pm:rail-tablet" : "pm:rail";
+}
 function readRail(): boolean {
   try {
-    return localStorage.getItem("pm:rail") === "1";
+    const v = localStorage.getItem(railKey());
+    return isTablet() ? v !== "0" : v === "1";
   } catch {
-    return false;
+    return isTablet();
   }
 }
 function subscribeRail(cb: () => void) {
   railListeners.add(cb);
+  const mq = window.matchMedia(TABLET);
+  mq.addEventListener("change", cb);
   return () => {
     railListeners.delete(cb);
+    mq.removeEventListener("change", cb);
   };
 }
 function useRail(): [boolean, () => void] {
   const rail = useSyncExternalStore(subscribeRail, readRail, () => false);
   const toggle = useCallback(() => {
     try {
-      localStorage.setItem("pm:rail", readRail() ? "0" : "1");
+      localStorage.setItem(railKey(), readRail() ? "0" : "1");
     } catch {}
     railListeners.forEach((l) => l());
   }, []);
