@@ -1,6 +1,6 @@
 # Redesign handoff: continue in any session (local or cloud)
 
-**Keep this file current.** Updated at every milestone. Last update: **8 Oct 2026, 11:45 IST**, branch `redesign/app-v2` @ see `git log -1`.
+**Keep this file current.** Updated at every milestone. Last update: **8 Oct 2026, 12:10 IST**, branch `redesign/app-v2` @ see `git log -1`.
 
 Read first: `AGENTS.md`, `CLAUDE.md`, `promunch-email-agent/CLAUDE.md` §0 (never message a customer twice).
 
@@ -60,17 +60,30 @@ The full CRM redesign lives on branch **`redesign/app-v2`** (pushed; ~32 commits
 - **Leaner UI (8 Oct):** do NOT re-add info the redesign dropped. That covers the email click-rate/When columns, WhatsApp campaign reach/Delivered/Replies/Clicks, the Results Replies/Orders tiles, contacts lists/status, and the Home Web/Amazon/Repeat tiles. Only fix numbers that are wrong, dead ends and clipping.
 - Calm UI rules: status = coloured text + dot, no filled blocks, one red element per screen, yellow only for Maya, green only for good, hairlines and no boxes in boxes, readable at 390px, nothing cut off.
 
-## 4. Current state: fidelity audit done, waiting on the owner
+## 4. Current state: owner chose "start with top 5" (fidelity Tier 1 items 1-5)
 
-- **Functional QA:** finished and passing. In the production build, the safe click-through made 1,037 clicks across 68 routes at 2 widths with no app errors. Everything it flagged was harness timing or a test-browser limit, identical on main.
-- **Design-fidelity audit:** finished. Read **`docs/audits/2026-10-08-redesign-fidelity.md`**.
-  - The build has the prototype's tokens, fonts and colours, but many screens kept the old structure: flipped header pattern, tab sets not matching the IA, extra chrome.
-  - Some screens were never redesigned: B2B/Deals, Email Results, the customer profile, login/404/no-access/error, the creator portal, the welcome pop-up and the sign-up popup editor.
-  - The audit holds a ranked Tier 1 (UI-only) list, a bugs list and a Tier 2 (needs backend) list.
-- **Next step: the OWNER picks what to fix.** They were also sending their own pinpointed differences. Do not start the redesign rework until they choose.
-  - Suggested order: Tier 1 items 1-5 (header pattern, Home, login/404, welcome, tabs), then the bug list, then per-area items.
-  - Tier 2 needs owner scoping because it adds backend work.
-- **Open question for the owner:** the WhatsApp campaign report shows Replies, not Orders, in its KPI tiles. Does the "no Replies/Orders tiles" decision cover the report or only Results?
+- **Foundation committed** (`f6584ef`):
+  - `nav.ts` IA tab sets:
+    - Inbox: Tickets · Live chats · Email drafts · Bot knowledge.
+    - Orders: Confirm COD · Voice calls · All orders (`?tab=all`) · Call rules (`?tab=rules`).
+    - Customers: Customers · Segments (`/dashboard/email/audiences`) · Sign-up popup.
+    - Insights: Sales · Website · Amazon.
+    - Settings: one row, ending in Security (`/dashboard/admin`).
+  - `PageHeader` has a `summary` prop (eyebrow → TITLE → sentence → actions, then tabs).
+  - Same-page `#hash` section tabs fire hashchange. Tests updated (1440 pass).
+- **In progress:** 5 build agents, uncommitted work in the worktree. Each owns separate files:
+  1. Home (red pinstripe hero tile, uppercase greeting, full-width area chart, all-clear state) + welcome pop-up (`dashboard/page.tsx`, `home.module.css`, the Onboarding component).
+  2. Login, set-password, unsubscribe, `not-found.tsx` (root + dashboard), no-access, `dashboard/error.tsx`.
+  3. Inbox + Orders/Voice/KB headers and tabs (incl. Orders `?tab=all|rules`).
+  4. Customers, Segments, Insights (Amazon as one sectioned page), Settings (drop the page's own tab row), Security headers.
+  5. WhatsApp per-tab headers (Overview · Campaigns · Templates · Automations · Results) + Email tabs (Overview · Campaigns · Automations · Templates · Results, with Results = `/dashboard/analytics` framed).
+- **If this session died mid-build:**
+  - Run `git status` in the worktree. Uncommitted files are agent work.
+  - Check each area against the prototype at 1440/390 and fix or finish it.
+  - Then run `tsc`, `vitest`, `lint` (no new errors) and `npm run build`.
+  - Commit per area and push.
+- **After the top 5:** the bug list in the audit, then further Tier 1 items as the owner picks.
+- **Open question for the owner:** does the "no Replies/Orders tiles" decision cover the WhatsApp campaign report, or only the Results tab?
 
 ## 5. Open owner decisions (do not build without a yes)
 
@@ -130,5 +143,6 @@ The full CRM redesign lives on branch **`redesign/app-v2`** (pushed; ~32 commits
 
 ## 9. Update log
 
+- 2026-10-08 12:10 IST: owner said "start with top 5"; IA tab sets + header slot committed (f6584ef); 5 build agents running.
 - 2026-10-08 11:45 IST: fidelity audit finished (6 areas), written to docs/audits/2026-10-08-redesign-fidelity.md. Prod-build click-through passed. Waiting on owner to pick fixes.
 - 2026-10-08 10:15 IST: file created. QA + fixes done and pushed; fidelity review running; final prod click-through running.
