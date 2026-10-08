@@ -152,7 +152,6 @@ const PAGE_PREFIXES: Array<[string, ModuleKey]> = [
   ["/dashboard/inbox", "inbox"],
   ["/dashboard/support-emails", "inbox"],
   ["/dashboard/email", "email_marketing"],
-  ["/dashboard/marketing", "email_marketing"],
   ["/dashboard/campaigns", "email_marketing"],
   ["/dashboard/flows", "email_marketing"],
   // Email marketing analytics (Resend era), not WhatsApp analytics.
@@ -251,7 +250,6 @@ export const API_RULES: ApiRule[] = [
   { prefix: "/api/whatsapp/kb", modules: ["bot_knowledge"] },
 
   { prefix: "/api/email-studio", modules: ["email_marketing"] },
-  { prefix: "/api/brevo", modules: ["email_marketing"] },
   { prefix: "/api/campaigns", modules: ["email_marketing"] },
   { prefix: "/api/flows", modules: ["email_marketing"] },
 

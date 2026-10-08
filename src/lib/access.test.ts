@@ -128,7 +128,6 @@ describe("pages", () => {
     expect(canOpenHref(marketer, "/dashboard/whatsapp?tab=home")).toBe(true);
     expect(pageModule("/dashboard/whatsapp", "home")).toBe("wa_marketing");
     expect(canOpenHref(marketer, "/dashboard/whatsapp?tab=growth")).toBe(true);
-    expect(canOpenHref(marketer, "/dashboard/marketing/email/123/edit")).toBe(true);
     expect(canOpenHref(marketer, "/dashboard/email/campaigns/abc")).toBe(true);
     expect(canCallApi(marketer, "/api/email-studio/campaigns/abc/send", "POST")).toBe(true);
     expect(canOpenPage(marketer, "/dashboard", null)).toBe(false);
@@ -161,7 +160,6 @@ describe("api", () => {
     expect(canCallApi(marketer, "/api/whatsapp/lists", "POST")).toBe(true);
     expect(canCallApi(marketer, "/api/whatsapp/campaigns/audience-preview", "POST")).toBe(true);
     expect(canCallApi(marketer, "/api/whatsapp/campaigns/abc/journey", "GET")).toBe(true);
-    expect(canCallApi(marketer, "/api/brevo/campaigns/1/actions", "POST")).toBe(true);
     expect(canCallApi(marketer, "/api/metrics/attention", "GET")).toBe(true);
   });
   it("the marketer is refused customer chats, contacts, sales, settings", () => {
