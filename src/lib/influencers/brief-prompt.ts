@@ -21,6 +21,44 @@ export interface BriefPromptInput {
   discount_code: string | null;
   draft_due: string | null; // human date or a "N days after the box arrives" phrase
   go_live: string | null;
+  /** Campaign hero product (influencer_settings.brief_focus); null = whole range. */
+  focus?: string | null;
+  focus_notes?: string | null;
+}
+
+// Words in a focus name that say nothing about WHICH product it is.
+const FOCUS_STOPWORDS = new Set(["roasted", "fried", "promunch", "snack", "snacks", "the", "and", "new", "range", "line", "pack", "packs"]);
+
+/** Lower-case words that identify the focus product ("Roasted Edamame" → ["edamame"]). */
+export function focusKeywords(focus: string | null | undefined): string[] {
+  if (!focus) return [];
+  const words = focus.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3);
+  const specific = words.filter((w) => !FOCUS_STOPWORDS.has(w));
+  return specific.length ? specific : words;
+}
+
+const KB_BUDGET = 12000;
+const FOCUS_FACTS_BUDGET = 6000;
+
+/**
+ * The KB text for the prompt. With a focus product, every KB paragraph that
+ * names it goes FIRST (so the 12k budget can never cut those facts off), then
+ * the rest of the KB fills what is left. Pure; `full` is the untruncated KB.
+ */
+export function buildBriefKb(full: string, focus: string | null | undefined): string {
+  const keys = focusKeywords(focus);
+  if (!keys.length || !full) return full.slice(0, KB_BUDGET);
+  const paras = full.split(/\n\s*\n/);
+  const hit = (p: string) => keys.some((k) => p.toLowerCase().includes(k));
+  let facts = "";
+  for (const p of paras.filter(hit)) {
+    if (facts.length + p.length + 2 > FOCUS_FACTS_BUDGET) break;
+    facts += (facts ? "\n\n" : "") + p.trim();
+  }
+  if (!facts) return full.slice(0, KB_BUDGET);
+  const head = `### ${focus} facts (the hero product of this campaign)\n${facts}`;
+  const rest = paras.filter((p) => !hit(p)).join("\n\n");
+  return `${head}\n\n## Rest of the knowledge base\n${rest}`.slice(0, KB_BUDGET);
 }
 
 export const BRIEF_SYSTEM_PROMPT =
@@ -43,6 +81,7 @@ export function buildBriefUserPrompt(input: BriefPromptInput, kb: string): strin
     ? input.kit_items.map((i) => `- ${i.qty} x ${i.title}`).join("\n")
     : "(kit not chosen yet, refer to 'the PROMUNCH box')";
   const deliv = deliverablesLine(input.deliverables);
+  const focus = input.focus?.trim() || null;
   return [
     `BRAND KNOWLEDGE BASE (the only source of product facts):`,
     kb || "(empty: state no specific product facts beyond the product names in the kit)",
@@ -60,9 +99,14 @@ export function buildBriefUserPrompt(input: BriefPromptInput, kb: string): strin
     `DRAFT DUE: ${input.draft_due ?? "within the agreed days after the box arrives"}`,
     `GO LIVE: ${input.go_live ?? "after we approve the draft"}`,
     `DISCOUNT CODE FOR THEIR AUDIENCE: ${input.discount_code ?? "(none)"}`,
+    focus ? `HERO PRODUCT OF THIS CAMPAIGN: ${focus}` : ``,
+    focus && input.focus_notes?.trim() ? `CAMPAIGN ANGLE: ${input.focus_notes.trim()}` : ``,
     `USAGE RIGHTS: ${input.usage_rights === "none" ? "none (do not write usage rights text)" : `${input.usage_rights}${input.usage_rights_days ? ` for ${input.usage_rights_days} days` : ""}`}`,
     ``,
     `Write the brief. Requirements:`,
+    focus
+      ? `- The WHOLE brief is about ${focus}. Concept, all 3 hooks, the script, talking points and must_say centre on ${focus} and its facts from the "${focus} facts" section (what makes it different, protein, flavours, how it is made). Do not feature or name any other PROMUNCH product, even if the kit has other items. If the kit lists other products, ignore them in the creative.`
+      : ``,
     `- concept: 2 to 3 sentences, the idea of the video, built around their niche.`,
     `- hooks: exactly 3 different opening lines (first 3 seconds) they can choose from.`,
     `- script: a short, natural spoken script for a ${input.deliverables.reels ? "Reel" : "post"} of about 30 to 45 seconds, written for this creator's style. Plain lines, one beat per line.`,

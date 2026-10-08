@@ -12,17 +12,21 @@ const KB_CHAR_BUDGET = 12000;
 
 /** Returns the Master KB as a single prompt-ready string, or '' if unavailable. */
 export async function getKnowledgeBase(): Promise<string> {
+  const kb = await getFullKnowledgeBase();
+  return kb.length > KB_CHAR_BUDGET ? kb.slice(0, KB_CHAR_BUDGET) : kb;
+}
+
+/** The whole Master KB, untruncated (callers apply their own budget). */
+export async function getFullKnowledgeBase(): Promise<string> {
   try {
     const { data: docs } = await supabaseAdmin
       .from('kb_documents')
       .select('name, raw_text')
       .eq('status', 'ready');
-    let kb = (docs ?? [])
+    return (docs ?? [])
       .filter((d) => d.raw_text && String(d.raw_text).trim())
       .map((d) => `## ${d.name}\n${d.raw_text}`)
       .join('\n\n');
-    if (kb.length > KB_CHAR_BUDGET) kb = kb.slice(0, KB_CHAR_BUDGET);
-    return kb;
   } catch (e) {
     console.warn('getKnowledgeBase failed:', e);
     return '';

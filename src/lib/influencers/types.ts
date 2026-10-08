@@ -263,6 +263,10 @@ export interface InfluencerSettings {
   default_post_after_approval_days: number;
   nudges: Record<string, unknown>;
   team_sla: { brief_approval_hours: number; dispatch_hours: number; draft_review_hours: number };
+  /** Campaign hero product every AI brief centres on (e.g. "Roasted Edamame"); null = whole range. */
+  brief_focus: string | null;
+  /** Optional campaign angle for the AI (e.g. "office snacking, festive gifting"). */
+  brief_focus_notes: string | null;
 }
 
 /** What the public portal API returns for /c/[code]. Never includes address or phone. */
