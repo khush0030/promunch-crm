@@ -7,8 +7,17 @@ import { OWNER_EMAIL, roleOfUser } from "@/lib/rbac";
 import type { Attention } from "@/lib/metrics/attention";
 import type { AttentionCounts } from "./nav";
 
+// True after hydration. Shell hooks that read the React Query cache gate on it
+// so the first client render matches the server HTML even when the data is
+// already cached by the time a late-hydrating boundary (e.g. a 404) hydrates.
+const noop = () => () => {};
+export function useHydrated(): boolean {
+  return useSyncExternalStore(noop, () => true, () => false);
+}
+
 // Badge counts for sidebar + tab bar. Failures leave badges empty.
 export function useAttentionCounts(): AttentionCounts | null {
+  const hydrated = useHydrated();
   const { data } = useQuery<Attention>({
     queryKey: ["attention"],
     queryFn: async () => {
@@ -18,7 +27,7 @@ export function useAttentionCounts(): AttentionCounts | null {
     },
     refetchInterval: 60_000,
   });
-  return data?.counts ?? null;
+  return hydrated ? (data?.counts ?? null) : null;
 }
 
 export type ShellUser = { email: string; name: string; role: string };
