@@ -226,3 +226,20 @@ Deno.test("relevance pre-filter: keyword or owned; exclude → relevant=false", 
   assertEquals(out[3].relevant, false);
   assertEquals(out[0].relevant, undefined);
 });
+
+Deno.test("rss: our own site pages are skipped", async () => {
+  const own = await normalizeFeedEntry({
+    title: "Diwali Gift Ideas - promunch",
+    link: "https://www.google.com/url?rct=j&sa=t&url=https://promunch.in/blogs/news/diwali-gift-ideas&ct=ga",
+    published: "2026-10-08T09:27:35Z",
+    content: "PROMUNCH offers festive snack boxes",
+  } as any, "feed");
+  assertEquals(own, null);
+  const other = await normalizeFeedEntry({
+    title: "10 protein snack brands",
+    link: "https://www.google.com/url?rct=j&sa=t&url=https://yourstory.com/x&ct=ga",
+    published: "2026-10-08T09:27:35Z",
+    content: "PROMUNCH edamame",
+  } as any, "feed");
+  assertEquals(other?.url, "https://yourstory.com/x");
+});

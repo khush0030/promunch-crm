@@ -544,11 +544,15 @@ export async function sha1Hex(s: string): Promise<string> {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+export const OWN_HOSTS = ["promunch.in", "trypromunch.in", "promunch.myshopify.com", "a1e4f4-2.myshopify.com"];
+
 export async function normalizeFeedEntry(e: FeedEntry, feedUrl: string): Promise<MentionInput | null> {
   if (!e.link) return null;
   const url = unwrapGoogleUrl(e.link);
   let host: string | null = null;
   try { host = new URL(url).hostname.replace(/^www\./, ""); } catch { /* keep null */ }
+  // Our own pages (storefront blog, outreach domain) are not reputation.
+  if (host && OWN_HOSTS.some((h) => host === h || host!.endsWith(`.${h}`))) return null;
   return {
     source: "rss",
     external_id: await sha1Hex(url),
