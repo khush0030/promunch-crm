@@ -1,6 +1,6 @@
 # Redesign handoff: continue in any session (local or cloud)
 
-**Keep this file current.** Updated at every milestone. Last update: **9 Oct 2026, early morning IST**, branch `redesign/app-v2` @ see `git log -1`.
+**Keep this file current.** Updated at every milestone. Last update: **9 Oct 2026**, branch `redesign/app-v2` @ see `git log -1`.
 
 Read first: `AGENTS.md`, `CLAUDE.md`, `promunch-email-agent/CLAUDE.md` §0 (never message a customer twice).
 
@@ -60,24 +60,38 @@ The full CRM redesign lives on branch **`redesign/app-v2`** (pushed; ~32 commits
 - **Leaner UI (8 Oct):** do NOT re-add info the redesign dropped. That covers the email click-rate/When columns, WhatsApp campaign reach/Delivered/Replies/Clicks, the Results Replies/Orders tiles, contacts lists/status, and the Home Web/Amazon/Repeat tiles. Only fix numbers that are wrong, dead ends and clipping.
 - Calm UI rules: status = coloured text + dot, no filled blocks, one red element per screen, yellow only for Maya, green only for good, hairlines and no boxes in boxes, readable at 390px, nothing cut off.
 
-## 4. Current state: top 5 + all bug fixes DONE; waiting on owner decisions and review
+## 4. Current state (9 Oct): top 5 + all bug fixes done; waiting on owner answers, then merge
 
-- **Done and pushed** on `redesign/app-v2`:
-  - fidelity Tier 1 items 1-5 (header pattern, Home, public pages, welcome, IA tab sets);
-  - the audit bug list (7 items);
-  - code-review findings (`ba70ad4`);
-  - ops bug hunt (`06924e8`, `ebcad5b`) and marketing bug hunt (`2ce460f`).
-- **Checks:** `tsc` clean, `vitest` 1456/1456, lint 20 = main, `npm run build` 70/70, production crawl clean (remaining flags are known false positives).
-- **Owner decisions pending** (do NOT build without a yes):
-  1. **COD count mismatch:** badge/Home count 14 days (26) vs Confirm COD default 7 days (21). Proposal: Confirm COD lists every order still waiting, whatever the period.
-  2. **Add customer phone format:** saved as typed (no +91). Proposal: normalise new numbers to +91.
-  3. **Live abandoned-cart WhatsApp template** has an em dash ("…before they sell out — tap below…"). Changing it means a Meta resubmission plus a customer-message change, so it needs explicit approval.
-  4. **B2B fit-score prompt** (`src/lib/leads/fit.ts:30`) example has an em dash (team-facing lead reasons).
-  5. **Home has two reds** (pinstripe sales tile + "Confirm COD orders" button). Which wins?
-  6. Does "no Replies/Orders tiles" cover the WhatsApp campaign report?
-  7. **Customer page:** Anonymize/Deactivate moved into a ⋯ menu (same handlers). Confirm it's OK.
-- **Environment check before deploy:** locally `/api/whatsapp/quota` returns `standing_error "wa-meta-info HTTP 401"` (internal key after the Mumbai move). Verify it in prod before shipping.
-- **Next:** owner answers + review, then merge/deploy (runbook §6) when the owner says "merge". Then design pass 2 (audit Tier 1 items 6-20: B2B/Deals rebuild, ticket detail, Maya answer cards, WA report trim, email automations rows, Confirm COD grouping, Live chats rail…).
+- **Done and pushed** on `redesign/app-v2` (HEAD `e204b36`):
+  - fidelity Tier 1 items 1-5;
+  - audit bug list;
+  - code-review fixes;
+  - both bug hunts;
+  - owner decisions from 9 Oct (below).
+- **Checks:**
+  - `tsc` clean, `vitest` 1460/1460, lint 20 (= main), `npm run build` 70/70.
+  - Production crawl clean; the remaining flags are known false positives: Amazon order ids starting "404", sr-only text, blocked test writes, fake-id 404s.
+- **Owner decided 9 Oct (done):**
+  - Phones always stored as `+91…` (`src/lib/contacts/phone.ts`, POST + PATCH `/api/contacts`).
+  - B2B fit prompt: no em dashes, PROMUNCH caps, chips/sticks not called roasted.
+  - WhatsApp campaign report tiles = Delivered · Read · Clicked · Orders (the leaner-tiles decision does NOT cover the report).
+  - Anonymize/Deactivate are visible buttons on the customer page (NOT in a ⋯ menu).
+- **Owner approved removing em dashes from the live abandoned-cart WhatsApp templates. NOT DONE, waiting on A/B:**
+  - Live Meta copy (DB `wa_templates`) differs from the source copy in `promunch-email-agent/supabase/functions/wa-template-create/index.ts` (an optimised rewrite that was never pushed). Resubmitting rebuilds from source.
+  - **A** = keep the live wording, only drop the dashes (edit the source to match live).
+  - **B** = ship the source rewrite without dashes.
+  - Flow: edit the source, run `deno check`, `supabase functions deploy wa-template-create --project-ref wlungshkwfuggtbantkb`, then invoke `{ edit: true, names: ["abandoned_cart_reminder","abandoned_cart_recovery"] }` (internal auth; see memory internal-fn-secret-mismatch).
+  - The old copy keeps sending until Meta re-approves, so there is no downtime.
+  - Ask the owner about `review_request` / `replenishment_reminder` (em dashes too); leave `order_confirmation_v2` unless told.
+  - Ops templates (`order_cancel_ops`, `ops_ticket_alert`) are team-only, so leave them.
+- **Still open with the owner:**
+  1. COD count: badge 14d (26) vs Confirm COD default 7d (21). Proposal: Confirm COD lists every order still waiting.
+  2. Home has two reds (sales tile + Confirm COD button). Which wins?
+  3. Campaign "Orders": the report tile (7-day attribution) says 0 while the Journey card ("ordered any time later") says 7. Use one definition?
+  4. (Unchanged) COD manual confirm, ticket owner merge, per-session sign-out, dark mode.
+- **Before merge:** `origin/main` has 10+ new commits (influencer dashboard/portal, team role presets, bulk-orders fan-out, ORM plan). Merge `origin/main` into the branch, re-run build/tests/lint/crawl, then follow runbook §6.
+- **Before deploy:** locally `/api/whatsapp/quota` shows `standing_error "wa-meta-info HTTP 401"` (internal key after the Mumbai move). Verify it in prod.
+- **Later:** design pass 2 = audit Tier 1 items 6-20 (B2B/Deals rebuild, ticket detail, Maya answer cards, WA report trim, email automations rows, Confirm COD grouping, Live chats rail, customer profile, ⌘K, Needs you, Creators collab page, sign-up popup editor), plus Tier 2 backend items as the owner scopes them.
 
 ## 5. Open owner decisions (do not build without a yes)
 
@@ -137,6 +151,7 @@ The full CRM redesign lives on branch **`redesign/app-v2`** (pushed; ~32 commits
 
 ## 9. Update log
 
+- 2026-10-09: owner decisions applied (phones +91, fit prompt, report tiles, profile buttons); cart template A/B pending; main has new commits to merge before shipping.
 - 2026-10-09 early AM: code-review + both bug hunts fixed and pushed (ba70ad4..2ce460f); build/tests/lint/crawl green; 7 owner decisions listed in section 4.
 - 2026-10-08 ~22:00 IST: all 7 audit bugs fixed + pushed; bug hunt (3 agents) running.
 - 2026-10-08 ~19:45 IST: top 5 done and verified (build, tests, lint, prod crawl); 404 hydration fix. Waiting on owner review + the two-red question.
