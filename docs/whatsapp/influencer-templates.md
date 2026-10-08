@@ -20,7 +20,7 @@ Every entry passes `_shared/template-rules.ts` `validateCore`.
 - PROMUNCH in caps, no em dashes, warm and short. Footer `Your Munchy Pal`.
   UTILITY footers get no STOP notice (`finalFooter`).
 - One URL button per template. The **link** is the creator's private collab page,
-  `https://promunch-crm.vercel.app/c/{{1}}`, and `{{1}}` is the deal code.
+  `https://collab.promunch.in/{{1}}`, and `{{1}}` is the deal code.
 
 If Meta re-categorises any of these as MARKETING, do not resubmit with promo-free
 copy tweaks in a loop. Read [TEMPLATE_CATEGORY_AUDIT.md](TEMPLATE_CATEGORY_AUDIT.md) first.
@@ -52,8 +52,8 @@ Hi {{1}}, your PROMUNCH collab brief is ready. It has the concept, the key point
 
 Please read it and tap "I'm in" on your collab page so we can ship your box.
 ```
-Footer: `Your Munchy Pal` · Button: **Open my brief** → `https://promunch-crm.vercel.app/c/{{1}}`
-Samples: `Priya` · button `https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ`
+Footer: `Your Munchy Pal` · Button: **Open my brief** → `https://collab.promunch.in/{{1}}`
+Samples: `Priya` · button `https://collab.promunch.in/k7Qm2xPa9LtZ`
 
 ### influencer_brief_reminder
 ```
@@ -128,10 +128,13 @@ Or paste each into the dashboard template builder (category Utility). The 15-min
 template sync mirrors Meta's verdict into `wa_templates`. Then send ONE test of each to
 the owner's number before you enable the engine (META_WHATSAPP_TEMPLATE_RULES.md §3).
 
-**Portal domain:** the button base URL is fixed when Meta approves the template. If
-`SITE_APP_URL` changes from `https://promunch-crm.vercel.app`, the templates must be
-edited and re-approved to use the new base URL. The code sends only the deal code as
-the button parameter.
+**Portal domain:** the button base URL is fixed when Meta approves the template. Since
+Oct 8 2026 it is `https://collab.promunch.in/{{1}}` (creator-only host; the Next
+middleware rewrites `/<code>` to `/c/<code>` and serves nothing else there, see
+`src/lib/collab-host.ts`). Edge `portalUrl()` reads `COLLAB_PORTAL_URL` (default
+`https://collab.promunch.in`). Changing the host again means editing and re-approving
+all 8 templates. Old `https://promunch-crm.vercel.app/c/<code>` links keep working.
+The code sends only the deal code as the button parameter.
 
 ## Owner messages (not in this set)
 

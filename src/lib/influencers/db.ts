@@ -251,7 +251,7 @@ export async function suggestKit(followers: number | null | undefined, niche: st
  * route can show "Engine off: copy link instead" without failing the action.
  */
 export async function invokeInfluencerSend(
-  body: { deal_id: string; kind: string } | { reminder_id: string },
+  body: { deal_id: string; kind: string; retry?: boolean } | { reminder_id: string },
 ): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/influencer-send`, {

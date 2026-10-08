@@ -11,8 +11,8 @@
       {
         "type": "URL",
         "text": "Open my brief",
-        "url": "https://promunch-crm.vercel.app/c/{{1}}",
-        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+        "url": "https://collab.promunch.in/{{1}}",
+        "example": "https://collab.promunch.in/k7Qm2xPa9LtZ"
       }
     ]
   },
@@ -28,8 +28,8 @@
       {
         "type": "URL",
         "text": "Open my brief",
-        "url": "https://promunch-crm.vercel.app/c/{{1}}",
-        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+        "url": "https://collab.promunch.in/{{1}}",
+        "example": "https://collab.promunch.in/k7Qm2xPa9LtZ"
       }
     ]
   },
@@ -45,8 +45,8 @@
       {
         "type": "URL",
         "text": "Open collab page",
-        "url": "https://promunch-crm.vercel.app/c/{{1}}",
-        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+        "url": "https://collab.promunch.in/{{1}}",
+        "example": "https://collab.promunch.in/k7Qm2xPa9LtZ"
       }
     ]
   },
@@ -62,8 +62,8 @@
       {
         "type": "URL",
         "text": "Submit my draft",
-        "url": "https://promunch-crm.vercel.app/c/{{1}}",
-        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+        "url": "https://collab.promunch.in/{{1}}",
+        "example": "https://collab.promunch.in/k7Qm2xPa9LtZ"
       }
     ]
   },
@@ -79,8 +79,8 @@
       {
         "type": "URL",
         "text": "Submit my draft",
-        "url": "https://promunch-crm.vercel.app/c/{{1}}",
-        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+        "url": "https://collab.promunch.in/{{1}}",
+        "example": "https://collab.promunch.in/k7Qm2xPa9LtZ"
       }
     ]
   },
@@ -96,8 +96,8 @@
       {
         "type": "URL",
         "text": "See feedback",
-        "url": "https://promunch-crm.vercel.app/c/{{1}}",
-        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+        "url": "https://collab.promunch.in/{{1}}",
+        "example": "https://collab.promunch.in/k7Qm2xPa9LtZ"
       }
     ]
   },
@@ -113,8 +113,8 @@
       {
         "type": "URL",
         "text": "Add post link",
-        "url": "https://promunch-crm.vercel.app/c/{{1}}",
-        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+        "url": "https://collab.promunch.in/{{1}}",
+        "example": "https://collab.promunch.in/k7Qm2xPa9LtZ"
       }
     ]
   },
@@ -130,8 +130,8 @@
       {
         "type": "URL",
         "text": "Open collab page",
-        "url": "https://promunch-crm.vercel.app/c/{{1}}",
-        "example": "https://promunch-crm.vercel.app/c/k7Qm2xPa9LtZ"
+        "url": "https://collab.promunch.in/{{1}}",
+        "example": "https://collab.promunch.in/k7Qm2xPa9LtZ"
       }
     ]
   }
