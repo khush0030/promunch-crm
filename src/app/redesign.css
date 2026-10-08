@@ -192,6 +192,11 @@ body{font-family:var(--pm-font);font-size:16px;line-height:1.5;color:var(--pm-in
 .pm2-crumb i{display:none}
 .pm2-crumb::before{content:"★";letter-spacing:0;color:var(--pm-ink2)}
 .pm2-h1{font-size:var(--pm-h1);line-height:1.08;margin-top:8px;text-transform:uppercase;letter-spacing:-.01em}
+/* header order (04-ia.md): eyebrow, TITLE, one sentence, actions right; tabs below */
+.pm2-top>div:first-child{flex:1 1 420px;min-width:0}
+.pm2-sum{margin-top:10px;font-size:17.5px;line-height:1.5;color:var(--pm-ink2);max-width:62ch}
+.pm2-sum b{color:var(--pm-ink)}
+.pm-head p b{color:var(--pm-ink)}
 .pm2-tabs{padding:0 var(--pm3-gutter);background:none;border-bottom:1px solid var(--pm-border);gap:4px}
 .pm2-tabs button{padding:12px 14px 13px;font:600 16px var(--pm-font);color:var(--pm-ink2);border-bottom:2px solid transparent}
 .pm2-tabs button.on{color:var(--pm-ink);font-weight:700;border-color:var(--pm-brand)}
@@ -289,6 +294,8 @@ table.pm2-tbl,.pm-tbl{font-size:15.5px}
   .pm2-top{padding:10px 16px 12px}
   .pm2-h1{font-size:24px}
   .pm2-actions{width:100%}
+  .pm2-sum{font-size:16px}
+  .pm2-actions .pm2-btn.pri{flex:1;justify-content:center}
   .pm2-body{padding:14px 16px 28px;gap:14px}
   .pm2-kpi{padding:14px 16px}
   .pm2-kpi .v{font-size:26px}

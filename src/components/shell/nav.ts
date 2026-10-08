@@ -75,7 +75,7 @@ export const MAYA: NavItem = {
   area: "Maya",
   label: "Ask Maya",
   href: "/dashboard/assistant",
-  icon: Sparkles,
+  icon: Sparkle,
   desc: "Ask anything about sales, customers or campaigns",
 };
 
@@ -87,10 +87,12 @@ export const SETTINGS: NavItem = {
   desc: "Connections, team, API keys, brand, security",
   tours: ["settings"],
   pages: [
-    { label: "Settings", href: "/dashboard/settings" },
+    { label: "Connections", href: "/dashboard/settings#connections", also: ["/dashboard/settings"] },
+    { label: "Team & access", href: "/dashboard/settings#team" },
+    { label: "API keys", href: "/dashboard/settings#apikeys", adminOnly: true },
+    { label: "Brand & email", href: "/dashboard/settings#brand", also: ["/dashboard/email/settings"] },
     { label: "Security", href: "/dashboard/admin", adminOnly: true },
   ],
-  palette: [{ label: "Health", href: "/dashboard/settings#connections" }],
 };
 
 export const NAV: NavSection[] = [
@@ -112,14 +114,14 @@ export const NAV: NavSection[] = [
       {
         area: "Inbox",
         label: "Inbox",
-        href: ROUTES.inbox,
+        href: ROUTES.inboxTickets,
         icon: Inbox,
         desc: "Chats, tickets and email drafts",
         badge: "inbox",
         tours: ["whatsapp", "support-emails"],
         pages: [
-          { label: "Conversations", href: ROUTES.inbox },
           { label: "Tickets", href: ROUTES.inboxTickets },
+          { label: "Live chats", href: ROUTES.inbox },
           { label: "Email drafts", href: ROUTES.inboxEmail },
           { label: "Bot knowledge", href: "/dashboard/whatsapp?tab=kb" },
         ],
@@ -135,6 +137,8 @@ export const NAV: NavSection[] = [
         pages: [
           { label: "Confirm COD", href: "/dashboard/sales/orders" },
           { label: "Voice calls", href: "/dashboard/whatsapp?tab=voice" },
+          { label: "All orders", href: "/dashboard/sales/orders?tab=all" },
+          { label: "Call rules", href: "/dashboard/sales/orders?tab=rules" },
         ],
       },
     ],
@@ -192,7 +196,7 @@ export const NAV: NavSection[] = [
         area: "Creators",
         label: "Creators",
         href: "/dashboard/influencers",
-        icon: Sparkle,
+        icon: Sparkles,
         desc: "Influencer collabs: brief, box, draft, post",
       },
       {
@@ -220,6 +224,7 @@ export const NAV: NavSection[] = [
         tours: ["contacts"],
         pages: [
           { label: "Customers", href: "/dashboard/contacts" },
+          { label: "Segments", href: "/dashboard/email/audiences" },
           { label: "Sign-up popup", href: "/dashboard/whatsapp?tab=growth" },
         ],
       },
@@ -231,7 +236,7 @@ export const NAV: NavSection[] = [
         desc: "Sales, website and Amazon",
         pages: [
           { label: "Sales", href: "/dashboard/sales" },
-          { label: "Web store", href: "/dashboard/sales/web" },
+          { label: "Website", href: "/dashboard/sales/web" },
           { label: "Amazon", href: "/dashboard/sales/amazon" },
         ],
       },

@@ -13,6 +13,7 @@ export type PageHeaderTab = { label: string; key: string; count?: number | strin
 export function PageHeader({
   crumb,
   title,
+  summary,
   actions,
   tabs,
   activeTab,
@@ -20,6 +21,8 @@ export function PageHeader({
 }: {
   crumb: ReactNode;
   title: ReactNode;
+  /** One plain sentence with the key number in bold, under the title (04-ia.md). */
+  summary?: ReactNode;
   actions?: ReactNode;
   tabs?: PageHeaderTab[];
   activeTab?: string;
@@ -34,6 +37,7 @@ export function PageHeader({
             {crumb}
           </div>
           <h1 className="pm2-h1">{title}</h1>
+          {summary != null && <p className="pm2-sum">{summary}</p>}
         </div>
         {actions != null && <div className="pm2-actions">{actions}</div>}
       </div>

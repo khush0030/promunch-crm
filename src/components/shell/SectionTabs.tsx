@@ -31,7 +31,21 @@ function Tabs() {
       {pages.map((pg) => {
         const on = active?.page?.href === pg.href || (!active?.page && parseHref(pg.href).path === pathname);
         return (
-          <Link key={pg.href} href={pg.href} className={on ? "on" : undefined} aria-current={on ? "page" : undefined}>
+          <Link
+            key={pg.href}
+            href={pg.href}
+            className={on ? "on" : undefined}
+            aria-current={on ? "page" : undefined}
+            onClick={(e) => {
+              // Same page, other #section (Settings): set the hash so the page
+              // hears a hashchange; Next's pushState alone would not tell it.
+              const { path, hash } = parseHref(pg.href);
+              if (hash && path === pathname) {
+                e.preventDefault();
+                window.location.assign(`#${hash.replace(/^#/, "")}`);
+              }
+            }}
+          >
             {pg.label}
           </Link>
         );

@@ -53,10 +53,24 @@ describe("shell nav", () => {
   });
 
   it("resolves Inbox pages", () => {
-    expect(page("/dashboard/inbox")).toBe("Conversations");
-    expect(page("/dashboard/inbox/wa-123")).toBe("Conversations");
+    expect(page("/dashboard/inbox")).toBe("Live chats");
+    expect(page("/dashboard/inbox/wa-123")).toBe("Live chats");
     expect(page("/dashboard/inbox/tickets")).toBe("Tickets");
     expect(page("/dashboard/inbox/email")).toBe("Email drafts");
+  });
+
+  it("follows the IA tab sets (04-ia.md)", () => {
+    const owner = accessOf({ email: "boss@promunch.in", app_metadata: { role: "admin" } });
+    const labels = (path: string, tab: string | null = null, hash = "") => sectionTabs(findActive(path, tab, hash), owner).map((p) => p.label);
+    expect(labels("/dashboard/inbox/tickets")).toEqual(["Tickets", "Live chats", "Email drafts", "Bot knowledge"]);
+    expect(labels("/dashboard/sales/orders")).toEqual(["Confirm COD", "Voice calls", "All orders", "Call rules"]);
+    expect(page("/dashboard/sales/orders", "all")).toBe("All orders");
+    expect(page("/dashboard/sales/orders", "rules")).toBe("Call rules");
+    expect(labels("/dashboard/contacts")).toEqual(["Customers", "Segments", "Sign-up popup"]);
+    expect(page("/dashboard/email/audiences")).toBe("Segments");
+    expect(labels("/dashboard/settings", null, "#team")).toEqual(["Connections", "Team & access", "API keys", "Brand & email", "Security"]);
+    expect(page("/dashboard/settings", null, "#team")).toBe("Team & access");
+    expect(page("/dashboard/settings")).toBe("Connections");
   });
 
   it("prefers the longer path: orders belong to Orders, the rest of sales to Insights", () => {
@@ -86,11 +100,11 @@ describe("shell nav", () => {
 
   it("shows section tabs only for places with two or more pages", () => {
     const owner = accessOf({ email: "boss@promunch.in", app_metadata: { role: "admin" } });
-    expect(sectionTabs(at("/dashboard/sales/web"), owner).map((p) => p.label)).toEqual(["Sales", "Web store", "Amazon"]);
+    expect(sectionTabs(at("/dashboard/sales/web"), owner).map((p) => p.label)).toEqual(["Sales", "Website", "Amazon"]);
     expect(sectionTabs(at("/dashboard/influencers"), owner)).toEqual([]);
-    expect(sectionTabs(at("/dashboard/admin"), owner).map((p) => p.label)).toEqual(["Settings", "Security"]);
+    expect(sectionTabs(at("/dashboard/admin"), owner).map((p) => p.label)).toEqual(["Connections", "Team & access", "API keys", "Brand & email", "Security"]);
     const agent = accessOf({ email: "a@promunch.in", app_metadata: { role: "agent" } });
-    expect(sectionTabs(at("/dashboard/settings"), agent)).toEqual([]);
+    expect(sectionTabs(at("/dashboard/settings"), agent).map((p) => p.label)).toEqual(["Connections", "Team & access", "Brand & email"]);
   });
 
   it("trims places to what a restricted member can open", () => {
