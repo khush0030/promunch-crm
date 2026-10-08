@@ -1,32 +1,47 @@
 "use client";
 
-import { useRef, useState } from "react";
-import type { PortalView } from "@/lib/influencers/types";
+import { useEffect, useRef, useState } from "react";
+import type { DealStage, PortalView } from "@/lib/influencers/types";
 import { MAX_DRAFT_BYTES, canRequestChange } from "@/lib/influencers/portal-rules";
 import { deliverablesLine } from "@/lib/influencers/brief-content";
+import { PortalFooter, PortalHero } from "./PortalChrome";
 import s from "./portal.module.css";
 
 type Post = (path: string, body?: Record<string, unknown>) => Promise<boolean>;
+type SetMsg = (m: string | null) => void;
 
 const fmtDate = (iso: string | null | undefined) =>
   iso
     ? new Date(iso).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Kolkata" })
     : null;
 
-const STEPS = [
-  { key: "brief", label: "Brief", stages: ["agreed", "brief_draft", "brief_sent"] },
-  { key: "box", label: "Box", stages: ["brief_acknowledged", "dispatched"] },
-  { key: "draft", label: "Draft", stages: ["delivered", "changes_requested"] },
-  { key: "review", label: "Review", stages: ["draft_submitted"] },
-  { key: "live", label: "Go live", stages: ["draft_approved"] },
-  { key: "done", label: "Done", stages: ["posted", "completed"] },
-];
+/** The four creator-facing steps (Brief, Box, Draft, Go live) each stage belongs to. */
+const STEP_OF: Partial<Record<DealStage, number>> = {
+  agreed: 1,
+  brief_draft: 1,
+  brief_sent: 1,
+  brief_acknowledged: 2,
+  dispatched: 2,
+  delivered: 3,
+  changes_requested: 3,
+  draft_submitted: 3,
+  draft_approved: 4,
+  posted: 4,
+  completed: 4,
+};
 
 export default function CreatorPortal({ initialView }: { initialView: PortalView }) {
   const [view, setView] = useState(initialView);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+
+  // A success note fades on its own; errors stay until dismissed or the next action.
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), 6000);
+    return () => clearTimeout(t);
+  }, [flash]);
 
   const post: Post = async (path, body = {}) => {
     setBusy(true);
@@ -55,143 +70,152 @@ export default function CreatorPortal({ initialView }: { initialView: PortalView
 
   const first = view.creator_name.replace(/^@/, "").split(/\s+/)[0] || "there";
   const closed = view.stage === "cancelled" || view.stage === "ghosted";
-  const stepIdx = STEPS.findIndex((st) => st.stages.includes(view.stage));
+  const step = closed ? null : (STEP_OF[view.stage] ?? 1);
+  const allDone = view.stage === "posted" || view.stage === "completed";
   const briefNeedsAck = !!view.brief && !view.brief.acknowledged_at && view.stage !== "brief_sent" && !closed;
+  const hero = heroCopy(view, first);
+  const showChange = !!view.brief && canRequestChange(view.stage);
+  const briefIsMain = view.stage === "brief_sent";
+  const briefOpen =
+    briefIsMain || briefNeedsAck || view.stage === "delivered" || view.stage === "changes_requested";
 
   return (
     <div className={s.page}>
-      <header className={s.top}>
-        <div className={s.brand}>PROMUNCH</div>
-        <div className={s.tag}>Your Munchy Pal</div>
-      </header>
+      <PortalHero step={step} allDone={allDone} title={hero.title} sub={hero.sub} meta={view.handle ? `@${view.handle}` : undefined} />
 
-      <main className={s.main}>
-        <section className={s.hero}>
-          <p className={s.eyebrow}>Creator collab{view.handle ? ` · @${view.handle}` : ""}</p>
-          <h1 className={s.h1}>Hi {first}, welcome to your PROMUNCH collab</h1>
-          <p className={s.lede}>
-            Everything you need lives on this page: your brief, your box and your posting checklist. Bookmark it, we will
-            WhatsApp you whenever something changes.
-          </p>
-          {!closed && (
-            <ol className={s.steps} aria-label="Collab progress">
-              {STEPS.map((st, i) => (
-                <li
-                  key={st.key}
-                  className={`${s.step} ${i < stepIdx ? s.stepDone : ""} ${i === stepIdx ? s.stepNow : ""}`}
-                  aria-current={i === stepIdx ? "step" : undefined}
-                >
-                  <span className={s.dot}>{i < stepIdx ? <Tick /> : i + 1}</span>
-                  <span className={s.stepLabel}>{st.label}</span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
-
-        {error && (
-          <div className={s.error} role="alert">
-            {error}
-          </div>
-        )}
-        {flash && (
-          <div className={s.flash} role="status">
-            {flash}
-          </div>
-        )}
-
+      <main className={s.body}>
         {briefNeedsAck && (
-          <section className={`${s.card} ${s.action}`}>
-            <h2 className={s.h2}>We updated your brief</h2>
+          <section className={s.card}>
+            <p className={`${s.eyebrow} ${s.eyebrowRed}`}>★ We updated your brief</p>
             <p className={s.p}>Have a quick read of the new version below, then let us know it works for you.</p>
-            <button className={s.btn} disabled={busy} onClick={() => post("ack")}>
+            <button className={`${s.btn} ${s.btnPrimary}`} disabled={busy} onClick={() => post("ack")}>
               Got it, looks good
             </button>
           </section>
         )}
 
-        <ActionCard view={view} busy={busy} post={post} setError={setError} setFlash={setFlash} />
+        <StagePanel view={view} busy={busy} post={post} setError={setError} setFlash={setFlash} />
 
-        {view.kit && (
-          <section className={s.card}>
-            <h2 className={s.h2}>Your PROMUNCH box</h2>
-            <p className={s.muted}>{view.kit.name}</p>
-            <ul className={s.kit}>
-              {view.kit.items.map((it, i) => (
-                <li key={i}>
-                  <span className={s.qty}>{it.qty}×</span> {it.title}
-                </li>
-              ))}
-            </ul>
-            {view.order_status_url && (
-              <a className={s.link} href={view.order_status_url} target="_blank" rel="noreferrer">
-                Track your box
-              </a>
-            )}
-          </section>
-        )}
+        {view.kit && !briefIsMain && !["brief_acknowledged", "dispatched"].includes(view.stage) && <KitCard view={view} />}
 
         {view.brief ? (
-          <BriefView view={view} />
+          briefIsMain ? (
+            <>
+              <BriefCards view={view} />
+              {view.kit && <KitCard view={view} />}
+              <div className={s.ctaGroup}>
+                <button className={`${s.btn} ${s.btnPrimary} ${s.btnLg}`} disabled={busy} onClick={() => post("ack")}>
+                  I&apos;ve read it, I&apos;m in
+                </button>
+                {showChange && <ChangeRequest busy={busy} post={post} setFlash={setFlash} />}
+              </div>
+            </>
+          ) : (
+            <details className={s.briefFold} open={briefOpen}>
+              <summary className={s.briefSummary}>
+                <span>
+                  <span className={s.eyebrow}>★ Your brief</span>
+                  <span className={s.briefMeta}>
+                    Version {view.brief.version}
+                    {view.brief.sent_at ? ` · sent ${fmtDate(view.brief.sent_at)}` : ""}
+                  </span>
+                </span>
+                <Chevron />
+              </summary>
+              <div className={s.briefCards}>
+                <BriefCards view={view} />
+                {showChange && <ChangeRequest busy={busy} post={post} setFlash={setFlash} />}
+              </div>
+            </details>
+          )
         ) : (
-          !closed && (
+          !closed &&
+          view.stage !== "agreed" &&
+          view.stage !== "brief_draft" && (
             <section className={s.card}>
-              <h2 className={s.h2}>Your brief</h2>
+              <p className={s.eyebrow}>★ Your brief</p>
               <p className={s.p}>We are putting your brief together. We will WhatsApp you the moment it is ready.</p>
             </section>
           )
         )}
 
-        {view.brief && canRequestChange(view.stage) && (
-          <ChangeRequest busy={busy} post={post} setFlash={setFlash} />
-        )}
+        {view.drafts.length > 0 && <DraftHistory view={view} />}
 
-        {view.drafts.length > 0 && (
-          <section className={s.card}>
-            <h2 className={s.h2}>Your drafts</h2>
-            <ul className={s.drafts}>
-              {[...view.drafts].reverse().map((d) => (
-                <li key={d.version} className={s.draftRow}>
-                  <div className={s.draftHead}>
-                    <strong>Draft {d.version}</strong>
-                    <span className={`${s.chip} ${s[`chip_${d.review_status}`]}`}>
-                      {d.review_status === "pending" ? "In review" : d.review_status === "approved" ? "Approved" : "Changes asked"}
-                    </span>
-                  </div>
-                  <div className={s.muted}>
-                    Sent {fmtDate(d.submitted_at)}
-                    {d.url ? (
-                      <>
-                        {" · "}
-                        <a className={s.link} href={d.url} target="_blank" rel="noreferrer">
-                          Open link
-                        </a>
-                      </>
-                    ) : (
-                      " · Uploaded video"
-                    )}
-                  </div>
-                  {d.note && <p className={s.small}>Your note: {d.note}</p>}
-                  {d.review_note && <p className={s.review}>From Team PROMUNCH: {d.review_note}</p>}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <footer className={s.foot}>
-          <p>Questions? Just reply to our WhatsApp message, a real person reads every one.</p>
-          <p className={s.sign}>Team PROMUNCH, Your Munchy Pal</p>
-        </footer>
+        <PortalFooter />
       </main>
+
+      <div className={s.toastWrap} aria-live="polite">
+        {error && (
+          <div className={`${s.toast} ${s.toastBad}`} role="alert">
+            <span className={s.toastDot} aria-hidden="true" />
+            <span className={s.toastText}>{error}</span>
+            <button className={s.toastX} onClick={() => setError(null)} aria-label="Dismiss message">
+              <XIcon />
+            </button>
+          </div>
+        )}
+        {flash && (
+          <div className={`${s.toast} ${s.toastGood}`} role="status">
+            <span className={s.toastDot} aria-hidden="true" />
+            <span className={s.toastText}>{flash}</span>
+            <button className={s.toastX} onClick={() => setFlash(null)} aria-label="Dismiss message">
+              <XIcon />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Status-aware action card
+// Hero copy per stage
 // ---------------------------------------------------------------------------
-function ActionCard({
+function heroCopy(view: PortalView, first: string): { title: string[]; sub: React.ReactNode } {
+  const due = fmtDate(view.draft_due_at);
+  const live = fmtDate(view.go_live_at);
+  switch (view.stage) {
+    case "agreed":
+    case "brief_draft":
+      return {
+        title: [`Hey ${first},`, "welcome aboard."],
+        sub: "Thanks for teaming up with us. We are writing a brief made for your page and will WhatsApp you the link.",
+      };
+    case "brief_sent":
+      return {
+        title: [`Hey ${first},`, "let's crunch."],
+        sub: "Here's your brief. Read it, tap “I'm in” at the bottom, and we pack your box.",
+      };
+    case "brief_acknowledged":
+      return { title: ["We're packing", "your box."], sub: "Your brief is locked in. We will ship your box soon and share tracking here." };
+    case "dispatched":
+      return { title: ["Your box", "is coming."], sub: "It has shipped. Tap “My box arrived” the moment it reaches you so your timeline starts." };
+    case "delivered":
+      return {
+        title: ["Show us", "the draft."],
+        sub: due ? `Due ${due}. We review every draft within a day.` : "We review every draft within a day.",
+      };
+    case "changes_requested":
+      return { title: ["Nearly there.", "Small tweaks."], sub: "Read our note below, then send the new version here." };
+    case "draft_submitted":
+      return { title: ["Draft in.", "Hang tight."], sub: "Thank you! The team is watching it now." };
+    case "draft_approved":
+      return {
+        title: ["Approved.", "Go crunch it."],
+        sub: live ? `Please go live on ${live}. Quick checklist below.` : "Please go live in the next few days. Quick checklist below.",
+      };
+    case "posted":
+    case "completed":
+      return { title: [`Thank you,`, `${first}!`], sub: "Your post is live and we love it. Thanks for crunching with us." };
+    default:
+      return { title: ["This collab", "is closed."], sub: "If this looks wrong, reply to our WhatsApp message and we will sort it out." };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Status-aware main panel
+// ---------------------------------------------------------------------------
+function StagePanel({
   view,
   busy,
   post,
@@ -201,122 +225,179 @@ function ActionCard({
   view: PortalView;
   busy: boolean;
   post: Post;
-  setError: (e: string | null) => void;
-  setFlash: (e: string | null) => void;
+  setError: SetMsg;
+  setFlash: SetMsg;
 }) {
   const due = fmtDate(view.draft_due_at);
-  const live = fmtDate(view.go_live_at);
   const lastReview = [...view.drafts].reverse().find((d) => d.review_note);
 
   switch (view.stage) {
     case "agreed":
     case "brief_draft":
       return (
-        <Card title="Your brief is on its way" tone="calm">
-          <p className={s.p}>Thanks for teaming up with us. We are writing a brief made for your page. Watch WhatsApp for the link.</p>
-        </Card>
+        <section className={s.card}>
+          <p className={s.eyebrow}>★ How this works</p>
+          <ol className={s.howList}>
+            <li>Read your brief here and tap &ldquo;I&apos;m in&rdquo;.</li>
+            <li>We ship your PROMUNCH box.</li>
+            <li>Make your content and send us the draft on this page.</li>
+            <li>Once we approve it, post and paste the link here.</li>
+          </ol>
+        </section>
       );
     case "brief_sent":
-      return (
-        <Card title="Step 1: read your brief" tone="act">
-          <p className={s.p}>
-            Scroll down for the idea, hooks and script. If it all works for you, tap below and we will pack your box.
-          </p>
-          <button className={s.btn} disabled={busy} onClick={() => post("ack")}>
-            I have read the brief and I am in
-          </button>
-          <p className={s.hint}>Want something changed? Use &ldquo;Ask for a change&rdquo; under the brief.</p>
-        </Card>
-      );
+      return null; // the brief itself is the main content, with the CTA under it
     case "brief_acknowledged":
     case "dispatched":
       return (
-        <Card title={view.stage === "dispatched" ? "Your box is on the way" : "We are packing your box"} tone="calm">
-          <p className={s.p}>
-            {view.stage === "dispatched"
-              ? "Your PROMUNCH box has shipped. Tap below the moment it reaches you so your timeline starts."
-              : "Your brief is locked in. We will ship your box soon and share tracking here."}
-          </p>
-          {view.order_status_url && (
-            <a className={s.btnGhost} href={view.order_status_url} target="_blank" rel="noreferrer">
-              Track my box
-            </a>
+        <>
+          {view.kit ? (
+            <KitCard view={view} />
+          ) : (
+            <section className={s.card}>
+              <p className={s.eyebrow}>★ Your PROMUNCH box</p>
+              <p className={s.p}>{view.stage === "dispatched" ? "Your box has shipped." : "We are packing it now."}</p>
+            </section>
           )}
-          <button className={s.btn} disabled={busy} onClick={() => post("received")}>
-            My box arrived
-          </button>
-        </Card>
+          <div className={s.ctaGroup}>
+            <button className={`${s.btn} ${s.btnPrimary} ${s.btnLg}`} disabled={busy} onClick={() => post("received")}>
+              My box arrived
+            </button>
+            <p className={s.ctaHint}>Tap this once the box is in your hands.</p>
+          </div>
+        </>
       );
     case "delivered":
     case "changes_requested":
       return (
-        <Card title={view.stage === "changes_requested" ? "Small tweaks, then send it again" : "Time to create"} tone="act">
+        <>
           {view.stage === "changes_requested" && lastReview?.review_note && (
-            <p className={s.review}>From Team PROMUNCH: {lastReview.review_note}</p>
+            <section className={s.card}>
+              <p className={`${s.eyebrow} ${s.eyebrowRed}`}>★ Our note on draft {lastReview.version}</p>
+              <blockquote className={s.quote}>{lastReview.review_note}</blockquote>
+              <p className={s.small}>From Team PROMUNCH</p>
+            </section>
           )}
-          {due && (
-            <p className={s.p}>
-              Please send your draft by <strong>{due}</strong>. We review every draft within a day.
-            </p>
-          )}
-          <DraftForm view={view} busy={busy} post={post} setError={setError} setFlash={setFlash} />
-        </Card>
+          <section className={s.card}>
+            <p className={s.eyebrow}>★ {view.stage === "changes_requested" ? "Send the new version" : "Send your draft"}</p>
+            {due && (
+              <p className={s.p}>
+                Please send it by <strong>{due}</strong>. We review every draft within a day.
+              </p>
+            )}
+            <DraftForm view={view} busy={busy} post={post} setError={setError} setFlash={setFlash} />
+          </section>
+        </>
       );
     case "draft_submitted":
       return (
-        <Card title="We are reviewing your draft" tone="calm">
-          <p className={s.p}>Thank you! The team is watching it now and will WhatsApp you within a day, either a go ahead or a small tweak.</p>
-          <p className={s.hint}>Please do not post yet. Wait for our approval.</p>
-        </Card>
+        <section className={s.card}>
+          <p className={s.status}>
+            <span className={`${s.dot} ${s.dotInfo}`} aria-hidden="true" />
+            In review
+          </p>
+          <p className={s.p}>
+            We will WhatsApp you within a day, either a go ahead or a small tweak.
+          </p>
+          <p className={s.strongNote}>Please do not post yet. Wait for our approval.</p>
+        </section>
       );
     case "draft_approved":
       return (
-        <Card title="Approved! You are good to post" tone="act">
-          <p className={s.p}>{live ? <>Please go live on <strong>{live}</strong>.</> : "Please go live in the next few days."} Quick checklist before you hit share:</p>
+        <section className={s.card}>
+          <p className={s.eyebrow}>★ Before you hit share</p>
           {view.brief?.content.checklist?.length ? (
             <ul className={s.checks}>
               {view.brief.content.checklist.map((c, i) => (
                 <li key={i}>
-                  <Tick /> {c}
+                  <span className={`${s.check} ${s.checkOn}`} aria-hidden="true" />
+                  {c}
                 </li>
               ))}
             </ul>
-          ) : null}
+          ) : (
+            <p className={s.p}>Post it the way we approved it, and tag us so we can cheer you on.</p>
+          )}
           <PostForm busy={busy} post={post} />
-        </Card>
+        </section>
       );
     case "posted":
     case "completed":
       return (
-        <Card title="Thank you, you are a star" tone="done">
-          <p className={s.p}>
-            Your post is live and we love it. We will share the numbers with you once it settles. Thanks for crunching with
-            us!
+        <section className={s.card}>
+          <p className={s.status}>
+            <span className={`${s.dot} ${s.dotGood}`} aria-hidden="true" />
+            Post received
           </p>
+          <p className={s.p}>We will share the numbers with you once it settles.</p>
           {view.post_url && (
-            <a className={s.link} href={view.post_url} target="_blank" rel="noreferrer">
+            <a className={`${s.btn} ${s.btnLg}`} href={view.post_url} target="_blank" rel="noreferrer">
               View your post
             </a>
           )}
-        </Card>
+        </section>
       );
     default:
-      return (
-        <Card title="This collab is closed" tone="calm">
-          <p className={s.p}>If this looks wrong, reply to our WhatsApp message and we will sort it out.</p>
-        </Card>
-      );
+      return null;
   }
 }
 
-function Card({ title, tone, children }: { title: string; tone: "act" | "calm" | "done"; children: React.ReactNode }) {
+// ---------------------------------------------------------------------------
+// Box
+// ---------------------------------------------------------------------------
+const PACK_TONES: [RegExp, string][] = [
+  [/masala/i, "#EF5B31"],
+  [/himalayan|rock salt/i, "#1F8E9C"],
+  [/crunch/i, "#AF272F"],
+  [/chip/i, "#D99A00"],
+  [/hamper|gift/i, "#6B3FA0"],
+];
+const packTone = (title: string) => PACK_TONES.find(([re]) => re.test(title))?.[1] ?? "#4A423C";
+const packInitials = (title: string) =>
+  title
+    .split(/\s+/)
+    .filter((w) => /^[A-Za-z]/.test(w))
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("") || "PM";
+
+function KitCard({ view }: { view: PortalView }) {
+  const kit = view.kit!;
+  const shipping = view.stage === "brief_acknowledged" || view.stage === "dispatched";
   return (
-    <section className={`${s.card} ${s.action} ${s[`tone_${tone}`]}`}>
-      <h2 className={s.h2}>{title}</h2>
-      {children}
+    <section className={s.card}>
+      <p className={s.eyebrow}>★ Your PROMUNCH box</p>
+      <h2 className={s.h3}>{kit.name}</h2>
+      <ul className={s.kit}>
+        {kit.items.map((it, i) => (
+          <li key={i}>
+            <span className={s.pack} style={{ background: packTone(it.title) }} aria-hidden="true">
+              {packInitials(it.title)}
+            </span>
+            <span>
+              <span className={s.qty}>{it.qty}×</span> {it.title}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {view.order_status_url && (
+        <a
+          className={shipping ? `${s.btn} ${s.btnBlock}` : s.link}
+          href={view.order_status_url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Track my box
+        </a>
+      )}
     </section>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Draft upload / link
+// ---------------------------------------------------------------------------
+const fmtSize = (n: number) => (n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
 function DraftForm({
   view,
@@ -328,18 +409,22 @@ function DraftForm({
   view: PortalView;
   busy: boolean;
   post: Post;
-  setError: (e: string | null) => void;
-  setFlash: (e: string | null) => void;
+  setError: SetMsg;
+  setFlash: SetMsg;
 }) {
-  const [mode, setMode] = useState<"link" | "upload">("link");
   const [url, setUrl] = useState("");
   const [note, setNote] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const clearFile = () => {
+    setFile(null);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
   const submitLink = async () => {
-    if (!url.trim()) return setError("Paste the link to your draft first.");
+    if (!url.trim()) return setError("Upload your video or paste the link to your draft first.");
     if (await post("draft", { url: url.trim(), note: note.trim() || null })) setFlash("Draft received. Thank you!");
   };
 
@@ -370,42 +455,76 @@ function DraftForm({
   const uploading = progress !== null;
   return (
     <div className={s.form}>
-      <div className={s.seg} role="tablist">
-        <button role="tab" aria-selected={mode === "link"} className={mode === "link" ? s.segOn : ""} onClick={() => setMode("link")}>
-          Paste a link
-        </button>
-        <button role="tab" aria-selected={mode === "upload"} className={mode === "upload" ? s.segOn : ""} onClick={() => setMode("upload")}>
-          Upload video
-        </button>
-      </div>
-      {mode === "link" ? (
-        <label className={s.field}>
-          <span>Link to your draft</span>
-          <input
-            type="url"
-            inputMode="url"
-            placeholder="Google Drive, unlisted YouTube or Instagram draft link"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            maxLength={1000}
-          />
-        </label>
+      {file ? (
+        <div className={s.filePicked}>
+          <span className={s.fileIcon} aria-hidden="true">
+            <VideoIcon />
+          </span>
+          <span className={s.fileText}>
+            <strong>{file.name}</strong>
+            <span>{fmtSize(file.size)}</span>
+          </span>
+          <button className={`${s.btn} ${s.btnSm}`} onClick={clearFile} disabled={uploading}>
+            Remove
+          </button>
+        </div>
       ) : (
-        <label className={s.field}>
-          <span>Your video (up to 200 MB)</span>
-          <input ref={fileRef} type="file" accept="video/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <label className={s.drop}>
+          <input
+            ref={fileRef}
+            className={s.srOnly}
+            type="file"
+            accept="video/*"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          />
+          <UploadIcon />
+          <strong>Upload video</strong>
+          <span>Up to 200 MB, straight from your phone</span>
         </label>
       )}
+
+      {!file && (
+        <>
+          <p className={s.or} aria-hidden="true">
+            <span>or</span>
+          </p>
+          <label className={s.field}>
+            <span className={s.label}>Paste a link</span>
+            <input
+              className={s.input}
+              type="url"
+              inputMode="url"
+              placeholder="Google Drive, Instagram or YouTube (unlisted)"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              maxLength={1000}
+            />
+          </label>
+        </>
+      )}
+
       <label className={s.field}>
-        <span>Anything we should know? (optional)</span>
-        <textarea rows={2} value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} />
+        <span className={s.label}>Note for us (optional)</span>
+        <textarea className={s.textarea} rows={3} value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} />
       </label>
+
       {uploading && (
-        <div className={s.bar} aria-label="Upload progress">
+        <div
+          className={s.bar}
+          role="progressbar"
+          aria-label="Upload progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progress ?? 0}
+        >
           <div style={{ width: `${progress}%` }} />
         </div>
       )}
-      <button className={s.btn} disabled={busy || uploading} onClick={mode === "link" ? submitLink : submitUpload}>
+      <button
+        className={`${s.btn} ${s.btnPrimary} ${s.btnLg}`}
+        disabled={busy || uploading}
+        onClick={file ? submitUpload : submitLink}
+      >
         {uploading ? `Uploading ${progress}%` : "Send my draft"}
       </button>
     </div>
@@ -437,13 +556,17 @@ function putWithProgress(signedUrl: string, file: File, onProgress: (n: number) 
   });
 }
 
+// ---------------------------------------------------------------------------
+// Post link
+// ---------------------------------------------------------------------------
 function PostForm({ busy, post }: { busy: boolean; post: Post }) {
   const [url, setUrl] = useState("");
   return (
     <div className={s.form}>
       <label className={s.field}>
-        <span>Once it is live, paste your post link</span>
+        <span className={s.label}>Posted? Paste the link</span>
         <input
+          className={s.input}
           type="url"
           inputMode="url"
           placeholder="https://www.instagram.com/reel/..."
@@ -452,49 +575,129 @@ function PostForm({ busy, post }: { busy: boolean; post: Post }) {
           maxLength={500}
         />
       </label>
-      <button className={s.btn} disabled={busy || !url.trim()} onClick={() => post("post", { post_url: url.trim() })}>
+      <button
+        className={`${s.btn} ${s.btnPrimary} ${s.btnLg}`}
+        disabled={busy || !url.trim()}
+        onClick={() => post("post", { post_url: url.trim() })}
+      >
         Submit post link
       </button>
     </div>
   );
 }
 
-function ChangeRequest({ busy, post, setFlash }: { busy: boolean; post: Post; setFlash: (e: string | null) => void }) {
-  const [open, setOpen] = useState(false);
+// ---------------------------------------------------------------------------
+// Change request (modal dialog)
+// ---------------------------------------------------------------------------
+function ChangeRequest({ busy, post, setFlash }: { busy: boolean; post: Post; setFlash: SetMsg }) {
   const [msg, setMsg] = useState("");
-  if (!open) {
-    return (
-      <button className={s.textBtn} onClick={() => setOpen(true)}>
-        Ask for a change to the brief
+  const ref = useRef<HTMLDialogElement>(null);
+  const close = () => ref.current?.close();
+
+  return (
+    <>
+      <button className={`${s.btn} ${s.btnBlock}`} onClick={() => ref.current?.showModal()}>
+        Request a change
       </button>
-    );
-  }
+      <dialog
+        ref={ref}
+        className={s.dialog}
+        aria-labelledby="pm-change-title"
+        onClick={(e) => {
+          if (e.target === ref.current) close(); // tap on the backdrop
+        }}
+      >
+        <div className={s.dialogIn}>
+          <div className={s.dialogHead}>
+            <div>
+              <h2 id="pm-change-title" className={s.h2}>
+                What should change?
+              </h2>
+              <p className={s.small}>The PROMUNCH team gets this right away and replies on WhatsApp.</p>
+            </div>
+            <button className={s.iconBtn} onClick={close} aria-label="Close">
+              <XIcon />
+            </button>
+          </div>
+          <label className={s.field}>
+            <span className={s.label}>Your message</span>
+            <textarea
+              className={s.textarea}
+              rows={5}
+              maxLength={1000}
+              value={msg}
+              placeholder="For example: can I post on the 14th instead?"
+              onChange={(e) => setMsg(e.target.value)}
+            />
+          </label>
+          <div className={s.dialogFoot}>
+            <button className={s.btn} onClick={close}>
+              Cancel
+            </button>
+            <button
+              className={`${s.btn} ${s.btnPrimary}`}
+              disabled={busy || !msg.trim()}
+              onClick={async () => {
+                if (await post("request-change", { message: msg.trim() })) {
+                  setMsg("");
+                  close();
+                  setFlash("Got it. The team will get back to you on WhatsApp.");
+                }
+              }}
+            >
+              Send
+            </button>
+          </div>
+        </div>
+      </dialog>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Drafts history
+// ---------------------------------------------------------------------------
+const REVIEW_LABEL = {
+  pending: { text: "In review", dot: "dotInfo" },
+  approved: { text: "Approved", dot: "dotGood" },
+  changes_requested: { text: "Changes asked", dot: "dotWarn" },
+} as const;
+
+function DraftHistory({ view }: { view: PortalView }) {
   return (
     <section className={s.card}>
-      <h2 className={s.h2}>Ask for a change</h2>
-      <p className={s.p}>Tell us what you would like to tweak. The team will get back to you on WhatsApp.</p>
-      <label className={s.field}>
-        <span>Your message</span>
-        <textarea rows={4} maxLength={1000} value={msg} onChange={(e) => setMsg(e.target.value)} />
-      </label>
-      <div className={s.row}>
-        <button className={s.btnGhost} onClick={() => setOpen(false)}>
-          Cancel
-        </button>
-        <button
-          className={s.btn}
-          disabled={busy || !msg.trim()}
-          onClick={async () => {
-            if (await post("request-change", { message: msg.trim() })) {
-              setMsg("");
-              setOpen(false);
-              setFlash("Got it. The team will get back to you on WhatsApp.");
-            }
-          }}
-        >
-          Send request
-        </button>
-      </div>
+      <p className={s.eyebrow}>★ Your drafts</p>
+      <ul className={s.drafts}>
+        {[...view.drafts].reverse().map((d) => {
+          const st = REVIEW_LABEL[d.review_status] ?? REVIEW_LABEL.pending;
+          return (
+            <li key={d.version} className={s.draftRow}>
+              <div className={s.draftHead}>
+                <strong>Draft {d.version}</strong>
+                <span className={s.status}>
+                  <span className={`${s.dot} ${s[st.dot]}`} aria-hidden="true" />
+                  {st.text}
+                </span>
+              </div>
+              <p className={s.small}>
+                Sent {fmtDate(d.submitted_at)}
+                {d.url ? (
+                  <>
+                    {" · "}
+                    <a className={s.link} href={d.url} target="_blank" rel="noreferrer">
+                      Open link
+                    </a>
+                  </>
+                ) : (
+                  " · Uploaded video"
+                )}
+              </p>
+              {d.note && <p className={s.small}>Your note: {d.note}</p>}
+              {d.review_note && <blockquote className={s.quote}>From Team PROMUNCH: {d.review_note}</blockquote>}
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
@@ -502,7 +705,7 @@ function ChangeRequest({ busy, post, setFlash }: { busy: boolean; post: Post; se
 // ---------------------------------------------------------------------------
 // Brief
 // ---------------------------------------------------------------------------
-function BriefView({ view }: { view: PortalView }) {
+function BriefCards({ view }: { view: PortalView }) {
   const b = view.brief!;
   const c = b.content;
   const fmt = [
@@ -510,128 +713,158 @@ function BriefView({ view }: { view: PortalView }) {
     c.format?.aspect ?? null,
     c.format?.stories ? `${c.format.stories} ${c.format.stories === 1 ? "Story" : "Stories"}` : null,
   ].filter(Boolean);
+  const draftDue = c.dates?.draft_due ? (fmtDate(view.draft_due_at) ?? c.dates.draft_due) : null;
+  const goLive = view.go_live_at || c.dates?.go_live ? (fmtDate(view.go_live_at) ?? c.dates?.go_live ?? "") : null;
+
   return (
-    <section className={`${s.card} ${s.brief}`}>
-      <div className={s.briefHead}>
-        <h2 className={s.h2}>Your brief</h2>
-        <span className={s.muted}>
-          Version {b.version}
-          {b.sent_at ? ` · ${fmtDate(b.sent_at)}` : ""}
-        </span>
-      </div>
+    <>
+      <BriefCard title="The idea">
+        <p className={s.lead}>{c.concept}</p>
+      </BriefCard>
 
-      <div className={s.facts}>
-        <Fact label="Deliverables" value={deliverablesLine(view.deliverables)} />
-        {c.dates?.draft_due && <Fact label="Draft due" value={fmtDate(view.draft_due_at) ?? c.dates.draft_due} />}
-        {(view.go_live_at || c.dates?.go_live) && <Fact label="Go live" value={fmtDate(view.go_live_at) ?? c.dates.go_live ?? ""} />}
-        {fmt.length > 0 && <Fact label="Format" value={fmt.join(" · ")} />}
-      </div>
-
-      <Block title="The idea">
-        <p className={s.p}>{c.concept}</p>
-      </Block>
+      <BriefCard title="The details">
+        <dl className={s.kv}>
+          <dt>Deliverables</dt>
+          <dd>{deliverablesLine(view.deliverables)}</dd>
+          {fmt.length > 0 && (
+            <>
+              <dt>Format</dt>
+              <dd>{fmt.join(" · ")}</dd>
+            </>
+          )}
+          {draftDue && (
+            <>
+              <dt>Draft due</dt>
+              <dd>{draftDue}</dd>
+            </>
+          )}
+          {goLive && (
+            <>
+              <dt>Go live</dt>
+              <dd>{goLive}</dd>
+            </>
+          )}
+        </dl>
+      </BriefCard>
 
       {c.hooks?.length > 0 && (
-        <Block title="Pick a hook for the first 3 seconds">
+        <BriefCard title="Pick a hook for the first 3 seconds">
           <ol className={s.hooks}>
             {c.hooks.map((h, i) => (
               <li key={i}>{h}</li>
             ))}
           </ol>
-        </Block>
+        </BriefCard>
       )}
 
       {c.script && (
-        <Block title="Script, in your own words">
+        <BriefCard title="Script, in your own words">
           <div className={s.script}>{c.script}</div>
-        </Block>
+        </BriefCard>
       )}
 
       {c.talking_points?.length > 0 && (
-        <Block title="Talking points">
+        <BriefCard title="Talking points">
           <ul className={s.bullets}>
             {c.talking_points.map((t, i) => (
               <li key={i}>{t}</li>
             ))}
           </ul>
-        </Block>
+        </BriefCard>
       )}
 
       {c.must_say?.length > 0 && (
-        <Block title="Must say or show">
-          <ul className={s.mustSay}>
+        <BriefCard title="Say this">
+          <ul className={`${s.bullets} ${s.bulletsStrong}`}>
             {c.must_say.map((t, i) => (
               <li key={i}>{t}</li>
             ))}
           </ul>
-        </Block>
+        </BriefCard>
       )}
 
       {c.checklist?.length > 0 && (
-        <Block title="Posting checklist">
+        <BriefCard title="Checklist">
           <ul className={s.checks}>
             {c.checklist.map((t, i) => (
               <li key={i}>
-                <Tick /> {t}
+                <span className={s.check} aria-hidden="true" />
+                {t}
               </li>
             ))}
           </ul>
-        </Block>
+        </BriefCard>
       )}
 
       {c.donts?.length > 0 && (
-        <Block title="Please avoid">
+        <BriefCard title="Please don't">
           <ul className={s.donts}>
             {c.donts.map((t, i) => (
               <li key={i}>
-                <Cross /> {t}
+                <XIcon />
+                {t}
               </li>
             ))}
           </ul>
-        </Block>
+        </BriefCard>
       )}
 
       {c.usage_rights_text && (
-        <Block title="Usage rights">
+        <BriefCard title="Usage rights">
           <p className={s.p}>{c.usage_rights_text}</p>
-        </Block>
+        </BriefCard>
       )}
 
-      {b.acknowledged_at && <p className={s.ack}><Tick /> You confirmed this brief on {fmtDate(b.acknowledged_at)}</p>}
+      {b.acknowledged_at && (
+        <p className={`${s.status} ${s.ackLine}`}>
+          <span className={`${s.dot} ${s.dotGood}`} aria-hidden="true" />
+          You confirmed this brief on {fmtDate(b.acknowledged_at)}
+        </p>
+      )}
+    </>
+  );
+}
+
+function BriefCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className={s.card}>
+      <h2 className={s.eyebrow}>★ {title}</h2>
+      {children}
     </section>
   );
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className={s.fact}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
+// ---------------------------------------------------------------------------
+// Icons (inline, Lucide-style 1.75 stroke)
+// ---------------------------------------------------------------------------
+const ico = { fill: "none", stroke: "currentColor", strokeWidth: 1.75, strokeLinecap: "round", strokeLinejoin: "round" } as const;
 
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
+function XIcon() {
   return (
-    <div className={s.block}>
-      <h3 className={s.h3}>{title}</h3>
-      {children}
-    </div>
-  );
-}
-
-function Tick() {
-  return (
-    <svg className={s.icoTick} viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-      <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg className={s.ico} viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" {...ico}>
+      <path d="M18 6 6 18M6 6l12 12" />
     </svg>
   );
 }
-
-function Cross() {
+function Chevron() {
   return (
-    <svg className={s.icoCross} viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-      <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <svg className={s.chev} viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" {...ico}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+function UploadIcon() {
+  return (
+    <svg className={s.icoLg} viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" {...ico}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+    </svg>
+  );
+}
+function VideoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" {...ico}>
+      <path d="m16 13 5.2 3.1a.5.5 0 0 0 .8-.4V8.3a.5.5 0 0 0-.8-.4L16 11" />
+      <rect x="2" y="6" width="14" height="12" rx="2" />
     </svg>
   );
 }

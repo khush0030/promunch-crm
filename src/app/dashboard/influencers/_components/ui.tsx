@@ -7,7 +7,7 @@
 import { useEffect, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { StatusBadge, type BadgeTone } from "@/components/pm";
+import { Pill, type BadgeTone, type PillTone } from "@/components/pm";
 import type {
   BoardSummary,
   DealHealth,
@@ -40,6 +40,24 @@ export const HEALTH_TONE: Record<DealHealth, BadgeTone> = {
   waiting_on_us: "blue",
   on_track: "green",
   closed: "gray",
+};
+
+/** Status as coloured text + dot (redesign rule: never a filled block). */
+export const HEALTH_PILL: Record<DealHealth, PillTone> = {
+  overdue: "crit",
+  at_risk: "warn",
+  waiting_on_us: "info",
+  on_track: "good",
+  closed: "neu",
+};
+
+/** Map the older BadgeTone palette onto the dot pills. */
+export const TONE_PILL: Record<BadgeTone, PillTone> = {
+  green: "good",
+  gold: "warn",
+  terra: "crit",
+  blue: "info",
+  gray: "neu",
 };
 
 export const STAGE_LABEL: Record<DealStage, string> = {
@@ -147,9 +165,47 @@ export function pct(n: number | null | undefined): string {
 
 export function HealthChip({ health, reason }: { health: DealHealth; reason?: string | null }) {
   return (
-    <span title={reason ?? undefined}>
-      <StatusBadge tone={HEALTH_TONE[health]}>{HEALTH_LABEL[health]}</StatusBadge>
+    <span title={reason ?? undefined} style={{ display: "inline-flex" }}>
+      <Pill tone={HEALTH_PILL[health]}>{HEALTH_LABEL[health]}</Pill>
     </span>
+  );
+}
+
+/**
+ * Phone-only sort control. At <=760px the table head is hidden (rows stack),
+ * so the sortable column headers go with it; this select drives the SAME
+ * `pick` handler the header buttons call.
+ */
+export function SortPicker<K extends string>({
+  options,
+  sort,
+  pick,
+}: {
+  options: { key: K; label: string }[];
+  sort: { key: K; dir: 1 | -1 };
+  pick: (key: K) => void;
+}) {
+  return (
+    <div className={s.sortPhone}>
+      <label className={s.sortPhoneL}>
+        Sort by
+        <select className={s.select} value={sort.key} onChange={(e) => pick(e.target.value as K)}>
+          {options.map((o) => (
+            <option key={o.key} value={o.key}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        className={s.sortDir}
+        onClick={() => pick(sort.key)}
+        aria-label={sort.dir === 1 ? "Ascending, tap to reverse" : "Descending, tap to reverse"}
+      >
+        {sort.dir === 1 ? "↑ Ascending" : "↓ Descending"}
+      </button>
+    </div>
   );
 }
 
@@ -158,8 +214,12 @@ export function TierTag({ tier }: { tier: InfluencerTier | null }) {
   return <span className={s.tier}>{TIER_LABEL[tier]}</span>;
 }
 
-export function Initial({ handle }: { handle: string }) {
-  return <span className={s.initial}>{(handle.replace(/^@/, "")[0] ?? "?").toUpperCase()}</span>;
+export function Initial({ handle, large }: { handle: string; large?: boolean }) {
+  return (
+    <span className={`${s.initial}${large ? ` ${s.initialLg}` : ""}`} aria-hidden="true">
+      {(handle.replace(/^@/, "")[0] ?? "?").toUpperCase()}
+    </span>
+  );
 }
 
 export function at(handle: string): string {

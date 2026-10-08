@@ -4,8 +4,8 @@
 // (one column per stage group) or a sortable table.
 
 import { useMemo, useState } from "react";
-import { LayoutGrid, List, Sparkles } from "lucide-react";
-import { Callout, EmptyState, SearchBar } from "@/components/pm";
+import { BellOff, LayoutGrid, List, Sparkles } from "lucide-react";
+import { EmptyState, SearchBar } from "@/components/pm";
 import {
   STAGE_GROUP,
   type BoardSummary,
@@ -22,11 +22,12 @@ import {
   Initial,
   STAGE_LABEL,
   TIER_LABEL,
-  TierTag,
   at,
+  compact,
   isToday,
   relDay,
   shortDate,
+  SortPicker,
   useDeals,
   useSettings,
   useSummary,
@@ -35,14 +36,14 @@ import s from "../influencers.module.css";
 
 type StripKey = keyof BoardSummary;
 
-const STRIP: { key: StripKey; label: string; tone: string }[] = [
-  { key: "due_today", label: "Due today", tone: s.tGold },
-  { key: "overdue", label: "Overdue", tone: s.tTerra },
-  { key: "at_risk", label: "At risk", tone: s.tGold },
-  { key: "waiting_on_us", label: "Waiting on us", tone: s.tBlue },
-  { key: "briefs_to_approve", label: "Briefs to approve", tone: "" },
-  { key: "drafts_to_review", label: "Drafts to review", tone: "" },
-  { key: "kits_to_ship", label: "Kits to ship", tone: "" },
+const STRIP: { key: StripKey; label: string }[] = [
+  { key: "drafts_to_review", label: "Drafts to review" },
+  { key: "briefs_to_approve", label: "Briefs to approve" },
+  { key: "kits_to_ship", label: "Kits to ship" },
+  { key: "waiting_on_us", label: "Waiting on us" },
+  { key: "overdue", label: "Overdue" },
+  { key: "at_risk", label: "At risk" },
+  { key: "due_today", label: "Due today" },
 ];
 
 // What clicking a strip tile shows. Health and stage filters go to the API
@@ -140,10 +141,11 @@ export function BoardTab({ onOpenDeal, onAdd }: { onOpenDeal: (id: string) => vo
   const sum = summary.data;
   const engineOff = settings.data ? !settings.data.engine_enabled : false;
 
+  const pick = (key: SortKey) => setSort((p) => ({ key, dir: p.key === key ? (p.dir === 1 ? -1 : 1) : 1 }));
   const th = (key: SortKey, label: string) => (
     <th
       className={s.sortTh}
-      onClick={() => setSort((p) => ({ key, dir: p.key === key ? (p.dir === 1 ? -1 : 1) : 1 }))}
+      onClick={() => pick(key)}
       aria-sort={sort.key === key ? (sort.dir === 1 ? "ascending" : "descending") : "none"}
     >
       {label}
@@ -151,30 +153,74 @@ export function BoardTab({ onOpenDeal, onAdd }: { onOpenDeal: (id: string) => vo
     </th>
   );
 
+  const count = (k: StripKey) => (sum ? sum[k] : summary.isLoading ? "…" : "–");
+  const needs = sum ? sum.briefs_to_approve + sum.drafts_to_review + sum.kits_to_ship : null;
+  const toggle = (k: StripKey) => setStrip(strip === k ? null : k);
+
   return (
     <>
       {engineOff && (
-        <div style={{ marginBottom: 12 }}>
-          <Callout
-            tone="sun"
-            title="Automatic reminders are off."
-            body="Nothing is sent to creators until you switch them on in Settings."
-          />
-        </div>
+        <p className={s.note} role="status">
+          <BellOff size={16} />
+          <span>
+            <b>Automatic reminders are off.</b> Nothing is sent to creators until you switch them on in Settings.
+          </span>
+        </p>
       )}
 
-      <div className={s.strip}>
+      <div className={s.kpis}>
+        <div className={s.kpi}>
+          <span className={s.kpiL}>Needs you</span>
+          <span className={s.kpiV}>{needs ?? count("drafts_to_review")}</span>
+          <span className={s.kpiD}>
+            {sum
+              ? `Drafts ${sum.drafts_to_review} · briefs ${sum.briefs_to_approve} · boxes ${sum.kits_to_ship}`
+              : "Drafts, briefs and boxes"}
+          </span>
+        </div>
+        <button
+          type="button"
+          className={`${s.kpi} ${strip === "overdue" ? s.kpiOn : ""}`}
+          aria-pressed={strip === "overdue"}
+          title={strip === "overdue" ? "Click again to show everything" : "Show only: Overdue"}
+          onClick={() => toggle("overdue")}
+        >
+          <span className={s.kpiL}>Overdue</span>
+          <span className={s.kpiV}>{count("overdue")}</span>
+          <span className={s.kpiD}>{sum ? `${sum.at_risk} at risk` : "Creators running late"}</span>
+        </button>
+        <button
+          type="button"
+          className={`${s.kpi} ${strip === "due_today" ? s.kpiOn : ""}`}
+          aria-pressed={strip === "due_today"}
+          title={strip === "due_today" ? "Click again to show everything" : "Show only: Due today"}
+          onClick={() => toggle("due_today")}
+        >
+          <span className={s.kpiL}>Due today</span>
+          <span className={s.kpiV}>{count("due_today")}</span>
+          <span className={s.kpiD}>{sum ? `${sum.waiting_on_us} waiting on us` : "Drafts and posts"}</span>
+        </button>
+      </div>
+
+      <div className={s.chips} role="group" aria-label="Show">
+        <button
+          type="button"
+          className={`${s.chip} ${strip === null ? s.chipOn : ""}`}
+          aria-pressed={strip === null}
+          onClick={() => setStrip(null)}
+        >
+          All
+        </button>
         {STRIP.map((t) => (
           <button
             key={t.key}
             type="button"
-            className={`${s.stat} ${t.tone} ${strip === t.key ? s.statOn : ""}`}
+            className={`${s.chip} ${strip === t.key ? s.chipOn : ""}`}
             aria-pressed={strip === t.key}
             title={strip === t.key ? "Click again to show everything" : `Show only: ${t.label}`}
-            onClick={() => setStrip(strip === t.key ? null : t.key)}
+            onClick={() => toggle(t.key)}
           >
-            <div className={s.statLabel}>{t.label}</div>
-            <div className={s.statValue}>{sum ? sum[t.key] : summary.isLoading ? "…" : "–"}</div>
+            {t.label} <em>{count(t.key)}</em>
           </button>
         ))}
       </div>
@@ -184,23 +230,20 @@ export function BoardTab({ onOpenDeal, onAdd }: { onOpenDeal: (id: string) => vo
           <button
             type="button"
             className={`${s.segBtn} ${view === "board" ? s.segOn : ""}`}
+            aria-pressed={view === "board"}
             onClick={() => setView("board")}
           >
-            <LayoutGrid size={12} /> Board
+            <LayoutGrid size={13} /> Board
           </button>
           <button
             type="button"
             className={`${s.segBtn} ${view === "list" ? s.segOn : ""}`}
+            aria-pressed={view === "list"}
             onClick={() => setView("list")}
           >
-            <List size={12} /> List
+            <List size={13} /> List
           </button>
         </div>
-        {strip && (
-          <button type="button" className="pm-btn ghost sm" onClick={() => setStrip(null)}>
-            Showing: {STRIP.find((x) => x.key === strip)?.label} ✕
-          </button>
-        )}
         <span className={s.spacer} />
         <SearchBar value={q} onChange={setQ} placeholder="Search creators…" />
         <select
@@ -238,21 +281,21 @@ export function BoardTab({ onOpenDeal, onAdd }: { onOpenDeal: (id: string) => vo
       )}
 
       {deals.isLoading ? (
-        <p className={s.hint} style={{ padding: 20 }}>
+        <p className={s.hint} style={{ padding: "20px 0" }}>
           Loading collabs…
         </p>
       ) : deals.error ? (
-        <p className={s.err} style={{ padding: 20 }}>
+        <p className={s.err} style={{ padding: "20px 0" }}>
           {errText(deals.error)}
         </p>
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Sparkles />}
           title={!anyFilter ? "No collabs yet" : "Nothing matches"}
-          style={{ marginTop: 14 }}
+          style={{ marginTop: 18 }}
           cta={
             !anyFilter ? (
-              <button type="button" className="pm-btn primary sm" onClick={onAdd} style={{ marginTop: 10 }}>
+              <button type="button" className="pm-btn sm" onClick={onAdd} style={{ marginTop: 10 }}>
                 Add your first collab
               </button>
             ) : undefined
@@ -269,7 +312,6 @@ export function BoardTab({ onOpenDeal, onAdd }: { onOpenDeal: (id: string) => vo
             return (
               <div key={g.key} className={s.col}>
                 <div className={s.colHead}>
-                  <span className={s.colDot} style={{ background: g.dot }} />
                   <span className={s.colTitle}>{g.label}</span>
                   <span className={s.colCount}>{cards.length}</span>
                 </div>
@@ -284,77 +326,102 @@ export function BoardTab({ onOpenDeal, onAdd }: { onOpenDeal: (id: string) => vo
           })}
         </div>
       ) : (
-        <div className="pm-tablewrap" style={{ marginTop: 14 }}>
-          <table className="pm-tbl">
-            <thead>
-              <tr>
-                {th("handle", "Creator")}
-                {th("tier", "Tier")}
-                {th("kit", "Kit")}
-                {th("stage", "Stage")}
-                {th("next", "Next date")}
-                {th("health", "Health")}
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((d) => (
-                <tr key={d.id} className="clickable" onClick={() => onOpenDeal(d.id)}>
-                  <td>
-                    <strong>{at(d.influencer.handle)}</strong>
-                    {d.influencer.full_name && <div className={s.hint}>{d.influencer.full_name}</div>}
-                  </td>
-                  <td>{d.influencer.tier ? TIER_LABEL[d.influencer.tier] : ""}</td>
-                  <td>{d.kit?.name ?? <span className={s.hint}>No kit</span>}</td>
-                  <td>{STAGE_LABEL[d.stage]}</td>
-                  <td>
-                    {d.next_date ? (
-                      <>
-                        {d.next_date.label}
-                        <div className={s.hint}>
-                          {shortDate(d.next_date.at)} ({relDay(d.next_date.at)})
-                        </div>
-                      </>
-                    ) : (
-                      ""
-                    )}
-                  </td>
-                  <td>
-                    <HealthChip health={d.health} reason={d.health_reason} />
-                  </td>
+        <>
+        <SortPicker
+          sort={sort}
+          pick={pick}
+          options={[
+            { key: "handle", label: "Creator" },
+            { key: "tier", label: "Tier" },
+            { key: "kit", label: "Kit" },
+            { key: "stage", label: "Stage" },
+            { key: "next", label: "Next date" },
+            { key: "health", label: "Health" },
+          ]}
+        />
+        <div className={s.tblCard}>
+          <div className="pm-tablewrap">
+            <table className={`pm-tbl ${s.tbl}`}>
+              <thead>
+                <tr>
+                  {th("handle", "Creator")}
+                  {th("tier", "Tier")}
+                  {th("kit", "Kit")}
+                  {th("stage", "Stage")}
+                  {th("next", "Next date")}
+                  {th("health", "Health")}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sorted.map((d) => (
+                  <tr key={d.id} className="clickable" onClick={() => onOpenDeal(d.id)}>
+                    <td className={s.mainCell}>
+                      <b>{at(d.influencer.handle)}</b>
+                      {d.influencer.full_name && <span>{d.influencer.full_name}</span>}
+                    </td>
+                    <td data-l="Tier">{d.influencer.tier ? TIER_LABEL[d.influencer.tier] : ""}</td>
+                    <td data-l="Kit">{d.kit?.name ?? <span className={s.hint}>No kit</span>}</td>
+                    <td data-l="Stage">{STAGE_LABEL[d.stage]}</td>
+                    <td data-l="Next">
+                      {d.next_date ? (
+                        <span>
+                          {d.next_date.label}{" "}
+                          <span className={s.hint}>
+                            {shortDate(d.next_date.at)} ({relDay(d.next_date.at)})
+                          </span>
+                        </span>
+                      ) : (
+                        ""
+                      )}
+                    </td>
+                    <td data-l="Health">
+                      <HealthChip health={d.health} reason={d.health_reason} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
+        </>
       )}
     </>
   );
 }
 
+function cap(v: string): string {
+  return v ? v.charAt(0).toUpperCase() + v.slice(1) : v;
+}
+
 function DealCard({ d, onOpen }: { d: DealListItem; onOpen: () => void }) {
+  const sub = [d.influencer.niche?.[0] ? cap(d.influencer.niche[0]) : null, compact(d.influencer.followers) || null, d.kit?.name ?? "No kit yet"]
+    .filter(Boolean)
+    .join(" · ");
+  const late = d.health_reason && d.health !== "on_track" && d.health !== "closed";
+  const what =
+    STAGE_GROUP[d.stage] === "done"
+      ? STAGE_LABEL[d.stage]
+      : late
+        ? d.health_reason
+        : d.next_date
+          ? `${d.next_date.label} ${relDay(d.next_date.at)}`
+          : STAGE_LABEL[d.stage];
   return (
     <button type="button" className={s.card} onClick={onOpen}>
       <div className={s.cardTop}>
         <Initial handle={d.influencer.handle} />
-        <span className={s.handle}>{at(d.influencer.handle)}</span>
-        <span style={{ marginLeft: "auto" }}>
-          <TierTag tier={d.influencer.tier} />
+        <span className={s.who}>
+          <span className={s.handle}>{at(d.influencer.handle)}</span>
+          <span className={s.whoSub}>{sub}</span>
         </span>
       </div>
-      <div className={s.cardMeta}>
-        {d.kit?.name ?? "No kit yet"}
-        {STAGE_GROUP[d.stage] === "done" ? ` · ${STAGE_LABEL[d.stage]}` : ""}
-      </div>
-      {d.next_date && (
-        <div className={s.cardMeta} title={shortDate(d.next_date.at)}>
-          {d.next_date.label} <strong>{relDay(d.next_date.at)}</strong>
-        </div>
-      )}
-      <div className={s.cardFoot}>
+      <div
+        className={s.cardMeta}
+        title={d.next_date ? `${d.next_date.label} ${relDay(d.next_date.at)} (${shortDate(d.next_date.at)})` : undefined}
+      >
+        <span>{what}</span>
+        <span className={s.spacer} />
         <HealthChip health={d.health} reason={d.health_reason} />
-        {d.health_reason && d.health !== "on_track" && d.health !== "closed" && (
-          <span className={s.when}>{d.health_reason}</span>
-        )}
       </div>
     </button>
   );
