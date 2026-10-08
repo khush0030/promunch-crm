@@ -1036,9 +1036,9 @@ table.pm2-tbl{width:100%;border-collapse:collapse;font-size:14px;color:var(--pm-
 .pm2-list-row .r .when{font-family:var(--pm-mono)}
 .pm2-list-row .badge{background:var(--pm-brand);color:var(--pm-brand-ink);border-radius:8px;padding:0 6px;font-family:var(--pm-mono);font-size:11px;font-variant-numeric:tabular-nums}
 .pm2-ch-ic{width:16px;height:16px;border-radius:4px;display:inline-grid;place-items:center;font-size:9px;font-weight:800;color:#fff;flex:none}
-.pm2-ch-ic.ch-wa{background:#1A9E5C}
+.pm2-ch-ic.ch-wa{background:#1A8A50}
 .pm2-ch-ic.ch-ig{background:#C13584}
-.pm2-ch-ic.ch-em{background:#5C5155}
+.pm2-ch-ic.ch-em{background:#2F5FA8}
 .pm2-av-wrap{position:relative;display:inline-flex;flex:none}
 .pm2-av-wrap .pm2-ch-ic.ch{position:absolute;right:-4px;bottom:-3px;width:15px;height:15px;font-size:8px;border-radius:50%;box-shadow:0 0 0 2px var(--pm-card)}
 .pm2-av.lg{width:34px;height:34px;font-size:12px}

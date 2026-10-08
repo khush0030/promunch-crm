@@ -90,6 +90,7 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 
 | Doc | What it answers |
 |---|---|
+| [2026-10-09 Inbox fidelity audit](audits/2026-10-09-inbox-fidelity.md) | Live chats prototype vs build: missing third (customer) panel, channel switch, density; what the three-panel rebuild shipped and what is left |
 | [2026-10-08 Redesign fidelity audit](audits/2026-10-08-redesign-fidelity.md) | Approved prototype (round 8) vs `redesign/app-v2` build: why it feels different, ranked fix list (UI-only vs needs-backend), bugs found, functional verdict |
 | [Domain migration final verification](audits/2026-09-13-domain-migration-evidence/REPORT.md) | Full-day results: domain/auth verified; operational failures and unverified jobs remain |
 | [12 Sep dashboard refinement (superseded)](archive/2026-09-12-dashboard-refinement/2026-09-12-dashboard-refinement-review.html) | Earlier proposal that kept the old navigation and Geist; replaced by the 15 Sep redesign |

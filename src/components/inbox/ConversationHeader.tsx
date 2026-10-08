@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import { PageHeader, Pill, Avatar } from "@/components/pm";
 import type { Channel, PillTone } from "@/components/pm";
 import t from "./ticket.module.css";
+import { ChannelTag, CHANNEL_NAME } from "./ChannelTag";
+import ch from "./channel.module.css";
 
 // Header for a conversation view in its two shapes:
 //   compact  -> the `.pm2-thread-h` row used inside the Conversations list
@@ -37,18 +39,17 @@ export function ConversationHeader({
   if (compact) {
     return (
       <>
-        <div className="pm2-thread-h">
+        <div className={`pm2-thread-h ${ch.head} ${ch[`bar_${channel}`]}`}>
           <Avatar name={name} channel={channel} size={34} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <b style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</b>
-            <div style={{ fontSize: 12.5, color: "var(--pm-hint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {faint}
+            <div className={ch.faint}>
+              <ChannelTag channel={channel} />
+              <span>{faint.startsWith(`${CHANNEL_NAME[channel]} · `) ? faint.slice(CHANNEL_NAME[channel].length + 3) : faint}</span>
             </div>
           </div>
-          <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <Pill tone={pill.tone}>{pill.text}</Pill>
-            {actions}
-          </span>
+          <Pill tone={pill.tone}>{pill.text}</Pill>
+          <span className={ch.acts}>{actions}</span>
         </div>
         {note ? <div style={{ padding: "8px 16px 0", fontSize: 13, color: "var(--pm-muted)" }}>{note}</div> : null}
       </>

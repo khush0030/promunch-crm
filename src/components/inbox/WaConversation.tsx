@@ -9,7 +9,7 @@
 // Header buttons only PATCH thread state; none of them message anyone.
 
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog, Callout } from "@/components/pm";
@@ -21,6 +21,7 @@ import { useMeEmail, useNow, useStickToBottom, useTeamMembers } from "./hooks";
 import { AssignSelect, ConnectionNotice, NotFoundCard, patchThread, shareLink } from "./shared";
 import { WindowChip, windowLeftMs } from "@/components/whatsapp/WindowTimer";
 import { TicketProperties, WindowStrip } from "./TicketSide";
+import { CustomerContext } from "./CustomerContext";
 import t from "./ticket.module.css";
 import type { Template, Thread } from "@/components/whatsapp/types";
 import { formatINR } from "@/lib/metrics/money";
@@ -57,7 +58,18 @@ function rupeesFromLabel(s: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export function WaConversation({ id, peek = false, compact = false }: { id: string; peek?: boolean; compact?: boolean }) {
+export function WaConversation({
+  id,
+  peek = false,
+  compact = false,
+  extraActions,
+}: {
+  id: string;
+  peek?: boolean;
+  compact?: boolean;
+  /** extra header buttons from the host page (UI only, e.g. "Customer" drawer toggle) */
+  extraActions?: ReactNode;
+}) {
   const toast = useToast();
   const qc = useQueryClient();
   const me = useMeEmail();
@@ -321,6 +333,7 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
       ) : null}
       <button type="button" className={`${btn} ghost`} onClick={() => shareLink(`/dashboard/inbox/wa-${id}`, toast)}>Share</button>
       {compact ? assignSelect : null}
+      {extraActions}
     </>
   );
 
@@ -454,8 +467,8 @@ export function WaConversation({ id, peek = false, compact = false }: { id: stri
             />
             <div className={`${t.blk} ${t.blkFacts}`}>
               <div className={t.blkH}>Customer</div>
-              <div className={t.facts}>{facts}</div>
               {ticketNote ? <div className={t.note}>{ticketNote}</div> : null}
+              <CustomerContext conversationKey={`wa-${id}`} embedded />
             </div>
           </aside>
         </div>

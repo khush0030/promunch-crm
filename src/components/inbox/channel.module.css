@@ -1,0 +1,20 @@
+/* Channel colours for the Inbox: one hue per channel, used as text/icon
+   colour (never a filled block). */
+.wa{color:var(--pm-ch-wa,#1A8A50)}
+.em{color:var(--pm-ch-em,#2F5FA8)}
+.ig{color:var(--pm-ch-ig,#B4307A)}
+.tag{display:inline-flex;align-items:center;gap:4px;font:700 12.5px/1.2 var(--pm-font);white-space:nowrap}
+.tag svg{flex:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* conversation header (compact): a channel-coloured top rule + tag line */
+.head{position:relative}
+.bar_wa{box-shadow:inset 0 3px 0 var(--pm-ch-wa,#1A8A50)}
+.bar_em{box-shadow:inset 0 3px 0 var(--pm-ch-em,#2F5FA8)}
+.bar_ig{box-shadow:inset 0 3px 0 var(--pm-ch-ig,#B4307A)}
+.faint{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;color:var(--pm-muted)}
+.faint > span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+/* compact header: name + status on the first line, actions on their own row */
+.head{flex-wrap:wrap;row-gap:10px}
+.acts{flex-basis:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-left:46px;min-width:0}
+.acts > select{margin-left:auto}

@@ -1,26 +1,32 @@
 "use client";
 
-// /dashboard/inbox — Conversations (Task 2.4). One list across WhatsApp,
-// Instagram and support email (src/lib/inbox/conversations.ts /
-// /api/inbox/conversations, Tasks 2.2/2.3). Laptop shows a right pane with
-// the selected conversation (WaConversation/IgConversation in peek+compact
-// mode, or a lightweight email summary); phone has no pane and taps
-// navigate to the full conversation page. Opening the list, or the
+// /dashboard/inbox: Live chats. One list across WhatsApp and support email
+// (src/lib/inbox/conversations.ts / /api/inbox/conversations). Laptop is
+// three panels filling the viewport, each scrolling on its own:
+//   1. conversation list (channel switch All / WhatsApp / Email, views,
+//      search, dense rows with channel colour + unread + assignee)
+//   2. the open conversation (WaConversation/IgConversation in peek+compact
+//      mode, or a lightweight email summary)
+//   3. the customer panel (CustomerContext: orders, COD, WhatsApp, email,
+//      tickets, tags), a drawer on narrow laptops
+// Phone has the list only; taps navigate to the full conversation page. Opening the list, or the
 // auto-selected first item, never marks anything read — only an explicit
 // row click on a WA/IG row fires the one real (non-peek) GET that clears
 // its unread badge (see openRow below).
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { PageHeader, Chips, ListRow, Pill, Callout } from "@/components/pm";
-import type { ChipItem } from "@/components/pm";
+import { Inbox, UserRound } from "lucide-react";
+import { PageHeader, Callout, Avatar } from "@/components/pm";
 import { SearchBar } from "@/components/pm";
 import { WaConversation } from "@/components/inbox/WaConversation";
 import { IgConversation } from "@/components/inbox/IgConversation";
 import { ConversationHeader } from "@/components/inbox/ConversationHeader";
 import { AlertsControl } from "@/components/inbox/AlertsControl";
+import { CustomerContext } from "@/components/inbox/CustomerContext";
+import { ChannelIcon, ChannelTag } from "@/components/inbox/ChannelTag";
 import { categoryWord } from "@/components/inbox/labels";
 import { formatWhen } from "@/lib/inbox/when";
 import { useMediaPhone } from "@/components/shell/useMediaPhone";
@@ -37,8 +43,15 @@ type InboxListResponse = {
   me: string;
 };
 
+// Instagram stays out of the switcher until its backend is live (nav.ts Partners hub).
+const CHANNELS: { key: "all" | "wa" | "em"; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "wa", label: "WhatsApp" },
+  { key: "em", label: "Email" },
+];
+
 const FILTER_CHIPS: { key: InboxFilter; label: string }[] = [
-  { key: "human", label: "Needs a human" },
+  { key: "human", label: "Need a human" },
   { key: "mine", label: "Mine" },
   { key: "bot", label: "Bot" },
   { key: "all", label: "All" },
@@ -204,21 +217,28 @@ function InboxPageInner() {
     });
   }, []);
 
-  const chipItems: ChipItem[] = FILTER_CHIPS.map((f) => ({ key: f.key, label: f.label, count: counts?.[f.key] }));
+  const me = listQ.data?.me ?? "";
+  const [ctxOpen, setCtxOpen] = useState(false);
+  // A different conversation starts with the drawer closed (narrow laptops).
+  useEffect(() => setCtxOpen(false), [selectedKey]);
 
-  const channelSelect = (className: string) => (
-    <select
-      className={`pm2-btn ${className}`}
-      aria-label="Channel"
-      value={channel}
-      onChange={(e) => setQuery({ channel: e.target.value as Channel })}
-    >
-      <option value="all">All channels</option>
-      <option value="wa">WhatsApp</option>
-      {/* Instagram hidden until its backend is live; see nav.ts Partners hub. */}
-      <option value="em">Email</option>
-    </select>
-  );
+  // The shell fills the rest of the viewport below the page header; each
+  // column scrolls on its own. Measured (not a fixed calc) because the
+  // header height changes with the summary line and section tabs.
+  const shellRef = useRef<HTMLDivElement>(null);
+  const [shellH, setShellH] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (isPhone) return;
+    const measure = () => {
+      const el = shellRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      setShellH(Math.max(560, window.innerHeight - top - 20));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [isPhone, listQ.isLoading]);
 
   const header = (
     <PageHeader
@@ -258,87 +278,169 @@ function InboxPageInner() {
     );
   }
 
+  const ctxToggle = (
+    <button type="button" className={`pm2-btn sm ghost ${st.ctxToggle}`} onClick={() => setCtxOpen((v) => !v)} aria-expanded={ctxOpen}>
+      <UserRound width={15} height={15} /> Customer
+    </button>
+  );
+
   return (
     <>
       {header}
-      <div className="pm2-body">
-        <div className="pm2-inbox-grid" style={{ display: "grid", gap: 0 }}>
-          <div className={`pm2-panel pm2-inbox-list ${st.list}`} style={{ borderRadius: 0, borderWidth: "0 1px 0 0" }}>
-            <div className="pm2-p-body" style={{ padding: "12px 14px 6px" }}>
-              <Chips items={chipItems} value={filter} onChange={(k) => setQuery({ filter: k as InboxFilter })} ariaLabel="Filter conversations" />
-              <div className={st.tools}>
-                <SearchBar value={qDraft} onChange={setQDraft} placeholder="Search name, phone, order…" />
-                {channelSelect(st.channel)}
-              </div>
-            </div>
-            {listQ.isLoading ? (
-              <div style={{ padding: "0 14px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <div key={i} className="pm2-skel" style={{ minHeight: 54 }} />
+      <div className={st.wrap}>
+        <div ref={shellRef} className={`${st.shell}${ctxOpen ? ` ${st.ctxShown}` : ""}`} style={!isPhone && shellH ? { height: shellH } : undefined}>
+          {/* ---- 1. conversation list ---- */}
+          <section className={st.listCol} aria-label="Conversations">
+            <div className={st.listHead}>
+              <div className={st.seg} role="tablist" aria-label="Channel">
+                {CHANNELS.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={channel === c.key}
+                    className={`${st.segBtn} ${st[`seg_${c.key}`]}${channel === c.key ? ` ${st.on}` : ""}`}
+                    onClick={() => setQuery({ channel: c.key })}
+                  >
+                    {c.key === "all" ? <Inbox width={15} height={15} aria-hidden="true" /> : <ChannelIcon channel={c.key} size={15} />}
+                    {c.label}
+                  </button>
                 ))}
               </div>
-            ) : items.length === 0 ? (
-              <div style={{ padding: "28px 16px", color: "var(--pm-hint)", fontSize: 13.5 }}>{EMPTY_COPY[filter]}</div>
-            ) : (
-              items.map((item) => (
-                <ListRow
-                  key={item.key}
-                  name={item.name}
-                  pill={
-                    <Pill tone={item.pill.tone} plain>
-                      {item.pill.text}
-                    </Pill>
-                  }
-                  preview={item.preview}
-                  when={formatWhen(item.at)}
-                  unread={item.unread}
-                  channel={item.channel}
-                  selected={item.key === selectedKey}
-                  onClick={() => openRow(item)}
-                />
-              ))
-            )}
-            <div className="pm2-p-foot">
+              <div className={st.views} role="tablist" aria-label="Filter conversations">
+                {FILTER_CHIPS.map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={filter === f.key}
+                    className={`${st.view}${filter === f.key ? ` ${st.on}` : ""}`}
+                    onClick={() => setQuery({ filter: f.key })}
+                  >
+                    <span className={st.n}>{counts ? counts[f.key].toLocaleString("en-IN") : "·"}</span>
+                    <span className={st.l}>{f.label}</span>
+                  </button>
+                ))}
+              </div>
+              <SearchBar value={qDraft} onChange={setQDraft} placeholder="Search name, phone, order…" />
+            </div>
+            <div className={st.rows}>
+              {listQ.isLoading ? (
+                <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+                  {[0, 1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="pm2-skel" style={{ minHeight: 58 }} />
+                  ))}
+                </div>
+              ) : items.length === 0 ? (
+                <div className={st.empty}>{EMPTY_COPY[filter]}</div>
+              ) : (
+                items.map((item) => (
+                  <ConvRow key={item.key} item={item} me={me} selected={!isPhone && item.key === selectedKey} onOpen={() => openRow(item)} />
+                ))
+              )}
+            </div>
+            <div className={st.listFoot}>
               <span>
-                {total} conversation{total === 1 ? "" : "s"}
+                {total.toLocaleString("en-IN")} conversation{total === 1 ? "" : "s"}
               </span>
               {cursorStack.length > 0 ? (
-                <button type="button" className="pm2-lnk" style={{ background: "none", border: 0, cursor: "pointer", marginLeft: "auto" }} onClick={goNewer}>
+                <button type="button" className={st.pager} style={{ marginLeft: "auto" }} onClick={goNewer}>
                   ← Newer
                 </button>
               ) : null}
               {listQ.data?.nextCursor ? (
-                <button
-                  type="button"
-                  className="pm2-lnk"
-                  style={{ background: "none", border: 0, cursor: "pointer", marginLeft: cursorStack.length > 0 ? 8 : "auto" }}
-                  onClick={goNext}
-                >
+                <button type="button" className={st.pager} style={{ marginLeft: cursorStack.length > 0 ? 8 : "auto" }} onClick={goNext}>
                   Next 20 →
                 </button>
               ) : null}
             </div>
-          </div>
+          </section>
+
           {/* Phones get no pane: it is not mounted at all, so its conversation
-              polling never runs in the background. */}
+              polling never runs in the background. Taps open the full page. */}
           {isPhone ? null : (
-          <div className="pm2-d-only pm2-inbox-pane">
-            {selectedItem ? (
-              selectedItem.channel === "wa" ? (
-                <WaConversation id={idFromKey(selectedItem.key)} peek compact />
-              ) : selectedItem.channel === "ig" ? (
-                <IgConversation id={idFromKey(selectedItem.key)} peek compact />
-              ) : (
-                <EmailPane id={idFromKey(selectedItem.key)} />
-              )
-            ) : (
-              <div style={{ padding: 24, color: "var(--pm-hint)", fontSize: 13.5 }}>Select a conversation.</div>
-            )}
-          </div>
+            <>
+              {/* ---- 2. open conversation ---- */}
+              <section className={st.convCol} aria-label="Conversation">
+                {selectedItem ? (
+                  selectedItem.channel === "wa" ? (
+                    <WaConversation id={idFromKey(selectedItem.key)} peek compact extraActions={ctxToggle} />
+                  ) : selectedItem.channel === "ig" ? (
+                    <IgConversation id={idFromKey(selectedItem.key)} peek compact />
+                  ) : (
+                    <EmailPane id={idFromKey(selectedItem.key)} extraActions={ctxToggle} />
+                  )
+                ) : (
+                  <div className={st.empty}>Pick a conversation on the left.</div>
+                )}
+              </section>
+
+              {/* ---- 3. customer context ---- */}
+              <aside className={st.ctxCol} aria-label="Customer">
+                {selectedItem && selectedItem.channel !== "ig" ? (
+                  <CustomerContext key={selectedItem.key} conversationKey={selectedItem.key} onClose={ctxOpen ? () => setCtxOpen(false) : undefined} />
+                ) : (
+                  <div className={st.empty}>
+                    {selectedItem ? "Customer details are not available for Instagram yet." : "The customer's orders, chats and tickets show here."}
+                  </div>
+                )}
+              </aside>
+              {ctxOpen ? <button type="button" className={st.scrim} aria-label="Close customer panel" onClick={() => setCtxOpen(false)} /> : null}
+            </>
           )}
         </div>
       </div>
     </>
+  );
+}
+
+// ---- conversation row -----------------------------------------------------
+
+const PILL_TONE: Record<InboxItem["pill"]["tone"], string> = {
+  crit: st.tCrit,
+  warn: st.tWarn,
+  good: st.tGood,
+  info: st.tInfo,
+  neu: st.tNeu,
+};
+
+function ConvRow({ item, me, selected, onOpen }: { item: InboxItem; me: string; selected: boolean; onOpen: () => void }) {
+  const mine = !!me && item.assignee === me;
+  const who = item.assignee ? (mine ? "You" : item.assignee.split("@")[0]) : null;
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-current={selected ? "true" : undefined}
+      className={`${st.row} ${st[`row_${item.channel}`]}${selected ? ` ${st.sel}` : ""}${item.unread > 0 ? ` ${st.unread}` : ""}`}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+    >
+      <Avatar name={item.name} channel={item.channel} size={34} />
+      <div className={st.rowTx}>
+        <div className={st.rowA}>
+          <b>{item.name}</b>
+          <time>{formatWhen(item.at)}</time>
+        </div>
+        <p>{item.preview || "No messages yet"}</p>
+        <div className={st.rowM}>
+          <ChannelTag channel={item.channel} />
+          <span className={`${st.state} ${PILL_TONE[item.pill.tone]}`}>{item.pill.text}</span>
+          {who ? (
+            <span className={`${st.who}${mine ? ` ${st.whoMe}` : ""}`} title={`Assigned to ${item.assignee}`}>
+              <UserRound width={12} height={12} aria-hidden="true" />
+              {who}
+            </span>
+          ) : null}
+          {item.unread > 0 ? <span className={st.badge} aria-label={`${item.unread} unread`}>{item.unread}</span> : null}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -356,7 +458,7 @@ type EmailThreadFull = {
 };
 type EmailDraft = { id: string; body: string; is_current: boolean };
 
-function EmailPane({ id }: { id: string }) {
+function EmailPane({ id, extraActions }: { id: string; extraActions?: ReactNode }) {
   const q = useQuery({
     queryKey: ["inbox-email-pane", id],
     queryFn: async (): Promise<{ thread: EmailThreadFull; drafts: EmailDraft[] }> => {
@@ -405,18 +507,28 @@ function EmailPane({ id }: { id: string }) {
         faint={`${thread.subject || "(no subject)"} · ${formatWhen(thread.created_at)}`}
         pill={{ tone: "neu", text: categoryWord(thread.lead_category) }}
         actions={
-          <Link className="pm2-btn sm" href={`/dashboard/inbox/email?id=${encodeURIComponent(id)}`}>
-            Open in Email drafts
-          </Link>
+          <>
+            <Link className="pm2-btn sm" href={`/dashboard/inbox/email?id=${encodeURIComponent(id)}`}>
+              Open in Email drafts
+            </Link>
+            {extraActions}
+          </>
         }
       />
-      <div style={{ padding: 16, overflowY: "auto", flex: 1 }}>
-        <div style={{ fontWeight: 650, marginBottom: 8, fontSize: 14.5 }}>{thread.subject || "(no subject)"}</div>
-        <div style={{ fontSize: 13.5, color: "var(--pm-ink)", whiteSpace: "pre-wrap" }}>{thread.body_plain || thread.snippet || "No preview available."}</div>
+      <div className={st.mail}>
+        <div className={st.mailMsg}>
+          <div className={st.mailMeta}>
+            <b>{name}</b>
+            <span>{thread.from_email}</span>
+            <time>{formatWhen(thread.created_at)}</time>
+          </div>
+          <h3>{thread.subject || "(no subject)"}</h3>
+          <div className={st.mailBody}>{thread.body_plain || thread.snippet || "No preview available."}</div>
+        </div>
         {currentDraft ? (
-          <div style={{ marginTop: 18 }}>
-            <div style={{ fontSize: 12.5, color: "var(--pm-hint)", marginBottom: 6 }}>Current draft</div>
-            <div className="pm-draftbox">{currentDraft.body}</div>
+          <div className={st.mailDraft}>
+            <div className={st.mailDraftH}>Reply drafted by the bot · approve it in Email drafts</div>
+            <div className={st.mailBody}>{currentDraft.body}</div>
           </div>
         ) : null}
       </div>
