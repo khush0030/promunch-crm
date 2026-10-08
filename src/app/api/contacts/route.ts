@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
 import { parseBody, intParam } from '@/lib/api-helpers';
 import { ilikeContains } from '@/lib/inbox/search';
+import { toContactPhone } from '@/lib/contacts/phone';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -112,6 +113,11 @@ export async function POST(request: NextRequest) {
   if (!email && !phone) {
     return NextResponse.json({ error: 'An email or phone number is required' }, { status: 400 });
   }
+  // Always store phones as +<country><number> (bare 10 digits = +91).
+  const cleanPhone = phone ? toContactPhone(phone) : null;
+  if (phone && !cleanPhone) {
+    return NextResponse.json({ error: 'That phone number does not look right' }, { status: 400 });
+  }
 
   const { data, error } = await supabase
     .from('contacts')
@@ -119,7 +125,7 @@ export async function POST(request: NextRequest) {
       email: email ? String(email).trim().toLowerCase() : null,
       first_name,
       last_name,
-      phone,
+      phone: cleanPhone,
       shopify_customer_id,
       tags,
       status,

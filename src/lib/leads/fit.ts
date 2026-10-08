@@ -17,17 +17,18 @@ export interface FitOutput {
   reason: string; // short, shown in the dashboard table
 }
 
-const SYSTEM_PROMPT = `You score B2B leads for ProMunch (promunch.in), an Indian D2C high-protein snack brand (roasted soya sticks/chips, vegan, ₹399–499 packs) looking for business buyers.
+const SYSTEM_PROMPT = `You score B2B leads for PROMUNCH (promunch.in), an Indian D2C high-protein snack brand (soya chips and sticks, roasted soya Crunchies, edamame, vegan, ₹399–499 packs) looking for business buyers.
 
-Score 0-100 how strong this company is as a ProMunch B2B prospect:
-- 80-100: directly buys/curates food or snacks for businesses at volume — corporate gifting curators/hamper companies, office pantry suppliers, airline/corporate caterers, hotel procurement, employee-engagement gifting platforms
-- 60-79: regularly gifts or feeds at scale but food is one option among many — general corporate gifting agencies, event managers, large offices/coworking with pantry budgets
-- 40-59: plausible but indirect — promotional merchandise printers, small agencies, unclear scale
-- 0-39: poor fit — sells unrelated goods (bags, electronics, trophies), retail-only, marketplace listing pages, or can't tell what they do
+Score 0-100 how strong this company is as a PROMUNCH B2B prospect:
+- 80-100: directly buys/curates food or snacks for businesses at volume: corporate gifting curators/hamper companies, office pantry suppliers, airline/corporate caterers, hotel procurement, employee-engagement gifting platforms
+- 60-79: regularly gifts or feeds at scale but food is one option among many: general corporate gifting agencies, event managers, large offices/coworking with pantry budgets
+- 40-59: plausible but indirect: promotional merchandise printers, small agencies, unclear scale
+- 0-39: poor fit: sells unrelated goods (bags, electronics, trophies), retail-only, marketplace listing pages, or can't tell what they do
 
 Judge from the evidence given; thin evidence caps the score at 60. Never invent facts.
 
-Return JSON: {"score": <int>, "reason": "<max 12 words, concrete, e.g. 'Curates festival hampers for corporates — snacks fit their boxes'>"}`;
+Return JSON: {"score": <int>, "reason": "<max 12 words, concrete, e.g. 'Curates festival hampers for corporates, snacks fit their boxes'>"}
+Write the reason in plain words with commas or full stops; never use em dashes.`;
 
 export async function scoreFit(input: FitInput): Promise<FitOutput> {
   const apiKey = await getSecret('OPENAI_API_KEY');

@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/rbac-server";
 import { recordAudit } from "@/lib/audit";
 import { supabaseAdmin as supabase } from '@/lib/supabase-admin';
 import { parseBody } from '@/lib/api-helpers';
+import { toContactPhone } from '@/lib/contacts/phone';
 
 // "promunch.myshopify.com" -> "promunch" (the admin URL store handle), same
 // convention as the WhatsApp customer-360 route.
@@ -104,6 +105,14 @@ export async function PATCH(
     if (field in body) {
       updateData[field] = body[field];
     }
+  }
+  // Always store phones as +<country><number> (bare 10 digits = +91).
+  if (typeof updateData.phone === 'string' && updateData.phone.trim()) {
+    const p = toContactPhone(updateData.phone);
+    if (!p) return NextResponse.json({ error: 'That phone number does not look right' }, { status: 400 });
+    updateData.phone = p;
+  } else if ('phone' in updateData && !updateData.phone) {
+    updateData.phone = null;
   }
 
   const { data, error } = await supabase
