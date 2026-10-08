@@ -440,7 +440,7 @@ export default function CampaignWizard({
                   </label>
                   <label className={`${styles.enrollOption}${mode === "sequence" ? ` ${styles.enrollOptionOn}` : ""}`}>
                     <input type="radio" name="mode" checked={mode === "sequence"} onChange={() => setMode("sequence")} />
-                    <span><b>Existing sequence</b><span className="pm-dim" style={{ display: "block", fontSize: 12 }}>Intro + timed follow-ups you set up in the Sequences tab.</span></span>
+                    <span><b>Existing sequence</b><span className="pm-dim" style={{ display: "block", fontSize: 12 }}>Intro + timed follow-ups you set up in the Campaigns tab.</span></span>
                   </label>
                 </div>
 
@@ -546,7 +546,7 @@ export default function CampaignWizard({
                   <div className={styles.enrollOptions} style={{ marginTop: 14 }}>
                     {sequences.length === 0 ? (
                       <div className="pm-empty" style={{ padding: 18 }}>
-                        No sequences yet. Pick “One email now”, or build one in the Sequences tab.
+                        No sequences yet. Pick “One email now”, or build one in the Campaigns tab.
                       </div>
                     ) : (
                       sequences.map((s) => (
@@ -749,7 +749,7 @@ function LaunchedPanel({
           <li>Emails go out automatically inside the send window, respecting the daily cap. Nothing else for you to do.</li>
           <li>Replies stop that lead&apos;s {mode === "sequence" ? "sequence" : "campaign"} instantly and appear in the <b>Replies</b> tab.</li>
           <li>Open, click and reply rates build up in the <b>Analytics</b> tab under this campaign&apos;s name.</li>
-          <li>Need to stop everything? <b>Settings → Pause</b>, or pause the sequence in the Sequences tab.</li>
+          <li>Need to stop everything? <b>Settings → Pause</b>, or pause the sequence in the Campaigns tab.</li>
         </ul>
       </div>
       <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>

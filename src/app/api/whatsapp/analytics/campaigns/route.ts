@@ -153,10 +153,10 @@ function gradeCampaign(deliveredPct: number, readPct: number, roi: number | null
   const grade = score >= 80 ? "A" : score >= 65 ? "B" : score >= 50 ? "C" : score >= 35 ? "D" : "F";
 
   let verdict: string;
-  if (readPct < 20) verdict = "Few people opened it — try a stronger first line or better timing.";
-  else if (deliveredPct < 70) verdict = "Many didn't get delivered — clean up the phone list.";
-  else if (roi != null && roi < 1) verdict = "Cost more than it earned — tighten the audience or offer.";
-  else if (orders === 0) verdict = "Good reach but no orders yet — add a clearer call to action.";
+  if (readPct < 20) verdict = "Few people opened it. Try a stronger first line or better timing.";
+  else if (deliveredPct < 70) verdict = "Many didn't get delivered. Clean up the phone list.";
+  else if (roi != null && roi < 1) verdict = "Cost more than it earned. Tighten the audience or offer.";
+  else if (orders === 0) verdict = "Good reach but no orders yet. Add a clearer call to action.";
   else if (grade === "A") verdict = "Strong all round. Do more like this.";
   else verdict = "Solid. Small tweaks to copy or audience could lift orders.";
   return { grade, verdict };
@@ -177,7 +177,7 @@ async function buildHints(
   const peak = byHour.indexOf(Math.max(...byHour));
   const fmtH = (h: number) => `${((h + 11) % 12) + 1}${h < 12 ? "am" : "pm"}`;
   const bestTime = inbound.length
-    ? { hour: peak, label: `${fmtH(peak)}–${fmtH((peak + 2) % 24)}`, note: "Most customer replies arrive then — schedule campaigns just before." }
+    ? { hour: peak, label: `${fmtH(peak)}–${fmtH((peak + 2) % 24)}`, note: "Most customer replies arrive then. Schedule campaigns just before." }
     : null;
 
   // Best segment: which RFM tier replied most among messaged contacts.

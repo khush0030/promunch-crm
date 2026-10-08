@@ -14,7 +14,19 @@ const WA_MARKS: { re: RegExp; style: React.CSSProperties }[] = [
   { re: /~([^~\n]+?)~/, style: { textDecoration: "line-through" } },
 ];
 
-export function renderWhatsApp(text: string, key = "w"): React.ReactNode[] {
+// Preview-only: show an unfilled-variable placeholder in muted grey so it reads
+// as "still to fill" rather than as message text.
+function muteLeaf(text: string, mute: string | undefined, key: string): React.ReactNode[] {
+  if (!mute || !text.includes(mute)) return [text];
+  const out: React.ReactNode[] = [];
+  text.split(mute).forEach((part, i) => {
+    if (i > 0) out.push(<span key={`${key}m${i}`} style={{ color: "#8696a0", fontStyle: "italic" }}>{mute}</span>);
+    if (part) out.push(part);
+  });
+  return out;
+}
+
+export function renderWhatsApp(text: string, key = "w", mute?: string): React.ReactNode[] {
   if (!text) return [];
   // Find the earliest-starting mark anywhere in the string.
   let best: { idx: number; len: number; inner: string; style: React.CSSProperties } | null = null;
@@ -24,23 +36,25 @@ export function renderWhatsApp(text: string, key = "w"): React.ReactNode[] {
       best = { idx: match.index, len: match[0].length, inner: match[1], style: m.style };
     }
   }
-  if (!best) return [text];
+  if (!best) return muteLeaf(text, mute, key);
   const out: React.ReactNode[] = [];
-  if (best.idx > 0) out.push(text.slice(0, best.idx));
+  if (best.idx > 0) out.push(...muteLeaf(text.slice(0, best.idx), mute, `${key}l`));
   out.push(
-    <span key={`${key}${best.idx}`} style={best.style}>{renderWhatsApp(best.inner, `${key}${best.idx}-`)}</span>,
+    <span key={`${key}${best.idx}`} style={best.style}>{renderWhatsApp(best.inner, `${key}${best.idx}-`, mute)}</span>,
   );
   const rest = text.slice(best.idx + best.len);
-  if (rest) out.push(...renderWhatsApp(rest, `${key}r`));
+  if (rest) out.push(...renderWhatsApp(rest, `${key}r`, mute));
   return out;
 }
 
 /* Pixel-faithful preview of how the template lands in a customer's WhatsApp. */
 export function WhatsAppPreview({
-  headerType, headerMediaUrl, headerText, body, footer, buttons,
+  headerType, headerMediaUrl, headerText, body, footer, buttons, mutedPlaceholder,
 }: {
   headerType?: string | null; headerMediaUrl?: string | null; headerText?: string | null;
   body: string; footer?: string | null; buttons?: TemplateButton[] | null;
+  /** Literal placeholder text to show muted (preview of unfilled variables). */
+  mutedPlaceholder?: string;
 }) {
   const ht = (headerType ?? "").toUpperCase();
   const btns = (buttons ?? []).filter((b) => b && b.text);
@@ -62,10 +76,10 @@ export function WhatsAppPreview({
           </div>
         )}
         {ht === "TEXT" && headerText && (
-          <div style={{ fontWeight: 700, padding: "2px 6px 0", marginBottom: 2 }}>{headerText}</div>
+          <div style={{ fontWeight: 700, padding: "2px 6px 0", marginBottom: 2 }}>{muteLeaf(headerText, mutedPlaceholder, "h")}</div>
         )}
         <div style={{ padding: "2px 6px 0", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-          {body ? renderWhatsApp(body) : <span style={{ color: "#8696a0" }}>Your message body…</span>}
+          {body ? renderWhatsApp(body, "w", mutedPlaceholder) : <span style={{ color: "#8696a0" }}>Your message body…</span>}
         </div>
         {footer && <div style={{ padding: "4px 6px 2px", fontSize: 11, color: "#8696a0" }}>{footer}</div>}
         <div style={{ textAlign: "right", fontSize: 10, color: "#8696a0", padding: "0 6px 2px" }}>

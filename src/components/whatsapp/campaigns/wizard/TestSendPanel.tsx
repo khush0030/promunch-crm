@@ -95,7 +95,7 @@ export function TestSendPanel({
             <input className={s.input} value={testName} onChange={(e) => setTestName(e.target.value)} />
           </label>
           <div className={s.inline} style={{ gridColumn: "1 / -1" }}>
-            <button type="submit" className="pm2-btn sm pri" disabled={busy || !draft || !!disabledReason}>
+            <button type="submit" className="pm2-btn sm" disabled={busy || !draft || !!disabledReason}>
               <Send size={14} aria-hidden /> {busy ? "Sending test…" : "Send test"}
             </button>
             {recent.map((n) => (

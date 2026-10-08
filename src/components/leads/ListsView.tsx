@@ -341,7 +341,7 @@ export default function ListsView({
         <TextPromptModal
           title="Rename list"
           label="List name"
-          defaultValue={dialog.name}
+          defaultValue={listLabel(dialog.name)}
           confirmLabel="Save name"
           onSubmit={(name) => renameList(dialog.id, name)}
           onClose={() => setDialog(null)}
@@ -352,7 +352,7 @@ export default function ListsView({
         <TextPromptModal
           title={`Merge ${the(n)} into one`}
           label="Name for the merged list"
-          defaultValue={selectedList[0]?.name ?? ""}
+          defaultValue={selectedList[0]?.name ? listLabel(selectedList[0].name) : ""}
           placeholder="e.g. Gifting · all cities"
           confirmLabel="Merge lists"
           onSubmit={mergeSelected}

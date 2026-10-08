@@ -4,7 +4,7 @@
 // orders, who is held back and why, failures in plain English, recipients,
 // one-click follow-ups, and the message as sent. Polls every 10s while sending.
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Clock, Repeat } from "lucide-react";
 import { Callout, Card, Funnel, Kpi, KpiStrip, PageHeader } from "@/components/pm";
@@ -13,7 +13,7 @@ import { friendlyTemplateName } from "@/lib/whatsapp/templateKind";
 import { campaignNextStep, campaignSentence } from "../../home/summary";
 import type { Campaign } from "../../types";
 import { classifyWaError, explainWaError } from "../../waErrors";
-import { errorMessage, useApprovedTemplates, useCampaign, useCampaignAnalytics, useFailures, useJourney } from "../api";
+import { errorMessage, useApprovedTemplates, useCampaign, useCampaignAnalytics, useFailures, useJourney, useRecipients } from "../api";
 import { FollowupDrawer, type DrawerTarget } from "../followups/FollowupDrawer";
 import { descendantCount, followupShortLabel } from "../journey";
 import type { CampaignAction } from "../logic";
@@ -29,7 +29,7 @@ import s from "../campaigns.module.css";
 import { useNow } from "../useNow";
 
 const LIST_HREF = "/dashboard/whatsapp?tab=campaigns";
-const crumb = <>Marketing · <Link href={LIST_HREF}>WhatsApp marketing</Link></>;
+const crumb = <>Marketing · <Link href={LIST_HREF}>WhatsApp</Link></>;
 
 export default function CampaignDetail({ id }: { id: string }) {
   const q = useCampaign(id);
@@ -105,6 +105,30 @@ function Detail({ c, run, busy }: { c: Campaign; run: (a: CampaignAction, c: Cam
   const sent = c.sent_count ?? 0;
   const heldByMeta = failures.data ? failures.data.groups.filter((g) => g.key === "cap").reduce((a, g) => a + g.count, 0) : null;
   const otherFailures = failures.data?.groups.filter((g) => g.key !== "cap") ?? [];
+  // People, not attempts: the failures endpoint counts every failed send row
+  // (retries included). Count each person once by their latest result, the
+  // same way the Recipients card's chips do (shared React Query cache).
+  const recipients = useRecipients(c.id, live);
+  const peopleByReason = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of recipients.data?.recipients ?? []) {
+      if (r.status === "read" || r.status === "delivered" || r.status === "sent" || r.status === "queued") continue;
+      const k = classifyWaError(r.error).key;
+      m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return m;
+  }, [recipients.data]);
+  const peopleFor = (key: string) => (recipients.data ? peopleByReason.get(key) ?? 0 : null);
+  const failureCount = (key: string, attempts: number) => {
+    const people = peopleFor(key);
+    if (people == null) return <b>{fmtInt(attempts)} {attempts === 1 ? "attempt" : "attempts"}</b>;
+    return (
+      <span style={{ textAlign: "right" }}>
+        <b>{fmtInt(people)} {people === 1 ? "person" : "people"}</b>
+        {attempts !== people && <span className={s.help} style={{ display: "block", margin: 0 }}>{fmtInt(attempts)} {attempts === 1 ? "attempt" : "attempts"}</span>}
+      </span>
+    );
+  };
   const held = breakdownRows(c.held_breakdown, "held");
   const skipped = breakdownRows(c.skipped_breakdown, "skipped");
   const resumeFuture = c.resume_at && Date.parse(c.resume_at) > now;
@@ -242,7 +266,7 @@ function Detail({ c, run, busy }: { c: Campaign; run: (a: CampaignAction, c: Cam
           )}
         </Card>
 
-        <Card title="What didn't arrive" basis="grouped by reason">
+        <Card title="What didn't arrive" basis="people, grouped by reason">
           {(c.failed_count ?? 0) === 0 ? (
             <div className="pm2-empty">Nothing so far.</div>
           ) : failures.isLoading ? (
@@ -251,7 +275,7 @@ function Detail({ c, run, busy }: { c: Campaign; run: (a: CampaignAction, c: Cam
             <div className={s.stack}>
               {heldByMeta != null && heldByMeta > 0 && (
                 <div>
-                  <div className={s.bdRow}><span><b style={{ color: "var(--pm-ink)" }}><GlossaryTerm k="held_back">Held back by Meta</GlossaryTerm></b></span><b>{fmtInt(heldByMeta)}</b></div>
+                  <div className={s.bdRow}><span><b style={{ color: "var(--pm-ink)" }}><GlossaryTerm k="held_back">Held back by Meta</GlossaryTerm></b></span>{failureCount("cap", heldByMeta)}</div>
                   <div className={s.help}>
                     Meta limits how many marketing messages each person gets from all businesses. Not a fault and not charged. We try them again after a day, up to 3 times.
                   </div>
@@ -259,7 +283,7 @@ function Detail({ c, run, busy }: { c: Campaign; run: (a: CampaignAction, c: Cam
               )}
               {otherFailures.map((g) => (
                 <div key={g.key}>
-                  <div className={s.bdRow}><span><b style={{ color: "var(--pm-ink)" }}>{g.title}</b>{g.willRetry ? " (tried again automatically)" : ""}</span><b>{fmtInt(g.count)}</b></div>
+                  <div className={s.bdRow}><span><b style={{ color: "var(--pm-ink)" }}>{g.title}</b>{g.willRetry ? " (tried again automatically)" : ""}</span>{failureCount(g.key, g.count)}</div>
                   <div className={s.help}>{g.key === "unknown" ? "We don't recognise this error. The technical details below help the owner look into it." : g.msg}</div>
                   {g.action && <div className={s.help}>What to do: {g.action}</div>}
                   {g.sample && <TechDetails>{g.sample}</TechDetails>}

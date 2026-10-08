@@ -52,6 +52,8 @@ function rank(a: Deal, b: Deal): number {
   return (b.last_email_at ?? "").localeCompare(a.last_email_at ?? "");
 }
 
+const OPEN_BUCKETS: Bucket[] = ["inquiries", "discussions", "samples"];
+
 const TEMP_DOT: Record<string, string> = {
   hot: "var(--pm-terra)",
   warm: "var(--pm-gold)",
@@ -151,8 +153,16 @@ export default function DealsPage() {
     return m;
   }, [filtered]);
 
+  // Follow-ups among OPEN deals only (same buckets as the "open" count), so
+  // "need follow-up" can never exceed "open". Won/closed deals don't need one.
   const followUps = useMemo(
-    () => deals.filter((d) => d.follow_up_needed && !(DEFAULT_HIDDEN_KINDS as string[]).includes(d.kind)).length,
+    () =>
+      deals.filter(
+        (d) =>
+          d.follow_up_needed &&
+          !(DEFAULT_HIDDEN_KINDS as string[]).includes(d.kind) &&
+          OPEN_BUCKETS.includes(BUCKET_OF[d.stage]),
+      ).length,
     [deals],
   );
 

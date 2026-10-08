@@ -12,6 +12,9 @@ import { followupStatusMeta } from "./journey";
 import { fillText, SAMPLE_NAME, statusMeta } from "./logic";
 import s from "./campaigns.module.css";
 
+// Shown in the phone preview for a variable that has not been filled in yet.
+const PREVIEW_BLANK = "[fill this in]";
+
 type TplLike = {
   header_type?: string | null;
   header_text?: string | null;
@@ -64,8 +67,9 @@ export function CampaignPreview({
         <WhatsAppPreview
           headerType={tpl.header_type}
           headerMediaUrl={mediaUrl || tpl.header_media_url}
-          headerText={fillText(tpl.header_text, vars, name, true)}
-          body={fillText(tpl.body, vars, name)}
+          headerText={fillText(tpl.header_text, vars, name, true, PREVIEW_BLANK)}
+          body={fillText(tpl.body, vars, name, false, PREVIEW_BLANK)}
+          mutedPlaceholder={PREVIEW_BLANK}
           footer={tpl.footer}
           buttons={tpl.buttons}
         />

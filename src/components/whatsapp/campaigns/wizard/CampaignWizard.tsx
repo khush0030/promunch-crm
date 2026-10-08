@@ -434,7 +434,7 @@ export default function CampaignWizard({ editId }: { editId?: string }) {
   const title = editId ? `Edit: ${form.name || "campaign"}` : "New WhatsApp campaign";
   const header = (
     <PageHeader
-      crumb={<>Marketing · <Link href={BACK_HREF}>WhatsApp marketing</Link></>}
+      crumb={<>Marketing · <Link href={BACK_HREF}>WhatsApp</Link></>}
       title={title}
       actions={
         <button type="button" className="pm2-btn sm" onClick={() => (autosave.dirty ? setConfirmLeave(true) : leave(false))}>

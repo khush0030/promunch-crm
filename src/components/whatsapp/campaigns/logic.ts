@@ -571,10 +571,19 @@ export function buildTemplateVars(vars: Record<string, string>, ai: boolean, bri
 }
 
 // Body/header text as a customer named `name` would see it.
-export function fillText(text: string | null | undefined, vars: Record<string, string>, name = SAMPLE_NAME, header = false): string {
+// Display only: fills a template's {{n}} slots for the phone preview. `blank`
+// replaces still-empty slots (default keeps the raw {{n}}). Never used to build
+// the template_vars that get sent.
+export function fillText(
+  text: string | null | undefined,
+  vars: Record<string, string>,
+  name = SAMPLE_NAME,
+  header = false,
+  blank?: string,
+): string {
   return String(text ?? "").replace(/\{\{\s*(\d+)\s*\}\}/g, (_m, n: string) => {
     const v = header ? (n === "1" ? vars._header_1 : "") : vars[n];
-    return v && v.trim() ? v.replace(/\{name\}/gi, name) : `{{${n}}}`;
+    return v && v.trim() ? v.replace(/\{name\}/gi, name) : blank ?? `{{${n}}}`;
   });
 }
 

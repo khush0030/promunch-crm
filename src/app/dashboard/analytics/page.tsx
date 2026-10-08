@@ -13,6 +13,7 @@ import { KpiCard, Panel, MiniBar, StatLine, DataTable } from "@/components/pm";
 import type { Column } from "@/components/pm";
 import { StudioHeader } from "@/components/email-studio/StudioHeader";
 import { getJson, inr, pct } from "@/components/email-studio/api";
+import css from "./analytics.module.css";
 
 const dateRanges = ["Last 7 Days", "Last 30 Days", "Last 90 Days"];
 const rangeShort: Record<string, string> = { "Last 7 Days": "7 days", "Last 30 Days": "30 days", "Last 90 Days": "90 days" };
@@ -43,6 +44,24 @@ type Results = {
 
 const n = (x: number) => x.toLocaleString("en-IN");
 const rate = (part: number, whole: number) => (whole > 0 ? pct(part / whole) : "–");
+
+// Phone layout for the top-lines tables: one card per row, nothing clipped.
+function LineCards({ rows }: { rows: Line[] }) {
+  return (
+    <div className={css.cards}>
+      {rows.map((c) => (
+        <div key={c.id} className={css.card}>
+          <div className={css.name}>{c.name}</div>
+          <dl className={css.stats}>
+            <div><dt>Sent</dt><dd>{c.sent ? n(c.sent) : "–"}</dd></div>
+            <div><dt>Clicked</dt><dd>{rate(c.clicks, c.sent)}</dd></div>
+            <div><dt>Revenue</dt><dd className="pm-b7">{c.revenue ? inr(c.revenue) : "–"}</dd></div>
+          </dl>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function AnalyticsPage() {
   const [activeRange, setActiveRange] = useState("Last 30 Days");
@@ -134,7 +153,7 @@ export default function AnalyticsPage() {
                     { n: n(d.emailsSent), l: "Emails sent", color: "var(--pm-ink)" },
                     { n: n(d.opens), l: `Opened · ${pct(d.openRate)}`, color: "var(--pm-ink)" },
                     { n: n(d.clicks), l: `Clicked · ${pct(d.clickRate)}`, color: "var(--pm-green)" },
-                    { n: d.unsubscribed > 0 ? `−${n(d.unsubscribed)}` : "0", l: "Unsubscribed", color: d.unsubscribed > 0 ? "var(--pm-terra)" : "var(--pm-ink)" },
+                    { n: n(d.unsubscribed), l: "Unsubscribed", color: "var(--pm-ink)" },
                   ]}
                 />
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--pm-line)", fontSize: 14, color: "var(--pm-ink2)" }}>
@@ -160,14 +179,20 @@ export default function AnalyticsPage() {
         <div className="pm-grid g-11" style={{ marginTop: 14 }}>
           <Panel title="Top campaigns" icon={<Mail className="tic" />} caption={`Sent in the last ${span}`}>
             {d?.campaigns.length ? (
-              <div style={{ marginTop: 4 }}><DataTable columns={lineCols("Campaign")} rows={d.campaigns.slice(0, 5)} rowKey={(c) => c.id} /></div>
+              <>
+                <div className={css.table} style={{ marginTop: 4 }}><DataTable columns={lineCols("Campaign")} rows={d.campaigns.slice(0, 5)} rowKey={(c) => c.id} /></div>
+                <LineCards rows={d.campaigns.slice(0, 5)} />
+              </>
             ) : (
               <div className="pm-dim" style={{ textAlign: "center", fontSize: 12.5, padding: "32px 0" }}>{d ? "No campaigns sent in this range" : "Loading…"}</div>
             )}
           </Panel>
           <Panel title="Top automations" icon={<TrendingUp className="tic" />} caption={`Sent in the last ${span}`}>
             {d?.automations.length ? (
-              <div style={{ marginTop: 4 }}><DataTable columns={lineCols("Automation")} rows={d.automations.slice(0, 5)} rowKey={(c) => c.id} /></div>
+              <>
+                <div className={css.table} style={{ marginTop: 4 }}><DataTable columns={lineCols("Automation")} rows={d.automations.slice(0, 5)} rowKey={(c) => c.id} /></div>
+                <LineCards rows={d.automations.slice(0, 5)} />
+              </>
             ) : (
               <div className="pm-dim" style={{ textAlign: "center", fontSize: 12.5, padding: "32px 0" }}>{d ? "No automation emails in this range" : "Loading…"}</div>
             )}

@@ -37,7 +37,7 @@ export default function GuideModal({ onClose }: { onClose: () => void }) {
           <ul className={styles.guideTipList}>
             <li><b>Sending in bulk:</b> open a list → <b>Email this list</b>. The wizard covers everything: recipients, missing-email lookup, product targeting, AI drafting and a per-company preview. Nothing sends until you hit Launch on the last step.</li>
             <li><b>Product targeting</b> is per campaign. Pick Edamame, Crunchies, Sticks or Chips in the wizard and the AI draft leads with those products (facts always from the knowledge base).</li>
-            <li>Multi-email drip (intro → follow-ups days apart) lives in the <b>Sequences</b> tab; the wizard can enroll a list into any sequence you built there.</li>
+            <li>Multi-email drip (intro → follow-ups days apart) lives in the <b>Campaigns</b> tab; the wizard can enroll a list into any campaign sequence you built there.</li>
             <li><b>Find companies</b> queues the searches and starts the work right away. Hit <b>Keep going</b> any time to push leads further along. It also runs automatically every night.</li>
             <li>Each <b>category × city</b> is one Google search of up to ~60 companies. Start small (1–2 categories, 1–2 cities) to keep results focused.</li>
             <li>No contact found by the crawler? Open the lead and add an email by hand (check their site or LinkedIn).</li>

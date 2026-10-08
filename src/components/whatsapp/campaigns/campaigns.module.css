@@ -154,6 +154,9 @@
 /* Warnings: a hairline card with a thin marker, not a filled red block. */
 .danger { border: 1px solid var(--pm-border); border-left: 3px solid var(--pm-terra); background: var(--pm-card); border-radius: 12px; padding: 12px 14px; font-size: 14px; line-height: 1.5; }
 .danger b { color: var(--pm-terra); }
+/* Plain information (quiet hours etc.): same shape as .danger, no alarm colour. */
+.info { border: 1px solid var(--pm-border); background: var(--pm-card); border-radius: 12px; padding: 12px 14px; font-size: 14px; line-height: 1.5; color: var(--pm-ink); }
+.info b { color: var(--pm-ink); }
 
 .summary { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; margin: 0; font-size: 14px; }
 .summary dt { color: var(--pm-muted); }

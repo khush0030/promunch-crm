@@ -167,7 +167,7 @@ function Body({ d, c, conv, act, days, stale }: {
     d.health.tone === "r"
       ? "Some sends are blocked. See \"Messages that did not arrive\" below."
       : notArrived > 0
-      ? `${num(notArrived)} of ${num(attempted)} messages did not arrive (${inHundred(notArrived, attempted) ?? 0} in 100).`
+      ? `${num(notArrived)} of ${num(attempted)} send attempts did not arrive (${inHundred(notArrived, attempted) ?? 0} in 100). The other ${num(h.sent)} went out.`
       : "Delivery is running normally.";
 
   return (
@@ -183,7 +183,7 @@ function Body({ d, c, conv, act, days, stale }: {
 
       <KpiStrip>
         <Kpi label="Revenue" value={<span className={s.red}>{inr(h.revenue)}</span>} sub={`${num(h.orders)} orders after a message`} />
-        <Kpi label="Messages sent" value={num(h.sent)} sub={`${h.deliveredPct}% delivered · ${num(d.today.sent)} today`} />
+        <Kpi label="Messages sent" value={num(h.sent)} sub={`${h.deliveredPct}% of those delivered · ${num(d.today.sent)} sent since midnight`} />
         <Kpi label="Read rate" value={`${h.readPct}%`} sub={readVerdict(h.readPct)} />
         <Kpi
           label={
@@ -406,7 +406,7 @@ function CampaignCards({ cards }: { cards: CampCard[] }) {
                     {graded ? (
                       <>
                         <span className={`${s.grade} ${gradeClass(x.grade)}`}>Grade {x.grade}</span>
-                        <span className={s.sub}>{x.verdict.replace(/\s*\u2014\s*/g, ". ")}</span>
+                        <span className={s.sub}>{x.verdict}</span>
                       </>
                     ) : (
                       <>
@@ -513,8 +513,8 @@ function FailurePanel({ d, attempted }: { d: Data; attempted: number }) {
     f.total === 0
       ? "Every message went through. Nothing to fix."
       : needFix > 0
-      ? `${num(f.total)} of ${num(attempted)} did not arrive. ${num(needFix)} need fixing.`
-      : `${num(f.total)} of ${num(attempted)} did not arrive. All normal, nothing to fix.`;
+      ? `${num(f.total)} of ${num(attempted)} send attempts did not arrive. ${num(needFix)} need fixing.`
+      : `${num(f.total)} of ${num(attempted)} send attempts did not arrive. All normal, nothing to fix.`;
   return (
     <Panel title="Messages that did not arrive" takeaway={takeaway}>
       {f.total > 0 && (

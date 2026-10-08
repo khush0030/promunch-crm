@@ -76,7 +76,7 @@ export function StepSchedule({
       </div>
 
       {value.when === "now" && quietNow && (
-        <div className={s.danger}>
+        <div className={s.info}>
           It&apos;s quiet hours (9 PM to 9 AM India time) right now, so the first messages go out at about <b>{fmtIst(effectiveStart(value))}</b>.
         </div>
       )}
@@ -107,7 +107,7 @@ export function StepSchedule({
               </label>
             )}
             {quietAt && (
-              <div className={s.danger}>
+              <div className={s.info}>
                 That time is in quiet hours (9 PM to 9 AM India time). It will start at <b>10:00 AM</b> the next morning instead.
               </div>
             )}

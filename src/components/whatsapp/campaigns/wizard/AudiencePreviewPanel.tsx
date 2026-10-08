@@ -76,7 +76,7 @@ export function AudiencePreviewPanel({
           <div className={s.bdRow}>
             <span>Pace</span>
             <b>
-              {pace.perDay != null ? `~${fmtInt(pace.perDay)} a day` : "unknown"}
+              {pace.perDay != null ? `~${fmtInt(pace.perDay)} a day` : "depends on today's budget"}
               {pace.finishMs ? `, done about ${fmtIstDate(pace.finishMs)}` : ""}
             </b>
           </div>

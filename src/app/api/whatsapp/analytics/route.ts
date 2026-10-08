@@ -43,7 +43,7 @@ const FAIL_INFO: Record<
   rate: {
     title: "Meta is slowing us down",
     willRetry: true,
-    action: "We sent too fast. These retry on their own — no action needed.",
+    action: "We sent too fast. These retry on their own. No action needed.",
     tone: "a",
   },
   system: {
@@ -137,7 +137,7 @@ export async function GET(req: NextRequest) {
   const hasBlocker = failures.groups.some((g) => g.tone === "r" && g.count > 0);
   const health =
     hasBlocker
-      ? { tone: "r", label: "Needs attention", note: "Some sends are blocked — see failures below." }
+      ? { tone: "r", label: "Needs attention", note: "Some sends are blocked. See failures below." }
       : failedPct > 20
       ? { tone: "a", label: "Watch", note: `${failedPct}% of sends failed in this period.` }
       : { tone: "g", label: "Healthy", note: "Delivery is running normally." };
@@ -293,9 +293,9 @@ function categoryFromErrorText(err: string | null): { category: string; cause: s
   if (!err) return null;
   const m = err.toLowerCase();
   if (/131049|healthy ecosystem|131050|130472|experiment/.test(m))
-    return { category: "deliverability", cause: "Meta's per-user marketing frequency cap (or experiment holdout) — the contact retries on a later day where possible." };
+    return { category: "deliverability", cause: "Meta's per-user marketing frequency cap (or experiment holdout). The contact retries on a later day where possible." };
   if (/131026|undeliverable|media upload/.test(m))
-    return { category: "deliverability", cause: "Recipient can't receive — number not on WhatsApp, or Meta couldn't fetch the header media." };
+    return { category: "deliverability", cause: "Recipient can't receive: number not on WhatsApp, or Meta couldn't fetch the header media." };
   if (/oauthexception|access token|\(#190\)/.test(m))
     return { category: "auth", cause: "WhatsApp access token expired or invalid." };
   if (/132\d{3}|template/.test(m))

@@ -112,7 +112,7 @@ export default function StartHere() {
           />
         ) : (
           <Kpi
-            label="Sent · last 24 hours"
+            label="People messaged · last 24 hours"
             value={int(quota.data.used24h)}
             sub={quota.data.standing_error ? "Couldn't read the daily limit. Meta still holds back extras." : "No daily limit set. Meta still holds back extras."}
           />

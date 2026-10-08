@@ -57,8 +57,9 @@ export default function ListDetail({
   useEffect(() => { load(); }, [load]);
 
   async function rename() {
-    const name = prompt("Rename list:", list?.name ?? "");
-    if (!name?.trim() || name.trim() === list?.name) return;
+    const current = list?.name ? listLabel(list.name) : "";
+    const name = prompt("Rename list:", current);
+    if (!name?.trim() || name.trim() === list?.name || name.trim() === current) return;
     const res = await fetch(`/api/leads/lists/${listId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
