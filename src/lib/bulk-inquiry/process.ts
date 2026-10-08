@@ -184,7 +184,7 @@ async function sendAutoReply(row: Row, q: BulkInquiryInput): Promise<string> {
     inquiry: q,
     refNo: row.ref_no,
     opener,
-    whatsappDisplay: settings?.whatsapp_display || "+91 72722 58545",
+    whatsappDisplay: settings?.whatsapp_display || "+91 99813 10247",
   });
 
   try {

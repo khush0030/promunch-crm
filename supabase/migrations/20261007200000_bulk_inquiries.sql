@@ -73,7 +73,7 @@ alter table bulk_inquiries enable row level security;  -- service role only, no 
 create table if not exists bulk_inquiry_settings (
   id smallint primary key default 1 check (id = 1),
   autoreply_enabled boolean not null default true,
-  whatsapp_display text not null default '+91 72722 58545',
+  whatsapp_display text not null default '+91 99813 10247',
   quote_promise text not null default 'Quote within one working day',
   updated_at timestamptz not null default now()
 );

@@ -107,7 +107,7 @@ describe("renderBulkInquiryEmail", () => {
     inquiry: parsed.value,
     refNo: 1042,
     opener: "Diwali gifting for the Navan team, love it. Here is what we need to send you pricing.",
-    whatsappDisplay: "+91 72722 58545",
+    whatsappDisplay: "+91 99813 10247",
   });
 
   it("uses the gifting subject and greets by first name", () => {
@@ -119,7 +119,7 @@ describe("renderBulkInquiryEmail", () => {
     expect(mail.html).toContain("By 28 Oct");
     for (const q of questionsFor("gifting")) expect(mail.html).toContain(q);
     expect(mail.html).toContain("mailto:hello@promunch.in");
-    expect(mail.html).toContain("https://wa.me/917272258545");
+    expect(mail.html).toContain("https://wa.me/919981310247");
     expect(mail.html).toContain("B-1042");
   });
   it("never contains em dashes or an AI label", () => {
