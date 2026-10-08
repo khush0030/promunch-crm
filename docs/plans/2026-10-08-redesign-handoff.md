@@ -1,6 +1,6 @@
 # Redesign handoff: continue in any session (local or cloud)
 
-**Keep this file current.** Updated at every milestone. Last update: **8 Oct 2026, 10:15 IST**, branch `redesign/app-v2` @ see `git log -1`.
+**Keep this file current.** Updated at every milestone. Last update: **8 Oct 2026, 11:45 IST**, branch `redesign/app-v2` @ see `git log -1`.
 
 Read first: `AGENTS.md`, `CLAUDE.md`, `promunch-email-agent/CLAUDE.md` §0 (never message a customer twice).
 
@@ -60,17 +60,17 @@ The full CRM redesign lives on branch **`redesign/app-v2`** (pushed; ~32 commits
 - **Leaner UI (8 Oct):** do NOT re-add info the redesign dropped. That covers the email click-rate/When columns, WhatsApp campaign reach/Delivered/Replies/Clicks, the Results Replies/Orders tiles, contacts lists/status, and the Home Web/Amazon/Repeat tiles. Only fix numbers that are wrong, dead ends and clipping.
 - Calm UI rules: status = coloured text + dot, no filled blocks, one red element per screen, yellow only for Maya, green only for good, hairlines and no boxes in boxes, readable at 390px, nothing cut off.
 
-## 4. In progress at last update
+## 4. Current state: fidelity audit done, waiting on the owner
 
-- **Design-fidelity review: prototype vs build.**
-  - The owner feels the build still differs from the approved prototype.
-  - 6 agents were comparing every prototype screen (round 8, `docs/plans/2026-10-07-app-redesign/` on main) with the build at 1440/390. Each difference is tagged:
-    - A = UI-only gap;
-    - B = needs backend;
-    - C = already decided.
-  - Output goes to a ranked list for the owner, and **no code changes until the owner picks what to fix**.
-  - The owner will also send their own pinpointed differences.
-  - If this session died mid-review: re-run it per area using the prototype file/anchor map in `docs/plans/2026-10-07-app-redesign/03-screen-inventory.md` and `manifest.js`.
+- **Functional QA:** finished and passing. In the production build, the safe click-through made 1,037 clicks across 68 routes at 2 widths with no app errors. Everything it flagged was harness timing or a test-browser limit, identical on main.
+- **Design-fidelity audit:** finished. Read **`docs/audits/2026-10-08-redesign-fidelity.md`**.
+  - The build has the prototype's tokens, fonts and colours, but many screens kept the old structure: flipped header pattern, tab sets not matching the IA, extra chrome.
+  - Some screens were never redesigned: B2B/Deals, Email Results, the customer profile, login/404/no-access/error, the creator portal, the welcome pop-up and the sign-up popup editor.
+  - The audit holds a ranked Tier 1 (UI-only) list, a bugs list and a Tier 2 (needs backend) list.
+- **Next step: the OWNER picks what to fix.** They were also sending their own pinpointed differences. Do not start the redesign rework until they choose.
+  - Suggested order: Tier 1 items 1-5 (header pattern, Home, login/404, welcome, tabs), then the bug list, then per-area items.
+  - Tier 2 needs owner scoping because it adds backend work.
+- **Open question for the owner:** the WhatsApp campaign report shows Replies, not Orders, in its KPI tiles. Does the "no Replies/Orders tiles" decision cover the report or only Results?
 
 ## 5. Open owner decisions (do not build without a yes)
 
@@ -130,4 +130,5 @@ The full CRM redesign lives on branch **`redesign/app-v2`** (pushed; ~32 commits
 
 ## 9. Update log
 
+- 2026-10-08 11:45 IST: fidelity audit finished (6 areas), written to docs/audits/2026-10-08-redesign-fidelity.md. Prod-build click-through passed. Waiting on owner to pick fixes.
 - 2026-10-08 10:15 IST: file created. QA + fixes done and pushed; fidelity review running; final prod click-through running.
