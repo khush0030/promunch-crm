@@ -9,6 +9,8 @@ import { logConnector, alertWaSendFailure, postSlack, slackChannelFor } from "..
 import { buildCartPermalink, cartFromOrderItems } from "../_shared/shopify-cart.ts";
 import { getFlowSettings } from "../_shared/flow-settings.ts";
 import { handleGateButton, parseGatePayload } from "../_shared/cod-gate.ts";
+import { isFeedbackPayload, parseFeedbackPayload } from "../_shared/review-feedback.ts";
+import { handleReviewFeedbackTap } from "../_shared/review-feedback-flow.ts";
 import { safeMessageType } from "../_shared/wa-message-types.ts";
 import {
   logWindowOpenedByTap,
@@ -527,6 +529,29 @@ async function handleInboundMessage(msg: any, profile: any) {
   if (gate) {
     await handleGateButton(gate.action, gate.shopifyId, waId, thread.id)
       .catch((e) => console.error("[wa-webhook] gate button failed", e));
+    return;
+  }
+
+  // REVIEW FEEDBACK ask taps (rvf:<choice>:<ref>). Deterministic, never AI:
+  // one reply per ask, claim-guarded in handleReviewFeedbackTap (a second tap
+  // gets no reply). A malformed rvf: payload is swallowed (logged) rather
+  // than handed to the bot as a three-word message. Placed after the COD
+  // gate and before STOP/START/"done #N": the payload namespaces cannot
+  // overlap, and none of these buttons is a STOP tap.
+  if (isFeedbackPayload(gateRaw)) {
+    const rvf = parseFeedbackPayload(gateRaw);
+    if (rvf) {
+      await handleReviewFeedbackTap({
+        choice: rvf.choice, ref: rvf.ref, waId, threadId: thread.id,
+        tapWamid: wamid ?? null, name,
+      }).catch((e) => console.error("[wa-webhook] review feedback tap failed", e));
+    } else {
+      logConnector({
+        connector: "whatsapp", level: "warn", event: "review_feedback_tap_malformed",
+        message: `${waId}: malformed review feedback payload; no reply.`,
+        detail: { payload: String(gateRaw).slice(0, 200) },
+      }).catch(() => {});
+    }
     return;
   }
 

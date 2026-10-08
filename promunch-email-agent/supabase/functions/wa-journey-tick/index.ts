@@ -18,6 +18,18 @@ import { WINDOW_DELIVER_JOURNEYS, claimAsk, releaseAsk, sessionOpen } from "../_
 import { isCapError, isMarketingTemplate, isUndeliverableError, marketingAllowed } from "../_shared/marketing-governor.ts";
 import { REACHED_MIN_SECONDS } from "../_shared/voice-eligibility.ts";
 import { claimCartTemplateAttempt, hasPriorityCart } from "../_shared/cart-recovery-policy.ts";
+import {
+  buildFeedbackTemplateComponents,
+  feedbackTemplateVars,
+  REVIEW_FEEDBACK_LANGUAGE,
+  REVIEW_FEEDBACK_TEMPLATE,
+  reviewTemplateChoice,
+} from "../_shared/review-feedback.ts";
+import {
+  feedbackTemplateApproved,
+  reviewFeedbackActive,
+  sendReviewFeedbackInWindow,
+} from "../_shared/review-feedback-flow.ts";
 
 const BATCH = 200;
 // Max times to retry the (per-recipient-capped) template fallback for a
@@ -105,6 +117,8 @@ Deno.serve(async (req) => {
   }
 
   let sent = 0, failed = 0, skipped = 0;
+  // review_feedback_v1 approval, looked up at most once per tick.
+  let feedbackApproved: boolean | null = null;
 
   for (const run of due ?? []) {
     // Voice rows belong to voice-tick (every minute). Never touch them here:
@@ -261,6 +275,12 @@ Deno.serve(async (req) => {
     // enrolled before that was stored fall straight through to the template
     // (which still carries the button) rather than send a linkless nudge.
     const freeTextReady = !isCart || !!run.context?.vars?.["2"];
+    // REVIEW FEEDBACK (wa_flow_settings.review_feedback_enabled, default off):
+    // the review ask becomes a 3-button check-in, as an interactive message in
+    // an open window or review_feedback_v1 as the template. Flag off = false
+    // here and every line below behaves exactly as before.
+    const feedback = run.journey_key === "review_request" && !run.context?.template &&
+      await reviewFeedbackActive(run.wa_id, flows);
     if (windowEligible && freeTextReady) {
       const { data: th } = await sb
         .from("wa_threads")
@@ -268,7 +288,9 @@ Deno.serve(async (req) => {
         .eq("wa_id", run.wa_id)
         .maybeSingle();
       if (th?.id && sessionOpen(th.last_inbound_at, Date.now())) {
-        const res = await callProactiveAsk(th.id, run);
+        const res = feedback
+          ? await sendReviewFeedbackInWindow(sb, th.id, run)
+          : await callProactiveAsk(th.id, run);
         if (res?.skipped) { skipped++; continue; }   // already delivered by another path
         if (res?.sent) { sent++; continue; }          // delivered in-window, free
         // else: window closed at Meta / generation failed → fall through to template
@@ -278,8 +300,28 @@ Deno.serve(async (req) => {
     // A run may override the journey's default template per step (e.g.
     // abandoned_checkout sends a no-coupon reminder first, then the coupon
     // template). Fall back to the journey default for older runs.
-    const tplName = run.context?.template ?? cfg.template;
-    const tplLang = run.context?.language ?? cfg.language;
+    let tplName = run.context?.template ?? cfg.template;
+    let tplLang = run.context?.language ?? cfg.language;
+    let tplComponents = run.context?.components;
+    let tplVars = run.context?.vars ?? {};
+    if (feedback) {
+      if (feedbackApproved === null) feedbackApproved = await feedbackTemplateApproved(sb);
+      if (reviewTemplateChoice(true, feedbackApproved) === "feedback") {
+        const name = run.context?.vars?.["1"];
+        tplName = REVIEW_FEEDBACK_TEMPLATE;
+        tplLang = REVIEW_FEEDBACK_LANGUAGE;
+        // Payloads carry rvf:<choice>:<run id>; wa-webhook routes the tap.
+        tplComponents = buildFeedbackTemplateComponents(name, run.id);
+        tplVars = feedbackTemplateVars(name);
+      } else {
+        // Flag on but the template is not approved yet: keep the legacy ask.
+        logConnector({
+          connector: "whatsapp", level: "warn", event: "review_feedback_template_not_approved",
+          message: `review_feedback_enabled is on but ${REVIEW_FEEDBACK_TEMPLATE} is not approved at Meta; sent review_request instead.`,
+          throttleMinutes: 360,
+        }).catch(() => {});
+      }
+    }
 
     // template must be approved by Meta before we can send it
     const { data: tpl } = await sb
@@ -379,8 +421,8 @@ Deno.serve(async (req) => {
         language: tplLang,
         // newer runs carry pre-built components (body + URL button); older
         // runs carry flat vars — wa-send falls back to vars when no components.
-        components: run.context?.components,
-        vars: run.context?.vars ?? {},
+        components: tplComponents,
+        vars: tplVars,
       },
       sent_by: `journey:${run.journey_key}`,
       // so the async delivery webhook can confirm (delivered) or reopen (failed)

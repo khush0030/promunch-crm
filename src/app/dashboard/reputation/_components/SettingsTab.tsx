@@ -128,7 +128,8 @@ function SettingsForm({ data, canEdit }: { data: OrmSettingsResponse; canEdit: b
         </div>
       </div>
       <div className={s.card}>
-        {data.sources.map((src) => (
+        {/* "whatsapp" is fed by the WhatsApp review ask, not collected: no toggle. */}
+        {data.sources.filter((src) => src.key !== "whatsapp").map((src) => (
           <SourceRow
             key={src.key}
             src={src}

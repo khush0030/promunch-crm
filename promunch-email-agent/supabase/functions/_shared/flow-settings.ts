@@ -17,6 +17,10 @@ export interface FlowSettings {
   cart_coupon_code: string;
   review_request_enabled: boolean;
   review_delay_days: number;
+  // Review ask as a 3-button feedback check-in (review_feedback_v1 / in-window
+  // interactive) instead of the plain review_request. Off = exactly as before.
+  // See _shared/review-feedback.ts.
+  review_feedback_enabled: boolean;
   replenishment_enabled: boolean;
   replenishment_delay_days: number;
   // COD confirmation gate (RTO reduction) — see _shared/cod-gate.ts
@@ -64,6 +68,7 @@ export const FLOW_DEFAULTS: FlowSettings = {
   cart_coupon_code: "PROMUNCH10",
   review_request_enabled: true,
   review_delay_days: 7,
+  review_feedback_enabled: false,
   replenishment_enabled: true,
   replenishment_delay_days: 30,
   cod_gate_enabled: false,

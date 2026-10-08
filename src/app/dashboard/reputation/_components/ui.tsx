@@ -28,6 +28,7 @@ export const SOURCE_SHORT: Record<OrmSourceKey, string> = {
   reddit: "Reddit",
   rss: "News and web",
   instagram: "Instagram",
+  whatsapp: "WhatsApp",
 };
 
 export const OPEN_ON: Record<OrmSourceKey, string> = {
@@ -37,6 +38,7 @@ export const OPEN_ON: Record<OrmSourceKey, string> = {
   reddit: "Open on Reddit",
   rss: "Open the article",
   instagram: "Open on Instagram",
+  whatsapp: "Open the WhatsApp chat",
 };
 
 export const STATUS_LABEL: Record<OrmStatus, string> = {

@@ -78,6 +78,7 @@ const FALLBACK_MARKETING = new Set([
   "abandoned_checkout",
   "replenishment_reminder",
   "review_request",
+  "review_feedback_v1",
   "edamame_launch",
 ]);
 

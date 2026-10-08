@@ -14,6 +14,7 @@ const TONE: Record<OrmSourceKey, string> = {
   reddit: "a Reddit comment: plain, honest, conversational, zero marketing speak, no hashtags or emojis",
   rss: "a short, polite note to the writer of a news or blog article",
   instagram: "an Instagram comment reply: friendly and short",
+  whatsapp: "a private WhatsApp note to a customer who said they are not happy with their order: warm, short, ask what went wrong",
 };
 
 export const REPLY_SYSTEM_PROMPT = `You write public replies for PROMUNCH, an Indian high-protein snack brand ("Your Munchy Pal").

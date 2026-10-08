@@ -54,6 +54,13 @@ import { requireInternal } from "../_shared/require-internal.ts";
 import { uploadResumable, fetchMediaBytes } from "../_shared/whatsapp.ts";
 import { intentLabel, quickRepliesFor } from "../_shared/quick-replies.ts";
 import { finalFooter, validateCore, type CoreIssue } from "../_shared/template-rules.ts";
+import {
+  FEEDBACK_CHOICES,
+  FEEDBACK_TEMPLATE_BODY,
+  FEEDBACK_TEMPLATE_BUTTON_LABELS,
+  REVIEW_FEEDBACK_FOOTER,
+  REVIEW_FEEDBACK_TEMPLATE,
+} from "../_shared/review-feedback.ts";
 import { buildVariables, incomingLabels, storedLabels } from "../_shared/template-variables.ts";
 
 type HeaderFormat = "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT";
@@ -123,6 +130,7 @@ class ValidationFailed extends Error {
 //   shipping_update_v2           : 1=name 2=orderRef 3=tracking (buttoned successor)
 //   abandoned_checkout     : 1=name 2=coupon   3=cartUrl
 //   review_request         : 1=name 2=reviewUrl
+//   review_feedback_v1     : 1=name   (3 quick replies, rvf: payloads)
 //   replenishment_reminder : 1=name 2=siteUrl
 // Button text for the service quick replies comes from _shared/quick-replies.ts,
 // which is also what builds the per-send payloads. One source of truth: a label
@@ -283,10 +291,29 @@ const TEMPLATES: TemplateDef[] = [
     category: "MARKETING",
     body:
       "Hey {{1}}! Have the snacks hit the spot yet? 😋\n\n" +
-      "If PROMUNCH made your munch-time better, a quick review would make our day — 30 seconds, promise:\n{{2}}\n\n" +
-      "— Your Munchy Pal 💚",
+      "If PROMUNCH made your munch-time better, a quick review would make our day, 30 seconds, promise:\n{{2}}\n\n" +
+      "Your Munchy Pal 💚",
     bodyExample: ["Aarav", "https://promunch.in/reviews"],
     footer: "Reply STOP to unsubscribe",
+  },
+  {
+    // Review FEEDBACK ask (owner-approved Oct 9 2026), the buttoned successor
+    // to review_request, sent only when wa_flow_settings.review_feedback_enabled
+    // is on. Three quick replies; the rvf:<choice>:<journey run id> payload is
+    // injected per send (_shared/review-feedback.ts buildFeedbackTemplateComponents),
+    // so button ORDER here must stay Loved / okay / Not happy. Button labels
+    // carry no emoji (template-rules: Meta rejects emojis in template buttons);
+    // the in-window interactive version uses the emoji labels.
+    // finalFooter() appends the STOP notice (MARKETING), so the footer Meta sees
+    // is "Your Munchy Pal · Reply STOP to unsubscribe".
+    //   1=name
+    name: REVIEW_FEEDBACK_TEMPLATE,
+    language: "en",
+    category: "MARKETING",
+    body: FEEDBACK_TEMPLATE_BODY,
+    bodyExample: ["Aarav"],
+    footer: REVIEW_FEEDBACK_FOOTER,
+    buttons: FEEDBACK_CHOICES.map((c) => ({ type: "QUICK_REPLY" as const, text: FEEDBACK_TEMPLATE_BUTTON_LABELS[c] })),
   },
   {
     name: "replenishment_reminder",
