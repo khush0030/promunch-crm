@@ -1,25 +1,31 @@
-/* Home · Today. Calm rules: status = coloured text + small dot, one red
-   element (the primary button), yellow only for Maya, hairlines inside cards. */
+/* Home · Today. Calm rules: status = coloured text + small dot, the red
+   pinstripe Sales tile is the hero, yellow only for Maya, hairlines inside
+   cards. Matches prototype index.html#home / #home-clear. */
 
 /* ---------- header ---------- */
 .ph{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px 24px;padding:18px var(--pm3-gutter) 6px}
 .phText{flex:1 1 420px;min-width:0}
-.eyebrow{display:block;font:700 11.5px/1.2 var(--pm-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--pm-muted);margin-bottom:12px}
-.title{margin:0;font:400 clamp(28px,3.4vw,44px)/1.05 var(--pm-display);letter-spacing:-.01em;color:var(--pm-ink)}
+.eyebrow{display:block;font:700 11.5px/1.2 var(--pm-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--pm-brand);margin-bottom:12px}
+.title{margin:0;font:400 clamp(28px,3.4vw,44px)/1.08 var(--pm-display);letter-spacing:-.02em;text-transform:uppercase;color:var(--pm-ink)}
 .sum{margin:10px 0 0;font-size:17.5px;line-height:1.5;color:var(--pm-ink2);max-width:62ch}
 .sum b{color:var(--pm-ink)}
 .acts{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.seg button{white-space:nowrap}
 .primary{white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px}
 
 /* ---------- KPI tiles ---------- */
 .kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
 .kpi{background:var(--pm-card);border:1px solid var(--pm-border);border-radius:var(--pm-r);padding:22px 24px;display:flex;flex-direction:column;gap:6px;min-width:0;color:var(--pm-ink);text-decoration:none;transition:border-color .15s}
 a.kpi:hover{border-color:#CFC7B9}
-.kpiL{display:flex;align-items:center;gap:8px;font:700 11.5px/1.2 var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-muted)}
-.kpiL svg{width:15px;height:15px;margin-left:auto;color:var(--pm-hint)}
+.kpiL{display:block;font:700 11.5px/1.2 var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-muted)}
 .kpiV{font:400 34px/1.1 var(--pm-display);letter-spacing:-.02em;margin-top:6px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hero .kpiV{font-size:44px}
-.kpiD{font-size:14.5px;color:var(--pm-ink2);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.kpiD{display:block;font-size:14.5px;color:var(--pm-ink2)}
+.kpiD .up,.kpiD .down,.kpiD .flat{white-space:nowrap}
+/* the hero: brand red with the fine diagonal pinstripe (prototype .kpi.hero) */
+.kpi.hero{background:var(--pm-brand);border-color:var(--pm-brand);color:#fff;background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.055) 0 2px,transparent 2px 9px)}
+a.kpi.hero:hover{border-color:var(--pm-brand-deep, #8E1F26)}
+.hero .kpiL,.hero .kpiD{color:rgba(255,255,255,.82)}
+.hero .up,.hero .down,.hero .flat{color:#fff}
 .up{color:var(--pm-green);font-weight:700}
 .down{color:var(--pm-terra);font-weight:700}
 .flat{color:var(--pm-muted);font-weight:700}
@@ -89,7 +95,20 @@ a.kpi:hover{border-color:#CFC7B9}
 .tg.info{color:var(--pm-blue)}.tg.info::before{background:var(--pm-blue)}
 .runEmpty{margin:10px 0 0;font-size:14.5px;color:var(--pm-muted)}
 
+/* all clear (prototype .empty) */
+.clear{text-align:center;padding:56px 24px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.clear h3{margin:0;font:400 22px/1.2 var(--pm-display);text-transform:uppercase;letter-spacing:-.01em;color:var(--pm-ink)}
+.clear p{margin:0;color:var(--pm-ink2);font-size:16px;line-height:1.5;max-width:44ch}
+.clear :global(.pm2-btn){margin-top:8px;text-decoration:none}
+.art{width:84px;height:84px;border-radius:50%;background:var(--pm-card3);display:grid;place-items:center;color:var(--pm-ink2);margin-bottom:6px;position:relative}
+.art svg{width:34px;height:34px}
+.sticker{position:absolute;top:-6px;right:-18px;display:inline-block;background:var(--pm-sun);color:var(--pm-ink);font:700 10.5px/1 var(--pm-mono);letter-spacing:.1em;padding:5px 8px;border-radius:6px;transform:rotate(-3deg);text-transform:uppercase;white-space:nowrap}
+
 /* sales chart */
+.chart{width:100%;position:relative;min-height:200px}
+.chart svg{display:block;max-width:100%;height:auto;overflow:visible}
+.ax{font:500 11px var(--pm-mono);fill:var(--pm-muted)}
+.ev{font:700 12.5px var(--pm-font)}
 .takeaway{margin:6px 0 10px;font:400 22px/1.2 var(--pm-display);letter-spacing:-.01em;color:var(--pm-ink)}
 .takeaway em{font-style:normal;color:var(--pm-green)}
 .takeaway em.neg{color:var(--pm-terra)}
@@ -100,6 +119,9 @@ a.kpi:hover{border-color:#CFC7B9}
 .splitT{display:block;font:700 11.5px/1.2 var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-muted);margin-bottom:10px}
 
 @media (max-width:1024px){
+  /* tablet: the red hero gets its own row so the full amount always shows */
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpis>.kpi:first-child{grid-column:1/-1}
   .g21{grid-template-columns:minmax(0,1fr)}
   .stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
 }
@@ -109,11 +131,16 @@ a.kpi:hover{border-color:#CFC7B9}
   .sum{font-size:16px}
   .acts{width:100%;flex-direction:column;align-items:stretch}
   .acts .primary{width:100%}
-  .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .seg{display:none!important}
+  /* phone: the three tiles become one card split by hairlines; red hero on
+     top, Orders + Needs you side by side underneath */
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--pm-line);border:1px solid var(--pm-border);border-radius:20px;overflow:hidden}
   .kpis>.kpi:first-child{grid-column:1/-1}
-  .kpi{padding:16px 18px}
-  .kpiV{font-size:27px}
-  .hero .kpiV{font-size:34px}
+  .kpis>.kpi{border:0;border-radius:0;padding:14px 16px;gap:2px}
+  .kpis>.kpi.hero{background-image:none}
+  .kpiV{font-size:24px;margin-top:2px}
+  .kpiD{font-size:14px}
+  .clear{padding:40px 16px}
   .stack{display:flex;gap:14px}
   .g21{gap:14px}
   .card{padding:18px 16px}

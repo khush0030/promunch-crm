@@ -52,10 +52,11 @@ export default function EmailStudioHome() {
   const d = q.data;
   return (
     <>
-      <StudioHeader tab="home" title="Email" actions={<NewCampaignButton />} />
-      <div className="pm2-body">
-        <p className={l.sum}>
-          {d ? (
+      <StudioHeader
+        tab="home"
+        title="Email"
+        summary={
+          d ? (
             <>
               Email made <b>{inr(d.revenue)}</b> in 30 days, {inr(d.flowRevenue)} of it from automations.{" "}
               {d.subscribers != null && <><b>{d.subscribers.toLocaleString("en-IN")}</b> people can get your emails. </>}
@@ -63,14 +64,18 @@ export default function EmailStudioHome() {
             </>
           ) : (
             "Loading the last 30 days…"
-          )}
-        </p>
+          )
+        }
+        actions={<NewCampaignButton />}
+      />
+      <div className="pm2-body">
         {q.error && <Callout tone="crit" title="Could not load Email Studio" body={(q.error as Error).message} />}
         {d?.warmupMax != null && (
           <Callout
             tone="plain"
             title="Domain warm-up is on"
-            body={`The new sending domain${d.domain ? ` (${d.domain})` : ""} is building its reputation, so each campaign is capped at ${d.warmupMax} people and needs an admin's approval. Send to your most engaged customers first. An admin can lift this in Brand & settings.`}
+            body={`The new sending domain${d.domain ? ` (${d.domain})` : ""} is building its reputation, so each campaign is capped at ${d.warmupMax} people and needs an admin's approval. Send to your most engaged customers first. An admin can lift this in Settings, Brand & email.`}
+            action={<Link className="pm2-btn sm" href="/dashboard/email/settings">Open warm-up settings</Link>}
           />
         )}
         <KpiStrip cols={3}>

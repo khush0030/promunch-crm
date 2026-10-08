@@ -90,9 +90,13 @@ export default function CampaignsPage() {
 
   return (
     <>
-      <StudioHeader tab="campaigns" title="Campaigns" actions={<NewCampaignButton />} />
+      <StudioHeader
+        tab="campaigns"
+        title="Campaigns"
+        summary="One email to many people. Every campaign is approved by an admin before it sends, and only goes to people with an email who said yes."
+        actions={<NewCampaignButton />}
+      />
       <div className="pm2-body">
-        <p className={l.sum}>One email to many people. Every campaign is approved by an admin before it sends, and only goes to people with an email who said yes.</p>
         {q.data?.warning && <Callout tone="plain" title="Email Studio isn't fully set up" body={q.data.warning} />}
         <div className={l.chipsWrap}>
           <Chips items={chips} value={filter} onChange={setFilter} ariaLabel="Filter campaigns" />

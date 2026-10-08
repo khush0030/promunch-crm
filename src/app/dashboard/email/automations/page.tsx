@@ -106,23 +106,23 @@ export default function AutomationsPage() {
       <StudioHeader
         tab="automations"
         title="Automations"
+        summary={
+          flows.length ? (
+            <>
+              {flows.length} always-on {flows.length === 1 ? "email" : "emails"}, <b>{liveCount} on</b>. They go out by themselves when something happens, only to people with an email who have not unsubscribed.
+            </>
+          ) : (
+            "Always-on emails that go out by themselves when something happens."
+          )
+        }
         actions={
-          <button type="button" className="pm2-btn pri" disabled={busy !== null} onClick={() => setCreating((v) => !v)}>
+          <button type="button" className="pm2-btn" disabled={busy !== null} onClick={() => setCreating((v) => !v)}>
             <Plus size={14} /> New automation
           </button>
         }
       />
       <div className="pm2-body">
         {q.error && <Callout tone="crit" title="Could not load automations" body={(q.error as Error).message} />}
-        <p className={l.sum}>
-          {flows.length ? (
-            <>
-              {flows.length} always-on email {flows.length === 1 ? "automation" : "automations"}, <b>{liveCount} on</b>. They go out by themselves when something happens, only to people with an email who have not unsubscribed. Open one to change its words, photos, buttons or offer.
-            </>
-          ) : (
-            "Always-on emails that go out by themselves when something happens."
-          )}
-        </p>
         {creating && (
           <div className="pm2-panel" style={{ padding: 16, display: "grid", gap: 10 }}>
             <h3 style={{ margin: 0, fontSize: 15 }}>Start a new automation</h3>

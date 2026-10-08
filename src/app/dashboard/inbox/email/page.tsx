@@ -219,27 +219,40 @@ function EmailDraftsInner() {
 
   const counts = data?.counts;
   const waiting = counts?.approve ?? null;
-  const title =
-    waiting == null ? "Email drafts" : waiting === 0 ? "No drafts waiting" : `${waiting} draft${waiting === 1 ? "" : "s"} waiting`;
   const chipItems: ChipItem[] = (Object.keys(TAB_LABELS) as EmailQueueTab[]).map((k) => ({
     key: k,
     label: TAB_LABELS[k],
     count: counts?.[k] ?? undefined,
   }));
+  const chips = (
+    <Chips
+      items={chipItems}
+      value={tab}
+      onChange={(k) => {
+        if (isEmailQueueTab(k)) setQuery({ tab: k, id: null });
+      }}
+      ariaLabel="Email drafts list"
+    />
+  );
 
   const header = (
     <PageHeader
-      crumb="Inbox · Email drafts"
-      title={title}
-      actions={
-        <Chips
-          items={chipItems}
-          value={tab}
-          onChange={(k) => {
-            if (isEmailQueueTab(k)) setQuery({ tab: k, id: null });
-          }}
-          ariaLabel="Email drafts list"
-        />
+      crumb="Inbox"
+      title="Email drafts"
+      summary={
+        waiting == null ? undefined : waiting === 0 ? (
+          <>
+            <b>No drafts waiting.</b> The AI writes replies from the knowledge base as support emails come in.
+          </>
+        ) : (
+          <>
+            The AI read{" "}
+            <b>
+              {waiting} support email{waiting === 1 ? "" : "s"}
+            </b>{" "}
+            and wrote replies from the knowledge base. Check, edit, send.
+          </>
+        )
       }
     />
   );
@@ -403,6 +416,7 @@ function EmailDraftsInner() {
       <>
         {header}
         <div className={`pm2-body${showBar ? " pm2-has-bar" : ""}`}>
+          {chips}
           {selected ? (
             <PhoneStepBar
               inList={inList}
@@ -437,6 +451,7 @@ function EmailDraftsInner() {
       <div className="pm2-body">
         <div className="pm2-g12">
           <div className="pm2-panel pm2-drafts-list">
+            <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--pm-line)" }}>{chips}</div>
             {items.length === 0 ? (
               <div className="pm2-empty">{tab === "approve" ? "No drafts waiting." : "No emails here."}</div>
             ) : (

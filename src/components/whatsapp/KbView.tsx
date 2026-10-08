@@ -6,11 +6,14 @@
 // Plain-words UI: "sections" not chunks, "Refresh what the bot knows" not
 // re-ingest. The technical terms live in the HelpTips.
 
-import { useRef, useState } from "react";
+import { useContext, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Bot, FileText, RefreshCw, Trash2, Upload } from "lucide-react";
+import { Bot, ChevronDown, FileText, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { ConfirmDialog } from "@/components/pm";
+import { ConfirmDialog, PageHeader } from "@/components/pm";
+import { HeaderMenu } from "@/components/inbox/HeaderMenu";
+import { WaHeaderContext } from "./WaHeader";
 import { HelpTip } from "@/components/guide";
 import type { KbDoc } from "./types";
 import { inputStyle } from "./styles";
@@ -19,15 +22,8 @@ import k from "./KbView.module.css";
 
 const SOURCE_LABEL: Record<string, string> = { upload: "Uploaded file", manual: "Pasted text", text: "Pasted text", url: "Web page" };
 
-export default function KbView() {
-  const toast = useToast();
-  const [uploading, setUploading] = useState(false);
-  const [manualOpen, setManualOpen] = useState(false);
-  const [toDelete, setToDelete] = useState<KbDoc | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const { data: docs = [], refetch } = useQuery({
+function useKbDocs() {
+  return useQuery({
     queryKey: ["wa-kb-documents"],
     queryFn: async (): Promise<KbDoc[]> => {
       const r = await fetch("/api/whatsapp/kb");
@@ -36,7 +32,18 @@ export default function KbView() {
     },
     refetchInterval: 6000,
   });
+}
+
+// The two ways to add knowledge (paste text, upload a file), shared by the
+// page header's "Add knowledge" menu and, until that header is wired, the
+// body buttons. Same requests as before.
+function useKbAdd() {
+  const toast = useToast();
+  const { refetch } = useKbDocs();
   const load = () => refetch();
+  const [uploading, setUploading] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   async function upload(f: File) {
     setUploading(true);
@@ -51,6 +58,73 @@ export default function KbView() {
       load();
     } finally { setUploading(false); }
   }
+
+  const elements: ReactNode = (
+    <>
+      <input ref={fileRef} type="file" accept=".pdf,.txt,.md" hidden
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ""; }} />
+      {manualOpen && <ManualKbModal onClose={() => { setManualOpen(false); load(); }} />}
+    </>
+  );
+  return { uploading, openPaste: () => setManualOpen(true), pickFile: () => fileRef.current?.click(), elements };
+}
+
+function kbSummary(docs: KbDoc[]): ReactNode {
+  const newest = docs.reduce<string | null>((a, d) => (!a || d.created_at > a ? d.created_at : a), null);
+  return (
+    <>
+      The only place the WhatsApp bot, email drafts and B2B emails learn facts from.{" "}
+      {docs.length > 0 && (
+        <>
+          <b>{docs.length} {docs.length === 1 ? "document" : "documents"}</b>
+          {newest ? `, last added ${addedWhen(newest)}.` : "."}
+        </>
+      )}
+    </>
+  );
+}
+
+// Page header for Inbox → Bot knowledge: eyebrow, BOT KNOWLEDGE, the sentence,
+// and one primary "Add knowledge" that offers Paste text or Upload a file.
+// Goes into the WhatsApp page header slot (KbView portals it there when one exists).
+export function KbHeader() {
+  const { data: docs = [], isLoading } = useKbDocs();
+  const add = useKbAdd();
+  return (
+    <>
+      <PageHeader
+        crumb="Inbox"
+        title="Bot knowledge"
+        summary={isLoading ? undefined : kbSummary(docs)}
+        actions={
+          <HeaderMenu
+            label="Add knowledge"
+            triggerClass="pm2-btn pri"
+            trigger={<><Plus aria-hidden /> {add.uploading ? "Uploading…" : "Add knowledge"} <ChevronDown aria-hidden /></>}
+            items={[
+              { key: "paste", label: "Paste text", icon: <FileText aria-hidden />, onSelect: add.openPaste },
+              { key: "upload", label: "Upload a file (PDF, TXT, MD)", icon: <Upload aria-hidden />, onSelect: add.pickFile, disabled: add.uploading },
+            ]}
+          />
+        }
+      />
+      {add.elements}
+    </>
+  );
+}
+
+export default function KbView({ headerInPage: headerProp = false }: { headerInPage?: boolean } = {}) {
+  // When the WhatsApp page gives this tab a header slot (WaHeaderContext), the
+  // full header (KbHeader) goes there and the body drops its own summary and
+  // actions. Without a slot, the body keeps them so nothing is unreachable.
+  const slotEl = useContext(WaHeaderContext)?.el ?? null;
+  const headerInPage = headerProp || !!slotEl;
+  const toast = useToast();
+  const [toDelete, setToDelete] = useState<KbDoc | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const { data: docs = [], refetch } = useKbDocs();
+  const load = () => refetch();
+  const add = useKbAdd();
 
   async function refresh(d: KbDoc) {
     await fetch(`/api/whatsapp/kb/${d.id}`, { method: "POST" });
@@ -69,20 +143,19 @@ export default function KbView() {
   }
 
   const ready = docs.filter((d) => d.status === "ready").length;
-  const newest = docs.reduce<string | null>((a, d) => (!a || d.created_at > a ? d.created_at : a), null);
 
   return (
     <div className={k.page}>
+      {slotEl && createPortal(<KbHeader />, slotEl)}
+      {headerInPage ? (
+        docs.length > 0 && ready < docs.length && (
+          <p className={k.help}>{ready} of {docs.length} ready. The rest are still being read.</p>
+        )
+      ) : (
       <div className={k.head}>
         <div className={k.headText}>
           <p className={k.sum}>
-            The only place the WhatsApp bot, email drafts and B2B emails learn facts from.{" "}
-            {docs.length > 0 && (
-              <>
-                <b>{docs.length} {docs.length === 1 ? "document" : "documents"}</b>
-                {newest ? `, last added ${addedWhen(newest)}.` : "."}
-              </>
-            )}
+            {kbSummary(docs)}
             <HelpTip text="Each document is split into short sections and indexed (embedded) so the bot can find the right part of it for each question. Email and B2B drafts use the same knowledge." />
           </p>
           {docs.length > 0 && ready < docs.length && (
@@ -90,14 +163,14 @@ export default function KbView() {
           )}
         </div>
         <div className={k.acts}>
-          <button type="button" onClick={() => setManualOpen(true)} className="pm2-btn"><FileText size={15} aria-hidden /> Paste text</button>
-          <button type="button" onClick={() => fileRef.current?.click()} className="pm2-btn pri" disabled={uploading}>
-            <Upload size={15} aria-hidden /> {uploading ? "Uploading…" : "Upload a file"}
+          <button type="button" onClick={add.openPaste} className="pm2-btn"><FileText size={15} aria-hidden /> Paste text</button>
+          <button type="button" onClick={add.pickFile} className="pm2-btn pri" disabled={add.uploading}>
+            <Upload size={15} aria-hidden /> {add.uploading ? "Uploading…" : "Upload a file"}
           </button>
-          <input ref={fileRef} type="file" accept=".pdf,.txt,.md" hidden
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ""; }} />
         </div>
       </div>
+      )}
+      {!headerInPage && add.elements}
 
       <div className={k.card}>
         {docs.length === 0 && (
@@ -131,7 +204,6 @@ export default function KbView() {
         <span>The bot never answers from its own memory. If a fact isn&apos;t here, it says it will check with the team and creates a ticket. The refresh button reads a document again if the bot seems to give old answers.</span>
       </p>
 
-      {manualOpen && <ManualKbModal onClose={() => { setManualOpen(false); load(); }} />}
       {toDelete && (
         <ConfirmDialog
           title={`Delete "${toDelete.name}"?`}

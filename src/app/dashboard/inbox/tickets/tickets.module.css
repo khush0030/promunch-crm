@@ -1,14 +1,6 @@
 /* Tickets queue (Oct 2026 redesign, tickets.html#tk-queue).
    Calm rules: status = coloured text + dot, hairlines, amber when late. */
 
-.summary{display:flex;align-items:flex-end;justify-content:space-between;gap:12px 32px;flex-wrap:wrap}
-.sum{margin:0;font-size:17px;color:var(--pm-ink2)}
-.sum b{color:var(--pm-ink);font-weight:800}
-.stats{display:flex;gap:28px;margin:0;flex-wrap:wrap}
-.stats div{display:flex;flex-direction:column;gap:2px;flex:0 1 auto}
-.stats dt{font:700 11px var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-muted)}
-.stats dd{margin:0;font-size:22px;font-weight:800;color:var(--pm-ink);font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:8px}
-.stats dd small{font-size:13px;font-weight:600;color:var(--pm-muted)}
 
 .tq{display:grid;grid-template-columns:240px minmax(0,1fr);background:var(--pm-card);border:1px solid var(--pm-border);border-radius:var(--pm-r);overflow:hidden}
 
@@ -93,10 +85,6 @@
 }
 
 @media (max-width:760px){
-  .summary{flex-direction:column;align-items:flex-start;gap:10px}
-  .sum{font-size:16px}
-  .stats{gap:20px}
-  .stats dd{font-size:19px}
   .tq{border-radius:16px}
   .tools{padding:12px 14px}
   .search{order:-1;flex:1 1 100%;min-width:0}

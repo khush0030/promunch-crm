@@ -1,23 +1,19 @@
-import { ArrowRight, PackageX } from "lucide-react";
+import { PackageX } from "lucide-react";
 import { MoneyFlow } from "@/components/pm";
 import type { MoneyFlowRow } from "@/components/pm";
 import { formatLakh, formatINR } from "@/lib/metrics/money";
 import { pctChange } from "@/lib/metrics/period";
-import { sortForProfit, sortForStock } from "@/lib/amazon/economics";
 import type { AmazonMetrics } from "@/lib/amazon/economics";
 import type { AmazonTabKey } from "../types";
 import { PERIOD_LABEL, COST_COVERAGE_TIP } from "../format";
-import { Kpi, DeltaText, ChartCard, signedINR } from "../../insights-ui";
-import { RunwayRow, RunwayNote, stockTakeaway, ProfitKeys, ProfitRow, profitTakeaway, PayoutRow } from "../parts";
+import { Kpi, DeltaText, ChartCard } from "../../insights-ui";
 import s from "../../insights.module.css";
 
-const OVERVIEW_ROWS = 5;
-
-// Amazon · Overview, the one-page view: headline numbers, a heads-up when
-// something that sells is out of stock, where the money went, stock runway,
-// profit split and payouts. Each block links to its full tab.
+// Amazon · top of the one-page view: headline tiles, a heads-up when
+// something that sells is out of stock, and where the money went. Stock,
+// profit, payouts and orders follow as their own sections on the same page.
 export function OverviewTab({ data, onTab }: { data: AmazonMetrics; onTab: (tab: AmazonTabKey) => void }) {
-  const { money, refunds, stock, payouts, skus, settlements } = data;
+  const { money, refunds, stock, skus } = data;
   const periodLabel = PERIOD_LABEL[data.period];
 
   const outOfStockSkus = skus.filter((x) => x.outOfStock);
@@ -50,18 +46,6 @@ export function OverviewTab({ data, onTab }: { data: AmazonMetrics; onTab: (tab:
   ];
   const keptShare = money.customersPaid > 0 ? Math.round((money.paidToYou / money.customersPaid) * 100) : null;
 
-  const stockRows = sortForStock(skus).slice(0, OVERVIEW_ROWS);
-  const profitRows = sortForProfit(skus).slice(0, OVERVIEW_ROWS);
-  const recentPayouts = [...settlements]
-    .sort((a, b) => (b.depositDate ?? "").localeCompare(a.depositDate ?? ""))
-    .slice(0, 3);
-
-  const tabLink = (tab: AmazonTabKey, label: string) => (
-    <button type="button" className={s.txtLink} onClick={() => onTab(tab)}>
-      {label}
-      <ArrowRight />
-    </button>
-  );
 
   return (
     <>
@@ -125,74 +109,6 @@ export function OverviewTab({ data, onTab }: { data: AmazonMetrics; onTab: (tab:
         </div>
       </ChartCard>
 
-      <div className={s.g2}>
-        <ChartCard
-          id="amz-stock"
-          title="Stock left"
-          right={tabLink("stock", `All ${stock.total}`)}
-          takeaway={stockTakeaway(skus)}
-        >
-          {stockRows.length === 0 ? (
-            <p className={s.empty}>No Amazon products yet</p>
-          ) : (
-            <div className={s.runway}>
-              {stockRows.map((x) => (
-                <RunwayRow key={x.sku} sku={x} />
-              ))}
-            </div>
-          )}
-          <RunwayNote />
-        </ChartCard>
-
-        <ChartCard
-          id="amz-profit"
-          title="Where each ₹ of sales goes"
-          right={tabLink("profit", "All products")}
-          takeaway={profitTakeaway(skus)}
-        >
-          <ProfitKeys />
-          {profitRows.length === 0 ? (
-            <p className={s.empty}>No Amazon products yet</p>
-          ) : (
-            <div className={s.pfl}>
-              {profitRows.map((x) => (
-                <ProfitRow key={x.sku} sku={x} onAddCost={() => onTab("profit")} />
-              ))}
-            </div>
-          )}
-        </ChartCard>
-      </div>
-
-      <ChartCard
-        id="amz-payouts"
-        title="Payouts"
-        right={tabLink("payouts", "All payouts")}
-        takeaway={
-          payouts.count > 0 && payouts.paidOut < 0 ? (
-            <>
-              Payouts net to <em className={s.neg}>{signedINR(payouts.paidOut)}</em> across {payouts.count}{" "}
-              {payouts.count === 1 ? "payout" : "payouts"}
-            </>
-          ) : payouts.count > 0 ? (
-            <>
-              Amazon paid out <em className={s.plain}>{formatLakh(payouts.paidOut)}</em> in {payouts.count}{" "}
-              {payouts.count === 1 ? "payout" : "payouts"}
-            </>
-          ) : (
-            "No payouts in this period yet"
-          )
-        }
-      >
-        {recentPayouts.length === 0 ? (
-          <p className={s.empty}>No settlements in this period</p>
-        ) : (
-          <div className={s.pay}>
-            {recentPayouts.map((st) => (
-              <PayoutRow key={st.id} st={st} />
-            ))}
-          </div>
-        )}
-      </ChartCard>
     </>
   );
 }

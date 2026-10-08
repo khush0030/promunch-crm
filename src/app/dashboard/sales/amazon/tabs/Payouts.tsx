@@ -3,7 +3,7 @@ import type { TableCol, BarSeries } from "@/components/pm";
 import { formatLakh, formatINR } from "@/lib/metrics/money";
 import type { AmazonMetrics, AmazonSettlement } from "@/lib/amazon/economics";
 import { fmtDate, PERIOD_LABEL } from "../format";
-import { Kpi, ChartCard, signedINR } from "../../insights-ui";
+import { ChartCard, signedINR } from "../../insights-ui";
 import { PayoutTag } from "../parts";
 import s from "../../insights.module.css";
 
@@ -32,18 +32,6 @@ export function PayoutsTab({ data }: { data: AmazonMetrics }) {
 
   return (
     <>
-      <div className={s.kpis}>
-        <Kpi label={`Paid out · ${PERIOD_LABEL[period]}`} value={payouts.paidOut < 0 ? `−${formatLakh(-payouts.paidOut)}` : formatLakh(payouts.paidOut)}>
-          {payouts.count} {payouts.count === 1 ? "payout" : "payouts"}
-        </Kpi>
-        <Kpi label="Matched" value={`${payouts.matched} of ${settlements.length}`}>
-          reconcile within ₹50
-        </Kpi>
-        <Kpi label="Needs a look" value={formatINR(payouts.needsLook)}>
-          {firstShort ? `short on ${fmtDate(firstShort.depositDate)}` : "all matched"}
-        </Kpi>
-      </div>
-
       <ChartCard
         id="amz-payout-chart"
         title="What you kept per payout"
@@ -56,6 +44,21 @@ export function PayoutsTab({ data }: { data: AmazonMetrics }) {
           ) : undefined
         }
       >
+        <p className={s.facts2}>
+          <span>
+            Paid out <b>{payouts.paidOut < 0 ? `−${formatLakh(-payouts.paidOut)}` : formatLakh(payouts.paidOut)}</b> in {PERIOD_LABEL[period]} ·{" "}
+            {payouts.count} {payouts.count === 1 ? "payout" : "payouts"}
+          </span>
+          <span>
+            <b>
+              {payouts.matched} of {settlements.length}
+            </b>{" "}
+            matched (within ₹50)
+          </span>
+          <span>
+            Needs a look <b>{formatINR(payouts.needsLook)}</b> {firstShort ? `short on ${fmtDate(firstShort.depositDate)}` : "all matched"}
+          </span>
+        </p>
         {cats.length === 0 ? (
           <p className={s.empty}>No payouts yet</p>
         ) : (
@@ -68,7 +71,7 @@ export function PayoutsTab({ data }: { data: AmazonMetrics }) {
         )}
       </ChartCard>
 
-      <ChartCard id="amz-payout-table" title="Payouts" basis="from Amazon settlement reports">
+      <ChartCard id="amz-payout-table" title="Every payout" basis="from Amazon settlement reports">
         <Table
           cols={cols}
           rows={settlements}

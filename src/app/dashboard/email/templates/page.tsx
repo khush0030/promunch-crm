@@ -59,9 +59,21 @@ function Inner() {
 
   return (
     <>
-      <StudioHeader tab="templates" title={picking ? "Pick a starting point" : "Templates"} />
+      <StudioHeader
+        tab="templates"
+        title={picking ? "Pick a starting point" : "Templates"}
+        summary={
+          picking ? (
+            "Choose a design to start your campaign from. You can change everything in the builder."
+          ) : (
+            <>
+              Saved designs. Start a campaign from any of them. Colours and fonts come from{" "}
+              <Link className="pm2-lnk" href="/dashboard/email/settings">Brand &amp; email</Link>.
+            </>
+          )
+        }
+      />
       <div className="pm2-body">
-        <p className={l.sum}>{picking ? "Choose a design to start your campaign from. You can change everything in the builder." : "Saved designs. Start a campaign from any of them, and the brand colours and fonts come from Brand & settings."}</p>
         {q.data?.savedError && <Callout tone="plain" title="Saved templates unavailable" body={q.data.savedError} />}
 
         {!!q.data?.saved.length && (

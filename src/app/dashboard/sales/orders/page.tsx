@@ -19,7 +19,8 @@ import {
   Minus,
 } from "lucide-react";
 import { PageHeader, Card, Table, StackBar, Callout, PeriodPicker, ConfirmDialog, KpiStrip, Kpi } from "@/components/pm";
-import type { PageHeaderTab, TableCol, StackPart } from "@/components/pm";
+import type { TableCol, StackPart } from "@/components/pm";
+import { CallRules } from "./CallRules";
 import { formatINR } from "@/lib/metrics/money";
 import { initials } from "@/lib/pm/avatar";
 import { useToast } from "@/components/ui/Toast";
@@ -37,7 +38,10 @@ const PERIODS: readonly Period[] = ["24h", "7d", "30d"];
 const HOURS: Record<Period, number> = { "24h": 24, "7d": 168, "30d": 720 };
 const PERIOD_LABEL: Record<Period, string> = { "24h": "24 hours", "7d": "7 days", "30d": "30 days" };
 
-type Tab = "call" | "all" | "coverage";
+// Section tabs (nav.ts): Confirm COD (no param) · All orders (?tab=all) ·
+// Call rules (?tab=rules). The old ?tab=coverage link opens All orders,
+// where Coverage now lives as a section.
+type Tab = "call" | "all" | "rules";
 
 type ConfirmStatus = "sent" | "missing" | "failed" | "gave_up" | "no_phone" | "cancelled";
 
@@ -211,7 +215,8 @@ function CoverageCards({
 }
 
 function parseTab(raw: string | null): Tab {
-  return raw === "all" || raw === "coverage" ? raw : "call";
+  if (raw === "all" || raw === "coverage") return "all";
+  return raw === "rules" ? "rules" : "call";
 }
 function parsePeriod(raw: string | null): Period {
   return raw === "24h" || raw === "30d" ? raw : "7d";
@@ -257,7 +262,6 @@ function OrdersPageInner() {
     [router, params, period, tab],
   );
   const setPeriod = useCallback((p: Period) => setQuery({ period: p }), [setQuery]);
-  const setTab = useCallback((t: Tab) => setQuery({ tab: t }), [setQuery]);
 
   const confirmQ = useQuery({
     queryKey: ["orders-confirmations", hours],
@@ -365,31 +369,64 @@ function OrdersPageInner() {
   const confirmedCall = gateOrders.filter((o) => o.confirmation_status === "confirmed" && o.confirmed_via === "manual").length;
   const cancelledCount = gateOrders.filter((o) => o.confirmation_status === "cancelled").length;
 
-  const tabs: PageHeaderTab[] = [
-    { label: "Needs a call", key: "call", count: needsCall.length },
-    { label: "All orders", key: "all", count: confirmData?.summary.total },
-    { label: "Coverage", key: "coverage" },
-  ];
+  const TITLES: Record<Tab, string> = { call: "Confirm COD", all: "All orders", rules: "Call rules" };
+  const summary: ReactNode =
+    tab === "rules" ? (
+      <>When the voice agent calls, how often, and what it says. Only the owner or an admin can change them.</>
+    ) : !confirmData ? undefined : tab === "all" ? (
+      <>
+        <b>
+          {confirmData.summary.total} order{confirmData.summary.total === 1 ? "" : "s"}
+        </b>{" "}
+        in the last {PERIOD_LABEL[period]}. {confirmData.summary.coveragePct}% got a WhatsApp confirmation.
+      </>
+    ) : needsCall.length > 0 ? (
+      <>
+        <b>
+          {needsCall.length} cash-on-delivery order{needsCall.length === 1 ? "" : "s"} ({formatINR(sumOnHold)})
+        </b>{" "}
+        {needsCall.length === 1 ? "isn't" : "aren't"} confirmed yet. {needsCall.length === 1 ? "It won't" : "They won't"} ship until
+        someone confirms.
+      </>
+    ) : pendingTap.length > 0 ? (
+      <>
+        Nothing needs a call. <b>{pendingTap.length} cash-on-delivery order{pendingTap.length === 1 ? " is" : "s are"}</b> waiting
+        for a WhatsApp tap.
+      </>
+    ) : (
+      <>All cash-on-delivery orders in the last {PERIOD_LABEL[period]} are confirmed or cancelled.</>
+    );
 
   const header = (
     <PageHeader
-      crumb="Orders & COD · confirm"
-      title="Orders & COD"
-      tabs={tabs}
-      activeTab={tab}
-      onTab={(k) => setTab(k as Tab)}
+      crumb="Orders & COD"
+      title={TITLES[tab]}
+      summary={summary}
       actions={
-        <>
-          <PeriodPicker options={PERIODS} value={period} onChange={setPeriod} />
-          {outstanding.length > 0 && (
-            <button type="button" className="pm2-btn pri pm2-d-only" onClick={() => setResendOpen(true)}>
-              <Send size={14} /> Resend {outstanding.length} missing
-            </button>
-          )}
-        </>
+        tab === "rules" ? undefined : (
+          <>
+            <PeriodPicker options={PERIODS} value={period} onChange={setPeriod} />
+            {outstanding.length > 0 && (
+              <button type="button" className="pm2-btn pri pm2-d-only" onClick={() => setResendOpen(true)}>
+                <Send size={14} /> Resend {outstanding.length} missing
+              </button>
+            )}
+          </>
+        )
       }
     />
   );
+
+  if (tab === "rules") {
+    return (
+      <>
+        {header}
+        <div className="pm2-body">
+          <CallRules />
+        </div>
+      </>
+    );
+  }
 
   const loading = confirmQ.isLoading || gateQ.isLoading;
   const error = confirmQ.error || gateQ.error;
@@ -578,25 +615,6 @@ function OrdersPageInner() {
       <div className="pm2-body">
         {tab === "call" && (
           <>
-            <p className={s.sum}>
-              {needsCall.length > 0 ? (
-                <>
-                  <b>
-                    {needsCall.length} cash-on-delivery order{needsCall.length === 1 ? "" : "s"} ({formatINR(sumOnHold)})
-                  </b>{" "}
-                  {needsCall.length === 1 ? "isn't" : "aren't"} confirmed yet. {needsCall.length === 1 ? "It won't" : "They won't"} ship
-                  until someone confirms.
-                </>
-              ) : pendingTap.length > 0 ? (
-                <>
-                  Nothing needs a call. <b>{pendingTap.length} cash-on-delivery order{pendingTap.length === 1 ? " is" : "s are"}</b>{" "}
-                  waiting for a WhatsApp tap.
-                </>
-              ) : (
-                <>All cash-on-delivery orders in the last {PERIOD_LABEL[period]} are confirmed or cancelled.</>
-              )}
-            </p>
-
             <KpiStrip>
               <Kpi
                 label={<span className={`${s.dot} ${s.good}`}>Confirmed</span>}
@@ -698,22 +716,20 @@ function OrdersPageInner() {
                 }}
               />
             </Card>
-          </>
-        )}
 
-        {tab === "coverage" && (
-          <>
+            <h2 className={s.secH}>Coverage</h2>
             <CoverageCards confirmData={confirmData} gateOrders={gateOrders} period={period} />
             <div className={s.note}>
               <Info aria-hidden="true" />
               <div>
                 <b>How confirmations work:</b> every order gets a WhatsApp confirmation within a minute of coming in.
                 Cash-on-delivery orders get Confirm / Cancel buttons, and shipping waits for a tap. After 6 hours without
-                a tap, the order shows up on Needs a call so someone can ring the customer.
+                a tap, the order shows up on Confirm COD so someone can ring the customer.
               </div>
             </div>
           </>
         )}
+
       </div>
 
       {cancelTarget && (

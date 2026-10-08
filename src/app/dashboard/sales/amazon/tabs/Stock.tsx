@@ -1,30 +1,29 @@
 import { formatLakh } from "@/lib/metrics/money";
 import { sortForStock } from "@/lib/amazon/economics";
 import type { AmazonMetrics } from "@/lib/amazon/economics";
-import { Kpi, ChartCard } from "../../insights-ui";
+import { ChartCard } from "../../insights-ui";
 import { RunwayRow, RunwayNote, stockTakeaway } from "../parts";
 import s from "../../insights.module.css";
 
-// Amazon · Stock: every product as a runway bar, worst first.
+// Amazon · Stock section: every product as a runway bar, worst first.
 export function StockTab({ data }: { data: AmazonMetrics }) {
   const { stock } = data;
   const rows = sortForStock(data.skus);
 
   return (
     <>
-      <div className={s.kpis}>
-        <Kpi label="Out of stock" value={stock.outOfStock}>
-          {stock.outOfStock === 1 ? "product" : "products"}
-        </Kpi>
-        <Kpi label="Under 14 days" value={stock.under14Days}>
-          {stock.under14Days === 1 ? "product" : "products"}
-        </Kpi>
-        <Kpi label="Profit lost" value={formatLakh(stock.lostProfitPerDay)}>
-          per day, right now
-        </Kpi>
-      </div>
-
-      <ChartCard id="amz-stock-all" title="Stock left" basis={`${rows.length} products`} takeaway={stockTakeaway(data.skus)}>
+      <ChartCard id="amz-stock-all" title="Stock left" basis={`${rows.length} products · at today's selling speed`} takeaway={stockTakeaway(data.skus)}>
+        <p className={s.facts2}>
+          <span>
+            <b>{stock.outOfStock}</b> out of stock
+          </span>
+          <span>
+            <b>{stock.under14Days}</b> under 14 days
+          </span>
+          <span>
+            <b>{formatLakh(stock.lostProfitPerDay)}</b> profit lost per day, right now
+          </span>
+        </p>
         <div className={s.keys} style={{ marginTop: 0, marginBottom: 12 }}>
           <span>
             <i style={{ background: "var(--pm-terra)" }} />

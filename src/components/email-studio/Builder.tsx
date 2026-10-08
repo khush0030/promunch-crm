@@ -464,7 +464,7 @@ function BlockEditor({
     case "logo":
       return (
         <>
-          <div className={s.hint}>Uses the logo from Brand &amp; settings (or the PROMUNCH wordmark if none is uploaded).</div>
+          <div className={s.hint}>Uses the logo from Settings, Brand &amp; email (or the PROMUNCH wordmark if none is uploaded).</div>
           <div className={s.row}>
             <Seg value={b.align} options={ALIGN} onChange={(align) => onChange({ align })} />
             <label className={s.row} style={{ fontSize: 13 }}>
@@ -545,7 +545,7 @@ function BlockEditor({
     case "social":
       return (
         <>
-          <div className={s.hint}>Shows the Instagram, Facebook, YouTube and website links saved in Brand &amp; settings.</div>
+          <div className={s.hint}>Shows the Instagram, Facebook, YouTube and website links saved in Settings, Brand &amp; email.</div>
           <Seg value={b.align} options={ALIGN} onChange={(align) => onChange({ align })} />
         </>
       );

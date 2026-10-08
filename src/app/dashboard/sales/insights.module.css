@@ -10,6 +10,11 @@
 .sum{margin:10px 0 0;font-size:17.5px;line-height:1.5;color:var(--pm-ink2);max-width:66ch}
 .sum b{color:var(--pm-ink)}
 .acts{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;white-space:nowrap}
+/* Amazon is one sectioned page: ?tab= deep links scroll to a section. */
+.anchor{scroll-margin-top:84px;display:grid;gap:20px;min-width:0}
+.facts2{display:flex;flex-wrap:wrap;gap:4px 18px;margin:12px 0 4px;font-size:14.5px;color:var(--pm-ink2)}
+.facts2 b{color:var(--pm-ink);font-variant-numeric:tabular-nums}
 .synced{font:500 12.5px var(--pm-mono);color:var(--pm-muted);white-space:nowrap}
 
 /* ---------- KPI tiles ---------- */
@@ -147,6 +152,8 @@ a.chR:hover b{color:var(--pm-brand)}
   .phText{flex-basis:100%}
   .sum{font-size:16px}
   .acts{width:100%}
+  .seg{display:flex;width:100%}
+  .seg button{flex:1 1 0;padding:7px 4px;min-width:0}
   .kpis,.kpis.k4{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
   .kpis:not(.k4)>.kpi:first-child{grid-column:1/-1}
   .kpi{padding:16px 18px}

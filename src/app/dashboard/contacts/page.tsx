@@ -245,19 +245,36 @@ export default function ContactsPage() {
       <PageHeader
         crumb="Customers"
         title="Customers"
+        summary={
+          <>
+          {loadError && contacts.length === 0 ? (
+            "Couldn’t load customers."
+          ) : stats ? (
+            <>
+              <b>{n(stats.total)} people</b> who bought or signed up. {n(stats.buyers)} have ordered, {n(stats.newThisMonth)} joined this month
+              {stats.unsubscribed > 0 ? `, ${n(stats.unsubscribed)} unsubscribed` : ""}.
+            </>
+          ) : (
+            <>
+              <b>{n(total)} people</b> who bought or signed up.
+            </>
+          )}
+          </>
+        }
         actions={
           <>
             <div className={css.menuWrap}>
               <button
                 type="button"
-                className="pm2-btn"
+                className="pm2-btn ghost"
                 aria-label="More actions"
+                title="Import or export"
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 disabled={importing}
                 onClick={() => setMenuOpen((o) => !o)}
               >
-                <MoreHorizontal size={16} /> {importing ? "Importing…" : "More"}
+                <MoreHorizontal size={16} />{importing ? " Importing…" : null}
               </button>
               {menuOpen && (
                 <>
@@ -284,20 +301,6 @@ export default function ContactsPage() {
       />
 
       <div className="pm2-body">
-        <p className={css.sum}>
-          {loadError && contacts.length === 0 ? (
-            "Couldn’t load customers."
-          ) : stats ? (
-            <>
-              <b>{n(stats.total)} people</b> who bought or signed up. {n(stats.buyers)} have ordered, {n(stats.newThisMonth)} joined this month
-              {stats.unsubscribed > 0 ? `, ${n(stats.unsubscribed)} unsubscribed` : ""}.
-            </>
-          ) : (
-            <>
-              <b>{n(total)} people</b> who bought or signed up.
-            </>
-          )}
-        </p>
         {importMsg && (
           <div
             className={`${css.note} ${importMsg.startsWith("Imported") ? css.noteGood : importMsg.startsWith("Importing") ? css.noteBusy : css.noteBad}`}

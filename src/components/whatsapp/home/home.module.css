@@ -26,10 +26,12 @@
 .health { display: grid; gap: 8px; justify-items: start; min-width: 0; }
 .healthPill {
   display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap; max-width: 100%;
-  background: var(--pm-sun-soft); border: 1px solid var(--pm-border); border-radius: 999px; padding: 6px 13px;
-  font: inherit; font-size: 13px; font-weight: 600; color: var(--pm-ink); cursor: pointer; text-align: left;
+  background: none; border: 0; border-radius: 8px; padding: 2px 0;
+  font: inherit; font-size: 14px; font-weight: 600; color: var(--pm-ink2); cursor: pointer; text-align: left;
 }
-.healthPillBad { background: var(--pm-terra-soft); border-color: var(--pm-terra); }
+.healthPill svg:first-child { color: var(--pm-muted); }
+.healthPillBad { color: var(--pm-terra); }
+.healthPillBad svg:first-child { color: var(--pm-terra); }
 .healthPill:focus-visible { outline: 2px solid var(--pm-brand); outline-offset: 2px; }
 .healthWhat { font-weight: 500; color: var(--pm-muted); text-decoration: underline dotted; text-underline-offset: 3px; }
 .chev { color: var(--pm-hint); transition: transform .15s; }
@@ -143,3 +145,6 @@
 /* the checklist's buttons stay neutral: the page's one red element is New campaign */
 .checklist :global(.pm2-btn.pri) { background: var(--pm-card); color: var(--pm-ink); border-color: var(--pm-border); box-shadow: none; }
 .checklist :global(.pm2-btn.pri:hover) { border-color: var(--pm-ink); }
+
+/* secondary header action hidden on phones (one primary, full width) */
+@media (max-width: 720px) { .hideM { display: none !important; } }

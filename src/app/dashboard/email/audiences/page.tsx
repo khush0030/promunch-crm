@@ -6,15 +6,13 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Pencil, Trash2, Plus } from "lucide-react";
-import { Callout, ConfirmDialog, Table } from "@/components/pm";
+import { Callout, ConfirmDialog, PageHeader, Table } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
-import { StudioHeader } from "@/components/email-studio/StudioHeader";
 import { SegmentEditor, AudienceCount } from "@/components/email-studio/SegmentEditor";
 import { useSegments, type SegmentsDto } from "@/components/email-studio/hooks";
 import { sendJson, when } from "@/components/email-studio/api";
 import { parseRules, type AudienceRules } from "@/lib/email-studio/segments";
 import s from "@/components/email-studio/studio.module.css";
-import l from "@/components/email-studio/list.module.css";
 
 type Saved = SegmentsDto["saved"][number];
 
@@ -44,29 +42,34 @@ export default function AudiencesPage() {
 
   return (
     <>
-      <StudioHeader
-        tab="audiences"
-        title="Audiences"
+      <PageHeader
+        crumb="Customers"
+        title="Segments"
+        summary={
+          <>
+            Saved groups of people to email. Each one only counts people with an email address who said yes
+            {q.data ? <>: <b>{(q.data.saved ?? []).length} saved</b>, plus {(q.data.presets ?? []).length} quick ones</> : null}. Phone-only buyers get WhatsApp instead.
+          </>
+        }
         actions={
           <button type="button" className={`pm2-btn${editing ? "" : " pri"}`} onClick={() => setEditing({ id: null, name: "", rules: { conditions: [{ field: "total_orders", op: "gte", value: 1 }] } })}>
-            <Plus size={14} /> New audience
+            <Plus size={14} /> New segment
           </button>
         }
       />
       <div className="pm2-body">
-        <p className={l.sum}>Groups of people to email. Every audience only counts people with an email address who said yes; phone-only buyers get WhatsApp instead.</p>
-        {q.data?.savedError && <Callout tone="plain" title="Saved audiences unavailable" body={q.data.savedError} />}
+        {q.data?.savedError && <Callout tone="plain" title="Saved segments unavailable" body={q.data.savedError} />}
 
         {editing && (
           <div className="pm2-g21">
             <div className="pm2-panel" style={{ padding: 16, display: "grid", gap: 14 }}>
               <label className={s.field}>
-                <span>Audience name</span>
+                <span>Segment name</span>
                 <input className={s.input} autoFocus placeholder="e.g. Diwali 2025 buyers" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
               </label>
               <SegmentEditor rules={editing.rules} onChange={(rules) => setEditing({ ...editing, rules })} />
               <div className={s.row}>
-                <button type="button" className="pm2-btn pri" disabled={busy || !editing.name.trim()} onClick={save}>{busy ? "Saving…" : "Save audience"}</button>
+                <button type="button" className="pm2-btn pri" disabled={busy || !editing.name.trim()} onClick={save}>{busy ? "Saving…" : "Save segment"}</button>
                 <button type="button" className="pm2-btn ghost" onClick={() => setEditing(null)}>Cancel</button>
               </div>
             </div>
@@ -77,7 +80,7 @@ export default function AudiencesPage() {
         <div className="pm2-panel">
           <Table<Saved>
             cols={[
-              { h: "Audience", render: (r) => <b>{r.name}</b> },
+              { h: "Segment", render: (r) => <b>{r.name}</b> },
               { h: "Who", render: (r) => <span className={s.hint}>{r.summary}</span> },
               { h: "People", num: true, render: (r) => (r.last_count ?? "–").toLocaleString() },
               { h: "Counted", render: (r) => when(r.counted_at) },
@@ -93,12 +96,12 @@ export default function AudiencesPage() {
             ]}
             rows={q.data?.saved ?? []}
             rowKey={(r) => r.id}
-            empty={<span className={s.hint}>No saved audiences yet. The quick audiences (Customers, VIPs, Lapsed, Engaged…) are always available when you build a campaign.</span>}
+            empty={<span className={s.hint}>No saved segments yet. The quick segments (Customers, VIPs, Lapsed, Engaged…) are always available when you build a campaign.</span>}
           />
         </div>
 
         <div className="pm2-panel" style={{ padding: 16 }}>
-          <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>Quick audiences</h3>
+          <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>Quick segments</h3>
           <div className={s.stack} style={{ gap: 4 }}>
             {(q.data?.presets ?? []).map((p) => (
               <div key={p.key} className={s.linkRow}><span><b style={{ color: "var(--pm-ink)" }}>{p.label}</b> · {p.hint}</span></div>

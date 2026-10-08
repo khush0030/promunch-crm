@@ -38,7 +38,7 @@ export function OrdersTab({ data }: { data: AmazonMetrics }) {
   return (
     <ChartCard
       id="amz-orders"
-      title="Orders"
+      title="Amazon orders"
       basis={`latest ${rows.length}`}
       takeaway={
         rows.length === 0 ? undefined : waiting > 0 ? (

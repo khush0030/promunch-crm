@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, UserPlus, ShoppingBag, Mail, Inbox, Sparkles, MessageSquare, Plug, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, Plus, UserPlus, ShoppingBag, Mail, Inbox, Sparkles, MessageSquare, Plug, type LucideIcon } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { PageHeader, Avatar } from "@/components/pm";
@@ -31,8 +32,10 @@ const TABS = [
   { key: "apikeys", label: "API keys" },
   { key: "brand", label: "Brand & email" },
 ];
+// The Settings section tabs (shell nav) are the tab row; they change the
+// #hash and this page follows it. Each section has its own header.
 const TAB_META: Record<string, { crumb: string; title: string }> = {
-  connections: { crumb: "Settings", title: "Settings" },
+  connections: { crumb: "Settings", title: "Connections" },
   team: { crumb: "Settings", title: "Team & access" },
   apikeys: { crumb: "Settings · owner only", title: "API keys" },
   brand: { crumb: "Settings", title: "Brand & email" },
@@ -56,10 +59,6 @@ export default function SettingsPage() {
     const h = HASH_ALIAS[raw] ?? raw;
     if (h && TABS.some((t) => t.key === h)) setTab(h);
   }, [hash]);
-  const pickTab = (key: string) => {
-    setTab(key);
-    window.history.replaceState(null, "", `#${key}`);
-  };
   const [disconnectBusy, setDisconnectBusy] = useState(false);
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(false);
@@ -69,6 +68,7 @@ export default function SettingsPage() {
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
+  const [teamCount, setTeamCount] = useState<number | null>(null);
   const [brand, setBrand] = useState({
     name: "PROMUNCH",
     color: "#B9303F",
@@ -170,14 +170,29 @@ export default function SettingsPage() {
   const working = connectors.filter((c) => c.status === "healthy").length + 2;
   const needLook = connectors.filter((c) => c.status === "degraded" || c.status === "down").length;
 
+  const summary =
+    tab === "connections" ? (
+      !health ? (
+        "Checking every connection…"
+      ) : working === total ? (
+        <><b>All {total} connections are working.</b> Checked when you opened this page.</>
+      ) : (
+        <><b>{working} of {total} connections are working.</b>{needLook > 0 ? ` ${needLook} need a look.` : " The rest have no recent data."}</>
+      )
+    ) : tab === "team" ? (
+      teamCount ? <><b>{teamCount} {teamCount === 1 ? "person" : "people"}.</b> Choose which areas each person can open.</> : "Choose which areas each person can open."
+    ) : tab === "apikeys" ? (
+      "Keys for the services the CRM talks to. Changing one takes effect within a minute, no redeploy."
+    ) : (
+      "Used by every email, popup and creator page."
+    );
+
   return (
     <>
       <PageHeader
         crumb={tabMeta.crumb}
         title={tabMeta.title}
-        tabs={TABS}
-        activeTab={tab}
-        onTab={pickTab}
+        summary={summary}
         actions={
           tab === "team" ? (
             <button type="button" className="pm2-btn pri" onClick={() => setInviteOpen(true)} disabled={inviteBusy}>
@@ -191,15 +206,6 @@ export default function SettingsPage() {
       <div className="pm2-body">
         {tab === "connections" && (
           <div>
-            <p className={css.sum}>
-              {!health ? (
-                "Checking every connection…"
-              ) : working === total ? (
-                <><b>All {total} connections are working.</b> Checked when you opened this page.</>
-              ) : (
-                <><b>{working} of {total} connections are working.</b>{needLook > 0 ? ` ${needLook} need a look.` : " The rest have no recent data."}</>
-              )}
-            </p>
             <div className={css.card}>
               <div className={css.row}>
                 <span className={css.ic}><ShoppingBag /></span>
@@ -246,14 +252,12 @@ export default function SettingsPage() {
 
         {tab === "apikeys" && (
           <div>
-            <p className={css.sum}>Keys for the services the CRM talks to. Changing one takes effect within a minute, no redeploy.</p>
             <ApiKeysPanel />
           </div>
         )}
 
         {tab === "brand" && (
           <div>
-            <p className={css.sum}>Used by every email, popup and creator page.</p>
             <div className={css.g2}>
               <div className={`${css.card} ${css.cardPad}`}>
                 <div className={css.field}>
@@ -302,10 +306,17 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+            <div className={css.card} style={{ marginTop: 20 }}>
+            <Link href="/dashboard/email/settings" className={css.row} style={{ textDecoration: "none", color: "inherit" }}>
+              <span className={css.ic}><Mail /></span>
+              <div className={css.tx}><b>Email look and sending rules</b><span>Logo, colours and footer for every email, plus warm-up and approval limits</span></div>
+              <ChevronRight size={18} aria-hidden />
+            </Link>
+            </div>
           </div>
         )}
 
-        {tab === "team" && <div><TeamTable /></div>}
+        {tab === "team" && <div><TeamTable onCount={setTeamCount} /></div>}
       </div>
 
       {inviteOpen && (
@@ -360,7 +371,7 @@ export default function SettingsPage() {
 
 type Member = { id: string; name: string; email: string | null; role: string; modules: ModuleKey[] | null; confirmed: boolean; last_sign_in_at?: string | null };
 
-function TeamTable() {
+function TeamTable({ onCount }: { onCount: (n: number) => void }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [currentRole, setCurrentRole] = useState<string>("admin");
@@ -371,11 +382,12 @@ function TeamTable() {
       .then((r) => r.json())
       .then((j) => {
         setMembers(j.users ?? []);
+        onCount((j.users ?? []).length);
         setCurrentId(j.currentUserId ?? null);
         setCurrentRole(j.currentUserRole ?? "admin");
       })
       .catch(() => {});
-  }, []);
+  }, [onCount]);
   useEffect(() => { load(); }, [load]);
 
   const canManage = currentRole === "owner" || currentRole === "admin";
@@ -400,9 +412,6 @@ function TeamTable() {
 
   return (
     <>
-      <p className={css.sum}>
-        {members.length ? <><b>{members.length} {members.length === 1 ? "person" : "people"}.</b> Choose which areas each person can open.</> : "Choose which areas each person can open."}
-      </p>
       <div className={css.card}>
         {members.length === 0 && <div className={css.empty}>No team data yet</div>}
         {members.map((m) => {

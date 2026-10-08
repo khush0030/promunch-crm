@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
@@ -13,15 +13,15 @@ import {
   Mail,
   MessageCircle,
   PackageX,
+  PartyPopper,
   PhoneCall,
   RefreshCw,
   Search,
   Sparkle,
   TriangleAlert,
 } from "lucide-react";
-import { LineChart, StackBar, PeriodPicker, Callout } from "@/components/pm";
+import { Callout } from "@/components/pm";
 import { useShellUser } from "@/components/shell/useShellData";
-import { SectionTabs } from "@/components/shell/SectionTabs";
 import { useCampaigns } from "@/components/whatsapp/campaigns/api";
 import { progressOf } from "@/components/whatsapp/campaigns/logic";
 import type { Campaign } from "@/components/whatsapp/types";
@@ -34,9 +34,20 @@ import s from "./home.module.css";
 type Period = "7d" | "30d" | "90d";
 const PERIODS: readonly Period[] = ["7d", "30d", "90d"];
 const PERIOD_DAYS: Record<Period, number> = { "7d": 7, "30d": 30, "90d": 90 };
+const PERIOD_LABEL: Record<Period, string> = {
+  "7d": "7 days",
+  "30d": "30 days",
+  "90d": "90 days",
+};
+const DEFAULT_PERIOD: Period = "7d";
 
 function parsePeriodParam(raw: string | null): Period {
-  return raw === "7d" || raw === "90d" ? raw : "30d";
+  return raw === "30d" || raw === "90d" ? raw : DEFAULT_PERIOD;
+}
+
+// Hero tile label: "Sales this week" for 7 days, else the window in words.
+function salesLabel(days: number): string {
+  return days === 7 ? "Sales this week" : `Sales · last ${days} days`;
 }
 
 // Time-of-day greeting + the eyebrow date/time, both computed against
@@ -155,15 +166,19 @@ function DashboardPageInner() {
   const setPeriod = useCallback(
     (p: Period) => {
       const q = new URLSearchParams(params.toString());
-      if (p === "30d") q.delete("period");
+      if (p === DEFAULT_PERIOD) q.delete("period");
       else q.set("period", p);
       router.replace(`/dashboard${q.toString() ? `?${q}` : ""}`);
     },
     [router, params],
   );
 
+  // full_name (first word) when set, else the email prefix (useShellUser
+  // already falls back to it). Shown uppercase by the display type.
   const { user } = useShellUser();
-  const firstName = (user?.name || "").split(/\s+/)[0] || "there";
+  const firstName = (user?.name || user?.email?.split("@")[0] || "").split(
+    /\s+/,
+  )[0];
   const now = new Date();
 
   const salesQ = useQuery({
@@ -186,18 +201,6 @@ function DashboardPageInner() {
       const r = await fetch("/api/metrics/attention", { cache: "no-store" });
       if (!r.ok) throw new Error(`attention ${r.status}`);
       return (await r.json()) as Attention;
-    },
-  });
-
-  const healthQ = useQuery({
-    queryKey: ["wa-health-home"],
-    queryFn: async () => {
-      const r = await fetch("/api/whatsapp/health", { cache: "no-store" });
-      if (!r.ok) throw new Error(`wa-health ${r.status}`);
-      return r.json() as Promise<{
-        aiReplies24h: number | null;
-        failedOutbound24h: number | null;
-      }>;
     },
   });
 
@@ -243,7 +246,9 @@ function DashboardPageInner() {
           </span>,
         );
       } else {
-        parts.push(<span key="a">Nothing needs you right now.</span>);
+        parts.push(
+          <span key="a">Quiet one. Nothing needs you right now.</span>,
+        );
       }
     }
     return parts;
@@ -257,12 +262,29 @@ function DashboardPageInner() {
             ★ {eyebrowDate(now)}
           </span>
           <h1 className={s.title} suppressHydrationWarning>
-            Good {greetingWord(now)}, {firstName}.
+            Good {greetingWord(now)}
+            {firstName ? `, ${firstName}` : ""}.
           </h1>
           {summary.length > 0 && <p className={s.sum}>{summary}</p>}
         </div>
         <div className={s.acts}>
-          <PeriodPicker options={PERIODS} value={period} onChange={setPeriod} />
+          <span
+            className={`pm2-seg ${s.seg}`}
+            role="group"
+            aria-label="Period"
+          >
+            {PERIODS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                className={p === period ? "on" : undefined}
+                aria-pressed={p === period}
+                onClick={() => setPeriod(p)}
+              >
+                {PERIOD_LABEL[p]}
+              </button>
+            ))}
+          </span>
           {top && (
             <Link href={top.href} className={`pm2-btn pri ${s.primary}`}>
               {primaryLabel(top)}
@@ -270,7 +292,6 @@ function DashboardPageInner() {
           )}
         </div>
       </header>
-      <SectionTabs />
     </>
   );
 
@@ -311,10 +332,6 @@ function DashboardPageInner() {
     );
   }
 
-  const health = healthQ.data;
-  const web = sales.channels.find((c) => c.key === "web");
-  const amazonCh = sales.channels.find((c) => c.key === "amazon");
-  const hypd = sales.channels.find((c) => c.key === "hypd");
   const cod = items.find((i) => i.id === "cod-needs-call");
   const topItems = items.slice(0, 5);
 
@@ -336,38 +353,21 @@ function DashboardPageInner() {
     }),
   );
   const prevTotal = sales.total.prevRevenue;
-  const channelParts = [
-    { label: "Web store", revenue: web?.revenue ?? 0 },
-    { label: "Amazon", revenue: amazonCh?.revenue ?? 0 },
-    { label: "HYPD", revenue: hypd?.revenue ?? 0 },
-  ];
-  const channelSum = channelParts.reduce((t, c) => t + c.revenue, 0);
-  const leadCh =
-    channelSum > 0
-      ? [...channelParts].sort((x, y) => y.revenue - x.revenue)[0]
-      : null;
-  const lead = leadCh
-    ? {
-        label: leadCh.label,
-        share: Math.round((leadCh.revenue / channelSum) * 100),
-      }
-    : null;
+  const allClear =
+    !!attention && !attentionQ.isError && items.length === 0;
 
   return (
     <>
       {header}
       <div className="pm2-body">
-        {/* ---- KPI tiles ---- */}
+        {/* ---- KPI tiles: Sales is the page's one red element ---- */}
         <div className={s.kpis}>
           <Link
             href="/dashboard/sales"
             className={`${s.kpi} ${s.hero}`}
             title="Web store + Amazon + HYPD. Excludes ₹0.01 creator seed orders and refunds."
           >
-            <span className={s.kpiL}>
-              Sales · {days} days
-              <ArrowRight />
-            </span>
+            <span className={s.kpiL}>{salesLabel(days)}</span>
             <span className={s.kpiV}>{formatINR(sales.total.revenue)}</span>
             <span className={s.kpiD}>
               <DeltaText value={salesDelta} /> vs the {days} days before · all
@@ -375,17 +375,14 @@ function DashboardPageInner() {
             </span>
           </Link>
           <Link href="/dashboard/sales/orders" className={s.kpi}>
-            <span className={s.kpiL}>
-              Orders
-              <ArrowRight />
-            </span>
+            <span className={s.kpiL}>Orders</span>
             <span className={s.kpiV}>
               {sales.total.orders.toLocaleString("en-IN")}
             </span>
             <span className={s.kpiD}>
               {cod?.count != null && (
                 <span>
-                  {cod.count.toLocaleString("en-IN")} COD to confirm ·
+                  {cod.count.toLocaleString("en-IN")} COD to confirm ·{" "}
                 </span>
               )}
               <DeltaText
@@ -394,10 +391,7 @@ function DashboardPageInner() {
             </span>
           </Link>
           <Link href="/dashboard/attention" className={s.kpi}>
-            <span className={s.kpiL}>
-              Needs you
-              <ArrowRight />
-            </span>
+            <span className={s.kpiL}>Needs you</span>
             <span className={s.kpiV}>
               {attention ? openCount.toLocaleString("en-IN") : "–"}
             </span>
@@ -411,91 +405,27 @@ function DashboardPageInner() {
           </Link>
         </div>
 
-        {/* ---- Needs you + side column ---- */}
-        <div className={s.g21}>
-          <section
-            className={`${s.card} ${s.flush}`}
-            aria-labelledby="home-needs-you"
-          >
-            <div className={s.secT}>
-              <h3 id="home-needs-you">Needs you</h3>
-              {items.length > 0 && (
-                <Link className={s.txtLink} href="/dashboard/attention">
-                  See all {openCount}
-                  <ArrowRight />
-                </Link>
-              )}
-            </div>
-            {attentionQ.isLoading ? (
-              <p className={s.empty}>Loading…</p>
-            ) : attentionQ.isError ? (
-              <p className={s.empty}>
-                Couldn&apos;t load what needs you. Try again in a moment.
+        {allClear ? (
+          <>
+            {/* ---- All clear: nothing needs the team ---- */}
+            <section className={`${s.card} ${s.clear}`} aria-labelledby="home-clear">
+              <div className={s.art} aria-hidden>
+                <PartyPopper />
+                <span className={s.sticker}>All clear</span>
+              </div>
+              <h3 id="home-clear">Crunch time is over</h3>
+              <p>
+                No orders to confirm, no tickets waiting, no drafts to approve.
+                We&apos;ll ping you the moment something lands.
               </p>
-            ) : topItems.length === 0 ? (
-              <p className={s.empty}>Nothing waiting on you right now.</p>
-            ) : (
-              topItems.map((it) => (
-                <Link key={it.id} href={it.href} className={s.todo}>
-                  <span className={`${s.ic} ${s[it.severity]}`} aria-hidden>
-                    {itemIcon(it)}
-                  </span>
-                  <span className={s.tx}>
-                    <b>{it.title}</b>
-                    <span>{it.context}</span>
-                  </span>
-                  {it.amount != null && (
-                    <span
-                      className={`${s.goV}${it.severity === "crit" ? ` ${s.crit}` : ""}`}
-                    >
-                      {formatINR(it.amount)}
-                      {it.amountLabel && <small>{it.amountLabel}</small>}
-                    </span>
-                  )}
-                  <ChevronRight className={s.goC} aria-hidden />
-                </Link>
-              ))
-            )}
-          </section>
-
-          <div className={s.stack}>
-            <section
-              className={`${s.card} ${s.maya}`}
-              aria-labelledby="home-maya"
-            >
-              <div className={s.mayaHead}>
-                <span className={s.mayaIc} aria-hidden>
-                  <Sparkle />
-                </span>
-                <div>
-                  <h3 id="home-maya">Ask Maya</h3>
-                  <p>Your data, in plain answers.</p>
-                </div>
-              </div>
-              <Link className={s.mayaAsk} href="/dashboard/assistant">
-                <Search aria-hidden />
-                Ask anything about sales, customers…
+              <Link
+                className="pm2-btn"
+                href={`/dashboard/assistant?q=${encodeURIComponent("How did the week go?")}`}
+              >
+                Ask Maya how the week went
               </Link>
-              <div className={s.qs}>
-                {[
-                  salesDelta !== null && salesDelta < 0
-                    ? `Why are sales down this ${days === 7 ? "week" : "month"}?`
-                    : `Why are sales up this ${days === 7 ? "week" : "month"}?`,
-                  "Which customers should we win back?",
-                ].map((q) => (
-                  <Link
-                    key={q}
-                    className={s.q}
-                    href={`/dashboard/assistant?q=${encodeURIComponent(q)}`}
-                  >
-                    <CornerDownRight aria-hidden />
-                    {q}
-                  </Link>
-                ))}
-              </div>
             </section>
-
-            {campaignsQ.data && (
+            {running.length > 0 && (
               <section className={s.card} aria-labelledby="home-running">
                 <div className={s.secT}>
                   <h3 id="home-running">Running now</h3>
@@ -507,126 +437,282 @@ function DashboardPageInner() {
                     <ArrowRight />
                   </Link>
                 </div>
-                {running.length === 0 ? (
-                  <p className={s.runEmpty}>
-                    No WhatsApp campaigns sending or scheduled.
-                  </p>
-                ) : (
-                  <div className={s.run}>
-                    {running.map((c) => (
-                      <RunningRow key={c.id} c={c} />
-                    ))}
-                  </div>
-                )}
+                <div className={s.run}>
+                  {running.map((c) => (
+                    <RunningRow key={c.id} c={c} />
+                  ))}
+                </div>
               </section>
             )}
-          </div>
-        </div>
+          </>
+        ) : (
+          /* ---- Needs you + side column ---- */
+          <div className={s.g21}>
+            <section
+              className={`${s.card} ${s.flush}`}
+              aria-labelledby="home-needs-you"
+            >
+              <div className={s.secT}>
+                <h3 id="home-needs-you">Needs you</h3>
+                {items.length > 0 && (
+                  <Link className={s.txtLink} href="/dashboard/attention">
+                    See all {openCount}
+                    <ArrowRight />
+                  </Link>
+                )}
+              </div>
+              {attentionQ.isLoading ? (
+                <p className={s.empty}>Loading…</p>
+              ) : attentionQ.isError ? (
+                <p className={s.empty}>
+                  Couldn&apos;t load what needs you. Try again in a moment.
+                </p>
+              ) : (
+                topItems.map((it) => (
+                  <Link key={it.id} href={it.href} className={s.todo}>
+                    <span className={`${s.ic} ${s[it.severity]}`} aria-hidden>
+                      {itemIcon(it)}
+                    </span>
+                    <span className={s.tx}>
+                      <b>{it.title}</b>
+                      <span>{it.context}</span>
+                    </span>
+                    {it.amount != null && (
+                      <span
+                        className={`${s.goV}${it.severity === "crit" ? ` ${s.crit}` : ""}`}
+                      >
+                        {formatINR(it.amount)}
+                        {it.amountLabel && <small>{it.amountLabel}</small>}
+                      </span>
+                    )}
+                    <ChevronRight className={s.goC} aria-hidden />
+                  </Link>
+                ))
+              )}
+            </section>
 
-        {/* ---- Sales chart + channel split ---- */}
-        <div className={s.g21}>
-          <section className={s.card} aria-labelledby="home-sales">
-            <div className={s.secT}>
-              <h3 id="home-sales">Sales, last {days} days</h3>
-              <Link className={s.txtLink} href="/dashboard/sales">
-                Sales
-                <ArrowRight />
-              </Link>
-            </div>
-            <p className={s.takeaway}>
-              {formatLakh(sales.total.revenue)}
-              {salesDelta !== null ? (
-                <>
-                  ,{" "}
-                  <em
-                    className={Math.round(salesDelta) < 0 ? s.neg : undefined}
-                  >
-                    {Math.round(salesDelta) === 0
-                      ? "level"
-                      : `${salesDelta > 0 ? "up" : "down"} ${Math.abs(Math.round(salesDelta))}%`}
-                  </em>{" "}
-                  on the {days} days before
-                </>
-              ) : prevTotal === 0 ? (
-                " this period, nothing in the period before"
-              ) : null}
-            </p>
-            <LineChart
-              series={[
-                {
-                  name: "This period",
-                  color: "var(--pm-s-web)",
-                  values: sales.daily.map((d) => d.revenue),
-                },
-                {
-                  name: "Before",
-                  color: "#CFC7B9",
-                  dash: true,
-                  values: sales.daily.map((d) => d.prevRevenue),
-                },
-              ]}
-              labels={dailyLabels}
-              yFormat="money"
-              fmt={formatLakh}
-              aria={`Daily sales, this ${days}-day period vs the previous ${days} days`}
-            />
-            <div className={s.keys}>
-              <span>
-                <i style={{ background: "var(--pm-s-web)" }} />
-                Last {days} days
-              </span>
-              <span>
-                <i style={{ background: "#CFC7B9" }} />
-                {days} days before (dashed)
-              </span>
-            </div>
-          </section>
-
-          <section className={s.card} aria-labelledby="home-channels">
-            <div className={s.secT}>
-              <h3 id="home-channels">By channel</h3>
-            </div>
-            {lead && (
-              <p className={s.takeaway}>
-                {lead.label} brings <em className={s.plain}>{lead.share}%</em>{" "}
-                of sales
-              </p>
-            )}
-            <span className={s.splitT}>{days} days · gross</span>
-            <StackBar
-              parts={[
-                {
-                  label: "Web",
-                  value: web?.revenue ?? 0,
-                  text: formatLakh(web?.revenue ?? 0),
-                  color: "var(--pm-s-web)",
-                },
-                {
-                  label: "Amazon",
-                  value: amazonCh?.revenue ?? 0,
-                  text: formatLakh(amazonCh?.revenue ?? 0),
-                  color: "var(--pm-s-amz)",
-                },
-                {
-                  label: "HYPD",
-                  value: hypd?.revenue ?? 0,
-                  text: formatLakh(hypd?.revenue ?? 0),
-                  color: "var(--pm-s-hypd)",
-                },
-              ]}
-              legendExtra={
-                health?.aiReplies24h != null ? (
-                  <span>
-                    <b>{health.aiReplies24h.toLocaleString("en-IN")}</b>{" "}
-                    WhatsApp AI replies today
+            <div className={s.stack}>
+              <section
+                className={`${s.card} ${s.maya}`}
+                aria-labelledby="home-maya"
+              >
+                <div className={s.mayaHead}>
+                  <span className={s.mayaIc} aria-hidden>
+                    <Sparkle />
                   </span>
-                ) : undefined
-              }
-            />
-          </section>
-        </div>
+                  <div>
+                    <h3 id="home-maya">Ask Maya</h3>
+                    <p>Your data, in plain answers.</p>
+                  </div>
+                </div>
+                <Link className={s.mayaAsk} href="/dashboard/assistant">
+                  <Search aria-hidden />
+                  Ask anything about sales, customers…
+                </Link>
+                <div className={s.qs}>
+                  {[
+                    salesDelta !== null && salesDelta < 0
+                      ? `Why are sales down this ${days === 7 ? "week" : "month"}?`
+                      : `Why are sales up this ${days === 7 ? "week" : "month"}?`,
+                    "Which customers should we win back?",
+                  ].map((q) => (
+                    <Link
+                      key={q}
+                      className={s.q}
+                      href={`/dashboard/assistant?q=${encodeURIComponent(q)}`}
+                    >
+                      <CornerDownRight aria-hidden />
+                      {q}
+                    </Link>
+                  ))}
+                </div>
+              </section>
+
+              {campaignsQ.data && (
+                <section className={s.card} aria-labelledby="home-running">
+                  <div className={s.secT}>
+                    <h3 id="home-running">Running now</h3>
+                    <Link
+                      className={s.txtLink}
+                      href="/dashboard/whatsapp/campaigns"
+                    >
+                      All
+                      <ArrowRight />
+                    </Link>
+                  </div>
+                  {running.length === 0 ? (
+                    <p className={s.runEmpty}>
+                      No WhatsApp campaigns sending or scheduled.
+                    </p>
+                  ) : (
+                    <div className={s.run}>
+                      {running.map((c) => (
+                        <RunningRow key={c.id} c={c} />
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ---- Sales area chart, full width ---- */}
+        <section className={s.card} aria-labelledby="home-sales">
+          <div className={s.secT}>
+            <h3 id="home-sales">Sales, last {days} days</h3>
+            <Link className={s.txtLink} href="/dashboard/sales">
+              Insights
+              <ArrowRight />
+            </Link>
+          </div>
+          <p className={s.takeaway}>
+            {formatLakh(sales.total.revenue)}
+            {salesDelta !== null ? (
+              <>
+                ,{" "}
+                <em className={Math.round(salesDelta) < 0 ? s.neg : undefined}>
+                  {Math.round(salesDelta) === 0
+                    ? "level"
+                    : `${salesDelta > 0 ? "up" : "down"} ${Math.abs(Math.round(salesDelta))}%`}
+                </em>{" "}
+                on the {days} days before
+              </>
+            ) : prevTotal === 0 ? (
+              " this period, nothing in the period before"
+            ) : null}
+          </p>
+          <AreaChart
+            labels={dailyLabels}
+            current={sales.daily.map((d) => d.revenue)}
+            previous={sales.daily.map((d) => d.prevRevenue)}
+            fmt={formatLakh}
+            aria={`Daily sales, this ${days}-day period vs the previous ${days} days`}
+          />
+          <div className={s.keys}>
+            <span>
+              <i style={{ background: "var(--pm-brand)" }} />
+              Last {days} days
+            </span>
+            <span>
+              <i style={{ background: "#CFC7B9" }} />
+              {days} days before (dashed)
+            </span>
+          </div>
+        </section>
       </div>
     </>
+  );
+}
+
+// Area chart for Home (prototype "area" type): the current period as a red
+// line with a soft red fill, the period before as a dashed grey line. Draws
+// at the container's real width so text never stretches.
+function AreaChart({
+  labels,
+  current,
+  previous,
+  fmt,
+  aria,
+}: {
+  labels: string[];
+  current: number[];
+  previous: number[];
+  fmt: (n: number) => string;
+  aria: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [W, setW] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setW(Math.round(el.clientWidth)));
+    ro.observe(el);
+    setW(Math.round(el.clientWidth));
+    return () => ro.disconnect();
+  }, []);
+
+  const narrow = W > 0 && W < 520;
+  const H = narrow ? 200 : 240;
+  const pad = { l: 48, r: narrow ? 52 : 60, t: 18, b: 28 };
+  const n = Math.max(current.length, 1);
+  const width = Math.max(240, W);
+  const iw = width - pad.l - pad.r;
+  const ih = H - pad.t - pad.b;
+  const all = [...current, ...previous].filter((v) => Number.isFinite(v));
+  const peak = Math.max(0, ...all);
+  const raw = peak / 3 || 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const tick = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((t) => t >= raw) ?? raw;
+  const max = tick * Math.max(3, Math.ceil(peak / tick));
+  const y = (v: number) => pad.t + ih - (v / max) * ih;
+  const x = (i: number) => pad.l + (n === 1 ? iw / 2 : (i / (n - 1)) * iw);
+  const path = (vals: number[]) =>
+    vals
+      .map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v || 0).toFixed(1)}`)
+      .join("");
+  const ticks: number[] = [];
+  for (let v = 0; v <= max + 1e-9; v += tick) ticks.push(v);
+  const every = Math.ceil(n / Math.max(2, Math.floor(iw / 64)));
+  const last = current.length - 1;
+  const red = "var(--pm-brand)";
+
+  return (
+    <div ref={ref} className={s.chart}>
+      {W > 0 && current.length > 0 && (
+        <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" aria-label={aria}>
+          {ticks.map((v) => (
+            <g key={v}>
+              <line x1={pad.l} x2={width - pad.r} y1={y(v)} y2={y(v)} stroke="#EFEBE3" />
+              <text className={s.ax} x={pad.l - 8} y={y(v) + 4} textAnchor="end">
+                {fmt(v)}
+              </text>
+            </g>
+          ))}
+          <path
+            d={`${path(current)}L${x(last)} ${y(0)}L${x(0)} ${y(0)}Z`}
+            fill={red}
+            opacity={0.12}
+          />
+          {previous.length > 0 && (
+            <path
+              d={path(previous)}
+              fill="none"
+              stroke="#CFC7B9"
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          )}
+          <path
+            d={path(current)}
+            fill="none"
+            stroke={red}
+            strokeWidth={2.6}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+          <circle cx={x(last)} cy={y(current[last] || 0)} r={4} fill={red} stroke="#fff" strokeWidth={2} />
+          <text className={s.ev} x={x(last) + 8} y={y(current[last] || 0) + 4} fill={red}>
+            {fmt(current[last] || 0)}
+          </text>
+          {labels.map((lb, i) =>
+            i % every === 0 || (i === n - 1 && (n - 1) % every > every / 2) ? (
+              <text
+                key={i}
+                className={s.ax}
+                x={x(i)}
+                y={H - 8}
+                textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"}
+              >
+                {lb}
+              </text>
+            ) : null,
+          )}
+        </svg>
+      )}
+    </div>
   );
 }
 

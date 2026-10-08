@@ -2,18 +2,17 @@
 
 // Brand kit (logo, colours, footer, social links) + send guardrails
 // (warm-up cap, approval threshold). Everyone can see; admins edit.
+// Presented under Settings · Brand & email (the Settings section tabs show).
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Callout } from "@/components/pm";
+import { Callout, PageHeader } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
-import { StudioHeader } from "@/components/email-studio/StudioHeader";
 import { ImagePicker } from "@/components/email-studio/Builder";
 import { useStudioSettings } from "@/components/email-studio/hooks";
 import { sendJson } from "@/components/email-studio/api";
 import type { BrandKit, Theme } from "@/lib/email-studio/design";
 import s from "@/components/email-studio/studio.module.css";
-import l from "@/components/email-studio/list.module.css";
 
 const COLORS: { key: keyof Omit<Theme, "font">; label: string }[] = [
   { key: "background", label: "Page background" },
@@ -43,7 +42,10 @@ export default function StudioSettingsPage() {
   }, [q.data]);
 
   const canEdit = !!q.data?.canEdit;
-  if (!brand) return <><StudioHeader tab="settings" title="Brand & settings" /><div className="pm2-body"><div className="pm2-skel" /></div></>;
+  const head = (actions?: ReactNode) => (
+    <PageHeader crumb="Settings · Brand & email" title="Email sending" summary={<>One brand kit for every email: logo, colours, fonts and footer. Customer email always sends from <b>hello@promunch.in</b>.</>} actions={actions} />
+  );
+  if (!brand) return <>{head()}<div className="pm2-body"><div className="pm2-skel" /></div></>;
   const set = (p: Partial<BrandKit>) => setBrand({ ...brand, ...p });
 
   const save = async () => {
@@ -65,13 +67,8 @@ export default function StudioSettingsPage() {
 
   return (
     <>
-      <StudioHeader
-        tab="settings"
-        title="Brand & settings"
-        actions={canEdit ? <button type="button" className="pm2-btn pri" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button> : undefined}
-      />
+      {head(canEdit ? <button type="button" className="pm2-btn pri" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button> : undefined)}
       <div className="pm2-body">
-        <p className={l.sum}>One brand kit for every email: logo, colours, fonts and footer. Customer email always sends from <b>hello@promunch.in</b>.</p>
         {!canEdit && <Callout tone="plain" title="View only" body="Only an admin can change the brand kit and sending rules." />}
         <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, display: "grid", gap: 16 }}>
           <div className="pm2-g2">

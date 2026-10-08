@@ -58,11 +58,6 @@ function parseView(raw: string | null): ViewKey {
   return VIEW_KEYS.includes(raw as ViewKey) ? (raw as ViewKey) : "open";
 }
 
-function computeDeltaPct(curr: number | null, prev: number | null): number | null {
-  if (curr == null || prev == null || prev === 0) return null;
-  return ((curr - prev) / prev) * 100;
-}
-
 // Display-only sort key off the aggregator's age text ("40m", "2h 10m",
 // "3 days"). Resolved cards ("resolved in …") return null and keep the
 // server's order.
@@ -273,7 +268,20 @@ function TicketsPageInner() {
     return sort === "newest" ? sorted.reverse() : sorted;
   }, [allRows, inView, view, channel, query, sort, nameOf]);
 
-  const header = <PageHeader crumb="Inbox" title="Tickets" />;
+  const header = (
+    <PageHeader
+      crumb="Inbox"
+      title="Tickets"
+      summary={
+        boardQ.data ? (
+          <>
+            <b>{boardQ.data.kpis.open} open</b>, {boardQ.data.kpis.pastTarget} past their reply time.
+            {me ? <> You&apos;re on {counts.mine} of them.</> : null}
+          </>
+        ) : undefined
+      }
+    />
+  );
 
   if (boardQ.isError && !board) {
     return (
@@ -306,17 +314,13 @@ function TicketsPageInner() {
     );
   }
 
-  const medianDeltaPct = computeDeltaPct(board.kpis.medianResolveHours, board.kpis.prevMedianResolveHours);
-  const topCategory = board.kpis.topCategory;
-  const categoryDeltaPct = topCategory ? computeDeltaPct(topCategory.count, topCategory.prevCount) : null;
-
   const viewGroups: { title: string; items: { key: ViewKey; label: string; icon: ReactNode }[] }[] = [
     {
       title: "My work",
       items: [
         { key: "mine", label: "Mine, open", icon: <User aria-hidden /> },
         { key: "unassigned", label: "Not assigned", icon: <InboxIcon aria-hidden /> },
-        { key: "overdue", label: "Past reply target", icon: <AlarmClock aria-hidden /> },
+        { key: "overdue", label: "Overdue", icon: <AlarmClock aria-hidden /> },
       ],
     },
     {
@@ -324,7 +328,7 @@ function TicketsPageInner() {
       items: [
         { key: "open", label: "All open", icon: <ListTodo aria-hidden /> },
         { key: "new", label: "New", icon: <CircleDot aria-hidden /> },
-        { key: "assigned", label: "Open, assigned", icon: <UserCheck aria-hidden /> },
+        { key: "assigned", label: "Open", icon: <UserCheck aria-hidden /> },
         { key: "waiting", label: "Waiting on customer", icon: <Hourglass aria-hidden /> },
         { key: "resolved", label: "Solved, 7 days", icon: <CircleCheck aria-hidden /> },
       ],
@@ -335,39 +339,6 @@ function TicketsPageInner() {
     <>
       {header}
       <div className="pm2-body">
-        <div className={s.summary}>
-          <p className={s.sum}>
-            <b>{board.kpis.open} open</b>, {board.kpis.pastTarget} past the 4h first-reply target.
-            {me ? <> You&apos;re on {counts.mine} of them.</> : null}
-          </p>
-          <dl className={s.stats}>
-            <div>
-              <dt>Median time to resolve</dt>
-              <dd>
-                {board.kpis.medianResolveHours != null ? `${board.kpis.medianResolveHours.toFixed(1)}h` : "None resolved"}
-                {medianDeltaPct != null ? (
-                  <small title="Lower is better">
-                    {medianDeltaPct > 0 ? "+" : ""}
-                    {medianDeltaPct.toFixed(0)}% vs last week
-                  </small>
-                ) : null}
-              </dd>
-            </div>
-            <div>
-              <dt>{topCategory?.word ?? "Complaint"} tickets, this week</dt>
-              <dd>
-                {topCategory?.count ?? 0}
-                {categoryDeltaPct != null ? (
-                  <small>
-                    {categoryDeltaPct > 0 ? "+" : ""}
-                    {categoryDeltaPct.toFixed(0)}% vs last week
-                  </small>
-                ) : null}
-              </dd>
-            </div>
-          </dl>
-        </div>
-
         <div className={s.tq}>
           <nav className={s.views} aria-label="Ticket views">
             {viewGroups.map((g) => (

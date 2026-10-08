@@ -10,10 +10,14 @@
 // Layout: takeaway + refresh, the voice agent tracker (scorecards, trend,
 // reasons), then the latest calls. A row opens the call drawer.
 
-import { useMemo, useState } from "react";
+import { useContext, useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Banknote, ChevronRight, Info, PhoneOff, RefreshCw, Search, ShoppingCart } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { PageHeader } from "@/components/pm";
+import { HeaderMenu } from "@/components/inbox/HeaderMenu";
+import { WaHeaderContext } from "./WaHeader";
 import { apiFetch } from "@/lib/api-fetch";
 import { timeAgo } from "@/app/dashboard/whatsapp/format";
 import type { Stats, SyncResult, VoiceCall } from "./voice/model";
@@ -39,14 +43,114 @@ function takeaway(calls: VoiceCall[]): string {
   return parts.join(" ");
 }
 
-export default function VoiceView() {
+// The header sentence (cod-voice.html #or-calls), key numbers in bold.
+function headline(calls: VoiceCall[]): ReactNode {
+  if (!calls.length) return "No voice calls yet. Calls show here as soon as the agent places one.";
+  const cod = scoreJob(calls.filter((c) => c.purpose === "cod_confirm"));
+  const cart = scoreJob(calls.filter((c) => c.purpose === "cart"));
+  return (
+    <>
+      The voice agent does two jobs.
+      {cod.called > 0 && (
+        <>
+          {" "}<b>COD:</b> {pct(cod.confirmed, cod.called)}% of called orders confirmed, {cod.cancelled} cancelled on the call.
+        </>
+      )}
+      {cart.called > 0 && (
+        <>
+          {" "}<b>Carts:</b>{" "}
+          {cart.ordered ? (
+            <>
+              {cart.ordered} {cart.ordered === 1 ? "person" : "people"} bought after a call, <b>{fmtInr(cart.orderedValue)} back</b>.
+            </>
+          ) : (
+            <>no orders after a call yet, {cart.linkSent} {cart.linkSent === 1 ? "link" : "links"} sent.</>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+// "Refresh call results": the manual Sarvam backfill. One definition, used by
+// the page header (⋯ menu) and, until that header is wired, the body button.
+function useVoiceSync() {
   const toast = useToast();
   const qc = useQueryClient();
+  const [syncing, setSyncing] = useState(false);
+  async function handleSync() {
+    setSyncing(true);
+    try {
+      const res = await apiFetch<SyncResult>("/api/whatsapp/voice-calls/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hours: 24 }),
+      });
+      // dndFailed means a do-not-call disposition could not be written to
+      // wa_contacts - the sync route deliberately left that call row
+      // retryable, but an operator must not read this as a clean success.
+      toast.push({
+        kind: res.dndFailed ? "error" : "success",
+        text: `Call results refreshed. Checked ${res.scanned} calls, updated ${res.updated}${
+          res.dndFlagged ? `, ${res.dndFlagged} marked "do not call"` : ""
+        }${res.dndFailed ? `. ${res.dndFailed} could NOT be marked "do not call" yet; refresh again to retry` : ""}.`,
+      });
+      qc.invalidateQueries({ queryKey: ["voice-calls"] });
+    } catch (e) {
+      toast.push({ kind: "error", text: e instanceof Error ? e.message : "Sync failed." });
+    } finally {
+      setSyncing(false);
+    }
+  }
+  return { syncing, handleSync };
+}
+
+const unfilteredCalls = () => ({
+  queryKey: ["voice-calls", "", "", ""],
+  queryFn: () => apiFetch<{ calls: VoiceCall[]; stats: Stats }>("/api/whatsapp/voice-calls"),
+  refetchInterval: 30_000,
+});
+
+// Page header for Orders & COD → Voice calls: eyebrow, VOICE CALLS, the
+// results sentence, and "Refresh call results" in the ⋯ menu. Render it in
+// the WhatsApp page header slot (VoiceView portals it there when one exists).
+export function VoiceHeader() {
+  const { data, isLoading } = useQuery(unfilteredCalls());
+  const { syncing, handleSync } = useVoiceSync();
+  return (
+    <PageHeader
+      crumb="Orders & COD"
+      title="Voice calls"
+      summary={isLoading ? undefined : headline(data?.calls ?? [])}
+      actions={
+        <HeaderMenu
+          label="More voice call actions"
+          items={[
+            {
+              key: "sync",
+              label: syncing ? "Refreshing…" : "Refresh call results",
+              icon: <RefreshCw aria-hidden />,
+              disabled: syncing,
+              onSelect: handleSync,
+            },
+          ]}
+        />
+      }
+    />
+  );
+}
+
+export default function VoiceView({ headerInPage: headerProp = false }: { headerInPage?: boolean } = {}) {
+  // When the WhatsApp page gives this tab a header slot (WaHeaderContext), the
+  // full header (VoiceHeader) goes there and the body drops its own summary and
+  // actions. Without a slot, the body keeps them so nothing is unreachable.
+  const slotEl = useContext(WaHeaderContext)?.el ?? null;
+  const headerInPage = headerProp || !!slotEl;
   const [status, setStatus] = useState("");
   const [outcome, setOutcome] = useState("");
   const [q, setQ] = useState("");
   const [purpose, setPurpose] = useState<"all" | "cart" | "cod_confirm">("all");
-  const [syncing, setSyncing] = useState(false);
+  const { syncing, handleSync } = useVoiceSync();
   const [openId, setOpenId] = useState<string | null>(null);
 
   const { data: flowsData } = useQuery({
@@ -78,45 +182,29 @@ export default function VoiceView() {
   const tries = useMemo(() => groupTries(allCalls), [allCalls]);
   const openCall = openId ? allCalls.find((c) => c.id === openId) ?? null : null;
 
-  async function handleSync() {
-    setSyncing(true);
-    try {
-      const res = await apiFetch<SyncResult>("/api/whatsapp/voice-calls/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hours: 24 }),
-      });
-      // dndFailed means a do-not-call disposition could not be written to
-      // wa_contacts - the sync route deliberately left that call row
-      // retryable, but an operator must not read this as a clean success.
-      toast.push({
-        kind: res.dndFailed ? "error" : "success",
-        text: `Call results refreshed. Checked ${res.scanned} calls, updated ${res.updated}${
-          res.dndFlagged ? `, ${res.dndFlagged} marked "do not call"` : ""
-        }${res.dndFailed ? `. ${res.dndFailed} could NOT be marked "do not call" yet; refresh again to retry` : ""}.`,
-      });
-      qc.invalidateQueries({ queryKey: ["voice-calls"] });
-    } catch (e) {
-      toast.push({ kind: "error", text: e instanceof Error ? e.message : "Sync failed." });
-    } finally {
-      setSyncing(false);
-    }
-  }
-
   return (
     <div className={s.wrap}>
-      <div className={s.head}>
-        <div className={s.headT}>
-          <p className={s.sum}>{isLoading ? "Loading calls…" : hasFilters ? "Showing the calls that match your filters." : takeaway(allCalls)}</p>
-          <p className={s.sub}>
-            {stats.placed} calls loaded{hasFilters ? " (filtered)" : ""} · {stats.doNotCall} asked us not to call
-            {stats.dialing > 0 ? ` · ${stats.dialing} result not in yet` : ""}
-          </p>
+      {slotEl && createPortal(<VoiceHeader />, slotEl)}
+      {headerInPage ? (
+        <p className={s.sub}>
+          {isLoading ? "Loading calls…" : hasFilters ? "Showing the calls that match your filters. " : ""}
+          {stats.placed} calls loaded{hasFilters ? " (filtered)" : ""} · {stats.doNotCall} asked us not to call
+          {stats.dialing > 0 ? ` · ${stats.dialing} result not in yet` : ""}
+        </p>
+      ) : (
+        <div className={s.head}>
+          <div className={s.headT}>
+            <p className={s.sum}>{isLoading ? "Loading calls…" : hasFilters ? "Showing the calls that match your filters." : takeaway(allCalls)}</p>
+            <p className={s.sub}>
+              {stats.placed} calls loaded{hasFilters ? " (filtered)" : ""} · {stats.doNotCall} asked us not to call
+              {stats.dialing > 0 ? ` · ${stats.dialing} result not in yet` : ""}
+            </p>
+          </div>
+          <button type="button" className="pm2-btn" onClick={handleSync} disabled={syncing}>
+            <RefreshCw size={15} /> {syncing ? "Refreshing…" : "Refresh call results"}
+          </button>
         </div>
-        <button type="button" className="pm2-btn" onClick={handleSync} disabled={syncing}>
-          <RefreshCw size={15} /> {syncing ? "Refreshing…" : "Refresh call results"}
-        </button>
-      </div>
+      )}
 
       <details className={s.how}>
         <summary><Info size={14} /> How it works</summary>
@@ -138,7 +226,7 @@ export default function VoiceView() {
       )}
       {allStillDialing && (
         <p className={s.note}>
-          <Info size={15} /> <span>The results of these calls have not arrived yet. Press Refresh call results above to fetch them.</span>
+          <Info size={15} /> <span>The results of these calls have not arrived yet. {headerInPage ? "Use Refresh call results in the ⋯ menu at the top to fetch them." : "Press Refresh call results above to fetch them."}</span>
         </p>
       )}
 

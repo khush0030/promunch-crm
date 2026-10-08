@@ -2,11 +2,12 @@
 import { useEffect, useState } from "react";
 import { IndianRupee, Mail, Coins, TrendingUp, Users } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { PageHead, KpiCard, Panel, MiniBar, StatLine, DataTable } from "@/components/pm";
+import { KpiCard, Panel, MiniBar, StatLine, DataTable } from "@/components/pm";
 import type { Column, KpiTone } from "@/components/pm";
+import { StudioHeader } from "@/components/email-studio/StudioHeader";
 
 const dateRanges = ["Last 7 Days", "Last 30 Days", "Last 90 Days"];
-const rangeShort: Record<string, string> = { "Last 7 Days": "7d", "Last 30 Days": "30d", "Last 90 Days": "90d" };
+const rangeShort: Record<string, string> = { "Last 7 Days": "7 days", "Last 30 Days": "30 days", "Last 90 Days": "90 days" };
 const rangeDays: Record<string, number> = { "Last 7 Days": 7, "Last 30 Days": 30, "Last 90 Days": 90 };
 
 type TopMetric = { label: string; value: string; icon: React.ReactNode; tone: KpiTone; sub: string; up: boolean };
@@ -122,19 +123,20 @@ export default function AnalyticsPage() {
   const healthEmpty = !loaded || emailHealth.every((h) => h.value === "—");
 
   return (
-    <div className="pm-page">
-      <PageHead
-        title="Analytics"
-        subtitle="Performance overview for PROMUNCH email marketing"
+    <>
+      <StudioHeader
+        tab="results"
+        title="Results"
+        summary="How email is doing, and whether inboxes still trust you."
         actions={
-          <div className="pm-ranges">
+          <div className="pm2-seg" role="group" aria-label="Period">
             {dateRanges.map((r) => (
-              <button key={r} className={activeRange === r ? "on" : ""} onClick={() => setActiveRange(r)}>{rangeShort[r]}</button>
+              <button key={r} type="button" className={activeRange === r ? "on" : ""} aria-pressed={activeRange === r} onClick={() => setActiveRange(r)}>{rangeShort[r]}</button>
             ))}
           </div>
         }
       />
-
+      <div className="pm-page">
       <div className="pm-kpis">
         {topMetrics.map((m) => (
           <KpiCard key={m.label} label={m.label} value={m.value} icon={m.icon} tone={m.tone} sub={m.sub} spark deltaDir={m.up ? "up" : "flat"} />
@@ -192,5 +194,6 @@ export default function AnalyticsPage() {
         </Panel>
       </div>
     </div>
+    </>
   );
 }

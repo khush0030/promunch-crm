@@ -21,11 +21,11 @@ import {
   X,
   ArrowRight,
   ArrowLeft,
-  Sparkles,
 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { canOpenHref } from "@/lib/access";
 import { useAccess } from "@/components/shell/useAccess";
+import o from "./Onboarding.module.css";
 
 type Step = {
   tour: string; // matches data-tour="..." on the sidebar nav item
@@ -41,7 +41,7 @@ const ALL_STEPS: Step[] = [
   {
     tour: "dashboard",
     href: "/dashboard",
-    title: "Your home base",
+    title: "Home",
     body: "Revenue, key numbers and anything that needs attention, all on one screen.",
     icon: <LayoutDashboard size={16} />,
   },
@@ -69,29 +69,29 @@ const ALL_STEPS: Step[] = [
   {
     tour: "wa-marketing",
     href: "/dashboard/whatsapp?tab=home",
-    title: "WhatsApp marketing",
-    body: "Open it and start with the Start here tab: a short checklist, then big buttons to send a campaign, create a message template or set up an automation. Every step explains itself.",
+    title: "WhatsApp",
+    body: "Under Marketing. Start with the Overview tab: a short checklist, then big buttons to send a campaign, create a message template or set up an automation. Every step explains itself.",
     icon: <Megaphone size={16} />,
   },
   {
     tour: "email-studio",
     href: "/dashboard/email",
-    title: "Email Studio",
-    body: "Email campaigns, templates, audiences and automations for PROMUNCH customers, all in one place.",
+    title: "Email",
+    body: "Under Marketing. Email campaigns, automations, templates and results for PROMUNCH customers, all in one place.",
     icon: <Mail size={16} />,
   },
   {
     tour: "contacts",
     href: "/dashboard/contacts",
-    title: "Audience",
-    body: "Every customer, enriched and segmented, ready to target.",
+    title: "Customers",
+    body: "Everyone who bought or signed up, with segments ready to target.",
     icon: <Users size={16} />,
   },
   {
     tour: "settings",
     href: "/dashboard/settings",
-    title: "Settings & your team",
-    body: "Connect Shopify and email, set your brand, and invite teammates from the Team tab.",
+    title: "Settings",
+    body: "Connect Shopify and email, set your brand, and invite teammates from Team & access.",
     icon: <SettingsIcon size={16} />,
   },
 ];
@@ -102,7 +102,6 @@ type Phase = "idle" | "welcome" | "tour" | "guide";
 
 export default function Onboarding() {
   const [phase, setPhase] = useState<Phase>("idle");
-  const [name, setName] = useState<string>("");
   const [storageKey, setStorageKey] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
@@ -131,12 +130,6 @@ export default function Onboarding() {
       if (!mounted) return;
       const u = data.user;
       if (!u) return;
-      const meta = (u.user_metadata || {}) as Record<string, unknown>;
-      const fullName =
-        (typeof meta.full_name === "string" && meta.full_name) ||
-        (typeof meta.name === "string" && meta.name) ||
-        (u.email ? u.email.split("@")[0] : "there");
-      setName(fullName);
       const key = `pm_onboarded_${u.id}`;
       setStorageKey(key);
       let seen = false;
@@ -195,34 +188,59 @@ export default function Onboarding() {
   // Nothing to show until access is known (and never an empty tour).
   if (phase === "idle" || STEPS.length === 0) return null;
 
-  // --- Welcome modal -------------------------------------------------------
+  // --- Welcome modal (prototype index.html#home/welcome) ----------------
+  // "Show me Home" starts the spotlight tour (its first stop is Home);
+  // Skip marks onboarding done. The tour can be replayed from the sidebar.
   if (phase === "welcome") {
+    const restricted = STEPS.length < ALL_STEPS.length;
     return (
       <Backdrop onClose={finish}>
-        <div style={cardStyle}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <span style={badgeStyle}>
-              <Sparkles size={15} />
-            </span>
-            <div style={{ fontSize: 12, letterSpacing: "0.14em", color: "var(--text-2)", fontWeight: 600 }}>
-              WELCOME TO PROMUNCH CRM
-            </div>
+        <div className={o.modal} role="dialog" aria-modal="true" aria-labelledby="pm-welcome-title">
+          <div className={o.band}>
+            <span className={o.eyebrow}>★ New look</span>
+            <h1 id="pm-welcome-title" className={o.h1}>
+              Same CRM.
+              <br />
+              Less noise.
+            </h1>
+            <p className={o.lede}>
+              {marketingOnly
+                ? "Everything you need for PROMUNCH's WhatsApp and email marketing, in one place."
+                : "Everything you used is still here, in fewer places."}
+            </p>
           </div>
-          <h2 style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.015em", margin: "0 0 8px" }}>
-            Hi {name || "there"} 👋
-          </h2>
-          <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text-2)", margin: "0 0 20px" }}>
-            {marketingOnly
-              ? "This is where you run PROMUNCH's WhatsApp and email marketing. Take a 30-second tour and we'll show you where to start."
-              : "This is where the team runs orders, support, WhatsApp and campaigns. Take a 60-second tour and we'll show you around the dashboard."}
-          </p>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button className="btn primary" style={{ justifyContent: "center" }} onClick={startTour}>
-              Take the tour <ArrowRight size={14} />
-            </button>
-            <button className="btn" style={{ justifyContent: "center" }} onClick={finish}>
-              Skip for now
-            </button>
+          <div className={o.bodyPad}>
+            <div className={o.tl}>
+              <div className={`${o.it} ${o.done}`}>
+                {restricted ? (
+                  <>
+                    <b>Your places, in the sidebar</b>
+                    <span>{STEPS.map((st) => st.title).join(", ")}.</span>
+                  </>
+                ) : (
+                  <>
+                    <b>8 places, not 20</b>
+                    <span>Home, Inbox, Orders, Marketing, Creators, B2B, Customers, Insights.</span>
+                  </>
+                )}
+              </div>
+              <div className={`${o.it} ${o.done}`}>
+                <b>Ask Maya is the yellow button</b>
+                <span>Ask anything, get a chart. Shortcut ⌘J.</span>
+              </div>
+              <div className={`${o.it} ${o.now}`}>
+                <b>Search finds everything</b>
+                <span>Orders, people, tickets, pages. Shortcut ⌘K.</span>
+              </div>
+            </div>
+            <div className={o.mf}>
+              <button type="button" className="pm2-btn ghost" onClick={finish}>
+                Skip
+              </button>
+              <button type="button" className="pm2-btn pri" onClick={startTour}>
+                Show me Home
+              </button>
+            </div>
           </div>
         </div>
       </Backdrop>
@@ -252,7 +270,7 @@ export default function Onboarding() {
             ))}
           </div>
           <button
-            className="btn primary"
+            className="pm2-btn pri"
             style={{ justifyContent: "center", width: "100%", marginTop: 18 }}
             onClick={finish}
           >
@@ -317,11 +335,11 @@ export default function Onboarding() {
           </span>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
             {step > 0 && (
-              <button className="btn" style={{ padding: "6px 12px" }} onClick={back}>
+              <button className="pm2-btn sm" onClick={back}>
                 <ArrowLeft size={13} /> Back
               </button>
             )}
-            <button className="btn primary" style={{ padding: "6px 14px" }} onClick={next}>
+            <button className="pm2-btn sm pri" onClick={next}>
               {step >= STEPS.length - 1 ? "Done" : "Next"}
               {step < STEPS.length - 1 && <ArrowRight size={13} />}
             </button>
@@ -334,19 +352,10 @@ export default function Onboarding() {
 
 function Backdrop({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1000,
-        background: "rgba(36,30,24,0.5)",
-        display: "grid",
-        placeItems: "center",
-        padding: 20,
-      }}
-      onClick={onClose}
-    >
-      <div onClick={(e) => e.stopPropagation()}>{children}</div>
+    <div className={o.backdrop} onClick={onClose}>
+      <div className={o.holder} onClick={(e) => e.stopPropagation()}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -354,6 +363,7 @@ function Backdrop({ children, onClose }: { children: React.ReactNode; onClose: (
 const cardStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: 440,
+  margin: "0 auto",
   background: "var(--surface, #fff)",
   border: "1px solid var(--border, #E7E0D5)",
   borderRadius: 18,
@@ -367,8 +377,8 @@ const badgeStyle: React.CSSProperties = {
   width: 30,
   height: 30,
   borderRadius: 9,
-  background: "rgba(185,48,63,0.10)",
-  color: "#B9303F",
+  background: "var(--pm-brand-soft, #F8E7E5)",
+  color: "var(--pm-brand, #AF272F)",
 };
 
 const iconBtnStyle: React.CSSProperties = {

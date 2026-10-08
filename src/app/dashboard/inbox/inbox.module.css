@@ -1,3 +1,8 @@
 /* Conversation list: the status pill keeps its full width; the name is the
    part that truncates (the shared `.t span` rule would otherwise clip both). */
 .list :global(.pm2-list-row .t > .pm2-pill){flex:none}
+
+/* List head: filter chips, then search + channel on one line (tickets.html #tk-chats rail). */
+.tools{display:flex;gap:8px;align-items:center;margin-top:10px}
+.tools > :first-child{flex:1;min-width:0}
+.channel{flex:none;padding:8px 10px;font-size:14px}

@@ -34,6 +34,7 @@ import { CartCard, RestockCard, ReviewCard } from "./MarketingSection";
 import { CodCard, ConfirmationCard, ShippingCard, SignOffCard, VoiceCard } from "./OrderSection";
 import { ORDER_MESSAGE_KEYS } from "@/app/api/whatsapp/flows/permissions";
 import type { BoolKey, CustomFlow, FlowSettings, FlowsPayload, SettingKey, VoiceStats } from "./types";
+import { WaHeader } from "../WaHeader";
 import s from "./flows.module.css";
 
 type View = { kind: "list" } | { kind: "gallery" } | { kind: "builder"; flow: CustomFlow | null; recipe: Recipe | null };
@@ -206,12 +207,13 @@ export default function AutomationsView() {
     if (flowsQ.isError) {
       return (
         <div className={s.center}>
+          <WaHeader title="Automations" />
           <span>Couldn&apos;t load automations: {flowsQ.error instanceof Error ? flowsQ.error.message : "unknown error"}</span>
           <button type="button" className="pm2-btn sm" onClick={() => flowsQ.refetch()}><RefreshCw aria-hidden="true" /> Try again</button>
         </div>
       );
     }
-    return <div className={s.center}>Loading automations…</div>;
+    return <div className={s.center}><WaHeader title="Automations" />Loading automations…</div>;
   }
 
   const ctx: FlowsCtx = {
@@ -243,6 +245,7 @@ export default function AutomationsView() {
   if (view.kind === "builder") {
     return (
       <div className={s.wrap}>
+        <WaHeader title="Automations" />
         <FlowBuilder
           initial={view.flow}
           recipe={view.recipe}
@@ -301,6 +304,22 @@ export default function AutomationsView() {
 
   return (
     <div className={s.wrap}>
+      <WaHeader
+        title="Automations"
+        summary={
+          <>
+            Messages that send themselves when something happens.{" "}
+            <b>{onCount} marketing {onCount === 1 ? "automation" : "automations"} on.</b>
+          </>
+        }
+        actions={
+          opened ? undefined : (
+            <button type="button" className="pm2-btn" onClick={() => setView({ kind: "gallery" })}>
+              <Plus aria-hidden="true" /> New automation
+            </button>
+          )
+        }
+      />
       {opened ? (
         <>
           {isOrder && !isAdmin && (
@@ -312,20 +331,6 @@ export default function AutomationsView() {
         </>
       ) : (
         <>
-          <div className={s.intro}>
-            <div className={s.introText}>
-              <p className={s.introSub}>
-                Messages that send themselves when something happens. <b>{onCount} marketing {onCount === 1 ? "automation is" : "automations are"} on.</b>{" "}
-                Open one to see its steps, change a wait or switch it off.
-              </p>
-            </div>
-            <div className={s.introActs}>
-              <button type="button" className="pm2-btn pri" onClick={() => setView({ kind: "gallery" })}>
-                <Plus aria-hidden="true" /> New automation
-              </button>
-            </div>
-          </div>
-
           {view.kind === "gallery" && (
             <RecipeGallery
               builtInOn={{ abandoned_cart: saved.abandoned_cart_enabled, review: saved.review_request_enabled, restock: saved.replenishment_enabled }}

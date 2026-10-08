@@ -6,13 +6,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import { BarChart, HBars, PeriodPicker, Callout } from "@/components/pm";
+import { BarChart, HBars, Callout } from "@/components/pm";
 import type { HBarItem } from "@/components/pm";
 import { formatLakh, formatINR } from "@/lib/metrics/money";
 import { pctChange } from "@/lib/metrics/period";
 import type { SalesMetrics } from "@/lib/metrics/sales-aggregate";
 import type { ChannelKey } from "@/lib/metrics/channel";
-import { InsightsHead, Kpi, DeltaText, ChartCard, changeWords, shortName } from "./insights-ui";
+import { InsightsHead, PeriodSeg, Kpi, DeltaText, ChartCard, changeWords, shortName } from "./insights-ui";
 import s from "./insights.module.css";
 
 type Period = "7d" | "30d" | "90d" | "12m";
@@ -149,7 +149,7 @@ function SalesPageInner() {
 
   const sales = salesQ.data;
   const periodLabel = PERIOD_LABEL[period];
-  const actions = <PeriodPicker options={PERIODS} value={period} onChange={setPeriod} />;
+  const actions = <PeriodSeg options={PERIODS} value={period} onChange={setPeriod} />;
 
   // Channels with any money in either window, biggest first.
   const channels: ChannelRow[] = sales

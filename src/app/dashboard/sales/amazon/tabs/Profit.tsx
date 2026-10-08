@@ -4,7 +4,7 @@ import { formatLakh, formatINR } from "@/lib/metrics/money";
 import { sortForProfit } from "@/lib/amazon/economics";
 import type { AmazonMetrics } from "@/lib/amazon/economics";
 import { PERIOD_LABEL, COST_COVERAGE_TIP } from "../format";
-import { Kpi, ChartCard } from "../../insights-ui";
+import { ChartCard } from "../../insights-ui";
 import { ProfitKeys, ProfitRow, profitTakeaway } from "../parts";
 import s from "../../insights.module.css";
 
@@ -21,19 +21,19 @@ export function ProfitTab({ data, onCostSaved }: { data: AmazonMetrics; onCostSa
 
   return (
     <>
-      <div className={s.kpis}>
-        <Kpi label="Profit, all products" value={formatLakh(data.money.profit)} title={data.money.costCoverage < 100 ? COST_COVERAGE_TIP : undefined}>
-          {data.money.costCoverage < 100 ? `${periodLabel} · ${Math.round(data.money.costCoverage)}% of units costed` : periodLabel}
-        </Kpi>
-        <Kpi label="Best per pack" value={best ? formatINR(best.keepPerUnit ?? 0) : "–"}>
-          {best?.shortTitle ?? "add cost prices first"}
-        </Kpi>
-        <Kpi label="Missing cost price" value={missingCost.length} title="Profit can't be calculated until you enter a cost price">
-          {missingCost.length === 1 ? "product that sells" : "products that sell"}
-        </Kpi>
-      </div>
-
       <ChartCard id="amz-profit-all" title="Where each ₹ of sales goes" basis={`${periodLabel} · per pack`} takeaway={profitTakeaway(data.skus)}>
+        <p className={s.facts2} title={data.money.costCoverage < 100 ? COST_COVERAGE_TIP : undefined}>
+          <span>
+            <b>{formatLakh(data.money.profit)}</b> profit, all products
+            {data.money.costCoverage < 100 ? ` (${Math.round(data.money.costCoverage)}% of units costed)` : ""}
+          </span>
+          <span>
+            Best per pack <b>{best ? formatINR(best.keepPerUnit ?? 0) : "–"}</b> {best?.shortTitle ?? "add cost prices first"}
+          </span>
+          <span title="Profit can't be calculated until you enter a cost price">
+            <b>{missingCost.length}</b> {missingCost.length === 1 ? "product that sells has" : "products that sell have"} no cost price
+          </span>
+        </p>
         <ProfitKeys />
         {rows.length === 0 ? (
           <p className={s.empty}>No Amazon products yet</p>

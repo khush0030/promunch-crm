@@ -8,13 +8,13 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Plus, Search } from "lucide-react";
 import { Callout, Chips } from "@/components/pm";
-import { GlossaryTerm } from "@/components/guide";
 import { errorMessage, useCampaignAnalytics, useCampaigns } from "./api";
 import { AudienceInsights } from "./AudienceInsights";
 import { CampaignRow } from "./CampaignRow";
 import { descendantCount, filterJourneyList } from "./journey";
 import { LIST_FILTERS, matchesListFilter, matchesSearch, type ListFilter } from "./logic";
 import { StatusStrip } from "./StatusStrip";
+import { WaHeader } from "../WaHeader";
 import { useCampaignActions } from "./useCampaignActions";
 import s from "./campaigns.module.css";
 import l from "./list.module.css";
@@ -56,21 +56,15 @@ export default function CampaignsHome() {
 
   return (
     <div className={l.wrap}>
-      <div className={l.head}>
-        <div className={l.headText}>
-          <h2 className={l.title}>Campaigns</h2>
-          <p className={l.sum}>
-            One message to many people.{summary.length ? ` ${summary.join(", ")}.` : ""}
-          </p>
-          <p className={l.help}>
-            A campaign sends one approved <GlossaryTerm k="template">template</GlossaryTerm> to a group of customers, plus optional{" "}
-            <GlossaryTerm k="followup">follow-ups</GlossaryTerm> later. Meta charges only for <GlossaryTerm k="delivered">delivered</GlossaryTerm> messages.
-          </p>
-        </div>
-        <Link href={NEW_CAMPAIGN_HREF} className={`pm2-btn pri ${l.newBtn}`}>
-          <Plus size={15} aria-hidden /> New campaign
-        </Link>
-      </div>
+      <WaHeader
+        title="Campaigns"
+        summary={<>One message to many people.{summary.length ? ` ${summary.join(", ")}.` : ""}</>}
+        actions={
+          <Link href={NEW_CAMPAIGN_HREF} className="pm2-btn pri">
+            <Plus size={15} aria-hidden /> New campaign
+          </Link>
+        }
+      />
 
       <StatusStrip />
 

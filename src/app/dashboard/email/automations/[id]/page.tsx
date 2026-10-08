@@ -285,6 +285,19 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
         tab="automations"
         title={draft.name || "Untitled automation"}
         back={{ href: "/dashboard/email/automations", label: "Automations" }}
+        summary={
+          <>
+            <Pill tone={st.tone}>{st.label}</Pill>{" "}
+            {on ? (
+              <>
+                Click any email to change the words. Saved changes reach real customers from their next email
+                {" "}(<b>{inProgress} {inProgress === 1 ? "person is" : "people are"} in it now</b>). After saving, send yourself a test.
+              </>
+            ) : (
+              <>Click any email to change the words. Nobody gets these emails until it is switched on.</>
+            )}
+          </>
+        }
         actions={
           <>
             {admin && (on ? (
@@ -299,17 +312,6 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
         }
       />
       <div className="pm2-body">
-        <p className={f.sum}>
-          <Pill tone={st.tone}>{st.label}</Pill>{" "}
-          {on ? (
-            <>
-              Click any email to change the words. Saved changes reach real customers from their next email
-              {" "}(<b>{inProgress} {inProgress === 1 ? "person is" : "people are"} in it now</b>). After saving, send yourself a test.
-            </>
-          ) : (
-            <>Click any email to change the words. Nobody gets these emails until it is switched on.</>
-          )}
-        </p>
 
         <button type="button" className={`${f.checks} ${blockCount ? f.checksBad : f.checksOk}`} style={{ cursor: issues.length ? "pointer" : "default" }} onClick={() => setShowChecks((v) => !v)}>
           {blockCount ? <OctagonAlert /> : <CheckCircle2 />}

@@ -1,16 +1,15 @@
 "use client";
 
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { RefreshCw, DownloadCloud } from "lucide-react";
-import { Callout, PeriodPicker } from "@/components/pm";
-import type { PageHeaderTab } from "@/components/pm";
+import { Callout } from "@/components/pm";
 import { formatLakh } from "@/lib/metrics/money";
 import type { AmazonMetrics } from "@/lib/amazon/economics";
 import type { AmazonTabKey } from "./types";
 import { timeAgo, PERIOD_LABEL } from "./format";
-import { InsightsHead, shortName } from "../insights-ui";
+import { InsightsHead, PeriodSeg, shortName } from "../insights-ui";
 import s from "../insights.module.css";
 import { OverviewTab } from "./tabs/Overview";
 import { StockTab } from "./tabs/Stock";
@@ -64,23 +63,23 @@ function AmazonSalesPageInner() {
   const period = parsePeriodParam(params.get("period"));
   const tab = parseTabParam(params.get("tab"));
 
-  const setQuery = useCallback(
-    (next: { period?: Period; tab?: AmazonTabKey }) => {
+  const setPeriod = useCallback(
+    (p: Period) => {
       const q = new URLSearchParams(params.toString());
-      const p = next.period ?? period;
-      const t = next.tab ?? tab;
       if (p === "30d") q.delete("period");
       else q.set("period", p);
-      if (t === "overview") q.delete("tab");
-      else q.set("tab", t);
       const qs = q.toString();
-      router.replace(`/dashboard/sales/amazon${qs ? `?${qs}` : ""}`);
+      router.replace(`/dashboard/sales/amazon${qs ? `?${qs}` : ""}`, { scroll: false });
     },
-    [router, params, period, tab],
+    [router, params],
   );
 
-  const setPeriod = useCallback((p: Period) => setQuery({ period: p }), [setQuery]);
-  const setTab = useCallback((t: AmazonTabKey) => setQuery({ tab: t }), [setQuery]);
+  // One sectioned page (prototype an-amazon). The old sub-tabs live on as
+  // anchors: ?tab=stock|profit|payouts|orders scrolls to that section.
+  const goTo = useCallback((t: AmazonTabKey) => {
+    const el = document.getElementById(`amazon-${t}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   const amzQ = useQuery({
     queryKey: ["metrics-amazon", period],
@@ -126,14 +125,13 @@ function AmazonSalesPageInner() {
   }, [refetchFresh]);
 
   const data = amzQ.data;
-
-  const tabs: PageHeaderTab[] = [
-    { label: "Overview", key: "overview" },
-    { label: "Stock", key: "stock", count: data?.stock.atRisk },
-    { label: "Product profit", key: "profit" },
-    { label: "Payouts", key: "payouts" },
-    { label: "Orders", key: "orders" },
-  ];
+  const hasData = !!data;
+  const scrolled = useRef(false);
+  useEffect(() => {
+    if (!hasData || scrolled.current) return;
+    scrolled.current = true;
+    if (tab !== "overview") requestAnimationFrame(() => goTo(tab));
+  }, [hasData, tab, goTo]);
 
   // One plain-words summary from real data: what Amazon paid out of what
   // customers paid, and the worst stock fact.
@@ -173,12 +171,9 @@ function AmazonSalesPageInner() {
     <InsightsHead
       title="Amazon"
       summary={summary}
-      tabs={tabs}
-      activeTab={tab}
-      onTab={(k) => setTab(k as AmazonTabKey)}
       actions={
         <>
-          <PeriodPicker options={PERIODS} value={period} onChange={setPeriod} />
+          <PeriodSeg options={PERIODS} value={period} onChange={setPeriod} />
           <span className={`${s.synced} pm2-d-only`}>{data ? `synced ${timeAgo(data.sync.lastSyncedAt)}` : ""}</span>
           <button type="button" className="pm2-btn ghost pm2-d-only" disabled={syncing} onClick={syncNow}>
             <DownloadCloud size={14} /> {syncing ? "Syncing…" : "Sync now"}
@@ -233,11 +228,21 @@ function AmazonSalesPageInner() {
             }
           />
         )}
-        {tab === "overview" && <OverviewTab data={data} onTab={setTab} />}
-        {tab === "stock" && <StockTab data={data} />}
-        {tab === "profit" && <ProfitTab data={data} onCostSaved={refetchFresh} />}
-        {tab === "payouts" && <PayoutsTab data={data} />}
-        {tab === "orders" && <OrdersTab data={data} />}
+        <section id="amazon-overview" className={s.anchor} aria-label="Overview">
+          <OverviewTab data={data} onTab={goTo} />
+        </section>
+        <section id="amazon-stock" className={s.anchor} aria-label="Stock">
+          <StockTab data={data} />
+        </section>
+        <section id="amazon-profit" className={s.anchor} aria-label="Product profit">
+          <ProfitTab data={data} onCostSaved={refetchFresh} />
+        </section>
+        <section id="amazon-payouts" className={s.anchor} aria-label="Payouts">
+          <PayoutsTab data={data} />
+        </section>
+        <section id="amazon-orders" className={s.anchor} aria-label="Amazon orders">
+          <OrdersTab data={data} />
+        </section>
       </div>
     </>
   );

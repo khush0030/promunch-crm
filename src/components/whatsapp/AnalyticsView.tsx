@@ -12,6 +12,7 @@ import { Kpi, KpiStrip } from "@/components/pm";
 import { GlossaryTerm, HelpTip } from "@/components/guide";
 import { apiFetch } from "@/lib/api-fetch";
 import { canGrade, inHundred, isTestCampaign, lastCampaignSentence, MIN_SENDS_TO_GRADE, periodSentences } from "./results/logic";
+import { WaHeader, WaMoreMenu } from "./WaHeader";
 import s from "./results/results.module.css";
 
 type Funnel = { key: string; label: string; count: number | null; pct: number; unit: string; soon?: boolean };
@@ -106,21 +107,34 @@ export default function AnalyticsView() {
 
   return (
     <div className={s.wrap}>
-      <div className={s.toolbar}>
-        <p className={s.intro}>Every rupee WhatsApp brought in, from campaigns and automations.</p>
-        <div className={s.toolbarActs}>
-          <div className="pm2-seg" role="group" aria-label="Period">
-            {WINDOWS.map((w) => (
-              <button key={w} type="button" className={days === w ? "on" : ""} aria-pressed={days === w} onClick={() => setDays(w)}>
-                {w} days
+      <WaHeader
+        title="Results"
+        summary={
+          d && d.headline.orders > 0 ? (
+            <>WhatsApp brought in <b>{inr(d.headline.revenue)}</b> from {num(d.headline.orders)} order{d.headline.orders === 1 ? "" : "s"} in the last {days} days, from campaigns and automations.</>
+          ) : d ? (
+            <>No orders came from people we messaged in the last {days} days yet.</>
+          ) : (
+            "Every rupee WhatsApp brought in, from campaigns and automations."
+          )
+        }
+        actions={
+          <>
+            <div className="pm2-seg" role="group" aria-label="Period">
+              {WINDOWS.map((w) => (
+                <button key={w} type="button" className={days === w ? "on" : ""} aria-pressed={days === w} onClick={() => setDays(w)}>
+                  {w} days
+                </button>
+              ))}
+            </div>
+            <WaMoreMenu>
+              <button type="button" role="menuitem" onClick={load} disabled={loading}>
+                <RefreshCw aria-hidden="true" className={loading ? s.spin : undefined} /> {loading ? "Refreshing…" : "Refresh numbers"}
               </button>
-            ))}
-          </div>
-          <button type="button" className={s.iconBtn} onClick={load} disabled={loading} aria-label={loading ? "Refreshing" : "Refresh"} title="Refresh">
-            <RefreshCw aria-hidden="true" className={loading ? s.spin : undefined} />
-          </button>
-        </div>
-      </div>
+            </WaMoreMenu>
+          </>
+        }
+      />
 
       {loading && !d ? (
         <div className={s.center}>Loading results…</div>
@@ -161,11 +175,6 @@ function Body({ d, c, conv, act, days, stale }: {
       {stale && <p className={s.note}>Couldn&apos;t refresh. Showing the last numbers we loaded.</p>}
 
       <p className={s.headline}>
-        {h.orders > 0 ? (
-          <>WhatsApp brought in <b>{inr(h.revenue)}</b> from {num(h.orders)} order{h.orders === 1 ? "" : "s"} in the last {days} days.</>
-        ) : (
-          <>No orders came from people we messaged in the last {days} days yet.</>
-        )}{" "}
         <span className={s.healthLine}>
           <span className={`pm2-pill ${d.health.tone === "g" ? "good" : d.health.tone === "a" ? "warn" : "crit"}`}>{d.health.label}</span>
           <span>{healthNote}</span>
@@ -175,12 +184,11 @@ function Body({ d, c, conv, act, days, stale }: {
       <KpiStrip>
         <Kpi label="Revenue" value={<span className={s.red}>{inr(h.revenue)}</span>} sub={`${num(h.orders)} orders after a message`} />
         <Kpi label="Messages sent" value={num(h.sent)} sub={`${h.deliveredPct}% delivered · ${num(d.today.sent)} today`} />
-        <Kpi label={<span className={s.kpiLabel}><GlossaryTerm k="read">Read rate</GlossaryTerm></span>} value={`${h.readPct}%`} sub={readVerdict(h.readPct)} />
+        <Kpi label="Read rate" value={`${h.readPct}%`} sub={readVerdict(h.readPct)} />
         <Kpi
           label={
             <span className={s.kpiLabel}>
               Cost to Meta
-              <HelpTip term="attributed_order" text="Estimated Meta charges. The return counts orders placed in this period by people who got a WhatsApp message from us before ordering, divided by this cost. A strong signal, not proof." />
             </span>
           }
           value={inr(h.spend)}

@@ -4,12 +4,12 @@ import { Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import { HBars, StackBar, Table, PeriodPicker, Callout } from "@/components/pm";
+import { HBars, StackBar, Table, Callout } from "@/components/pm";
 import type { TableCol, HBarItem, StackPart } from "@/components/pm";
 import { formatLakh, formatINR } from "@/lib/metrics/money";
 import { pctChange } from "@/lib/metrics/period";
 import type { WebMetrics } from "@/lib/metrics/web-aggregate";
-import { InsightsHead, Kpi, DeltaText, ChartCard, changeWords } from "../insights-ui";
+import { InsightsHead, PeriodSeg, Kpi, DeltaText, ChartCard, changeWords } from "../insights-ui";
 import s from "../insights.module.css";
 
 type Period = "7d" | "30d" | "90d";
@@ -94,14 +94,14 @@ function WebStorePageInner() {
 
   const summary = web ? (
     <>
-      The web store sold <b>{formatLakh(web.total.revenue)}</b> in {periodLabel}
+      promunch.in sold <b>{formatLakh(web.total.revenue)}</b> in {periodLabel}
       {changeWords(salesDelta) ? `, ${changeWords(salesDelta)} on the ${periodLabel} before` : ""}.{" "}
       <b>{Math.round(web.repeat.pct)}% of orders</b> came from people who had bought before.
     </>
   ) : null;
 
   const header = (
-    <InsightsHead title="Web store" summary={summary} actions={<PeriodPicker options={PERIODS} value={period} onChange={setPeriod} />} />
+    <InsightsHead title="Website" summary={summary} actions={<PeriodSeg options={PERIODS} value={period} onChange={setPeriod} />} />
   );
 
   if (webQ.isLoading) {

@@ -23,6 +23,7 @@ import type { Campaign } from "../types";
 import { avgOrder, campaignFunnel, returnMultiple, returnTone } from "./summary";
 import { useWaHealth } from "./useHealth";
 import { FLOWS_VISITED_KEY, GLOSSARY_SEEN_KEY, useLocalFlag } from "./useLocalFlag";
+import { WaHeader } from "../WaHeader";
 import h from "./home.module.css";
 
 export const NEW_CAMPAIGN_HREF = "/dashboard/whatsapp/campaigns/new";
@@ -71,27 +72,31 @@ export default function StartHere() {
 
   return (
     <div className={h.page}>
-      <div className={h.head}>
-        <p className={h.sum}>
-          {h30 && h30.orders > 0 ? (
-            <>WhatsApp made <b>{inr(h30.revenue)}</b> in the last 30 days.</>
-          ) : h30 ? (
-            <>No orders from WhatsApp messages in the last 30 days yet.</>
-          ) : (
-            <>Send offers and news to PROMUNCH customers on WhatsApp.</>
-          )}
-          {remaining != null && (
-            <> You can send <b>{int(remaining)} marketing {remaining === 1 ? "message" : "messages"}</b> today.</>
-          )}
-        </p>
-        <div className={h.acts}>
-          <Link href={NEW_TEMPLATE_HREF} className="pm2-btn">New template</Link>
-          <Link href={NEW_CAMPAIGN_HREF} className="pm2-btn pri">
-            <Plus aria-hidden /> New campaign
-          </Link>
-        </div>
-      </div>
-
+      <WaHeader
+        title="WhatsApp"
+        summary={
+          <>
+            {h30 && h30.orders > 0 ? (
+              <>WhatsApp made <b>{inr(h30.revenue)}</b> in the last 30 days.</>
+            ) : h30 ? (
+              <>No orders from WhatsApp messages in the last 30 days yet.</>
+            ) : (
+              <>Send offers and news to PROMUNCH customers on WhatsApp.</>
+            )}
+            {remaining != null && (
+              <> You can send <b>{int(remaining)} marketing {remaining === 1 ? "message" : "messages"}</b> today.</>
+            )}
+          </>
+        }
+        actions={
+          <>
+            <Link href={NEW_TEMPLATE_HREF} className={`pm2-btn ${h.hideM}`}>New template</Link>
+            <Link href={NEW_CAMPAIGN_HREF} className="pm2-btn pri">
+              <Plus aria-hidden /> New campaign
+            </Link>
+          </>
+        }
+      />
       <KpiStrip cols={3}>
         <Kpi
           label="Revenue · 30 days"

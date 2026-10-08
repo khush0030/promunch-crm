@@ -1,0 +1,25 @@
+/* Header dropdown (HeaderMenu.tsx): hairline card, calm rows. */
+.wrap { position: relative; display: inline-flex; }
+.dots { padding-left: 10px; padding-right: 10px; }
+.menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; min-width: 220px; max-width: min(320px, calc(100vw - 32px));
+  background: var(--pm-card); border: 1px solid var(--pm-border); border-radius: 14px; box-shadow: var(--pm-shadow-pop, 0 12px 32px rgba(26, 23, 20, .14));
+  padding: 6px; display: flex; flex-direction: column;
+}
+.h { font: 700 11px var(--pm-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--pm-muted); padding: 8px 10px 4px; }
+.menu button {
+  appearance: none; border: 0; background: none; text-align: left; display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 10px; font: 600 14.5px var(--pm-font); color: var(--pm-ink); cursor: pointer;
+}
+.menu button:hover:not(:disabled), .menu button:focus-visible { background: var(--pm-app, rgba(0, 0, 0, .04)); outline: none; }
+.menu button:disabled { opacity: .5; cursor: default; }
+.menu button svg { width: 16px; height: 16px; flex: none; color: var(--pm-ink2); }
+.menu button.on::after { content: "✓"; margin-left: auto; color: var(--pm-ink); }
+
+@media (max-width: 760px) {
+  /* a labelled menu button (Add knowledge) is the header's primary: full width on phones */
+  .grow { flex: 1; }
+  .grow > button { width: 100%; justify-content: center; }
+  .menu { left: 0; right: auto; }
+  .grow .menu { right: 0; }
+}

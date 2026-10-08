@@ -7,7 +7,7 @@
 
 import { ChevronRight, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
-import { GlossaryTerm, HelpTip } from "@/components/guide";
+import { GlossaryTerm } from "@/components/guide";
 import { friendlyTemplateName, type TemplateKind } from "@/lib/whatsapp/templateKind";
 import {
   STATUS_FILTERS, groupTemplates, matchesSearch, matchesStatus, statusInfo, type StatusFilter,
@@ -112,7 +112,6 @@ export function TemplateList({
         <div className={s.groupHead}>
           <h2 id="tpl-g-mkt" className={s.groupTitle}>For campaigns</h2>
           <span className={s.groupCount}>{shown.marketing.length}</span>
-          <HelpTip term="marketing" />
           <p className={s.groupSub}>
             <GlossaryTerm k="marketing">Marketing</GlossaryTerm> templates you can send to customers in a campaign once they show Approved.
           </p>

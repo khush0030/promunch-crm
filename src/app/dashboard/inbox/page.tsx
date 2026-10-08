@@ -20,7 +20,7 @@ import { SearchBar } from "@/components/pm";
 import { WaConversation } from "@/components/inbox/WaConversation";
 import { IgConversation } from "@/components/inbox/IgConversation";
 import { ConversationHeader } from "@/components/inbox/ConversationHeader";
-import { AlertsToggle } from "@/components/whatsapp/InboxNotifier";
+import { AlertsControl } from "@/components/inbox/AlertsControl";
 import { categoryWord } from "@/components/inbox/labels";
 import { formatWhen } from "@/lib/inbox/when";
 import { useMediaPhone } from "@/components/shell/useMediaPhone";
@@ -223,14 +223,18 @@ function InboxPageInner() {
   const header = (
     <PageHeader
       crumb="Inbox"
-      title="Conversations"
-      actions={
-        <>
-          <Chips items={chipItems} value={filter} onChange={(k) => setQuery({ filter: k as InboxFilter })} ariaLabel="Filter conversations" />
-          {channelSelect("pm2-d-only")}
-          <AlertsToggle />
-        </>
+      title="Live chats"
+      summary={
+        counts ? (
+          <>
+            <b>
+              {counts.human} {counts.human === 1 ? "chat needs" : "chats need"} a human.
+            </b>{" "}
+            The bot is answering {counts.bot} {counts.bot === 1 ? "chat" : "chats"}.
+          </>
+        ) : undefined
       }
+      actions={<AlertsControl />}
     />
   );
 
@@ -261,8 +265,11 @@ function InboxPageInner() {
         <div className="pm2-inbox-grid" style={{ display: "grid", gap: 0 }}>
           <div className={`pm2-panel pm2-inbox-list ${st.list}`} style={{ borderRadius: 0, borderWidth: "0 1px 0 0" }}>
             <div className="pm2-p-body" style={{ padding: "12px 14px 6px" }}>
-              <SearchBar value={qDraft} onChange={setQDraft} placeholder="Search name, phone, order…" />
-              <div style={{ marginTop: 8 }}>{channelSelect("pm2-m-only")}</div>
+              <Chips items={chipItems} value={filter} onChange={(k) => setQuery({ filter: k as InboxFilter })} ariaLabel="Filter conversations" />
+              <div className={st.tools}>
+                <SearchBar value={qDraft} onChange={setQDraft} placeholder="Search name, phone, order…" />
+                {channelSelect(st.channel)}
+              </div>
             </div>
             {listQ.isLoading ? (
               <div style={{ padding: "0 14px 14px", display: "flex", flexDirection: "column", gap: 8 }}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/pm";
 import AnalyticsView from "@/components/whatsapp/AnalyticsView";
@@ -16,19 +16,21 @@ import StartHere from "@/components/whatsapp/home/StartHere";
 import { HealthNotice } from "@/components/whatsapp/home/HealthNotice";
 import { FLOWS_VISITED_KEY, setLocalFlag } from "@/components/whatsapp/home/useLocalFlag";
 import h from "@/components/whatsapp/home/home.module.css";
+import { WaHeaderContext, type WaHeaderSlot } from "@/components/whatsapp/WaHeader";
 import { useAccess } from "@/components/shell/useAccess";
 import { canUse, whatsappTabModule } from "@/lib/access";
 
 // WhatsApp marketing hub. Chats and tickets moved to /dashboard/inbox
 // (next.config.ts redirects ?tab=inbox / ?tab=tickets / no tab there), so they
-// are not tabs here any more. "Start here" (?tab=home) is the landing tab.
+// are not tabs here any more. Overview (?tab=home) is the landing tab.
 // Tab keys never change (old links like ?tab=analytics keep working); only
-// the labels are written for a marketer.
+// the labels are written for a marketer. Each tab renders its own header
+// (components/whatsapp/WaHeader) into the slot above the body.
 type PageTab = Exclude<Tab, "inbox" | "tickets"> | "home";
 const ITEMS: Array<{ key: PageTab; label: string }> = [
-  { key: "home", label: "Start here" },
+  { key: "home", label: "Overview" },
   { key: "campaigns", label: "Campaigns" },
-  { key: "templates", label: "Message templates" },
+  { key: "templates", label: "Templates" },
   { key: "flows", label: "Automations" },
   { key: "analytics", label: "Results" },
   { key: "growth", label: "Signup popup" },
@@ -40,10 +42,14 @@ const TABS: PageTab[] = ITEMS.map((i) => i.key);
 // Tabs that live in other sidebar places now: they keep their URL but show
 // as a page of that place (its title and section tabs), not as a WhatsApp
 // marketing tab.
-const ELSEWHERE: Partial<Record<PageTab, { crumb: string; title: string }>> = {
+const ELSEWHERE: Partial<Record<PageTab, { crumb: string; title: string; summary?: string }>> = {
   kb: { crumb: "Inbox", title: "Bot knowledge" },
   voice: { crumb: "Orders & COD", title: "Voice calls" },
-  growth: { crumb: "Customers", title: "Sign-up popup" },
+  growth: {
+    crumb: "Customers",
+    title: "Sign-up popup",
+    summary: "A small box on your website that invites visitors to join your WhatsApp list, plus a one-tap chat button.",
+  },
 };
 
 // useSearchParams needs a Suspense boundary in the App Router.
@@ -90,28 +96,34 @@ function WhatsAppPageInner() {
     }
   }, [tab, allowedTabs.length]);
 
+  const [slotEl, setSlotEl] = useState<HTMLDivElement | null>(null);
+  const onTab = useCallback((k: string) => {
+    // Re-clicking the open tab returns it to its start (e.g. the
+    // Automations list from an open automation). UI only.
+    if (k === tab) window.dispatchEvent(new CustomEvent(WA_TAB_RESELECT, { detail: k }));
+    setTab(k as PageTab);
+  }, [tab, setTab]);
+  const slot = useMemo<WaHeaderSlot>(() => ({
+    el: slotEl,
+    tabs: ITEMS.filter((it) => allowedTabs.includes(it.key) && !ELSEWHERE[it.key]),
+    activeTab: tab,
+    onTab,
+  }), [slotEl, allowedTabs, tab, onTab]);
+  const elsewhere = ELSEWHERE[tab];
+
   return (
-    <>
+    <WaHeaderContext.Provider value={slot}>
       <div ref={tabsRef} className={h.tabsFade}>
-        {ELSEWHERE[tab] ? (
-          <PageHeader crumb={ELSEWHERE[tab]!.crumb} title={ELSEWHERE[tab]!.title} />
+        {elsewhere ? (
+          <PageHeader crumb={elsewhere.crumb} title={elsewhere.title} summary={elsewhere.summary} />
         ) : (
-          <PageHeader
-            crumb="Marketing · WhatsApp"
-            title="WhatsApp marketing"
-            tabs={ITEMS.filter((it) => allowedTabs.includes(it.key) && !ELSEWHERE[it.key])}
-            activeTab={tab}
-            onTab={(k) => {
-              // Re-clicking the open tab returns it to its start (e.g. the
-              // Automations list from an open automation). UI only.
-              if (k === tab) window.dispatchEvent(new CustomEvent(WA_TAB_RESELECT, { detail: k }));
-              setTab(k as PageTab);
-            }}
-          />
+          // Each marketing tab portals its own header (title, sentence,
+          // action, tabs) in here.
+          <div ref={setSlotEl} />
         )}
       </div>
       <div className="pm2-body">
-        <HealthNotice />
+        {tab === "home" && <HealthNotice />}
         {tabAllowed && <div>
           {tab === "home" && <StartHere />}
           {tab === "templates" && <TemplatesView />}
@@ -123,6 +135,6 @@ function WhatsAppPageInner() {
           {tab === "kb" && <KbView />}
         </div>}
       </div>
-    </>
+    </WaHeaderContext.Provider>
   );
 }

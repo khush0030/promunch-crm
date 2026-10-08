@@ -11,7 +11,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, RefreshCw } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { GlossaryTerm } from "@/components/guide";
 import { nextVersionName } from "@/lib/whatsapp/template-rules";
 import { draftFromRow, type EditorDraft } from "@/lib/whatsapp/template-draft";
 import { friendlyTemplateName, templateKind } from "@/lib/whatsapp/templateKind";
@@ -24,6 +23,7 @@ import { ProblemBox } from "./templates/bits";
 import { DeleteTemplateDialog } from "./templates/DeleteTemplateDialog";
 import { TemplateList } from "./templates/TemplateList";
 import { TemplateCreator } from "./templates/creator/TemplateCreator";
+import { WaHeader, WaMoreMenu } from "./WaHeader";
 import s from "./templates/templates.module.css";
 
 type Editing = { initial: EditorDraft | null; key: number; automatic?: AutomaticWarning | null };
@@ -55,6 +55,7 @@ export default function TemplatesView() {
   const [deleting, setDeleting] = useState<TemplateRow | null>(null);
   const [syncing, setSyncing] = useState(false);
   const takenNames = useMemo(() => new Set(list.map((t) => t.name)), [list]);
+  const approved = useMemo(() => list.filter((t) => String(t.status ?? "").toLowerCase() === "approved").length, [list]);
 
   const open = (initial: EditorDraft | null, automatic: AutomaticWarning | null = null) =>
     setEditing({ initial, key: ++openCount.current, automatic });
@@ -104,20 +105,27 @@ export default function TemplatesView() {
 
   return (
     <div className={s.view}>
-      <div className={s.head}>
-        <p className={s.lead}>
-          Write a message once, send it to Meta for <GlossaryTerm k="approval">approval</GlossaryTerm>, then use it in as many campaigns as you
-          like. Every WhatsApp campaign needs an approved <GlossaryTerm k="template">template</GlossaryTerm>. Status updates here by itself.
-        </p>
-        <div className={s.headActions}>
-          <button type="button" className="pm2-btn" onClick={onSync} disabled={syncing}>
-            <RefreshCw aria-hidden="true" /> {syncing ? "Refreshing..." : "Refresh from Meta"}
-          </button>
-          <button type="button" className="pm2-btn pri" onClick={() => open(null)}>
-            <Plus aria-hidden="true" /> New template
-          </button>
-        </div>
-      </div>
+      <WaHeader
+        title="Templates"
+        summary={
+          <>
+            Messages Meta has approved. Campaigns and automations can only use these.
+            {approved > 0 && <> <b>{approved} approved</b>.</>}
+          </>
+        }
+        actions={
+          <>
+            <WaMoreMenu>
+              <button type="button" role="menuitem" onClick={onSync} disabled={syncing}>
+                <RefreshCw aria-hidden="true" /> {syncing ? "Refreshing..." : "Refresh from Meta"}
+              </button>
+            </WaMoreMenu>
+            <button type="button" className="pm2-btn pri" onClick={() => open(null)}>
+              <Plus aria-hidden="true" /> New template
+            </button>
+          </>
+        }
+      />
 
       {q.isError && (
         <ProblemBox problem={{

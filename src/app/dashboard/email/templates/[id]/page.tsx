@@ -6,6 +6,7 @@ import { use, useCallback, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Callout } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
+import Link from "next/link";
 import { StudioHeader } from "@/components/email-studio/StudioHeader";
 import { Builder } from "@/components/email-studio/Builder";
 import { NewCampaignButton } from "@/components/email-studio/NewCampaignButton";
@@ -71,6 +72,12 @@ function Edit({ t }: { t: T }) {
         tab="templates"
         title={name}
         back={{ href: "/dashboard/email/templates", label: "Templates" }}
+        summary={
+          <>
+            Changes save as you go. Colours and fonts come from{" "}
+            <Link className="pm2-lnk" href="/dashboard/email/settings">Brand &amp; email</Link>, so every template matches.
+          </>
+        }
         actions={
           <>
             <span className={s.hint}>{saved ? "All changes saved" : "Saving…"}</span>
@@ -79,7 +86,6 @@ function Edit({ t }: { t: T }) {
         }
       />
       <div className="pm2-body">
-        <p className={s.sumLine}>Changes save as you go. Colours and fonts come from Brand &amp; settings, so every template matches.</p>
         <div className="pm2-panel" style={{ padding: 16 }}>
           <div className="pm2-g3">
             <label className={s.field}><span>Template name</span><input className={s.input} value={name} onChange={(e) => { setName(e.target.value); queue({ name: e.target.value }); }} /></label>

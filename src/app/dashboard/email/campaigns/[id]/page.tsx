@@ -96,6 +96,14 @@ function SentView({ c }: { c: Campaign }) {
         tab="campaigns"
         title={c.name}
         back={{ href: "/dashboard/email/campaigns", label: "Campaigns" }}
+        summary={
+          <span className={s.sumLine}>
+            <span className={`${s.statusText} ${c.status === "sent" ? "" : s.statusLive}`}>{c.status === "sent" ? "Sent" : "Sending now"}</span>
+            <span>
+              “{niceText(c.subject ?? "")}” {c.sent_at ? `· ${when(c.sent_at)}` : ""}
+            </span>
+          </span>
+        }
         actions={
           <button
             type="button"
@@ -114,12 +122,6 @@ function SentView({ c }: { c: Campaign }) {
         }
       />
       <div className="pm2-body">
-        <p className={s.sumLine}>
-          <span className={`${s.statusText} ${c.status === "sent" ? "" : s.statusLive}`}>{c.status === "sent" ? "Sent" : "Sending now"}</span>
-          <span>
-            “{niceText(c.subject ?? "")}” {c.sent_at ? `· ${when(c.sent_at)}` : ""}
-          </span>
-        </p>
         <ReportView id={c.id} />
       </div>
     </>

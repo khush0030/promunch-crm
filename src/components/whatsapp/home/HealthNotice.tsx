@@ -5,7 +5,7 @@
 // do. No raw error codes.
 
 import { useState } from "react";
-import { AlertTriangle, ChevronDown } from "lucide-react";
+import { AlertTriangle, ChevronDown, Info } from "lucide-react";
 import { NextStepCallout } from "@/components/guide";
 import { useWaHealth } from "./useHealth";
 import h from "./home.module.css";
@@ -30,7 +30,7 @@ export function HealthNotice() {
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        <AlertTriangle size={14} aria-hidden />
+        {down ? <AlertTriangle size={15} aria-hidden /> : <Info size={15} aria-hidden />}
         {label}
         <span className={h.healthWhat}>What does this mean?</span>
         <ChevronDown size={13} aria-hidden className={open ? h.chevOpen : h.chev} />

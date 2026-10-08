@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/pm";
-import { GlossaryTerm, GuideChecklist, HelpTip } from "@/components/guide";
+import { GuideChecklist, HelpTip } from "@/components/guide";
 import {
   FONTS, GROWTH_DEFAULTS, LAYOUTS_NEEDING_IMAGE, fontHref, renderPopupInner, widgetBubbleInner, widgetButtonInner,
   type GrowthConfig, type PopupConfig, type PopupLayout, type PopupPosition, type WidgetConfig, BRAND_FONT_HREF } from "@/lib/wa-embed";
@@ -395,18 +395,6 @@ export default function GrowthView() {
 
   return (
     <div className={s.wrap}>
-      {/* header */}
-      <div className={s.topbar}>
-        <div className={s.intro}>
-          <div className={s.title}>Grow your WhatsApp list</div>
-          <p className={s.subtitle}>
-            The signup popup is a small box on your website that invites visitors to get PROMUNCH offers on WhatsApp.
-            When someone types their number, they join your list and agree to hear from you
-            (<GlossaryTerm k="opted_in">opted in</GlossaryTerm>). The chat button lets visitors message you on WhatsApp in one tap.
-          </p>
-        </div>
-      </div>
-
       <GuideChecklist
         id="wa-growth-popup"
         title="Get the popup on your website"

@@ -54,6 +54,30 @@ export function InsightsHead({
   );
 }
 
+// Period switch for the Insights headers, with the prototype's spelled-out
+// labels ("7 days / 30 days / 90 days / 12 months"). URL syncing stays with
+// the page.
+const PERIOD_WORDS: Record<string, string> = { "7d": "7 days", "30d": "30 days", "90d": "90 days", "12m": "12 months" };
+export function PeriodSeg<V extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly V[];
+  value: V;
+  onChange: (v: V) => void;
+}) {
+  return (
+    <span className={`pm2-seg ${s.seg}`} role="group" aria-label="Period">
+      {options.map((o) => (
+        <button key={o} type="button" className={o === value ? "on" : undefined} aria-pressed={o === value} onClick={() => onChange(o)}>
+          {PERIOD_WORDS[o] ?? o}
+        </button>
+      ))}
+    </span>
+  );
+}
+
 // "▲ 14%" / "▼ 3%" / "±0%" as coloured text. `invert` flips the colour for
 // figures where down is good. `unit` "pts" for percentage-point changes.
 export function DeltaText({

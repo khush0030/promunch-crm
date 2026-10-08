@@ -4,7 +4,6 @@
 // one calm hairline card above the campaign list.
 
 import { Pill } from "@/components/pm";
-import { HelpTip } from "@/components/guide";
 import { useQuota } from "./api";
 import { fmtInt, inQuietHours } from "./logic";
 import s from "./list.module.css";
@@ -30,7 +29,6 @@ export function StatusStrip() {
       <div className={s.stripItem}>
         <div className={s.stripHead}>
           <div className={s.stripLabel}>Today&apos;s budget</div>
-          <HelpTip term="daily_budget" />
         </div>
         <div className={s.stripValue}>
           {isLoading ? "…" : limit != null ? `${fmtInt(q?.remaining ?? 0)} left` : "No daily cap"}
@@ -56,7 +54,6 @@ export function StatusStrip() {
       <div className={s.stripItem}>
         <div className={s.stripHead}>
           <div className={s.stripLabel}>Meta standing</div>
-          <HelpTip term="meta_tier" text="Set by Meta from how customers react to our messages. Nobody at PROMUNCH can change it directly; good messages to warm audiences keep it healthy." />
         </div>
         <div className={s.stripValue}>
           {quality ? <Pill tone={quality.tone}>{quality.label}</Pill> : <span>Not rated yet</span>}
@@ -87,7 +84,6 @@ export function StatusStrip() {
       <div className={s.stripItem}>
         <div className={s.stripHead}>
           <div className={s.stripLabel}>Quiet hours</div>
-          <HelpTip term="quiet_hours" />
         </div>
         <div className={s.stripValue}>{quiet ? "On now" : "9 PM to 9 AM"}</div>
         <div className={s.stripSub}>
@@ -100,7 +96,6 @@ export function StatusStrip() {
       <div className={s.stripItem}>
         <div className={s.stripHead}>
           <div className={s.stripLabel}>Fair use</div>
-          <HelpTip term="fair_use" />
         </div>
         <div className={s.stripValue}>1 a day per person</div>
         <div className={s.stripSub}>

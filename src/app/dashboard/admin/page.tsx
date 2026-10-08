@@ -74,14 +74,11 @@ function AdminInner() {
   });
 
   const onTab = (t: string) => router.replace(`/dashboard/admin${t === "people" ? "" : `?tab=${t}`}`);
-  const header = (
-    <PageHeader crumb="Settings · admins only" title="Security" tabs={TABS} activeTab={tab} onTab={onTab} />
-  );
 
   if (q.error instanceof ApiError && q.error.status === 403) {
     return (
       <>
-        <PageHeader crumb="Settings · admins only" title="Security" />
+        <PageHeader crumb="Settings · admins only" title="Security" summary="Who signed in, from where, and what they changed." />
         <div className="pm2-body">
           <div className={css.card}>
             <div className={css.empty}>Only owners and admins can see sign-ins, IP addresses and the activity log.</div>
@@ -111,13 +108,21 @@ function AdminInner() {
 
   return (
     <>
-      {header}
-      <div className="pm2-body">
-        <div>
-          <p className={css.sum}>
+      <PageHeader
+        crumb="Settings · admins only"
+        title="Security"
+        summary={
+          <>
             Who signed in, from where, and what they changed.
             {data?.sessionsAvailable ? <> <b>{sessions.length} signed in now.</b></> : null}
-          </p>
+          </>
+        }
+        tabs={TABS}
+        activeTab={tab}
+        onTab={onTab}
+      />
+      <div className="pm2-body">
+        <div>
 
           {data && !data.sessionsAvailable && tab !== "activity" && (
             <p className={css.note}>

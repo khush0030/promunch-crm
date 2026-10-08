@@ -1,15 +1,13 @@
 /* Orders & COD: calm lanes (prototype #or-today, calm pass round 3).
    Status = coloured text + small icon, hairlines only, no filled blocks. */
 
-.sum {
-  margin: 0;
-  font-size: 17.5px;
-  line-height: 1.5;
-  color: var(--pm-ink2);
-  max-width: 62ch;
-}
-.sum b {
-  color: var(--pm-ink);
+/* Quiet section heading (All orders → Coverage). */
+.secH {
+  margin: 12px 0 0;
+  font: 700 11.5px var(--pm-mono);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--pm-muted);
 }
 
 /* KPI label dot */
@@ -166,7 +164,6 @@
 .note b { color: var(--pm-ink); }
 
 @media (max-width: 760px) {
-  .sum { font-size: 16px; }
   .hint { margin-left: 0; flex-basis: 100%; padding-left: 36px; margin-top: -6px; }
   .row { padding: 14px; gap: 12px; }
   .acts { gap: 4px; }

@@ -1,0 +1,30 @@
+/* First-run welcome (prototype index.html#home/welcome): red pinstripe band,
+   3-step timeline, Skip / Show me Home. Phone: bottom sheet. */
+.backdrop{position:fixed;inset:0;z-index:1000;background:rgba(36,30,24,.5);display:grid;place-items:center;padding:20px}
+.holder{width:min(560px,100%);max-width:100%}
+.modal{width:100%;max-height:calc(100vh - 48px);overflow:auto;background:var(--pm-card,#fff);border-radius:28px;box-shadow:0 30px 80px rgba(26,23,20,.28);color:var(--pm-ink,#1A1714)}
+.band{background:var(--pm-brand,#AF272F);color:#fff;padding:34px 30px 30px;background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 2px,transparent 2px 9px)}
+.eyebrow{display:block;font:700 11.5px/1.2 var(--pm-mono);letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.8);margin-bottom:12px}
+.h1{margin:0;font:400 34px/1.08 var(--pm-display);letter-spacing:-.02em;text-transform:uppercase;color:#fff}
+.lede{margin:8px 0 0;font-size:16.5px;line-height:1.5;opacity:.9}
+.bodyPad{padding:24px 30px 28px}
+.tl{position:relative;padding-left:30px}
+.tl::before{content:"";position:absolute;left:10px;top:6px;bottom:6px;width:2px;background:var(--pm-border,#E4DFDD)}
+.it{position:relative;padding:0 0 22px}
+.it:last-child{padding-bottom:0}
+.it::before{content:"";position:absolute;left:-26px;top:5px;width:14px;height:14px;border-radius:50%;background:var(--pm-card,#fff);border:2px solid #CFC7B9;box-sizing:border-box}
+.it.done::before{background:var(--pm-green);border-color:var(--pm-green)}
+.it.now::before{background:var(--pm-brand);border-color:var(--pm-brand);box-shadow:0 0 0 5px var(--pm-brand-soft)}
+.it b{display:block;font-weight:700;font-size:16.5px;line-height:1.35}
+.it span{display:block;color:var(--pm-muted);font-size:14.5px;line-height:1.45;margin-top:2px}
+.mf{display:flex;justify-content:flex-end;gap:10px;margin-top:26px;flex-wrap:wrap}
+.mf :global(.pm2-btn){height:46px;padding:0 20px;justify-content:center}
+@media (max-width:760px){
+  .backdrop{padding:0;align-items:end;place-items:end stretch}
+  .holder{width:100%}
+  .modal{border-radius:24px 24px 0 0;max-height:92vh}
+  .band{padding:28px 22px 24px}
+  .h1{font-size:30px}
+  .bodyPad{padding:22px 22px calc(22px + env(safe-area-inset-bottom))}
+  .mf :global(.pm2-btn){flex:1}
+}
