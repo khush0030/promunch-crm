@@ -9,7 +9,7 @@ export function daysSince(iso: string | null): number | null {
 
 export function timeAgo(iso: string | null): string {
   const d = daysSince(iso);
-  if (d === null) return "—";
+  if (d === null) return "–";
   if (d <= 0) return "today";
   if (d === 1) return "1d ago";
   if (d < 7) return `${d}d ago`;
@@ -18,8 +18,8 @@ export function timeAgo(iso: string | null): string {
 }
 
 export function shortDate(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "–";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "–";
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }

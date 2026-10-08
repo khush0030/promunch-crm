@@ -4,7 +4,7 @@
 import type { Contact, Lead } from "./types";
 
 export function fitPill(score: number | null): { cls: string; label: string } {
-  if (score == null) return { cls: "bg-gray", label: "—" };
+  if (score == null) return { cls: "bg-gray", label: "–" };
   if (score >= 70) return { cls: "bg-green", label: String(score) };
   if (score >= 50) return { cls: "bg-gold", label: String(score) };
   return { cls: "bg-terra", label: String(score) };
@@ -26,8 +26,14 @@ export function verifiedContact(lead: Lead): Contact | null {
   );
 }
 
+// Auto-made list names used to read "Category — City". New lists are named
+// "Category · City"; older stored names are shown the same way (no migration).
+export function listLabel(name: string): string {
+  return name.replace(/\s+[—–]\s+/g, " · ");
+}
+
 export function fmtTime(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "–";
   return new Date(iso).toLocaleString([], {
     month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
   });

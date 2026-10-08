@@ -49,11 +49,11 @@ export default function LeadTable({
                         <span className="pm-b7">{lead.name}</span>
                       </div>
                       <div className="pm-dim">
-                        {[lead.domain, lead.city].filter(Boolean).join(" · ") || "—"}
+                        {[lead.domain, lead.city].filter(Boolean).join(" · ") || "–"}
                       </div>
                     </td>
                     <td className="pm-muted" style={{ fontSize: 12.5, maxWidth: 260 }}>
-                      {lead.fit_reason ?? "—"}
+                      {lead.fit_reason ?? "–"}
                     </td>
                     <td>
                       {best ? (
@@ -64,7 +64,7 @@ export default function LeadTable({
                           </span>
                         </span>
                       ) : (
-                        <span className="pm-muted">—</span>
+                        <span className="pm-muted">–</span>
                       )}
                     </td>
                     <td>
@@ -87,7 +87,7 @@ export default function LeadTable({
                   <div>
                     <div className={styles.cardName}>{lead.name}</div>
                     <div className={styles.cardMeta}>
-                      {[lead.domain, lead.city].filter(Boolean).join(" · ") || "—"}
+                      {[lead.domain, lead.city].filter(Boolean).join(" · ") || "–"}
                     </div>
                   </div>
                   <span className={`pm-badge2 ${fp.cls}`}>fit {fp.label}</span>
@@ -119,8 +119,8 @@ export default function LeadTable({
             <div className={styles.getStartedTitle}>Let’s find your first leads</div>
             <p className={styles.getStartedText}>
               Tell us the kind of businesses you sell to and where. We find the companies,
-              dig up real email addresses, and an AI writes a personal first email for each —
-              you just review and send.
+              dig up real email addresses, and an AI writes a personal first email for each.
+              You just review and send.
             </p>
             <div className={styles.getStartedActions}>
               <button type="button" className={`pm-btn ${styles.inkBtn}`} onClick={() => setShowSearch(true)}>
@@ -134,9 +134,9 @@ export default function LeadTable({
         ) : (
           <div className="pm-empty">
             {tab === "scrapes" && selectedSearchId
-              ? "This scrape produced no leads yet — it may still be running."
+              ? "This scrape produced no leads yet. It may still be running."
               : tab === "review"
-                ? "No drafts waiting. Click “Find companies” or “Keep going” — drafts appear here for approval."
+                ? "No drafts waiting. Click “Find companies” or “Keep going” and drafts appear here for approval."
                 : tab === "replies"
                   ? "No replies yet. When someone replies to a cold email, it lands here automatically."
                   : "Nothing in this tab yet."}

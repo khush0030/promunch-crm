@@ -89,8 +89,8 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
       toast.push({
         kind: "success",
         text: findEmails
-          ? `Finding ~${plan.expectedEmails} leads with email (scanning ${plan.actualScan} companies) — about ${fmtDuration(plan.lo)}–${fmtDuration(plan.hi)}.`
-          : `Scraping up to ${plan.actualScan} companies — about ${fmtDuration(plan.lo)}–${fmtDuration(plan.hi)}.`,
+          ? `Finding ~${plan.expectedEmails} leads with email (scanning ${plan.actualScan} companies), about ${fmtDuration(plan.lo)}–${fmtDuration(plan.hi)}.`
+          : `Scraping up to ${plan.actualScan} companies, about ${fmtDuration(plan.lo)}–${fmtDuration(plan.hi)}.`,
       });
       onQueued(plan.rounds);
     } catch (e) {
@@ -181,7 +181,7 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
 
         <button type="button" className={styles.linkBtn} style={{ marginTop: 16 }} onClick={() => setShowMore((v) => !v)}>
           {showMore ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          More options — pitch, subject line, list name
+          More options: pitch, subject line, list name
         </button>
 
         {showMore ? (
@@ -192,14 +192,14 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
                 <textarea
                   className="input"
                   rows={2}
-                  placeholder="e.g. Our new edamame snack as a healthy corporate gifting hamper — free sample box + 15-min call."
+                  placeholder="e.g. Our new edamame snack as a healthy corporate gifting hamper, free sample box + 15-min call."
                   value={offer}
                   onChange={(e) => setOffer(e.target.value)}
                   maxLength={400}
                 />
                 <input
                   className={`input ${styles.customInput}`}
-                  placeholder="Subject line idea (optional) — e.g. 'A healthier snack for your gift hampers'"
+                  placeholder="Subject line idea (optional), e.g. 'A healthier snack for your gift hampers'"
                   value={subjectHint}
                   onChange={(e) => setSubjectHint(e.target.value)}
                   maxLength={160}
@@ -216,7 +216,7 @@ export default function SearchModal({ onClose, onQueued }: { onClose: () => void
                 className="input"
                 placeholder={
                   combos === 1
-                    ? `Default: ${allCats[0] ? allCats[0][0].toUpperCase() + allCats[0].slice(1) : "Category"} — ${cities[0] ?? "City"}`
+                    ? `Default: ${allCats[0] ? allCats[0][0].toUpperCase() + allCats[0].slice(1) : "Category"} · ${cities[0] ?? "City"}`
                     : "Each category × city gets its own auto-named list"
                 }
                 value={listName}

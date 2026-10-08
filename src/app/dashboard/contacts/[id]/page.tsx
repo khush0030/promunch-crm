@@ -99,11 +99,11 @@ const fulfillMeta: Record<string, { tone: BadgeTone; label: string }> = {
 };
 
 function fmtDate(d?: string | null) {
-  if (!d) return "—";
+  if (!d) return "–";
   return new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 function fmtMonth(d?: string | null) {
-  if (!d) return "—";
+  if (!d) return "–";
   return new Date(d).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
 }
 
@@ -230,10 +230,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const identity = contact.email || contact.phone || "this contact";
   const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(" ")
     || (contact.email ? contact.email.split("@")[0] : contact.phone || "Contact");
-  const location = [contact.city, contact.state, contact.country].filter(Boolean).join(", ") || "—";
+  const location = [contact.city, contact.state, contact.country].filter(Boolean).join(", ") || "–";
   const ltv = contact.total_spent ? `₹${Number(contact.total_spent).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "₹0";
-  const aov = contact.average_order_value ? `₹${Number(contact.average_order_value).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "—";
-  const sp = statusMeta[contact.status || "active"] || { tone: "gray" as BadgeTone, label: contact.status || "—" };
+  const aov = contact.average_order_value ? `₹${Number(contact.average_order_value).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "–";
+  const sp = statusMeta[contact.status || "active"] || { tone: "gray" as BadgeTone, label: contact.status || "–" };
   const tags = contact.tags || [];
   const lists = contact.klaviyo_lists || [];
   const segments = contact.klaviyo_segments || [];
@@ -270,7 +270,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           <span style={{ display: "inline-flex", gap: 14, flexWrap: "wrap" }}>
             {contact.email && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Mail size={13} /> {contact.email}</span>}
             {contact.phone && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Phone size={13} /> {contact.phone}</span>}
-            {location !== "—" && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><MapPin size={13} /> {location}</span>}
+            {location !== "–" && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><MapPin size={13} /> {location}</span>}
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Calendar size={13} /> since {fmtMonth(contact.created_at)}</span>
           </span>
         }
@@ -299,7 +299,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       <Panel
         title="Orders"
         icon={<ShoppingBag className="tic" />}
-        caption={`${orders.length} Shopify order${orders.length === 1 ? "" : "s"} — newest first`}
+        caption={`${orders.length} Shopify order${orders.length === 1 ? "" : "s"} · newest first`}
         style={{ marginBottom: 16 }}
       >
         {orders.length === 0 ? (
@@ -323,12 +323,12 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                   const num = o.order_number ? `#${o.order_number}` : o.id.substring(0, 8);
                   const href = o.admin_url || o.order_status_url || null;
                   const items = o.products?.items || [];
-                  const itemText = items.join(", ") || "—";
+                  const itemText = items.join(", ") || "–";
                   const amt = o.total_amount
                     ? `₹${Number(o.total_amount).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
-                    : "—";
-                  const fin = finMeta[o.status || ""] || { tone: "gray" as BadgeTone, label: o.status || "—" };
-                  const ful = fulfillMeta[o.fulfillment_status || ""] || { tone: "gray" as BadgeTone, label: o.fulfillment_status || "—" };
+                    : "–";
+                  const fin = finMeta[o.status || ""] || { tone: "gray" as BadgeTone, label: o.status || "–" };
+                  const ful = fulfillMeta[o.fulfillment_status || ""] || { tone: "gray" as BadgeTone, label: o.fulfillment_status || "–" };
                   return (
                     <tr key={o.id}>
                       <td className="pm-b7">
@@ -381,7 +381,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         <Panel
           title="Activity"
           icon={<History className="tic" />}
-          caption={`Orders, email${waActivity.matched ? " & WhatsApp" : ""} events — newest first`}
+          caption={`Orders, email${waActivity.matched ? " & WhatsApp" : ""} events · newest first`}
           more={
             waActivity.matched ? (
               <Link href="/dashboard/whatsapp" style={{ color: "var(--pm-green)", display: "inline-flex", alignItems: "center", gap: 4 }}>

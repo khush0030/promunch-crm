@@ -72,11 +72,11 @@ export async function POST(req: NextRequest) {
 
   // Every search materialises a list the results land in. A custom list name
   // applies when the request is a single category × city; fan-outs get
-  // auto-names ("Gifting companies — Mumbai").
+  // auto-names ("Gifting companies · Mumbai").
   const customName = combos === 1 ? (body?.listName ?? '').trim().slice(0, 120) || null : null;
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
   for (const s of upserted ?? []) {
-    const name = customName ?? `${cap(s.category)} — ${cap(s.city)}`;
+    const name = customName ?? `${cap(s.category)} · ${cap(s.city)}`;
     if (s.list_id) {
       // Re-run of an existing search: keep the list, refresh a custom name.
       if (customName) await supabaseAdmin.from('lead_lists').update({ name }).eq('id', s.list_id);

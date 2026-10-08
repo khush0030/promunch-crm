@@ -16,7 +16,7 @@ import { useToast } from "@/components/ui/Toast";
 import styles from "@/app/dashboard/leads/leads.module.css";
 import type { ListLead, ListSummary, SequenceRow, TemplateRow } from "./types";
 import { PRODUCT_OPTIONS } from "./constants";
-import { verifiedContact } from "./format";
+import { listLabel, verifiedContact } from "./format";
 import { renderTemplate } from "@/lib/leads/templates";
 import { useEscapeKey } from "./useEscapeKey";
 
@@ -146,7 +146,7 @@ export default function CampaignWizard({
   useEffect(() => {
     if (list && !campaignName) {
       const day = new Date().toLocaleDateString([], { month: "short", day: "numeric" });
-      setCampaignName(`${list.name} — ${day}`);
+      setCampaignName(`${listLabel(list.name)} · ${day}`);
     }
   }, [list, campaignName]);
 
@@ -321,7 +321,7 @@ export default function CampaignWizard({
       >
         <div className={styles.modalHead}>
           <div>
-            <h3 style={{ fontSize: 16, fontWeight: 700 }}>Email “{list?.name ?? "…"}”</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 700 }}>Email “{list ? listLabel(list.name) : "…"}”</h3>
             {!result && (
               <div className={styles.wizSteps}>
                 {STEP_LABELS.map((label, i) => (
@@ -346,7 +346,7 @@ export default function CampaignWizard({
               <div>
                 <p className={styles.wizIntro}>
                   Tick who should get this campaign. Only leads with a <b>verified email</b> can
-                  receive one — for the rest, “Find emails” re-crawls their website and verifies
+                  receive one. For the rest, “Find emails” re-crawls their website and verifies
                   anything it finds.
                 </p>
 
@@ -375,7 +375,7 @@ export default function CampaignWizard({
                     {groups.in_sequence.length > 0 && (
                       <RecipGroup
                         title={`Already in another sequence (${groups.in_sequence.length})`}
-                        hint="They are mid-way through other emails. Unticked by default so nobody gets two pitches at once — tick to include anyway."
+                        hint="They are mid-way through other emails. Unticked by default so nobody gets two pitches at once. Tick to include anyway."
                         leads={groups.in_sequence}
                         checked={checked}
                         onToggle={toggleLead}
@@ -530,7 +530,7 @@ export default function CampaignWizard({
                         onChange={(e) => setBodyText(e.target.value)}
                       />
                       <div className={styles.recipGroupHint} style={{ marginTop: 6 }}>
-                        {"{name} {company} {city} {category}"} fill in per lead — you will see the
+                        {"{name} {company} {city} {category}"} fill in per lead. You will see the
                         real result for every company in the next step.
                       </div>
                       <label className={styles.toggleCard} style={{ marginTop: 10 }}>
@@ -546,7 +546,7 @@ export default function CampaignWizard({
                   <div className={styles.enrollOptions} style={{ marginTop: 14 }}>
                     {sequences.length === 0 ? (
                       <div className="pm-empty" style={{ padding: 18 }}>
-                        No sequences yet — pick “One email now”, or build one in the Sequences tab.
+                        No sequences yet. Pick “One email now”, or build one in the Sequences tab.
                       </div>
                     ) : (
                       sequences.map((s) => (
@@ -632,19 +632,19 @@ export default function CampaignWizard({
                   <div className={styles.settingRow}><span>Campaign</span><b>{mode === "quick" ? campaignName : selectedSequence?.name}</b></div>
                   <div className={styles.settingRow}>
                     <span>Sends as</span>
-                    <b>{settings ? `${settings.from_name} <${settings.from_email}>` : "—"}</b>
+                    <b>{settings ? `${settings.from_name} <${settings.from_email}>` : "–"}</b>
                   </div>
                   <div className={styles.settingRow}>
                     <span>Pace</span>
                     <b>
-                      max {cap || "—"}/day inside the send window
+                      max {cap || "–"}/day inside the send window
                       {recipients.length > 0 && cap > 0 ? ` · done in ~${days} day${days === 1 ? "" : "s"}` : ""}
                     </b>
                   </div>
                   {settings?.paused && (
                     <div className={styles.settingRow}>
                       <span>Heads up</span>
-                      <b style={{ color: "var(--pm-terra, #b4532f)" }}>Sending is paused in Settings — nothing goes out until you unpause.</b>
+                      <b style={{ color: "var(--pm-terra, #b4532f)" }}>Sending is paused in Settings. Nothing goes out until you unpause.</b>
                     </div>
                   )}
                 </div>
@@ -738,7 +738,7 @@ function LaunchedPanel({
     <div style={{ textAlign: "center", padding: "26px 12px 10px" }}>
       <CheckCircle2 size={36} style={{ color: "var(--pm-green, #2f7d5b)" }} />
       <h3 style={{ fontSize: 17, fontWeight: 700, margin: "10px 0 6px" }}>
-        Campaign launched — {result.enrolled} lead{result.enrolled === 1 ? "" : "s"} queued
+        Campaign launched: {result.enrolled} lead{result.enrolled === 1 ? "" : "s"} queued
       </h3>
       {skippedNote && (
         <p className="pm-muted" style={{ fontSize: 12.5 }}>Skipped: {skippedNote}.</p>

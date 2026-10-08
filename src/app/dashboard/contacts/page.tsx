@@ -86,7 +86,7 @@ export default function ContactsPage() {
   const [stats, setStats] = useState<{ total: number; buyers: number; newThisMonth: number; unsubscribed: number } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [addBusy, setAddBusy] = useState(false);
-  const [addForm, setAddForm] = useState({ email: "", first_name: "", last_name: "", phone: "" });
+  const [addForm, setAddForm] = useState({ name: "", phone: "", email: "", city: "" });
 
   const fetchContacts = useCallback(async () => {
     setIsLoading(true);
@@ -207,27 +207,34 @@ export default function ContactsPage() {
     window.open(`/api/contacts/export?${params}`, "_blank");
   }
 
+  // POST /api/contacts needs an email OR a phone (most customers are phone-only).
+  const addCanSave = !!(addForm.phone.trim() || addForm.email.trim());
+
   async function submitAddContact(e: React.FormEvent) {
     e.preventDefault();
-    if (!addForm.email.trim()) return;
+    if (!addCanSave) return;
+    const nameParts = addForm.name.trim().split(/\s+/).filter(Boolean);
     setAddBusy(true);
     try {
       const res = await fetch("/api/contacts", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          email: addForm.email.trim(),
-          first_name: addForm.first_name.trim() || undefined,
-          last_name: addForm.last_name.trim() || undefined,
+          first_name: nameParts[0] || undefined,
+          last_name: nameParts.slice(1).join(" ") || undefined,
           phone: addForm.phone.trim() || undefined,
+          email: addForm.email.trim() || undefined,
+          city: addForm.city.trim() || undefined,
           source: "manual",
         }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Failed to add contact");
-      toast.push({ kind: "success", text: `Added ${j.contact.email}.` });
+      const c = j.contact || {};
+      const label = [c.first_name, c.last_name].filter(Boolean).join(" ") || c.phone || c.email || "customer";
+      toast.push({ kind: "success", text: `Added ${label}.` });
       setAddOpen(false);
-      setAddForm({ email: "", first_name: "", last_name: "", phone: "" });
+      setAddForm({ name: "", phone: "", email: "", city: "" });
       fetchContacts();
     } catch (err) {
       toast.push({ kind: "error", text: err instanceof Error ? err.message : "Failed to add contact" });
@@ -520,31 +527,30 @@ export default function ContactsPage() {
             </div>
             <form onSubmit={submitAddContact} className={css.dForm}>
               <label className={css.fld}>
-                <span>Email *</span>
-                <input className={css.inp} type="email" required autoFocus placeholder="customer@example.com" value={addForm.email}
-                  onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))} />
+                <span>Name</span>
+                <input className={css.inp} type="text" autoFocus placeholder="Full name" autoComplete="off" value={addForm.name}
+                  onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))} />
               </label>
-              <div className={css.dTwo}>
-                <label className={css.fld}>
-                  <span>First name</span>
-                  <input className={css.inp} type="text" placeholder="First" value={addForm.first_name}
-                    onChange={(e) => setAddForm((f) => ({ ...f, first_name: e.target.value }))} />
-                </label>
-                <label className={css.fld}>
-                  <span>Last name</span>
-                  <input className={css.inp} type="text" placeholder="Last" value={addForm.last_name}
-                    onChange={(e) => setAddForm((f) => ({ ...f, last_name: e.target.value }))} />
-                </label>
-              </div>
               <label className={css.fld}>
-                <span>Phone</span>
-                <input className={css.inp} type="tel" placeholder="+91…" value={addForm.phone}
+                <span>WhatsApp number</span>
+                <input className={css.inp} type="tel" inputMode="tel" placeholder="+91" autoComplete="off" value={addForm.phone}
                   onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))} />
               </label>
+              <label className={css.fld}>
+                <span>Email (optional)</span>
+                <input className={css.inp} type="email" placeholder="customer@example.com" autoComplete="off" value={addForm.email}
+                  onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))} />
+              </label>
+              <label className={css.fld}>
+                <span>City</span>
+                <input className={css.inp} type="text" placeholder="City" autoComplete="off" value={addForm.city}
+                  onChange={(e) => setAddForm((f) => ({ ...f, city: e.target.value }))} />
+              </label>
+              <p className={css.dHint}>Add a WhatsApp number or an email. Most customers only have a number.</p>
               <div className={css.dFoot}>
                 <button type="button" className="pm2-btn ghost" onClick={() => setAddOpen(false)} disabled={addBusy}>Cancel</button>
-                <button type="submit" className="pm2-btn pri" disabled={addBusy || !addForm.email.trim()}>
-                  {addBusy ? "Adding…" : "Add customer"}
+                <button type="submit" className="pm2-btn pri" disabled={addBusy || !addCanSave}>
+                  {addBusy ? "Saving…" : "Save"}
                 </button>
               </div>
             </form>

@@ -9,14 +9,14 @@ import { useToast } from "@/components/ui/Toast";
 import styles from "@/app/dashboard/leads/leads.module.css";
 import type { Lead, ListLead, ListSummary } from "./types";
 import { CONFIDENCE_PILL } from "./styles";
-import { bestContact, fitPill, fmtTime, verifiedContact } from "./format";
+import { bestContact, fitPill, fmtTime, listLabel, verifiedContact } from "./format";
 import CampaignWizard from "./CampaignWizard";
 
 const ENROLL_PILL: Record<string, { cls: string; label: string }> = {
   active: { cls: "bg-blue", label: "In sequence" },
   sending: { cls: "bg-blue", label: "Sending…" },
   completed: { cls: "bg-gray", label: "Sequence done" },
-  replied: { cls: "bg-gold", label: "Replied — stopped" },
+  replied: { cls: "bg-gold", label: "Replied · stopped" },
   bounced: { cls: "bg-terra", label: "Bounced" },
   stopped: { cls: "bg-gray", label: "Stopped" },
 };
@@ -151,7 +151,7 @@ export default function ListDetail({
           <ArrowLeft size={14} /> All lists
         </button>
         <div className={styles.listDetailTitle}>
-          <b>{list.name}</b>
+          <b>{listLabel(list.name)}</b>
           <span className="pm-dim"> · {leads.length} leads</span>
         </div>
         <div className={styles.toolbar}>
@@ -259,7 +259,7 @@ export default function ListDetail({
                     <td><span className={`pm-badge2 ${fp.cls}`}>{fp.label}</span></td>
                     <td>
                       <div className="pm-cellname"><span className="pm-b7">{lead.name}</span></div>
-                      <div className="pm-dim">{[lead.category, lead.city].filter(Boolean).join(" · ") || "—"}</div>
+                      <div className="pm-dim">{[lead.category, lead.city].filter(Boolean).join(" · ") || "–"}</div>
                     </td>
                     <td>
                       {verified ? (
@@ -272,7 +272,7 @@ export default function ListDetail({
                           {best ? (
                             <>
                               <span className="mono pm-dim" style={{ fontSize: 12.5 }}>{best.email}</span>
-                              <span className="pm-badge2 bg-gold" title="Address found but its mail server did not verify — campaigns skip it">unverified</span>
+                              <span className="pm-badge2 bg-gold" title="Address found but its mail server did not verify, so campaigns skip it">unverified</span>
                             </>
                           ) : (
                             <span className="pm-muted">no verified email</span>

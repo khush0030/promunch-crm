@@ -317,7 +317,7 @@ export default function DealsPage() {
               />
               <span className={css.rowName}>{d.company_name}</span>
               <StatusBadge tone={KIND_TONE[d.kind]}>{KIND_LABEL[d.kind]}</StatusBadge>
-              <span className={css.rowNext}>{d.next_step || d.summary || "—"}</span>
+              <span className={css.rowNext}>{d.next_step || d.summary || "–"}</span>
               {d.follow_up_needed && <span className={css.followUp}>Follow up</span>}
               <span className={css.rowAge}>{timeAgo(d.last_email_at)}</span>
             </button>

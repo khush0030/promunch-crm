@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "@/app/dashboard/leads/leads.module.css";
 import type { AnalyticsData } from "./types";
+import { listLabel } from "./format";
 
 const GREEN = "#31875A";
 const BLUE = "#3576B5";
@@ -53,7 +54,7 @@ export default function AnalyticsView() {
   const delta = (cur: number, prev: number | undefined, unit: "pts" | "%") => {
     if (prev == null) return null;
     const d = Math.round((cur - prev) * 10) / 10;
-    if (Math.abs(d) < 0.05) return <span className={styles.deltaFlat}>— steady</span>;
+    if (Math.abs(d) < 0.05) return <span className={styles.deltaFlat}>steady</span>;
     const up = d > 0;
     return (
       <span className={up ? styles.deltaUp : styles.deltaDown}>
@@ -159,7 +160,7 @@ export default function AnalyticsView() {
                   {data.sequences.map((s) => (
                     <tr key={s.id}>
                       <td><span className={`pm-badge2 ${GRADE_CLS[s.grade] ?? "bg-gray"}`} style={{ fontWeight: 800 }}>{s.grade}</span></td>
-                      <td><span className="pm-b7">{s.name}</span></td>
+                      <td><span className="pm-b7">{listLabel(s.name)}</span></td>
                       <td>{s.sent}</td>
                       <td>{s.open_rate}%</td>
                       <td>{s.click_rate}%</td>
@@ -241,10 +242,10 @@ function WeeklyChart({ series }: { series: { week: string; sent: number; opened:
         {series.map((s, i) => (
           <g key={s.week}>
             <circle cx={x(i)} cy={y(s.sent)} r={4} fill={GREEN} stroke="var(--pm-card, #fff)" strokeWidth={2}>
-              <title>{`${label(s.week)} — sent ${s.sent}`}</title>
+              <title>{`${label(s.week)} · sent ${s.sent}`}</title>
             </circle>
             <circle cx={x(i)} cy={y(s.opened)} r={4} fill={BLUE} stroke="var(--pm-card, #fff)" strokeWidth={2}>
-              <title>{`${label(s.week)} — opened ${s.opened}`}</title>
+              <title>{`${label(s.week)} · opened ${s.opened}`}</title>
             </circle>
           </g>
         ))}

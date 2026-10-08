@@ -125,7 +125,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
             title={lead.website ? "Re-crawl the website to find & verify more contacts, then re-score" : "No website to crawl"}
             onClick={async () => {
               if (await call("enrich", `/api/leads/${lead.id}/enrich`, { method: "POST" })) {
-                toast.push({ kind: "success", text: "Enriched — re-crawled for contacts and re-scored." });
+                toast.push({ kind: "success", text: "Enriched: re-crawled for contacts and re-scored." });
               }
             }}
           >
@@ -230,7 +230,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
           </table>
         ) : (
           <div className="pm-muted" style={{ fontSize: 12.5 }}>
-            No contacts found by the crawler — add one manually (check their site or LinkedIn).
+            No contacts found by the crawler. Add one manually (check their site or LinkedIn).
           </div>
         )}
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -286,7 +286,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
               <div className={styles.history}>
                 {events.map((e, i) => (
                   <div key={i} className={`${styles.historyEvent} ${e.kind === "sent" ? styles.historySent : styles.historyReply}`}>
-                    <b>{e.title}</b>{e.detail ? <> — {e.detail}</> : null}
+                    <b>{e.title}</b>{e.detail ? <> · {e.detail}</> : null}
                     <div className={styles.historyWhen}>{new Date(e.at).toLocaleString()}</div>
                   </div>
                 ))}
@@ -367,7 +367,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
           <div>
             <div className="pm-muted" style={{ fontSize: 12.5, marginBottom: 6 }}>
               Sent to <span className="mono">{contactEmail(sentDraft.contact_id)}</span>
-              {sentDraft.sent_at ? ` on ${new Date(sentDraft.sent_at).toLocaleString()}` : ""} — status: {sentDraft.status}
+              {sentDraft.sent_at ? ` on ${new Date(sentDraft.sent_at).toLocaleString()}` : ""} · status: {sentDraft.status}
             </div>
             <div className="pm-panel" style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>
               <strong>{sentDraft.subject}</strong>
@@ -404,7 +404,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
             title="Inject a labelled test reply so you can see the Replies flow"
             onClick={async () => {
               if (await call("sim", `/api/leads/${lead.id}/simulate-reply`, { method: "POST" })) {
-                toast.push({ kind: "success", text: "Test reply added — see the Replies tab." });
+                toast.push({ kind: "success", text: "Test reply added. See the Replies tab." });
               }
             }}
           >
@@ -415,7 +415,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
             disabled={busy !== null || lead.status === "suppressed"}
             onClick={async () => {
               if (await call("suppress", `/api/leads/${lead.id}/suppress`, { method: "POST" })) {
-                toast.push({ kind: "success", text: "Lead suppressed — will never be emailed." });
+                toast.push({ kind: "success", text: "Lead suppressed. It will never be emailed." });
                 onClose();
               }
             }}

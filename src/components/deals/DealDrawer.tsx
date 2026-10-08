@@ -484,7 +484,7 @@ function DrawerBody({ deal, emails, onClose }: { deal: Deal; emails: DealEmail[]
         </div>
       ) : (
         <p style={{ marginTop: 14, fontSize: 12.5, color: "var(--pm-hint)" }}>
-          AI read pending — the next mail scan fills in willingness, drivers and risks.
+          AI read pending. The next mail scan fills in willingness, drivers and risks.
         </p>
       )}
 

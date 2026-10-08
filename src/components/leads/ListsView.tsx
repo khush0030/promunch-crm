@@ -14,18 +14,22 @@ import { useToast } from "@/components/ui/Toast";
 import styles from "@/app/dashboard/leads/leads.module.css";
 import type { ListSummary } from "./types";
 import { ConfirmModal, TextPromptModal } from "./Dialogs";
+import { listLabel } from "./format";
 
 function groupLabel(l: ListSummary): string {
   if (l.category) return l.category;
-  // Custom / hand-made lists: try the auto-name shape "Category — City".
-  const beforeDash = l.name.split(" — ")[0];
-  return beforeDash !== l.name ? beforeDash : "Custom lists";
+  // Custom / hand-made lists: try the auto-name shape "Category · City"
+  // (older lists were stored as "Category — City"; listLabel normalises both).
+  const name = listLabel(l.name);
+  const beforeDot = name.split(" · ")[0];
+  return beforeDot !== name ? beforeDot : "Custom lists";
 }
 
 function rowLabel(l: ListSummary): string {
   if (l.city) return l.city;
-  const afterDash = l.name.split(" — ")[1];
-  return afterDash ?? l.name;
+  const name = listLabel(l.name);
+  const afterDot = name.split(" · ")[1];
+  return afterDot ?? name;
 }
 
 function fmtDay(iso: string): string {
@@ -155,7 +159,7 @@ export default function ListsView({
       setDialog(null);
       clearSel();
       onChanged();
-      toast.push({ kind: "success", text: `Merged into “${name}” — ${json.merged} companies.` });
+      toast.push({ kind: "success", text: `Merged into “${listLabel(name)}”: ${json.merged} companies.` });
     } catch (e) {
       toast.push({ kind: "error", text: `Merge failed: ${e instanceof Error ? e.message : "unknown"}` });
     } finally {
@@ -294,7 +298,7 @@ export default function ListsView({
                           className={styles.listCheck}
                           checked={sel}
                           onChange={() => toggleOne(l.id)}
-                          aria-label={`Select ${l.name}`}
+                          aria-label={`Select ${listLabel(l.name)}`}
                         />
                         <button type="button" className={styles.listRow} onClick={() => onOpen(l.id)}>
                           <span className={styles.listRowName}>{rowLabel(l)}</span>
@@ -326,7 +330,7 @@ export default function ListsView({
         <TextPromptModal
           title="New empty list"
           label="List name"
-          placeholder="e.g. Corporate gifting — Mumbai"
+          placeholder="e.g. Corporate gifting · Mumbai"
           confirmLabel="Create list"
           onSubmit={createList}
           onClose={() => setDialog(null)}
@@ -349,7 +353,7 @@ export default function ListsView({
           title={`Merge ${the(n)} into one`}
           label="Name for the merged list"
           defaultValue={selectedList[0]?.name ?? ""}
-          placeholder="e.g. Gifting — all cities"
+          placeholder="e.g. Gifting · all cities"
           confirmLabel="Merge lists"
           onSubmit={mergeSelected}
           onClose={() => setDialog(null)}
@@ -366,7 +370,7 @@ export default function ListsView({
           onClose={() => setDialog(null)}
           message={
             <>
-              The companies in {n === 1 ? "this list" : "these lists"} are <b>kept</b> — they stay in your
+              The companies in {n === 1 ? "this list" : "these lists"} are <b>kept</b>. They stay in your
               other lists and in the CRM. Only the {n === 1 ? "list" : "lists"} themselves are removed.
               {runningInSelection > 0 && (
                 <>

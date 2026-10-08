@@ -9,6 +9,7 @@ import { Search, X, MailX } from "lucide-react";
 import styles from "@/app/dashboard/leads/leads.module.css";
 import { useEscapeKey } from "./useEscapeKey";
 import type { ListSummary } from "./types";
+import { listLabel } from "./format";
 
 export default function ListPickerModal({
   lists, onPick, onClose, onFind,
@@ -73,7 +74,7 @@ export default function ListPickerModal({
           <div className={styles.pickList}>
             {filtered.map((l) => (
               <button key={l.id} type="button" className={styles.pickRow} onClick={() => onPick(l.id)}>
-                <span className={styles.pickName}>{l.name}</span>
+                <span className={styles.pickName}>{listLabel(l.name)}</span>
                 <span className={styles.pickStat}>{l.withEmail} with email · {l.leads} total</span>
                 {l.active_sequence
                   ? <span className="pm-badge2 bg-green">● running</span>

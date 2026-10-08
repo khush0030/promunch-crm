@@ -9,6 +9,7 @@ import { Clock, Pause, Play, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import styles from "@/app/dashboard/leads/leads.module.css";
 import type { SequenceRow, SequenceStep, TemplateRow } from "./types";
+import { listLabel } from "./format";
 
 const SEQ_STATUS_PILL: Record<string, { cls: string; label: string }> = {
   draft: { cls: "bg-gray", label: "Draft" },
@@ -46,7 +47,7 @@ export default function SequencesView({ onChanged }: { onChanged: () => void }) 
 
   async function createSequence() {
     if (!templates.length) {
-      toast.push({ kind: "error", text: "Create a template first — sequences send templates." });
+      toast.push({ kind: "error", text: "Create a template first. Sequences send templates." });
       return;
     }
     const name = prompt("Name the sequence (e.g. Diwali gifting pitch):");
@@ -92,7 +93,7 @@ export default function SequencesView({ onChanged }: { onChanged: () => void }) 
                 className={`${styles.seqIndexItem}${s.id === selectedId ? ` ${styles.seqIndexItemOn}` : ""}`}
                 onClick={() => setSelectedId(s.id)}
               >
-                <span className={styles.seqIndexName}>{s.name}</span>
+                <span className={styles.seqIndexName}>{listLabel(s.name)}</span>
                 <span className="pm-dim" style={{ fontSize: 11.5 }}>
                   {s.steps.length} step{s.steps.length === 1 ? "" : "s"}
                   {active ? ` · ${active} in flight` : ""}
@@ -176,7 +177,7 @@ function SequenceBuilder({
     <div className={styles.seqBuilder}>
       <div className={styles.seqBuilderHead}>
         <div>
-          <b style={{ fontSize: 15 }}>{sequence.name}</b>{" "}
+          <b style={{ fontSize: 15 }}>{listLabel(sequence.name)}</b>{" "}
           <span className={`pm-badge2 ${(SEQ_STATUS_PILL[sequence.status] ?? SEQ_STATUS_PILL.draft).cls}`}>
             {(SEQ_STATUS_PILL[sequence.status] ?? SEQ_STATUS_PILL.draft).label}
           </span>
@@ -286,7 +287,7 @@ function SequenceBuilder({
           <h4 style={{ marginTop: 16 }}>Enrolled</h4>
           {totalEnrolled === 0 ? (
             <p className="pm-muted" style={{ fontSize: 12.5 }}>
-              Nobody yet — open a list and hit “Enroll in sequence”.
+              Nobody yet. Open a list and hit “Enroll in sequence”.
             </p>
           ) : (
             <div className={styles.enrollStats}>

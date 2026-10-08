@@ -210,7 +210,7 @@ export default function LeadsPage() {
         <div>
           <b>
             {data?.sentToday ?? 0}
-            <small>/{dailyCap ?? "—"}</small>
+            <small>/{dailyCap ?? "–"}</small>
           </b>
           <span>
             sent today

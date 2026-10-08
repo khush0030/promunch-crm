@@ -84,6 +84,7 @@
 .dHead h3 { margin: 0; font-size: 18px; }
 .dForm { display: grid; gap: 12px; }
 .dTwo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dHint { margin: 0; font-size: 13px; line-height: 1.45; color: var(--pm-muted); }
 .dFoot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 
 @media (max-width: 1000px) {
