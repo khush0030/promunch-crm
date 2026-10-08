@@ -1,0 +1,32 @@
+{
+  "kind": "youtube#commentThreadListResponse",
+  "items": [
+    {
+      "kind": "youtube#commentThread",
+      "id": "UgzThread1",
+      "snippet": {
+        "channelId": "UCpromunch",
+        "videoId": "vid123",
+        "topLevelComment": {
+          "kind": "youtube#comment",
+          "id": "UgzThread1",
+          "snippet": {
+            "channelId": "UCpromunch",
+            "videoId": "vid123",
+            "textDisplay": "Where can I buy this in Pune?",
+            "textOriginal": "Where can I buy this in Pune?",
+            "authorDisplayName": "@foodie_pune",
+            "authorChannelUrl": "http://www.youtube.com/@foodie_pune",
+            "authorChannelId": { "value": "UCauthor1" },
+            "likeCount": 3,
+            "publishedAt": "2026-10-08T05:00:00Z",
+            "updatedAt": "2026-10-08T05:00:00Z"
+          }
+        },
+        "canReply": true,
+        "totalReplyCount": 0,
+        "isPublic": true
+      }
+    }
+  ]
+}

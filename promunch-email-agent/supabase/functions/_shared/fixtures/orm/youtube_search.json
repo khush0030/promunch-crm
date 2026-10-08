@@ -1,0 +1,21 @@
+{
+  "kind": "youtube#searchListResponse",
+  "items": [
+    {
+      "kind": "youtube#searchResult",
+      "id": { "kind": "youtube#video", "videoId": "abcXYZ" },
+      "snippet": {
+        "publishedAt": "2026-10-07T12:00:00Z",
+        "channelId": "UCreviewer",
+        "title": "Honest PROMUNCH review &amp; taste test",
+        "description": "Trying PROMUNCH roasted edamame",
+        "channelTitle": "Snack Reviews India"
+      }
+    },
+    {
+      "kind": "youtube#searchResult",
+      "id": { "kind": "youtube#video", "videoId": "own1" },
+      "snippet": { "publishedAt": "2026-10-07T12:00:00Z", "channelId": "UCpromunch", "title": "Our launch", "description": "", "channelTitle": "PROMUNCH" }
+    }
+  ]
+}

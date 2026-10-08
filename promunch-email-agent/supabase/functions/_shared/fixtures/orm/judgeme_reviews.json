@@ -1,0 +1,46 @@
+{
+  "current_page": 1,
+  "per_page": 100,
+  "reviews": [
+    {
+      "id": 1503,
+      "title": "Best <b>protein</b> snack",
+      "body": "<p>Masala Mania is addictive &amp; crunchy.</p><p>Will reorder!</p>",
+      "rating": 5,
+      "product_external_id": 8123456789,
+      "reviewer": { "id": 77, "external_id": 555, "email": "a@example.com", "name": "Asha R", "phone": "+919800000000", "accepts_marketing": true },
+      "source": "web",
+      "curated": "ok",
+      "published": true,
+      "hidden": false,
+      "verified": "buyer",
+      "featured": false,
+      "created_at": "2026-10-07T10:15:00.000+05:30",
+      "updated_at": "2026-10-07T10:15:00.000+05:30",
+      "has_published_pictures": false,
+      "has_published_videos": false,
+      "pictures": [],
+      "ip_address": "1.2.3.4",
+      "product_title": "Roasted Edamame Masala Mania",
+      "product_handle": "roasted-edamame-masala-mania"
+    },
+    {
+      "id": 1502,
+      "title": "Stale pack",
+      "body": "Packet smelled stale, order #2083",
+      "rating": 1,
+      "reviewer": { "id": 78, "name": "Vik" },
+      "created_at": "2026-10-06T08:00:00.000+05:30",
+      "product_handle": "soya-crunchies"
+    },
+    {
+      "id": 1400,
+      "title": "old",
+      "body": "older review",
+      "rating": 4,
+      "reviewer": { "name": "Old" },
+      "created_at": "2026-09-01T08:00:00.000+05:30",
+      "product_handle": "chips"
+    }
+  ]
+}

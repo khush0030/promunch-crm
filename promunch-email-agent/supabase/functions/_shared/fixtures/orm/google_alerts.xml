@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:idx="urn:atom-extension:indexing">
+  <id>tag:google.com,2005:reader/user/00000/state/com.google/alerts/123</id>
+  <title>Google Alert - promunch</title>
+  <link href="https://www.google.com/alerts/feeds/00000/123" rel="self"></link>
+  <updated>2026-10-08T06:00:00Z</updated>
+  <entry>
+    <id>tag:google.com,2013:googlealerts/feed:111</id>
+    <title type="html">&lt;b&gt;PROMUNCH&lt;/b&gt; raises seed round for protein snacks</title>
+    <link href="https://www.google.com/url?rct=j&amp;sa=t&amp;url=https://example-news.in/startups/promunch-seed&amp;ct=ga&amp;cd=CAIyGg&amp;usg=AOvVaw"></link>
+    <published>2026-10-08T05:30:00Z</published>
+    <updated>2026-10-08T05:30:00Z</updated>
+    <content type="html">Indore based &lt;b&gt;Promunch&lt;/b&gt; makes roasted edamame &amp;amp; soya snacks ...</content>
+    <author><name></name></author>
+  </entry>
+  <entry>
+    <id>tag:google.com,2013:googlealerts/feed:112</id>
+    <title type="html">Unrelated pro munch</title>
+    <link href="https://blog.example.com/post"></link>
+    <published>2026-10-07T05:30:00Z</published>
+    <content type="html">Nothing here</content>
+  </entry>
+</feed>
