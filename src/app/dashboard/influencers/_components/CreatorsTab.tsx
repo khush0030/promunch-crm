@@ -25,6 +25,7 @@ import {
   NICHES,
   STAGE_LABEL,
   Section,
+  SortPicker,
   TIER_LABEL,
   TierTag,
   at,
@@ -94,11 +95,13 @@ export function CreatorsTab({ onOpenDeal }: { onOpenDeal: (id: string) => void }
     });
   }, [creators.data, q, sort]);
 
+  const pick = (key: SortKey) =>
+    setSort((p) => ({ key, dir: p.key === key ? (p.dir === 1 ? -1 : 1) : key === "handle" ? 1 : -1 }));
   const th = (key: SortKey, label: string, align?: "right") => (
     <th
       className={s.sortTh}
       style={{ textAlign: align }}
-      onClick={() => setSort((p) => ({ key, dir: p.key === key ? (p.dir === 1 ? -1 : 1) : key === "handle" ? 1 : -1 }))}
+      onClick={() => pick(key)}
       aria-sort={sort.key === key ? (sort.dir === 1 ? "ascending" : "descending") : "none"}
     >
       {label}
@@ -129,6 +132,19 @@ export function CreatorsTab({ onOpenDeal }: { onOpenDeal: (id: string) => void }
           {creators.data?.length ? "Try a different search." : "Creators are saved automatically when you add a collab on the Board."}
         </EmptyState>
       ) : (
+        <>
+        <SortPicker
+          sort={sort}
+          pick={pick}
+          options={[
+            { key: "last", label: "Last contact" },
+            { key: "handle", label: "Creator" },
+            { key: "followers", label: "Followers" },
+            { key: "er", label: "ER" },
+            { key: "open", label: "Open collabs" },
+            { key: "ontime", label: "On time" },
+          ]}
+        />
         <div className={s.tblCard}>
           <div className="pm-tablewrap">
             <table className={`pm-tbl ${s.tbl}`}>
@@ -168,6 +184,7 @@ export function CreatorsTab({ onOpenDeal }: { onOpenDeal: (id: string) => void }
             </table>
           </div>
         </div>
+        </>
       )}
 
       {openId && (

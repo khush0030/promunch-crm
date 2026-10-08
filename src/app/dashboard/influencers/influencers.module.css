@@ -103,6 +103,11 @@ button.kpi:hover { background: var(--pm-card2); }
 .mainCell span { display: block; font-size: 14px; color: var(--pm-muted); margin-top: 1px; }
 .sortTh { cursor: pointer; user-select: none; white-space: nowrap; }
 .sortTh:hover { color: var(--pm-ink) !important; }
+/* phone-only sort control (the table head is hidden at <=760px) */
+.sortPhone { display: none; }
+.sortPhoneL { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--pm-muted); min-width: 0; }
+.sortPhoneL .select { height: 34px; min-width: 0; }
+.sortDir { background: none; border: 0; padding: 6px 0; font: 600 14px var(--pm-font); color: var(--pm-ink2); cursor: pointer; white-space: nowrap; }
 
 /* ---- drawer (right side; bottom sheet on phones) ---- */
 .backdrop { position: fixed; inset: 0; background: rgba(26, 23, 20, .42); z-index: 60; display: flex; justify-content: flex-end; }
@@ -301,6 +306,8 @@ button.kpi:hover { background: var(--pm-card2); }
 
   /* tables become stacked rows: first cell as the title, the rest labelled */
   .tbl thead { display: none; }
+  .sortPhone { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+  .sortPhone + .tblCard { margin-top: 10px; }
   .tbl, .tbl tbody, .tbl tr, .tbl td { display: block; width: 100%; }
   .tbl tr { padding: 12px 16px; border-bottom: 1px solid var(--pm-line); }
   .tbl tr:last-child { border-bottom: 0; }

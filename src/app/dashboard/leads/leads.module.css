@@ -1333,6 +1333,18 @@
     grid-template-areas: "num text count";
     padding: 12px 0;
   }
+  /* compact on phones: two steps per row, one line each; the explainer line
+     only shows when it is a warning (e.g. sending paused) */
+  .flowCard { padding: 14px 14px 2px; margin-bottom: 18px; }
+  .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 6px; }
+  .flow li:nth-child(even) { border-left: 1px solid var(--pm-line) !important; }
+  .flow li:nth-child(2) { border-top: none; }
+  .flowStep, .flow li:nth-child(4) .flowStep, .flow li:first-child .flowStep { gap: 8px; padding: 10px 0; }
+  .flow li:nth-child(even) .flowStep { padding-left: 10px; }
+  .flowText b { font-size: 14px; }
+  .flowText span:not([data-tone]) { display: none; }
+  .flowCount { font-size: 20px; }
+  .flowNum { width: 22px; height: 22px; font-size: 11px; }
 
   .statLine { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .statLine > div { padding: 12px 0 12px 14px; }
@@ -1342,7 +1354,8 @@
 
   .groupHeadRow, .listSelRow { padding-left: 14px; }
   .listRow { grid-template-columns: minmax(0, 1fr) auto; padding: 12px 14px 12px 10px; }
-  .groupMeta { display: none; }
+  .groupHead { flex-wrap: wrap; row-gap: 2px; }
+  .groupMeta { flex-basis: 100%; margin-left: 23px; text-align: left; font-size: 12.5px; line-height: 1.4; }
 }
 
 /* green is for "good" status only, never for actions or selection */

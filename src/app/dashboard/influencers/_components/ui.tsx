@@ -171,6 +171,44 @@ export function HealthChip({ health, reason }: { health: DealHealth; reason?: st
   );
 }
 
+/**
+ * Phone-only sort control. At <=760px the table head is hidden (rows stack),
+ * so the sortable column headers go with it; this select drives the SAME
+ * `pick` handler the header buttons call.
+ */
+export function SortPicker<K extends string>({
+  options,
+  sort,
+  pick,
+}: {
+  options: { key: K; label: string }[];
+  sort: { key: K; dir: 1 | -1 };
+  pick: (key: K) => void;
+}) {
+  return (
+    <div className={s.sortPhone}>
+      <label className={s.sortPhoneL}>
+        Sort by
+        <select className={s.select} value={sort.key} onChange={(e) => pick(e.target.value as K)}>
+          {options.map((o) => (
+            <option key={o.key} value={o.key}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        className={s.sortDir}
+        onClick={() => pick(sort.key)}
+        aria-label={sort.dir === 1 ? "Ascending, tap to reverse" : "Descending, tap to reverse"}
+      >
+        {sort.dir === 1 ? "↑ Ascending" : "↓ Descending"}
+      </button>
+    </div>
+  );
+}
+
 export function TierTag({ tier }: { tier: InfluencerTier | null }) {
   if (!tier) return null;
   return <span className={s.tier}>{TIER_LABEL[tier]}</span>;

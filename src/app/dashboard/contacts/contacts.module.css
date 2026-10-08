@@ -112,4 +112,13 @@
   .tbl td:has(> .nil) { display: none; }
   .grp { font-size: 14px; }
   .dTwo { grid-template-columns: minmax(0, 1fr); }
+
+  /* customer page numbers: a hairline stat line, not four stacked boxes */
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 0; border-top: 1px solid var(--pm-border); border-bottom: 1px solid var(--pm-border); }
+  .stats :global(.pm-kpi) { background: none; border: 0; border-radius: 0; padding: 12px 0 12px 14px; min-width: 0; }
+  .stats :global(.pm-kpi):nth-child(odd) { padding-left: 0; }
+  .stats :global(.pm-kpi):nth-child(even) { border-left: 1px solid var(--pm-line); }
+  .stats :global(.pm-kpi):nth-child(n + 3) { border-top: 1px solid var(--pm-line); }
+  .stats :global(.pm-kpi .top) { margin-bottom: 4px; }
+  .stats :global(.pm-kpi .num) { font-size: 24px; overflow-wrap: anywhere; }
 }

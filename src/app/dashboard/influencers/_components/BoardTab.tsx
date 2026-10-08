@@ -27,6 +27,7 @@ import {
   isToday,
   relDay,
   shortDate,
+  SortPicker,
   useDeals,
   useSettings,
   useSummary,
@@ -140,10 +141,11 @@ export function BoardTab({ onOpenDeal, onAdd }: { onOpenDeal: (id: string) => vo
   const sum = summary.data;
   const engineOff = settings.data ? !settings.data.engine_enabled : false;
 
+  const pick = (key: SortKey) => setSort((p) => ({ key, dir: p.key === key ? (p.dir === 1 ? -1 : 1) : 1 }));
   const th = (key: SortKey, label: string) => (
     <th
       className={s.sortTh}
-      onClick={() => setSort((p) => ({ key, dir: p.key === key ? (p.dir === 1 ? -1 : 1) : 1 }))}
+      onClick={() => pick(key)}
       aria-sort={sort.key === key ? (sort.dir === 1 ? "ascending" : "descending") : "none"}
     >
       {label}
@@ -324,6 +326,19 @@ export function BoardTab({ onOpenDeal, onAdd }: { onOpenDeal: (id: string) => vo
           })}
         </div>
       ) : (
+        <>
+        <SortPicker
+          sort={sort}
+          pick={pick}
+          options={[
+            { key: "handle", label: "Creator" },
+            { key: "tier", label: "Tier" },
+            { key: "kit", label: "Kit" },
+            { key: "stage", label: "Stage" },
+            { key: "next", label: "Next date" },
+            { key: "health", label: "Health" },
+          ]}
+        />
         <div className={s.tblCard}>
           <div className="pm-tablewrap">
             <table className={`pm-tbl ${s.tbl}`}>
@@ -368,6 +383,7 @@ export function BoardTab({ onOpenDeal, onAdd }: { onOpenDeal: (id: string) => vo
             </table>
           </div>
         </div>
+        </>
       )}
     </>
   );
@@ -399,7 +415,10 @@ function DealCard({ d, onOpen }: { d: DealListItem; onOpen: () => void }) {
           <span className={s.whoSub}>{sub}</span>
         </span>
       </div>
-      <div className={s.cardMeta} title={d.next_date ? shortDate(d.next_date.at) : undefined}>
+      <div
+        className={s.cardMeta}
+        title={d.next_date ? `${d.next_date.label} ${relDay(d.next_date.at)} (${shortDate(d.next_date.at)})` : undefined}
+      >
         <span>{what}</span>
         <span className={s.spacer} />
         <HealthChip health={d.health} reason={d.health_reason} />

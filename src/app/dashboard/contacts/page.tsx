@@ -443,8 +443,7 @@ export default function ContactsPage() {
                 <tbody>
                   {contacts.map((r) => {
                     const g = groupFor(r);
-                    const reach = r.phone ? prettyPhone(r.phone) : r.email;
-                    const sub = [r.city, reach].filter(Boolean).join(" · ");
+                    const sub = [r.city, r.phone ? prettyPhone(r.phone) : null, r.email].filter(Boolean).join(" · ");
                     const open = () => router.push(`/dashboard/contacts/${r.id}`);
                     return (
                       <tr
@@ -455,7 +454,7 @@ export default function ContactsPage() {
                       >
                         <td className={css.main}>
                           <b>{r.name}</b>
-                          <span>{sub || "No phone or email"}</span>
+                          <span title={sub || undefined}>{sub || "No phone or email"}</span>
                         </td>
                         <td className={css.r} data-l="Orders">
                           {r.orders > 0 ? r.orders : <span className={css.nil}>–</span>}

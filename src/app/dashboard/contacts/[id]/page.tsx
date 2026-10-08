@@ -21,6 +21,7 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import { PageHead, KpiCard, Panel, StatusBadge, EmptyState } from "@/components/pm";
 import type { KpiTone, BadgeTone } from "@/components/pm";
+import css from "../contacts.module.css";
 import { isLinkValue } from "@/lib/influencers/crm-contact";
 
 type Contact = {
@@ -214,7 +215,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   const backLink = (
     <Link href="/dashboard/contacts" className="more" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--pm-muted)", fontSize: 12 }}>
-      <ArrowLeft size={14} /> Back to contacts
+      <ArrowLeft size={14} /> Back to customers
     </Link>
   );
 
@@ -289,7 +290,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         }
       />
 
-      <div className="pm-kpis" style={{ marginBottom: 16 }}>
+      <div className={`pm-kpis ${css.stats}`} style={{ marginBottom: 16 }}>
         {kpis.map((k) => (
           <KpiCard key={k.label} label={k.label} value={k.value} icon={k.icon} tone={k.tone} />
         ))}

@@ -52,14 +52,23 @@ export function KitsTab() {
           </button>
         )}
       </div>
+      {/* The new-kit editor renders whatever state the list is in, so a slow or
+          failed load never turns "New kit" into a dead end. */}
+      {editing && !editing.id && (kits.isLoading || kits.error || (kits.data ?? []).length === 0) && (
+        <div className={s.editor}>
+          <KitEditor initial={editing} onDone={() => setEditing(null)} />
+        </div>
+      )}
       {kits.isLoading ? (
         <p className={s.hint}>Loading kits…</p>
       ) : kits.error ? (
         <p className={s.err}>{errText(kits.error)}</p>
-      ) : (kits.data ?? []).length === 0 && !editing ? (
-        <EmptyState icon={<Package />} title="No kits yet">
-          Create your first kit, for example a Starter box with 4 packs.
-        </EmptyState>
+      ) : (kits.data ?? []).length === 0 ? (
+        !editing && (
+          <EmptyState icon={<Package />} title="No kits yet">
+            Create your first kit, for example a Starter box with 4 packs.
+          </EmptyState>
+        )
       ) : (
         <div className={s.g3}>
           {editing && !editing.id && (

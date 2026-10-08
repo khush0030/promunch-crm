@@ -300,8 +300,9 @@
 }
 
 @media (max-width: 640px) {
-  .stepper { overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
-  .stepper::-webkit-scrollbar { display: none; }
-  .stepBtn { flex: 1 0 70px !important; min-width: 70px !important; }
-  .stepLabel { font-size: 11.5px !important; }
+  /* all six stages fit the phone width (no hidden sideways scroll): labels
+     shrink and wrap between words; a long single word ("Negotiation") may
+     spill a few px into its neighbour rather than break mid-word */
+  .stepBtn { flex: 1 1 0 !important; min-width: 0 !important; }
+  .stepLabel { font-size: 10.5px !important; padding: 0 !important; overflow-wrap: normal; word-break: normal; }
 }
