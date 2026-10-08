@@ -17,7 +17,9 @@ import { apifyDatasetItems } from "./apify.ts";
 
 export const BODY_MAX = 4000;
 
-export type SourceKey = "judgeme" | "youtube" | "reddit" | "rss" | "amazon" | "instagram" | "competitors";
+// "whatsapp" is not collected: rows are written by the WhatsApp review
+// feedback flow (Not happy tap, _shared/review-feedback-flow.ts).
+export type SourceKey = "judgeme" | "youtube" | "reddit" | "rss" | "amazon" | "instagram" | "competitors" | "whatsapp";
 
 export interface MentionInput {
   source: SourceKey;
@@ -1135,6 +1137,7 @@ export function collect(src: OrmSourceRow, settings: OrmSettingsRow, now: number
     case "amazon": return fetchAmazon(src, settings, now);
     case "instagram": return fetchInstagram(src);
     case "competitors": return fetchCompetitors(src, settings, now);
+    case "whatsapp": return Promise.resolve({ status: "skipped", mentions: [], cursor: src.cursor ?? {}, note: "fed by the WhatsApp review ask, not collected" });
     default: return Promise.resolve({ status: "skipped", mentions: [], cursor: src.cursor ?? {}, note: "unknown source" });
   }
 }

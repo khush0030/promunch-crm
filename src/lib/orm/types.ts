@@ -2,7 +2,9 @@
 // supabase/migrations/20261008200000_orm.sql exactly; the build contract is
 // docs/plans/2026-10-08-orm-build-spec.md.
 
-export const ORM_SOURCE_KEYS = ["judgeme", "youtube", "reddit", "rss", "amazon", "instagram"] as const;
+// "whatsapp" = Not happy taps on the WhatsApp review feedback ask (written by
+// wa-webhook, never collected; hidden from the Settings source list).
+export const ORM_SOURCE_KEYS = ["judgeme", "youtube", "reddit", "rss", "amazon", "instagram", "whatsapp"] as const;
 export type OrmSourceKey = (typeof ORM_SOURCE_KEYS)[number];
 
 export const ORM_STATUSES = ["new", "seen", "replied", "ignored", "escalated"] as const;
