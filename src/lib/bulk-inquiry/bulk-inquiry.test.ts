@@ -57,6 +57,12 @@ describe("parseBulkInquiry", () => {
 });
 
 describe("questions + copy helpers", () => {
+  it("asks quantity first when it is unknown", () => {
+    expect(questionsFor("gifting", true)[0]).toBe("Rough quantity (units or hampers)");
+    expect(questionsFor("gifting", true)).toHaveLength(6);
+    expect(questionsFor("other", true)).toHaveLength(5);
+  });
+
   it("asks 2 type questions then the 3 common ones", () => {
     const q = questionsFor("gifting");
     expect(q).toHaveLength(5);

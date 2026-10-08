@@ -48,8 +48,11 @@ export const TYPE_QUESTIONS: Record<UseCase, readonly string[]> = {
   other: ["What the snacks are for", "Rough quantity you have in mind"],
 };
 
-export function questionsFor(useCase: UseCase): string[] {
-  return [...TYPE_QUESTIONS[useCase], ...COMMON_QUESTIONS];
+/** Questions for the email. When quantity is unknown, ask it first (quoting needs it). */
+export function questionsFor(useCase: UseCase, quantityUnknown = false): string[] {
+  // resale asks monthly volume and other asks quantity already.
+  const ask = quantityUnknown && (useCase === "gifting" || useCase === "pantry" || useCase === "events") ? ["Rough quantity (units or hampers)"] : [];
+  return [...ask, ...TYPE_QUESTIONS[useCase], ...COMMON_QUESTIONS];
 }
 
 /** Opener used when the AI line is unavailable or fails validation. */

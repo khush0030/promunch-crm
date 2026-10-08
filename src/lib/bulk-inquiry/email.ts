@@ -35,6 +35,8 @@ export interface BulkEmailInput {
   opener: string;
   whatsappDisplay: string;
   replyTo?: string;
+  /** Override the order-type subject, e.g. for a late follow-up. */
+  subject?: string;
 }
 
 export interface BulkEmail {
@@ -48,11 +50,12 @@ export function renderBulkInquiryEmail(o: BulkEmailInput): BulkEmail {
   const q = o.inquiry;
   const uc = USE_CASES[q.useCase];
   const first = firstName(q.name);
-  const subject = uc.subject;
+  const subject = o.subject || uc.subject;
   const preview = `A few quick details and we will send your pricing.`;
   const replyTo = o.replyTo || "hello@promunch.in";
-  const questions = questionsFor(q.useCase);
-  const tags = [uc.label, QUANTITY_BANDS[q.quantityBand], q.city, q.neededBy ? `By ${shortDate(q.neededBy)}` : null]
+  const questions = questionsFor(q.useCase, q.quantityBand === "unsure");
+  // "unsure" is our default, not something the person said: leave it out.
+  const tags = [uc.label, q.quantityBand === "unsure" ? null : QUANTITY_BANDS[q.quantityBand], q.city, q.neededBy ? `By ${shortDate(q.neededBy)}` : null]
     .filter(Boolean) as string[];
   const waDigits = o.whatsappDisplay.replace(/\D/g, "");
   const mailto = `mailto:${replyTo}?subject=${encodeURIComponent("Re: " + subject)}`;
@@ -80,7 +83,7 @@ ${preheaderHtml(preview)}
         <td class="pm-pad" style="padding:20px ${L.pad}px;border-bottom:1px solid ${C.line};">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
             <td align="left">${logoHtml({ href: EMAIL_BRAND.website, align: "left", logoWidth: 150 })}</td>
-            <td align="right" style="font-family:${EMAIL_MONO};font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${C.hint};">Bulk order · B-${escHtml(String(o.refNo))}</td>
+            <td align="right" style="font-family:${EMAIL_MONO};font-size:11px;letter-spacing:2px;text-transform:uppercase;color:${C.hint};white-space:nowrap;">Bulk order · B-${escHtml(String(o.refNo))}</td>
           </tr></table>
         </td>
       </tr>
@@ -101,12 +104,12 @@ ${preheaderHtml(preview)}
           </table>
           <div style="margin:24px 0 4px;">${label("Just reply with")}</div>
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;">${qHtml}</table>
-          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 8px;"><tr>
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 12px;"><tr>
             <td bgcolor="${C.brand}" style="background:${C.brand};border-radius:${L.buttonRadius}px;">
-              <a href="${escHtml(mailto)}" style="display:inline-block;padding:14px 22px;font-family:${EMAIL_HEADING_FONT};font-size:15px;letter-spacing:.5px;text-transform:uppercase;color:${C.onBrand};text-decoration:none;">Reply with details</a>
+              <a href="${escHtml(mailto)}" style="display:inline-block;padding:14px 22px;font-family:${EMAIL_HEADING_FONT};font-size:15px;letter-spacing:.5px;text-transform:uppercase;color:${C.onBrand};text-decoration:none;white-space:nowrap;">Reply with details</a>
             </td>
-            <td style="padding-left:14px;font-family:${EMAIL_FONT};font-size:15px;color:${C.muted};">or WhatsApp <a href="https://wa.me/${waDigits}" style="color:${C.ink};font-weight:700;text-decoration:none;">${escHtml(o.whatsappDisplay)}</a></td>
           </tr></table>
+          <p style="margin:0 0 8px;font-family:${EMAIL_FONT};font-size:15px;line-height:1.5;color:${C.muted};">Prefer WhatsApp? <a href="https://wa.me/${waDigits}" style="color:${C.ink};font-weight:700;text-decoration:none;white-space:nowrap;">${escHtml(o.whatsappDisplay)}</a></p>
         </td>
       </tr>
       <tr>
