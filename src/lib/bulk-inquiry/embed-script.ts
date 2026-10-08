@@ -49,7 +49,7 @@ export function bulkFormScript(apiUrl: string): string {
   var CSS = [
     ".pmbf{--red:#AF272F;--red2:#8E1F26;--ink:#1A1714;--ink2:#4A453F;--mute:#8A8278;--hair:#E5E0D6;--paper:#fff;--cream:#F4F1EA;--ok:#1F6B45;",
     "--disp:'Archivo Black','Arial Black',Arial,sans-serif;--body:Assistant,'Helvetica Neue',Helvetica,Arial,sans-serif;--mono:'JetBrains Mono',ui-monospace,'Courier New',monospace;",
-    "background:var(--cream);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55;padding:48px 20px 56px;box-sizing:border-box}",
+    "background:var(--cream);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55;padding:48px 20px 56px;box-sizing:border-box;container-type:inline-size;container-name:pmbf;border-radius:18px}",
     ".pmbf *,.pmbf *:before,.pmbf *:after{box-sizing:border-box}",
     ".pmbf-in{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:44px;align-items:start}",
     ".pmbf-copy{display:grid;gap:18px;position:sticky;top:110px}",
@@ -90,8 +90,10 @@ export function bulkFormScript(apiUrl: string): string {
     ".pmbf-hp{position:absolute!important;left:-10000px!important;width:1px;height:1px;overflow:hidden}",
     ".pmbf-done h3{font-family:var(--disp);font-weight:400;font-size:28px;margin:0;text-transform:uppercase;letter-spacing:0;color:var(--ink)}",
     ".pmbf-done p{margin:0;color:var(--ink2)}",
-    "@media (max-width:900px){.pmbf-in{grid-template-columns:minmax(0,1fr);gap:28px}.pmbf-copy{position:static}.pmbf{padding:32px 16px 40px}}",
-    "@media (max-width:560px){.pmbf-row{grid-template-columns:minmax(0,1fr)}.pmbf-uses div{grid-template-columns:minmax(0,1fr);gap:2px}.pmbf form,.pmbf .pmbf-done{padding:20px}}"
+    "@container pmbf (max-width:860px){.pmbf-in{grid-template-columns:minmax(0,1fr);gap:28px}.pmbf-copy{position:static}}",
+    "@media (max-width:900px){.pmbf{padding:32px 16px 40px}}",
+    "@container pmbf (max-width:520px){.pmbf-row{grid-template-columns:minmax(0,1fr)}.pmbf-uses div{grid-template-columns:minmax(0,1fr);gap:2px}.pmbf form,.pmbf .pmbf-done{padding:20px}}",
+    ".pmbf p,.pmbf h2,.pmbf h3{margin-top:0}.pmbf ul{margin:0}"
   ].join("");
 
   function esc(t){ return String(t).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]; }); }
