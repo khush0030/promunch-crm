@@ -10,6 +10,7 @@ import { MODULES, type ModuleKey } from "@/lib/access";
 import { ago } from "@/components/admin/format";
 import { useHash } from "@/components/shell/useShellData";
 import css from "@/components/settings/Settings.module.css";
+import { displayRole, isOwnerMember } from "@/components/settings/teamRole";
 
 type Status = "healthy" | "degraded" | "down" | "unknown";
 type Connector = { id: string; label: string; description: string; status: Status; headline: string; metrics: { label: string; value: string }[] };
@@ -416,20 +417,22 @@ function TeamTable({ onCount }: { onCount: (n: number) => void }) {
         {members.length === 0 && <div className={css.empty}>No team data yet</div>}
         {members.map((m) => {
           const editable = canManage && m.id !== currentId;
+          // The owner is never demoted from here: show their role as text, like the shell does.
+          const roleEditable = editable && !isOwnerMember(m);
           return (
             <div key={m.id} className={css.member}>
               <Avatar name={m.name} size={34} />
               <div className={css.mBody}>
                 <div className={css.mName}>
                   <span>{m.name}</span>
-                  {editable ? (
+                  {roleEditable ? (
                     <select className={css.roleSel} value={m.role} onChange={(e) => setRole(m.id, e.target.value)} aria-label={`Role for ${m.name}`}>
                       <option value="owner">Owner</option>
                       <option value="admin">Admin</option>
                       <option value="agent">Agent</option>
                     </select>
                   ) : (
-                    <span className={css.role}>{roleName(m.role)}</span>
+                    <span className={css.role}>{roleName(displayRole(m))}</span>
                   )}
                 </div>
                 {m.email && <span className={css.mMail}>{m.email}</span>}

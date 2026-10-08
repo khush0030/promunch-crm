@@ -24,6 +24,7 @@ import { describeAudience } from "../wizard/StepReview";
 import { audienceFromFilter } from "../logic";
 import { ActionButtons, campaignHref, useCampaignActions } from "../useCampaignActions";
 import { RecipientsCard } from "./RecipientsCard";
+import { whenSentence } from "./statusSentence";
 import s from "../campaigns.module.css";
 import { useNow } from "../useNow";
 
@@ -127,8 +128,8 @@ function Detail({ c, run, busy }: { c: Campaign; run: (a: CampaignAction, c: Cam
           }
         />
       )}
-      {c.status === "paused" && <Callout tone="sun" title="Paused" body={`Paused ${fmtIst(c.paused_at)}. Nobody new gets it until you press Resume.`} />}
-      {c.status === "cancelled" && <Callout tone="plain" title="Cancelled" body={`Cancelled ${fmtIst(c.cancelled_at)}. Nobody else will get it.`} />}
+      {c.status === "paused" && <Callout tone="sun" title="Paused" body={`${whenSentence("Paused", c.paused_at)} Nobody new gets it until you press Resume.`} />}
+      {c.status === "cancelled" && <Callout tone="plain" title="Cancelled" body={`${whenSentence("Cancelled", c.cancelled_at)} Nobody else will get it.`} />}
       {c.status === "scheduled" && c.scheduled_at && (
         <Callout
           tone="plain"

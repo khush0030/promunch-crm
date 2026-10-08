@@ -118,7 +118,7 @@ export function StepSchedule({
 
       {pace.people != null && pace.people > 0 && (
         <div className={s.help}>
-          Sends about <b>{pace.perDay != null ? fmtInt(pace.perDay) : "?"}</b> a day
+          {pace.perDay != null ? <>Sends about <b>{fmtInt(pace.perDay)}</b> a day</> : <>Sends as fast as your daily limit allows</>}
           {pace.finishMs ? <>, finishes about <b>{fmtIstDate(pace.finishMs)}</b></> : null}. Held-back people are retried within the campaign&apos;s 7 days.
         </div>
       )}
