@@ -29,6 +29,12 @@ export const MODULES = [
     hint: "Email Studio: campaigns, builder, templates, audiences, reports",
     landing: "/dashboard/email",
   },
+  {
+    key: "reputation",
+    label: "Reputation",
+    hint: "Reviews, comments and mentions across the web",
+    landing: "/dashboard/reputation",
+  },
   { key: "audience", label: "Audience", hint: "Contacts list, import & export", landing: "/dashboard/contacts" },
   { key: "partners", label: "B2B leads & deals", hint: "Lead lists, outreach, deals, creators", landing: "/dashboard/leads" },
   { key: "bot_knowledge", label: "Bot knowledge", hint: "Master KB the WhatsApp bot answers from", landing: "/dashboard/whatsapp?tab=kb" },
@@ -40,6 +46,54 @@ export const MODULE_KEYS: ModuleKey[] = MODULES.map((m) => m.key);
 
 export function isModuleKey(v: unknown): v is ModuleKey {
   return typeof v === "string" && (MODULE_KEYS as string[]).includes(v);
+}
+
+// Named job roles for Agents: a one-click area list in the invite form and the
+// Access dialog. Only `modules` is stored (app_metadata.modules); the role name
+// is derived back from the list, so editing a preset here doesn't silently
+// change anyone's stored access.
+export const ROLE_PRESETS = [
+  {
+    key: "marketing",
+    label: "Marketing (email + WhatsApp)",
+    hint: "Email Studio plus WhatsApp campaigns, automations and templates. No customer chats, orders or settings.",
+    modules: ["wa_marketing", "email_marketing"],
+  },
+  {
+    key: "email_marketing",
+    label: "Email marketing",
+    hint: "Email Studio only: campaigns, flows, templates, audiences, reports.",
+    modules: ["email_marketing"],
+  },
+  {
+    key: "wa_automation",
+    label: "WhatsApp automation",
+    hint: "WhatsApp campaigns, automations (flows, cart recovery), templates, popup and analytics.",
+    modules: ["wa_marketing"],
+  },
+  {
+    key: "support",
+    label: "Customer support",
+    hint: "Inbox: WhatsApp chats, tickets, support email and voice calls.",
+    modules: ["inbox"],
+  },
+] as const satisfies ReadonlyArray<{ key: string; label: string; hint: string; modules: readonly ModuleKey[] }>;
+
+export type RolePresetKey = (typeof ROLE_PRESETS)[number]["key"];
+
+export function rolePreset(key: unknown) {
+  return ROLE_PRESETS.find((p) => p.key === key) ?? null;
+}
+
+// The preset a stored area list matches exactly (order-insensitive), or null
+// for a custom pick / no restriction.
+export function presetForModules(modules: readonly ModuleKey[] | null) {
+  if (!modules) return null;
+  return (
+    ROLE_PRESETS.find(
+      (p) => p.modules.length === modules.length && p.modules.every((m) => modules.includes(m))
+    ) ?? null
+  );
 }
 
 // restricted=false means "every area" (admin, or a member never restricted).
@@ -98,11 +152,12 @@ const PAGE_PREFIXES: Array<[string, ModuleKey]> = [
   ["/dashboard/inbox", "inbox"],
   ["/dashboard/support-emails", "inbox"],
   ["/dashboard/email", "email_marketing"],
-  ["/dashboard/marketing", "email_marketing"],
   ["/dashboard/campaigns", "email_marketing"],
   ["/dashboard/flows", "email_marketing"],
   // Email marketing analytics (Resend era), not WhatsApp analytics.
   ["/dashboard/analytics", "email_marketing"],
+  // Reputation: reviews, comments and mentions feed (ORM).
+  ["/dashboard/reputation", "reputation"],
   ["/dashboard/contacts", "audience"],
   ["/dashboard/leads", "partners"],
   ["/dashboard/deals", "partners"],
@@ -198,9 +253,10 @@ export const API_RULES: ApiRule[] = [
   { prefix: "/api/whatsapp/kb", modules: ["bot_knowledge"] },
 
   { prefix: "/api/email-studio", modules: ["email_marketing"] },
-  { prefix: "/api/brevo", modules: ["email_marketing"] },
   { prefix: "/api/campaigns", modules: ["email_marketing"] },
   { prefix: "/api/flows", modules: ["email_marketing"] },
+
+  { prefix: "/api/orm", modules: ["reputation"] },
 
   { prefix: "/api/contacts", modules: ["audience"] },
   { prefix: "/api/import", modules: ["audience"] },

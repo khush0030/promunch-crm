@@ -113,6 +113,8 @@ function SettingsForm({ initial }: { initial: InfluencerSettings }) {
         </section>
       </div>
 
+      <BriefFocus initial={initial} />
+
       <div className={s.secH}>
         <div>
           <h2>Timings</h2>
@@ -282,6 +284,73 @@ const CREATOR_PREVIEWS: { body: string; button: string; when: string }[] = [
     when: "Before the draft is due and on the day.",
   },
 ];
+
+// Campaign hero product: every AI-written brief centres on it.
+function BriefFocus({ initial }: { initial: InfluencerSettings }) {
+  const qc = useQueryClient();
+  const [focus, setFocus] = useState(initial.brief_focus ?? "");
+  const [notes, setNotes] = useState(initial.brief_focus_notes ?? "");
+  const [saved, setSaved] = useState(false);
+  const save = useMutation({
+    mutationFn: () =>
+      api("/api/influencers/settings", {
+        method: "PATCH",
+        body: { brief_focus: focus.trim() || null, brief_focus_notes: notes.trim() || null },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QK.settings });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1800);
+    },
+  });
+  const dirty = focus.trim() !== (initial.brief_focus ?? "") || notes.trim() !== (initial.brief_focus_notes ?? "");
+
+  return (
+    <>
+      <div className={s.secH}>
+        <div>
+          <h2>Briefs</h2>
+          <p>
+            The product every AI brief is built around: the idea, the 3 hooks, the script and what to say. Product facts
+            still come only from the PROMUNCH knowledge base. Leave it empty to let briefs cover the whole range.
+          </p>
+        </div>
+      </div>
+      <section className={s.pcard}>
+        <div className={s.form}>
+          <div className={s.grid2}>
+            <Field label="Hero product">
+              <input
+                className={s.input}
+                value={focus}
+                maxLength={80}
+                placeholder="e.g. Roasted Edamame"
+                onChange={(e) => setFocus(e.target.value)}
+              />
+            </Field>
+            <Field label="Campaign angle (optional)">
+              <textarea
+                className={s.input}
+                value={notes}
+                maxLength={600}
+                rows={3}
+                placeholder="e.g. olive oil roasted, the 4pm office snack, gym bag protein"
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </Field>
+          </div>
+          {save.error && <p className={s.err}>{errText(save.error)}</p>}
+          <div className={s.actions}>
+            <button type="button" className="pm-btn sm" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
+              {save.isPending ? "Saving…" : saved ? "Saved" : "Save"}
+            </button>
+            <span className={s.hint}>Applies to the next brief you generate. Briefs already written stay as they are.</span>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}
 
 function Phone({ title, children }: { title: string; children: ReactNode }) {
   return (

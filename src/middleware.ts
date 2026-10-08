@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isAllowedEmail } from "@/lib/auth-domains";
 import { authCookieOptions } from "@/lib/auth-options";
 import { accessOf, canCallApi, canOpenPage, landingFor } from "@/lib/access";
+import { isCollabHost, routeCollab } from "@/lib/collab-host";
 
 // /r/* = public click-tracking redirects (WhatsApp short links) — must be
 // reachable without a dashboard session.
@@ -20,6 +21,19 @@ const PUBLIC_PATHS = ["/login", "/auth", "/r", "/u", "/c"];
 const PUBLIC_API_PREFIXES = ["/api/webhooks/", "/api/cron/", "/api/public/"];
 
 export async function middleware(req: NextRequest) {
+  // collab.promunch.in serves only the creator portal; no session logic.
+  if (isCollabHost(req.headers.get("host"))) {
+    const route = routeCollab(req.nextUrl.pathname);
+    if (route.kind === "pass") return NextResponse.next();
+    if (route.kind === "not_found") return NextResponse.json({ error: "not found" }, { status: 404 });
+    if (route.kind === "rewrite") {
+      const url = req.nextUrl.clone();
+      url.pathname = route.pathname;
+      return NextResponse.rewrite(url);
+    }
+    return NextResponse.redirect(new URL(route.location, req.nextUrl));
+  }
+
   let response = NextResponse.next({ request: req });
 
   const supabase = createServerClient(

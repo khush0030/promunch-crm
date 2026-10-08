@@ -4,6 +4,7 @@
 // Post. Each one calls its own endpoint and refreshes the deal afterwards.
 
 import { useState } from "react";
+import { creatorPortalUrl } from "@/lib/influencers/portal-url";
 import { ExternalLink, FileText, Film, Package, Send, Sparkles, Upload } from "lucide-react";
 import { ConfirmDialog, Pill, type BadgeTone } from "@/components/pm";
 import type { Brief, BriefContent, DealDetail, DraftSubmission } from "@/lib/influencers/types";
@@ -73,9 +74,9 @@ export function BriefPanel({ detail }: { detail: DealDetail }) {
   const [selId, setSelId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [confirmSend, setConfirmSend] = useState(false);
-  const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "err"; text: string; copyLink?: boolean } | null>(null);
+  const [notice, setNotice] = useState<{ tone: "ok" | "warn" | "err"; text: string; copyLink?: boolean; resend?: boolean } | null>(null);
   const [copied, setCopied] = useState(false);
-  const portal = typeof window !== "undefined" ? `${window.location.origin}/c/${deal.code}` : `/c/${deal.code}`;
+  const portal = creatorPortalUrl(deal.code);
   const copyPortal = async () => {
     try {
       await navigator.clipboard.writeText(portal);
@@ -89,6 +90,34 @@ export function BriefPanel({ detail }: { detail: DealDetail }) {
   const base = `/api/influencers/deals/${deal.id}/brief`;
   const engineOn = settings.data?.engine_enabled ?? false;
   const closed = deal.stage === "cancelled" || deal.stage === "ghosted" || deal.stage === "completed";
+  const resending = act.isPending && act.variables?.url.endsWith("/brief/whatsapp");
+  // Safe to press any number of times: influencer-send claims + checks the
+  // message ledger first, so a ping that already landed is never sent again.
+  const resend = () =>
+    act.mutate(
+      { url: `${base}/whatsapp` },
+      {
+        onSuccess: (d) => {
+          const wa = d?.whatsapp as string | undefined;
+          if (wa === "sent") setNotice({ tone: "ok", text: "WhatsApp sent. The creator got the button to open their brief." });
+          else if (wa === "already_sent")
+            setNotice({ tone: "ok", text: "The creator already has this WhatsApp. Nothing was sent again." });
+          else if (wa === "engine_off")
+            setNotice({
+              tone: "warn",
+              text: "Automatic messages are off in Settings, so no WhatsApp went out. Copy the link and share it yourself.",
+              copyLink: true,
+            });
+          else
+            setNotice({
+              tone: "err",
+              text: `The WhatsApp still did not go out${d?.whatsapp_error ? ` (${String(d.whatsapp_error)})` : ""}. Try again in a minute, or copy the link and share it yourself.`,
+              copyLink: true,
+              resend: true,
+            });
+        },
+      },
+    );
 
   return (
     <Section
@@ -129,6 +158,11 @@ export function BriefPanel({ detail }: { detail: DealDetail }) {
           <span className={notice.tone === "ok" ? s.ok : notice.tone === "err" ? s.err : undefined} style={{ flex: 1, minWidth: 200 }}>
             {notice.text}
           </span>
+          {notice.resend && engineOn && !closed && (
+            <button type="button" className="pm-btn primary sm" disabled={act.isPending} onClick={resend}>
+              <Send size={13} /> {resending ? "Sending…" : "Send WhatsApp again"}
+            </button>
+          )}
           {notice.copyLink && (
             <button type="button" className="pm-btn sm" onClick={copyPortal}>
               {copied ? "Copied" : "Copy portal link"}
@@ -218,6 +252,22 @@ export function BriefPanel({ detail }: { detail: DealDetail }) {
                   <Send size={13} /> Send to creator
                 </button>
               )}
+              {sel.status === "sent" && !sel.acknowledged_at && engineOn && (
+                <button
+                  type="button"
+                  className="pm-btn ghost sm"
+                  disabled={act.isPending}
+                  title="Sends the brief WhatsApp again only if it never reached the creator"
+                  onClick={resend}
+                >
+                  <Send size={13} /> {resending ? "Sending…" : "Resend WhatsApp"}
+                </button>
+              )}
+              {sel.status === "sent" && (
+                <button type="button" className="pm-btn ghost sm" onClick={copyPortal}>
+                  {copied ? "Copied" : "Copy portal link"}
+                </button>
+              )}
               {sel.status === "draft" && <span className={s.hint}>Approve before sending.</span>}
             </div>
           )}
@@ -253,8 +303,9 @@ export function BriefPanel({ detail }: { detail: DealDetail }) {
                   else if (wa === "failed")
                     setNotice({
                       tone: "err",
-                      text: `Brief published on the portal, but the WhatsApp failed${d?.whatsapp_error ? ` (${String(d.whatsapp_error)})` : ""}. Copy the link and share it yourself.`,
+                      text: `Brief published on the portal, but the WhatsApp did not go out${d?.whatsapp_error ? ` (${String(d.whatsapp_error)})` : ""}. Send it again, or copy the link and share it yourself.`,
                       copyLink: true,
+                      resend: true,
                     });
                   else setNotice({ tone: "ok", text: "Brief sent." });
                 },

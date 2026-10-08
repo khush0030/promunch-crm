@@ -8,7 +8,7 @@ import { recordAudit } from "@/lib/audit";
 import { assertHuman } from "@/lib/botid-guard";
 import { isAdminUser } from "@/lib/rbac";
 import { resolveTeamDisplayName } from "@/lib/team";
-import { isModuleKey, MODULE_KEYS, storedModules, type ModuleKey } from "@/lib/access";
+import { isModuleKey, MODULE_KEYS, presetForModules, storedModules, type ModuleKey } from "@/lib/access";
 
 function callerName(user: { email?: string | null; user_metadata?: Record<string, unknown> }): string {
   const meta = (user.user_metadata || {}) as Record<string, unknown>;
@@ -103,6 +103,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const email = String(body?.email ?? "").trim().toLowerCase();
   const name = typeof body?.name === "string" ? body.name.trim() : "";
+  // Optional starting areas (a role preset from the invite form). Absent/null
+  // keeps the old behaviour: every area.
+  const parsed = parseModules(body?.modules ?? null);
+  if (!parsed.ok) return NextResponse.json({ error: "Invalid areas." }, { status: 400 });
+  const modules = parsed.modules;
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "That doesn't look like a valid email." }, { status: 400 });
@@ -147,9 +152,17 @@ export async function POST(req: NextRequest) {
   // New members start at the Member tier (app_metadata is the authoritative
   // role store); an admin can promote them from the Team screen.
   if (data?.user?.id) {
-    await supabaseAdmin.auth.admin
-      .updateUserById(data.user.id, { app_metadata: { role: "agent" } })
-      .catch(() => {});
+    const appMeta: Record<string, unknown> = { role: "agent" };
+    if (modules) appMeta.modules = modules;
+    const res = await supabaseAdmin.auth.admin
+      .updateUserById(data.user.id, { app_metadata: appMeta })
+      .catch((e: unknown) => ({ error: e instanceof Error ? e : new Error(String(e)) }));
+    // A restricted invite that didn't stick would open every area on first
+    // sign-in: roll the user back rather than send that invite.
+    if (modules && res.error) {
+      await supabaseAdmin.auth.admin.deleteUser(data.user.id).catch(() => {});
+      return NextResponse.json({ error: `Couldn't set access: ${res.error.message}` }, { status: 500 });
+    }
   }
 
   try {
@@ -176,8 +189,8 @@ export async function POST(req: NextRequest) {
     action: "team.invite",
     entityType: "user",
     entityId: data?.user?.id,
-    summary: `Invited ${email} to the team`,
-    metadata: { email, name: name || null },
+    summary: `Invited ${email} to the team${modules ? ` (${presetForModules(modules)?.label ?? modules.join(", ")})` : ""}`,
+    metadata: { email, name: name || null, modules },
     actor: caller,
     request: req,
   });
@@ -235,11 +248,9 @@ async function setModules(
   id: string,
   raw: unknown
 ) {
-  if (raw !== null && (!Array.isArray(raw) || !raw.every(isModuleKey))) {
-    return NextResponse.json({ error: "Invalid areas." }, { status: 400 });
-  }
-  // Canonical order, no duplicates. null clears the restriction (every area).
-  const modules: ModuleKey[] | null = raw === null ? null : MODULE_KEYS.filter((k) => (raw as unknown[]).includes(k));
+  const parsed = parseModules(raw);
+  if (!parsed.ok) return NextResponse.json({ error: "Invalid areas." }, { status: 400 });
+  const modules = parsed.modules;
 
   const { data: target } = await supabaseAdmin.auth.admin.getUserById(id);
   if (!target.user) return NextResponse.json({ error: "No such member." }, { status: 404 });
@@ -250,7 +261,8 @@ async function setModules(
   const { error } = await supabaseAdmin.auth.admin.updateUserById(id, { app_metadata: meta });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const label = (m: ModuleKey[] | null) => (m === null ? "all areas" : m.length ? m.join(", ") : "no areas");
+  const label = (m: ModuleKey[] | null) =>
+    m === null ? "all areas" : presetForModules(m)?.label ?? (m.length ? m.join(", ") : "no areas");
   await recordAudit({
     action: "team.access_change",
     entityType: "user",
@@ -262,6 +274,14 @@ async function setModules(
   });
 
   return NextResponse.json({ ok: true, modules });
+}
+
+// Area list from a request body: canonical order, no duplicates. null means no
+// restriction (every area).
+function parseModules(raw: unknown): { ok: true; modules: ModuleKey[] | null } | { ok: false } {
+  if (raw === null) return { ok: true, modules: null };
+  if (!Array.isArray(raw) || !raw.every(isModuleKey)) return { ok: false };
+  return { ok: true, modules: MODULE_KEYS.filter((k) => raw.includes(k)) };
 }
 
 export async function DELETE(req: NextRequest) {

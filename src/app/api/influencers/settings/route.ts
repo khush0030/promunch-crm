@@ -50,6 +50,14 @@ export async function PATCH(req: NextRequest) {
     patch.default_post_after_approval_days = body.default_post_after_approval_days;
   }
 
+  for (const [k, max] of [["brief_focus", 80], ["brief_focus_notes", 600]] as const) {
+    if (!has(k)) continue;
+    const v = body[k];
+    if (v === null || (typeof v === "string" && !v.trim())) patch[k] = null;
+    else if (typeof v === "string" && v.trim().length <= max) patch[k] = v.trim();
+    else return jsonError(`${k} must be text up to ${max} characters`);
+  }
+
   const current = await getSettings();
   if (has("nudges")) {
     const n = body.nudges;

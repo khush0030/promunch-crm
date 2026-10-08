@@ -10,7 +10,7 @@ Reference values for this project:
 - Supabase URL: **`https://wlungshkwfuggtbantkb.supabase.co`** (Mumbai, ap-south-1, PROMUNCH org on the Free plan; moved from Seoul on 2026-10-07)
 - Vercel functions region: **`bom1`** (pinned in `vercel.json`, next to the database)
 - Production app: **`https://promunch-crm.vercel.app`**
-- `CRON_SECRET` (already chosen): **`w1xcPz5K2mFm-N2N7Mfh-0YGGPDtbKS8voUpyXd0YJ0`**
+- `CRON_SECRET`: set in Vercel (Production) and in Supabase Vault as `cron_secret`; the two must match. Never write the value into this repo (it is public). Rotated 2026-10-07 after it leaked here.
 
 Keep a scratch note as you go — you'll copy the **new service_role key** and **new
 anon key** into three places each.
@@ -105,7 +105,7 @@ Dashboard path: **Vercel → promunch-crm → Settings → Environment Variables
 **Required — fail-closed secrets (routes 401 without these):**
 | Name | Value / source |
 |---|---|
-| `CRON_SECRET` | `w1xcPz5K2mFm-N2N7Mfh-0YGGPDtbKS8voUpyXd0YJ0` |
+| `CRON_SECRET` | `<CRON_SECRET>` (the Vercel Production value) |
 | `RESEND_WEBHOOK_SECRET` | Resend dashboard → Webhooks → signing secret |
 | `RESEND_INBOUND_SECRET` | Resend dashboard → Inbound → signing secret |
 | `SHOPIFY_WEBHOOK_SECRET` | **only if** a Shopify webhook points at `promunch-crm.vercel.app/api/webhooks/shopify` (check Shopify → Settings → Notifications). If nothing does, skip it. |
@@ -136,7 +136,7 @@ select vault.update_secret(
   '<NEW_SERVICE_ROLE_KEY>');
 
 -- cron_secret: the CRON_SECRET value, so pg_cron can call the Next.js cron route
-select vault.create_secret('w1xcPz5K2mFm-N2N7Mfh-0YGGPDtbKS8voUpyXd0YJ0', 'cron_secret');
+select vault.create_secret('<CRON_SECRET>', 'cron_secret');
 ```
 
 ---

@@ -189,3 +189,9 @@ verify_jwt = false                    # called by Next.js API + influencer-tick 
 
 [functions.influencer-tick]
 verify_jwt = false                    # invoked by pg_cron (*/15) with service-role bearer; gated by requireInternal
+
+[functions.orm-tick]
+verify_jwt = false                    # invoked by pg_cron (*/15) + Next.js "Run now" with service-role bearer; gated by requireInternal
+
+[functions.bulk-lead-alert]
+verify_jwt = false                    # bulk_inquiries insert trigger + pg_cron sweep (Vault service-role bearer); gated by requireInternal

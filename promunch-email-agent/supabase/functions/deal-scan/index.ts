@@ -392,6 +392,16 @@ async function processThread(
 async function matchDeal(ex: DealExtraction, msgs: ThreadMessage[]): Promise<DealRow | null> {
   const sel =
     "id, company_name, company_domain, kind, contact_name, contact_email, stage, samples_sent_at, first_email_at, manual_stage_override, manual_kind_override";
+  // Same contact first: a person who filled the promunch.in bulk form already
+  // has a deal (contact_email set, often a personal Gmail with no company
+  // domain), so their reply must land on it instead of opening a duplicate.
+  const contact = (ex.contact_email ?? threadContactEmail(msgs))?.toLowerCase() ?? null;
+  if (contact) {
+    const { data } = await db().from("deals").select(sel).ilike("contact_email", contact)
+      .not("stage", "in", "(won,lost)")
+      .order("created_at", { ascending: false }).limit(1);
+    if (data?.length) return data[0] as DealRow;
+  }
   const domain = ex.company_domain ?? threadCompanyDomain(msgs);
   if (domain) {
     const { data } = await db().from("deals").select(sel).ilike("company_domain", domain)

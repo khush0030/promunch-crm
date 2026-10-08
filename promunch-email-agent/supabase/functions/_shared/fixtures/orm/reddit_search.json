@@ -1,0 +1,41 @@
+{
+  "kind": "Listing",
+  "data": {
+    "after": null,
+    "dist": 2,
+    "children": [
+      {
+        "kind": "t3",
+        "data": {
+          "id": "1abcd",
+          "name": "t3_1abcd",
+          "title": "Anyone tried Promunch edamame?",
+          "selftext": "Saw it on Amazon, is it any good?",
+          "author": "snackguy",
+          "subreddit": "IndianFood",
+          "permalink": "/r/IndianFood/comments/1abcd/anyone_tried_promunch/",
+          "url": "https://www.reddit.com/r/IndianFood/comments/1abcd/anyone_tried_promunch/",
+          "is_self": true,
+          "created_utc": 1759900000,
+          "score": 12,
+          "num_comments": 4
+        }
+      },
+      {
+        "kind": "t1",
+        "data": {
+          "id": "c9",
+          "name": "t1_c9",
+          "body": "Promunch crunchies are great with chai",
+          "author": "[deleted]",
+          "link_id": "t3_1abcd",
+          "link_title": "Anyone tried Promunch edamame?",
+          "subreddit": "IndianFood",
+          "permalink": "/r/IndianFood/comments/1abcd/x/c9/",
+          "created_utc": 1759903600
+        }
+      },
+      { "kind": "more", "data": {} }
+    ]
+  }
+}

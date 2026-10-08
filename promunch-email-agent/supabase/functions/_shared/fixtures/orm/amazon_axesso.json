@@ -1,0 +1,29 @@
+[
+  {
+    "statusCode": 200,
+    "statusMessage": "FOUND_SUCCESS",
+    "asin": "B0CXYZ1234",
+    "productTitle": "PROMUNCH Roasted Edamame Himalayan Rock Salt",
+    "reviewId": "R2ABCDEF123",
+    "title": "5.0 out of 5 stars Tasty and crunchy",
+    "text": "Great snack, high protein.",
+    "rating": "5.0 out of 5 stars",
+    "date": "Reviewed in India on 5 October 2026",
+    "userName": "Rahul",
+    "verified": true,
+    "numberOfHelpful": 2,
+    "domainCode": "in",
+    "imageUrlList": [],
+    "variationList": ["Flavour Name: Himalayan Rock Salt"]
+  },
+  {
+    "asin": "B0CXYZ1234",
+    "reviewId": "R9BAD",
+    "title": "Found an insect",
+    "text": "There was an insect in the packet",
+    "rating": "1.0 out of 5 stars",
+    "date": "Reviewed in India on 7 October 2026",
+    "userName": "Neha"
+  },
+  { "statusCode": 404, "statusMessage": "NOT_FOUND" }
+]

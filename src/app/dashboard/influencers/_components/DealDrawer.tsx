@@ -5,6 +5,7 @@
 // the timeline. Deep-linkable via ?deal=<id>.
 
 import { useState } from "react";
+import { creatorPortalUrl } from "@/lib/influencers/portal-url";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, Check, Clock, Copy, Link2 } from "lucide-react";
 import { ConfirmDialog, Pill, type PillTone } from "@/components/pm";
@@ -82,7 +83,7 @@ function DealBody({ detail, onClose }: { detail: DealDetail; onClose: () => void
   const [copied, setCopied] = useState(false);
   const closed = deal.stage === "completed" || deal.stage === "cancelled" || deal.stage === "ghosted";
 
-  const portal = typeof window !== "undefined" ? `${window.location.origin}/c/${deal.code}` : `/c/${deal.code}`;
+  const portal = creatorPortalUrl(deal.code);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(portal);

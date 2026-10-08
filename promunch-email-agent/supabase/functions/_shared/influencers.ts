@@ -285,13 +285,18 @@ export function siteAppUrl(): string {
   return raw.replace(/\/+$/, "");
 }
 
+// Creator-facing host (collab.promunch.in). The Next middleware rewrites
+// /<code> to the portal page; the dashboard host keeps serving /c/<code>.
+export const DEFAULT_COLLAB_PORTAL_URL = "https://collab.promunch.in";
+
 export function portalUrl(code: string): string {
-  return `${siteAppUrl()}/c/${encodeURIComponent(code)}`;
+  const base = ((Deno.env.get("COLLAB_PORTAL_URL") ?? "").trim() || DEFAULT_COLLAB_PORTAL_URL).replace(/\/+$/, "");
+  return `${base}/${encodeURIComponent(code)}`;
 }
 
 // ---------------------------------------------------------------------------
 // Template registry (creator-facing). Every template has exactly one dynamic
-// URL button `<SITE_APP_URL>/c/{{1}}`; the button param is the deal code.
+// URL button `https://collab.promunch.in/{{1}}`; the button param is the deal code.
 // Copy + Meta definitions: docs/whatsapp/influencer-templates.md and
 // _shared/influencer-templates.json.
 // ---------------------------------------------------------------------------

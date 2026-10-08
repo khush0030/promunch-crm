@@ -65,6 +65,7 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 | Doc | What it answers |
 |---|---|
 | [2026-10-08 Redesign handoff](plans/2026-10-08-redesign-handoff.md) | **START HERE to continue the redesign in any session (local or cloud):** branch `redesign/app-v2` state, owner decisions, open questions, merge+deploy runbook, safe QA tools in `scripts/redesign-qa/` |
+| [2026-10-07 Bulk order form + instant reply](plans/2026-10-07-bulk-inquiry-autoreply.md) | Pify replaced by CRM form: deal + WhatsApp lead ping + branded Resend auto-reply with order-type questions; install snippet |
 | [2026-09-15 CRM redesign](plans/2026-09-15-crm-redesign/IMPLEMENTATION_PLAN.md) | APPROVED 15 Sep: 6-hub navigation, PROMUNCH brand system, 34 screens laptop + phone (prototype: `index.html` + `screens.js` in the same folder, live at https://claude.ai/artifact/Wej9SQVrLomK5jGNp84PSZ); Phase 0-1 implementation plan (LIVE 17 Sep) |
 | [2026-09-17 CRM redesign Phase 2: Inbox](plans/2026-09-15-crm-redesign/PHASE_2_INBOX_PLAN.md) | Unified conversations (WhatsApp + Instagram + email), conversation view, tickets board, email drafts queue with approve/edit/rewrite/skip in the CRM (new `email-draft-action` edge fn reusing the Slack approve claim) |
 | [2026-09-15-b2b-buyer-discovery.md](plans/2026-09-15-b2b-buyer-discovery.md) | Buyer Finder proposal: Apollo + ZeroBounce, named decision makers, UI/backend design, costs, deliverability safeguards and coverage pilot |
@@ -81,6 +82,8 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 | [2026-08-27-custom-domain-migration.md](plans/2026-08-27-custom-domain-migration.md) | Contingency runbook for moving off `promunch-crm.vercel.app` to a custom domain (not decided, not started) |
 | [2026-09-17-brevo-integration.md](plans/2026-09-17-brevo-integration.md) | Brevo email marketing integration: contact sync, order events, unsubscribe webhook, campaign stats page (plan, not built) |
 | [2026-10-07-app-redesign/](plans/2026-10-07-app-redesign/README.md) | Full-app UI redesign prototype in the promunch.in brand: brand, prior work, 55-route inventory, new 8-item IA, clickable screens + pop-ups (design only, not built) |
+| [2026-10-08-orm-build-spec.md](plans/2026-10-08-orm-build-spec.md) | ORM v1 build contract: schema, collectors, enrichment, alerts, API, Reputation screens (free tier) |
+| [2026-10-08-orm-brand-monitoring.md](plans/2026-10-08-orm-brand-monitoring.md) | Online reputation management plan: one Reputation feed for every review/comment/mention, AI sentiment + alerts, KB-grounded replies, phased by source (not built) |
 | [2026-10-07-influencer-automation.md](plans/2026-10-07-influencer-automation.md) | Replace influencer agency: delivery tracker first (brief, dispatch, reminders), IG bot later; owner decisions locked |
 | [2026-10-07-influencer-build-spec.md](plans/2026-10-07-influencer-build-spec.md) | Influencer delivery tracker v1 build contract: stages, portal, API, edge engine, Shopify dispatch |
 | [2026-10-07-supabase-mumbai-migration.md](plans/2026-10-07-supabase-mumbai-migration.md) | Supabase moved from Seoul to Mumbai (done Oct 7): inventory, webhook repoints, no-double-send cutover, what actually happened |
@@ -93,6 +96,7 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 | [2026-10-09 Inbox fidelity audit](audits/2026-10-09-inbox-fidelity.md) | Live chats prototype vs build: missing third (customer) panel, channel switch, density; what the three-panel rebuild shipped and what is left |
 | [2026-10-08 Redesign fidelity audit](audits/2026-10-08-redesign-fidelity.md) | Approved prototype (round 8) vs `redesign/app-v2` build: why it feels different, ranked fix list (UI-only vs needs-backend), bugs found, functional verdict |
 | [2026-10-09 B2B + Deals fidelity audit](audits/2026-10-09-b2b-deals-fidelity.md) | B2B leads and Deals vs prototype `b2b.html`: screen-by-screen gaps, click-count friction (408 drafts had no review queue), what the rebuild covers, what still needs backend |
+| [Google tag / Ads attribution fix](audits/2026-10-07-google-tag-fix/README.md) | Oct 2026: Speedien script blocked Google tags on storefront; theme fix, rollback theme, Ads goal setup |
 | [Domain migration final verification](audits/2026-09-13-domain-migration-evidence/REPORT.md) | Full-day results: domain/auth verified; operational failures and unverified jobs remain |
 | [12 Sep dashboard refinement (superseded)](archive/2026-09-12-dashboard-refinement/2026-09-12-dashboard-refinement-review.html) | Earlier proposal that kept the old navigation and Geist; replaced by the 15 Sep redesign |
 | [Earlier broad UI proposal (superseded)](archive/2026-09-12-broad-ui-proposal/audits/2026-09-12-ui-redesign-review.html) | Interactive visual review: 209 app views plus a component reference, laptop/mobile previews, states and local approval notes |

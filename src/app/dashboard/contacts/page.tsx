@@ -167,7 +167,7 @@ export default function ContactsPage() {
       .catch(() => {});
   }, []);
 
-  async function runImport(source: "klaviyo" | "shopify") {
+  async function runImport(source: "shopify") {
     setImporting(true);
     setImportMsg(`Importing from ${source}…`);
     try {
@@ -270,7 +270,7 @@ export default function ContactsPage() {
                 type="button"
                 className="pm2-btn ghost"
                 aria-label="More actions"
-                title="Import or export"
+                title="Sync or export"
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 disabled={importing}
@@ -282,11 +282,9 @@ export default function ContactsPage() {
                 <>
                   <div className={css.menuScrim} onClick={() => setMenuOpen(false)} />
                   <div className={css.menu} role="menu">
-                    {(["shopify", "klaviyo"] as const).map((src) => (
-                      <button key={src} type="button" role="menuitem" disabled={importing} onClick={() => { setMenuOpen(false); runImport(src); }}>
-                        <Upload /> Import from {src === "klaviyo" ? "Klaviyo" : "Shopify"}
-                      </button>
-                    ))}
+                    <button type="button" role="menuitem" disabled={importing} onClick={() => { setMenuOpen(false); runImport("shopify"); }}>
+                      <Upload /> Sync from Shopify
+                    </button>
                     <hr />
                     <button type="button" role="menuitem" title="Download the current filtered view as CSV" onClick={() => { setMenuOpen(false); exportCsv(); }}>
                       <Download /> Export this view as CSV
@@ -506,7 +504,7 @@ export default function ContactsPage() {
             title={loaded ? "No customers match" : "Loading…"}
             cta={loaded ? <button type="button" className="pm2-btn" disabled={importing} onClick={() => runImport("shopify")}><Upload size={15} /> Import from Shopify</button> : undefined}
           >
-            {loaded ? "Try a different search or filter, import from Shopify or Klaviyo, or add someone by hand." : undefined}
+            {loaded ? "Try a different search or filter, sync from Shopify, or add someone by hand." : undefined}
           </EmptyState>
         )}
       </div>

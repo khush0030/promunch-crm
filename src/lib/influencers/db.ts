@@ -62,6 +62,8 @@ export const DEFAULT_SETTINGS: InfluencerSettings = {
     post_due: { days_before: [1], overdue_after_days: 2, ghosted_after_days: 7 },
   },
   team_sla: { brief_approval_hours: 24, dispatch_hours: 48, draft_review_hours: 24 },
+  brief_focus: null,
+  brief_focus_notes: null,
 };
 
 export async function getSettings(): Promise<InfluencerSettings> {
@@ -77,6 +79,8 @@ export async function getSettings(): Promise<InfluencerSettings> {
       data.default_post_after_approval_days ?? DEFAULT_SETTINGS.default_post_after_approval_days,
     nudges: data.nudges ?? DEFAULT_SETTINGS.nudges,
     team_sla: { ...DEFAULT_SETTINGS.team_sla, ...(data.team_sla ?? {}) },
+    brief_focus: data.brief_focus ?? null,
+    brief_focus_notes: data.brief_focus_notes ?? null,
   };
 }
 
@@ -251,7 +255,7 @@ export async function suggestKit(followers: number | null | undefined, niche: st
  * route can show "Engine off: copy link instead" without failing the action.
  */
 export async function invokeInfluencerSend(
-  body: { deal_id: string; kind: string } | { reminder_id: string },
+  body: { deal_id: string; kind: string; retry?: boolean } | { reminder_id: string },
 ): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/influencer-send`, {

@@ -1,5 +1,5 @@
 // Dashboard navigation (sidebar, phone tab bar, More sheet, section tabs,
-// command palette). Eight places in three groups, plus Ask Maya pinned on top
+// command palette). Nine places in three groups, plus Ask Maya pinned on top
 // and Settings in the footer (docs/plans/2026-10-07-app-redesign/04-ia.md).
 //
 // Every place points at today's URLs; a place that spans several pages lists
@@ -14,6 +14,7 @@ import {
   Handshake,
   Users,
   LineChart,
+  Star,
   Settings,
   Sparkles,
   MessageCircle,
@@ -31,6 +32,7 @@ export type Area =
   | "Creators"
   | "B2B"
   | "Customers"
+  | "Reputation"
   | "Insights"
   | "Settings"
   | "Maya";
@@ -182,10 +184,9 @@ export const NAV: NavSection[] = [
             desc: "Email campaigns and automations",
             tours: ["email-studio"],
             pages: [{ label: "Email", href: "/dashboard/email", also: ["/dashboard/analytics"] }],
-            // Brevo hub and the old in-house email pages, retiring. Reachable
-            // by URL and the command palette only.
+            // The old in-house email pages, retiring. Reachable by URL and
+            // the command palette only.
             palette: [
-              { label: "Email (Brevo)", href: "/dashboard/marketing/email" },
               { label: "Legacy email campaigns", href: "/dashboard/campaigns" },
               { label: "Legacy email automations", href: "/dashboard/flows" },
             ],
@@ -230,6 +231,15 @@ export const NAV: NavSection[] = [
           { label: "Segments", href: "/dashboard/email/audiences" },
           { label: "Sign-up popup", href: "/dashboard/whatsapp?tab=growth" },
         ],
+      },
+      {
+        // Reviews, comments and mentions across the web (ORM feed). One page;
+        // its Feed / Overview / Settings tabs live on the page itself.
+        area: "Reputation",
+        label: "Reputation",
+        href: "/dashboard/reputation",
+        icon: Star,
+        desc: "Reviews and mentions across the web",
       },
       {
         area: "Insights",

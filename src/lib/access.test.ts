@@ -11,6 +11,9 @@ import {
   pageModule,
   MODULE_KEYS,
   NO_ACCESS_PATH,
+  ROLE_PRESETS,
+  presetForModules,
+  rolePreset,
 } from "./access";
 import { OWNER_EMAIL } from "./rbac";
 import { NAV, SETTINGS, itemFor, navFor } from "@/components/shell/nav";
@@ -38,6 +41,53 @@ describe("accessOf", () => {
   });
 });
 
+describe("role presets", () => {
+  const as = (key: string) =>
+    accessOf({ email: "r@promunch.in", app_metadata: { role: "agent", modules: [...(rolePreset(key)?.modules ?? [])] } });
+
+  it("every preset uses real areas, lands somewhere it can open, and is unique", () => {
+    for (const p of ROLE_PRESETS) {
+      expect(p.modules.every((m) => MODULE_KEYS.includes(m))).toBe(true);
+      const a = as(p.key);
+      expect(a.restricted).toBe(true);
+      expect(canOpenHref(a, landingFor(a))).toBe(true);
+      expect(presetForModules([...p.modules])?.key).toBe(p.key);
+    }
+  });
+  it("presetForModules matches exact lists only, in any order", () => {
+    expect(presetForModules(["email_marketing", "wa_marketing"])?.key).toBe("marketing");
+    expect(presetForModules(["wa_marketing", "audience"])).toBeNull();
+    expect(presetForModules([])).toBeNull();
+    expect(presetForModules(null)).toBeNull();
+  });
+  it("email marketing: Email Studio only, no WhatsApp", () => {
+    const a = as("email_marketing");
+    expect(canOpenHref(a, "/dashboard/email/campaigns/abc")).toBe(true);
+    expect(canCallApi(a, "/api/email-studio/flows/test", "POST")).toBe(true);
+    expect(canOpenHref(a, "/dashboard/whatsapp?tab=campaigns")).toBe(false);
+    expect(canCallApi(a, "/api/whatsapp/campaigns/abc/send", "POST")).toBe(false);
+    expect(canCallApi(a, "/api/contacts/export", "GET")).toBe(false);
+  });
+  it("WhatsApp automation: flows, cart recovery, campaigns, templates; no chats or email", () => {
+    const a = as("wa_automation");
+    expect(canOpenHref(a, "/dashboard/whatsapp?tab=flows")).toBe(true);
+    expect(canCallApi(a, "/api/whatsapp/flows/custom", "POST")).toBe(true);
+    expect(canCallApi(a, "/api/whatsapp/cart-recovery", "PUT")).toBe(true);
+    expect(canCallApi(a, "/api/whatsapp/templates/submit", "POST")).toBe(true);
+    expect(canOpenHref(a, "/dashboard/whatsapp?tab=inbox")).toBe(false);
+    expect(canCallApi(a, "/api/whatsapp/send", "POST")).toBe(false);
+    expect(canCallApi(a, "/api/whatsapp/kb", "POST")).toBe(false);
+    expect(canOpenHref(a, "/dashboard/email")).toBe(false);
+  });
+  it("marketing gets both, and still no sales, contacts or settings", () => {
+    const a = as("marketing");
+    expect(canOpenHref(a, "/dashboard/email")).toBe(true);
+    expect(canOpenHref(a, "/dashboard/whatsapp?tab=flows")).toBe(true);
+    expect(canOpenPage(a, "/dashboard/sales", null)).toBe(false);
+    expect(canOpenPage(a, "/dashboard/settings", null)).toBe(false);
+  });
+});
+
 describe("influencer tracker", () => {
   it("lives in the partners area (page + API)", () => {
     const partner = accessOf({ email: "c@promunch.in", app_metadata: { role: "agent", modules: ["partners"] } });
@@ -45,6 +95,21 @@ describe("influencer tracker", () => {
     expect(canCallApi(partner, "/api/influencers/deals/abc/drafts/def/review", "POST")).toBe(true);
     expect(canCallApi(marketer, "/api/influencers/deals", "GET")).toBe(false);
     expect(apiRule("/api/influencers/settings")?.modules).toEqual(["partners"]);
+  });
+});
+
+describe("reputation", () => {
+  it("is its own area (page + API), closed to other restricted members", () => {
+    const rep = accessOf({ email: "r@promunch.in", app_metadata: { role: "agent", modules: ["reputation"] } });
+    expect(pageModule("/dashboard/reputation", null)).toBe("reputation");
+    expect(canOpenHref(rep, "/dashboard/reputation?m=abc")).toBe(true);
+    expect(landingFor(rep)).toBe("/dashboard/reputation");
+    expect(canCallApi(rep, "/api/orm/mentions/abc/draft", "POST")).toBe(true);
+    expect(canCallApi(rep, "/api/orm/settings", "PATCH")).toBe(true);
+    expect(canCallApi(marketer, "/api/orm/mentions", "GET")).toBe(false);
+    expect(canOpenPage(marketer, "/dashboard/reputation", null)).toBe(false);
+    expect(apiRule("/api/orm/sources/judgeme/run")?.modules).toEqual(["reputation"]);
+    expect(apiRule("/api/ormX")).toBeNull();
   });
 });
 
@@ -63,7 +128,6 @@ describe("pages", () => {
     expect(canOpenHref(marketer, "/dashboard/whatsapp?tab=home")).toBe(true);
     expect(pageModule("/dashboard/whatsapp", "home")).toBe("wa_marketing");
     expect(canOpenHref(marketer, "/dashboard/whatsapp?tab=growth")).toBe(true);
-    expect(canOpenHref(marketer, "/dashboard/marketing/email/123/edit")).toBe(true);
     expect(canOpenHref(marketer, "/dashboard/email/campaigns/abc")).toBe(true);
     expect(canCallApi(marketer, "/api/email-studio/campaigns/abc/send", "POST")).toBe(true);
     expect(canOpenPage(marketer, "/dashboard", null)).toBe(false);
@@ -96,7 +160,6 @@ describe("api", () => {
     expect(canCallApi(marketer, "/api/whatsapp/lists", "POST")).toBe(true);
     expect(canCallApi(marketer, "/api/whatsapp/campaigns/audience-preview", "POST")).toBe(true);
     expect(canCallApi(marketer, "/api/whatsapp/campaigns/abc/journey", "GET")).toBe(true);
-    expect(canCallApi(marketer, "/api/brevo/campaigns/1/actions", "POST")).toBe(true);
     expect(canCallApi(marketer, "/api/metrics/attention", "GET")).toBe(true);
   });
   it("the marketer is refused customer chats, contacts, sales, settings", () => {

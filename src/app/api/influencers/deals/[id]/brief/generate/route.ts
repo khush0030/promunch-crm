@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { getKnowledgeBase } from "@/lib/leads/kb";
-import { DRAFT_MODEL } from "@/lib/leads/draft";
+import { getFullKnowledgeBase } from "@/lib/leads/kb";
 import { getSecret } from "@/lib/secrets";
-import { jsonError, logEvent, requireUser } from "@/lib/influencers/db";
+import { getSettings, jsonError, logEvent, requireUser } from "@/lib/influencers/db";
 import { UUID_RE } from "@/lib/influencers/normalize";
 import { enforceBriefRules, formatIstDate, validateBriefContent } from "@/lib/influencers/brief-content";
-import { BRIEF_JSON_SCHEMA, BRIEF_SYSTEM_PROMPT, buildBriefUserPrompt } from "@/lib/influencers/brief-prompt";
+import { BRIEF_JSON_SCHEMA, BRIEF_MODEL, BRIEF_SYSTEM_PROMPT, buildBriefKb, buildBriefUserPrompt } from "@/lib/influencers/brief-prompt";
 import type { Deliverables, UsageRights } from "@/lib/influencers/types";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +47,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const apiKey = await getSecret("OPENAI_API_KEY");
   if (!apiKey) return jsonError("OPENAI_API_KEY is not configured", 500);
-  const kb = await getKnowledgeBase();
+  const [fullKb, settings] = await Promise.all([getFullKnowledgeBase(), getSettings()]);
+  const kb = buildBriefKb(fullKb, settings.brief_focus);
 
   const deliverables = (deal.deliverables ?? { reels: 1, stories: 0, posts: 0 }) as Deliverables;
   const usageRights = (deal.usage_rights ?? "none") as UsageRights;
@@ -73,6 +73,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       discount_code: inf.discount_code,
       draft_due: draftDue,
       go_live: goLive,
+      focus: settings.brief_focus,
+      focus_notes: settings.brief_focus_notes,
     },
     kb,
   );
@@ -81,7 +83,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: DRAFT_MODEL,
+      model: BRIEF_MODEL,
       max_tokens: 1800,
       temperature: 0.7,
       response_format: { type: "json_schema", json_schema: BRIEF_JSON_SCHEMA },

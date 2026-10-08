@@ -6,7 +6,7 @@ import { useToast } from "@/components/ui/Toast";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { PageHeader, Avatar } from "@/components/pm";
 import { ApiKeysPanel } from "@/components/settings/ApiKeysPanel";
-import { MODULES, type ModuleKey } from "@/lib/access";
+import { MODULES, ROLE_PRESETS, presetForModules, rolePreset, type ModuleKey } from "@/lib/access";
 import { ago } from "@/components/admin/format";
 import { useHash } from "@/components/shell/useShellData";
 import css from "@/components/settings/Settings.module.css";
@@ -67,6 +67,10 @@ export default function SettingsPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
+  // "all" = every area (no restriction), else a ROLE_PRESETS key.
+  const [inviteRole, setInviteRole] = useState<string>("all");
+  // Bumped after an invite so the team list shows the new member.
+  const [teamVersion, setTeamVersion] = useState(0);
   const [logoBusy, setLogoBusy] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
@@ -126,7 +130,7 @@ export default function SettingsPage() {
       const r = await fetch("/api/team", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name }),
+        body: JSON.stringify({ email, name, modules: rolePreset(inviteRole)?.modules ?? null }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d?.error || "Invite failed.");
@@ -134,6 +138,8 @@ export default function SettingsPage() {
       setInviteOpen(false);
       setInviteEmail("");
       setInviteName("");
+      setInviteRole("all");
+      setTeamVersion((v) => v + 1);
     } catch (e) {
       toast.push({ kind: "error", text: `Invite failed: ${e instanceof Error ? e.message : "unknown"}` });
     } finally {
@@ -318,7 +324,7 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {tab === "team" && <div><TeamTable onCount={setTeamCount} /></div>}
+        {tab === "team" && <div><TeamTable key={teamVersion} onCount={setTeamCount} /></div>}
       </div>
 
       {inviteOpen && (
@@ -354,6 +360,18 @@ export default function SettingsPage() {
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                 />
+              </div>
+              <div className={css.field}>
+                <label htmlFor="invite-role">Role</label>
+                <select id="invite-role" className={css.in} value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
+                  <option value="all">All areas (Agent)</option>
+                  {ROLE_PRESETS.map((p) => (
+                    <option key={p.key} value={p.key}>{p.label}</option>
+                  ))}
+                </select>
+                <span className={css.hintTx}>
+                  {rolePreset(inviteRole)?.hint ?? "Every area a member can use. You can narrow it later with Change."}
+                </span>
               </div>
               <div className="act">
                 <button type="button" className="pm2-btn" onClick={() => setInviteOpen(false)} disabled={inviteBusy}>
@@ -410,7 +428,9 @@ function TeamTable({ onCount }: { onCount: (n: number) => void }) {
         ? ["All areas"]
         : m.modules.length === 0
           ? ["No areas"]
-          : MODULES.filter((x) => m.modules!.includes(x.key)).map((x) => x.label);
+          : presetForModules(m.modules)
+            ? [presetForModules(m.modules)!.label]
+            : MODULES.filter((x) => m.modules!.includes(x.key)).map((x) => x.label);
 
   return (
     <>
@@ -521,6 +541,30 @@ function AccessDialog({ member, onClose, onSaved }: { member: Member; onClose: (
         <div className="t">Access for {member.name}</div>
         <div className="c">
           Choose which parts of the CRM {member.email ?? "this member"} can open. Everything else is hidden and blocked.
+        </div>
+
+        <div className={css.presets}>
+          <span className={css.lab}>Quick roles</span>
+          <div className="pm2-chips">
+            {ROLE_PRESETS.map((p) => {
+              const on = !all && presetForModules([...picked])?.key === p.key;
+              return (
+                <button
+                  key={p.key}
+                  type="button"
+                  className={`pm2-chip${on ? " on" : ""}`}
+                  aria-pressed={on}
+                  title={p.hint}
+                  onClick={() => {
+                    setAll(false);
+                    setPicked(new Set(p.modules));
+                  }}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <label className={`${css.check} ${css.checkAll}`}>

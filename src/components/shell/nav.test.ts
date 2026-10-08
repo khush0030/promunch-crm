@@ -12,7 +12,7 @@ describe("shell nav", () => {
     expect(parseHref("/dashboard/settings#connections")).toEqual({ path: "/dashboard/settings", tab: null, hash: "#connections" });
   });
 
-  it("has eight places in three groups, Ask Maya pinned and Settings in the footer", () => {
+  it("has nine places in three groups, Ask Maya pinned and Settings in the footer", () => {
     expect(NAV.map((s) => s.title)).toEqual([null, "Grow", "Know"]);
     expect(NAV.flatMap((s) => s.items.map((it) => it.label))).toEqual([
       "Home",
@@ -22,6 +22,7 @@ describe("shell nav", () => {
       "Creators",
       "B2B & deals",
       "Customers",
+      "Reputation",
       "Insights",
     ]);
     expect(NAV[1].items[0].children?.map((c) => c.label)).toEqual(["WhatsApp", "Email"]);
@@ -89,6 +90,14 @@ describe("shell nav", () => {
     expect(place("/dashboard/flows/abc")).toBe("Email");
     expect(place("/dashboard/settings", null, "#connections")).toBe("Settings");
     expect(at("/dashboard/campaigns")?.page).toBeNull();
+    expect(place("/dashboard/flows")).toBe("Email");
+  });
+
+  it("lists Reputation in Know and keeps it highlighted on every tab and deep link", () => {
+    expect(NAV[2].items.map((it) => it.label)).toEqual(["Customers", "Reputation", "Insights"]);
+    expect(place("/dashboard/reputation")).toBe("Reputation");
+    expect(place("/dashboard/reputation", "settings")).toBe("Reputation");
+    expect(at("/dashboard/reputation", "overview")?.area).toBe("Reputation");
   });
 
   it("never lists Instagram while its backend is off, keeps WhatsApp jumps in the palette", () => {
