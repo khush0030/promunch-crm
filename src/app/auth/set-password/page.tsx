@@ -2,9 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
-import { Lock, ArrowRight } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { AuthSplit } from "../../login/AuthSplit";
+import s from "../../login/auth.module.css";
+
+// Display-only strength meter. The rules that gate saving are unchanged
+// (min 8 characters + both fields match, checked in handleSubmit).
+function strength(pw: string): { pct: number; color: string; label: string } {
+  if (!pw) return { pct: 0, color: "#5C554E", label: "At least 8 characters." };
+  let score = 0;
+  if (pw.length >= 8) score++;
+  if (pw.length >= 12) score++;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
+  if (/\d/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  if (pw.length < 8) return { pct: 15, color: "#B3261E", label: "At least 8 characters. Too short." };
+  if (score <= 2) return { pct: 45, color: "#A96500", label: "At least 8 characters. Okay." };
+  if (score === 3) return { pct: 70, color: "#2E7D46", label: "At least 8 characters. Good." };
+  return { pct: 100, color: "#2E7D46", label: "At least 8 characters. Strong." };
+}
 
 // Where invited users (and password resets) land. They arrive already
 // signed in via /auth/callback, so we just collect a password and call
@@ -14,6 +30,7 @@ export default function SetPasswordPage() {
   const supabase = createSupabaseBrowserClient();
 
   const [checking, setChecking] = useState(true);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
@@ -25,6 +42,7 @@ export default function SetPasswordPage() {
         router.replace("/login");
         return;
       }
+      setUserEmail(data.user.email ?? null);
       setChecking(false);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -55,119 +73,72 @@ export default function SetPasswordPage() {
 
   if (checking) return null;
 
+  const meter = strength(password);
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        background: "var(--canvas)",
-        padding: 24,
-      }}
+    <AuthSplit
+      headline={
+        <>
+          Welcome
+          <br />
+          to the crew.
+        </>
+      }
+      eyebrow="★ PROMUNCH CRM · Your Munchy Pal"
     >
-      <div className="card card-pad" style={{ width: "100%", maxWidth: 420, padding: 32 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-          <Image
-            src="/pm-logo-square.png"
-            alt="PROMUNCH"
-            width={36}
-            height={36}
-            style={{ borderRadius: 8, display: "block" }}
-            priority
+      <h2 className={s.h2}>Set your password</h2>
+      <p className={s.sub}>{userEmail ? `For ${userEmail}` : "Choose a password to finish setting up your account."}</p>
+
+      <form onSubmit={handleSubmit} className={s.form}>
+        <div className={s.field}>
+          <label className={s.label} htmlFor="sp-password">
+            New password
+          </label>
+          <input
+            id="sp-password"
+            type="password"
+            className={s.input}
+            required
+            minLength={8}
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            aria-describedby="sp-hint"
           />
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: "0.01em" }}>PROMUNCH</div>
-            <div
-              style={{
-                fontSize: 11,
-                color: "var(--text-2)",
-                letterSpacing: "0.14em",
-                fontWeight: 500,
-              }}
-            >
-              CRM
-            </div>
+          <span id="sp-hint" className={s.hint}>
+            {meter.label}
+          </span>
+          <div className={s.bar} aria-hidden>
+            <i style={{ width: `${meter.pct}%`, background: meter.color }} />
           </div>
         </div>
-        <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.015em", marginBottom: 4 }}>
-          Set your password
-        </h1>
-        <div className="sub" style={{ marginBottom: 18 }}>
-          Choose a password to finish setting up your account.
+
+        <div className={s.field}>
+          <label className={s.label} htmlFor="sp-confirm">
+            Type it again
+          </label>
+          <input
+            id="sp-confirm"
+            type="password"
+            className={s.input}
+            required
+            minLength={8}
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div className="field">
-            <label>New password (min 8 chars)</label>
-            <div style={{ position: "relative" }}>
-              <Lock
-                size={14}
-                style={{
-                  position: "absolute",
-                  left: 11,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "var(--text-3)",
-                }}
-              />
-              <input
-                type="password"
-                className="input"
-                style={{ paddingLeft: 32 }}
-                placeholder="••••••••"
-                required
-                minLength={8}
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          </div>
+        <button type="submit" className={`${s.btn} ${s.primary}`} disabled={busy}>
+          {busy ? "Saving…" : "Save and open the CRM"}
+        </button>
+      </form>
 
-          <div className="field">
-            <label>Confirm password</label>
-            <div style={{ position: "relative" }}>
-              <Lock
-                size={14}
-                style={{
-                  position: "absolute",
-                  left: 11,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "var(--text-3)",
-                }}
-              />
-              <input
-                type="password"
-                className="input"
-                style={{ paddingLeft: 32 }}
-                placeholder="••••••••"
-                required
-                minLength={8}
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {err && (
-            <div className="pill accent" style={{ alignSelf: "flex-start" }}>
-              {err}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            className="btn primary"
-            disabled={busy}
-            style={{ justifyContent: "center", marginTop: 4 }}
-          >
-            {busy ? "Saving…" : "Save password"}
-            {!busy && <ArrowRight size={14} />}
-          </button>
-        </form>
-      </div>
-    </div>
+      {err && (
+        <div role="alert" className={`${s.msg} ${s.msgBad}`}>
+          {err}
+        </div>
+      )}
+    </AuthSplit>
   );
 }

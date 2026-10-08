@@ -1,0 +1,265 @@
+/* Split sign-in layout from the approved prototype (public.html#login,
+   #set-password): red pinstripe band left, calm form card right. Stacks on phones. */
+
+.auth {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #f4f1ea;
+  color: #1a1714;
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.art {
+  background: #af272f;
+  color: #ffffff;
+  padding: 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0 2px, transparent 2px 9px);
+}
+
+.logoChip {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 12px 16px;
+  display: inline-flex;
+  align-self: flex-start;
+}
+
+.logoChip img {
+  height: 20px;
+  width: auto;
+  display: block;
+}
+
+.headline {
+  margin: 0;
+  font: 400 clamp(44px, 5.5vw, 84px) / 0.95 var(--font-display), "Arial Black", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+
+.eyebrow {
+  font-family: var(--font-mono), ui-monospace, Menlo, monospace;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.formSide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  background: #f4f1ea;
+}
+
+.card {
+  width: min(420px, 100%);
+  padding: 32px;
+  background: #ffffff;
+  border: 1px solid #e7e2d8;
+  border-radius: 20px;
+}
+
+.h2 {
+  margin: 0;
+  font: 400 20px/1.25 var(--font-display), "Arial Black", sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.sub {
+  margin: 8px 0 0;
+  color: #3b342e;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  margin-top: 24px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field + .field {
+  margin-top: 16px;
+}
+
+.labelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.label {
+  font-weight: 700;
+  font-size: 14.5px;
+  letter-spacing: 0.1px;
+}
+
+.input {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid #e2dcd0;
+  border-radius: 14px;
+  background: #fffdf9;
+  box-shadow: inset 0 1px 2px rgba(26, 23, 20, 0.04);
+  font: 400 16px/1 var(--font-sans), system-ui, sans-serif;
+  color: #1a1714;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input:focus {
+  outline: 0;
+  border-color: #3b342e;
+  box-shadow: 0 0 0 4px rgba(175, 39, 47, 0.1);
+}
+
+.hint {
+  font-size: 14px;
+  color: #5c554e;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 46px;
+  padding: 0 20px;
+  border-radius: 14px;
+  font: 700 15.5px/1 var(--font-sans), system-ui, sans-serif;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #3b342e;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.btn:hover {
+  background: #f1ede4;
+  color: #1a1714;
+}
+
+.btn:focus-visible,
+.quiet:focus-visible {
+  outline: 2px solid #1a1714;
+  outline-offset: 2px;
+}
+
+.btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.primary {
+  height: 54px;
+  font-size: 16.5px;
+  background: #af272f;
+  border-color: #af272f;
+  color: #ffffff;
+  margin-top: 24px;
+}
+
+.primary:hover {
+  background: #8e1f26;
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(175, 39, 47, 0.28);
+}
+
+.ghostGap {
+  margin-top: 8px;
+}
+
+.quiet {
+  background: none;
+  border: none;
+  padding: 0;
+  font: 600 14px/1.3 var(--font-sans), system-ui, sans-serif;
+  color: #af272f;
+  cursor: pointer;
+}
+
+.quiet:hover {
+  text-decoration: underline;
+}
+
+.note {
+  margin: 16px 0 0;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: #5c554e;
+}
+
+.switchLine {
+  margin: 12px 0 0;
+  font-size: 14.5px;
+  color: #5c554e;
+}
+
+.msg {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.msgBad {
+  background: #fbe3df;
+  border: 1px solid #f1c4bd;
+  color: #8e1f26;
+}
+
+.msgGood {
+  background: #e4f1e7;
+  border: 1px solid #c5e0cc;
+  color: #1f5a32;
+}
+
+.bar {
+  height: 10px;
+  border-radius: 999px;
+  background: #f1ede4;
+  overflow: hidden;
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.2s, background 0.2s;
+}
+
+@media (max-width: 760px) {
+  .auth {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  .art {
+    padding: 24px 20px 28px;
+    gap: 28px;
+  }
+  .headline {
+    font-size: 40px;
+  }
+  .formSide {
+    align-items: flex-start;
+    padding: 32px 20px;
+  }
+  .card {
+    padding: 22px;
+  }
+}

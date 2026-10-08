@@ -1,9 +1,11 @@
 // Public unsubscribe confirmation page. Reachable without a session (middleware
-// allowlists /u). Applying is idempotent, so landing here directly — or twice —
+// allowlists /u). Applying is idempotent, so landing here directly, or twice,
 // is safe.
 
 import { verifyUnsubToken } from "@/lib/email/unsubscribe";
 import { applyUnsubscribe } from "@/lib/email/apply-unsubscribe";
+import { MailX, Link2Off as LinkIcon } from "lucide-react";
+import s from "../../not-found.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -29,62 +31,43 @@ export default async function UnsubscribePage({
     }
   }
 
-  const wrap: React.CSSProperties = {
-    minHeight: "100vh",
-    display: "grid",
-    placeItems: "center",
-    background: "#F1EBE0",
-    padding: "24px",
-    fontFamily: "'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif",
-    color: "#1A1714",
-  };
-  const card: React.CSSProperties = {
-    width: "100%",
-    maxWidth: "440px",
-    background: "#FFFFFF",
-    border: "1px solid #E8DFD0",
-    borderRadius: "16px",
-    padding: "34px 30px",
-    textAlign: "center",
-  };
-
   return (
-    <main style={wrap}>
-      <div style={card}>
-        <div style={{ color: "#1B2A20", fontWeight: 800, fontSize: "20px", letterSpacing: ".5px" }}>
-          PROMUNCH
-        </div>
-        <div style={{ color: "#C98A1E", fontStyle: "italic", fontSize: "12px", marginTop: "2px" }}>
-          Your Munchy Pal
-        </div>
-
+    <main className={s.solo}>
+      <div className={`${s.card} ${s.cardNarrow}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/promunch-wordmark.png" alt="PROMUNCH" className={s.logo} width={92} height={22} />
         {ok ? (
-          <>
-            <h1 style={{ fontSize: "20px", margin: "22px 0 8px", letterSpacing: "-.3px" }}>
-              You are unsubscribed
-            </h1>
-            <p style={{ color: "#6E665A", fontSize: "13.5px", lineHeight: 1.6, margin: 0 }}>
+          <div className={`${s.empty} ${s.emptyTight}`}>
+            <div className={s.art}>
+              <MailX aria-hidden />
+            </div>
+            <h1 className={s.title}>You&apos;re unsubscribed</h1>
+            <p className={s.text}>
               {email ? (
                 <>
-                  <b>{email}</b> will no longer receive PROMUNCH marketing email. We are sad to see you
-                  go. You can rejoin any time from our website.
+                  <b>{email}</b> won&apos;t get marketing emails from PROMUNCH any more. We&apos;re sad to see you go. You
+                  can rejoin any time from our website.
                 </>
               ) : (
-                <>You will no longer receive PROMUNCH marketing email. You can rejoin any time from our website.</>
+                <>
+                  You won&apos;t get marketing emails from PROMUNCH any more. You can rejoin any time from our website.
+                </>
               )}
             </p>
-          </>
+          </div>
         ) : (
-          <>
-            <h1 style={{ fontSize: "20px", margin: "22px 0 8px", letterSpacing: "-.3px" }}>
-              This link is not valid
-            </h1>
-            <p style={{ color: "#6E665A", fontSize: "13.5px", lineHeight: 1.6, margin: 0 }}>
-              We could not read this unsubscribe link. Open the most recent PROMUNCH email and tap
-              Unsubscribe again, or reply to that email and we will remove you.
+          <div className={`${s.empty} ${s.emptyTight}`}>
+            <div className={s.art}>
+              <LinkIcon aria-hidden />
+            </div>
+            <h1 className={s.title}>This link is not valid</h1>
+            <p className={s.text}>
+              We couldn&apos;t read this unsubscribe link. Open the most recent PROMUNCH email and tap Unsubscribe
+              again, or reply to that email and we&apos;ll remove you.
             </p>
-          </>
+          </div>
         )}
+        <p className={s.tagline}>★ Your Munchy Pal</p>
       </div>
     </main>
   );

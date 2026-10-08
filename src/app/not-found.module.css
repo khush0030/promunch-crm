@@ -1,0 +1,193 @@
+/* Shared "state" styles (404, no access, error, unsubscribe), matching the
+   approved prototype's .solo / .card / .empty pattern (public.html, other.html).
+   Colours are the promunch.in brand: paper #F4F1EA, ink #1A1714, red #AF272F. */
+
+.solo {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: #f4f1ea;
+  color: #1a1714;
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid #e7e2d8;
+  border-radius: 20px;
+  padding: 24px;
+  width: min(480px, 100%);
+}
+
+.cardNarrow {
+  width: min(460px, 100%);
+  padding: 36px 28px;
+  text-align: center;
+}
+
+/* Inside the dashboard shell: full-width card under the top bar. */
+.inShell {
+  width: 100%;
+  margin-top: 24px;
+}
+
+.empty {
+  text-align: center;
+  padding: 56px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.emptyTight {
+  padding: 28px 0 8px;
+}
+
+.art {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: #f1ede4;
+  display: grid;
+  place-items: center;
+  color: #3b342e;
+  margin-bottom: 6px;
+  position: relative;
+}
+
+.art svg {
+  width: 34px;
+  height: 34px;
+  stroke-width: 1.75;
+}
+
+.sticker {
+  position: absolute;
+  top: -6px;
+  right: -18px;
+  display: inline-block;
+  background: #febd11;
+  color: #1a1714;
+  font: 700 10.5px/1 var(--font-mono), ui-monospace, Menlo, monospace;
+  letter-spacing: 0.1em;
+  padding: 5px 8px;
+  border-radius: 6px;
+  transform: rotate(-3deg);
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  font: 400 22px/1.2 var(--font-display), "Arial Black", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  color: #1a1714;
+}
+
+.text {
+  margin: 0;
+  color: #3b342e;
+  max-width: 44ch;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.text b {
+  color: #1a1714;
+  word-break: break-word;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 20px;
+  border-radius: 14px;
+  font: 700 15.5px/1 var(--font-sans), system-ui, sans-serif;
+  border: 1px solid #e7e2d8;
+  background: #ffffff;
+  color: #1a1714;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+
+.btn:hover {
+  border-color: #cfc7b9;
+}
+
+.btn:focus-visible {
+  outline: 2px solid #1a1714;
+  outline-offset: 2px;
+}
+
+.btnPrimary {
+  background: #af272f;
+  border-color: #af272f;
+  color: #ffffff;
+}
+
+.btnPrimary:hover {
+  background: #8e1f26;
+  border-color: #8e1f26;
+  box-shadow: 0 10px 24px rgba(175, 39, 47, 0.28);
+}
+
+.btnGhost {
+  background: transparent;
+  border-color: transparent;
+  color: #3b342e;
+}
+
+.btnGhost:hover {
+  background: #f1ede4;
+  border-color: transparent;
+  color: #1a1714;
+}
+
+.logo {
+  display: block;
+  height: 22px;
+  width: auto;
+  margin: 0 auto;
+}
+
+.tagline {
+  margin: 16px 0 0;
+  font-family: var(--font-mono), ui-monospace, Menlo, monospace;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: #5c554e;
+}
+
+@media (max-width: 760px) {
+  .card {
+    padding: 18px;
+  }
+  .cardNarrow {
+    padding: 28px 18px;
+  }
+  .inShell {
+    margin-top: 12px;
+  }
+  .empty {
+    padding: 40px 8px;
+  }
+  .emptyTight {
+    padding: 24px 0 8px;
+  }
+}

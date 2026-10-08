@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Image from "next/image";
-import { Mail, Lock, User as UserIcon, ArrowRight } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { isAllowedEmail, ALLOWED_DOMAINS_LABEL } from "@/lib/auth-domains";
+import { isAllowedEmail, ALLOWED_DOMAINS_LABEL, ALLOWED_EMAIL_DOMAINS } from "@/lib/auth-domains";
 import { safeAuthNext } from "@/lib/auth-options";
+import { AuthSplit } from "./AuthSplit";
+import s from "./auth.module.css";
 
 type Tab = "signin" | "signup" | "magic" | "reset";
 
@@ -27,6 +27,9 @@ function LoginInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  // Which action is in flight, so the right button shows "Sending…".
+  const [pending, setPending] = useState<Tab | null>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(initialErr);
 
@@ -35,21 +38,38 @@ function LoginInner() {
     setMsg(null);
   }
 
+  function switchTo(t: Tab) {
+    setTab(t);
+    reset();
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    await run(tab);
+  }
+
+  // "Email me a sign-in link" from the sign-in form: same magic-link call as
+  // before, it only needs a valid email (the password field is ignored).
+  async function sendMagicLink() {
+    if (emailRef.current && !emailRef.current.reportValidity()) return;
+    await run("magic");
+  }
+
+  async function run(mode: Tab) {
     reset();
     setBusy(true);
+    setPending(mode);
     try {
       if (!isAllowedEmail(email)) {
         throw new Error(`Only ${ALLOWED_DOMAINS_LABEL} email addresses are allowed.`);
       }
-      if (tab === "reset") {
+      if (mode === "reset") {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/auth/callback?next=/auth/set-password`,
         });
         if (error) throw error;
         setMsg("If an account exists for this email, a reset link is on its way. Open it in this browser.");
-      } else if (tab === "magic") {
+      } else if (mode === "magic") {
         const { error } = await supabase.auth.signInWithOtp({
           email,
           options: {
@@ -58,7 +78,7 @@ function LoginInner() {
         });
         if (error) throw error;
         setMsg("Magic link sent. Check your inbox.");
-      } else if (tab === "signup") {
+      } else if (mode === "signup") {
         if (password.length < 8) throw new Error("Password must be at least 8 characters.");
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -87,13 +107,15 @@ function LoginInner() {
       setErr(e instanceof Error ? e.message : "Authentication failed");
     } finally {
       setBusy(false);
+      setPending(null);
     }
   }
 
-  const submitLabel = busy
+  const primaryBusy = busy && pending === tab;
+  const submitLabel = primaryBusy
     ? tab === "signup"
       ? "Creating account…"
-      : tab === "magic"
+      : tab === "magic" || tab === "reset"
       ? "Sending…"
       : "Signing in…"
     : tab === "signup"
@@ -104,219 +126,130 @@ function LoginInner() {
     ? "Send reset link"
     : "Sign in";
 
+  const domainNote = `Only ${ALLOWED_EMAIL_DOMAINS.slice(1).join(", ")} and ${ALLOWED_EMAIL_DOMAINS[0]} emails can sign in.`;
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        background: "var(--canvas)",
-        padding: 24,
-      }}
+    <AuthSplit
+      headline={
+        <>
+          Crunch
+          <br />
+          the numbers.
+        </>
+      }
+      eyebrow="★ PROMUNCH CRM · Your Munchy Pal"
     >
-      <div className="card card-pad" style={{ width: "100%", maxWidth: 420, padding: 32 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-          <Image
-            src="/pm-logo-square.png"
-            alt="PROMUNCH"
-            width={36}
-            height={36}
-            style={{ borderRadius: 8, display: "block" }}
-            priority
-          />
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: "0.01em" }}>PROMUNCH</div>
-            <div
-              style={{
-                fontSize: 11,
-                color: "var(--text-2)",
-                letterSpacing: "0.14em",
-                fontWeight: 500,
-              }}
-            >
-              CRM
-            </div>
+      <h2 className={s.h2}>
+        {tab === "signup" ? "Create your account" : tab === "reset" ? "Reset your password" : "Sign in"}
+      </h2>
+      <p className={s.sub}>
+        {tab === "signup"
+          ? "Set up access to the PROMUNCH CRM with your work email."
+          : tab === "reset"
+          ? "We'll email you a link to set a new password."
+          : "Use your PROMUNCH work email."}
+      </p>
+
+      <form onSubmit={handleSubmit} className={s.form}>
+        {tab === "signup" && (
+          <div className={s.field}>
+            <label className={s.label} htmlFor="login-name">
+              Full name
+            </label>
+            <input
+              id="login-name"
+              type="text"
+              className={s.input}
+              placeholder="Khush Mutha"
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
           </div>
-        </div>
-        <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.015em", marginBottom: 4 }}>
-          {tab === "signup" ? "Create your account" : tab === "reset" ? "Reset your password" : "Sign in"}
-        </h1>
-        <div className="sub" style={{ marginBottom: 18 }}>
-          {tab === "signup"
-            ? `Set up access to PROMUNCH CRM. Only ${ALLOWED_DOMAINS_LABEL} emails are allowed.`
-            : `Use your ${ALLOWED_DOMAINS_LABEL} email to continue.`}
-        </div>
-
-        <div className="tabs" style={{ marginBottom: 16 }}>
-          <button
-            type="button"
-            className={`tab${tab === "signin" ? " active" : ""}`}
-            onClick={() => {
-              setTab("signin");
-              reset();
-            }}
-          >
-            Sign in
-          </button>
-          <button
-            type="button"
-            className={`tab${tab === "signup" ? " active" : ""}`}
-            onClick={() => {
-              setTab("signup");
-              reset();
-            }}
-          >
-            Sign up
-          </button>
-          <button
-            type="button"
-            className={`tab${tab === "magic" ? " active" : ""}`}
-            onClick={() => {
-              setTab("magic");
-              reset();
-            }}
-          >
-            Magic link
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {tab === "signup" && (
-            <div className="field">
-              <label>Full name</label>
-              <div style={{ position: "relative" }}>
-                <UserIcon
-                  size={14}
-                  style={{
-                    position: "absolute",
-                    left: 11,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "var(--text-3)",
-                  }}
-                />
-                <input
-                  type="text"
-                  className="input"
-                  style={{ paddingLeft: 32 }}
-                  placeholder="Khush Mutha"
-                  autoComplete="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="field">
-            <label>Email</label>
-            <div style={{ position: "relative" }}>
-              <Mail
-                size={14}
-                style={{
-                  position: "absolute",
-                  left: 11,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "var(--text-3)",
-                }}
-              />
-              <input
-                type="email"
-                className="input"
-                style={{ paddingLeft: 32 }}
-                placeholder="you@promunch.in"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {(tab === "signin" || tab === "signup") && (
-            <div className="field">
-              <label>Password{tab === "signup" ? " (min 8 chars)" : ""}</label>
-              <div style={{ position: "relative" }}>
-                <Lock
-                  size={14}
-                  style={{
-                    position: "absolute",
-                    left: 11,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "var(--text-3)",
-                  }}
-                />
-                <input
-                  type="password"
-                  className="input"
-                  style={{ paddingLeft: 32 }}
-                  placeholder="••••••••"
-                  required
-                  minLength={tab === "signup" ? 8 : undefined}
-                  autoComplete={tab === "signup" ? "new-password" : "current-password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-            </div>
-          )}
-
-          {err && (
-            <div className="pill accent" style={{ alignSelf: "flex-start" }}>
-              {err}
-            </div>
-          )}
-          {msg && (
-            <div className="pill green" style={{ alignSelf: "flex-start" }}>
-              {msg}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            className="btn primary"
-            disabled={busy}
-            style={{ justifyContent: "center", marginTop: 4 }}
-          >
-            {submitLabel}
-            {!busy && <ArrowRight size={14} />}
-          </button>
-        </form>
-
-        {tab === "signin" && (
-          <button type="button" className="btn" style={{ marginTop: 12 }} onClick={() => { setTab("reset"); reset(); }}>
-            Forgot password?
-          </button>
         )}
 
-        <div style={{ marginTop: 14, textAlign: "center", fontSize: 12.5 }}>
-          <span className="muted">
-            {tab === "signup" ? "Already have an account? " : "Need an account? "}
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              setTab(tab === "signup" ? "signin" : "signup");
-              reset();
-            }}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--accent)",
-              fontFamily: "inherit",
-              cursor: "pointer",
-              fontSize: 12.5,
-              padding: 0,
-              fontWeight: 500,
-            }}
-          >
-            {tab === "signup" ? "Sign in" : "Sign up"}
-          </button>
+        <div className={s.field}>
+          <label className={s.label} htmlFor="login-email">
+            Email
+          </label>
+          <input
+            id="login-email"
+            ref={emailRef}
+            type="email"
+            className={s.input}
+            placeholder="you@promunch.in"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
         </div>
-      </div>
-    </div>
+
+        {(tab === "signin" || tab === "signup") && (
+          <div className={s.field}>
+            <div className={s.labelRow}>
+              <label className={s.label} htmlFor="login-password">
+                Password{tab === "signup" ? " (min 8 characters)" : ""}
+              </label>
+              {tab === "signin" && (
+                <button type="button" className={s.quiet} onClick={() => switchTo("reset")}>
+                  Forgot password?
+                </button>
+              )}
+            </div>
+            <input
+              id="login-password"
+              type="password"
+              className={s.input}
+              required
+              minLength={tab === "signup" ? 8 : undefined}
+              autoComplete={tab === "signup" ? "new-password" : "current-password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+        )}
+
+        <button type="submit" className={`${s.btn} ${s.primary}`} disabled={busy}>
+          {submitLabel}
+        </button>
+
+        {tab === "signin" && (
+          <button type="button" className={`${s.btn} ${s.ghostGap}`} disabled={busy} onClick={sendMagicLink}>
+            {busy && pending === "magic" ? "Sending…" : "Email me a sign-in link"}
+          </button>
+        )}
+      </form>
+
+      {err && (
+        <div role="alert" className={`${s.msg} ${s.msgBad}`}>
+          {err}
+        </div>
+      )}
+      {msg && (
+        <div role="status" className={`${s.msg} ${s.msgGood}`}>
+          {msg}
+        </div>
+      )}
+
+      <p className={s.note}>{domainNote}</p>
+
+      {tab === "signin" ? (
+        <p className={s.switchLine}>
+          New to the team?{" "}
+          <button type="button" className={s.quiet} onClick={() => switchTo("signup")}>
+            Create an account
+          </button>
+        </p>
+      ) : (
+        <p className={s.switchLine}>
+          {tab === "signup" ? "Already have an account? " : "Remembered it? "}
+          <button type="button" className={s.quiet} onClick={() => switchTo("signin")}>
+            Back to sign in
+          </button>
+        </p>
+      )}
+    </AuthSplit>
   );
 }
 

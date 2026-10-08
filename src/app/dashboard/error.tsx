@@ -3,10 +3,12 @@
 // Dashboard-segment error boundary. A render/runtime crash on any dashboard
 // page lands here instead of the app-level global-error, so the sidebar and
 // layout stay alive and the user can retry or navigate away.
+// The raw error goes to Sentry and the console, never onto the screen.
 import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
 import Link from "next/link";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { CloudOff } from "lucide-react";
+import s from "../not-found.module.css";
 
 export default function DashboardError({
   error,
@@ -17,30 +19,26 @@ export default function DashboardError({
 }) {
   useEffect(() => {
     Sentry.captureException(error);
+    console.error("[dashboard] page crashed", error);
   }, [error]);
 
   return (
     <div className="pm-page">
-      <div className="pm-empty" style={{ maxWidth: 520, margin: "48px auto" }}>
-        <div className="eic">
-          <AlertTriangle />
-        </div>
-        <h3>Something went wrong loading this page</h3>
-        <p>
-          The rest of the dashboard is still running. Try again, or head back to the overview.
-          {error?.message ? (
-            <span style={{ display: "block", marginTop: 8, fontSize: 12, color: "var(--pm-hint)", wordBreak: "break-word" }}>
-              {error.message}
-            </span>
-          ) : null}
-        </p>
-        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-          <button type="button" className="pm-btn primary" onClick={() => reset()}>
-            <RefreshCw size={15} /> Retry
-          </button>
-          <Link href="/dashboard" className="pm-btn ghost">
-            Go to dashboard
-          </Link>
+      <div className={`${s.card} ${s.inShell}`}>
+        <div className={s.empty}>
+          <div className={s.art}>
+            <CloudOff aria-hidden />
+          </div>
+          <h1 className={s.title}>Couldn&apos;t load this page</h1>
+          <p className={s.text}>Something broke while loading it. Your data is safe, and the rest of the CRM still works.</p>
+          <div className={s.actions}>
+            <button type="button" className={s.btn} onClick={() => reset()}>
+              Try again
+            </button>
+            <Link href="/dashboard" className={`${s.btn} ${s.btnGhost}`}>
+              Back to Home
+            </Link>
+          </div>
         </div>
       </div>
     </div>
