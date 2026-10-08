@@ -86,9 +86,12 @@ export const SETTINGS: NavItem = {
   label: "Settings",
   href: "/dashboard/settings",
   icon: Settings,
-  desc: "Connections, team, API keys, brand, security",
+  desc: "Your profile, connections, team, API keys, brand, security",
   tours: ["settings"],
   pages: [
+    // Every member's own name + photo. Members who can't open Settings reach
+    // the same panel at /dashboard/profile (sidebar name link).
+    { label: "My profile", href: "/dashboard/settings#profile", also: ["/dashboard/profile"] },
     { label: "Connections", href: "/dashboard/settings#connections", also: ["/dashboard/settings"] },
     { label: "Team & access", href: "/dashboard/settings#team" },
     { label: "API keys", href: "/dashboard/settings#apikeys", adminOnly: true },

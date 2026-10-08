@@ -91,3 +91,17 @@
 }
 .hintTx{font-size:13px;color:var(--pm-muted);line-height:1.4}
 .presets{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+
+/* my profile: photo + name, hairline rows inside one card */
+.profTop{display:flex;align-items:center;gap:18px;padding:22px}
+.profTop .tx b{font-size:19px}
+.profRow{display:grid;grid-template-columns:160px minmax(0,1fr);gap:8px 18px;align-items:start;padding:18px 22px;border-top:1px solid var(--pm-line);margin:0}
+.profRow > .lab{padding-top:13px}
+.profBody{display:flex;flex-direction:column;gap:8px;min-width:0}
+.profName{display:flex;gap:8px;align-items:center;max-width:520px}
+.profName .in{flex:1;min-width:0}
+@media (max-width:760px){
+  .profTop{padding:18px 16px}
+  .profRow{grid-template-columns:minmax(0,1fr);padding:16px}
+  .profRow > .lab{padding-top:0}
+}

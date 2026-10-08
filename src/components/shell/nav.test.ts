@@ -69,9 +69,11 @@ describe("shell nav", () => {
     expect(page("/dashboard/sales/orders", "rules")).toBe("Call rules");
     expect(labels("/dashboard/contacts")).toEqual(["Customers", "Segments", "Sign-up popup"]);
     expect(page("/dashboard/email/audiences")).toBe("Segments");
-    expect(labels("/dashboard/settings", null, "#team")).toEqual(["Connections", "Team & access", "API keys", "Brand & email", "Security"]);
+    expect(labels("/dashboard/settings", null, "#team")).toEqual(["My profile", "Connections", "Team & access", "API keys", "Brand & email", "Security"]);
     expect(page("/dashboard/settings", null, "#team")).toBe("Team & access");
     expect(page("/dashboard/settings")).toBe("Connections");
+    expect(page("/dashboard/settings", null, "#profile")).toBe("My profile");
+    expect(page("/dashboard/profile")).toBe("My profile");
   });
 
   it("prefers the longer path: orders belong to Orders, the rest of sales to Insights", () => {
@@ -111,9 +113,9 @@ describe("shell nav", () => {
     const owner = accessOf({ email: "boss@promunch.in", app_metadata: { role: "admin" } });
     expect(sectionTabs(at("/dashboard/sales/web"), owner).map((p) => p.label)).toEqual(["Sales", "Website", "Amazon"]);
     expect(sectionTabs(at("/dashboard/influencers"), owner)).toEqual([]);
-    expect(sectionTabs(at("/dashboard/admin"), owner).map((p) => p.label)).toEqual(["Connections", "Team & access", "API keys", "Brand & email", "Security"]);
+    expect(sectionTabs(at("/dashboard/admin"), owner).map((p) => p.label)).toEqual(["My profile", "Connections", "Team & access", "API keys", "Brand & email", "Security"]);
     const agent = accessOf({ email: "a@promunch.in", app_metadata: { role: "agent" } });
-    expect(sectionTabs(at("/dashboard/settings"), agent).map((p) => p.label)).toEqual(["Connections", "Team & access", "Brand & email"]);
+    expect(sectionTabs(at("/dashboard/settings"), agent).map((p) => p.label)).toEqual(["My profile", "Connections", "Team & access", "Brand & email"]);
   });
 
   it("hides Call rules from members without WhatsApp marketing (its data lives there)", () => {

@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/Toast";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { PageHeader, Avatar } from "@/components/pm";
 import { ApiKeysPanel } from "@/components/settings/ApiKeysPanel";
+import { ProfilePanel } from "@/components/settings/ProfilePanel";
 import { MODULES, ROLE_PRESETS, presetForModules, rolePreset, type ModuleKey } from "@/lib/access";
 import { ago } from "@/components/admin/format";
 import { useHash } from "@/components/shell/useShellData";
@@ -28,6 +29,7 @@ function connectorIcon(id: string): LucideIcon {
 }
 
 const TABS = [
+  { key: "profile", label: "My profile" },
   { key: "connections", label: "Connections" },
   { key: "team", label: "Team & access" },
   { key: "apikeys", label: "API keys" },
@@ -36,6 +38,7 @@ const TABS = [
 // The Settings section tabs (shell nav) are the tab row; they change the
 // #hash and this page follows it. Each section has its own header.
 const TAB_META: Record<string, { crumb: string; title: string }> = {
+  profile: { crumb: "Settings", title: "My profile" },
   connections: { crumb: "Settings", title: "Connections" },
   team: { crumb: "Settings", title: "Team & access" },
   apikeys: { crumb: "Settings · owner only", title: "API keys" },
@@ -179,7 +182,9 @@ export default function SettingsPage() {
   const needLook = connectors.filter((c) => c.status === "degraded" || c.status === "down").length;
 
   const summary =
-    tab === "connections" ? (
+    tab === "profile" ? (
+      "Your name and photo, as your teammates see them."
+    ) : tab === "connections" ? (
       !health ? (
         "Checking every connection…"
       ) : working === total ? (
@@ -212,6 +217,12 @@ export default function SettingsPage() {
         }
       />
       <div className="pm2-body">
+        {tab === "profile" && (
+          <div>
+            <ProfilePanel />
+          </div>
+        )}
+
         {tab === "connections" && (
           <div>
             <div className={css.card}>
@@ -389,7 +400,7 @@ export default function SettingsPage() {
   );
 }
 
-type Member = { id: string; name: string; email: string | null; role: string; modules: ModuleKey[] | null; confirmed: boolean; last_sign_in_at?: string | null };
+type Member = { id: string; name: string; avatar_url?: string | null; email: string | null; role: string; modules: ModuleKey[] | null; confirmed: boolean; last_sign_in_at?: string | null };
 
 function TeamTable({ onCount }: { onCount: (n: number) => void }) {
   const [members, setMembers] = useState<Member[]>([]);
@@ -442,7 +453,7 @@ function TeamTable({ onCount }: { onCount: (n: number) => void }) {
           const roleEditable = editable && !isOwnerMember(m);
           return (
             <div key={m.id} className={css.member}>
-              <Avatar name={m.name} size={34} />
+              <Avatar name={m.name} src={m.avatar_url} size={34} />
               <div className={css.mBody}>
                 <div className={css.mName}>
                   <span>{m.name}</span>

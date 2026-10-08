@@ -79,7 +79,7 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 | [2026-08-26-sarvam-voice-cart-recovery-design.md](plans/2026-08-26-sarvam-voice-cart-recovery-design.md) | Sarvam voice agent rescue call for abandoned carts after WhatsApp fails (design spec) |
 | [2026-09-05-wa-inbox-alerts-and-share-links.md](plans/2026-09-05-wa-inbox-alerts-and-share-links.md) | WhatsApp inbox sound/browser alerts for Human-mode chats + shareable ?thread= deep links (design spec) |
 | [2026-08-26-sarvam-voice-cart-recovery.md](plans/2026-08-26-sarvam-voice-cart-recovery.md) | Sarvam voice cart recovery implementation plan (10 tasks) |
-| [2026-08-27-custom-domain-migration.md](plans/2026-08-27-custom-domain-migration.md) | Contingency runbook for moving off `promunch-crm.vercel.app` to a custom domain (not decided, not started) |
+| [2026-08-27-custom-domain-migration.md](plans/2026-08-27-custom-domain-migration.md) | Runbook for moving off `promunch-crm.vercel.app` to a custom domain (historical; done 2026-10-09, production is now `admin.promunch.in`) |
 | [2026-09-17-brevo-integration.md](plans/2026-09-17-brevo-integration.md) | Brevo email marketing integration: contact sync, order events, unsubscribe webhook, campaign stats page (plan, not built) |
 | [2026-10-07-app-redesign/](plans/2026-10-07-app-redesign/README.md) | Full-app UI redesign prototype in the promunch.in brand: brand, prior work, 55-route inventory, new 8-item IA, clickable screens + pop-ups (design only, not built) |
 | [2026-10-08-orm-build-spec.md](plans/2026-10-08-orm-build-spec.md) | ORM v1 build contract: schema, collectors, enrichment, alerts, API, Reputation screens (free tier) |

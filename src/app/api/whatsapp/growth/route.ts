@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 // embed route through getSecret().
 
 const WA_NUMBER = process.env.NEXT_PUBLIC_WA_NUMBER || "919981310247";
-const APP_URL = (process.env.SITE_APP_URL || "https://promunch-crm.vercel.app").replace(/\/+$/, "");
+const APP_URL = (process.env.SITE_APP_URL || "https://admin.promunch.in").replace(/\/+$/, "");
 const EMBED_URL = `${APP_URL}/api/public/wa-embed`;
 
 const waLink = (prefill: string) =>

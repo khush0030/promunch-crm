@@ -11,7 +11,7 @@ import { bulkFormScript } from "@/lib/bulk-inquiry/embed-script";
 export const dynamic = "force-dynamic";
 
 function appBaseUrl(): string {
-  return (process.env.SITE_APP_URL || "https://promunch-crm.vercel.app").replace(/\/+$/, "");
+  return (process.env.SITE_APP_URL || "https://admin.promunch.in").replace(/\/+$/, "");
 }
 
 export function GET() {

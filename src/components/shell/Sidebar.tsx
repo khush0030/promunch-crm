@@ -5,6 +5,8 @@ import { LogOut, HelpCircle, PanelLeftClose, PanelLeftOpen } from "lucide-react"
 import { MAYA, SETTINGS, itemFor, navFor, samePlace, type ActiveNav, type AttentionCounts, type NavItem } from "./nav";
 import { useAccess } from "./useAccess";
 import { initialsOf, type ShellUser } from "./useShellData";
+import { canOpenHref, PROFILE_PATH } from "@/lib/access";
+import { avatarColorToken, avatarTextColor, avatarTint, initials } from "@/lib/pm/avatar";
 
 type Props = {
   active: ActiveNav | null;
@@ -41,6 +43,10 @@ export default function Sidebar({ active, counts, user, signingOut, onSignOut, o
   const nav = navFor(access);
   const maya = itemFor(access, MAYA);
   const settings = itemFor(access, SETTINGS);
+  // The name opens My profile: inside Settings when the member can open it,
+  // else the stand-alone page every member can reach.
+  const profileHref = access && !canOpenHref(access, "/dashboard/settings#profile") ? PROFILE_PATH : "/dashboard/settings#profile";
+  const tone = user ? avatarColorToken(user.name || user.email) : null;
   const isOn = (it: NavItem) => samePlace(active?.item, it) || (!!it.children && it.children.some((c) => samePlace(active?.item, c)));
 
   const link = (it: NavItem, sub = false) => {
@@ -111,13 +117,28 @@ export default function Sidebar({ active, counts, user, signingOut, onSignOut, o
           <span className="lb">Collapse</span>
         </button>
         <div className="pm3-me">
-          <span className="pm3-av" aria-hidden>
-            {initialsOf(user)}
-          </span>
-          <span className="who">
-            <span className="nm">{user?.name || "Signed out"}</span>
-            <span className="rl">{user?.role || ""}</span>
-          </span>
+          <Link
+            href={profileHref}
+            className="pm3-me-link"
+            onClick={onNavigate}
+            title={rail ? `${user?.name ?? ""}: my profile` : "My profile"}
+            aria-label={user ? `${user.name}, open my profile` : "My profile"}
+          >
+            <span className="pm3-av" aria-hidden style={tone ? { background: avatarTint(tone), color: avatarTextColor(tone) } : undefined}>
+              {user?.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.avatarUrl} alt="" width={34} height={34} />
+              ) : user?.name ? (
+                initials(user.name)
+              ) : (
+                initialsOf(user)
+              )}
+            </span>
+            <span className="who">
+              <span className="nm">{user?.name || "Signed out"}</span>
+              <span className="rl">{user?.role || ""}</span>
+            </span>
+          </Link>
           <button
             type="button"
             className="pm2-icbtn"

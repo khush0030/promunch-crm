@@ -46,7 +46,7 @@ Arrows describe source-code responsibilities. They are not a claim that every br
 
 | Component | Existing role and identity |
 |---|---|
-| CRM | Next.js dashboard and API routes on Vercel, `promunch-crm.vercel.app` |
+| CRM | Next.js dashboard and API routes on Vercel, `admin.promunch.in` (old host `promunch-crm.vercel.app` still resolves) |
 | Supabase | Project `wlungshkwfuggtbantkb`; Postgres, Auth, Storage, Edge Functions, pg_cron and Vault |
 | WhatsApp account | PROMUNCH WABA `798547600007401` |
 | WhatsApp sender | `+91 99813 10247`, phone-number ID `1106480032553084` |

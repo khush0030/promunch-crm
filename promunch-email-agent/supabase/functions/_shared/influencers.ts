@@ -278,7 +278,7 @@ export function nextSendWindowStart(t: number): number {
 // Portal URL
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_SITE_APP_URL = "https://promunch-crm.vercel.app";
+export const DEFAULT_SITE_APP_URL = "https://admin.promunch.in";
 
 export function siteAppUrl(): string {
   const raw = (Deno.env.get("SITE_APP_URL") ?? "").trim() || DEFAULT_SITE_APP_URL;

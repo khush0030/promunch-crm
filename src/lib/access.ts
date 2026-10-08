@@ -119,6 +119,8 @@ export function canUse(a: Access, m: ModuleKey): boolean {
 
 // Where to send someone who opened an area they don't have.
 export const NO_ACCESS_PATH = "/dashboard/no-access";
+// Stand-alone "My profile" page for members who can't open Settings.
+export const PROFILE_PATH = "/dashboard/profile";
 export function landingFor(a: Access): string {
   const first = MODULES.find((m) => canUse(a, m.key));
   return first ? first.landing : NO_ACCESS_PATH;
@@ -178,6 +180,9 @@ const under = (path: string, prefix: string) => path === prefix || path.startsWi
 // refused, so a new page stays closed until it is added here).
 export function pageModule(path: string, tab: string | null): ModuleKey | "open" | null {
   if (under(path, NO_ACCESS_PATH)) return "open";
+  // My profile (own name + photo) works for every teammate, even one whose
+  // areas exclude Settings.
+  if (under(path, PROFILE_PATH)) return "open";
   // The catch-all route file behind the in-shell 404 (keeps access.test
   // coverage green; real unknown URLs are still refused for restricted members).
   if (path === "/dashboard/[...missing]") return "open";
@@ -216,6 +221,8 @@ export const API_RULES: ApiRule[] = [
   { prefix: "/api/metrics/attention", open: true },
   { prefix: "/api/whatsapp/health", open: true },
   { prefix: "/api/team", open: true },
+  // My profile: each member edits only their own name and photo.
+  { prefix: "/api/me", open: true },
 
   { prefix: "/api/assistant", modules: ["home"] },
   { prefix: "/api/needs-attention", modules: ["home"] },

@@ -28,13 +28,13 @@ export async function GET() {
       .limit(1)
       .maybeSingle();
     if (data?.code) {
-      const site = (process.env.SITE_APP_URL || "https://promunch-crm.vercel.app").replace(/\/+$/, "");
+      const site = (process.env.SITE_APP_URL || "https://admin.promunch.in").replace(/\/+$/, "");
       widgetLink = `${site}/r/${data.code}`;
     }
   } catch { /* widget just won't render */ }
 
   const js = buildEmbedJs(cfg, {
-    appOrigin: (process.env.SITE_APP_URL || "https://promunch-crm.vercel.app").replace(/\/+$/, ""),
+    appOrigin: (process.env.SITE_APP_URL || "https://admin.promunch.in").replace(/\/+$/, ""),
     widgetLink,
     waNumber: WA_NUMBER,
     // Activate only after the receiving worker is deployed and verified.

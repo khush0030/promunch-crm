@@ -11,6 +11,7 @@ import {
   pageModule,
   MODULE_KEYS,
   NO_ACCESS_PATH,
+  PROFILE_PATH,
   ROLE_PRESETS,
   presetForModules,
   rolePreset,
@@ -178,6 +179,29 @@ describe("api", () => {
   it("prefixes don't bleed (/api/flows vs /api/whatsapp/flows, /api/contacts vs /api/contactsX)", () => {
     expect(apiRule("/api/whatsapp/flows/custom")?.modules).toEqual(["wa_marketing"]);
     expect(apiRule("/api/contactsX")).toBeNull();
+  });
+});
+
+describe("my profile", () => {
+  const noAreas = accessOf({ email: "z@promunch.in", app_metadata: { role: "agent", modules: [] } });
+  it("every member, even one with no areas, can edit their own profile", () => {
+    for (const a of [marketer, noAreas]) {
+      expect(canCallApi(a, "/api/me/profile", "GET")).toBe(true);
+      expect(canCallApi(a, "/api/me/profile", "PATCH")).toBe(true);
+      expect(canCallApi(a, "/api/me/avatar", "POST")).toBe(true);
+      expect(canOpenPage(a, PROFILE_PATH, null)).toBe(true);
+    }
+    expect(pageModule(PROFILE_PATH, null)).toBe("open");
+  });
+  it("opening /api/me does not open look-alike prefixes", () => {
+    expect(canCallApi(marketer, "/api/metrics/sales", "GET")).toBe(false);
+    expect(apiRule("/api/meX")).toBeNull();
+  });
+  it("Settings lists My profile first; restricted members without Settings use the stand-alone page", () => {
+    const agent = accessOf({ email: "a@promunch.in", app_metadata: { role: "agent" } });
+    expect(itemFor(agent, SETTINGS)?.pages?.[0]?.label).toBe("My profile");
+    expect(canOpenHref(agent, "/dashboard/settings#profile")).toBe(true);
+    expect(canOpenHref(marketer, "/dashboard/settings#profile")).toBe(false);
   });
 });
 

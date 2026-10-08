@@ -1,6 +1,6 @@
 # PROMUNCH CRM — Multi-Channel Customer Platform
 
-**Live:** https://promunch-crm.vercel.app
+**Live:** https://admin.promunch.in (the old `promunch-crm.vercel.app` host still resolves)
 **GitHub:** https://github.com/khush0030/promunch-crm
 
 A custom-built CRM, marketing, and customer-operations platform for **PROMUNCH** — India's high-protein roasted soya snack brand ("Your Munchy Pal"). Replaces Klaviyo (email), a WhatsApp BSP, and a chunk of manual ops with one owned system. Deeply integrated with Shopify and Amazon for real-time order data, an AI WhatsApp chatbot for support + ordering, email + WhatsApp marketing, a B2B cold-outreach pipeline, and an in-dashboard AI assistant (Maya) over all business data.

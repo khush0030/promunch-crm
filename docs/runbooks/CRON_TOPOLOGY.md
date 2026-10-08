@@ -106,6 +106,10 @@ authorize every pg_cron job. Rotating either key without
 `vault.update_secret(...)` turns the whole schedule into silent 401s — the
 Vercel watchdog is what catches that now.
 
+## 2026-10-09 update (CRM moved to admin.promunch.in)
+
+Production now runs on **`https://admin.promunch.in`**. On 9 Oct 2026 the 7 pg_cron jobs that call Vercel (Next.js `/api/cron/*`) routes were repointed from `https://promunch-crm.vercel.app` to `https://admin.promunch.in` (the email ticks such as `email-flow-tick`, `email-campaign-tick`, `email-segment-tick`, `email-attribution-tick`, `email-browse-tick`, plus `brevo-events` and `leads-tick`; check `cron.job` for the live list). Edge-function jobs are unchanged. The historical migrations in this repo still show the old host; the live `cron.job` rows are the source of truth. Code fallbacks for `SITE_APP_URL` now default to `https://admin.promunch.in` as well.
+
 ## 2026-10-07 update (Supabase moved Seoul → Mumbai)
 
 The CRM database moved to a new Supabase project, **`wlungshkwfuggtbantkb`** (ap-south-1, Mumbai). All 38 live jobs were recreated there from the live Seoul `cron.job` rows with the URL swapped; the old Seoul project (`hlykspakpewuilttnydm`) has every job switched off.

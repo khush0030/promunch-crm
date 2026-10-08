@@ -8,6 +8,7 @@ import { recordAudit } from "@/lib/audit";
 import { assertHuman } from "@/lib/botid-guard";
 import { isAdminUser } from "@/lib/rbac";
 import { resolveTeamDisplayName } from "@/lib/team";
+import { avatarUrlOf } from "@/lib/profile";
 import { isModuleKey, MODULE_KEYS, presetForModules, storedModules, type ModuleKey } from "@/lib/access";
 
 function callerName(user: { email?: string | null; user_metadata?: Record<string, unknown> }): string {
@@ -55,6 +56,8 @@ type TeamUser = {
   id: string;
   email: string | null;
   name: string;
+  // Profile photo the member set in Settings → My profile (null = initials).
+  avatar_url: string | null;
   role: Role;
   // Areas this member may use (lib/access.ts); null = every area.
   modules: ModuleKey[] | null;
@@ -75,6 +78,7 @@ export async function GET() {
       id: u.id,
       email: u.email ?? null,
       name: resolveTeamDisplayName(u),
+      avatar_url: avatarUrlOf(u.user_metadata as Record<string, unknown> | undefined),
       role: roleOf(u),
       modules: storedModules(u),
       created_at: u.created_at,

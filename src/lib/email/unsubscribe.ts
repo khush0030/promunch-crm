@@ -26,7 +26,7 @@ function signingSecret(): string {
 
 /** CRM's own public base URL (where these routes live), no trailing slash. */
 export function appBaseUrl(): string {
-  return (process.env.SITE_APP_URL || "https://promunch-crm.vercel.app").replace(/\/+$/, "");
+  return (process.env.SITE_APP_URL || "https://admin.promunch.in").replace(/\/+$/, "");
 }
 
 /** `base64url(contactId).base64url(HMAC-SHA256(contactId))` */

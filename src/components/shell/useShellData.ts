@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { OWNER_EMAIL, roleOfUser } from "@/lib/rbac";
+import { PROFILE_EVENT, avatarUrlOf, type ProfileEventDetail } from "@/lib/profile";
 import type { Attention } from "@/lib/metrics/attention";
 import type { AttentionCounts } from "./nav";
 
@@ -30,7 +31,7 @@ export function useAttentionCounts(): AttentionCounts | null {
   return hydrated ? (data?.counts ?? null) : null;
 }
 
-export type ShellUser = { email: string; name: string; role: string };
+export type ShellUser = { email: string; name: string; role: string; avatarUrl: string | null };
 
 // Signed-in user + sign out (same Supabase logic as the old Sidebar).
 export function useShellUser() {
@@ -52,11 +53,20 @@ export function useShellUser() {
       const r = roleOfUser(u);
       const role =
         (u.email ?? "").toLowerCase() === OWNER_EMAIL || r === "owner" ? "Owner" : r === "admin" ? "Admin" : "Member";
-      setUser({ email: u.email || "", name, role });
+      setUser({ email: u.email || "", name, role, avatarUrl: avatarUrlOf(meta) });
     };
     supabase.auth.getUser().then(({ data }) => resolve(data.user));
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => resolve(session?.user ?? null));
-    return () => sub.subscription.unsubscribe();
+    // Settings → My profile saved: show the new name / photo right away.
+    const onProfile = (e: Event) => {
+      const d = (e as CustomEvent<ProfileEventDetail>).detail;
+      if (d) setUser((u) => (u ? { ...u, name: d.name || u.name, avatarUrl: d.avatarUrl } : u));
+    };
+    window.addEventListener(PROFILE_EVENT, onProfile);
+    return () => {
+      sub.subscription.unsubscribe();
+      window.removeEventListener(PROFILE_EVENT, onProfile);
+    };
   }, []);
 
   async function signOut() {
