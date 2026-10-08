@@ -23,6 +23,15 @@ Customer replies to hello@ → normal Inbox draft (needs approval) + deal-scan u
 - **Email:** 2 questions specific to the order type (`TYPE_QUESTIONS` in `src/lib/bulk-inquiry/schema.ts`) plus budget per unit, delivery pincode and GSTIN.
 - **Email opener:** one AI line that is not allowed to state product facts, prices or numbers (`opener.ts` validates it). If anything fails, a fixed line is used.
 
+## CRM contacts (tag `bulk`)
+Migration `20261008090000_bulk_inquiry_contacts.sql` adds an AFTER INSERT trigger that mirrors every inquiry onto `contacts`:
+- **Matching:** by email (case-insensitive). If there's no email match, it adopts a phone-only contact. Otherwise it creates a new contact with source `import`; the source check constraint allows only shopify, manual, import and klaviyo.
+- **Fields:** adds the `bulk` tag, and fills organization, city, phone and name only where they're blank.
+- **History:** `properties.bulk_inquiries` holds every submission (ref, pify_ref, source `pify_form`/`website_form`, date, company, order type, quantity, products, needed-by, requirement, phone, city, deal_id).
+- **Never touched:** consent fields, and anonymized contacts.
+
+The 11 Pify leads were imported on Oct 8 2026: as deals with no messages sent, then backfilled onto contacts.
+
 ## Controls
 - `bulk_inquiry_settings` (single row): `autoreply_enabled` is the kill switch. When false, inquiries, deals and WhatsApp pings still happen, but no customer email goes out. Also holds `whatsapp_display` and `quote_promise`.
 - Copy rules: PROMUNCH in capitals, no em dashes, "Your Munchy Pal". Tests enforce these.
