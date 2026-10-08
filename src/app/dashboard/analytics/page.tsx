@@ -1,126 +1,103 @@
 "use client";
-import { useEffect, useState } from "react";
-import { IndianRupee, Mail, Coins, TrendingUp, Users } from "lucide-react";
-import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
+
+// Email -> Results. Every number comes from /api/email-studio/results, which
+// uses the exact definitions of the Email overview (/api/email-studio/overview)
+// for the chosen window: Email Studio send ledgers (campaign_emails +
+// email_sends), email_attributions for revenue, and the consented, unsuppressed
+// audience for "can email". No legacy tables, no browser Supabase client.
+
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { IndianRupee, Mail, MousePointerClick, TrendingUp, Users } from "lucide-react";
 import { KpiCard, Panel, MiniBar, StatLine, DataTable } from "@/components/pm";
-import type { Column, KpiTone } from "@/components/pm";
+import type { Column } from "@/components/pm";
 import { StudioHeader } from "@/components/email-studio/StudioHeader";
+import { getJson, inr, pct } from "@/components/email-studio/api";
 
 const dateRanges = ["Last 7 Days", "Last 30 Days", "Last 90 Days"];
 const rangeShort: Record<string, string> = { "Last 7 Days": "7 days", "Last 30 Days": "30 days", "Last 90 Days": "90 days" };
 const rangeDays: Record<string, number> = { "Last 7 Days": 7, "Last 30 Days": 30, "Last 90 Days": 90 };
 
-type TopMetric = { label: string; value: string; icon: React.ReactNode; tone: KpiTone; sub: string; up: boolean };
-type CampaignPerf = { name: string; sent: string; openRate: string; clickRate: string; revenue: string };
-type FlowPerf = { name: string; trigger: string; revenue: string; conversion: string };
-type EmailHealthRow = { label: string; value: string; pct: number; color: string };
-type Growth = { newSubs: number; unsubscribed: number; net: number; totalActive: number };
+type Line = { id: string; name: string; sent: number; opens: number; clicks: number; orders: number; revenue: number };
+type Results = {
+  days: number;
+  emailsSent: number;
+  campaignSent: number;
+  flowSent: number;
+  opens: number;
+  clicks: number;
+  clickRate: number | null;
+  openRate: number | null;
+  bounceRate: number | null;
+  complaintRate: number | null;
+  bounced: number;
+  complained: number;
+  revenue: number;
+  flowRevenue: number;
+  orders: number;
+  unsubscribed: number;
+  subscribers: number | null;
+  campaigns: Line[];
+  automations: Line[];
+};
+
+const n = (x: number) => x.toLocaleString("en-IN");
+const rate = (part: number, whole: number) => (whole > 0 ? pct(part / whole) : "–");
 
 export default function AnalyticsPage() {
-  const supabase = createSupabaseBrowserClient();
   const [activeRange, setActiveRange] = useState("Last 30 Days");
-  const [topMetrics, setTopMetrics] = useState<TopMetric[]>([]);
-  const [campaignPerf, setCampaignPerf] = useState<CampaignPerf[]>([]);
-  const [flowPerf, setFlowPerf] = useState<FlowPerf[]>([]);
-  const [emailHealth, setEmailHealth] = useState<EmailHealthRow[]>([]);
-  const [growth, setGrowth] = useState<Growth | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const days = rangeDays[activeRange];
+  const q = useQuery({
+    queryKey: ["email-studio-results", days],
+    queryFn: () => getJson<Results>(`/api/email-studio/results?days=${days}`),
+  });
+  const d = q.data;
+  const span = rangeShort[activeRange];
 
-  useEffect(() => {
-    async function load() {
-      const days = rangeDays[activeRange];
-      const sinceIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
-      const contactCount = (opts: { status?: string; since?: string }) => {
-        let q = supabase.from("contacts").select("status", { count: "exact", head: true });
-        if (opts.status) q = q.eq("status", opts.status);
-        if (opts.since) q = q.gte("created_at", opts.since);
-        return q.then((r) => r.count ?? 0);
-      };
-      const eventCount = (type?: string) => {
-        let q = supabase.from("email_events").select("event_type", { count: "exact", head: true }).gte("created_at", sinceIso);
-        if (type) q = q.eq("event_type", type);
-        return q.then((r) => r.count ?? 0);
-      };
-
-      const [campaignsRes, flowsRes, totalActive, newSubs, totalEventsRaw, delivered, bounced, unsubscribed] =
-        await Promise.all([
-          supabase.from("campaigns").select("*").gte("created_at", sinceIso).order("revenue_attributed", { ascending: false }),
-          supabase.from("flows").select("*").order("revenue_attributed", { ascending: false }),
-          contactCount({ status: "active" }),
-          contactCount({ since: sinceIso }),
-          eventCount(),
-          eventCount("delivered"),
-          eventCount("bounced"),
-          eventCount("unsubscribed"),
-        ]);
-
-      const campaigns = campaignsRes.data || [];
-      const totalSent = campaigns.reduce((s, c) => s + (c.total_sent || 0), 0);
-      const totalRevenue = campaigns.reduce((s, c) => s + (Number(c.revenue_attributed) || 0), 0);
-      const rpe = totalSent > 0 ? totalRevenue / totalSent : 0;
-
-      const totalEvts = totalEventsRaw || 1;
-      const listGrowthPct = totalActive > 0 ? ((newSubs - unsubscribed) / totalActive) * 100 : 0;
-
-      setTopMetrics([
-        { label: "Email revenue", value: totalRevenue > 0 ? `₹${totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "₹0", icon: <IndianRupee />, tone: "g", sub: totalRevenue > 0 ? "this period" : "no sends in range", up: totalRevenue > 0 },
-        { label: "Emails sent", value: totalSent > 0 ? totalSent.toLocaleString() : "0", icon: <Mail />, tone: "b", sub: totalSent > 0 ? "this period" : "no campaigns yet", up: totalSent > 0 },
-        { label: "Revenue / email", value: rpe > 0 ? `₹${rpe.toFixed(2)}` : "₹0", icon: <Coins />, tone: "o", sub: rpe > 0 ? "vs prev." : "—", up: rpe > 0 },
-        { label: "List growth", value: totalActive > 0 ? `${listGrowthPct >= 0 ? "+" : ""}${listGrowthPct.toFixed(1)}%` : "0%", icon: <TrendingUp />, tone: "g", sub: newSubs > 0 ? `${newSubs} net new` : "—", up: newSubs > 0 },
-      ]);
-
-      setCampaignPerf(
-        campaigns.slice(0, 5).map((c) => ({
-          name: c.name,
-          sent: c.total_sent > 0 ? c.total_sent.toLocaleString() : "—",
-          // A resend can count more opens than sends; a rate never reads above 100%.
-          openRate: c.total_sent > 0 ? Math.min(100, (c.total_opened / c.total_sent) * 100).toFixed(1) + "%" : "—",
-          clickRate: c.total_sent > 0 ? ((c.total_clicked / c.total_sent) * 100).toFixed(1) + "%" : "—",
-          revenue: c.revenue_attributed > 0 ? `₹${Number(c.revenue_attributed).toLocaleString()}` : "—",
-        }))
-      );
-
-      setFlowPerf(
-        (flowsRes.data || []).slice(0, 5).map((f) => ({
-          name: f.name,
-          trigger: (f.trigger_type || "").replace(/_/g, " "),
-          revenue: f.revenue_attributed > 0 ? `₹${Number(f.revenue_attributed).toLocaleString()}` : "—",
-          conversion: f.total_entered > 0 ? ((f.total_converted / f.total_entered) * 100).toFixed(1) + "%" : "—",
-        }))
-      );
-
-      const deliveryPct = totalEventsRaw > 0 ? (delivered / totalEvts) * 100 : 0;
-      const bouncePct = totalEventsRaw > 0 ? (bounced / totalEvts) * 100 : 0;
-      const unsubPct = totalEventsRaw > 0 ? (unsubscribed / totalEvts) * 100 : 0;
-      setEmailHealth([
-        { label: "Delivery rate", value: totalEventsRaw > 0 ? `${deliveryPct.toFixed(1)}%` : "—", pct: deliveryPct, color: "var(--pm-green)" },
-        { label: "Bounce rate", value: totalEventsRaw > 0 ? `${bouncePct.toFixed(2)}%` : "—", pct: Math.min(100, bouncePct * 10), color: "var(--pm-gold)" },
-        { label: "Spam rate", value: "—", pct: 0, color: "var(--pm-blue)" },
-        { label: "Unsubscribe rate", value: totalEventsRaw > 0 ? `${unsubPct.toFixed(2)}%` : "—", pct: Math.min(100, unsubPct * 10), color: "var(--pm-hint)" },
-      ]);
-
-      setGrowth({ newSubs, unsubscribed, net: newSubs - unsubscribed, totalActive });
-      setLoaded(true);
-    }
-    load();
-  }, [activeRange]);
-
-  const campaignCols: Column<CampaignPerf>[] = [
-    { header: "Campaign", cell: (c) => <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 160, fontWeight: 600 }}>{c.name}</div> },
-    { header: "Sent", cell: (c) => c.sent },
-    { header: "Open", cell: (c) => c.openRate },
-    { header: "Click", cell: (c) => c.clickRate },
-    { header: "Revenue", cell: (c) => <span className="pm-b7">{c.revenue}</span> },
-  ];
-  const flowCols: Column<FlowPerf>[] = [
-    { header: "Flow", cell: (f) => <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 130, fontWeight: 600 }}>{f.name}</div> },
-    { header: "Trigger", cell: (f) => <span className="pm-dim" style={{ textTransform: "capitalize" }}>{f.trigger}</span> },
-    { header: "Revenue", cell: (f) => <span className="pm-b7">{f.revenue}</span> },
-    { header: "Conv.", cell: (f) => f.conversion },
+  const lineCols = (label: string): Column<Line>[] => [
+    { header: label, cell: (c) => <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 170, fontWeight: 600 }}>{c.name}</div> },
+    { header: "Sent", cell: (c) => (c.sent ? n(c.sent) : "–") },
+    { header: "Clicked", cell: (c) => rate(c.clicks, c.sent) },
+    { header: "Revenue", cell: (c) => <span className="pm-b7">{c.revenue ? inr(c.revenue) : "–"}</span> },
   ];
 
-  const healthEmpty = !loaded || emailHealth.every((h) => h.value === "—");
+  const kpis = [
+    {
+      label: `Revenue · ${span}`,
+      value: d ? inr(d.revenue) : "…",
+      icon: <IndianRupee />,
+      tone: "g" as const,
+      sub: d ? `${d.orders} orders · ${inr(d.flowRevenue)} from automations` : "",
+      up: !!d && d.revenue > 0,
+    },
+    {
+      label: "Emails sent",
+      value: d ? n(d.emailsSent) : "…",
+      icon: <Mail />,
+      tone: "b" as const,
+      sub: d ? `${n(d.campaignSent)} from campaigns · ${n(d.flowSent)} from automations` : "",
+      up: !!d && d.emailsSent > 0,
+    },
+    {
+      label: "Clicked",
+      value: d ? pct(d.clickRate) : "…",
+      icon: <MousePointerClick />,
+      tone: "o" as const,
+      sub: d ? `${n(d.clicks)} ${d.clicks === 1 ? "click" : "clicks"}${d.emailsSent ? ` · ${inr(d.revenue / d.emailsSent)} per email` : ""}` : "",
+      up: !!d && d.clicks > 0,
+    },
+    {
+      label: "Can email",
+      value: d?.subscribers != null ? n(d.subscribers) : "…",
+      icon: <Users />,
+      tone: "g" as const,
+      sub: "said yes and have an email",
+      up: false,
+    },
+  ];
+
+  // Rates are drawn on a scale where the warning limit sits mid-bar.
+  const bar = (r: number | null, limit: number) => (r == null ? 0 : Math.min(100, (r / (limit * 2)) * 100));
 
   return (
     <>
@@ -137,63 +114,66 @@ export default function AnalyticsPage() {
         }
       />
       <div className="pm-page">
-      <div className="pm-kpis">
-        {topMetrics.map((m) => (
-          <KpiCard key={m.label} label={m.label} value={m.value} icon={m.icon} tone={m.tone} sub={m.sub} spark deltaDir={m.up ? "up" : "flat"} />
-        ))}
-      </div>
-
-      <div className="pm-grid g-2-1" style={{ marginTop: 16 }}>
-        <Panel title="Subscriber growth" icon={<Users className="tic" />} caption="This period">
-          {growth ? (
-            <>
-              <StatLine
-                items={[
-                  { n: `+${growth.newSubs}`, l: "New subscribers", color: "var(--pm-green)" },
-                  { n: growth.unsubscribed > 0 ? `−${growth.unsubscribed}` : "0", l: "Unsubscribed", color: growth.unsubscribed > 0 ? "var(--pm-terra)" : "var(--pm-ink)" },
-                  { n: `${growth.net >= 0 ? "+" : ""}${growth.net}`, l: "Net growth", color: growth.net >= 0 ? "var(--pm-green)" : "var(--pm-terra)" },
-                ]}
-              />
-              {/* Calm: a hairline row, not a filled block. */}
-              <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--pm-line)", display: "flex", alignItems: "baseline", gap: 10 }}>
-                <span style={{ font: "400 28px/1 var(--pm-display)", color: "var(--pm-ink)" }}>{growth.totalActive.toLocaleString("en-IN")}</span>
-                <span style={{ fontSize: 14.5, color: "var(--pm-ink2)" }}>active subscribers</span>
-              </div>
-            </>
-          ) : (
-            <div className="pm-dim" style={{ fontSize: 13 }}>Loading…</div>
-          )}
-        </Panel>
-
-        <Panel title="Email health" icon={<Mail className="tic" />} caption="Deliverability signals">
-          {emailHealth.map((item) => (
-            <MiniBar key={item.label} label={item.label} value={item.value} pct={item.pct} color={item.color} />
+        {q.error && (
+          <div role="alert" style={{ marginBottom: 14, fontSize: 14, color: "var(--pm-terra)" }}>
+            Could not load results: {(q.error as Error).message}
+          </div>
+        )}
+        <div className="pm-kpis">
+          {kpis.map((m) => (
+            <KpiCard key={m.label} label={m.label} value={m.value} icon={m.icon} tone={m.tone} sub={m.sub} deltaDir={m.up ? "up" : "flat"} />
           ))}
-          {healthEmpty && (
-            <div style={{ marginTop: 12, fontSize: 14, color: "var(--pm-muted)" }}>
-              Health metrics populate after your first campaign is sent.
-            </div>
-          )}
-        </Panel>
-      </div>
+        </div>
 
-      <div className="pm-grid g-11" style={{ marginTop: 14 }}>
-        <Panel title="Top campaigns" icon={<Mail className="tic" />}>
-          {campaignPerf.length > 0 ? (
-            <div style={{ marginTop: 4 }}><DataTable columns={campaignCols} rows={campaignPerf} rowKey={(_, i) => i} /></div>
-          ) : (
-            <div className="pm-dim" style={{ textAlign: "center", fontSize: 12.5, padding: "32px 0" }}>{loaded ? "No campaigns in this range" : "Loading…"}</div>
-          )}
-        </Panel>
-        <Panel title="Top flows" icon={<TrendingUp className="tic" />}>
-          {flowPerf.length > 0 ? (
-            <div style={{ marginTop: 4 }}><DataTable columns={flowCols} rows={flowPerf} rowKey={(_, i) => i} /></div>
-          ) : (
-            <div className="pm-dim" style={{ textAlign: "center", fontSize: 12.5, padding: "32px 0" }}>{loaded ? "No flows yet" : "Loading…"}</div>
-          )}
-        </Panel>
+        <div className="pm-grid g-2-1" style={{ marginTop: 16 }}>
+          <Panel title="Engagement" icon={<TrendingUp className="tic" />} caption={`Last ${span}`}>
+            {d ? (
+              <>
+                <StatLine
+                  items={[
+                    { n: n(d.emailsSent), l: "Emails sent", color: "var(--pm-ink)" },
+                    { n: n(d.opens), l: `Opened · ${pct(d.openRate)}`, color: "var(--pm-ink)" },
+                    { n: n(d.clicks), l: `Clicked · ${pct(d.clickRate)}`, color: "var(--pm-green)" },
+                    { n: d.unsubscribed > 0 ? `−${n(d.unsubscribed)}` : "0", l: "Unsubscribed", color: d.unsubscribed > 0 ? "var(--pm-terra)" : "var(--pm-ink)" },
+                  ]}
+                />
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--pm-line)", fontSize: 14, color: "var(--pm-ink2)" }}>
+                  Clicks are the number to trust. Opens run high because Apple Mail opens every email for privacy.
+                </div>
+              </>
+            ) : (
+              <div className="pm-dim" style={{ fontSize: 13 }}>Loading…</div>
+            )}
+          </Panel>
+
+          <Panel title="Inbox health" icon={<Mail className="tic" />} caption="Campaign sends">
+            <MiniBar label="Bounce rate (keep under 2%)" value={d ? pct(d.bounceRate) : "…"} pct={bar(d?.bounceRate ?? null, 0.02)} color="var(--pm-gold)" />
+            <MiniBar label="Spam complaints (keep under 0.1%)" value={d ? pct(d.complaintRate) : "…"} pct={bar(d?.complaintRate ?? null, 0.001)} color="var(--pm-terra)" />
+            {d && d.bounceRate == null && (
+              <div style={{ marginTop: 12, fontSize: 14, color: "var(--pm-muted)" }}>
+                No campaign sends in the last {span}. Health shows once a campaign goes out.
+              </div>
+            )}
+          </Panel>
+        </div>
+
+        <div className="pm-grid g-11" style={{ marginTop: 14 }}>
+          <Panel title="Top campaigns" icon={<Mail className="tic" />} caption={`Sent in the last ${span}`}>
+            {d?.campaigns.length ? (
+              <div style={{ marginTop: 4 }}><DataTable columns={lineCols("Campaign")} rows={d.campaigns.slice(0, 5)} rowKey={(c) => c.id} /></div>
+            ) : (
+              <div className="pm-dim" style={{ textAlign: "center", fontSize: 12.5, padding: "32px 0" }}>{d ? "No campaigns sent in this range" : "Loading…"}</div>
+            )}
+          </Panel>
+          <Panel title="Top automations" icon={<TrendingUp className="tic" />} caption={`Sent in the last ${span}`}>
+            {d?.automations.length ? (
+              <div style={{ marginTop: 4 }}><DataTable columns={lineCols("Automation")} rows={d.automations.slice(0, 5)} rowKey={(c) => c.id} /></div>
+            ) : (
+              <div className="pm-dim" style={{ textAlign: "center", fontSize: 12.5, padding: "32px 0" }}>{d ? "No automation emails in this range" : "Loading…"}</div>
+            )}
+          </Panel>
+        </div>
       </div>
-    </div>
     </>
   );
 }
