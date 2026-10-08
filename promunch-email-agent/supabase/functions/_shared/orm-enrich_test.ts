@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "jsr:@std/assert";
 import {
   applyHardRules,
+  shouldAutoCase,
   buildEnrichUser,
   cleanSummary,
   ENRICH_BODY_MAX,
@@ -96,4 +97,17 @@ Deno.test("parse: the string 'null' for product means no product", () => {
 Deno.test("buildEnrichUser: passes the product hint", () => {
   const s = buildEnrichUser([{ id: "a", source: "judgeme", rating: 5, title: null, body: "crunchy", author_followers: null, product_hint: "Roasted Edamame Masala Mania 100g" }]);
   assertEquals(s.includes("Roasted Edamame Masala Mania 100g"), true);
+});
+
+Deno.test("auto-case: negative, complaint or critical/high, relevant, setting on", () => {
+  const base = { relevant: true, sentiment: 0, intent: "other" as const, urgency: "normal" as const };
+  assertEquals(shouldAutoCase(base, true), false);
+  assertEquals(shouldAutoCase({ ...base, sentiment: -1 }, true), true);
+  assertEquals(shouldAutoCase({ ...base, intent: "complaint" }, true), true);
+  assertEquals(shouldAutoCase({ ...base, urgency: "critical" }, true), true);
+  assertEquals(shouldAutoCase({ ...base, urgency: "high" }, true), true);
+  assertEquals(shouldAutoCase({ ...base, urgency: "low", sentiment: 2, intent: "praise" }, true), false);
+  assertEquals(shouldAutoCase({ ...base, sentiment: -2, relevant: false }, true), false);
+  assertEquals(shouldAutoCase({ ...base, sentiment: -2 }, false), false);
+  assertEquals(shouldAutoCase({ ...base, sentiment: -2 }, undefined), false);
 });

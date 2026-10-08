@@ -267,3 +267,22 @@ export async function matchCustomer(orderRef: string | null): Promise<string | n
   }
   return null;
 }
+
+// ---- complaint cases (v2 spec §3) --------------------------------------------
+
+/**
+ * Auto-open a complaint case for a newly enriched mention (pure). Only when
+ * orm_settings.auto_case_on_negative is exactly true (a missing column, i.e.
+ * the v2 migration not applied, reads as off), the mention is relevant, and
+ * it is negative, a complaint, or critical/high urgency. The caller writes
+ * case_status only where case_status is still null.
+ */
+export function shouldAutoCase(
+  e: Pick<Enrichment, "relevant" | "sentiment" | "intent" | "urgency">,
+  enabled: boolean | null | undefined,
+): boolean {
+  if (enabled !== true || e.relevant !== true) return false;
+  return (typeof e.sentiment === "number" && e.sentiment < 0) ||
+    e.intent === "complaint" ||
+    e.urgency === "critical" || e.urgency === "high";
+}
