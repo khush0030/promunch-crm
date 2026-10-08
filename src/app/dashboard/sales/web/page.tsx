@@ -197,10 +197,10 @@ function WebStorePageInner() {
   const bestCampaign = web.campaigns.length > 0 ? [...web.campaigns].sort((a, b) => b.revenue - a.revenue)[0] : null;
 
   // Last order Shopify gave a source for, in IST. Only claim tracking
-  // "stopped" when that was more than 3 days ago.
+  // "stopped" when that was more than 3 days before this data was loaded.
   const lastAttr = web.tracking.lastAttributedAt ? new Date(web.tracking.lastAttributedAt) : null;
   const stoppedDate =
-    lastAttr && Date.now() - lastAttr.getTime() > 3 * 86_400_000
+    lastAttr && webQ.dataUpdatedAt - lastAttr.getTime() > 3 * 86_400_000
       ? lastAttr.toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", day: "numeric", month: "long", year: "numeric" })
       : null;
 

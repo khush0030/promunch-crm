@@ -129,7 +129,7 @@ export default function CommandPalette({ onClose }: { onClose: (navigated: boole
     // Same page, new #section: set the hash so the page hears a hashchange
     // (router.push only does pushState, which pages listening for it miss).
     const [path, hash] = r.href.split("#");
-    if (hash && path === window.location.pathname) window.location.hash = hash;
+    if (hash && path === window.location.pathname) window.location.assign(`#${hash}`);
     else router.push(r.href);
   }
 
