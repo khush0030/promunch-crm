@@ -81,15 +81,22 @@ describe("validateMentionPatch", () => {
 describe("topAsins", () => {
   it("sums units per ASIN and keeps the top n", () => {
     const rows = [
-      { asin: "B0AAA00001", title: "Edamame Masala", quantity_ordered: 3 },
+      { asin: "B0AAA00001", title: "PROMUNCH Edamame Masala", quantity_ordered: 3 },
       { asin: "b0aaa00001", title: null, quantity_ordered: 2 },
-      { asin: "B0BBB00002", title: "Crunchies", quantity_ordered: 4 },
+      { asin: "B0BBB00002", title: "PROMUNCH Crunchies", quantity_ordered: 4 },
       { asin: null, title: "x", quantity_ordered: 9 },
-      { asin: "B0CCC00003", title: "Chips", quantity_ordered: 1 },
+      { asin: "B0CCC00003", title: "PROMUNCH Chips", quantity_ordered: 1 },
     ];
     expect(topAsins(rows, 2)).toEqual([
-      { asin: "B0AAA00001", title: "Edamame Masala", units: 5 },
-      { asin: "B0BBB00002", title: "Crunchies", units: 4 },
+      { asin: "B0AAA00001", title: "PROMUNCH Edamame Masala", units: 5 },
+      { asin: "B0BBB00002", title: "PROMUNCH Crunchies", units: 4 },
     ]);
+  });
+  it("leaves out the sister brand (Vama) sold from the same account", () => {
+    const rows = [
+      { asin: "B08GJ4RNF6", title: "Vama Soya Mince Granules 250g", quantity_ordered: 468 },
+      { asin: "B09D83MH1Q", title: "PROMUNCH Roasted Soya Crunchies, Cheese & Onion", quantity_ordered: 407 },
+    ];
+    expect(topAsins(rows).map((a) => a.asin)).toEqual(["B09D83MH1Q"]);
   });
 });

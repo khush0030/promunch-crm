@@ -84,3 +84,16 @@ Deno.test("parse: garbage and fenced JSON", () => {
 Deno.test("cleanSummary caps at 140", () => {
   assertEquals(cleanSummary("y".repeat(300)).length, 140);
 });
+
+Deno.test("parse: the string 'null' for product means no product", () => {
+  const out = parseEnrichResponse(JSON.stringify({ items: [{
+    id: "a", relevant: true, sentiment: 1, summary: "Likes it", topics: [], intent: "praise",
+    urgency: "normal", product: "null", language: "en", order_ref: null,
+  }] }), ["a"]);
+  assertEquals(out.get("a")?.product, null);
+});
+
+Deno.test("buildEnrichUser: passes the product hint", () => {
+  const s = buildEnrichUser([{ id: "a", source: "judgeme", rating: 5, title: null, body: "crunchy", author_followers: null, product_hint: "Roasted Edamame Masala Mania 100g" }]);
+  assertEquals(s.includes("Roasted Edamame Masala Mania 100g"), true);
+});

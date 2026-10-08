@@ -592,23 +592,24 @@ export async function fetchRss(src: OrmSourceRow): Promise<CollectResult> {
 // ---------------------------------------------------------------------------
 // Amazon reviews via Apify
 //
-// Actor: axesso_data/amazon-reviews-scraper (id ZebkvH3nVOrafqr5T).
-// Chosen Oct 2026 over junglee/amazon-reviews-scraper (official Apify, but
-// $0.006/review on the free tier = 6.7x the price) because:
-//   - pay-per-event $0.0009 per review, no start fee: ~200 reviews/week costs
-//     ~$0.75/month, well inside the $5 free credit;
-//   - highest rating of the maintained options (4.2/5, ~6k users, updated Oct 2026);
-//   - takes ASIN + domainCode ('in') + sortBy 'recent' + maxPages directly.
-// Input: { input: [{ asin, domainCode, sortBy, maxPages, reviewerType, formatType, mediaType }] }
-// Output item: { reviewId, asin, title, text, rating: "4.0 out of 5 stars",
-//   date: "Reviewed in India on 5 October 2026", userName, verified,
-//   numberOfHelpful, productTitle, domainCode, variationList, imageUrlList }
+// Actor: junglee/amazon-reviews-scraper (Apify's own, ~15k users).
+// Switched Oct 9 2026 from axesso_data/amazon-reviews-scraper: axesso exits
+// with "Actor usage only allowed for paying user" on the FREE Apify plan
+// (run SUCCEEDED, 0 items, $0), and PROMUNCH runs on the free plan.
+// Price on the free tier: $0.006 per review ("result") + $0.0013 per result
+// when reviewsCutoffDate is set ("dateFilterNewerThan"). The cut-off date =
+// newest review we already have minus 1 day, so weekly runs pay only for new
+// reviews.
+// Input: { productUrls:[{url}], maxReviews (per product), sort:'recent',
+//          reviewsCutoffDate:'YYYY-MM-DD', includeGdprSensitive:false }
+// Output item: { reviewId, productAsin, reviewTitle, reviewDescription,
+//   ratingScore, date, reviewUrl, reviewedIn, variant, isVerified }
 // ---------------------------------------------------------------------------
 
-export const AMAZON_ACTOR = "axesso_data/amazon-reviews-scraper";
-export const AMAZON_ACTOR_PRICE_USD = 0.0009; // per review (FREE tier, Oct 2026)
-export const AMAZON_CONSERVATIVE_PRICE_USD = 0.002;
-export const AMAZON_REVIEWS_PER_PAGE = 10;
+export const AMAZON_ACTOR = "junglee/amazon-reviews-scraper";
+// per review on the FREE tier incl. the date-filter event (Oct 2026)
+export const AMAZON_ACTOR_PRICE_USD = 0.0073;
+export const AMAZON_CONSERVATIVE_PRICE_USD = 0.0073;
 const APIFY = "https://api.apify.com/v2";
 
 /** 'YYYY-MM' in IST. */
@@ -616,11 +617,39 @@ export function istMonth(t: number): string {
   return new Date(t + 330 * 60_000).toISOString().slice(0, 7);
 }
 
-export function amazonPlan(asins: string[], perAsin: number): { maxPages: number; maxReviews: number; estimateUsd: number } {
-  const maxPages = Math.max(1, Math.ceil(perAsin / AMAZON_REVIEWS_PER_PAGE));
-  const maxReviews = asins.length * maxPages * AMAZON_REVIEWS_PER_PAGE;
+export function amazonPlan(asins: string[], perAsin: number): { perAsin: number; maxReviews: number; estimateUsd: number } {
+  const per = Math.max(1, Math.floor(perAsin));
+  const maxReviews = asins.length * per;
   const price = Math.max(AMAZON_ACTOR_PRICE_USD, AMAZON_CONSERVATIVE_PRICE_USD);
-  return { maxPages, maxReviews, estimateUsd: Math.round(maxReviews * price * 10_000) / 10_000 };
+  return { perAsin: per, maxReviews, estimateUsd: Math.round(maxReviews * price * 10_000) / 10_000 };
+}
+
+/**
+ * Apify's FREE plan returns at most 10 reviews per run whatever the input
+ * ("To access more reviews in a single run, upgrade to the Starter plan",
+ * verified Oct 9 2026). So each collection covers ONE ASIN, rotating through
+ * the list; with every_minutes = 10080 / ASIN count each product is checked
+ * once a week. Pure.
+ */
+export function amazonNextAsin(asins: string[], idx: unknown): { asin: string; nextIdx: number } {
+  const i = Number.isInteger(idx) && (idx as number) >= 0 ? (idx as number) % asins.length : 0;
+  return { asin: asins[i], nextIdx: (i + 1) % asins.length };
+}
+
+/** Run input for junglee/amazon-reviews-scraper (pure). */
+export function amazonRunInput(asins: string[], perAsin: number, newestPostedAt: string | null | undefined): Record<string, unknown> {
+  const input: Record<string, unknown> = {
+    productUrls: asins.map((a) => ({ url: `https://www.amazon.in/dp/${a}` })),
+    // maxReviews is a TOTAL across all productUrls (verified Oct 9 2026: 10
+    // → all 10 from the first ASIN), so ask for perAsin x products.
+    maxReviews: perAsin * asins.length,
+    sort: "recent",
+    includeGdprSensitive: false,
+    deduplicateRedirectedAsins: true,
+  };
+  const t = newestPostedAt ? Date.parse(newestPostedAt) : NaN;
+  if (Number.isFinite(t)) input.reviewsCutoffDate = new Date(t - 86_400_000).toISOString().slice(0, 10);
+  return input;
 }
 
 /**
@@ -736,9 +765,11 @@ export async function fetchAmazon(src: OrmSourceRow, settings: OrmSettingsRow, n
 
   let runId: string | null = cursor.pending_run?.id ?? null;
   if (!runId) {
-    const asins = cleanAsins(settings.amazon_asins);
-    if (!asins.length) return { status: "not_connected", mentions: [], cursor, note: "no ASINs configured" };
-    const plan = amazonPlan(asins, settings.amazon_reviews_per_asin);
+    const all = cleanAsins(settings.amazon_asins);
+    if (!all.length) return { status: "not_connected", mentions: [], cursor, note: "no ASINs configured" };
+    const pick = amazonNextAsin(all, cursor.asin_idx);
+    const asins = [pick.asin];
+    const plan = amazonPlan(asins, Math.min(10, settings.amazon_reviews_per_asin));
     const b = amazonBudget(settings, month, plan.estimateUsd);
     if (!b.ok) {
       return {
@@ -749,17 +780,8 @@ export async function fetchAmazon(src: OrmSourceRow, settings: OrmSettingsRow, n
         settingsPatch: b.monthReset ? { apify_month: month, apify_spent_usd: 0 } : undefined,
       };
     }
-    const input = {
-      input: asins.map((asin) => ({
-        asin,
-        domainCode: "in",
-        sortBy: "recent",
-        maxPages: plan.maxPages,
-        reviewerType: "all_reviews",
-        formatType: "current_format",
-        mediaType: "all_contents",
-      })),
-    };
+    const newestByAsin = (cursor.newest_by_asin ?? {}) as Record<string, string>;
+    const input = amazonRunInput(asins, plan.perAsin, newestByAsin[pick.asin]);
     // maxTotalChargeUsd: platform-side cap on pay-per-event charges for this
     // run, set to what is left of the monthly budget (belt and braces).
     const qs = new URLSearchParams({
@@ -776,7 +798,8 @@ export async function fetchAmazon(src: OrmSourceRow, settings: OrmSettingsRow, n
     if (!res.ok) throw new Error(`Apify start HTTP ${res.status}: ${json?.error?.message ?? "unknown"}`);
     runId = String(json?.data?.id ?? "");
     if (!runId) throw new Error("Apify start returned no run id");
-    cursor.pending_run = { id: runId, started_at: new Date(now).toISOString(), estimate_usd: plan.estimateUsd };
+    cursor.pending_run = { id: runId, asin: pick.asin, started_at: new Date(now).toISOString(), estimate_usd: plan.estimateUsd };
+    cursor.asin_idx = pick.nextIdx;
   }
 
   // wait (bounded) for the run
@@ -796,8 +819,15 @@ export async function fetchAmazon(src: OrmSourceRow, settings: OrmSettingsRow, n
   const mentions = items.map(normalizeAmazonReview).filter((m): m is MentionInput => m !== null);
   const cost = apifyRunCost(run, items.length);
   const b = amazonBudget(settings, month, 0);
+  const runAsin: string | null = cursor.pending_run?.asin ?? null;
   delete cursor.pending_run;
-  cursor.last_run = { id: runId, status: run.status, cost_usd: cost, items: items.length };
+  cursor.last_run = { id: runId, asin: runAsin, status: run.status, cost_usd: cost, items: items.length };
+  const newest = mentions.map((m) => m.posted_at).filter((d): d is string => !!d).sort().pop();
+  if (runAsin && newest) {
+    const by = { ...(cursor.newest_by_asin ?? {}) } as Record<string, string>;
+    if (!by[runAsin] || newest > by[runAsin]) by[runAsin] = newest;
+    cursor.newest_by_asin = by;
+  }
   if (run.status !== "SUCCEEDED") {
     // still book what it cost, then surface as an error
     return {

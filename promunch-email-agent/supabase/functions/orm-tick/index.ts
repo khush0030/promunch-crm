@@ -185,7 +185,7 @@ async function collectOne(src: OrmSourceRow, settings: OrmSettingsRow, now: numb
 async function enrich() {
   const sb = db();
   const { data, error } = await sb.from("orm_mentions")
-    .select("id, source, rating, title, body, author_followers, is_owned, enrich_attempts")
+    .select("id, source, rating, title, body, author_followers, is_owned, enrich_attempts, product_hint:raw->>product_title")
     .is("enriched_at", null)
     .lt("enrich_attempts", MAX_ENRICH_ATTEMPTS)
     .or("relevant.is.null,relevant.eq.true") // pre-filter exclusions are never scored
@@ -205,6 +205,7 @@ async function enrich() {
       title: r.title,
       body: r.body ?? "",
       author_followers: r.author_followers,
+      product_hint: r.product_hint ?? null,
     }));
     let results: Map<string, any>;
     let batchErr: string | null = null;

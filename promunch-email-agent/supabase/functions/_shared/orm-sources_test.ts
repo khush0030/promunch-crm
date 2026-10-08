@@ -2,6 +2,8 @@ import { assert, assertEquals } from "jsr:@std/assert";
 import {
   amazonBudget,
   amazonPlan,
+  amazonNextAsin,
+  amazonRunInput,
   apifyRunCost,
   applyRelevance,
   BODY_MAX,
@@ -148,9 +150,9 @@ Deno.test("parseAmazonDate formats", () => {
 
 Deno.test("amazon plan + hard budget guard", () => {
   const plan = amazonPlan(["A", "B"], 20);
-  assertEquals(plan.maxPages, 2);
+  assertEquals(plan.perAsin, 20);
   assertEquals(plan.maxReviews, 40);
-  assertEquals(plan.estimateUsd, 0.08); // conservative $0.002/review
+  assertEquals(plan.estimateUsd, 0.292); // $0.0073/review (junglee free tier incl. date filter)
   const s = { apify_month: "2026-10", apify_spent_usd: "4.95", apify_monthly_budget_usd: "5" };
   assertEquals(amazonBudget(s, "2026-10", 0.08).ok, false);
   assertEquals(amazonBudget(s, "2026-10", 0.05).ok, true); // exactly at the cap is allowed
@@ -163,8 +165,38 @@ Deno.test("amazon plan + hard budget guard", () => {
 
 Deno.test("apifyRunCost takes the larger of usage and PPE events", () => {
   assertEquals(apifyRunCost({ usageTotalUsd: 0.01 }, 0), 0.01);
-  assertEquals(apifyRunCost({ usageTotalUsd: 0, chargedEventCounts: { review: 100 } }, 0), 0.09);
-  assertEquals(apifyRunCost({}, 50), 0.045);
+  assertEquals(apifyRunCost({ usageTotalUsd: 0, chargedEventCounts: { result: 100 } }, 0), 0.73);
+  assertEquals(apifyRunCost({}, 50), 0.365);
+});
+
+Deno.test("amazonRunInput: amazon.in product urls, recent sort, cut-off from newest review", () => {
+  const first = amazonRunInput(["B09D83MH1Q"], 10, null);
+  assertEquals(first.productUrls, [{ url: "https://www.amazon.in/dp/B09D83MH1Q" }]);
+  assertEquals(first.maxReviews, 10);
+  assertEquals(first.sort, "recent");
+  assertEquals(first.includeGdprSensitive, false);
+  assertEquals("reviewsCutoffDate" in first, false);
+  assertEquals(amazonRunInput(["B09D83MH1Q"], 10, "2026-10-05T00:00:00.000Z").reviewsCutoffDate, "2026-10-04");
+  assertEquals(amazonRunInput(["A000000001", "A000000002", "A000000003"], 10, null).maxReviews, 30);
+});
+
+Deno.test("amazonNextAsin rotates one ASIN per run", () => {
+  const a = ["A000000001", "A000000002", "A000000003"];
+  assertEquals(amazonNextAsin(a, undefined), { asin: "A000000001", nextIdx: 1 });
+  assertEquals(amazonNextAsin(a, 2), { asin: "A000000003", nextIdx: 0 });
+  assertEquals(amazonNextAsin(a, 7), { asin: "A000000002", nextIdx: 2 }); // list shrank
+});
+
+Deno.test("amazon (junglee) item normalizes", () => {
+  const m = normalizeAmazonReview({
+    reviewId: "R1ABC", productAsin: "B09D83MH1Q", reviewTitle: "Stale jar", reviewDescription: "Crunchies were stale.",
+    ratingScore: 1, date: "2026-10-05", reviewUrl: "https://www.amazon.in/gp/customer-reviews/R1ABC", isVerified: true,
+  });
+  assertEquals(m?.external_id, "R1ABC");
+  assertEquals(m?.product_ref, "B09D83MH1Q");
+  assertEquals(m?.rating, 1);
+  assertEquals(m?.body, "Crunchies were stale.");
+  assertEquals(m?.posted_at?.slice(0, 10), "2026-10-05");
 });
 
 Deno.test("istMonth uses IST", () => {

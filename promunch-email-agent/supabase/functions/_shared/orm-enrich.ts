@@ -32,6 +32,8 @@ export interface EnrichItemInput {
   title: string | null;
   body: string;
   author_followers: number | null;
+  /** What the source says the item is about (Judge.me product title, video title). */
+  product_hint?: string | null;
 }
 
 export interface Enrichment {
@@ -91,7 +93,7 @@ For EVERY item return one result with the same id:
 - topics: zero or more from the allowed list only.
 - intent: complaint, question, praise, suggestion, collab, spam or other.
 - urgency: critical (health or safety risk, legal threat, viral outrage), high (an unhappy customer who needs a reply soon), normal, low.
-- product: the PROMUNCH product line mentioned, e.g. "Roasted Edamame (Masala Mania)", "Soya Crunchies", "Chips", "Sticks", or null. Never name a non PROMUNCH product.
+- product: map to EXACTLY one of these labels (use product_hint when the text itself does not name it), or null: "Roasted Edamame (Himalayan Rock Salt)", "Roasted Edamame (Masala Mania)", "Roasted Edamame (Indori Chatka)", "Roasted Edamame" (flavour unknown or several), "Soya Crunchies", "Soya Chips", "Soya Sticks", "Combo or gift pack" (mixed lines, travel combos, festive boxes). Never copy a raw listing title. Never name a non PROMUNCH product.
 - language: ISO 639-1 code of the text (e.g. en, hi), "hi-Latn" style for Hinglish is fine.
 - order_ref: an order number written in the text, formatted like "#2083", else null.
 Text may be in Hindi or Hinglish. Use only the text given; do not invent facts.`;
@@ -104,6 +106,7 @@ export function buildEnrichUser(items: EnrichItemInput[]): string {
     title: i.title ? i.title.slice(0, 300) : null,
     body: (i.body ?? "").slice(0, ENRICH_BODY_MAX),
     author_followers: i.author_followers,
+    ...(i.product_hint ? { product_hint: i.product_hint.slice(0, 120) } : {}),
   }));
   return `Classify these ${items.length} items. Return {"items":[...]} with exactly one entry per id.\n\n${JSON.stringify(payload)}`;
 }
@@ -163,7 +166,10 @@ export function parseEnrichItem(o: any): Enrichment | null {
     : [];
   const intent = (INTENTS as readonly string[]).includes(o.intent) ? o.intent : "other";
   const urgency = (URGENCIES as readonly string[]).includes(o.urgency) ? o.urgency : "normal";
-  const product = typeof o.product === "string" && o.product.trim() ? o.product.trim().slice(0, 80) : null;
+  // Models sometimes answer the string "null"/"none"/"n/a" instead of JSON null.
+  const product = typeof o.product === "string" && o.product.trim() && !/^(null|none|n\/?a|unknown)$/i.test(o.product.trim())
+    ? o.product.trim().slice(0, 80)
+    : null;
   const language = typeof o.language === "string" && o.language.trim() ? o.language.trim().slice(0, 12) : null;
   return {
     relevant: o.relevant !== false,
