@@ -10,7 +10,6 @@ import { StatusBadge } from "@/components/pm";
 import {
   BOARD_STAGES,
   KIND_LABEL,
-  KIND_TONE,
   STAGE_LABEL,
   STAGE_TONE,
   TEMP_LABEL,
@@ -19,11 +18,10 @@ import { timeAgo } from "./format";
 import type { Deal, DealStage } from "./types";
 import css from "./deals.module.css";
 
-const TEMP_DOT: Record<string, string> = {
-  hot: "var(--pm-terra)",
-  warm: "var(--pm-gold)",
-  cool: "var(--pm-blue)",
-};
+function initials(name: string): string {
+  const parts = name.replace(/[^\p{L}\p{N} ]/gu, " ").trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "?") + (parts[1]?.[0] ?? "")).toUpperCase();
+}
 
 const COLUMN_DOT: Record<string, string> = {
   new_inquiry: "var(--pm-blue)",
@@ -118,18 +116,25 @@ export default function DealsBoard({
                 >
                   <div className={css.cardTop}>
                     <span
+                      className={css.av}
+                      data-temp={d.interest_temp ?? undefined}
                       title={d.interest_temp ? `${TEMP_LABEL[d.interest_temp]} lead` : "Not analysed yet"}
-                      className={css.tempDot}
-                      style={{ background: d.interest_temp ? TEMP_DOT[d.interest_temp] : "var(--pm-line)" }}
-                    />
-                    <span className={css.cardName}>{d.company_name}</span>
+                    >
+                      {initials(d.company_name)}
+                    </span>
+                    <div className={css.cardWho}>
+                      <b className={css.cardName}>{d.company_name}</b>
+                      <span>
+                        {KIND_LABEL[d.kind]}
+                        {d.contact_name ? ` · ${d.contact_name}` : ""}
+                      </span>
+                    </div>
                   </div>
-                  <div className={css.cardTags}>
-                    <StatusBadge tone={KIND_TONE[d.kind]}>{KIND_LABEL[d.kind]}</StatusBadge>
-                    {col.key === "closed" && (
+                  {col.key === "closed" && (
+                    <div className={css.cardTags}>
                       <StatusBadge tone={STAGE_TONE[d.stage]}>{STAGE_LABEL[d.stage]}</StatusBadge>
-                    )}
-                  </div>
+                    </div>
+                  )}
                   {(d.next_step || d.summary) && (
                     <div className={css.cardNext}>{d.next_step || d.summary}</div>
                   )}

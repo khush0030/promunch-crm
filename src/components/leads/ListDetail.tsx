@@ -1,44 +1,52 @@
 "use client";
 
-// One list: its leads with last-contacted + sequence status, rename/remove,
-// and the "Email this list" action that opens the campaign wizard.
+// B2B · List detail (prototype b2b-list): every business in one list and the
+// stage it is at, with stage filter tiles and a bulk bar. Calls are unchanged:
+//   GET    /api/leads/lists/[id]
+//   PATCH  /api/leads/lists/[id]            { name }           (rename)
+//   POST   /api/leads/[leadId]/enrich                          (find email)
+//   DELETE /api/leads/lists/[id]/members    { lead_ids }       (remove)
+// "Email selected" opens the same campaign wizard as before.
 
-import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, MailSearch, Pencil, Send, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowRight, MailSearch, Pencil, Send, Trash2, X } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import styles from "@/app/dashboard/leads/leads.module.css";
+import s from "./b2b.module.css";
 import type { Lead, ListLead, ListSummary } from "./types";
-import { CONFIDENCE_PILL } from "./styles";
-import { bestContact, fitPill, fmtTime, listLabel, verifiedContact } from "./format";
+import { listLabel, verifiedContact, bestContact } from "./format";
+import { initials, leadStage, nf, shortDate, STAGE_TAG, type LeadStage } from "./stages";
 import CampaignWizard from "./CampaignWizard";
+import { ConfirmModal, TextPromptModal } from "./Dialogs";
 
-const ENROLL_PILL: Record<string, { cls: string; label: string }> = {
-  active: { cls: "bg-blue", label: "In sequence" },
-  sending: { cls: "bg-blue", label: "Sending…" },
-  completed: { cls: "bg-gray", label: "Sequence done" },
-  replied: { cls: "bg-gold", label: "Replied · stopped" },
-  bounced: { cls: "bg-terra", label: "Bounced" },
-  stopped: { cls: "bg-gray", label: "Stopped" },
-};
+type Filter = "all" | "no_email" | "review" | "sent" | "followup" | "replied";
+
+const FILTERS: { key: Filter; label: string; tone?: "warn" | "info" | "good"; stages: LeadStage[] | null }[] = [
+  { key: "all", label: "All", stages: null },
+  { key: "no_email", label: "No email", stages: ["no_email", "checking", "saved"] },
+  { key: "review", label: "To review", tone: "warn", stages: ["review", "writing"] },
+  { key: "sent", label: "Sent", stages: ["sent", "bounced"] },
+  { key: "followup", label: "In follow-ups", tone: "info", stages: ["followup"] },
+  { key: "replied", label: "Replied", tone: "good", stages: ["replied"] },
+];
 
 export default function ListDetail({
-  listId, onBack, onOpenLead,
+  listId, onOpenLead, onReview, onListChanged,
 }: {
   listId: string;
-  onBack: () => void;
   onOpenLead: (lead: Lead) => void;
+  onReview: () => void;
+  onListChanged: () => void;
 }) {
   const toast = useToast();
   const [list, setList] = useState<ListSummary | null>(null);
   const [leads, setLeads] = useState<ListLead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showWizard, setShowWizard] = useState(false);
-  // Selection handed to the wizard: undefined = whole list (header button),
-  // an id array = "Email selected" from the bulk bar.
-  const [wizardSeed, setWizardSeed] = useState<string[] | undefined>(undefined);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [wizardSeed, setWizardSeed] = useState<string[] | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [revealing, setRevealing] = useState<string | null>(null); // lead id or "bulk"
   const [revealProgress, setRevealProgress] = useState("");
+  const [dialog, setDialog] = useState<null | { kind: "rename" } | { kind: "remove"; ids: string[]; label: string }>(null);
 
   const load = useCallback(async () => {
     try {
@@ -56,20 +64,25 @@ export default function ListDetail({
 
   useEffect(() => { load(); }, [load]);
 
-  async function rename() {
+  const staged = useMemo(() => leads.map((l) => ({ lead: l, stage: leadStage(l) })), [leads]);
+  const countFor = (f: (typeof FILTERS)[number]) => (f.stages ? staged.filter((x) => f.stages!.includes(x.stage)).length : staged.length);
+  const active = FILTERS.find((f) => f.key === filter)!;
+  const shown = active.stages ? staged.filter((x) => active.stages!.includes(x.stage)) : staged;
+
+  async function rename(name: string) {
+    setDialog(null);
     const current = list?.name ? listLabel(list.name) : "";
-    const name = prompt("Rename list:", current);
-    if (!name?.trim() || name.trim() === list?.name || name.trim() === current) return;
+    if (!name.trim() || name.trim() === list?.name || name.trim() === current) return;
     const res = await fetch(`/api/leads/lists/${listId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: name.trim() }),
     });
-    if (res.ok) load();
+    if (res.ok) { load(); onListChanged(); }
     else toast.push({ kind: "error", text: (await res.json()).error || "rename failed" });
   }
 
-  // "Reveal email" = the existing enrich pass: re-crawl the site, extract
+  // "Find email" = the existing enrich pass: re-crawl the site, extract
   // addresses, MX-verify, promote the lead if one checks out.
   async function revealOne(lead: ListLead): Promise<"found" | "none" | "failed"> {
     try {
@@ -87,13 +100,12 @@ export default function ListDetail({
     const outcome = await revealOne(lead);
     setRevealing(null);
     if (outcome === "found") toast.push({ kind: "success", text: `Found an email for ${lead.name}.` });
-    else if (outcome === "none") toast.push({ kind: "error", text: `${lead.name}: crawled the site but no verified email turned up.` });
-    else toast.push({ kind: "error", text: `${lead.name}: could not crawl (no website or site unreachable).` });
+    else if (outcome === "none") toast.push({ kind: "error", text: `${lead.name}: checked the site but no work email turned up.` });
+    else toast.push({ kind: "error", text: `${lead.name}: could not open the site (no website or it is down).` });
     load();
   }
 
   async function revealSelected() {
-    // Only crawl leads that still lack a sendable (verified) email.
     const targets = leads.filter((l) => checked.has(l.id) && !verifiedContact(l));
     if (!targets.length) return;
     setRevealing("bulk");
@@ -109,15 +121,13 @@ export default function ListDetail({
     setRevealProgress("");
     toast.push({
       kind: found ? "success" : "error",
-      text: `Emails found for ${found} of ${targets.length} leads${none ? `, ${none} had none on their site` : ""}${failed ? `, ${failed} could not be crawled` : ""}.`,
+      text: `Emails found for ${found} of ${targets.length}${none ? `, ${none} had none on their site` : ""}${failed ? `, ${failed} could not be opened` : ""}.`,
     });
     load();
   }
 
-  async function removeSelected() {
-    const ids = [...checked];
-    if (!ids.length) return;
-    if (!confirm(`Remove ${ids.length} lead${ids.length === 1 ? "" : "s"} from this list? The leads themselves are kept.`)) return;
+  async function removeLeads(ids: string[]) {
+    setDialog(null);
     const res = await fetch(`/api/leads/lists/${listId}/members`, {
       method: "DELETE",
       headers: { "content-type": "application/json" },
@@ -126,220 +136,166 @@ export default function ListDetail({
     if (res.ok) {
       setChecked(new Set());
       load();
+      onListChanged();
     } else {
       toast.push({ kind: "error", text: (await res.json()).error || "remove failed" });
     }
   }
 
-  async function removeLead(leadId: string, name: string) {
-    if (!confirm(`Remove ${name} from this list? The lead itself is kept.`)) return;
-    const res = await fetch(`/api/leads/lists/${listId}/members`, {
-      method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ lead_ids: [leadId] }),
-    });
-    if (res.ok) load();
-    else toast.push({ kind: "error", text: (await res.json()).error || "remove failed" });
-  }
+  if (loading) return <div className={s.body}><div className={s.card}><p className={s.muted}>Loading…</p></div></div>;
+  if (!list) return <div className={s.body}><div className={s.card}><p className={s.muted}>List not found.</p></div></div>;
 
-  if (loading) return <div className="pm-empty">Loading…</div>;
-  if (!list) return <div className="pm-empty">List not found.</div>;
+  const unverifiedChecked = leads.filter((l) => checked.has(l.id) && !verifiedContact(l));
+  const shownIds = shown.map((x) => x.lead.id);
+  const allShownChecked = shownIds.length > 0 && shownIds.every((id) => checked.has(id));
+  const reviewCount = staged.filter((x) => x.stage === "review").length;
 
   return (
-    <div>
-      <div className={styles.listDetailBar}>
-        <button type="button" className="pm-btn ghost" onClick={onBack}>
-          <ArrowLeft size={14} /> All lists
-        </button>
-        <div className={styles.listDetailTitle}>
-          <b>{listLabel(list.name)}</b>
-          <span className="pm-dim"> · {leads.length} leads</span>
-        </div>
-        <div className={styles.toolbar}>
-          <button type="button" className="pm-btn" onClick={rename}><Pencil size={13} /> Rename</button>
-          <button type="button" className={`pm-btn ${styles.inkBtn}`} onClick={() => { setWizardSeed(undefined); setShowWizard(true); }}>
-            <Send size={13} /> Email this list
+    <div className={s.body}>
+      <div className={s.lstages} role="tablist" aria-label="Filter by stage">
+        {FILTERS.map((f) => (
+          <button key={f.key} type="button" role="tab" aria-selected={filter === f.key} className={s.ls} data-on={filter === f.key} data-tone={f.tone} onClick={() => setFilter(f.key)}>
+            <b>{nf(countFor(f))}</b>
+            <span>{f.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className={s.row} style={{ justifyContent: "space-between" }}>
+        <label className={s.row} style={{ gap: 10, fontSize: 15, color: "var(--pm-ink2)", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            className={s.check}
+            checked={allShownChecked}
+            onChange={(e) => setChecked(e.target.checked ? new Set([...checked, ...shownIds]) : new Set([...checked].filter((id) => !shownIds.includes(id))))}
+          />
+          Select all {active.key === "all" ? "" : active.label.toLowerCase()} ({nf(shown.length)})
+        </label>
+        <div className={s.row}>
+          {reviewCount > 0 ? (
+            <button type="button" className={s.txtLink} onClick={onReview}>Review {nf(reviewCount)} emails <ArrowRight /></button>
+          ) : null}
+          <button type="button" className={s.txtLink} style={{ color: "var(--pm-ink2)" }} onClick={() => setDialog({ kind: "rename" })}>
+            <Pencil /> Rename
           </button>
         </div>
       </div>
 
-      <p className={styles.listDetailHint}>
-        <b>Email this list</b> walks you through the whole campaign: pick who gets it, write or
-        AI-draft the copy (with product targeting), preview the exact email per company, then
-        launch. Or tick any leads below to email just those, find their verified emails, or remove
-        them from the list.
-      </p>
-
-      {leads.length === 0 ? (
-        <div className="pm-empty">
-          No leads in this list yet. If it came from a company search, hit “Keep going” on the
-          header to let the pipeline finish discovering and verifying emails.
-        </div>
-      ) : (
-        <>
-        {(() => {
-          const unverifiedChecked = leads.filter((l) => checked.has(l.id) && !verifiedContact(l));
-          const allChecked = leads.length > 0 && leads.every((l) => checked.has(l.id));
-          return (
-            <>
-            {checked.size > 0 && (
-              <div className={styles.bulkBar}>
-                <span>{checked.size} lead{checked.size === 1 ? "" : "s"} selected</span>
-                <button
-                  type="button"
-                  className={`pm-btn ${styles.inkBtn}`}
-                  disabled={revealing !== null}
-                  onClick={() => { setWizardSeed([...checked]); setShowWizard(true); }}
-                >
-                  <Send size={13} /> Email selected ({checked.size})
-                </button>
-                <button
-                  type="button"
-                  className="pm-btn"
-                  disabled={revealing !== null || unverifiedChecked.length === 0}
-                  title={unverifiedChecked.length === 0 ? "Everyone selected already has a verified email" : undefined}
-                  onClick={revealSelected}
-                >
-                  <MailSearch size={13} />{" "}
-                  {revealing === "bulk" ? `Finding emails ${revealProgress}…` : `Find emails (${unverifiedChecked.length})`}
-                </button>
-                <button type="button" className="pm-btn ghost" disabled={revealing !== null} onClick={removeSelected}>
-                  <Trash2 size={13} /> Remove
-                </button>
-                <button type="button" className="pm-btn ghost" onClick={() => setChecked(new Set())} disabled={revealing !== null}>
-                  Clear
-                </button>
-              </div>
-            )}
-        <div className={`pm-tablewrap ${styles.tableWrap}`}>
-          <table className="pm-tbl">
-            <thead>
-              <tr>
-                <th style={{ width: 34 }}>
+      <section className={`${s.card} ${s.cardFlush}`}>
+        {shown.length === 0 ? (
+          <div className={s.empty}>
+            <b>{leads.length === 0 ? "No businesses in this list yet" : `Nothing at “${active.label}”`}</b>
+            <p>
+              {leads.length === 0
+                ? "If it came from a search, run the next batch from Find and the businesses appear here as they are found."
+                : "Pick another stage above."}
+            </p>
+          </div>
+        ) : (
+          <div className={s.bizList}>
+            {shown.map(({ lead, stage }) => {
+              const verified = verifiedContact(lead);
+              const best = bestContact(lead);
+              const tag = STAGE_TAG[stage];
+              const en = lead.enrollment;
+              const when = lead.last_contacted_at
+                ? `${en?.status === "active" ? `step ${en.current_step + 1} · ` : ""}${shortDate(lead.last_contacted_at)}`
+                : lead.fit_score != null
+                  ? `fit ${lead.fit_score}/100`
+                  : "";
+              return (
+                <div key={lead.id} className={s.bz}>
                   <input
                     type="checkbox"
-                    aria-label="Select all leads"
-                    checked={allChecked}
+                    className={s.check}
+                    aria-label={`Select ${lead.name}`}
+                    checked={checked.has(lead.id)}
                     onChange={(e) =>
-                      setChecked(e.target.checked ? new Set(leads.map((l) => l.id)) : new Set())
+                      setChecked((prev) => {
+                        const next = new Set(prev);
+                        if (e.target.checked) next.add(lead.id);
+                        else next.delete(lead.id);
+                        return next;
+                      })
                     }
                   />
-                </th>
-                <th style={{ width: 56 }}>Fit</th>
-                <th>Company</th>
-                <th>Contact</th>
-                <th>Last contacted</th>
-                <th>Status</th>
-                <th style={{ width: 40 }} aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {leads.map((lead) => {
-                const fp = fitPill(lead.fit_score);
-                const best = bestContact(lead);
-                const verified = verifiedContact(lead);
-                const en = lead.enrollment;
-                const ep = en ? ENROLL_PILL[en.status] ?? { cls: "bg-gray", label: en.status } : null;
-                return (
-                  <tr key={lead.id} className="clickable" onClick={() => onOpenLead(lead)}>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${lead.name}`}
-                        checked={checked.has(lead.id)}
-                        onChange={(e) =>
-                          setChecked((prev) => {
-                            const next = new Set(prev);
-                            if (e.target.checked) next.add(lead.id);
-                            else next.delete(lead.id);
-                            return next;
-                          })
-                        }
-                      />
-                    </td>
-                    <td><span className={`pm-badge2 ${fp.cls}`}>{fp.label}</span></td>
-                    <td>
-                      <div className="pm-cellname"><span className="pm-b7">{lead.name}</span></div>
-                      <div className="pm-dim">{[lead.category, lead.city].filter(Boolean).join(" · ") || "–"}</div>
-                    </td>
-                    <td>
-                      {verified ? (
-                        <span>
-                          <span className="mono" style={{ fontSize: 12.5 }}>{verified.email}</span>{" "}
-                          <span className={`pm-badge2 ${CONFIDENCE_PILL[verified.confidence] ?? "bg-gray"}`}>{verified.confidence}</span>
-                        </span>
-                      ) : (
-                        <span className={styles.noEmailCell} onClick={(e) => e.stopPropagation()}>
-                          {best ? (
-                            <>
-                              <span className="mono pm-dim" style={{ fontSize: 12.5 }}>{best.email}</span>
-                              <span className="pm-badge2 bg-gold" title="Address found but its mail server did not verify, so campaigns skip it">unverified</span>
-                            </>
-                          ) : (
-                            <span className="pm-muted">no verified email</span>
-                          )}
-                          <button
-                            type="button"
-                            className="pm-btn"
-                            style={{ padding: "3px 9px", fontSize: 11.5 }}
-                            disabled={revealing !== null}
-                            onClick={() => revealEmail(lead)}
-                          >
-                            <MailSearch size={12} /> {revealing === lead.id ? "Finding…" : "Find email"}
-                          </button>
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      {lead.last_contacted_at ? (
-                        <span>
-                          {fmtTime(lead.last_contacted_at)}
-                          {en && en.status === "active" ? (
-                            <span className="pm-dim" style={{ fontSize: 11.5 }}> (step {en.current_step + 1})</span>
-                          ) : null}
-                        </span>
-                      ) : (
-                        <span className="pm-muted">Never</span>
-                      )}
-                    </td>
-                    <td>
-                      {ep ? (
-                        <span className={`pm-badge2 ${ep.cls}`} title={en?.sequence_name ?? undefined}>{ep.label}</span>
-                      ) : verified ? (
-                        <span className="pm-badge2 bg-gray">Not enrolled</span>
-                      ) : (
-                        <span className="pm-badge2 bg-gray">No email yet</span>
-                      )}
-                    </td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        className="pm-btn ghost"
-                        style={{ padding: "4px 7px" }}
-                        aria-label={`Remove ${lead.name} from list`}
-                        onClick={() => removeLead(lead.id, lead.name)}
-                      >
-                        <Trash2 size={13} />
+                  <span className={s.cj} data-tone={tag.tone === "good" ? "good" : tag.tone === "info" ? "info" : tag.tone === "warn" ? "warn" : undefined}>{initials(lead.name)}</span>
+                  <button type="button" className={s.clM} style={{ appearance: "none", border: 0, background: "none", padding: 0, textAlign: "left", cursor: "pointer", font: "inherit" }} onClick={() => onOpenLead(lead)}>
+                    <b>{lead.name}</b>
+                    <span>
+                      {verified ? verified.email : best ? `${best.email} · not verified` : "No work email found"}
+                    </span>
+                  </button>
+                  <span className={s.clO}>
+                    {stage === "no_email" || stage === "saved" ? (
+                      <button type="button" className={s.txtLink} disabled={revealing !== null} onClick={() => revealEmail(lead)}>
+                        <MailSearch /> {revealing === lead.id ? "Looking…" : "Find email"}
                       </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    ) : stage === "review" ? (
+                      <button type="button" className={s.txtLink} onClick={onReview}>To review <ArrowRight /></button>
+                    ) : (
+                      <span className={s.tg} data-tone={tag.tone}>{tag.label}</span>
+                    )}
+                    {when ? <time>{when}</time> : null}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <p className={s.muted} style={{ margin: 0, fontSize: 14 }}>
+        Tick businesses to email them as a follow-up campaign, find their emails, or remove them from this list (the business itself is kept).
+      </p>
+
+      {checked.size > 0 && (
+        <div className={s.actbar}>
+          <div className={s.abM}>
+            <b>{nf(checked.size)} picked</b>
+            <span>{unverifiedChecked.length ? `${nf(unverifiedChecked.length)} without a checked email` : "All have a checked email"}</span>
+          </div>
+          <button type="button" className="pm-btn" disabled={revealing !== null || unverifiedChecked.length === 0} onClick={revealSelected}>
+            <MailSearch /> {revealing === "bulk" ? `Finding ${revealProgress}…` : "Find emails"}
+          </button>
+          <button type="button" className="pm-btn" disabled={revealing !== null} onClick={() => setDialog({ kind: "remove", ids: [...checked], label: `${checked.size} business${checked.size === 1 ? "" : "es"}` })}>
+            <Trash2 /> Remove
+          </button>
+          <button type="button" className="pm-btn" aria-label="Clear selection" onClick={() => setChecked(new Set())} disabled={revealing !== null}>
+            <X />
+          </button>
+          <button type="button" className="pm-btn primary" disabled={revealing !== null} onClick={() => setWizardSeed([...checked])}>
+            <Send /> Email {nf(checked.size)}
+          </button>
         </div>
-            </>
-          );
-        })()}
-        </>
       )}
 
-      {showWizard && (
+      {dialog?.kind === "rename" && (
+        <TextPromptModal
+          title="Rename list"
+          label="List name"
+          defaultValue={listLabel(list.name)}
+          onSubmit={rename}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === "remove" && (
+        <ConfirmModal
+          title="Remove from this list?"
+          message={<>Remove {dialog.label} from this list? The businesses themselves are kept.</>}
+          confirmLabel="Remove"
+          danger
+          onConfirm={() => removeLeads(dialog.ids)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+
+      {wizardSeed && (
         <CampaignWizard
           listId={listId}
           initialLeadIds={wizardSeed}
-          onClose={() => { setShowWizard(false); load(); }}
-          onDone={load}
+          onClose={() => { setWizardSeed(null); load(); }}
+          onDone={() => { load(); onListChanged(); }}
         />
       )}
     </div>

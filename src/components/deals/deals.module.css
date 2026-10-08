@@ -16,8 +16,8 @@
   width: 272px;
   background: var(--pm-card3);
   border: 1px solid transparent;
-  border-radius: var(--pm-r);
-  padding: 12px 10px 10px;
+  border-radius: 18px;
+  padding: 12px;
   min-height: 120px;
   transition: background 120ms, border-color 120ms;
 }
@@ -33,7 +33,7 @@
   padding: 2px 6px 10px;
 }
 .laneDot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
-.laneName { font-size: 14.5px; font-weight: 700; color: var(--pm-ink); white-space: nowrap; }
+.laneName { font-size: 15px; font-weight: 800; color: var(--pm-ink); white-space: nowrap; }
 .laneN { font: 600 12.5px var(--pm-mono); color: var(--pm-muted); }
 .laneHint { font-size: 12px; color: var(--pm-muted); margin-left: auto; white-space: nowrap; }
 
@@ -60,22 +60,32 @@
 
 .card {
   background: var(--pm-card);
-  border: 1px solid var(--pm-line);
-  border-radius: var(--pm-r2);
-  padding: 12px 13px;
+  border: 1px solid var(--pm-border);
+  border-radius: 14px;
+  padding: 14px;
   cursor: grab;
   flex: none;
   transition: border-color 120ms;
 }
-.card:hover { border-color: var(--pm-border); }
+.card:hover { border-color: #CFC7B9; box-shadow: 0 2px 10px rgba(26,23,20,.06); }
 .card:focus-visible { outline: 2px solid var(--pm-ink); outline-offset: 1px; }
 .card[data-dragging="true"] { opacity: 0.45; }
 
-.cardTop { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; min-width: 0; }
+.cardTop { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; min-width: 0; }
+.av {
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: var(--pm-card3); color: var(--pm-ink2); font: 800 12.5px var(--pm-font);
+}
+.av[data-temp="hot"] { background: var(--pm-brand-soft); color: var(--pm-brand-deep); }
+.av[data-temp="warm"] { background: var(--pm-gold-soft); color: var(--pm-gold); }
+.av[data-temp="cool"] { background: var(--pm-blue-soft); color: var(--pm-blue); }
+.cardWho { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.cardWho > span { font-size: 13.5px; color: var(--pm-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tempDot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .cardName {
+  display: block;
   font-weight: 700;
-  font-size: 14.5px;
+  font-size: 15px;
   color: var(--pm-ink);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -91,8 +101,8 @@
   font-size: 13px;
 }
 .cardNext {
-  font-size: 13px;
-  color: var(--pm-muted);
+  font-size: 14px;
+  color: var(--pm-ink2);
   line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -305,4 +315,15 @@
      spill a few px into its neighbour rather than break mid-word */
   .stepBtn { flex: 1 1 0 !important; min-width: 0 !important; }
   .stepLabel { font-size: 10.5px !important; padding: 0 !important; overflow-wrap: normal; word-break: normal; }
+}
+
+/* page body under the shared header */
+.body { display: flex; flex-direction: column; gap: 14px; padding: 18px var(--pm3-gutter) 48px; min-width: 0; }
+.body .board { margin-top: 0; }
+
+/* phone: lanes stack (prototype b2b-deals at 390px); drag still works on desktop */
+@media (max-width: 760px) {
+  .board { flex-direction: column; align-items: stretch; overflow: visible; }
+  .lane, .lane[data-over="true"] { flex: none; width: 100%; min-height: 0; }
+  .laneCards { max-height: none; }
 }

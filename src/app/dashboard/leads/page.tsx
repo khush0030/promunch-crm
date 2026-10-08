@@ -1,62 +1,65 @@
 "use client";
 
-// B2B Leads v2 — organised around saved Lists. Search results become lists;
-// lists get enrolled in template-driven email sequences; Analytics reads the
-// Resend event stream. Discovery still runs through the browser-driven tick
-// loop ("Keep going") with the hourly pg_cron as the hands-free driver.
+// B2B & deals, rebuilt to the prototype (docs/plans/2026-10-07-app-redesign/
+// b2b.html; audit docs/audits/2026-10-09-b2b-deals-fidelity.md). One guided
+// flow: Find → Score + emails → Review + send → Follow-ups → Replies → Deals.
+// Tabs are real URLs (?tab=) listed in the shell nav as the B2B section tabs:
+// Overview · Lists · Review · Replies · Deals; Find and Setup are sub pages.
+// Every API call is the one the old page made, with the same body.
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  Search, Play, RefreshCw, Settings2, BookOpen, Send, Repeat, ArrowRight,
-} from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, ArrowRight, Plus, Search, Send, Settings2 } from "lucide-react";
+import { PageHeader } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
-import styles from "./leads.module.css";
 import type { ApiResponse, Lead, ListSummary } from "@/components/leads/types";
-import { PROCESSING_STATUSES, TABS } from "@/components/leads/constants";
-import LeadTable from "@/components/leads/LeadTable";
+import OverviewView, { nextStep, type B2bTab, type DealsSummary } from "@/components/leads/OverviewView";
 import ListsView from "@/components/leads/ListsView";
 import ListDetail from "@/components/leads/ListDetail";
-import SequencesView from "@/components/leads/SequencesView";
-import TemplatesView from "@/components/leads/TemplatesView";
-import AnalyticsView from "@/components/leads/AnalyticsView";
-import SearchModal from "@/components/leads/SearchModal";
+import FindView from "@/components/leads/FindView";
+import ReviewView from "@/components/leads/ReviewView";
+import RepliesView from "@/components/leads/RepliesView";
+import SetupView from "@/components/leads/SetupView";
 import SettingsModal from "@/components/leads/SettingsModal";
-import GuideModal from "@/components/leads/GuideModal";
 import LeadModal from "@/components/leads/LeadModal";
 import CampaignWizard from "@/components/leads/CampaignWizard";
-import ListPickerModal from "@/components/leads/ListPickerModal";
-import { SectionTabs } from "@/components/shell/SectionTabs";
+import { flowCounts, nf } from "@/components/leads/stages";
+import { listLabel } from "@/components/leads/format";
+import { BUCKET_OF, DEFAULT_HIDDEN_KINDS } from "@/components/deals/constants";
+import type { DealsResponse } from "@/components/deals/types";
+import b from "@/components/leads/b2b.module.css";
 
-type FlowStep = {
-  n: string;
-  title: string;
-  sub: string;
-  subTone?: "warn";
-  count: number;
-  countTone?: "good";
-  onClick: () => void;
-};
+const TABS: B2bTab[] = ["overview", "lists", "find", "review", "replies", "setup"];
 
 export default function LeadsPage() {
+  return (
+    <Suspense fallback={null}>
+      <B2bPage />
+    </Suspense>
+  );
+}
+
+function B2bPage() {
   const toast = useToast();
+  const router = useRouter();
+  const params = useSearchParams();
+  const rawTab = params.get("tab") as B2bTab | null;
+  const tab: B2bTab = rawTab && TABS.includes(rawTab) ? rawTab : "overview";
+  const openListId = tab === "lists" ? params.get("list") : null;
+
   const [data, setData] = useState<ApiResponse | null>(null);
   const [lists, setLists] = useState<ListSummary[]>([]);
   const [listsLoading, setListsLoading] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("lists");
-  const [openListId, setOpenListId] = useState<string | null>(null);
-  const [listReloadKey, setListReloadKey] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
   const [selected, setSelected] = useState<Lead | null>(null);
-  const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
   const [running, setRunning] = useState(false);
   const [runProgress, setRunProgress] = useState("");
-  const [showPicker, setShowPicker] = useState(false);
   const [campaignListId, setCampaignListId] = useState<string | null>(null);
 
-  // KPI numbers + the Replies tab come from the classic leads endpoint.
+  // Counts, settings, recent searches and the newest replies.
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/leads?statuses=replied", { cache: "no-store" });
@@ -66,8 +69,6 @@ export default function LeadsPage() {
       setSelected((prev) => (prev ? json.leads.find((l) => l.id === prev.id) ?? prev : prev));
     } catch (e) {
       toast.push({ kind: "error", text: `Could not load leads: ${e instanceof Error ? e.message : "unknown"}` });
-    } finally {
-      setLoading(false);
     }
   }, [toast]);
 
@@ -86,24 +87,61 @@ export default function LeadsPage() {
 
   useEffect(() => { load(); loadLists(); }, [load, loadLists]);
 
+  // Same query key as the Deals page, so the two share one cache.
+  const dealsQ = useQuery({
+    queryKey: ["deals"],
+    queryFn: async (): Promise<DealsResponse> => {
+      const res = await fetch("/api/deals", { cache: "no-store" });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "failed to load deals");
+      return d;
+    },
+    refetchInterval: 120_000,
+  });
+  const allDeals = useMemo(() => dealsQ.data?.deals ?? [], [dealsQ.data?.deals]);
+  const dealsSummary: DealsSummary | null = useMemo(() => {
+    if (!dealsQ.data) return null;
+    const live = allDeals.filter((d) => !(DEFAULT_HIDDEN_KINDS as string[]).includes(d.kind));
+    const open = live.filter((d) => ["inquiries", "discussions", "samples"].includes(BUCKET_OF[d.stage]));
+    return {
+      open: open.length,
+      followUp: open.filter((d) => d.follow_up_needed).length,
+      samples: live.filter((d) => BUCKET_OF[d.stage] === "samples").length,
+      won: live.filter((d) => d.stage === "won").length,
+    };
+  }, [dealsQ.data, allDeals]);
+
   const reloadAll = useCallback(() => {
     load();
     loadLists();
-    setListReloadKey((k) => k + 1);
+    setReloadKey((k) => k + 1);
   }, [load, loadLists]);
 
+  const go = useCallback((t: B2bTab, extra?: Record<string, string>) => {
+    const q = new URLSearchParams();
+    if (t !== "overview") q.set("tab", t);
+    for (const [k, v] of Object.entries(extra ?? {})) q.set(k, v);
+    const qs = q.toString();
+    router.push(`/dashboard/leads${qs ? `?${qs}` : ""}`);
+  }, [router]);
+  const openList = useCallback((id: string) => go("lists", { list: id }), [go]);
+
+  // The browser-driven pipeline ("run next batch"): each tick discovers,
+  // scores, finds emails, writes drafts and sends due follow-up steps, exactly
+  // as the old "Keep going" button did. The hourly pg_cron does the same.
   async function runPipeline(rounds: number) {
     setRunning(true);
     try {
       for (let i = 1; i <= rounds; i++) {
-        setRunProgress(`${i}/${rounds}…`);
+        setRunProgress(`${i}/${rounds}`);
         const res = await fetch("/api/leads/tick", { method: "POST" });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "tick failed");
         if (!json.discovered && !json.crawled && !json.drafted && !json.sequenceSent) break;
+        if (i % 3 === 0) { load(); loadLists(); }
       }
       reloadAll();
-      toast.push({ kind: "success", text: "Pipeline run complete." });
+      toast.push({ kind: "success", text: "Batch done. New emails to review are in Review." });
     } catch (e) {
       toast.push({ kind: "error", text: `Pipeline: ${e instanceof Error ? e.message : "unknown"}` });
     } finally {
@@ -112,187 +150,185 @@ export default function LeadsPage() {
     }
   }
 
-  const counts = data?.statusCounts ?? {};
-  const totalLeads = Object.values(counts).reduce((a, b) => a + b, 0);
-  const processing = PROCESSING_STATUSES.reduce((a, s) => a + (counts[s] ?? 0), 0);
-  const withEmail = lists.reduce((a, l) => a + l.withEmail, 0);
+  const c = flowCounts(data?.statusCounts ?? {});
   const sender = data?.settings?.from_name?.split(" ")[0] || "Parth";
-  const dailyCap = data?.settings?.daily_cap;
-  const replied = counts.replied ?? 0;
+  const dailyCap = data?.settings?.daily_cap ?? null;
+  const next = nextStep(data);
+  const openList_ = openListId ? lists.find((l) => l.id === openListId) ?? null : null;
 
-  function goTab(key: string) {
-    setTab(key);
-    setOpenListId(null);
+  const settingsBtn = (
+    <Link href="/dashboard/leads?tab=setup" className="pm-btn ghost" aria-label="Outreach setup" title="Sender, follow-ups, email starters, results">
+      <Settings2 /> Setup
+    </Link>
+  );
+
+  let header: { crumb: React.ReactNode; title: React.ReactNode; summary?: React.ReactNode; actions?: React.ReactNode };
+  switch (tab) {
+    case "lists":
+      header = openListId
+        ? {
+            crumb: <Link href="/dashboard/leads?tab=lists" className={b.back}><ArrowLeft size={14} aria-hidden /> Lists</Link>,
+            title: openList_ ? listLabel(openList_.name) : "List",
+            summary: openList_ ? (
+              <><b>{nf(openList_.leads)} businesses</b>, {nf(openList_.withEmail)} with a work email, {nf(openList_.contacted)} emailed, {nf(openList_.replied)} replied.</>
+            ) : null,
+            actions: (
+              <>
+                <button type="button" className="pm-btn primary" onClick={() => openListId && setCampaignListId(openListId)}>
+                  <Send /> Email this list
+                </button>
+                <button type="button" className="pm-btn" onClick={() => go("find")}><Plus /> Find more</button>
+              </>
+            ),
+          }
+        : {
+            crumb: "B2B & deals",
+            title: "Lists",
+            summary: <><b>{nf(lists.length)} lists</b> with {nf(c.withEmail)} businesses that have a checked work email. Open one to see every business and its stage.</>,
+            actions: <button type="button" className="pm-btn primary" onClick={() => go("find")}><Search /> Find businesses</button>,
+          };
+      break;
+    case "find":
+      header = {
+        crumb: <Link href="/dashboard/leads?tab=lists" className={b.back}><ArrowLeft size={14} aria-hidden /> Lists</Link>,
+        title: "Find businesses",
+        summary: <>Pick a type and a city. We find the businesses, score the fit, check their work emails and write a first email for each. <b>Nothing is sent from here.</b></>,
+      };
+      break;
+    case "review":
+      header = {
+        crumb: "B2B & deals",
+        title: "Review",
+        summary: c.toReview > 0
+          ? <>Read each email once. Nothing sends until you press Send. <b>{nf(c.toReview)} waiting.</b></>
+          : <>AI-written emails wait here for you. <b>All caught up.</b></>,
+        actions: settingsBtn,
+      };
+      break;
+    case "replies":
+      header = {
+        crumb: "B2B & deals",
+        title: "Replies",
+        summary: <>{nf(c.sent + c.replied + c.bounced)} emailed so far. <b>{nf(c.replied)} replied.</b> A reply stops any follow-ups.</>,
+      };
+      break;
+    case "setup":
+      header = {
+        crumb: <Link href="/dashboard/leads" className={b.back}><ArrowLeft size={14} aria-hidden /> B2B outreach</Link>,
+        title: "Outreach setup",
+        summary: <>Rarely changed. Sender, daily limit, follow-up campaigns and email starters.</>,
+      };
+      break;
+    default: {
+      const primary =
+        next === "review" ? <button type="button" className="pm-btn primary" onClick={() => go("review")}>Review {nf(c.toReview)} emails <ArrowRight /></button>
+        : next === "check" ? <button type="button" className="pm-btn primary" onClick={() => runPipeline(10)} disabled={running}>{running ? `Working ${runProgress}` : "Run next batch"}</button>
+        : next === "replies" ? <button type="button" className="pm-btn primary" onClick={() => go("replies")}>Open {nf(c.replied)} replies</button>
+        : <button type="button" className="pm-btn primary" onClick={() => go("find")}><Search /> Find businesses</button>;
+      header = {
+        crumb: "B2B & deals",
+        title: "B2B outreach",
+        summary: running
+          ? <>Working through the next batch <b>{runProgress}</b>. Keep this tab open.</>
+          : <>Find businesses, check the emails, send as {sender}. <b>{nf(c.toReview)} emails</b> are waiting for you.</>,
+        actions: (
+          <>
+            {primary}
+            {next !== "find" ? <button type="button" className="pm-btn" onClick={() => go("find")}><Search /> Find</button> : null}
+            {settingsBtn}
+          </>
+        ),
+      };
+    }
   }
 
-  // The six steps of the outreach flow. Each one opens the place that step
-  // lives (modal or tab); nothing here sends or runs anything.
-  const flow: FlowStep[] = [
-    { n: "1", title: "Find", sub: "Pick a business type and city", count: totalLeads, onClick: () => setShowSearch(true) },
-    { n: "2", title: "Save as a list", sub: `${lists.length} lists · work emails found`, count: withEmail, onClick: () => goTab("lists") },
-    { n: "3", title: "Review emails", sub: "Pick a list, preview each email", count: counts.drafted ?? 0, onClick: () => setShowPicker(true) },
-    {
-      n: "4",
-      title: `Send as ${sender}`,
-      sub: data?.settings?.paused ? "Paused" : dailyCap ? `Up to ${dailyCap} a day, spread out` : "Spread out over the day",
-      subTone: data?.settings?.paused ? "warn" : undefined,
-      count: counts.contacted ?? 0,
-      onClick: () => goTab("sequences"),
-    },
-    { n: "auto", title: "Follow-ups", sub: "Automatic until someone replies", count: data?.activeEnrollments ?? 0, onClick: () => goTab("sequences") },
-    { n: "5", title: "Replies become deals", sub: "Reply, then track it in Deals", count: replied, countTone: replied > 0 ? "good" : undefined, onClick: () => goTab("replies") },
-  ];
-
   return (
-    <div className={`pm-page ${styles.page}`}>
-      <div className={`pm-head ${styles.head}`}>
-        <div>
-          <h1>B2B outreach</h1>
-          <p>
-            {running
-              ? `Working… discovering companies and sending due emails ${runProgress}`
-              : processing > 0
-                ? `${processing} leads still processing. Hit “Keep going” to push them along.`
-                : `Find businesses, save them as lists, email them as ${sender}. Replies are tracked for you.`}
-          </p>
-        </div>
-        <div className={styles.headActs}>
-          <button type="button" className={`pm-btn primary ${styles.headPrimary}`} onClick={() => setShowPicker(true)}>
-            <Send size={14} /> New email campaign
-          </button>
-          <button type="button" className="pm-btn" onClick={() => setShowSearch(true)}>
-            <Search size={14} /> Find companies
-          </button>
-          <button type="button" className="pm-btn" onClick={() => runPipeline(10)} disabled={running}>
-            <Play size={14} /> {running ? `Working ${runProgress}` : "Keep going"}
-          </button>
-          <span className={styles.iconActs}>
-            <button type="button" className={`pm-btn ghost ${styles.iconBtn}`} onClick={() => setShowGuide(true)} aria-label="Guide" title="Guide">
-              <BookOpen size={16} />
-            </button>
-            <button type="button" className={`pm-btn ghost ${styles.iconBtn}`} onClick={() => setShowSettings(true)} aria-label="Settings" title="Sender and daily limit">
-              <Settings2 size={16} />
-            </button>
-            <button type="button" className={`pm-btn ghost ${styles.iconBtn}`} onClick={reloadAll} aria-label="Refresh" title="Refresh">
-              <RefreshCw size={16} />
-            </button>
-          </span>
-        </div>
-      </div>
-      <SectionTabs />
+    <div>
+      <PageHeader crumb={header.crumb} title={header.title} summary={header.summary} actions={header.actions} />
 
-      <section className={styles.flowCard} aria-label="How outreach flows">
-        <div className={styles.secHead}>
-          <h3>How it flows</h3>
-          <Link href="/dashboard/deals" className={styles.txtLink}>
-            Deals <ArrowRight size={14} />
-          </Link>
-        </div>
-        <ol className={styles.flow}>
-          {flow.map((f) => (
-            <li key={f.title}>
-              <button type="button" className={styles.flowStep} onClick={f.onClick}>
-                <span className={styles.flowNum} data-auto={f.n === "auto" ? "true" : undefined}>
-                  {f.n === "auto" ? <Repeat size={13} /> : f.n}
-                </span>
-                <span className={styles.flowText}>
-                  <b>{f.title}</b>
-                  <span data-tone={f.subTone}>{f.sub}</span>
-                </span>
-                <span className={styles.flowCount} data-tone={f.countTone}>{f.count}</span>
-              </button>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <div className={styles.statLine}>
-        <div>
-          <b>
-            {data?.sentToday ?? 0}
-            <small>/{dailyCap ?? "–"}</small>
-          </b>
-          <span>
-            sent today
-            {data?.settings?.paused ? <em className={styles.statWarn}> · paused</em> : null}
-          </span>
-        </div>
-        <div><b>{data?.activeEnrollments ?? 0}</b><span>in campaigns now</span></div>
-        <div><b data-tone={replied > 0 ? "good" : undefined}>{replied}</b><span>replied</span></div>
-        <div><b>{totalLeads}</b><span>total leads</span></div>
-      </div>
-
-      <div className={styles.tabsRow}>
-        <div className={styles.tabsScroll}>
-          <div className={`pm-tabs ${styles.tabs}`}>
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                className={`pm-tab${tab === t.key ? " on" : ""}`}
-                onClick={() => goTab(t.key)}
-              >
-                {t.label}
-                {t.key === "lists" && lists.length ? <span className={styles.tabN}>{lists.length}</span> : null}
-                {t.key === "replies" && replied > 0 ? <span className={styles.tabN}>{replied}</span> : null}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      {tab === "overview" && (
+        <OverviewView
+          data={data}
+          lists={lists}
+          deals={dealsSummary}
+          sender={sender}
+          dailyCap={dailyCap}
+          onGo={(t) => go(t)}
+          onOpenList={openList}
+          onOpenLead={setSelected}
+          onRun={() => runPipeline(10)}
+          running={running}
+          runProgress={runProgress}
+        />
+      )}
 
       {tab === "lists" && !openListId && (
-        <ListsView
-          lists={lists}
-          loading={listsLoading}
-          onOpen={setOpenListId}
-          onEmail={setCampaignListId}
-          onChanged={loadLists}
-          onFind={() => setShowSearch(true)}
-        />
+        <div className={b.body}>
+          <ListsView
+            lists={lists}
+            loading={listsLoading}
+            onOpen={openList}
+            onEmail={setCampaignListId}
+            onChanged={loadLists}
+            onFind={() => go("find")}
+          />
+        </div>
       )}
 
       {tab === "lists" && openListId && (
         <ListDetail
-          key={`${openListId}:${listReloadKey}`}
+          key={`${openListId}:${reloadKey}`}
           listId={openListId}
-          onBack={() => { setOpenListId(null); loadLists(); }}
           onOpenLead={setSelected}
+          onReview={() => go("review")}
+          onListChanged={() => { load(); loadLists(); }}
         />
       )}
 
-      {tab === "sequences" && <SequencesView onChanged={reloadAll} />}
+      {tab === "find" && (
+        <FindView
+          searches={data?.searches ?? []}
+          lists={lists}
+          running={running}
+          runProgress={runProgress}
+          onQueued={(rounds) => { load(); loadLists(); runPipeline(rounds); }}
+          onRun={() => runPipeline(10)}
+          onOpenList={openList}
+        />
+      )}
 
-      {tab === "templates" && <TemplatesView onChanged={reloadAll} />}
+      {tab === "review" && (
+        <ReviewView
+          key={reloadKey}
+          settings={data?.settings ?? null}
+          sentToday={data?.sentToday ?? 0}
+          onChanged={load}
+          onOpenLead={setSelected}
+          onFind={() => go("find")}
+          onRun={() => runPipeline(10)}
+          running={running}
+          writing={c.writing}
+        />
+      )}
 
       {tab === "replies" && (
-        <LeadTable
-          data={data}
-          loading={loading}
-          totalLeads={totalLeads}
-          tab="replies"
-          selectedSearchId={null}
-          setSelected={setSelected}
-          setShowSearch={setShowSearch}
-          setShowGuide={setShowGuide}
+        <RepliesView
+          counts={data?.statusCounts ?? {}}
+          following={data?.activeEnrollments ?? 0}
+          deals={allDeals}
+          onOpenLead={setSelected}
+          reloadKey={reloadKey}
         />
       )}
 
-      {tab === "analytics" && <AnalyticsView />}
-
-      {showSearch && (
-        <SearchModal
-          onClose={() => setShowSearch(false)}
-          onQueued={(rounds) => {
-            setShowSearch(false);
-            setTab("lists");
-            setOpenListId(null);
-            runPipeline(rounds);
-          }}
+      {tab === "setup" && (
+        <SetupView
+          settings={data?.settings ?? null}
+          sentToday={data?.sentToday ?? 0}
+          onEditSender={() => setShowSettings(true)}
+          onChanged={reloadAll}
         />
       )}
-
-      {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
 
       {showSettings && data?.settings && (
         <SettingsModal
@@ -307,15 +343,6 @@ export default function LeadsPage() {
 
       {selected && (
         <LeadModal lead={selected} onClose={() => setSelected(null)} onChanged={reloadAll} />
-      )}
-
-      {showPicker && (
-        <ListPickerModal
-          lists={lists}
-          onClose={() => setShowPicker(false)}
-          onFind={() => setShowSearch(true)}
-          onPick={(id) => { setShowPicker(false); setCampaignListId(id); }}
-        />
       )}
 
       {campaignListId && (

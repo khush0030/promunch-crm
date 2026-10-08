@@ -206,7 +206,10 @@ export const NAV: NavSection[] = [
         icon: Handshake,
         desc: "Find buyers, send as Parth, track deals",
         pages: [
-          { label: "Leads", href: "/dashboard/leads" },
+          { label: "Overview", href: "/dashboard/leads", also: ["/dashboard/leads?tab=setup"] },
+          { label: "Lists", href: "/dashboard/leads?tab=lists", also: ["/dashboard/leads?tab=find"] },
+          { label: "Review", href: "/dashboard/leads?tab=review" },
+          { label: "Replies", href: "/dashboard/leads?tab=replies" },
           { label: "Deals", href: "/dashboard/deals" },
         ],
       },

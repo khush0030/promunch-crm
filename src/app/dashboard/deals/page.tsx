@@ -3,7 +3,7 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Handshake, LayoutGrid, List } from "lucide-react";
-import { EmptyState, PageHead, SearchBar, StatusBadge } from "@/components/pm";
+import { EmptyState, PageHeader, SearchBar, StatusBadge } from "@/components/pm";
 import { DealDrawer } from "@/components/deals/DealDrawer";
 import DealsBoard from "@/components/deals/DealsBoard";
 import {
@@ -170,47 +170,47 @@ export default function DealsPage() {
   const scan = data?.scan;
 
   return (
-    <div className={`pm-page ${css.scope}`}>
-      <PageHead
+    <div className={css.scope}>
+      <PageHeader
+        crumb="B2B & deals"
         title="Deals"
-        subtitle={
-          <>
-            {followUps > 0 ? `${followUps} need your attention · ` : ""}
-            last scan {scan?.last_run_at ? timeAgo(scan.last_run_at) : "never"}
-            {scan && !scan.backfill_done ? " · still reading older mail" : ""}
-          </>
+        summary={
+          isLoading ? (
+            "Loading the pipeline…"
+          ) : (
+            <>
+              <b>{byBucket.inquiries.length + byBucket.discussions.length + byBucket.samples.length} open</b>
+              {followUps > 0 ? <>, <b>{followUps} need a follow-up</b></> : ""}
+              {byBucket.samples.length ? `, ${byBucket.samples.length} at samples` : ""}
+              {byBucket.orders.length ? `, ${byBucket.orders.length} won` : ""}. Last scan{" "}
+              {scan?.last_run_at ? timeAgo(scan.last_run_at) : "never"}
+              {scan && !scan.backfill_done ? ", still reading older mail" : ""}.
+            </>
+          )
         }
         actions={
-          <button
-            type="button"
-            className="pm-btn sm"
-            disabled={scanNow.isPending}
-            onClick={() => scanNow.mutate()}
-          >
-            {scanNow.isPending ? "Scanning…" : "Scan now"}
-          </button>
+          <>
+            <div className="pm2-seg" role="group" aria-label="View">
+              <button type="button" className={view === "board" ? "on" : undefined} aria-pressed={view === "board"} onClick={() => switchView("board")}>
+                <LayoutGrid size={14} /> Board
+              </button>
+              <button type="button" className={view === "list" ? "on" : undefined} aria-pressed={view === "list"} onClick={() => switchView("list")}>
+                <List size={14} /> List
+              </button>
+            </div>
+            <button
+              type="button"
+              className="pm-btn"
+              disabled={scanNow.isPending}
+              onClick={() => scanNow.mutate()}
+            >
+              {scanNow.isPending ? "Scanning…" : "Scan now"}
+            </button>
+          </>
         }
       />
 
-      <div className={css.statLine}>
-        <div>
-          <b>{byBucket.inquiries.length + byBucket.discussions.length + byBucket.samples.length}</b>
-          <span>open</span>
-        </div>
-        <div>
-          <b data-tone={followUps > 0 ? "warn" : undefined}>{followUps}</b>
-          <span>need follow-up</span>
-        </div>
-        <div>
-          <b>{byBucket.samples.length}</b>
-          <span>at samples</span>
-        </div>
-        <div>
-          <b data-tone={byBucket.orders.length > 0 ? "good" : undefined}>{byBucket.orders.length}</b>
-          <span>won</span>
-        </div>
-      </div>
-
+      <div className={css.body}>
       {(scanNow.error instanceof Error || scan?.last_error) && (
         <p className={css.err}>
           {scanNow.error instanceof Error ? scanNow.error.message : `Last scan error: ${scan?.last_error}`}
@@ -219,16 +219,6 @@ export default function DealsPage() {
 
       {/* View toggle + segmented buckets (list only) + compact filters, one row */}
       <div className={css.bar}>
-        <div className={css.seg}>
-          <button type="button" className={css.segBtn} data-on={view === "board"} onClick={() => switchView("board")}>
-            <LayoutGrid size={13} />
-            Board
-          </button>
-          <button type="button" className={css.segBtn} data-on={view === "list"} onClick={() => switchView("list")}>
-            <List size={13} />
-            List
-          </button>
-        </div>
         {view === "list" && (
           <>
             <div className={css.seg}>
@@ -280,16 +270,15 @@ export default function DealsPage() {
         ) : error instanceof Error ? (
           <p className={css.err} style={{ padding: 20 }}>{error.message}</p>
         ) : filtered.length === 0 ? (
-          <EmptyState icon={<Handshake />} title="Nothing here" style={{ marginTop: 14 }}>
+          <EmptyState icon={<Handshake />} title="Nothing here">
             {deals.length === 0
               ? "Hit “Scan now”. The pipeline builds itself from hello@promunch.in."
               : "No deals match the current filters."}
           </EmptyState>
         ) : (
           <>
-            <p className={css.hint}>
-              Drag a card to move it between stages; the scanner respects manual moves. Drop on
-              Closed to mark a deal lost. Click any card for the full story.
+            <p className={css.hint} style={{ margin: 0 }}>
+              Drag a card to another stage. Drop on Closed to mark it lost.
             </p>
             <DealsBoard
               deals={[...filtered].sort(rank)}
@@ -335,6 +324,8 @@ export default function DealsPage() {
         )}
       </div>
       )}
+
+      </div>
 
       {openId && <DealDrawer dealId={openId} onClose={() => setOpenId(null)} />}
     </div>
