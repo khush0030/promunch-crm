@@ -37,7 +37,14 @@ export const EDITABLE_KEYS: SecretDef[] = [
   { name: "KLAVIYO_API_KEY", label: "Klaviyo", group: "Email", hint: "Legacy profile enrichment imports", testable: true },
   { name: "HUNTER_API_KEY", label: "Hunter", group: "B2B leads", hint: "Free decision-maker email finder (50 credits/month on the free plan)", testable: true },
   { name: "ANYMAILFINDER_API_KEY", label: "Anymail Finder", group: "B2B leads", hint: "Verified decision-maker emails (pay per valid result)", testable: false },
-  { name: "APIFY_TOKEN", label: "Apify", group: "Instagram", hint: "Influencer discovery scrapers", testable: true },
+  { name: "APIFY_TOKEN", label: "Apify", group: "Instagram", hint: "Influencer discovery scrapers and weekly Amazon reviews (Reputation)", testable: true },
+  // Reputation (ORM) collectors. Read by the orm-tick edge function from
+  // app_secrets (_shared/app-secrets.ts, env fallback), so a key saved here
+  // reaches the collector on its next run without a redeploy.
+  { name: "JUDGEME_API_TOKEN", label: "Judge.me", group: "Reputation", hint: "Website reviews. Judge.me admin, Settings, Integrations, View API token (private token)", testable: false },
+  { name: "YOUTUBE_API_KEY", label: "YouTube Data API", group: "Reputation", hint: "Comments on our videos and new videos that mention PROMUNCH", testable: true },
+  { name: "REDDIT_CLIENT_ID", label: "Reddit client id", group: "Reputation", hint: "Optional. Reddit search works without it; a Reddit app gives higher limits", testable: false },
+  { name: "REDDIT_CLIENT_SECRET", label: "Reddit client secret", group: "Reputation", hint: "Optional. Goes with the Reddit client id", testable: false },
 ];
 
 export const KEY_NAME_RE = /^[A-Z][A-Z0-9_]{2,63}$/;
@@ -123,6 +130,10 @@ export async function testSecret(name: string, value: string): Promise<TestResul
       case "APIFY_TOKEN": {
         const r = await t(fetch(`https://api.apify.com/v2/users/me?token=${encodeURIComponent(value)}`));
         return r?.ok ? { ok: true, detail: "Apify accepted the token" } : { ok: false, detail: `Apify rejected the token (${r?.status ?? "network error"})` };
+      }
+      case "YOUTUBE_API_KEY": {
+        const r = await t(fetch(`https://www.googleapis.com/youtube/v3/videoCategories?part=snippet&regionCode=IN&key=${encodeURIComponent(value)}`));
+        return r?.ok ? { ok: true, detail: "YouTube accepted the key" } : { ok: false, detail: `YouTube rejected the key (${r?.status ?? "network error"}). Is YouTube Data API v3 enabled?` };
       }
       case "BREVO_API_KEY": {
         const r = await t(fetch("https://api.brevo.com/v3/account", { headers: { "api-key": value, accept: "application/json" } }));

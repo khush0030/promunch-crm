@@ -46,7 +46,7 @@ describe("shell nav", () => {
     expect(label("/dashboard/flows/abc")).toBe("Legacy email automations");
     expect(findActive("/dashboard/campaigns", null, "")?.hub).toBe("Marketing");
     const marketing = NAV.find((h) => h.hub === "Marketing")!;
-    expect(visibleItems(marketing).map((it) => it.label)).toEqual(["WhatsApp marketing", "Email Studio", "Audience"]);
+    expect(visibleItems(marketing).map((it) => it.label)).toEqual(["WhatsApp marketing", "Email Studio", "Audience", "Reputation"]);
     // Partners is down to 2 while Creators (Instagram) is hidden; restore it
     // to the >= 3 rule when Creators comes back.
     for (const h of NAV) {
@@ -62,7 +62,7 @@ describe("shell nav", () => {
 
   it("previews the first few visible items of a hub", () => {
     const marketing = NAV.find((h) => h.hub === "Marketing")!;
-    expect(hubPreview(marketing)).toEqual({ names: ["WhatsApp marketing", "Email Studio", "Audience"], more: 0 });
+    expect(hubPreview(marketing)).toEqual({ names: ["WhatsApp marketing", "Email Studio", "Audience"], more: 1 });
     const today = NAV.find((h) => h.hub === "Today")!;
     expect(hubPreview(today).more).toBe(0);
   });

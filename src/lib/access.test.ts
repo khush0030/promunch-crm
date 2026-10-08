@@ -98,6 +98,21 @@ describe("influencer tracker", () => {
   });
 });
 
+describe("reputation", () => {
+  it("is its own area (page + API), closed to other restricted members", () => {
+    const rep = accessOf({ email: "r@promunch.in", app_metadata: { role: "agent", modules: ["reputation"] } });
+    expect(pageModule("/dashboard/reputation", null)).toBe("reputation");
+    expect(canOpenHref(rep, "/dashboard/reputation?m=abc")).toBe(true);
+    expect(landingFor(rep)).toBe("/dashboard/reputation");
+    expect(canCallApi(rep, "/api/orm/mentions/abc/draft", "POST")).toBe(true);
+    expect(canCallApi(rep, "/api/orm/settings", "PATCH")).toBe(true);
+    expect(canCallApi(marketer, "/api/orm/mentions", "GET")).toBe(false);
+    expect(canOpenPage(marketer, "/dashboard/reputation", null)).toBe(false);
+    expect(apiRule("/api/orm/sources/judgeme/run")?.modules).toEqual(["reputation"]);
+    expect(apiRule("/api/ormX")).toBeNull();
+  });
+});
+
 describe("pages", () => {
   it("WhatsApp tabs split between inbox, marketing and bot knowledge", () => {
     expect(pageModule("/dashboard/whatsapp", null)).toBe("inbox");
