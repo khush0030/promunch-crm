@@ -31,7 +31,7 @@ export function OverviewTab({ data, onTab }: { data: AmazonMetrics; onTab: (tab:
         money.amazonKeptBreakdown.closingOther + money.amazonKeptBreakdown.promo,
       )}%`,
     },
-    { label: "Paid to you", value: formatINR(money.paidToYou), pct: pct(money.paidToYou), color: "var(--pm-cyan)" },
+    { label: "You earned", value: formatINR(money.paidToYou), pct: pct(money.paidToYou), color: "var(--pm-cyan)", sub: "after Amazon's fees and refunds" },
     {
       label: "Product cost",
       value: `−${formatINR(Math.abs(money.productCost))}`,
@@ -53,7 +53,7 @@ export function OverviewTab({ data, onTab }: { data: AmazonMetrics; onTab: (tab:
         <Kpi label="Customers paid" value={formatLakh(money.customersPaid)}>
           <DeltaText value={pctChange(money.customersPaid, money.customersPaidPrev)} /> · {data.orders.count.toLocaleString("en-IN")} orders
         </Kpi>
-        <Kpi label="Paid to you" value={formatLakh(money.paidToYou)}>
+        <Kpi label="You earned" value={formatLakh(money.paidToYou)} title="What customers paid minus Amazon's fees and refunds. Bank deposits are under Payouts and land later.">
           <DeltaText value={pctChange(money.paidToYou, money.paidToYouPrev)} /> · after Amazon&apos;s fees
         </Kpi>
         <Kpi label="Your profit" value={formatLakh(money.profit)} title={money.costCoverage < 100 ? COST_COVERAGE_TIP : undefined}>
@@ -91,7 +91,7 @@ export function OverviewTab({ data, onTab }: { data: AmazonMetrics; onTab: (tab:
         takeaway={
           keptShare != null ? (
             <>
-              Amazon pays you <em className={s.plain}>{keptShare}%</em> of what customers pay
+              You earn <em className={s.plain}>{keptShare}%</em> of what customers pay
             </>
           ) : (
             "No Amazon sales in this period"

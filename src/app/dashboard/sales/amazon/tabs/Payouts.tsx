@@ -23,9 +23,14 @@ export function PayoutsTab({ data }: { data: AmazonMetrics }) {
   // clawback outweighing sales); BarChart draws those below the zero line.
   const negCount = deposited.filter((x) => x.deposit < 0).length;
   const hasNegativeDeposit = negCount > 0;
-  const series: BarSeries[] = [{ name: "Paid out", color: "var(--pm-s-amz)", values: deposited.map((x) => x.deposit) }];
+  const series: BarSeries[] = [{ name: "Settled to bank", color: "var(--pm-s-amz)", values: deposited.map((x) => x.deposit) }];
   const biggest = deposited.length ? deposited.reduce((a, b) => (b.deposit > a.deposit ? b : a)) : null;
   const firstShort = settlements.find((x) => !x.matched && !x.scheduled);
+  // Match check only counts payouts that already reached the bank; a
+  // scheduled one has not happened yet, so it is shown separately.
+  const matchedDone = deposited.filter((x) => x.matched).length;
+  const scheduledCount = settlements.length - deposited.length;
+  const needsLook = deposited.filter((x) => !x.matched).reduce((a, x) => a + Math.abs(x.variance), 0);
 
   const cols: TableCol<AmazonSettlement>[] = [
     { h: "Deposited", render: (x) => fmtDate(x.depositDate) },
@@ -41,30 +46,36 @@ export function PayoutsTab({ data }: { data: AmazonMetrics }) {
     <>
       <ChartCard
         id="amz-payout-chart"
-        title="What you kept per payout"
-        basis="₹ deposited"
+        title="Settled to your bank"
+        basis="₹ per settlement"
         takeaway={
           biggest ? (
             <>
-              Biggest payout <em className={s.plain}>{formatLakh(biggest.deposit)}</em> on {fmtDate(biggest.depositDate)}
+              Biggest settlement <em className={s.plain}>{formatLakh(biggest.deposit)}</em> on {fmtDate(biggest.depositDate)}
             </>
           ) : undefined
         }
       >
         <p className={s.facts2}>
           <span>
-            Paid out <b>{payouts.paidOut < 0 ? `−${formatLakh(-payouts.paidOut)}` : formatLakh(payouts.paidOut)}</b> in {PERIOD_LABEL[period]} ·{" "}
+            Settled to your bank <b>{payouts.paidOut < 0 ? `−${formatLakh(-payouts.paidOut)}` : formatLakh(payouts.paidOut)}</b> in {PERIOD_LABEL[period]} ·{" "}
             {payouts.count} {payouts.count === 1 ? "payout" : "payouts"}
           </span>
           <span>
             <b>
-              {payouts.matched} of {settlements.length}
+              {matchedDone} of {deposited.length}
             </b>{" "}
-            matched (within ₹50)
+            matched (within ₹50){scheduledCount > 0 ? ` · ${scheduledCount} scheduled` : ""}
           </span>
           <span>
-            Needs a look <b>{formatINR(payouts.needsLook)}</b> {firstShort ? `short on ${fmtDate(firstShort.depositDate)}` : "all matched"}
+            Needs a look <b>{formatINR(needsLook)}</b> {firstShort ? `short on ${fmtDate(firstShort.depositDate)}` : "all matched"}
           </span>
+        </p>
+        <p className={s.note}>
+          {payouts.paidOut < 0
+            ? "Amazon took back more than it paid in these settlements (refunds or a reserve held for returns), so the total is below zero. "
+            : ""}
+          This is money that actually reached your bank. &ldquo;You earned&rdquo; above counts each sale when it happens, so the two differ.
         </p>
         {cats.length === 0 ? (
           <p className={s.empty}>No payouts yet</p>

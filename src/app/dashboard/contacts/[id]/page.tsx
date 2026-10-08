@@ -17,11 +17,14 @@ import {
   MessageSquare,
   History,
   ExternalLink,
+  MoreHorizontal,
+  ShieldOff,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { PageHead, KpiCard, Panel, StatusBadge, EmptyState } from "@/components/pm";
 import type { KpiTone, BadgeTone } from "@/components/pm";
 import css from "../contacts.module.css";
+import { prettyPhone } from "../phone";
 import { isLinkValue } from "@/lib/influencers/crm-contact";
 
 type Contact = {
@@ -118,6 +121,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const [loaded, setLoaded] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -269,7 +273,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
         subtitle={
           <span style={{ display: "inline-flex", gap: 14, flexWrap: "wrap" }}>
             {contact.email && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Mail size={13} /> {contact.email}</span>}
-            {contact.phone && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Phone size={13} /> {contact.phone}</span>}
+            {contact.phone && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Phone size={13} /> {prettyPhone(contact.phone)}</span>}
             {location !== "–" && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><MapPin size={13} /> {location}</span>}
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Calendar size={13} /> since {fmtMonth(contact.created_at)}</span>
           </span>
@@ -280,12 +284,37 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               <button className="pm-btn ghost" onClick={handleUnsubscribe} disabled={busy}>Unsubscribe</button>
             )}
             <button className="pm-btn ghost" onClick={handleExport} disabled={busy}>Export data</button>
-            {!contact.anonymized_at && (
-              <button className="pm-btn ghost" onClick={handleAnonymize} disabled={busy} style={{ color: "var(--pm-terra)" }}>Anonymize</button>
-            )}
-            <button className="pm-btn ghost" onClick={handleDelete} disabled={busy} style={{ color: "var(--pm-terra)" }} aria-label="Deactivate contact" title="Deactivate contact">
-              <Trash2 size={15} />
-            </button>
+            {/* Less-used, destructive actions sit behind one "⋯" so the row
+                stays on one line at phone width. Same handlers + confirms. */}
+            <div className={css.menuWrap}>
+              <button
+                type="button"
+                className="pm-btn ghost"
+                aria-label="More actions"
+                title="Anonymize or deactivate"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                disabled={busy}
+                onClick={() => setMenuOpen((o) => !o)}
+              >
+                <MoreHorizontal size={16} />
+              </button>
+              {menuOpen && (
+                <>
+                  <div className={css.menuScrim} onClick={() => setMenuOpen(false)} />
+                  <div className={css.menu} role="menu">
+                    {!contact.anonymized_at && (
+                      <button type="button" role="menuitem" className={css.menuDanger} disabled={busy} onClick={() => { setMenuOpen(false); handleAnonymize(); }}>
+                        <ShieldOff /> Anonymize
+                      </button>
+                    )}
+                    <button type="button" role="menuitem" className={css.menuDanger} disabled={busy} onClick={() => { setMenuOpen(false); handleDelete(); }}>
+                      <Trash2 /> Deactivate contact
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </>
         }
       />
@@ -341,10 +370,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                         )}
                       </td>
                       <td className="pm-muted">{fmtDate(o.placed_at)}</td>
-                      <td title={itemText} style={{ maxWidth: 280 }}>
-                        <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {itemText}
-                        </span>
+                      <td title={itemText} className={css.itemsCell}>
+                        <span className={css.itemsText}>{itemText}</span>
                         {(o.products?.itemCount ?? 0) > 0 && (
                           <span className="pm-dim" style={{ fontSize: 11 }}>
                             {o.products!.itemCount} item{o.products!.itemCount === 1 ? "" : "s"}

@@ -120,3 +120,11 @@
   .stats :global(.pm-kpi .top) { margin-bottom: 4px; }
   .stats :global(.pm-kpi .num) { font-size: 24px; overflow-wrap: anywhere; }
 }
+
+/* ---- customer detail (contacts/[id]) ---- */
+/* Destructive items in the header "⋯" menu read red, icon included. */
+.menu button.menuDanger, .menu button.menuDanger svg { color: var(--pm-terra); }
+/* Orders table "Items": wrap to at most two lines and end with an ellipsis
+   (full list in the cell's title tooltip), so it never runs off the card. */
+.itemsCell { min-width: 140px; max-width: 280px; }
+.itemsText { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; white-space: normal; overflow-wrap: anywhere; }

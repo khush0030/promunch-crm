@@ -133,8 +133,10 @@ function AmazonSalesPageInner() {
     if (tab !== "overview") requestAnimationFrame(() => goTo(tab));
   }, [hasData, tab, goTo]);
 
-  // One plain-words summary from real data: what Amazon paid out of what
-  // customers paid, and the worst stock fact.
+  // One plain-words summary from real data: what you earned (customer
+  // payments minus Amazon's fees and refunds, money.paidToYou) out of what
+  // customers paid, and the worst stock fact. This is NOT the bank deposit
+  // total; that is payouts.paidOut, shown as "Settled to your bank".
   const summary = data
     ? (() => {
         const { money, skus } = data;
@@ -147,7 +149,7 @@ function AmazonSalesPageInner() {
           <>
             {share != null ? (
               <>
-                Amazon paid you <b>{formatLakh(money.paidToYou)}</b> from {formatLakh(money.customersPaid)} of sales in{" "}
+                You earned <b>{formatLakh(money.paidToYou)}</b> after Amazon&apos;s fees, from {formatLakh(money.customersPaid)} of sales in{" "}
                 {PERIOD_LABEL[period]} ({share}%).{" "}
               </>
             ) : (

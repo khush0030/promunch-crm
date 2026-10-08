@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/Toast";
 import { PageHeader, EmptyState } from "@/components/pm";
 import { apiFetch } from "@/lib/api-fetch";
 import css from "./contacts.module.css";
+import { prettyPhone } from "./phone";
 
 type ContactRow = {
   id: string;
@@ -33,12 +34,6 @@ function groupFor(r: ContactRow): { label: string; cls: string } {
   if (r.orders >= 2) return { label: "Repeat buyer", cls: css.gRepeat };
   if (r.orders === 1) return { label: "One order", cls: css.gOne };
   return { label: "Signed up", cls: css.gSigned };
-}
-
-// "+919335497559" -> "+91 93354 97559"; anything else as stored.
-function prettyPhone(p: string): string {
-  const m = p.replace(/\s+/g, "").match(/^\+91(\d{5})(\d{5})$/);
-  return m ? `+91 ${m[1]} ${m[2]}` : p;
 }
 
 function shortDate(iso: string): string {
