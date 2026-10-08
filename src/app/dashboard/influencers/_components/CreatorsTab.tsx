@@ -6,7 +6,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Users } from "lucide-react";
-import { EmptyState, SearchBar, StatusBadge } from "@/components/pm";
+import { EmptyState, Pill, SearchBar, type PillTone } from "@/components/pm";
 import type {
   DealListItem,
   Influencer,
@@ -21,9 +21,11 @@ import {
   Drawer,
   Field,
   HealthChip,
+  Initial,
   NICHES,
   STAGE_LABEL,
   Section,
+  SortPicker,
   TIER_LABEL,
   TierTag,
   at,
@@ -35,12 +37,23 @@ import {
 } from "./ui";
 import s from "../influencers.module.css";
 
-const STATUS_TONE: Record<InfluencerStatus, "green" | "gold" | "terra"> = {
-  active: "green",
-  paused: "gold",
-  blocked: "terra",
+const STATUS_TONE: Record<InfluencerStatus, PillTone> = {
+  active: "good",
+  paused: "warn",
+  blocked: "crit",
 };
+
+/** On-time share as a status: good from 90%, watch from 60%, else late. */
+function OnTime({ pctVal }: { pctVal: number | null | undefined }) {
+  if (pctVal == null) return <Pill tone="neu">New</Pill>;
+  const v = Math.round(pctVal);
+  return <Pill tone={v >= 90 ? "good" : v >= 60 ? "warn" : "crit"}>{v}%</Pill>;
+}
 const STATUS_LABEL: Record<InfluencerStatus, string> = { active: "Active", paused: "Paused", blocked: "Do not work with" };
+
+function cap(v: string): string {
+  return v ? v.charAt(0).toUpperCase() + v.slice(1) : v;
+}
 
 type SortKey = "handle" | "followers" | "er" | "open" | "ontime" | "last";
 
@@ -82,11 +95,13 @@ export function CreatorsTab({ onOpenDeal }: { onOpenDeal: (id: string) => void }
     });
   }, [creators.data, q, sort]);
 
+  const pick = (key: SortKey) =>
+    setSort((p) => ({ key, dir: p.key === key ? (p.dir === 1 ? -1 : 1) : key === "handle" ? 1 : -1 }));
   const th = (key: SortKey, label: string, align?: "right") => (
     <th
       className={s.sortTh}
       style={{ textAlign: align }}
-      onClick={() => setSort((p) => ({ key, dir: p.key === key ? (p.dir === 1 ? -1 : 1) : key === "handle" ? 1 : -1 }))}
+      onClick={() => pick(key)}
       aria-sort={sort.key === key ? (sort.dir === 1 ? "ascending" : "descending") : "none"}
     >
       {label}
@@ -96,7 +111,7 @@ export function CreatorsTab({ onOpenDeal }: { onOpenDeal: (id: string) => void }
 
   return (
     <>
-      <div className={s.filters}>
+      <div className={s.filters} style={{ marginTop: 0 }}>
         <span className={s.muted}>
           {creators.data ? `${creators.data.length} creator${creators.data.length === 1 ? "" : "s"}` : ""}
         </span>
@@ -117,45 +132,59 @@ export function CreatorsTab({ onOpenDeal }: { onOpenDeal: (id: string) => void }
           {creators.data?.length ? "Try a different search." : "Creators are saved automatically when you add a collab on the Board."}
         </EmptyState>
       ) : (
-        <div className="pm-tablewrap" style={{ marginTop: 14 }}>
-          <table className="pm-tbl">
-            <thead>
-              <tr>
-                {th("handle", "Creator")}
-                <th>Tier</th>
-                {th("followers", "Followers", "right")}
-                {th("er", "ER", "right")}
-                <th>Niche</th>
-                {th("open", "Open collabs", "right")}
-                {th("ontime", "On time", "right")}
-                {th("last", "Last contact")}
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((c) => (
-                <tr key={c.id} className="clickable" onClick={() => setOpenId(c.id)}>
-                  <td>
-                    <strong>{at(c.handle)}</strong>
-                    {c.full_name && <div className={s.hint}>{c.full_name}</div>}
-                  </td>
-                  <td>{c.tier ? TIER_LABEL[c.tier] : ""}</td>
-                  <td style={{ textAlign: "right" }}>{compact(c.followers)}</td>
-                  <td style={{ textAlign: "right" }}>{pct(c.engagement_rate)}</td>
-                  <td>{(c.niche ?? []).join(", ")}</td>
-                  <td style={{ textAlign: "right" }}>{c.open_deals ?? 0}</td>
-                  <td style={{ textAlign: "right" }}>
-                    {c.reliability?.on_time_pct != null ? `${Math.round(c.reliability.on_time_pct)}%` : <span className={s.hint}>New</span>}
-                  </td>
-                  <td>{c.last_contact_at ? relDay(c.last_contact_at) : ""}</td>
-                  <td>
-                    <StatusBadge tone={STATUS_TONE[c.status]}>{STATUS_LABEL[c.status]}</StatusBadge>
-                  </td>
+        <>
+        <SortPicker
+          sort={sort}
+          pick={pick}
+          options={[
+            { key: "last", label: "Last contact" },
+            { key: "handle", label: "Creator" },
+            { key: "followers", label: "Followers" },
+            { key: "er", label: "ER" },
+            { key: "open", label: "Open collabs" },
+            { key: "ontime", label: "On time" },
+          ]}
+        />
+        <div className={s.tblCard}>
+          <div className="pm-tablewrap">
+            <table className={`pm-tbl ${s.tbl}`}>
+              <thead>
+                <tr>
+                  {th("handle", "Creator")}
+                  {th("followers", "Followers", "right")}
+                  {th("er", "ER", "right")}
+                  <th>Niche</th>
+                  {th("open", "Open", "right")}
+                  {th("ontime", "On time")}
+                  {th("last", "Last contact")}
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((c) => (
+                  <tr key={c.id} className="clickable" onClick={() => setOpenId(c.id)}>
+                    <td className={s.mainCell}>
+                      <b>{at(c.handle)}</b>
+                      <span>{[c.full_name, c.city, c.tier ? TIER_LABEL[c.tier] : null].filter(Boolean).join(" · ")}</span>
+                    </td>
+                    <td data-l="Followers" className={`${s.r} ${s.num}`}>{compact(c.followers)}</td>
+                    <td data-l="ER" className={`${s.r} ${s.num}`}>{pct(c.engagement_rate)}</td>
+                    <td data-l="Niche">{(c.niche ?? []).map(cap).join(", ")}</td>
+                    <td data-l="Open collabs" className={`${s.r} ${s.num}`}>{c.open_deals ?? 0}</td>
+                    <td data-l="On time">
+                      <OnTime pctVal={c.reliability?.on_time_pct} />
+                    </td>
+                    <td data-l="Last contact">{c.last_contact_at ? relDay(c.last_contact_at) : ""}</td>
+                    <td data-l="Status">
+                      <Pill tone={STATUS_TONE[c.status]}>{STATUS_LABEL[c.status]}</Pill>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
+        </>
       )}
 
       {openId && (
@@ -282,43 +311,57 @@ function CreatorBody({
   return (
     <>
       <div className={s.drawerHead}>
-        <div>
-          <h2 className={s.drawerTitle}>{at(c.handle)}</h2>
-          <div className={s.row} style={{ marginTop: 6 }}>
-            <TierTag tier={c.tier} />
-            <StatusBadge tone={STATUS_TONE[c.status]}>{STATUS_LABEL[c.status]}</StatusBadge>
-            <span className={s.hint}>
-              {[c.followers != null ? `${compact(c.followers)} followers` : null, c.engagement_rate != null ? `${pct(c.engagement_rate)} ER` : null]
+        <div className={s.dealHead}>
+          <Initial handle={c.handle} large />
+          <div style={{ minWidth: 0 }}>
+            <h2 className={s.drawerTitle}>{at(c.handle)}</h2>
+            <p className={s.dealSub}>
+              {[
+                c.full_name,
+                (c.niche ?? []).map(cap).join(", ") || null,
+                c.followers != null ? `${compact(c.followers)} followers` : null,
+                c.engagement_rate != null ? `${pct(c.engagement_rate)} ER` : null,
+                c.city,
+              ]
                 .filter(Boolean)
                 .join(" · ")}
-            </span>
+            </p>
+            <div className={s.row} style={{ marginTop: 8 }}>
+              <Pill tone={STATUS_TONE[c.status]}>{STATUS_LABEL[c.status]}</Pill>
+              <TierTag tier={c.tier} />
+            </div>
           </div>
         </div>
         <CloseBtn onClose={onClose} />
       </div>
 
-      <Section title="Reliability">
-        {r ? (
-          <dl className={s.kv}>
-            <dt>Collabs</dt>
-            <dd>
-              {r.deals_total} total, {r.deals_completed} completed
-            </dd>
-            <dt>Drafts on time</dt>
-            <dd>{r.on_time_pct != null ? `${Math.round(r.on_time_pct)}%` : "Not enough history"}</dd>
-            <dt>Average days late</dt>
-            <dd>{r.avg_days_late != null ? r.avg_days_late.toFixed(1) : ""}</dd>
-            <dt>Average revisions</dt>
-            <dd>{r.avg_revisions != null ? r.avg_revisions.toFixed(1) : ""}</dd>
-            <dt>Ghosted</dt>
-            <dd>{r.ghosted}</dd>
-          </dl>
-        ) : (
-          <p className={s.hint} style={{ margin: 0 }}>
-            No history yet.
+      {r ? (
+        <>
+          <div className={s.stats}>
+            <div className={s.stat}>
+              <div className={s.statV}>{r.on_time_pct != null ? `${Math.round(r.on_time_pct)}%` : "New"}</div>
+              <div className={s.statL}>Drafts on time</div>
+            </div>
+            <div className={s.stat}>
+              <div className={s.statV}>{r.avg_days_late != null ? r.avg_days_late.toFixed(1) : "0"}</div>
+              <div className={s.statL}>Avg days late</div>
+            </div>
+            <div className={s.stat}>
+              <div className={s.statV}>{r.deals_total}</div>
+              <div className={s.statL}>Collabs</div>
+            </div>
+          </div>
+          <p className={s.muted} style={{ margin: "10px 0 0" }}>
+            {r.deals_completed} completed
+            {r.avg_revisions != null ? ` · ${r.avg_revisions.toFixed(1)} revisions on average` : ""}
+            {` · ghosted ${r.ghosted} time${r.ghosted === 1 ? "" : "s"}`}
           </p>
-        )}
-      </Section>
+        </>
+      ) : (
+        <p className={s.hint} style={{ margin: "16px 0 0" }}>
+          No history yet.
+        </p>
+      )}
 
       <Section title="Collabs">
         {detail.deals.length === 0 ? (
@@ -326,14 +369,16 @@ function CreatorBody({
             No collabs yet.
           </p>
         ) : (
-          <ul className={s.tl}>
+          <ul className={s.collabs}>
             {detail.deals.map((d) => (
-              <li key={d.id} style={{ cursor: "pointer" }} onClick={() => onOpenDeal(d.id)}>
-                <span className={s.tlWhen}>{shortDate(d.agreed_at)}</span>
-                <span style={{ flex: 1 }}>
-                  {d.kit?.name ?? "No kit"} · {STAGE_LABEL[d.stage]}
-                </span>
-                {d.health && <HealthChip health={d.health} reason={d.health_reason} />}
+              <li key={d.id}>
+                <button type="button" className={s.collabBtn} onClick={() => onOpenDeal(d.id)}>
+                  <span className={s.remWhen}>{shortDate(d.agreed_at)}</span>
+                  <b>
+                    {d.kit?.name ?? "No kit"} · {STAGE_LABEL[d.stage]}
+                  </b>
+                  {d.health && <HealthChip health={d.health} reason={d.health_reason} />}
+                </button>
               </li>
             ))}
           </ul>

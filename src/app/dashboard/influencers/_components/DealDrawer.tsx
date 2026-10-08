@@ -7,7 +7,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, Check, Clock, Copy, Link2 } from "lucide-react";
-import { ConfirmDialog, StatusBadge, type BadgeTone } from "@/components/pm";
+import { ConfirmDialog, Pill, type PillTone } from "@/components/pm";
 import type { DealDetail, DealListItem, DealStage, Reminder } from "@/lib/influencers/types";
 import { api, errText, QK } from "./api";
 import { BriefPanel, DraftsPanel, PostPanel, ShippingPanel } from "./DealPanels";
@@ -28,10 +28,12 @@ import {
 } from "./ui";
 import s from "../influencers.module.css";
 
+type MoveKey = "brief" | "shipping" | "drafts" | "post";
+
 const MAIN_STAGES: { stage: DealStage; label: string }[] = [
   { stage: "agreed", label: "Agreed" },
   { stage: "brief_sent", label: "Brief sent" },
-  { stage: "brief_acknowledged", label: "Brief accepted" },
+  { stage: "brief_acknowledged", label: "Brief OK" },
   { stage: "dispatched", label: "Shipped" },
   { stage: "delivered", label: "Arrived" },
   { stage: "draft_submitted", label: "Draft in" },
@@ -57,7 +59,7 @@ export function DealDrawer({ dealId, onClose }: { dealId: string; onClose: () =>
   });
 
   return (
-    <Drawer onClose={onClose} label="Collab details">
+    <Drawer onClose={onClose} label="Collab details" width={1060}>
       {isLoading && <p className={s.hint}>Loading…</p>}
       {error && (
         <>
@@ -91,11 +93,41 @@ function DealBody({ detail, onClose }: { detail: DealDetail; onClose: () => void
     }
   };
 
+  // The step waiting on the team goes to the top as "Your move".
+  const move: MoveKey | null =
+    deal.stage === "draft_submitted"
+      ? "drafts"
+      : deal.stage === "agreed" || deal.stage === "brief_draft"
+        ? "brief"
+        : deal.stage === "brief_acknowledged" && !deal.shopify_order_id
+          ? "shipping"
+          : null;
+  const panel = (k: MoveKey) =>
+    k === "brief" ? (
+      <BriefPanel key="brief" detail={detail} />
+    ) : k === "shipping" ? (
+      <ShippingPanel key="shipping" detail={detail} />
+    ) : k === "drafts" ? (
+      <DraftsPanel key="drafts" detail={detail} />
+    ) : (
+      <PostPanel key="post" detail={detail} />
+    );
+  const rest = (["brief", "shipping", "drafts", "post"] as MoveKey[]).filter((k) => k !== move);
+
+  const who = [
+    deal.influencer.full_name,
+    deal.influencer.niche?.length ? deal.influencer.niche.join(", ") : null,
+    deal.influencer.followers != null ? `${compact(deal.influencer.followers)} followers` : null,
+    deal.influencer.phone,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <>
       <div className={s.drawerHead}>
-        <div style={{ display: "flex", gap: 10, alignItems: "flex-start", minWidth: 0 }}>
-          <Initial handle={deal.influencer.handle} />
+        <div className={s.dealHead}>
+          <Initial handle={deal.influencer.handle} large />
           <div style={{ minWidth: 0 }}>
             <h2 className={s.drawerTitle}>
               <a
@@ -107,33 +139,23 @@ function DealBody({ detail, onClose }: { detail: DealDetail; onClose: () => void
                 {at(deal.influencer.handle)}
               </a>
             </h2>
-            <div className={s.row} style={{ marginTop: 6 }}>
-              <TierTag tier={deal.influencer.tier} />
+            {who && <p className={s.dealSub}>{who}</p>}
+            <div className={s.row} style={{ marginTop: 8 }}>
               <HealthChip health={deal.health} reason={deal.health_reason} />
               {deal.health_reason && <span className={s.muted}>{deal.health_reason}</span>}
-            </div>
-            <div className={s.hint} style={{ marginTop: 5 }}>
-              {[
-                deal.influencer.full_name,
-                deal.influencer.followers != null ? `${compact(deal.influencer.followers)} followers` : null,
-                deal.influencer.phone,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
+              <TierTag tier={deal.influencer.tier} />
             </div>
           </div>
         </div>
         <CloseBtn onClose={onClose} />
       </div>
 
-      <Stepper deal={deal} />
-
-      <div className={s.actions} style={{ marginTop: 14 }}>
+      <div className={s.dealActs}>
         <button type="button" className="pm-btn sm" onClick={copy}>
-          {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? "Copied" : "Copy portal link"}
+          {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Copy creator link"}
         </button>
         <a className="pm-btn ghost sm" href={portal} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
-          <Link2 size={13} /> Open portal
+          <Link2 size={14} /> Open creator page
         </a>
         <span className={s.spacer} />
         {!closed && (
@@ -141,7 +163,7 @@ function DealBody({ detail, onClose }: { detail: DealDetail; onClose: () => void
             <button type="button" className="pm-btn ghost sm" onClick={() => setConfirm("ghosted")}>
               Mark ghosted
             </button>
-            <button type="button" className="pm-btn ghost sm" style={{ color: "var(--pm-terra)" }} onClick={() => setConfirm("cancelled")}>
+            <button type="button" className="pm-btn ghost sm" onClick={() => setConfirm("cancelled")}>
               Cancel collab
             </button>
           </>
@@ -149,25 +171,38 @@ function DealBody({ detail, onClose }: { detail: DealDetail; onClose: () => void
       </div>
       {act.error && <p className={s.err}>{errText(act.error)}</p>}
 
-      <div className={s.hint} style={{ marginTop: 10 }}>
-        Deliverables: {deal.deliverables.reels} reel{deal.deliverables.reels === 1 ? "" : "s"}, {deal.deliverables.stories}{" "}
-        stor{deal.deliverables.stories === 1 ? "y" : "ies"}, {deal.deliverables.posts} post{deal.deliverables.posts === 1 ? "" : "s"}
+      <Stepper deal={deal} />
+
+      <p className={s.facts}>
+        <b>
+          {deal.deliverables.reels} reel{deal.deliverables.reels === 1 ? "" : "s"}, {deal.deliverables.stories} stor
+          {deal.deliverables.stories === 1 ? "y" : "ies"}, {deal.deliverables.posts} post{deal.deliverables.posts === 1 ? "" : "s"}
+        </b>
         {" · "}Draft due {deal.draft_due_days} days after the box arrives
         {" · "}Usage rights: {USAGE_LABEL[deal.usage_rights]}
         {deal.usage_rights !== "none" && deal.usage_rights_days ? ` for ${deal.usage_rights_days} days` : ""}
-      </div>
+      </p>
       {deal.notes && (
         <p className={s.muted} style={{ whiteSpace: "pre-wrap", margin: "8px 0 0" }}>
           {deal.notes}
         </p>
       )}
 
-      <BriefPanel detail={detail} />
-      <ShippingPanel detail={detail} />
-      <DraftsPanel detail={detail} />
-      <PostPanel detail={detail} />
-      <RemindersPanel reminders={detail.reminders} />
-      <TimelinePanel detail={detail} />
+      <div className={s.dealGrid}>
+        <div className={s.dealMain}>
+          {move && (
+            <div className={s.move}>
+              <span className={s.moveEyebrow}>Your move</span>
+              {panel(move)}
+            </div>
+          )}
+          {rest.map(panel)}
+        </div>
+        <div className={s.dealSide}>
+          <RemindersPanel reminders={detail.reminders} />
+          <TimelinePanel detail={detail} />
+        </div>
+      </div>
 
       {confirm && (
         <ConfirmDialog
@@ -198,8 +233,8 @@ function Stepper({ deal }: { deal: DealListItem }) {
   const exited = deal.stage === "cancelled" || deal.stage === "ghosted";
   if (exited) {
     return (
-      <div className={s.section} style={{ display: "flex", gap: 10, alignItems: "center" }}>
-        <StatusBadge tone={deal.stage === "cancelled" ? "gray" : "terra"}>{STAGE_LABEL[deal.stage]}</StatusBadge>
+      <div className={s.closedLine}>
+        <Pill tone={deal.stage === "cancelled" ? "neu" : "crit"}>{STAGE_LABEL[deal.stage]}</Pill>
         <span className={s.muted}>This collab is closed. Nothing more is sent to the creator.</span>
       </div>
     );
@@ -207,30 +242,26 @@ function Stepper({ deal }: { deal: DealListItem }) {
   const cur = stepIndex(deal.stage);
   return (
     <div>
-      <div className={s.stepper}>
+      <div className={s.stage} role="list" aria-label="Collab progress">
         {MAIN_STAGES.map((m, i) => {
           const done = i < cur || deal.stage === "completed";
           const current = i === cur && deal.stage !== "completed";
           return (
-            <div key={m.stage} className={s.step}>
-              <div className={s.stepLine}>
-                <span className={`${s.bar} ${i === 0 ? s.barNone : done || current ? s.barOn : ""}`} />
-                <span className={`${s.dot} ${done ? s.dotDone : ""} ${current ? s.dotCur : ""}`}>
-                  {done && <Check size={9} strokeWidth={3.5} />}
-                </span>
-                <span className={`${s.bar} ${i === MAIN_STAGES.length - 1 ? s.barNone : done ? s.barOn : ""}`} />
-              </div>
-              <div className={`${s.stepLabel} ${current ? s.stepLabelCur : done ? s.stepLabelDone : ""}`}>
-                {current && (deal.stage === "brief_draft" || deal.stage === "changes_requested")
-                  ? STAGE_LABEL[deal.stage]
-                  : m.label}
-              </div>
-            </div>
+            <span
+              key={m.stage}
+              role="listitem"
+              aria-current={current ? "step" : undefined}
+              className={current ? s.stOn : done ? s.stDone : undefined}
+            >
+              {current && (deal.stage === "brief_draft" || deal.stage === "changes_requested")
+                ? STAGE_LABEL[deal.stage]
+                : m.label}
+            </span>
           );
         })}
       </div>
       {deal.next_date && (
-        <p className={s.hint} style={{ textAlign: "center", margin: "8px 0 0" }}>
+        <p className={s.stageNext}>
           Next: {deal.next_date.label} {relDay(deal.next_date.at)}
         </p>
       )}
@@ -238,13 +269,13 @@ function Stepper({ deal }: { deal: DealListItem }) {
   );
 }
 
-const REMINDER_TONE: Record<Reminder["status"], BadgeTone> = {
-  scheduled: "blue",
-  sending: "gold",
-  sent: "green",
-  done: "green",
-  cancelled: "gray",
-  failed: "terra",
+const REMINDER_PILL: Record<Reminder["status"], { tone: PillTone; label: string }> = {
+  scheduled: { tone: "info", label: "Planned" },
+  sending: { tone: "warn", label: "Sending" },
+  sent: { tone: "good", label: "Sent" },
+  done: { tone: "good", label: "Done" },
+  cancelled: { tone: "neu", label: "Stopped" },
+  failed: { tone: "crit", label: "Failed" },
 };
 
 function humanKind(kind: string): string {
@@ -255,17 +286,17 @@ function humanKind(kind: string): string {
 function RemindersPanel({ reminders }: { reminders: Reminder[] }) {
   const sorted = [...reminders].sort((a, b) => a.due_at.localeCompare(b.due_at));
   return (
-    <Section title="Reminders" icon={<Bell size={14} />}>
+    <Section title="Automatic reminders" icon={<Bell size={16} />}>
       {sorted.length === 0 ? (
         <p className={s.hint} style={{ margin: 0 }}>
           No reminders yet. They are planned automatically as the collab moves forward.
         </p>
       ) : (
-        <ul className={s.tl}>
+        <ul className={s.rems}>
           {sorted.map((r) => (
             <li key={r.id}>
-              <span className={s.tlWhen}>{dateTime(r.sent_at ?? r.due_at)}</span>
-              <span style={{ flex: 1, minWidth: 0 }}>
+              <Pill tone={REMINDER_PILL[r.status].tone}>{REMINDER_PILL[r.status].label}</Pill>
+              <span className={s.remWhat}>
                 {humanKind(r.kind)}
                 {r.step > 1 ? ` (#${r.step})` : ""}
                 <span className={s.hint}>
@@ -273,9 +304,9 @@ function RemindersPanel({ reminders }: { reminders: Reminder[] }) {
                   {r.audience === "creator" ? "to creator" : r.audience === "owner" ? "to owner" : "team task"}
                   {r.channel === "whatsapp" ? " on WhatsApp" : ""}
                 </span>
-                {r.last_error && <div className={s.err}>{r.last_error}</div>}
+                {r.last_error && <span className={s.err} style={{ display: "block" }}>{r.last_error}</span>}
               </span>
-              <StatusBadge tone={REMINDER_TONE[r.status]}>{r.status}</StatusBadge>
+              <span className={s.remWhen}>{dateTime(r.sent_at ?? r.due_at)}</span>
             </li>
           ))}
         </ul>
@@ -287,7 +318,7 @@ function RemindersPanel({ reminders }: { reminders: Reminder[] }) {
 function TimelinePanel({ detail }: { detail: DealDetail }) {
   const events = [...detail.events].sort((a, b) => b.created_at.localeCompare(a.created_at));
   return (
-    <Section title="Timeline" icon={<Clock size={14} />}>
+    <Section title="Timeline" icon={<Clock size={16} />}>
       {events.length === 0 ? (
         <p className={s.hint} style={{ margin: 0 }}>
           Nothing has happened yet.
@@ -295,16 +326,11 @@ function TimelinePanel({ detail }: { detail: DealDetail }) {
       ) : (
         <ul className={s.tl}>
           {events.map((e) => (
-            <li key={e.id}>
-              <span className={s.tlWhen}>{dateTime(e.created_at)}</span>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                {e.summary}
-                {(e.actor || e.channel) && (
-                  <span className={s.hint}>
-                    {" · "}
-                    {[e.actor, e.channel].filter(Boolean).join(", ")}
-                  </span>
-                )}
+            <li key={e.id} className={s.tlDone}>
+              {e.summary}
+              <span className={s.tlWhen}>
+                {dateTime(e.created_at)}
+                {(e.actor || e.channel) && ` · ${[e.actor, e.channel].filter(Boolean).join(", ")}`}
               </span>
             </li>
           ))}

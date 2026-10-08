@@ -5,12 +5,13 @@
 
 import { useState } from "react";
 import { ExternalLink, FileText, Film, Package, Send, Sparkles, Upload } from "lucide-react";
-import { ConfirmDialog, StatusBadge, type BadgeTone } from "@/components/pm";
+import { ConfirmDialog, Pill, type BadgeTone } from "@/components/pm";
 import type { Brief, BriefContent, DealDetail, DraftSubmission } from "@/lib/influencers/types";
 import { errText } from "./api";
 import {
   Field,
   ListEditor,
+  TONE_PILL,
   Section,
   dateTime,
   relDay,
@@ -92,7 +93,7 @@ export function BriefPanel({ detail }: { detail: DealDetail }) {
   return (
     <Section
       title="Brief"
-      icon={<FileText size={14} />}
+      icon={<FileText size={16} />}
       right={
         !closed && (
           <button
@@ -159,16 +160,16 @@ export function BriefPanel({ detail }: { detail: DealDetail }) {
                   v{b.version}
                 </button>
               ))}
-            <StatusBadge tone={BRIEF_TONE[sel.status]}>
+            <Pill tone={TONE_PILL[BRIEF_TONE[sel.status]]}>
               {briefs.length <= 1 ? `v${sel.version} · ` : ""}
               {BRIEF_LABEL[sel.status]}
-            </StatusBadge>
+            </Pill>
             {sel.sent_at && <span className={s.hint}>Sent {dateTime(sel.sent_at)}</span>}
             {sel.sent_at &&
               (sel.acknowledged_at ? (
-                <StatusBadge tone="green">Accepted {dateTime(sel.acknowledged_at)}</StatusBadge>
+                <Pill tone={TONE_PILL.green}>Accepted {dateTime(sel.acknowledged_at)}</Pill>
               ) : (
-                <StatusBadge tone="gold">Not accepted yet</StatusBadge>
+                <Pill tone={TONE_PILL.gold}>Not accepted yet</Pill>
               ))}
           </div>
 
@@ -457,7 +458,7 @@ export function ShippingPanel({ detail }: { detail: DealDetail }) {
   const addrOk = !!(address?.line1 && address?.pincode);
 
   return (
-    <Section title="Shipping" icon={<Package size={14} />}>
+    <Section title="Box" icon={<Package size={16} />}>
       {act.error && <p className={s.err}>{errText(act.error)}</p>}
       <dl className={s.kv}>
         <dt>Kit</dt>
@@ -696,7 +697,7 @@ export function DraftsPanel({ detail }: { detail: DealDetail }) {
   return (
     <Section
       title="Drafts"
-      icon={<Film size={14} />}
+      icon={<Film size={16} />}
       right={deal.revision_count > 0 ? <span className={s.hint}>{deal.revision_count} revision{deal.revision_count === 1 ? "" : "s"}</span> : null}
     >
       {drafts.length === 0 ? (
@@ -726,7 +727,7 @@ function DraftItem({ dealId, draft: d }: { dealId: string; draft: DraftSubmissio
     <div className={s.draftItem}>
       <div className={s.row}>
         <strong style={{ fontSize: 13 }}>Version {d.version}</strong>
-        <StatusBadge tone={REVIEW_TONE[d.review_status]}>{REVIEW_LABEL[d.review_status]}</StatusBadge>
+        <Pill tone={TONE_PILL[REVIEW_TONE[d.review_status]]}>{REVIEW_LABEL[d.review_status]}</Pill>
         <span className={s.hint}>Submitted {dateTime(d.submitted_at)}</span>
       </div>
       {d.url && (
@@ -757,10 +758,10 @@ function DraftItem({ dealId, draft: d }: { dealId: string; draft: DraftSubmissio
       {d.review_status === "pending" && !asking && (
         <div className={s.actions} style={{ marginTop: 8 }}>
           <button type="button" className="pm-btn primary sm" disabled={act.isPending} onClick={() => setConfirmApprove(true)}>
-            Approve
+            Approve draft
           </button>
           <button type="button" className="pm-btn sm" disabled={act.isPending} onClick={() => setAsking(true)}>
-            Request changes
+            Ask for changes
           </button>
         </div>
       )}
@@ -839,7 +840,7 @@ export function PostPanel({ detail }: { detail: DealDetail }) {
     );
 
   return (
-    <Section title="Post" icon={<ExternalLink size={14} />}>
+    <Section title="Post" icon={<ExternalLink size={16} />}>
       <div className={s.grid2}>
         <Field label="Go-live date">
           <input type="date" className={s.input} value={goLive} disabled={closed} onChange={(e) => setGoLive(e.target.value)} />

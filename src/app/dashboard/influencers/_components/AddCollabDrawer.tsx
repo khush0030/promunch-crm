@@ -137,7 +137,8 @@ export function AddCollabDrawer({ onClose, onCreated }: { onClose: () => void; o
     <Drawer onClose={onClose} label="Add collab" width={620}>
       <div className={s.drawerHead}>
         <div>
-          <h2 className={s.drawerTitle}>Add collab</h2>
+          <span className={s.eyebrow}>New collab</span>
+          <h2 className={s.drawerTitle}>Add a creator collab</h2>
           <p className={s.muted} style={{ margin: "4px 0 0" }}>
             Barter collab. Nothing is sent to the creator until you send the brief.
           </p>
@@ -147,7 +148,7 @@ export function AddCollabDrawer({ onClose, onCreated }: { onClose: () => void; o
 
       <form
         className={s.form}
-        style={{ marginTop: 16 }}
+        style={{ marginTop: 22 }}
         onSubmit={(e) => {
           e.preventDefault();
           submit();
@@ -190,7 +191,7 @@ export function AddCollabDrawer({ onClose, onCreated }: { onClose: () => void; o
           </div>
         </Field>
 
-        <div className={s.flab} style={{ marginTop: 6 }}>Shipping address</div>
+        <div className={s.flab} style={{ marginTop: 10 }}>Shipping address</div>
         <div className={s.grid2}>
           <Field label="Name on parcel">
             <input className={s.input} value={addr.name} onChange={(e) => setAddr({ ...addr, name: e.target.value })} placeholder={fullName || ""} />
@@ -217,7 +218,7 @@ export function AddCollabDrawer({ onClose, onCreated }: { onClose: () => void; o
           </Field>
         </div>
 
-        <div className={s.flab} style={{ marginTop: 6 }}>The collab</div>
+        <div className={s.flab} style={{ marginTop: 10 }}>The collab</div>
         <Field
           label="Kit"
           hint={
