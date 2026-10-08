@@ -1,6 +1,6 @@
 # Redesign handoff: continue in any session (local or cloud)
 
-**Keep this file current.** Updated at every milestone. Last update: **8 Oct 2026, ~19:45 IST**, branch `redesign/app-v2` @ see `git log -1`.
+**Keep this file current.** Updated at every milestone. Last update: **8 Oct 2026, ~22:00 IST**, branch `redesign/app-v2` @ see `git log -1`.
 
 Read first: `AGENTS.md`, `CLAUDE.md`, `promunch-email-agent/CLAUDE.md` §0 (never message a customer twice).
 
@@ -85,6 +85,15 @@ The full CRM redesign lives on branch **`redesign/app-v2`** (pushed; ~32 commits
   - The wizard and template-creator "Words on this step" chips remain (shared StepHeader).
 - **Open question for the owner:** Home shows TWO red elements (red sales tile + red "Confirm COD orders" button), as the prototype does, but the brand rule says one red per view. Which wins?
 - **Still open:** does "no Replies/Orders tiles" cover the WhatsApp campaign report?
+- **Bug list from the audit: ALL FIXED** (`d67587f`, `beab928`, `af607df`, `992d419`):
+  - campaign "Cancelled –." and wizard "Sends about ?";
+  - owner shown as Owner in Team;
+  - Email Results on Email Studio data, matching Overview (new `/api/email-studio/results`);
+  - phone-only Add customer;
+  - no em dashes in B2B or the profile;
+  - Maya uses business words and no tool names (prompt + display).
+- **Pending owner OK:** the B2B fit-score prompt (`src/lib/leads/fit.ts:30`) has an example containing an em dash.
+- **Running:** 3 report-only bug-hunt agents (ops runtime, marketing runtime, code review of `a0b77c4..HEAD`). If they didn't finish, re-run that hunt.
 - **Next:** owner review on localhost:3217, then the fidelity audit's bug list and further Tier 1 items 6-20 as the owner picks.
 - **Machine note:** `promunch-crm-mainbase` (main baseline) was removed by another session. Recreate it with `git worktree add --detach ../promunch-crm-mainbase origin/main`, copy `.env.local`, and clone `node_modules` with `cp -cR` (a symlink breaks Turbopack). The prototype is also in this worktree at `docs/plans/2026-10-07-app-redesign/`.
 
@@ -146,6 +155,7 @@ The full CRM redesign lives on branch **`redesign/app-v2`** (pushed; ~32 commits
 
 ## 9. Update log
 
+- 2026-10-08 ~22:00 IST: all 7 audit bugs fixed + pushed; bug hunt (3 agents) running.
 - 2026-10-08 ~19:45 IST: top 5 done and verified (build, tests, lint, prod crawl); 404 hydration fix. Waiting on owner review + the two-red question.
 - 2026-10-08 evening: public pages done (428ee48); remaining 4 areas pushed as WIP 448ab88 after repeated rate limits; agents resumed. Machine load is high; the 3218/3219 servers were stopped to free CPU (restart them for final checks).
 - 2026-10-08 12:10 IST: owner said "start with top 5"; IA tab sets + header slot committed (f6584ef); 5 build agents running.
