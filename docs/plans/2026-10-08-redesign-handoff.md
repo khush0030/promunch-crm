@@ -1,6 +1,6 @@
 # Redesign handoff: continue in any session (local or cloud)
 
-**Keep this file current.** Updated at every milestone. Last update: **8 Oct 2026, ~22:00 IST**, branch `redesign/app-v2` @ see `git log -1`.
+**Keep this file current.** Updated at every milestone. Last update: **9 Oct 2026, early morning IST**, branch `redesign/app-v2` @ see `git log -1`.
 
 Read first: `AGENTS.md`, `CLAUDE.md`, `promunch-email-agent/CLAUDE.md` §0 (never message a customer twice).
 
@@ -60,42 +60,24 @@ The full CRM redesign lives on branch **`redesign/app-v2`** (pushed; ~32 commits
 - **Leaner UI (8 Oct):** do NOT re-add info the redesign dropped. That covers the email click-rate/When columns, WhatsApp campaign reach/Delivered/Replies/Clicks, the Results Replies/Orders tiles, contacts lists/status, and the Home Web/Amazon/Repeat tiles. Only fix numbers that are wrong, dead ends and clipping.
 - Calm UI rules: status = coloured text + dot, no filled blocks, one red element per screen, yellow only for Maya, green only for good, hairlines and no boxes in boxes, readable at 390px, nothing cut off.
 
-## 4. Current state: top 5 DONE (fidelity Tier 1 items 1-5), owner to review
+## 4. Current state: top 5 + all bug fixes DONE; waiting on owner decisions and review
 
-- **Committed and pushed:**
-  - `f6584ef`: IA tab sets + header slot.
-  - `428ee48`: login, set-password, unsubscribe, 404, no-access, error.
-  - `448ab88`: WIP that carries Home + welcome.
-  - `212a880`: Inbox/Orders.
-  - `c435c3b`: Customers/Segments/Insights/Settings/Security.
-  - `153ec17`: WhatsApp/Email.
-  - Plus the shell hydration fix.
-- **Checks after the top 5:**
-  - `tsc` clean, `vitest` 1440/1440, lint at main's level (20).
-  - `npm run build` 70/70.
-  - Production crawl of 71 routes × 1440/390: only known/expected flags (fake-id 404s, the built-in template key 500, sr-only text).
-  - The dashboard 404 hydration error was fixed.
-- **Known remaining gaps** in these areas, intentional or needing backend:
-  - Tickets has no "New ticket"/"Rules" (no API).
-  - Voice has no period picker (the API has no range).
-  - Live chats has no 3-column rail yet.
-  - Email drafts still appear in the chat list (API).
-  - Home: the third tile stays "Needs you"; the API has no "Today".
-  - Segments page content is not rebuilt.
-  - The wizard and template-creator "Words on this step" chips remain (shared StepHeader).
-- **Open question for the owner:** Home shows TWO red elements (red sales tile + red "Confirm COD orders" button), as the prototype does, but the brand rule says one red per view. Which wins?
-- **Still open:** does "no Replies/Orders tiles" cover the WhatsApp campaign report?
-- **Bug list from the audit: ALL FIXED** (`d67587f`, `beab928`, `af607df`, `992d419`):
-  - campaign "Cancelled –." and wizard "Sends about ?";
-  - owner shown as Owner in Team;
-  - Email Results on Email Studio data, matching Overview (new `/api/email-studio/results`);
-  - phone-only Add customer;
-  - no em dashes in B2B or the profile;
-  - Maya uses business words and no tool names (prompt + display).
-- **Pending owner OK:** the B2B fit-score prompt (`src/lib/leads/fit.ts:30`) has an example containing an em dash.
-- **Running:** 3 report-only bug-hunt agents (ops runtime, marketing runtime, code review of `a0b77c4..HEAD`). If they didn't finish, re-run that hunt.
-- **Next:** owner review on localhost:3217, then the fidelity audit's bug list and further Tier 1 items 6-20 as the owner picks.
-- **Machine note:** `promunch-crm-mainbase` (main baseline) was removed by another session. Recreate it with `git worktree add --detach ../promunch-crm-mainbase origin/main`, copy `.env.local`, and clone `node_modules` with `cp -cR` (a symlink breaks Turbopack). The prototype is also in this worktree at `docs/plans/2026-10-07-app-redesign/`.
+- **Done and pushed** on `redesign/app-v2`:
+  - fidelity Tier 1 items 1-5 (header pattern, Home, public pages, welcome, IA tab sets);
+  - the audit bug list (7 items);
+  - code-review findings (`ba70ad4`);
+  - ops bug hunt (`06924e8`, `ebcad5b`) and marketing bug hunt (`2ce460f`).
+- **Checks:** `tsc` clean, `vitest` 1456/1456, lint 20 = main, `npm run build` 70/70, production crawl clean (remaining flags are known false positives).
+- **Owner decisions pending** (do NOT build without a yes):
+  1. **COD count mismatch:** badge/Home count 14 days (26) vs Confirm COD default 7 days (21). Proposal: Confirm COD lists every order still waiting, whatever the period.
+  2. **Add customer phone format:** saved as typed (no +91). Proposal: normalise new numbers to +91.
+  3. **Live abandoned-cart WhatsApp template** has an em dash ("…before they sell out — tap below…"). Changing it means a Meta resubmission plus a customer-message change, so it needs explicit approval.
+  4. **B2B fit-score prompt** (`src/lib/leads/fit.ts:30`) example has an em dash (team-facing lead reasons).
+  5. **Home has two reds** (pinstripe sales tile + "Confirm COD orders" button). Which wins?
+  6. Does "no Replies/Orders tiles" cover the WhatsApp campaign report?
+  7. **Customer page:** Anonymize/Deactivate moved into a ⋯ menu (same handlers). Confirm it's OK.
+- **Environment check before deploy:** locally `/api/whatsapp/quota` returns `standing_error "wa-meta-info HTTP 401"` (internal key after the Mumbai move). Verify it in prod before shipping.
+- **Next:** owner answers + review, then merge/deploy (runbook §6) when the owner says "merge". Then design pass 2 (audit Tier 1 items 6-20: B2B/Deals rebuild, ticket detail, Maya answer cards, WA report trim, email automations rows, Confirm COD grouping, Live chats rail…).
 
 ## 5. Open owner decisions (do not build without a yes)
 
@@ -155,6 +137,7 @@ The full CRM redesign lives on branch **`redesign/app-v2`** (pushed; ~32 commits
 
 ## 9. Update log
 
+- 2026-10-09 early AM: code-review + both bug hunts fixed and pushed (ba70ad4..2ce460f); build/tests/lint/crawl green; 7 owner decisions listed in section 4.
 - 2026-10-08 ~22:00 IST: all 7 audit bugs fixed + pushed; bug hunt (3 agents) running.
 - 2026-10-08 ~19:45 IST: top 5 done and verified (build, tests, lint, prod crawl); 404 hydration fix. Waiting on owner review + the two-red question.
 - 2026-10-08 evening: public pages done (428ee48); remaining 4 areas pushed as WIP 448ab88 after repeated rate limits; agents resumed. Machine load is high; the 3218/3219 servers were stopped to free CPU (restart them for final checks).
