@@ -65,19 +65,8 @@ function B2bPage() {
   }, [router]);
   const openList = useCallback((id: string) => go("lists", { list: id }), [go]);
 
-  // One clear next step.
   const waiting = c.drafted ?? 0;
-  const ready = c.ready ?? 0;
   const replies = c.replied ?? 0;
-  const next = settings?.paused
-    ? <button type="button" className="pm-btn primary" onClick={() => go("settings")}>Turn sending back on</button>
-    : waiting > 0
-      ? <button type="button" className="pm-btn primary" onClick={() => go("approve")}>Approve {nf(waiting)} emails <ArrowRight /></button>
-      : ready > 0
-        ? <button type="button" className="pm-btn primary" onClick={() => go("lists", { show: "ready" })}>Pick who to email ({nf(ready)} ready) <ArrowRight /></button>
-        : replies > 0
-          ? <button type="button" className="pm-btn primary" onClick={() => go("replies")}>Read {nf(replies)} replies</button>
-          : <button type="button" className="pm-btn primary" onClick={() => go("find")}><Search /> Find businesses</button>;
 
   const sender = settings?.from_name?.split(" ")[0] || "Parth";
   let header: { crumb: React.ReactNode; title: React.ReactNode; summary?: React.ReactNode; actions?: React.ReactNode };
@@ -85,14 +74,14 @@ function B2bPage() {
     case "find":
       header = {
         crumb: "B2B & deals",
-        title: "Find businesses",
-        summary: <>Pick a type and a city. We find them on Google Maps and check their websites for an email. <b>Nothing is written or sent from here.</b></>,
+        title: "Step 1 · Find businesses",
+        summary: <>Pick a type and a city. We find them on Google Maps, check their websites for an email and put them in a new list. <b>Nothing is written or sent from here.</b></>,
       };
       break;
     case "approve":
       header = {
         crumb: "B2B & deals",
-        title: "Approve",
+        title: "Step 4 · Approve",
         summary: waiting > 0
           ? <>Read each email once. Approved emails go out a few at a time as {sender}. <b>{nf(waiting)} waiting.</b></>
           : <>Emails you asked for wait here. <b>All caught up.</b></>,
@@ -118,19 +107,13 @@ function B2bPage() {
         ? {
             crumb: <Link href="/dashboard/leads" className={b.back}><ArrowLeft size={15} aria-hidden /> Lists</Link>,
             title: listQ.data ? listName(listQ.data.list.name) : "List",
-            summary: <>Tick businesses, then <b>Write emails</b> for the Ready ones. Nothing sends until you approve.</>,
-            actions: next,
+            summary: <>Step 2: tick the <b>Ready</b> businesses. Step 3: press <b>Write emails</b>. Step 4: approve them. Nothing sends before that.</>,
           }
         : {
             crumb: "B2B & deals",
-            title: "B2B outreach",
-            summary: <>Find businesses, pick who to email, approve, and it sends as {sender}. One list per search.</>,
-            actions: (
-              <>
-                {next}
-                <button type="button" className="pm-btn" onClick={() => go("find")}><Search /> Find</button>
-              </>
-            ),
+            title: "Step 2 · Pick from a list",
+            summary: <>Every search makes one list. Open a list to pick who gets an email. Emails send as {sender} after you approve them.</>,
+            actions: <button type="button" className="pm-btn" onClick={() => go("find")}><Search /> Find more businesses</button>,
           };
   }
 
@@ -139,7 +122,7 @@ function B2bPage() {
       <PageHeader crumb={header.crumb} title={header.title} summary={header.summary} actions={header.actions} />
 
       <div className={b.body} style={{ paddingBottom: 0 }}>
-        <StatusStrip status={status} onGo={go} />
+        <StatusStrip status={status} tab={tab} inList={!!listId} onGo={go} />
       </div>
 
       {tab === "find" && <FindView searches={status?.searches ?? []} onOpenList={openList} />}

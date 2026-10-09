@@ -16,6 +16,19 @@ import WriteDialog from "./WriteDialog";
 import { makeDeal, useDealFor } from "./RepliesView";
 import type { Lead, OutreachSettings } from "./types";
 
+// This business's own path, matching the six steps on the page.
+const TRACK = ["Found", "Has an email", "Email written", "Approved", "Sent", "Replied"];
+const NO_EMAIL = ["new", "crawling", "listed", "no_contacts", "no_website"];
+function trackAt(status: string): number {
+  if (NO_EMAIL.includes(status)) return 1;
+  if (status === "ready" || status === "drafting") return 2;
+  if (status === "drafted") return 3;
+  if (status === "approved") return 4;
+  if (status === "contacted") return 5;
+  if (status === "replied") return 6;
+  return -1;
+}
+
 type LeadResponse = { lead: Lead; followUp: { status: string; current_step: number; next_send_at: string | null } | null };
 
 export default function LeadDrawer({
@@ -70,6 +83,55 @@ export default function LeadDrawer({
     }
   }
 
+  const addEmail = () => run("contact", async () => {
+    if (!lead) return;
+    const r = await api<{ verifyStatus: string }>(`/api/leads/${lead.id}/contacts`, { body: { email: newEmail } });
+    setNewEmail("");
+    toast.push(r.verifyStatus === "mx_ok"
+      ? { kind: "success", text: "Email added. This business is Ready, write the email next." }
+      : { kind: "info", text: "Email added, but that domain does not accept email. Try another address." });
+  });
+
+  // The one thing to do next with this business.
+  function nextStep() {
+    if (!lead) return null;
+    const st = lead.status;
+    if (NO_EMAIL.includes(st)) {
+      return (
+        <div className={s.nextBox}>
+          <b>Next: add an email address</b>
+          <p>We could not find one on their website. Paste one you found (website contact page, LinkedIn, Google) and this business turns Ready.</p>
+          <div className={s.row} style={{ marginTop: 0 }}>
+            <input className={s.in} style={{ flex: "1 1 220px", maxWidth: 340 }} placeholder="name@business.com" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && newEmail.trim()) addEmail(); }} aria-label="Add an email" />
+            <button type="button" className="pm-btn primary" disabled={!newEmail.trim() || busy !== null} onClick={addEmail}><Plus /> {busy === "contact" ? "Checking…" : "Add email"}</button>
+            <button type="button" className="pm-btn" onClick={() => setDialog("find")}><MailSearch /> Find more emails</button>
+          </div>
+        </div>
+      );
+    }
+    if (st === "ready") {
+      return (
+        <div className={s.nextBox}>
+          <b>Next: write the email</b>
+          <p>The AI writes one email for this business from the PROMUNCH knowledge base. It waits here for you to read and approve.</p>
+          <div className={s.row} style={{ marginTop: 0 }}>
+            <button type="button" className="pm-btn primary" disabled={!!settings?.paused} onClick={() => setDialog("write")}><Sparkles /> Write the email</button>
+            {settings?.paused ? <span className={s.hint}>Sending is paused in Settings.</span> : null}
+          </div>
+        </div>
+      );
+    }
+    const copy: Record<string, [string, string]> = {
+      drafting: ["The AI is writing the email", "It shows up below in a few seconds."],
+      drafted: ["Next: read and approve the email", "It is below. Edit anything, then press Approve. Nothing sends before that."],
+      approved: ["Approved, sending soon", `It goes out between ${settings?.send_window_start ?? 9}:00 and ${settings?.send_window_end ?? 18}:00 IST, inside the daily limit.`],
+      contacted: ["Sent. Waiting for a reply", "If they reply it shows here and in Replies, and any follow-up stops."],
+      replied: ["They replied", "Read it below and make it a deal if it is worth following up."],
+    };
+    const c = copy[st];
+    return c ? <div className={s.nextBox}><b>{c[0]}</b><p>{c[1]}</p></div> : null;
+  }
+
   const editable = live && ["draft", "failed"].includes(live.status);
   const edited = !!live && (subject !== live.subject || body !== live.body_text);
   const existingDeal = lead ? dealFor(lead) : null;
@@ -95,6 +157,16 @@ export default function LeadDrawer({
                   {q.data?.followUp?.next_send_at ? <Tag tone="teal" dot>Follow-up {shortDate(q.data.followUp.next_send_at)}</Tag> : null}
                 </div>
                 {lead.fit_reason ? <p style={{ margin: "12px 0 0", fontSize: 16, lineHeight: 1.5, color: "var(--pm-ink2)" }}>{lead.fit_reason}</p> : null}
+                {trackAt(lead.status) >= 0 ? (
+                  <ol className={s.track} aria-label="Where this business is">
+                    {TRACK.map((label, i) => {
+                      const at = trackAt(lead.status);
+                      const st = i < at || at === 6 ? "done" : i === at ? "now" : "todo";
+                      return <li key={label} data-s={st} aria-current={st === "now" ? "step" : undefined}><i aria-hidden />{label}</li>;
+                    })}
+                  </ol>
+                ) : null}
+                {nextStep()}
               </>
             ) : null}
           </div>
@@ -134,7 +206,7 @@ export default function LeadDrawer({
               <div className={s.dsec}>
                 <div className={s.secT}>
                   <h3>Email addresses</h3>
-                  {["listed", "no_contacts", "no_website", "ready"].includes(lead.status) ? (
+                  {lead.status === "ready" ? (
                     <button type="button" className={s.txtLink} onClick={() => setDialog("find")}><MailSearch /> Find more emails</button>
                   ) : null}
                 </div>
@@ -154,16 +226,14 @@ export default function LeadDrawer({
                 ) : (
                   <p className={s.muted} style={{ margin: 0 }}>No email found on their website yet.</p>
                 )}
-                <div className={s.row}>
-                  <input className={s.in} style={{ flex: "1 1 220px", maxWidth: 340 }} placeholder="Add an email you found yourself" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} aria-label="Add an email" />
-                  <button type="button" className="pm-btn" disabled={!newEmail.trim() || busy !== null} onClick={() => run("contact", async () => {
-                    await api(`/api/leads/${lead.id}/contacts`, { body: { email: newEmail } });
-                    setNewEmail("");
-                    toast.push({ kind: "success", text: "Email added." });
-                  })}>
-                    <Plus /> Add
-                  </button>
-                </div>
+                {!NO_EMAIL.includes(lead.status) ? (
+                  <div className={s.row}>
+                    <input className={s.in} style={{ flex: "1 1 220px", maxWidth: 340 }} placeholder="Add another email you found" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} aria-label="Add an email" />
+                    <button type="button" className="pm-btn" disabled={!newEmail.trim() || busy !== null} onClick={addEmail}>
+                      <Plus /> Add
+                    </button>
+                  </div>
+                ) : null}
               </div>
 
               <div className={s.dsec}>
@@ -221,11 +291,8 @@ export default function LeadDrawer({
                     <p className={s.muted} style={{ margin: 0 }}>Sent {shortDate(sent[sent.length - 1].sent_at)}{sent.length > 1 ? `, plus ${sent.length - 1} follow-up${sent.length > 2 ? "s" : ""}` : ""}.</p>
                     <p style={{ margin: 0, fontSize: 16, whiteSpace: "pre-wrap" }}><b>{sent[sent.length - 1].subject}</b>{"\n\n"}{sent[sent.length - 1].body_text}</p>
                   </>
-                ) : lead.status === "ready" ? (
-                  <div className={s.row}>
-                    <button type="button" className="pm-btn primary" disabled={!!settings?.paused} onClick={() => setDialog("write")}><Sparkles /> Write an email</button>
-                    <span className={s.hint}>It waits for your approval before anything is sent.</span>
-                  </div>
+                ) : lead.status === "ready" || lead.status === "drafting" ? (
+                  <p className={s.muted} style={{ margin: 0 }}>{lead.status === "drafting" ? "Being written…" : "Not written yet. Press Write the email above."}</p>
                 ) : (
                   <p className={s.muted} style={{ margin: 0 }}>
                     {["skipped", "suppressed"].includes(lead.status) ? "This business is marked not interested. It is never emailed." : "No email yet. It needs an email address first."}

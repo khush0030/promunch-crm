@@ -1,11 +1,12 @@
 "use client";
 
-// Step 2, Pick (one list): every business with ONE plain status. Tick
-// businesses, then "Write emails" for the Ready ones, or "Find more emails"
-// for those without one.
+// Steps 2 and 3 (one list): every business with ONE plain status and ONE
+// button for what to do next with it. Ready -> Write email, Waiting ->
+// Approve, No email -> Add email (opens the business). Tick several, or
+// "Write emails for all ready", to write in one go.
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MailSearch, Sparkles, X } from "lucide-react";
+import { ArrowRight, Check, MailSearch, Plus, Sparkles, X } from "lucide-react";
 import { ConfirmDialog } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
 import { FINDABLE_STATUSES, STAGES, STAGE_ORDER, stageOf, type Stage } from "@/lib/leads/lead-status";
@@ -54,6 +55,7 @@ export default function ListDetail({
   const [limit, setLimit] = useState(PAGE);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [dialog, setDialog] = useState<null | "write" | "find" | "add" | "delete">(null);
+  const [writeIds, setWriteIds] = useState<string[]>([]);
   const [findIds, setFindIds] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
 
@@ -78,6 +80,9 @@ export default function ListDetail({
   const selFindable = selected.filter((l) => (FINDABLE_STATUSES as string[]).includes(l.status)).map((l) => l.id);
   const readyIds = leads.filter((l) => l.status === "ready").map((l) => l.id);
   const search = searches.find((x) => x.list_id === listId && x.active);
+  const waitingN = counts.waiting ?? 0;
+  const noEmailN = counts.no_email ?? 0;
+  const writeFor = (ids: string[]) => { setWriteIds(ids); setDialog("write"); };
 
   const toggle = (id: string) =>
     setSel((cur) => {
@@ -109,6 +114,28 @@ export default function ListDetail({
       {search ? (
         <section className={`${s.card} ${s.cardFlush}`}><SearchProgressCard search={search} /></section>
       ) : null}
+
+      <section className={s.card}>
+        <div className={s.listGuide}>
+          {readyIds.length ? (
+            <>
+              <p><b>{plural(readyIds.length, "business is", "businesses are")} ready to email.</b> Tick the ones you want (or write for all of them). The AI writes one email each, then you approve.</p>
+              <button type="button" className="pm-btn primary" disabled={!!settings?.paused} onClick={() => writeFor(readyIds)}>
+                <Sparkles /> Write emails for all {nf(readyIds.length)} ready
+              </button>
+            </>
+          ) : waitingN ? (
+            <>
+              <p><b>{plural(waitingN, "email waits", "emails wait")} for your approval.</b> Read each one, approve it or skip it.</p>
+              <button type="button" className="pm-btn primary" onClick={() => onApprove(null)}><Check /> Approve emails <ArrowRight /></button>
+            </>
+          ) : noEmailN ? (
+            <p><b>No one here is ready yet.</b> Open a business marked No email and add an address you found, or use Find more emails. It turns Ready once it has one.</p>
+          ) : (
+            <p><b>Everyone in this list has been handled.</b> Find more businesses for a new list.</p>
+          )}
+        </div>
+      </section>
 
       <div className={s.chips} role="tablist" aria-label="Show">
         <button type="button" role="tab" aria-selected={stage === "all"} className={s.chip} data-on={stage === "all"} onClick={() => setStage("all")}>
@@ -162,11 +189,21 @@ export default function ListDetail({
                   <span className={s.bizEmail}>{email ?? <span className={s.muted}>No email found</span>}</span>
                   <StageTag status={l.status} />
                   <span className={s.bizAct}>
-                    {findable ? (
-                      <button type="button" className={s.txtLink} onClick={() => { setFindIds([l.id]); setDialog("find"); }}>
-                        <MailSearch /> Find more emails
+                    {l.status === "ready" ? (
+                      <button type="button" className="pm-btn primary" disabled={!!settings?.paused} onClick={() => writeFor([l.id])}>
+                        <Sparkles /> Write email
                       </button>
-                    ) : null}
+                    ) : l.status === "drafted" ? (
+                      <button type="button" className="pm-btn" onClick={() => onApprove(null)}>
+                        <Check /> Approve
+                      </button>
+                    ) : findable ? (
+                      <button type="button" className="pm-btn" onClick={() => onOpenLead(l)}>
+                        <Plus /> Add email
+                      </button>
+                    ) : (
+                      <button type="button" className="pm-btn ghost" onClick={() => onOpenLead(l)}>Open</button>
+                    )}
                   </span>
                 </div>
               );
@@ -191,7 +228,7 @@ export default function ListDetail({
             <b>{plural(sel.size, "business", "businesses")} selected</b>
             <span>{nf(selReady.length)} ready to write · {nf(selFindable.length)} without an email</span>
           </div>
-          <button type="button" className="pm-btn primary" disabled={!selReady.length || !!settings?.paused} onClick={() => setDialog("write")} title={settings?.paused ? "Sending is paused in Settings" : undefined}>
+          <button type="button" className="pm-btn primary" disabled={!selReady.length || !!settings?.paused} onClick={() => writeFor(selReady)} title={settings?.paused ? "Sending is paused in Settings" : undefined}>
             <Sparkles /> Write emails for {nf(selReady.length)}
           </button>
           {selFindable.length ? (
@@ -206,7 +243,7 @@ export default function ListDetail({
 
       {dialog === "write" ? (
         <WriteDialog
-          leadIds={selReady}
+          leadIds={writeIds}
           listId={listId}
           settings={settings}
           onClose={() => setDialog(null)}
