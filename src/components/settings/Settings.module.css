@@ -22,13 +22,17 @@
 .tx > span{font-size:15px;color:var(--pm-muted);overflow-wrap:anywhere}
 .right{flex:none;display:flex;align-items:center;gap:8px}
 
-/* status: coloured text + small dot */
-.st{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:15.5px;white-space:nowrap}
+/* status: soft tinted chip + small dot */
+.st{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:13.5px;white-space:nowrap;padding:5px 11px;border-radius:999px;background:var(--tag-grey-bg);color:var(--tag-grey-ink)}
 .st::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
 .good{color:var(--pm-green)}
 .warn{color:var(--pm-gold)}
 .bad{color:var(--pm-terra)}
 .off{color:var(--pm-muted)}
+.st.good{background:var(--tag-green-bg);color:var(--tag-green-ink)}
+.st.warn{background:var(--tag-amber-bg);color:var(--tag-amber-ink)}
+.st.bad{background:var(--tag-red-bg);color:var(--tag-red-ink)}
+.st.off{background:var(--tag-grey-bg);color:var(--tag-grey-ink)}
 
 /* Shopify store facts */
 .facts{display:grid;grid-template-columns:140px minmax(0,1fr);gap:10px 18px;margin:0;font-size:15px}

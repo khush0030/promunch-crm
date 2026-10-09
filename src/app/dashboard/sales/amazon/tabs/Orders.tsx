@@ -13,7 +13,7 @@ type OrderRow = AmazonMetrics["orders"]["recent"][number];
 
 function statusTone(status: string): string {
   const v = status.toLowerCase();
-  if (v.includes("cancel")) return s.bad;
+  if (v.includes("cancel")) return "";
   if (v.includes("pending") || v.includes("unshipped")) return s.warn;
   if (v.includes("ship")) return s.good;
   return "";

@@ -23,10 +23,12 @@
 .who .cell{flex:1}
 .name{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:700;font-size:15.5px}
 .role{font:700 10.5px/1 var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-ink2);border:1px solid var(--pm-border);border-radius:6px;padding:4px 6px}
-.st{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:15px;white-space:nowrap}
+.st{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:13.5px;white-space:nowrap;padding:5px 11px;border-radius:999px;background:var(--tag-grey-bg);color:var(--tag-grey-ink)}
 .st::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
 .warn{color:var(--pm-gold)}
 .live{color:var(--pm-green)}
+.st.warn{background:var(--tag-amber-bg);color:var(--tag-amber-ink)}
+.st.live{background:var(--tag-green-bg);color:var(--tag-green-ink)}
 .empty{padding:32px 22px;font-size:15px;color:var(--pm-muted)}
 .empty button{margin-left:8px}
 

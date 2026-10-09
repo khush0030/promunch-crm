@@ -35,11 +35,11 @@ function statusOf(r: Row): { cls: string; label: string } {
   if (r.approval_status === "pending") return { cls: l.stWarn, label: "Needs approval" };
   if (r.approval_status === "rejected" && r.status === "draft") return { cls: l.stCrit, label: "Sent back" };
   switch (r.status) {
-    case "sent": return { cls: l.stPlain, label: "Sent" };
+    case "sent": return { cls: l.stGood, label: "Sent" };
     case "sending": return { cls: l.stGood, label: "Sending" };
     case "scheduled": return { cls: l.stInfo, label: "Scheduled" };
     case "paused": return { cls: l.stWarn, label: "Paused" };
-    default: return { cls: l.stNeu, label: "Draft" };
+    default: return { cls: l.stWarn, label: "Draft" };
   }
 }
 

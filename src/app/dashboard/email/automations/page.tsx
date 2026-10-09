@@ -42,7 +42,7 @@ const GROUPS: { trigger: string; title: string }[] = [
 const STATUS: Record<string, { cls: string; label: string }> = {
   active: { cls: l.stGood, label: "On" },
   paused: { cls: l.stWarn, label: "Paused" },
-  draft: { cls: l.stNeu, label: "Draft" },
+  draft: { cls: l.stWarn, label: "Draft" },
 };
 
 const ICONS: Record<string, LucideIcon> = {

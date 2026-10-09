@@ -98,7 +98,7 @@ function SentView({ c }: { c: Campaign }) {
         back={{ href: "/dashboard/email/campaigns", label: "Campaigns" }}
         summary={
           <span className={s.sumLine}>
-            <span className={`${s.statusText} ${c.status === "sent" ? "" : s.statusLive}`}>{c.status === "sent" ? "Sent" : "Sending now"}</span>
+            <span className={`${s.statusText} ${s.statusLive}`}>{c.status === "sent" ? "Sent" : "Sending now"}</span>
             <span>
               “{niceText(c.subject ?? "")}” {c.sent_at ? `· ${when(c.sent_at)}` : ""}
             </span>

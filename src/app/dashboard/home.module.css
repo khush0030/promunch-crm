@@ -48,9 +48,9 @@ a.kpi.hero:hover{border-color:var(--pm-brand-deep, #8E1F26)}
 .todo:hover{background:var(--pm-card2)}
 .ic{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;flex-shrink:0;background:var(--pm-card3);color:var(--pm-ink2)}
 .ic svg{width:19px;height:19px}
-.ic.crit{background:var(--pm-terra-soft);color:var(--pm-terra)}
-.ic.warn{background:var(--pm-gold-soft);color:var(--pm-gold)}
-.ic.info{background:var(--pm-blue-soft);color:var(--pm-blue)}
+.ic.crit{background:var(--tag-red-bg);color:var(--tag-red-ink)}
+.ic.warn{background:var(--tag-amber-bg);color:var(--tag-amber-ink)}
+.ic.info{background:var(--tag-blue-bg);color:var(--tag-blue-ink)}
 .tx{flex:1;min-width:0}
 .tx b{display:block;font-weight:700;font-size:16.5px;line-height:1.35}
 .tx span{display:block;color:var(--pm-muted);font-size:15.5px;line-height:1.4}
@@ -88,11 +88,11 @@ a.kpi.hero:hover{border-color:var(--pm-brand-deep, #8E1F26)}
 .rnS{display:block;font-size:15px;color:var(--pm-muted)}
 .bar{height:6px;border-radius:4px;background:var(--pm-card3);margin:6px 0 4px;overflow:hidden}
 .bar i{display:block;height:100%;border-radius:4px;background:var(--pm-green)}
-.tg{display:inline-flex;align-items:center;gap:6px;font-size:15px;font-weight:600;color:var(--pm-ink2);white-space:nowrap}
-.tg::before{content:"";width:7px;height:7px;border-radius:50%;background:#B9B0A3}
-.tg.good{color:var(--pm-green)}.tg.good::before{background:var(--pm-green)}
-.tg.warn{color:var(--pm-gold)}.tg.warn::before{background:#D99A00}
-.tg.info{color:var(--pm-blue)}.tg.info::before{background:var(--pm-blue)}
+.tg{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;white-space:nowrap;padding:5px 11px;border-radius:999px;background:var(--tag-grey-bg);color:var(--tag-grey-ink)}
+.tg::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.tg.good{background:var(--tag-green-bg);color:var(--tag-green-ink)}
+.tg.warn{background:var(--tag-amber-bg);color:var(--tag-amber-ink)}
+.tg.info{background:var(--tag-blue-bg);color:var(--tag-blue-ink)}
 .runEmpty{margin:10px 0 0;font-size:15.5px;color:var(--pm-muted)}
 
 /* all clear (prototype .empty) */

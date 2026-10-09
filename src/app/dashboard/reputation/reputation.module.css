@@ -13,8 +13,8 @@
 .inlineLink { color: var(--pm-ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 .linkBtn { background: none; border: 0; padding: 0; font: inherit; color: var(--pm-ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 
-/* ---- status marks: coloured text + small dot (never a filled block) ---- */
-.mark { display: inline-flex; align-items: center; gap: 6px; font: 700 13.5px/1.3 var(--pm-font); white-space: nowrap; }
+/* ---- status marks: soft tinted chip + small dot (never a heavy filled block) ---- */
+.mark { display: inline-flex; align-items: center; gap: 6px; font: 600 13.5px/1.3 var(--pm-font); white-space: nowrap; padding: 5px 11px; border-radius: 999px; background: var(--tag-grey-bg); color: var(--tag-grey-ink); }
 .mark::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
 .t_crit { color: var(--pm-terra); }
 .t_crit.mark::before { border-radius: 1px; transform: rotate(45deg); width: 6px; height: 6px; }
@@ -25,6 +25,12 @@
 .t_neu { color: var(--pm-muted); }
 .t_neu.mark::before { background: var(--pm-hint); }
 .t_ink { color: var(--pm-ink); }
+.mark.t_crit { background: var(--tag-red-bg); color: var(--tag-red-ink); }
+.mark.t_warn { background: var(--tag-amber-bg); color: var(--tag-amber-ink); }
+.mark.t_good { background: var(--tag-green-bg); color: var(--tag-green-ink); }
+.mark.t_info { background: var(--tag-blue-bg); color: var(--tag-blue-ink); }
+.mark.t_neu, .mark.t_ink { background: var(--tag-grey-bg); color: var(--tag-grey-ink); }
+.mark.t_neu::before { background: currentColor; opacity: .55; }
 
 .stars { display: inline-flex; gap: 1px; font-size: 14px; line-height: 1; letter-spacing: 0; white-space: nowrap; }
 .starOn { color: var(--pm-gold); }

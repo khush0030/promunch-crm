@@ -303,7 +303,7 @@ export function profitTakeaway(skus: AmazonSku[]): ReactNode {
 // ---------------------------------------------------------------- payouts
 
 export function PayoutTag({ st }: { st: AmazonSettlement }) {
-  if (st.scheduled) return <span className={s.tg}>Scheduled</span>;
+  if (st.scheduled) return <span className={`${s.tg} ${s.tgInfo}`}>Scheduled</span>;
   if (st.matched) return <span className={`${s.tg} ${s.good}`}>Matched to orders</span>;
   return (
     <span

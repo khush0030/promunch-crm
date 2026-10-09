@@ -33,7 +33,7 @@ const STATUS_CLASS: Record<string, string> = {
   draft: l.stDraft,
   paused: l.stPaused,
   failed: l.stFailed,
-  completed: l.stPlain,
+  completed: l.stSent,
   cancelled: l.stPlain,
 };
 

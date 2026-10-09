@@ -163,8 +163,8 @@ function waLabel(status: ConfirmStatus | undefined): string {
 function gateChip(status: GateStatus | null | undefined, via: "button" | "manual" | null | undefined) {
   const ic = (I: typeof Check) => <I aria-hidden="true" />;
   if (!status) return <StatusText inline tone="mute" icon={ic(Minus)}>Prepaid</StatusText>;
-  if (status === "pending") return <StatusText inline tone="info" icon={ic(MessageCircle)}>Waiting for tap</StatusText>;
-  if (status === "needs_call") return <StatusText inline tone="warn" icon={ic(PhoneMissed)}>Needs a call</StatusText>;
+  if (status === "pending") return <StatusText inline tone="warn" icon={ic(MessageCircle)}>Waiting for tap</StatusText>;
+  if (status === "needs_call") return <StatusText inline tone="bad" icon={ic(PhoneMissed)}>Needs a call</StatusText>;
   if (status === "cancelled") return <StatusText inline tone="mute" icon={ic(X)}>Cancelled</StatusText>;
   return (
     <StatusText inline tone="good" icon={ic(Check)}>
@@ -643,7 +643,7 @@ function OrdersPageInner() {
       h: "Confirmation",
       render: (o) => {
         const canResend = o.status === "missing" || o.status === "failed";
-        const tone: Tone = o.status === "sent" ? "good" : canResend ? "warn" : o.status === "gave_up" ? "warn" : "mute";
+        const tone: Tone = o.status === "sent" ? "good" : o.status === "failed" ? "bad" : canResend ? "warn" : o.status === "gave_up" ? "warn" : "mute";
         const label =
           o.status === "sent"
             ? "Sent"
@@ -657,7 +657,7 @@ function OrdersPageInner() {
                     ? "No phone"
                     : "Cancelled";
         const icon =
-          o.status === "sent" ? <Check aria-hidden="true" /> : tone === "warn" ? <AlertCircle aria-hidden="true" /> : <Minus aria-hidden="true" />;
+          o.status === "sent" ? <Check aria-hidden="true" /> : tone === "warn" || tone === "bad" ? <AlertCircle aria-hidden="true" /> : <Minus aria-hidden="true" />;
         return (
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "nowrap" }}>
             <StatusText inline tone={tone} icon={icon}>

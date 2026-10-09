@@ -402,18 +402,22 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                 let text = "";
                 let tooltip = "";
                 if (it.kind === "order") {
-                  chipBg = "var(--pm-green-soft)"; chipColor = "var(--pm-green)"; Icon = ShoppingBag;
+                  chipBg = "var(--tag-brand-bg)"; chipColor = "var(--tag-brand-ink)"; Icon = ShoppingBag;
                   const o = it.order;
                   const amt = o.total_amount ? `₹${Number(o.total_amount).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "";
                   const oid = o.order_number ? `#${o.order_number}` : o.id.substring(0, 8);
                   text = `Ordered ${oid}${amt ? ` · ${amt}` : ""}`;
                   tooltip = (o.products?.items || []).join(", ");
                 } else if (it.kind === "email") {
-                  chipBg = "var(--pm-blue-soft)"; chipColor = "var(--pm-blue)"; Icon = Mail;
+                  chipBg = "var(--tag-blue-bg)"; chipColor = "var(--tag-blue-ink)"; Icon = Mail;
                   text = `Email ${it.event.event_type}`;
                 } else {
-                  chipBg = "var(--pm-terra-soft)"; chipColor = "var(--pm-terra)"; Icon = MessageSquare;
-                  const dir = it.msg.direction === "outbound" ? "sent" : "received";
+                  const out = it.msg.direction === "outbound";
+                  // sent = green (WhatsApp), received = blue, so the two read apart at a glance
+                  chipBg = out ? "var(--tag-green-bg)" : "var(--tag-blue-bg)";
+                  chipColor = out ? "var(--tag-green-ink)" : "var(--tag-blue-ink)";
+                  Icon = MessageSquare;
+                  const dir = out ? "sent" : "received";
                   const body = (it.msg.body || "").trim();
                   const snip = body.length > 80 ? `${body.slice(0, 80)}…` : body;
                   text = `WhatsApp ${dir}${snip ? `: ${snip}` : ""}`;

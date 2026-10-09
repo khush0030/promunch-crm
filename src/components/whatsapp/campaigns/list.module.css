@@ -59,17 +59,16 @@
   border-left: 1.5px solid var(--pm-border); border-bottom: 1.5px solid var(--pm-border); border-bottom-left-radius: 6px;
 }
 
-/* status: coloured text + small dot, never a filled block */
-.status { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 15.5px; white-space: nowrap; color: var(--pm-muted); }
+/* status: soft tinted chip + small dot, never a heavy filled block */
+.status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13.5px; white-space: nowrap; padding: 5px 11px; border-radius: 999px; background: var(--tag-grey-bg); color: var(--tag-grey-ink); }
 .status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
-.stSending { color: var(--pm-green); }
-.stScheduled { color: var(--pm-blue); }
-.stDraft { color: var(--pm-muted); }
-.stDraft::before { background: var(--pm-hint); opacity: .7; }
-.stPaused { color: var(--pm-gold); }
-.stFailed { color: var(--pm-terra); }
-.stPlain { color: var(--pm-muted); font-weight: 600; }
-.stPlain::before { display: none; }
+.stSending, .stSent { background: var(--tag-green-bg); color: var(--tag-green-ink); }
+.stScheduled { background: var(--tag-blue-bg); color: var(--tag-blue-ink); }
+.stDraft { background: var(--tag-amber-bg); color: var(--tag-amber-ink); }
+.stPaused { background: var(--tag-amber-bg); color: var(--tag-amber-ink); }
+.stFailed { background: var(--tag-red-bg); color: var(--tag-red-ink); }
+.stPlain { background: var(--tag-grey-bg); color: var(--tag-grey-ink); }
+.stPlain::before { opacity: .55; }
 
 /* row end: more-actions menu + chevron */
 .end { width: 1%; white-space: nowrap; text-align: right; }

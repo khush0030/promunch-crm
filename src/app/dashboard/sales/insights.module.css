@@ -55,11 +55,12 @@
 .empty{padding:6px 0 2px;color:var(--pm-muted);font-size:15px}
 
 /* status: coloured text + small dot */
-.tg{display:inline-flex;align-items:center;gap:6px;font-size:15px;font-weight:600;color:var(--pm-ink2);white-space:nowrap}
-.tg::before{content:"";width:7px;height:7px;border-radius:50%;background:#B9B0A3;flex:none}
-.tg.good{color:var(--pm-green)}.tg.good::before{background:var(--pm-green)}
-.tg.warn{color:var(--pm-gold)}.tg.warn::before{background:#D99A00}
-.tg.bad{color:var(--pm-terra)}.tg.bad::before{background:var(--pm-terra)}
+.tg{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;white-space:nowrap;padding:5px 11px;border-radius:999px;background:var(--tag-grey-bg);color:var(--tag-grey-ink)}
+.tg::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.tg.good{background:var(--tag-green-bg);color:var(--tag-green-ink)}
+.tg.warn{background:var(--tag-amber-bg);color:var(--tag-amber-ink)}
+.tg.bad{background:var(--tag-red-bg);color:var(--tag-red-ink)}
+.tg.tgInfo{background:var(--tag-blue-bg);color:var(--tag-blue-ink)}
 .goodT{color:var(--pm-green)}.warnT{color:var(--pm-gold)}.badT{color:var(--pm-terra)}
 
 /* ---------- channel rows (Sales) ---------- */

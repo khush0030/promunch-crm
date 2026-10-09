@@ -92,12 +92,12 @@
 .campName:focus-visible { outline: 2px solid var(--pm-ink); outline-offset: 2px; border-radius: 4px; }
 .sub { display: block; font-size: 14.5px; color: var(--pm-muted); line-height: 1.45; margin-top: 2px; }
 .verdictCell { max-width: 260px; }
-.grade { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 15.5px; white-space: nowrap; }
-.grade::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.gGood { color: var(--pm-green); }
-.gMid { color: var(--pm-gold); }
-.gBad { color: var(--pm-terra); }
-.gNeu { color: var(--pm-muted); }
+.grade { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13.5px; white-space: nowrap; padding: 5px 11px; border-radius: 999px; background: var(--tag-grey-bg); color: var(--tag-grey-ink); }
+.grade::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.gGood { background: var(--tag-green-bg); color: var(--tag-green-ink); }
+.gMid { background: var(--tag-amber-bg); color: var(--tag-amber-ink); }
+.gBad { background: var(--tag-red-bg); color: var(--tag-red-ink); }
+.gNeu { background: var(--tag-grey-bg); color: var(--tag-grey-ink); }
 .tests { margin-top: 14px; padding-bottom: 12px; font-size: 15px; color: var(--pm-muted); display: flex; gap: 6px 12px; flex-wrap: wrap; align-items: center; }
 .tests a { color: var(--pm-muted); }
 

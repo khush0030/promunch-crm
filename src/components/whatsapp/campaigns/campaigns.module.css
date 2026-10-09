@@ -111,9 +111,9 @@
 .optionDanger.optionOn::before { border-color: var(--pm-terra); }
 .optionTitle { font-weight: 700; font-size: 15px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .optionHint { font-size: 14.5px; color: var(--pm-muted); line-height: 1.45; }
-.badge { font-size: 13.5px; font-weight: 700; color: var(--pm-green); display: inline-flex; align-items: center; gap: 5px; }
-.badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.badgeWarn { color: var(--pm-terra); }
+.badge { font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; background: var(--tag-green-bg); color: var(--tag-green-ink); white-space: nowrap; }
+.badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+.badgeWarn { background: var(--tag-red-bg); color: var(--tag-red-ink); }
 
 .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .tplCard {

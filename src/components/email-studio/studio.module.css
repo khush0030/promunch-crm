@@ -221,9 +221,9 @@
 .back:hover { color: var(--pm-ink); text-decoration: underline; text-underline-offset: 3px; }
 :global(.pm2-crumb):has(.back)::before { display: none; }
 .sumLine { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 15.5px; color: var(--pm-ink2); line-height: 1.5; }
-.statusText { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 15.5px; color: var(--pm-muted); white-space: nowrap; }
-.statusText::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.statusLive { color: var(--pm-green); }
+.statusText { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13.5px; white-space: nowrap; padding: 5px 11px; border-radius: 999px; background: var(--tag-grey-bg); color: var(--tag-grey-ink); }
+.statusText::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.statusLive { background: var(--tag-green-bg); color: var(--tag-green-ink); }
 .tplCat { font: 700 11px/1.2 var(--pm-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--pm-muted); white-space: nowrap; }
 .takeaway { margin: 0 0 4px; font-size: 15px; color: var(--pm-ink2); line-height: 1.5; }
 .takeaway b { color: var(--pm-ink); }
