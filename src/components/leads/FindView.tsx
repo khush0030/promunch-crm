@@ -1,308 +1,147 @@
 "use client";
 
-// B2B · Find businesses (prototype b2b-find), inline instead of a modal.
-// Same request as before: POST /api/leads/search with
-// { categories, cities, maxResults, findEmails, products, offer, subjectHint, listName }.
-// Each category × city becomes its own list; the pipeline then scores the
-// businesses, finds and MX-checks work emails and writes a first email for
-// each (those land in Review). Below the form: recent searches and progress.
-
+// Step 1, Find: business type + city + how many. Runs on the SERVER; the tab
+// can be closed. Live progress shows below and on the list.
 import { useState } from "react";
-import { ArrowRight, ChevronDown, ChevronRight, Clock, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import s from "./b2b.module.css";
+import { api, errText, useB2bRefresh } from "./api";
 import { CATEGORY_PRESETS, DEFAULT_CITIES, PRODUCT_OPTIONS } from "./constants";
-import type { ListSummary, SearchRow } from "./types";
-import { nf, shortDate } from "./stages";
+import SearchProgressCard from "./SearchProgressCard";
+import type { SearchProgress } from "./types";
 
-const COUNT_PRESETS = [25, 50, 100, 200];
-
-function fmtDuration(sec: number): string {
-  if (sec < 90) return `${Math.max(15, Math.round(sec / 5) * 5)} sec`;
-  return `${Math.round(sec / 60)} min`;
-}
-
-// Honest estimate. When findEmails is on, `target` is the number of leads WITH
-// an email; ~40% of crawled companies yield one, so we scan ~2.5x that many
-// (capped at the Places 60/search max). One tick = 1 discovery page + up to 5
-// crawls + 5 drafts. Returns expected email-leads, scan size, time, and ticks.
-const EMAIL_YIELD = 0.4;
-function planScrape(target: number, combos: number, findEmails: boolean) {
-  const maxScan = 60 * combos; // Places caps each search at ~60
-  const wantScan = findEmails ? Math.ceil(target / EMAIL_YIELD) : target;
-  const scan = Math.max(combos, Math.min(wantScan, maxScan));
-  const perCombo = Math.min(60, Math.ceil(scan / combos));
-  const actualScan = Math.min(scan, perCombo * combos);
-  const expectedEmails = findEmails ? Math.round(actualScan * EMAIL_YIELD) : actualScan;
-  const discoverPages = combos * Math.ceil(perCombo / 20);
-
-  let lo = discoverPages * 2.5;
-  let hi = discoverPages * 4;
-  if (findEmails) {
-    lo += actualScan * 5 + expectedEmails * 3; // crawl+MX + drafting the hits
-    hi += actualScan * 11 + expectedEmails * 5;
-  }
-
-  const crawlRounds = findEmails ? Math.ceil(actualScan / 5) : 0;
-  const draftRounds = findEmails ? Math.ceil(expectedEmails / 5) : 0;
-  const rounds = Math.min(150, discoverPages + crawlRounds + draftRounds + 3);
-
-  // capped = couldn't scan enough companies to likely reach the email target.
-  const capped = findEmails && wantScan > maxScan;
-  return { actualScan, expectedEmails, capped, lo, hi, rounds };
-}
-
-const SEARCH_TAG: Record<string, { t: string; tone?: "good" | "info" | "warn" | "bad" }> = {
-  pending: { t: "Waiting to start", tone: "info" },
-  running: { t: "Finding", tone: "info" },
-  done: { t: "Done", tone: "good" },
-  error: { t: "Stopped", tone: "bad" },
-};
+const SIZES = [10, 20, 40];
 
 export default function FindView({
-  searches, lists, running, runProgress, onQueued, onRun, onOpenList,
+  searches, onOpenList,
 }: {
-  searches: SearchRow[];
-  lists: ListSummary[];
-  running: boolean;
-  runProgress: string;
-  onQueued: (rounds: number) => void;
-  onRun: () => void;
-  onOpenList: (id: string) => void;
+  searches: SearchProgress[];
+  onOpenList: (listId: string) => void;
 }) {
   const toast = useToast();
-  const [categories, setCategories] = useState<string[]>([CATEGORY_PRESETS[0].query]);
-  const [cities, setCities] = useState<string[]>([DEFAULT_CITIES[0]]);
-  const [customCategory, setCustomCategory] = useState("");
-  const [target, setTarget] = useState(50);
-  const [findEmails, setFindEmails] = useState(true);
+  const refresh = useB2bRefresh();
+  const [type, setType] = useState(CATEGORY_PRESETS[0].query);
+  const [customType, setCustomType] = useState("");
+  const [city, setCity] = useState(DEFAULT_CITIES[0]);
+  const [customCity, setCustomCity] = useState("");
+  const [size, setSize] = useState(20);
+  const [showPitch, setShowPitch] = useState(false);
   const [products, setProducts] = useState<string[]>([]);
   const [offer, setOffer] = useState("");
-  const [subjectHint, setSubjectHint] = useState("");
-  const [listName, setListName] = useState("");
   const [busy, setBusy] = useState(false);
-  const [showMore, setShowMore] = useState(false);
+  const [stopping, setStopping] = useState<string | null>(null);
 
-  function toggle(list: string[], setList: (v: string[]) => void, value: string) {
-    setList(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
-  }
+  const category = (type === "__other" ? customType : type).trim();
+  const where = (city === "__other" ? customCity : city).trim();
 
-  const allCats = customCategory.trim() ? [...categories, customCategory.trim()] : categories;
-  const combos = Math.max(1, allCats.length * cities.length);
-  const plan = planScrape(target || 1, combos, findEmails);
-
-  async function submit() {
-    const cats = [...categories];
-    if (customCategory.trim()) cats.push(customCategory.trim());
-    if (!cats.length || !cities.length) {
-      toast.push({ kind: "error", text: "Pick at least one business type and one city." });
-      return;
-    }
+  async function start() {
+    if (!category || !where) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/leads/search", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ categories: cats, cities, maxResults: target, findEmails, products, offer, subjectHint, listName }),
+      await api("/api/leads/search", {
+        body: { categories: [category], cities: [where], maxResults: size, findEmails: true, products, offer },
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "failed");
-      toast.push({
-        kind: "success",
-        text: findEmails
-          ? `Finding ~${plan.expectedEmails} businesses with a work email (checking ${plan.actualScan}), about ${fmtDuration(plan.lo)} to ${fmtDuration(plan.hi)}.`
-          : `Listing up to ${plan.actualScan} businesses, about ${fmtDuration(plan.lo)} to ${fmtDuration(plan.hi)}.`,
-      });
-      onQueued(plan.rounds);
+      toast.push({ kind: "success", text: `Finding ${category} in ${where}. You can close this tab; it keeps going.` });
+      refresh();
     } catch (e) {
-      toast.push({ kind: "error", text: e instanceof Error ? e.message : "Search failed" });
+      toast.push({ kind: "error", text: errText(e) });
     } finally {
       setBusy(false);
     }
   }
 
-  const listBySearch = new Map(lists.filter((l) => l.source_search_id).map((l) => [l.source_search_id as string, l]));
-  const recent = searches.slice(0, 8);
-  const inFlight = searches.filter((x) => x.status === "pending" || x.status === "running").length;
+  async function stop(id: string) {
+    setStopping(id);
+    try {
+      await api(`/api/leads/searches/${id}`, { method: "PATCH", body: { action: "stop" } });
+      refresh();
+    } catch (e) {
+      toast.push({ kind: "error", text: errText(e) });
+    } finally {
+      setStopping(null);
+    }
+  }
 
   return (
     <div className={s.body}>
       <section className={s.card}>
-        <div className={s.field}>
-          <span className={s.fieldL}>What kind of business?</span>
-          <div className={s.chips}>
-            {CATEGORY_PRESETS.map((c) => (
-              <button key={c.query} type="button" className={s.chip} data-on={categories.includes(c.query)} aria-pressed={categories.includes(c.query)} onClick={() => toggle(categories, setCategories, c.query)}>
-                {c.label}
-              </button>
-            ))}
-          </div>
-          <input
-            className={s.in}
-            placeholder="Or type your own, e.g. corporate caterer"
-            value={customCategory}
-            onChange={(e) => setCustomCategory(e.target.value)}
-            aria-label="Your own business type"
-          />
+        <div className={s.secT}><h3>What kind of business?</h3></div>
+        <div className={s.chips} role="radiogroup" aria-label="Business type">
+          {CATEGORY_PRESETS.map((p) => (
+            <button key={p.query} type="button" role="radio" aria-checked={type === p.query} className={s.chip} data-on={type === p.query} onClick={() => setType(p.query)}>
+              {p.label}
+            </button>
+          ))}
+          <button type="button" role="radio" aria-checked={type === "__other"} className={s.chip} data-on={type === "__other"} onClick={() => setType("__other")}>
+            Something else
+          </button>
         </div>
+        {type === "__other" ? (
+          <input className={s.in} style={{ marginTop: 14, maxWidth: 480 }} placeholder="e.g. corporate catering company" value={customType} onChange={(e) => setCustomType(e.target.value)} aria-label="Business type" />
+        ) : null}
 
-        <div className={s.field}>
-          <span className={s.fieldL}>Where?</span>
-          <div className={s.chips}>
-            {DEFAULT_CITIES.map((c) => (
-              <button key={c} type="button" className={s.chip} data-on={cities.includes(c)} aria-pressed={cities.includes(c)} onClick={() => toggle(cities, setCities, c)}>
-                {c}
-              </button>
-            ))}
-          </div>
+        <div className={s.secT} style={{ marginTop: 28 }}><h3>Which city?</h3></div>
+        <div className={s.chips} role="radiogroup" aria-label="City">
+          {DEFAULT_CITIES.map((c) => (
+            <button key={c} type="button" role="radio" aria-checked={city === c} className={s.chip} data-on={city === c} onClick={() => setCity(c)}>{c}</button>
+          ))}
+          <button type="button" role="radio" aria-checked={city === "__other"} className={s.chip} data-on={city === "__other"} onClick={() => setCity("__other")}>Another city</button>
         </div>
+        {city === "__other" ? (
+          <input className={s.in} style={{ marginTop: 14, maxWidth: 360 }} placeholder="e.g. Chennai" value={customCity} onChange={(e) => setCustomCity(e.target.value)} aria-label="City" />
+        ) : null}
 
-        <div className={s.field}>
-          <span className={s.fieldL}>{findEmails ? "How many businesses with an email?" : "How many businesses?"}</span>
-          <div className={s.chips}>
-            {COUNT_PRESETS.map((n) => (
-              <button key={n} type="button" className={s.chip} data-on={target === n} aria-pressed={target === n} onClick={() => setTarget(n)}>
-                {n}
-              </button>
-            ))}
-            <input
-              className={s.in}
-              style={{ width: 110, minHeight: 38, height: 38, padding: "0 12px" }}
-              type="number"
-              min={1}
-              max={3600}
-              value={target}
-              onChange={(e) => setTarget(Math.max(1, Math.min(3600, parseInt(e.target.value || "1"))))}
-              aria-label="Custom count"
-            />
-          </div>
+        <div className={s.secT} style={{ marginTop: 28 }}><h3>About how many with an email?</h3></div>
+        <div className={s.chips} role="radiogroup" aria-label="How many">
+          {SIZES.map((n) => (
+            <button key={n} type="button" role="radio" aria-checked={size === n} className={s.chip} data-on={size === n} onClick={() => setSize(n)}>{n}</button>
+          ))}
         </div>
+        <p className={s.hint} style={{ marginTop: 10 }}>
+          Only some websites list an email, so we look at more businesses than this. Google Maps gives at most 60 per search.
+        </p>
 
-        <div className={s.field}>
-          <span className={s.fieldL}>Products to pitch <span>(optional)</span></span>
-          <div className={s.chips}>
-            {PRODUCT_OPTIONS.map((p) => (
-              <button key={p} type="button" className={s.chip} data-on={products.includes(p)} aria-pressed={products.includes(p)} onClick={() => toggle(products, setProducts, p)}>
-                {p}
-              </button>
-            ))}
-          </div>
+        <div style={{ marginTop: 24 }}>
+          <button type="button" className={s.txtLink} onClick={() => setShowPitch((v) => !v)}>
+            {showPitch ? "Hide pitch details" : "Add pitch details (optional)"}
+          </button>
         </div>
-
-        <div className={s.field}>
-          <label className={s.toggle}>
-            <input type="checkbox" checked={findEmails} onChange={(e) => setFindEmails(e.target.checked)} />
-            <span>
-              <b>Find and check work emails, then write a first email for each</b>
-              <span className={s.hint}>Off = only save the business list (faster). You can find emails later from the list.</span>
-            </span>
-          </label>
-        </div>
-
-        <button type="button" className={s.txtLink} style={{ marginTop: 18, color: "var(--pm-ink2)" }} onClick={() => setShowMore((v) => !v)}>
-          {showMore ? <ChevronDown /> : <ChevronRight />} More options: pitch, subject idea, list name
-        </button>
-
-        {showMore ? (
+        {showPitch ? (
           <div style={{ marginTop: 16 }}>
-            {findEmails ? (
-              <div className={s.field}>
-                <label htmlFor="fd-offer">What are you pitching? <span>(optional)</span></label>
-                <textarea
-                  id="fd-offer"
-                  className={s.ta}
-                  style={{ minHeight: 80 }}
-                  placeholder="e.g. Edamame as a healthy corporate gifting hamper, free sample box and a 15 minute call."
-                  value={offer}
-                  onChange={(e) => setOffer(e.target.value)}
-                  maxLength={400}
-                />
-                <input
-                  className={s.in}
-                  placeholder="Subject line idea (optional)"
-                  aria-label="Subject line idea"
-                  value={subjectHint}
-                  onChange={(e) => setSubjectHint(e.target.value)}
-                  maxLength={160}
-                />
-                <span className={s.hint}>Leave blank and the AI picks the angle. Product facts always come from the knowledge base.</span>
-              </div>
-            ) : null}
             <div className={s.field}>
-              <label htmlFor="fd-list">List name <span>(optional)</span></label>
-              <input
-                id="fd-list"
-                className={s.in}
-                placeholder={
-                  combos === 1
-                    ? `Default: ${allCats[0] ? allCats[0][0].toUpperCase() + allCats[0].slice(1) : "Type"} · ${cities[0] ?? "City"}`
-                    : "Each type × city gets its own list, named for you"
-                }
-                value={listName}
-                onChange={(e) => setListName(e.target.value)}
-                disabled={combos > 1}
-                maxLength={120}
-              />
+              <span className={s.fieldL}>Products to lead with <span>(the AI uses these when writing)</span></span>
+              <div className={s.chips}>
+                {PRODUCT_OPTIONS.map((p) => {
+                  const on = products.includes(p);
+                  return (
+                    <button key={p} type="button" className={s.chip} data-on={on} aria-pressed={on} onClick={() => setProducts((x) => (on ? x.filter((y) => y !== p) : [...x, p]))}>{p}</button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className={s.field}>
+              <label htmlFor="find-offer">What are you offering this time? <span>(optional)</span></label>
+              <input id="find-offer" className={s.in} maxLength={400} placeholder="e.g. Diwali gift hampers with a free sample box" value={offer} onChange={(e) => setOffer(e.target.value)} />
             </div>
           </div>
         ) : null}
+
+        <div className={s.row} style={{ marginTop: 28 }}>
+          <button type="button" className="pm-btn primary" onClick={start} disabled={busy || !category || !where}>
+            <Search /> {busy ? "Starting…" : `Find ${category || "businesses"} in ${where || "…"}`}
+          </button>
+          <span className={s.hint}>Runs on our server. Nothing is written or sent from here.</span>
+        </div>
       </section>
 
-      <div className={s.actbar}>
-        <div className={s.abM}>
-          <b>
-            {findEmails
-              ? `About ${nf(plan.expectedEmails)} businesses with a work email`
-              : `About ${nf(plan.actualScan)} businesses`}
-          </b>
-          <span>
-            {combos > 1 ? `${combos} lists · ` : ""}about {fmtDuration(plan.lo)} to {fmtDuration(plan.hi)} · keep this tab open
-            {plan.capped ? " · Google caps each search at about 60, add cities for more" : ""}
-          </span>
-        </div>
-        <button type="button" className="pm-btn primary" onClick={submit} disabled={busy || running}>
-          <Search /> {busy ? "Starting…" : running ? `Working ${runProgress}` : "Find businesses"}
-        </button>
-      </div>
-
-      <section className={s.card}>
-        <div className={s.secT}>
-          <h3>Recent searches</h3>
-          {inFlight > 0 ? (
-            <button type="button" className={s.txtLink} onClick={onRun} disabled={running}>
-              {running ? `Working ${runProgress}` : `Continue ${inFlight} unfinished`} {running ? null : <ArrowRight />}
-            </button>
-          ) : null}
-        </div>
-        {recent.length === 0 ? (
-          <p className={s.muted} style={{ margin: "8px 0 0", fontSize: 15 }}>Your searches show up here with how many businesses and emails each found.</p>
-        ) : (
-          <div className={s.bizList}>
-            {recent.map((r) => {
-              const tag = SEARCH_TAG[r.status] ?? { t: r.status };
-              const list = listBySearch.get(r.id);
-              return (
-                <div key={r.id} className={s.bz}>
-                  <span className={s.cj} aria-hidden><Clock size={16} /></span>
-                  <span className={s.clM}>
-                    <b style={{ textTransform: "capitalize" }}>{r.category} · {r.city}</b>
-                    <span>
-                      {nf(r.results_count)} found · {nf(r.email_count)} with an email · {shortDate(r.created_at)}
-                      {r.error ? ` · ${r.error}` : ""}
-                    </span>
-                  </span>
-                  <span className={s.clO}>
-                    <span className={s.tg} data-tone={tag.tone}>{tag.t}</span>
-                    {list ? (
-                      <button type="button" className={s.txtLink} onClick={() => onOpenList(list.id)}>Open list <ArrowRight /></button>
-                    ) : null}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+      {searches.length ? (
+        <section className={`${s.card} ${s.cardFlush}`}>
+          {searches.map((x) => (
+            <SearchProgressCard key={x.id} search={x} onOpenList={onOpenList} onStop={stop} stopping={stopping === x.id} />
+          ))}
+        </section>
+      ) : null}
     </div>
   );
 }

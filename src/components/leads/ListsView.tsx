@@ -1,384 +1,108 @@
 "use client";
 
-// Lists tab: collapsible category groups with one slim row per list. Quiet by
-// design — progress bars and badges only appear once a list has activity, so
-// 24 untouched lists read as a short calm index, not 24 shouting cards.
-//
-// Rows are selectable: tick several lists to merge them into one or delete them
-// in bulk. Deleting a list keeps the companies (they stay in your other lists);
-// a running campaign on a deleted list keeps sending.
-
+// Step 2, Pick: one list per search (the only "list" idea). Filter by type and
+// city; open one to tick businesses.
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Plus, Send, Merge, Trash2, X } from "lucide-react";
-import { useToast } from "@/components/ui/Toast";
-import styles from "@/app/dashboard/leads/leads.module.css";
-import type { ListSummary } from "./types";
-import { ConfirmModal, TextPromptModal } from "./Dialogs";
-import { listLabel } from "./format";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronRight, Search } from "lucide-react";
+import { Tag } from "@/components/pm";
+import { STAGES, type Stage } from "@/lib/leads/lead-status";
+import s from "./b2b.module.css";
+import { api, nf, shortDate } from "./api";
+import SearchProgressCard from "./SearchProgressCard";
+import type { ListSummary, SearchProgress } from "./types";
 
-function groupLabel(l: ListSummary): string {
-  if (l.category) return l.category;
-  // Custom / hand-made lists: try the auto-name shape "Category · City"
-  // (older lists were stored as "Category — City"; listLabel normalises both).
-  const name = listLabel(l.name);
-  const beforeDot = name.split(" · ")[0];
-  return beforeDot !== name ? beforeDot : "Custom lists";
+const SHOWN: Stage[] = ["ready", "waiting", "queued", "sent", "replied", "no_email", "checking", "bounced"];
+const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
+
+export function useLists() {
+  return useQuery({
+    queryKey: ["b2b", "lists"],
+    queryFn: async () => (await api<{ lists: ListSummary[] }>("/api/leads/lists")).lists,
+  });
 }
 
-function rowLabel(l: ListSummary): string {
-  if (l.city) return l.city;
-  const name = listLabel(l.name);
-  const afterDot = name.split(" · ")[1];
-  return afterDot ?? name;
+export function listName(name: string): string {
+  return name.replace(/\s+[—–]\s+/g, " · ");
 }
-
-function fmtDay(iso: string): string {
-  return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
-}
-
-type Dialog =
-  | { kind: "new" }
-  | { kind: "rename"; id: string; name: string }
-  | { kind: "delete" }
-  | { kind: "merge" }
-  | null;
 
 export default function ListsView({
-  lists, loading, onOpen, onEmail, onChanged, onFind,
+  searches, onOpen, onFind, onOpenList, showReady,
 }: {
-  lists: ListSummary[];
-  loading: boolean;
+  searches: SearchProgress[];
   onOpen: (id: string) => void;
-  onEmail: (id: string) => void;
-  onChanged: () => void;
   onFind: () => void;
+  onOpenList: (id: string) => void;
+  showReady: boolean;
 }) {
-  const toast = useToast();
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [dialog, setDialog] = useState<Dialog>(null);
-  const [busy, setBusy] = useState(false);
-
-  const byId = useMemo(() => new Map(lists.map((l) => [l.id, l])), [lists]);
-  const selectedList = useMemo(
-    () => [...selected].map((id) => byId.get(id)).filter(Boolean) as ListSummary[],
-    [selected, byId],
-  );
-  const runningInSelection = selectedList.filter((l) => l.active_sequence).length;
-  const the = (n: number) => `${n} list${n === 1 ? "" : "s"}`;
-
-  function clearSel() { setSelected(new Set()); }
-
-  function toggleOne(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
-
-  function setGroup(ids: string[], on: boolean) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) { if (on) next.add(id); else next.delete(id); }
-      return next;
-    });
-  }
-
-  async function createList(name: string) {
-    setBusy(true);
-    try {
-      const res = await fetch("/api/leads/lists", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error || "create failed");
-      setDialog(null);
-      onChanged();
-      toast.push({ kind: "success", text: `Created “${name}”.` });
-    } catch (e) {
-      toast.push({ kind: "error", text: `Could not create list: ${e instanceof Error ? e.message : "unknown"}` });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function renameList(id: string, name: string) {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/leads/lists/${id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error || "rename failed");
-      setDialog(null);
-      onChanged();
-      toast.push({ kind: "success", text: "List renamed." });
-    } catch (e) {
-      toast.push({ kind: "error", text: `Could not rename: ${e instanceof Error ? e.message : "unknown"}` });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function deleteSelected() {
-    const ids = [...selected];
-    setBusy(true);
-    try {
-      const results = await Promise.all(
-        ids.map((id) => fetch(`/api/leads/lists/${id}`, { method: "DELETE" })),
-      );
-      const failed = results.filter((r) => !r.ok).length;
-      setDialog(null);
-      clearSel();
-      onChanged();
-      if (failed) {
-        toast.push({ kind: "error", text: `Deleted ${ids.length - failed} of ${ids.length}. ${failed} failed.` });
-      } else {
-        toast.push({ kind: "success", text: `Deleted ${the(ids.length)}. Companies kept.` });
-      }
-    } catch (e) {
-      toast.push({ kind: "error", text: `Delete failed: ${e instanceof Error ? e.message : "unknown"}` });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function mergeSelected(name: string) {
-    setBusy(true);
-    try {
-      const res = await fetch("/api/leads/lists/merge", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ source_ids: [...selected], name }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "merge failed");
-      setDialog(null);
-      clearSel();
-      onChanged();
-      toast.push({ kind: "success", text: `Merged into “${listLabel(name)}”: ${json.merged} companies.` });
-    } catch (e) {
-      toast.push({ kind: "error", text: `Merge failed: ${e instanceof Error ? e.message : "unknown"}` });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (loading) return <div className="pm-empty">Loading…</div>;
-
-  if (!lists.length) {
-    return (
-      <div className={styles.getStarted}>
-        <div className={styles.getStartedTitle}>No lists yet</div>
-        <p className={styles.getStartedText}>
-          Search for companies (for example “gifting companies in Mumbai”) and the results are saved
-          as a list here. Open a list and hit “Email this list” to send it a campaign.
-        </p>
-        <div className={styles.getStartedActions}>
-          <button type="button" className="pm-btn primary" onClick={onFind}>Find businesses</button>
-        </div>
-      </div>
-    );
-  }
-
-  // Group by category; groups with activity first, then by size.
-  const groups = new Map<string, ListSummary[]>();
-  for (const l of lists) {
-    const g = groupLabel(l);
-    groups.set(g, [...(groups.get(g) ?? []), l]);
-  }
-  const groupActivity = (items: ListSummary[]) =>
-    items.reduce((a, l) => a + l.contacted + l.replied + (l.active_sequence ? 100 : 0), 0);
-  const ordered = [...groups.entries()].sort(
-    ([, a], [, b]) => groupActivity(b) - groupActivity(a) || b.length - a.length,
-  );
-
-  function toggle(g: string) {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(g)) next.delete(g);
-      else next.add(g);
-      return next;
-    });
-  }
-
-  const n = selected.size;
+  const q = useLists();
+  const [type, setType] = useState("");
+  const [city, setCity] = useState("");
+  const lists = useMemo(() => q.data ?? [], [q.data]);
+  const types = useMemo(() => [...new Set(lists.map((l) => l.category).filter((x): x is string => !!x))].sort(), [lists]);
+  const cities = useMemo(() => [...new Set(lists.map((l) => l.city).filter((x): x is string => !!x))].sort(), [lists]);
+  const shown = lists
+    .filter((l) => (!type || l.category === type) && (!city || l.city === city))
+    .filter((l) => !showReady || (l.stages.ready ?? 0) > 0);
+  const active = searches.filter((x) => x.active);
 
   return (
-    <div>
-      <div className={styles.tplToolbar} style={{ marginBottom: 10, justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 15, color: "var(--pm-muted)" }}>
-          Open a list to see every business and its stage. Tick lists to merge or delete them.
-        </span>
-        <button type="button" className="pm-btn" onClick={() => setDialog({ kind: "new" })} disabled={busy}>
-          <Plus size={13} /> New empty list
-        </button>
-      </div>
+    <div className={s.body}>
+      {active.length ? (
+        <section className={`${s.card} ${s.cardFlush}`} aria-label="Finding now">
+          {active.map((x) => <SearchProgressCard key={x.id} search={x} onOpenList={onOpenList} />)}
+        </section>
+      ) : null}
 
-      {n > 0 && (
-        <div className={styles.bulkBar}>
-          <span>{the(n)} selected</span>
-          <div style={{ flex: 1 }} />
-          {n === 1 && selectedList[0] && (
-            <button type="button" className={`pm-btn sm ${styles.inkBtn}`} onClick={() => onEmail(selectedList[0].id)}>
-              <Send size={13} /> Email this list
-            </button>
-          )}
-          {n === 1 && (
-            <button
-              type="button"
-              className="pm-btn sm"
-              onClick={() => {
-                const l = selectedList[0];
-                if (l) setDialog({ kind: "rename", id: l.id, name: l.name });
-              }}
-            >
-              Rename
-            </button>
-          )}
-          {n >= 2 && (
-            <button type="button" className="pm-btn sm" onClick={() => setDialog({ kind: "merge" })}>
-              <Merge size={13} /> Merge into one
-            </button>
-          )}
-          <button type="button" className="pm-btn danger soft sm" onClick={() => setDialog({ kind: "delete" })}>
-            <Trash2 size={13} /> Delete
-          </button>
-          <button type="button" className="pm-btn ghost sm" onClick={clearSel}>
-            <X size={13} /> Clear
-          </button>
+      {types.length > 1 || cities.length > 1 ? (
+        <div className={s.toolbar}>
+          {types.length > 1 ? (
+            <select className={s.sel} style={{ width: "auto", minWidth: 200 }} value={type} onChange={(e) => setType(e.target.value)} aria-label="Business type">
+              <option value="">Every business type</option>
+              {types.map((t) => <option key={t} value={t}>{cap(t)}</option>)}
+            </select>
+          ) : null}
+          {cities.length > 1 ? (
+            <select className={s.sel} style={{ width: "auto", minWidth: 170 }} value={city} onChange={(e) => setCity(e.target.value)} aria-label="City">
+              <option value="">Every city</option>
+              {cities.map((c) => <option key={c} value={c}>{cap(c)}</option>)}
+            </select>
+          ) : null}
+          {showReady ? <Tag tone="blue" dot>Showing lists with Ready businesses</Tag> : null}
         </div>
-      )}
+      ) : null}
 
-      <div className={styles.groupStack}>
-        {ordered.map(([group, items]) => {
-          const isCollapsed = collapsed.has(group);
-          const totalLeads = items.reduce((a, l) => a + l.leads, 0);
-          const totalReplied = items.reduce((a, l) => a + l.replied, 0);
-          const running = items.filter((l) => l.active_sequence).length;
-          const ids = items.map((l) => l.id);
-          const allSel = items.every((l) => selected.has(l.id));
-          const someSel = !allSel && items.some((l) => selected.has(l.id));
-          return (
-            <section key={group} className={styles.group}>
-              <div className={styles.groupHeadRow}>
-                <input
-                  type="checkbox"
-                  className={styles.listCheck}
-                  checked={allSel}
-                  ref={(el) => { if (el) el.indeterminate = someSel; }}
-                  onChange={(e) => setGroup(ids, e.target.checked)}
-                  aria-label={`Select all in ${group}`}
-                />
-                <button type="button" className={styles.groupHead} onClick={() => toggle(group)} aria-expanded={!isCollapsed}>
-                  {isCollapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
-                  <span className={styles.groupName}>{group}</span>
-                  <span className={styles.groupMeta}>
-                    {items.length} list{items.length === 1 ? "" : "s"} · {totalLeads} leads
-                    {running ? ` · ${running} sequence${running === 1 ? "" : "s"} running` : ""}
-                    {totalReplied ? ` · ${totalReplied} replied` : ""}
-                  </span>
-                </button>
-              </div>
-              {!isCollapsed && (
-                <div className={styles.groupRows}>
-                  {items.map((l) => {
-                    const sel = selected.has(l.id);
-                    return (
-                      <div key={l.id} className={styles.listSelRow} data-sel={sel ? "true" : "false"}>
-                        <input
-                          type="checkbox"
-                          className={styles.listCheck}
-                          checked={sel}
-                          onChange={() => toggleOne(l.id)}
-                          aria-label={`Select ${listLabel(l.name)}`}
-                        />
-                        <button type="button" className={styles.listRow} onClick={() => onOpen(l.id)}>
-                          <span className={styles.listRowName}>{rowLabel(l)}</span>
-                          <span className={styles.listRowStat}>
-                            {l.leads} found · {l.withEmail} emails · {l.contacted} sent
-                          </span>
-                          <span className={styles.listRowActivity}>
-                            {l.active_sequence ? (
-                              <span className={`${styles.dot} ${styles.dotGood}`}>{l.active_sequence}</span>
-                            ) : l.replied > 0 ? (
-                              <span className={`${styles.dot} ${styles.dotGood}`}>{l.replied} replied</span>
-                            ) : l.withEmail > l.contacted ? (
-                              <span className="pm-dim">{l.withEmail - l.contacted} not emailed yet</span>
-                            ) : null}
-                          </span>
-                          <span className={styles.listRowDate}>{fmtDay(l.updated_at)}</span>
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          );
-        })}
-      </div>
-
-      {dialog?.kind === "new" && (
-        <TextPromptModal
-          title="New empty list"
-          label="List name"
-          placeholder="e.g. Corporate gifting · Mumbai"
-          confirmLabel="Create list"
-          onSubmit={createList}
-          onClose={() => setDialog(null)}
-        />
-      )}
-
-      {dialog?.kind === "rename" && (
-        <TextPromptModal
-          title="Rename list"
-          label="List name"
-          defaultValue={listLabel(dialog.name)}
-          confirmLabel="Save name"
-          onSubmit={(name) => renameList(dialog.id, name)}
-          onClose={() => setDialog(null)}
-        />
-      )}
-
-      {dialog?.kind === "merge" && (
-        <TextPromptModal
-          title={`Merge ${the(n)} into one`}
-          label="Name for the merged list"
-          defaultValue={selectedList[0]?.name ? listLabel(selectedList[0].name) : ""}
-          placeholder="e.g. Gifting · all cities"
-          confirmLabel="Merge lists"
-          onSubmit={mergeSelected}
-          onClose={() => setDialog(null)}
-        />
-      )}
-
-      {dialog?.kind === "delete" && (
-        <ConfirmModal
-          title={`Delete ${the(n)}?`}
-          danger
-          busy={busy}
-          confirmLabel={`Delete ${the(n)}`}
-          onConfirm={deleteSelected}
-          onClose={() => setDialog(null)}
-          message={
-            <>
-              The companies in {n === 1 ? "this list" : "these lists"} are <b>kept</b>. They stay in your
-              other lists and in the CRM. Only the {n === 1 ? "list" : "lists"} themselves are removed.
-              {runningInSelection > 0 && (
-                <>
-                  {" "}
-                  {runningInSelection === 1 ? "One selected list has" : `${runningInSelection} selected lists have`} a
-                  campaign running; it keeps sending.
-                </>
-              )}
-            </>
-          }
-        />
-      )}
+      <section className={`${s.card} ${s.cardFlush}`}>
+        {q.isLoading ? (
+          <p className={s.muted} style={{ padding: "22px 0" }}>Loading lists…</p>
+        ) : q.error ? (
+          <p className={s.errNote} style={{ padding: "22px 0" }}>Could not load lists: {(q.error as Error).message}</p>
+        ) : shown.length === 0 ? (
+          <div className={s.empty}>
+            <b>{lists.length ? "No list matches" : "No lists yet"}</b>
+            <p>Every search makes a list. Find businesses by type and city, then come back here to pick who to email.</p>
+            <button type="button" className="pm-btn primary" onClick={onFind}><Search /> Find businesses</button>
+          </div>
+        ) : (
+          shown.map((l) => (
+            <button key={l.id} type="button" className={s.lrow} onClick={() => onOpen(l.id)}>
+              <span className={s.lrowM}>
+                <b>{listName(l.name)}</b>
+                <span>
+                  {nf(l.total)} businesses · made {shortDate(l.created_at)}
+                </span>
+                <span className={s.tags}>
+                  {l.finding ? <Tag tone="blue" dot>Finding</Tag> : null}
+                  {SHOWN.filter((st) => (l.stages[st] ?? 0) > 0).map((st) => (
+                    <Tag key={st} tone={STAGES[st].tone}>{nf(l.stages[st])} {STAGES[st].label.toLowerCase()}</Tag>
+                  ))}
+                </span>
+              </span>
+              <span className={s.lrowGo} aria-hidden><ChevronRight /></span>
+            </button>
+          ))
+        )}
+      </section>
     </div>
   );
 }

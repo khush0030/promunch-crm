@@ -271,7 +271,8 @@ export async function findDecisionMakersForLead(
   if (saved > 0) {
     await markPrimaryContact(leadId);
     // Same promotion the manual "add contact" path does, so the lead can move on to drafting.
-    if (['new', 'crawling', 'no_contacts', 'no_website'].includes(lead.status as string)) {
+    // `listed` = saved without email finding; it must promote too.
+    if (['new', 'crawling', 'listed', 'no_contacts', 'no_website'].includes(lead.status as string)) {
       await supabaseAdmin.from('leads').update({ status: 'ready', updated_at: new Date().toISOString() }).eq('id', leadId);
     }
   }

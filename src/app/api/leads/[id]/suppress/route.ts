@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSession } from '@/lib/leads/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { stopEnrollmentsForLead } from '@/lib/leads/sequence-engine';
 
 // Manually suppress a lead: all its contact emails go on the do-not-contact
 // list and the lead leaves the pipeline.
@@ -32,6 +33,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     .update({ status: 'suppressed', updated_at: new Date().toISOString() })
     .eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await stopEnrollmentsForLead(id, 'stopped');
 
   return NextResponse.json({ ok: true, suppressed: contacts?.length ?? 0 });
 }

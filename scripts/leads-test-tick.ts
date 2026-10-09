@@ -14,7 +14,7 @@ async function main() {
   for (let i = 1; i <= rounds; i++) {
     const s = await tick();
     console.log(`tick ${i}:`, JSON.stringify(s));
-    if (!s.discovered && !s.crawled && !s.drafted && !s.errors.length) break;
+    if (!s.discovered && !s.crawled && !s.sent && !s.errors.length) break;
   }
 
   const { data: leads } = await supabaseAdmin

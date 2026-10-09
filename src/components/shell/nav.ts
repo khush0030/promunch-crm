@@ -226,11 +226,13 @@ export const NAV: NavSection[] = [
         href: "/dashboard/leads",
         icon: Handshake,
         desc: "Find buyers, send as Parth, track deals",
+        // One path (Oct 10): Find · Lists · Approve · Replies · Settings.
         pages: [
-          { label: "Overview", href: "/dashboard/leads", also: ["/dashboard/leads?tab=setup"] },
-          { label: "Lists", href: "/dashboard/leads?tab=lists", also: ["/dashboard/leads?tab=find"] },
-          { label: "Review", href: "/dashboard/leads?tab=review" },
+          { label: "Find", href: "/dashboard/leads?tab=find" },
+          { label: "Lists", href: "/dashboard/leads", also: ["/dashboard/leads?tab=lists", "/dashboard/leads?tab=overview"] },
+          { label: "Approve", href: "/dashboard/leads?tab=approve", also: ["/dashboard/leads?tab=review"] },
           { label: "Replies", href: "/dashboard/leads?tab=replies" },
+          { label: "Settings", href: "/dashboard/leads?tab=settings", also: ["/dashboard/leads?tab=setup"] },
           { label: "Deals", href: "/dashboard/deals" },
         ],
       },

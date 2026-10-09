@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { tick } from '@/lib/leads/engine';
 
-// Daily Vercel cron (Hobby plan allows daily only). The dashboard "Run pipeline"
-// button (/api/leads/tick) is the primary driver; this keeps the queue draining
-// even on days nobody opens the dashboard.
+// The B2B pipeline driver. Supabase pg_cron job 'b2b-leads-tick' calls this
+// every 2 minutes with the Vault cron_secret bearer (migration
+// 20261010110000_b2b_one_path.sql; Vercel Hobby only allows daily crons, so it
+// is not in vercel.json). Each run finds businesses for every active search,
+// checks websites, sends approved emails paced inside the daily cap, and sends
+// due follow-ups. Nobody has to keep the dashboard open.
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 

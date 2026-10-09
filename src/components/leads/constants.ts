@@ -1,7 +1,4 @@
-// Shared constants for the B2B Leads dashboard. Extracted from
-// dashboard/leads/page.tsx.
-
-export const PROCESSING_STATUSES = ["new", "crawling", "ready", "drafting"];
+// Shared constants for the B2B Find step.
 
 // The "Find companies" modal's category picker. `label` is what the person
 // sees; `query` is the phrasing sent to Google Places (kept plain/singular —

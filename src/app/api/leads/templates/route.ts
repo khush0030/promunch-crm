@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSession } from '@/lib/leads/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { isMissingSchema } from '@/lib/leads/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,14 +9,14 @@ export async function GET() {
   const denied = await requireSession();
   if (denied) return denied;
 
-  const [{ data: templates, error }, { data: steps }] = await Promise.all([
-    supabaseAdmin
-      .from('email_templates')
-      .select('*')
-      .eq('archived', false)
-      .order('created_at', { ascending: false }),
+  // Saved emails only: the hidden follow-up copies (internal) never show.
+  const base = () => supabaseAdmin.from('email_templates').select('*').eq('archived', false).order('created_at', { ascending: false });
+  const [first, { data: steps }] = await Promise.all([
+    base().eq('internal', false),
     supabaseAdmin.from('email_sequence_steps').select('template_id, sequence_id'),
   ]);
+  let { data: templates, error } = first;
+  if (error && isMissingSchema(error)) ({ data: templates, error } = await base());
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const usage = new Map<string, Set<string>>();

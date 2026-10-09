@@ -1,5 +1,5 @@
-// Shared domain types for the B2B Leads dashboard. Extracted from
-// dashboard/leads/page.tsx so the split-out views can share them.
+// Shared domain types for the B2B one-path dashboard.
+import type { Stage } from "@/lib/leads/lead-status";
 
 export type Contact = {
   id: string;
@@ -71,20 +71,6 @@ export type Enrichment = {
   talkingPoints?: string[];
 };
 
-export type SearchRow = {
-  id: string;
-  category: string;
-  city: string;
-  status: string;
-  pages_fetched: number;
-  results_count: number;
-  email_count: number;
-  products: string[] | null;
-  error: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
 export type OutreachSettings = {
   daily_cap: number;
   paused: boolean;
@@ -92,19 +78,38 @@ export type OutreachSettings = {
   from_email: string;
   reply_to: string | null;
   footer_address: string;
+  send_window_start?: number | null;
+  send_window_end?: number | null;
+  follow_up_days?: number | null;
+  follow_up_count?: number | null;
+  follow_up_default_on?: boolean | null;
 };
 
-export type ApiResponse = {
-  leads: Lead[];
-  total: number;
-  statusCounts: Record<string, number>;
-  searches: SearchRow[];
+/** GET /api/leads/status: the strip + live finding cards. */
+export type SearchProgress = {
+  id: string;
+  category: string;
+  city: string;
+  status: string;
+  error: string | null;
+  list_id: string | null;
+  created_at: string;
+  active: boolean;
+  found: number;
+  checked: number;
+  withEmail: number;
+  noEmail: number;
+  unreachable: number;
+  noWebsite: number;
+};
+
+export type StatusResponse = {
+  counts: Record<string, number>;
   sentToday: number;
-  activeEnrollments: number;
+  inFollowUps: number;
   settings: OutreachSettings | null;
+  searches: SearchProgress[];
 };
-
-// ── Lists / sequences / templates / analytics (leads v2) ────────────────────
 
 export type ListSummary = {
   id: string;
@@ -114,12 +119,9 @@ export type ListSummary = {
   category: string | null;
   city: string | null;
   created_at: string;
-  updated_at: string;
-  leads: number;
-  withEmail: number;
-  contacted: number;
-  replied: number;
-  active_sequence: string | null;
+  total: number;
+  stages: Partial<Record<Stage, number>>;
+  finding: boolean;
 };
 
 export type ListLead = Lead & {
@@ -141,59 +143,51 @@ export type TemplateRow = {
   archived: boolean;
   created_at: string;
   updated_at: string;
-  used_in_sequences: number;
 };
 
-export type SequenceStep = {
-  id?: string;
-  position: number;
-  wait_days: number;
-  template_id: string;
-  template_name?: string;
-  template_subject?: string;
-  template_body?: string;
-  sent?: number;
-};
-
-export type SequenceRow = {
+/** GET /api/leads/approve */
+export type ApproveDraft = {
   id: string;
-  name: string;
-  status: 'draft' | 'active' | 'paused' | 'archived';
-  stop_on_reply: boolean;
-  ai_polish: boolean;
+  lead_id: string;
+  contact_id: string;
+  subject: string;
+  body_text: string;
+  status: string;
+  edited: boolean;
+  error: string | null;
   created_at: string;
-  steps: SequenceStep[];
-  enrollments: Record<string, number>;
-};
-
-export type AnalyticsHeadline = {
-  sent: number;
-  delivered: number;
-  opened: number;
-  clicked: number;
-  replied: number;
-  bounced: number;
-  open_rate: number;
-  click_rate: number;
-  reply_rate: number;
-  bounce_rate: number;
-};
-
-export type AnalyticsData = {
-  range: number | 'all';
-  headline: AnalyticsHeadline;
-  prior: { sent: number; open_rate: number; click_rate: number; reply_rate: number; bounce_rate: number } | null;
-  series: { week: string; sent: number; opened: number }[];
-  sequences: {
+  batch_id?: string | null;
+  leads: {
     id: string;
     name: string;
+    website: string | null;
+    domain: string | null;
+    city: string | null;
+    category: string | null;
     status: string;
-    grade: string;
-    sent: number;
-    open_rate: number;
-    click_rate: number;
-    reply_rate: number;
-    bounce_rate: number;
-  }[];
-  templates: { id: string; name: string; sent: number; open_rate: number; reply_rate: number }[];
+    fit_score: number | null;
+    fit_reason: string | null;
+    enrichment: Enrichment | null;
+    products: string[] | null;
+  };
+  lead_contacts: {
+    id: string;
+    email: string;
+    person_name: string | null;
+    person_title: string | null;
+    verify_status: string;
+    mailbox_status: string | null;
+    role_hint: string | null;
+  } | null;
+};
+
+export type BatchRow = {
+  id: string;
+  created_at: string;
+  lead_count: number;
+  follow_up_count: number;
+  follow_up_days: number;
+  source: string;
+  list_id: string | null;
+  lead_lists: { name: string } | null;
 };

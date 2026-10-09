@@ -47,7 +47,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   await markPrimaryContact(id);
 
-  if (verifyStatus === 'mx_ok' && ['no_contacts', 'new'].includes(lead.status)) {
+  if (verifyStatus === 'mx_ok' && ['no_contacts', 'no_website', 'listed', 'new'].includes(lead.status)) {
     await supabaseAdmin
       .from('leads')
       .update({ status: 'ready', updated_at: new Date().toISOString() })

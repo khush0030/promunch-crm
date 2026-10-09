@@ -3,18 +3,30 @@
 // line, and sends through the SAME outreach_drafts + Resend path as manual
 // sends, so webhooks/replies/bounces/suppressions/history need zero changes.
 //
-// Concurrency: compare-and-set claim (active -> sending) per enrollment, the
-// same principle as claimLead(); overlapping ticks can never double-send.
+// Concurrency: compare-and-set claim (active -> sending) per enrollment, then
+// the step's draft row (unique per enrollment+step, migration 20261010110000)
+// and the shared atomic send claim b2b_claim_send (cap, pause, suppression,
+// closed lead). Overlapping ticks can never double-send.
+//
+// Two kinds of sequence run here:
+//   - internal: the hidden follow-ups of a "Write emails" batch (one-path
+//     flow). Step 0 is the approved first email; steps 1..2 are follow-ups,
+//     sent as "Re: <first subject>".
+//   - legacy: older user-built sequences ("Email this list", removed from the
+//     UI). Existing enrollments finish safely; a legacy FIRST email is skipped
+//     when the business was already emailed or has an email in the Approve
+//     queue, so no business is ever in both paths.
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { sendEmail } from '@/lib/resend';
-import { bodyToHtml } from './draft';
 import { renderTemplate } from './templates';
 import { polishOpening } from './template-ai';
 import { inSendWindow, istMidnightUtc, nextSendAt } from './schedule';
+import { claimSend, deliverClaimed } from './send';
+import { isMissingSchema } from './db';
 import type { Enrichment } from '@/components/leads/types';
 
 const SEQUENCE_BATCH = 5;
+const MAX_STEP_FAILURES = 2;
 
 export interface SequenceSummary {
   sequenceSent: number;
@@ -104,11 +116,7 @@ async function sendStep(
   const now = new Date();
 
   const [{ data: sequence }, { data: steps }, { data: lead }, { data: contact }] = await Promise.all([
-    supabaseAdmin
-      .from('email_sequences')
-      .select('id, status, stop_on_reply, ai_polish')
-      .eq('id', enrollment.sequence_id)
-      .maybeSingle(),
+    loadSequence(enrollment.sequence_id),
     supabaseAdmin
       .from('email_sequence_steps')
       .select('position, wait_days, template_id')
@@ -141,6 +149,35 @@ async function sendStep(
   if (lead.status === 'replied' && sequence.stop_on_reply) return terminate(enrollment.id, 'replied');
   if (lead.status === 'bounced') return terminate(enrollment.id, 'bounced');
   if (lead.status === 'suppressed') return terminate(enrollment.id, 'stopped', 'lead suppressed');
+  if (lead.status === 'skipped') return terminate(enrollment.id, 'stopped', 'marked not interested');
+
+  // A reply always ends follow-ups, even if the inbound webhook could not
+  // flip the lead status (e.g. the same address on two businesses).
+  if (sequence.internal || sequence.stop_on_reply) {
+    const { count: replies } = await supabaseAdmin
+      .from('outreach_replies')
+      .select('id', { count: 'exact', head: true })
+      .or(`lead_id.eq.${lead.id},from_email.ilike.${(contact.email as string).replace(/[,()]/g, '')}`);
+    if ((replies ?? 0) > 0) return terminate(enrollment.id, 'replied');
+  }
+
+  // Never in both paths: a legacy sequence's FIRST email is skipped when the
+  // business was already emailed or has an email in the one-path queue.
+  if (!sequence.internal && enrollment.current_step === 0) {
+    const { data: other } = await supabaseAdmin
+      .from('outreach_drafts')
+      .select('id, status, enrollment_id')
+      .eq('lead_id', lead.id)
+      .in('status', ['draft', 'approved', 'sending', 'sent', 'replied', 'bounced'])
+      .limit(5);
+    if ((other ?? []).some((d) => d.enrollment_id !== enrollment.id)) {
+      return terminate(enrollment.id, 'stopped', 'already emailed or waiting for approval');
+    }
+  }
+  // Internal follow-ups only go to businesses whose first email went out.
+  if (sequence.internal && lead.status !== 'contacted') {
+    return terminate(enrollment.id, 'stopped', `lead is ${lead.status}`);
+  }
 
   const { data: suppressed } = await supabaseAdmin
     .from('suppressions')
@@ -161,14 +198,26 @@ async function sendStep(
   if (!template) return terminate(enrollment.id, 'stopped', 'template missing');
 
   const vars = {
-    name: contact.role_hint,
+    name: sequence.internal ? null : contact.role_hint,
     company: lead.name as string,
     city: lead.city as string | null,
     category: lead.category as string | null,
   };
-  const subject = renderTemplate(template.subject as string, vars);
+  let subject = renderTemplate(template.subject as string, vars);
   let body = renderTemplate(template.body_text as string, vars);
-  if (sequence.ai_polish) {
+  if (sequence.internal) {
+    // Follow-ups read as replies to the first email.
+    const { data: first } = await supabaseAdmin
+      .from('outreach_drafts')
+      .select('subject')
+      .eq('lead_id', lead.id)
+      .is('enrollment_id', null)
+      .not('sent_at', 'is', null)
+      .order('sent_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (first?.subject) subject = `Re: ${String(first.subject).replace(/^re:\s*/i, '')}`;
+  } else if (sequence.ai_polish) {
     body = await polishOpening({
       body,
       lead: {
@@ -181,8 +230,17 @@ async function sendStep(
     });
   }
 
-  // Record the send as a draft row FIRST so a crash between send and record
-  // leaves evidence ('sending' row) instead of an untracked email.
+  // Too many failed tries on this step: stop rather than keep retrying.
+  const { count: failures } = await supabaseAdmin
+    .from('outreach_drafts')
+    .select('id', { count: 'exact', head: true })
+    .eq('enrollment_id', enrollment.id)
+    .eq('step_position', step.position)
+    .eq('status', 'failed');
+  if ((failures ?? 0) >= MAX_STEP_FAILURES) return terminate(enrollment.id, 'stopped', 'sending failed twice');
+
+  // The step's draft row first (unique per enrollment+step), then the shared
+  // atomic claim. A crash after this leaves evidence, never an untracked email.
   const { data: draftRow, error: draftErr } = await supabaseAdmin
     .from('outreach_drafts')
     .insert({
@@ -191,57 +249,48 @@ async function sendStep(
       subject,
       body_text: body,
       model: 'template',
-      status: 'sending',
+      status: 'approved',
       enrollment_id: enrollment.id,
       step_position: step.position,
       approved_at: now.toISOString(),
     })
     .select('id')
     .single();
+  if (draftErr?.code === '23505') {
+    // This step already has a send on record: never send it again, move on.
+    await advance(enrollment, stepList, now, windowStart, windowEnd);
+    return;
+  }
   if (draftErr || !draftRow) throw new Error(`draft insert: ${draftErr?.message ?? 'no row'}`);
 
-  const fromAddress = `${settings.from_name} <${settings.from_email}>`;
-  const sendResult = await sendEmail({
-    to: contact.email,
-    from: fromAddress,
-    subject,
-    html: bodyToHtml(body, settings.footer_address as string),
-    ...(settings.reply_to ? { replyTo: settings.reply_to as string } : {}),
-  });
-  if (sendResult.error) {
+  const claim = await claimSend(draftRow.id as string, ['approved']);
+  if (claim.outcome !== 'claimed') {
+    await supabaseAdmin.from('outreach_drafts').delete().eq('id', draftRow.id).eq('status', 'approved');
+    if (claim.outcome === 'suppressed') return terminate(enrollment.id, 'stopped', 'recipient suppressed');
+    if (claim.outcome === 'lead_closed') return terminate(enrollment.id, 'stopped', 'lead closed');
+    if (claim.outcome === 'no_contact') return terminate(enrollment.id, 'stopped', 'contact missing');
+    // paused / cap / transient: back to active, try again on a later tick.
     await supabaseAdmin
-      .from('outreach_drafts')
-      .update({ status: 'failed', error: sendResult.error.message, updated_at: new Date().toISOString() })
-      .eq('id', draftRow.id);
-    throw new Error(`Resend: ${sendResult.error.message}`);
+      .from('sequence_enrollments')
+      .update({ status: 'active', error: claim.outcome === 'error' ? claim.message ?? 'claim failed' : null, updated_at: new Date().toISOString() })
+      .eq('id', enrollment.id);
+    return;
   }
-  const resendId = sendResult.data?.id ?? null;
 
-  await Promise.all([
-    supabaseAdmin
-      .from('outreach_drafts')
-      .update({
-        status: 'sent',
-        resend_email_id: resendId,
-        sent_at: now.toISOString(),
-        error: null,
-        updated_at: now.toISOString(),
-      })
-      .eq('id', draftRow.id),
-    supabaseAdmin
-      .from('leads')
-      .update({ status: 'contacted', updated_at: now.toISOString() })
-      .eq('id', lead.id),
-    supabaseAdmin.from('outreach_events').insert({
-      draft_id: draftRow.id,
-      lead_id: lead.id,
-      resend_email_id: resendId,
-      type: 'sent',
-      payload: { to: contact.email, subject, sequence_id: enrollment.sequence_id, step: step.position },
-    }),
-  ]);
+  const sent = await deliverClaimed(draftRow.id as string);
+  if (!sent.ok && !sent.unknown) throw new Error(sent.error);
 
-  // Advance to the next step or finish.
+  await supabaseAdmin
+    .from('leads')
+    .update({ status: 'contacted', updated_at: now.toISOString() })
+    .eq('id', lead.id)
+    .not('status', 'in', '(replied,bounced,suppressed,skipped)');
+
+  await advance(enrollment, stepList, now, windowStart, windowEnd);
+  summary.sequenceSent++;
+}
+
+async function advance(enrollment: EnrollmentRow, stepList: StepRow[], now: Date, windowStart: number, windowEnd: number) {
   const next = stepList.find((s) => s.position === enrollment.current_step + 1);
   await supabaseAdmin
     .from('sequence_enrollments')
@@ -254,8 +303,24 @@ async function sendStep(
       updated_at: now.toISOString(),
     })
     .eq('id', enrollment.id);
+}
 
-  summary.sequenceSent++;
+type SequenceInfo = { id: string; status: string; stop_on_reply: boolean; ai_polish: boolean; internal: boolean };
+
+async function loadSequence(id: string): Promise<{ data: SequenceInfo | null }> {
+  const res = await supabaseAdmin
+    .from('email_sequences')
+    .select('id, status, stop_on_reply, ai_polish, internal')
+    .eq('id', id)
+    .maybeSingle();
+  if (!res.error) return { data: res.data as SequenceInfo | null };
+  if (!isMissingSchema(res.error)) throw new Error(res.error.message);
+  const old = await supabaseAdmin
+    .from('email_sequences')
+    .select('id, status, stop_on_reply, ai_polish')
+    .eq('id', id)
+    .maybeSingle();
+  return { data: old.data ? ({ ...(old.data as Omit<SequenceInfo, 'internal'>), internal: false }) : null };
 }
 
 /** Reply/bounce hooks (called from the Resend webhooks): stop active enrollments. */

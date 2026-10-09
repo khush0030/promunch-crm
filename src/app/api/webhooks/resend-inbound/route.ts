@@ -61,12 +61,27 @@ export async function POST(req: NextRequest) {
   const inboundId = String(pick(data, 'id', 'email_id', 'message_id', 'inbound_id') ?? '') || null;
   const inReplyTo = String(pick(headers, 'in-reply-to', 'In-Reply-To') ?? pick(data, 'in_reply_to') ?? '') || null;
 
-  // Match the reply to a contact we emailed (sender = our lead's email).
-  const { data: contact } = await supabaseAdmin
+  // Match the reply to a contact we emailed (sender = our lead's email). The
+  // same address can sit on two businesses (two map listings); maybeSingle()
+  // used to error there and drop the match, so a reply never stopped
+  // follow-ups. Prefer the business we actually emailed most recently.
+  const { data: contactRows } = await supabaseAdmin
     .from('lead_contacts')
     .select('id, lead_id, email')
     .ilike('email', from.email)
-    .maybeSingle();
+    .limit(10);
+  let contact = contactRows?.[0] ?? null;
+  if ((contactRows?.length ?? 0) > 1) {
+    const { data: lastSent } = await supabaseAdmin
+      .from('outreach_drafts')
+      .select('lead_id')
+      .in('lead_id', contactRows!.map((c) => c.lead_id))
+      .not('sent_at', 'is', null)
+      .order('sent_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    contact = contactRows!.find((c) => c.lead_id === lastSent?.lead_id) ?? contact;
+  }
 
   // Most recent sent/non-discarded draft for that lead, if any.
   let draftId: string | null = null;
@@ -129,8 +144,10 @@ export async function POST(req: NextRequest) {
       payload: { from: from.email, subject },
     });
     // A reply halts any running sequence for this lead (unless the sequence
-    // opted out of stop_on_reply).
-    await stopEnrollmentsForLead(contact.lead_id, 'replied');
+    // opted out of stop_on_reply), and for any other business sharing it.
+    for (const leadId of new Set((contactRows ?? []).map((c) => c.lead_id as string))) {
+      await stopEnrollmentsForLead(leadId, 'replied');
+    }
   }
 
   const { data: lead } = contact?.lead_id

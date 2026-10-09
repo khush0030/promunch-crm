@@ -7,8 +7,9 @@ export const dynamic = 'force-dynamic';
 // Merge several lists into one new list. The companies (leads) are kept — only
 // the list wrappers change. Membership rows for the sources are removed when the
 // source lists are deleted (lead_list_members.list_id is ON DELETE CASCADE), and
-// any running sequence keeps sending (sequence_enrollments.list_id is
-// ON DELETE SET NULL, so deleting a source list never stops a campaign).
+// running follow-ups keep going (sequence_enrollments.list_id is ON DELETE SET
+// NULL). Searches feeding a source list are re-pointed to the merged list so a
+// running search is never orphaned.
 export async function POST(req: NextRequest) {
   const denied = await requireSession();
   if (denied) return denied;
@@ -57,6 +58,17 @@ export async function POST(req: NextRequest) {
       await supabaseAdmin.from('lead_lists').delete().eq('id', list.id);
       return NextResponse.json({ error: addErr.message }, { status: 500 });
     }
+  }
+
+  // Searches that fed the source lists now feed the merged list, so a search
+  // still running keeps adding businesses to it instead of to nothing.
+  const { error: repointErr } = await supabaseAdmin
+    .from('lead_searches')
+    .update({ list_id: list.id })
+    .in('list_id', sourceIds);
+  if (repointErr) {
+    await supabaseAdmin.from('lead_lists').delete().eq('id', list.id);
+    return NextResponse.json({ error: repointErr.message }, { status: 500 });
   }
 
   // Remove the now-merged source lists. Leads survive; only the wrappers go.

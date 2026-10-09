@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
-import { requireSession } from '@/lib/leads/auth';
+import { requireAdmin } from '@/lib/rbac-server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
-// Injects a clearly-labelled TEST reply for a lead so you can see the Replies
-// tab + "replied" flow without waiting for a real inbound email. Mirrors what
-// the Resend inbound webhook does on a genuine reply. Session-gated.
+// TEST ONLY, admin only: injects a clearly-labelled fake reply for a lead to
+// exercise the Replies flow without a real inbound email. Not shown in the
+// dashboard (removed from the business drawer); call it by hand when testing.
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const denied = await requireSession();
-  if (denied) return denied;
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.response;
   const { id } = await params;
 
   const { data: lead } = await supabaseAdmin

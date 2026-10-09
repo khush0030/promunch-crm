@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSession } from '@/lib/leads/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { listStatusCounts } from '@/lib/leads/db';
+import { stageOf, type Stage } from '@/lib/leads/lead-status';
 
 export const dynamic = 'force-dynamic';
 
-// Lists index: every list with the counts the card grid shows.
+// Lists index: one list per search (plus lists made from a selection), with
+// per-stage counts from one grouped query.
 export async function GET() {
   const denied = await requireSession();
   if (denied) return denied;
 
-  const [{ data: lists, error }, { data: members }, { data: enrollments }] = await Promise.all([
+  const [{ data: lists, error }, counts, { data: searches }] = await Promise.all([
     supabaseAdmin
       .from('lead_lists')
       // Two FKs link lead_lists <-> lead_searches, so the embed must name the
@@ -17,66 +20,49 @@ export async function GET() {
       .select('id, name, description, source_search_id, archived, created_at, updated_at, lead_searches!lead_lists_source_search_id_fkey(category, city)')
       .eq('archived', false)
       .order('created_at', { ascending: false }),
-    supabaseAdmin
-      .from('lead_list_members')
-      .select('list_id, lead_id, leads(status)')
-      .limit(20000),
-    supabaseAdmin
-      .from('sequence_enrollments')
-      .select('list_id, status, email_sequences(name)')
-      .limit(20000),
+    listStatusCounts(null),
+    supabaseAdmin.from('lead_searches').select('id, list_id, status').in('status', ['pending', 'running']),
   ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Statuses that imply a verified email / a completed contact.
-  const EMAIL_STATUSES = new Set(['ready', 'drafting', 'drafted', 'contacted', 'replied', 'bounced']);
-  const CONTACTED_STATUSES = new Set(['contacted', 'replied', 'bounced']);
-
-  type Agg = { leads: number; withEmail: number; contacted: number; replied: number };
-  const agg = new Map<string, Agg>();
-  for (const m of members ?? []) {
-    const a = agg.get(m.list_id) ?? { leads: 0, withEmail: 0, contacted: 0, replied: 0 };
-    const status = (m.leads as unknown as { status: string } | null)?.status ?? '';
-    a.leads++;
-    if (EMAIL_STATUSES.has(status)) a.withEmail++;
-    if (CONTACTED_STATUSES.has(status)) a.contacted++;
-    if (status === 'replied') a.replied++;
-    agg.set(m.list_id, a);
+  const agg = new Map<string, Record<Stage, number> & { total: number }>();
+  for (const r of counts) {
+    const a = agg.get(r.list_id) ?? ({ total: 0 } as Record<Stage, number> & { total: number });
+    const st = stageOf(r.status);
+    a[st] = (a[st] ?? 0) + r.n;
+    a.total += r.n;
+    agg.set(r.list_id, a);
   }
-
-  // Which lists have a sequence actively running against them?
-  const activeSeq = new Map<string, string>();
-  for (const e of enrollments ?? []) {
-    if (!e.list_id) continue;
-    if (e.status === 'active' || e.status === 'sending') {
-      const seq = e.email_sequences as unknown as { name: string } | null;
-      activeSeq.set(e.list_id, seq?.name ?? 'sequence');
-    }
-  }
+  const finding = new Set((searches ?? []).map((s) => s.list_id as string | null).filter(Boolean));
 
   return NextResponse.json({
     lists: (lists ?? []).map((l) => {
       const search = l.lead_searches as unknown as { category: string; city: string } | null;
       const { lead_searches: _drop, ...rest } = l as Record<string, unknown>;
       void _drop;
+      const a = agg.get(l.id);
       return {
         ...rest,
         category: search?.category ?? null,
         city: search?.city ?? null,
-        ...(agg.get(l.id) ?? { leads: 0, withEmail: 0, contacted: 0, replied: 0 }),
-        active_sequence: activeSeq.get(l.id) ?? null,
+        total: a?.total ?? 0,
+        stages: a ?? {},
+        finding: finding.has(l.id),
       };
     }),
   });
 }
 
+// Make a list from a selection ("Add to list" -> "New list").
 export async function POST(req: NextRequest) {
   const denied = await requireSession();
   if (denied) return denied;
 
-  const body = (await req.json().catch(() => null)) as { name?: string; description?: string } | null;
+  const body = (await req.json().catch(() => null)) as { name?: string; description?: string; lead_ids?: string[] } | null;
   const name = body?.name?.trim();
   if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 });
+  const leadIds = Array.isArray(body?.lead_ids) ? body.lead_ids.map(String).filter(Boolean).slice(0, 2000) : [];
+  if (!leadIds.length) return NextResponse.json({ error: 'Pick the businesses to put in the new list.' }, { status: 400 });
 
   const { data, error } = await supabaseAdmin
     .from('lead_lists')
@@ -84,5 +70,13 @@ export async function POST(req: NextRequest) {
     .select('*')
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ list: data });
+
+  const { error: memErr } = await supabaseAdmin
+    .from('lead_list_members')
+    .upsert(leadIds.map((lead_id) => ({ list_id: data.id as string, lead_id })), { onConflict: 'list_id,lead_id', ignoreDuplicates: true });
+  if (memErr) {
+    await supabaseAdmin.from('lead_lists').delete().eq('id', data.id);
+    return NextResponse.json({ error: memErr.message }, { status: 500 });
+  }
+  return NextResponse.json({ list: data, added: leadIds.length });
 }

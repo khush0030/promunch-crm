@@ -88,6 +88,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const denied = await requireSession();
   if (denied) return denied;
   const { id } = await params;
+  // A search still finding businesses for this list would lose its list
+  // (lead_searches.list_id is ON DELETE SET NULL) and keep running into
+  // nothing: stop it first. Businesses already found stay as leads.
+  await supabaseAdmin
+    .from('lead_searches')
+    .update({ status: 'stopped', next_page_token: null, updated_at: new Date().toISOString() })
+    .eq('list_id', id)
+    .in('status', ['pending', 'running']);
   const { error } = await supabaseAdmin.from('lead_lists').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
