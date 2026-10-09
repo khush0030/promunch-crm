@@ -1,12 +1,23 @@
 "use client";
 
-// Overview: the headline numbers on one hairline row, how people felt each
-// day, what they talk about, and where the mentions come from.
+// Overview: four questions, top to bottom (docs/plans/2026-10-09-orm-v2-spec.md §2).
+//   1. How are we doing?          score, band, change, 12-week line, 4 KPIs
+//   2. Where is it going wrong?   product scorecard, worst first
+//   3. What do people love/hate?  diverging bars per topic
+//   4. Are we on top of it?       response row, channels, competitors
+// Every number carries a one-line plain-English explanation under it.
 
 import { useState } from "react";
-import type { OrmSummary } from "@/lib/orm/types";
+import { scoreBand, type ScoreBand } from "@/lib/orm/score";
+import type {
+  ChannelStats,
+  CompetitorSnapshot,
+  OrmSummary,
+  ProductRow,
+} from "@/lib/orm/types";
 import { errText } from "./api";
-import { topicLabel, useSummary } from "./ui";
+import { DivergingBars, LineChart, MixBars } from "./charts";
+import { Mark, Stars, topicLabel, useSummary, type Tone } from "./ui";
 import s from "../reputation.module.css";
 
 const PERIODS = [7, 30, 90] as const;
@@ -55,130 +66,550 @@ export function OverviewTab({ onSettings }: { onSettings: () => void }) {
           )}
         </div>
       ) : (
-        <Overview sum={q.data} />
+        <div
+          style={{
+            opacity: q.isFetching && !q.isLoading ? 0.7 : 1,
+            transition: "opacity .15s",
+          }}
+        >
+          <Overview sum={q.data} />
+        </div>
       )}
     </div>
   );
 }
 
-function Overview({ sum }: { sum: OrmSummary }) {
-  const scored = sum.sentiment.neg + sum.sentiment.neu + sum.sentiment.pos;
-  const pctNeg = scored ? Math.round((sum.sentiment.neg / scored) * 100) : null;
-  const rated = sum.by_source.filter((b) => b.avg_rating != null);
+// ── helpers ─────────────────────────────────────────────────────────────────
 
+const BAND_TONE: Record<ScoreBand, Tone> = {
+  Excellent: "good",
+  Good: "good",
+  "Needs work": "warn",
+  "At risk": "crit",
+};
+
+const weekLabel = (w: string) =>
+  new Date(`${w}T00:00:00Z`).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+
+function hours(h: number | null): string {
+  if (h == null) return "None yet";
+  if (h < 1) return `${Math.max(1, Math.round(h * 60))} min`;
+  if (h < 48) return `${Math.round(h)} h`;
+  return `${Math.round(h / 24)} days`;
+}
+
+/** Lower bound for the score line: 10 below the lowest week, floored to 10. */
+function sparkMin(weekly: OrmSummary["score_weekly"]): number {
+  const vals = weekly.map((w) => w.score).filter((v): v is number => v != null);
+  if (!vals.length) return 0;
+  return Math.max(0, Math.floor((Math.min(...vals) - 10) / 10) * 10);
+}
+
+const one = (n: number | null | undefined, digits = 1) =>
+  n == null ? "" : n.toFixed(digits);
+
+function signed(n: number): string {
+  return n > 0 ? `+${n}` : String(n);
+}
+
+// ── layout ──────────────────────────────────────────────────────────────────
+
+function Overview({ sum }: { sum: OrmSummary }) {
   return (
     <>
-      <div className={s.kpis}>
-        <Kpi label="Mentions" value={String(sum.total)} sub={`${sum.new_count} new`} />
-        {rated.map((b) => (
-          <Kpi key={b.key} label={`${shortLabel(b.label)} rating`} value={`${b.avg_rating}★`} sub={`${b.count} reviews`} />
-        ))}
-        <Kpi
-          label="Negative"
-          value={pctNeg == null ? "None" : `${pctNeg}%`}
-          sub={scored ? `${sum.sentiment.neg} of ${scored} scored` : "Nothing scored yet"}
-        />
-        <Kpi
-          label="Unanswered negatives"
-          value={String(sum.unanswered_negative)}
-          sub={sum.unanswered_negative ? "Waiting for a reply" : "All handled"}
-          tone={sum.unanswered_negative ? "crit" : undefined}
-        />
-      </div>
-
-      <div className={s.ovGrid}>
-        <section className={s.ovBlock}>
-          <h3 className={s.sectionTitle}>How people felt, day by day</h3>
-          <Trend trend={sum.trend} />
-        </section>
-
-        <section className={s.ovBlock}>
-          <h3 className={s.sectionTitle}>What they talk about</h3>
-          {sum.top_topics.length === 0 ? (
-            <p className={s.muted}>No topics yet.</p>
-          ) : (
-            <Bars items={sum.top_topics.map((t) => ({ label: topicLabel(t.topic), value: t.count }))} />
-          )}
-        </section>
-
-        <section className={s.ovBlock}>
-          <h3 className={s.sectionTitle}>Where mentions come from</h3>
-          <Bars
-            items={sum.by_source.map((b) => ({
-              label: b.label,
-              value: b.count,
-              extra: b.avg_rating != null ? `${b.avg_rating}★ average` : undefined,
+      <ScoreSection sum={sum} />
+      <Question
+        n={2}
+        title="Where is it going wrong?"
+        lead="Each product, worst first: its stars, how often it came up, and how many people were unhappy."
+      >
+        <ProductTable products={sum.products} />
+      </Question>
+      <Question
+        n={3}
+        title="What do people love and hate?"
+        lead="Topics people bring up. Complaints on the left, praise on the right."
+      >
+        {sum.drivers.length ? (
+          <DivergingBars
+            caption="Complaints and praise per topic"
+            leftLabel="Complaints"
+            rightLabel="Praise"
+            rows={sum.drivers.map((d) => ({
+              key: d.topic,
+              label: topicLabel(d.topic),
+              left: d.complaints,
+              right: d.praise,
+              tip: `${topicLabel(d.topic)}: ${d.complaints} complaints, ${d.praise} praise, ${d.neutral} neutral`,
             }))}
           />
-        </section>
-      </div>
+        ) : (
+          <p className={s.muted}>
+            No topics yet. They show up once the AI has read the mentions.
+          </p>
+        )}
+      </Question>
+      <Question
+        n={4}
+        title="Are we on top of it?"
+        lead="How fast we answer unhappy customers, and how each channel is trending."
+      >
+        <ResponseRow sum={sum} />
+        {sum.channels.length > 0 && (
+          <div className={s.channels}>
+            {sum.channels.map((c) => (
+              <Channel key={c.key} c={c} />
+            ))}
+          </div>
+        )}
+        {sum.competitors.length > 0 && <Competitors rows={sum.competitors} />}
+      </Question>
     </>
   );
 }
 
-const shortLabel = (l: string) => l.replace(/\s*\(.*\)$/, "").replace(/ reviews$/i, "");
-
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub: string; tone?: "crit" }) {
+function Question({
+  n,
+  title,
+  lead,
+  children,
+}: {
+  n: number;
+  title: string;
+  lead: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className={s.kpi}>
+    <section className={s.q}>
+      <div className={s.qHead}>
+        <span className={s.qNum}>{n}</span>
+        <div>
+          <h2 className={s.qTitle}>{title}</h2>
+          <p className={s.qLead}>{lead}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// ── 1. score ────────────────────────────────────────────────────────────────
+
+function ScoreSection({ sum }: { sum: OrmSummary }) {
+  const sc = sum.score;
+  const band = scoreBand(sc.score);
+  const prev = sum.score_prev.score;
+  const delta = sc.score != null && prev != null ? sc.score - prev : null;
+  const weekly = sum.score_weekly;
+  const hasWeekly = weekly.some((w) => w.score != null);
+  const parts = sc.parts;
+
+  return (
+    <section
+      className={s.q}
+      style={{ borderTop: 0, paddingTop: 0, marginTop: 22 }}
+    >
+      <div className={s.qHead}>
+        <span className={s.qNum}>1</span>
+        <div>
+          <h2 className={s.qTitle}>How are we doing?</h2>
+          <p className={s.qLead}>
+            Last {sum.days} days, from {sum.total} mentions.
+          </p>
+        </div>
+      </div>
+      <div className={s.hero}>
+        <div className={s.heroMain}>
+          <span className={s.kpiL}>Reputation score</span>
+          <div className={s.heroRow}>
+            <span className={s.heroV}>{sc.score ?? "None"}</span>
+            {sc.score != null && <span className={s.heroOf}>/ 100</span>}
+          </div>
+          <div className={s.heroMeta}>
+            {band && <Mark tone={BAND_TONE[band]}>{band}</Mark>}
+            {delta != null && (
+              <span
+                className={
+                  delta > 0 ? s.t_good : delta < 0 ? s.t_crit : s.t_neu
+                }
+              >
+                <b>{delta === 0 ? "No change" : signed(delta)}</b>
+                <span className={s.heroVs}> vs the {sum.days} days before</span>
+              </span>
+            )}
+          </div>
+          <p className={s.kpiD}>
+            Out of 100. Mixes star ratings, how people feel, how many complaints
+            we answered and open serious issues.
+          </p>
+        </div>
+        <div className={s.heroChart}>
+          <span className={s.kpiL}>Score, last 12 weeks</span>
+          {hasWeekly ? (
+            <LineChart
+              ariaLabel="Reputation score per week, last 12 weeks"
+              points={weekly.map((w) => ({
+                key: w.week_start,
+                label: weekLabel(w.week_start),
+                value: w.score,
+                tip:
+                  w.score == null
+                    ? `Week of ${weekLabel(w.week_start)}: no mentions`
+                    : `Week of ${weekLabel(w.week_start)}: ${w.score} from ${w.mentions} mentions`,
+              }))}
+              min={sparkMin(weekly)}
+              max={100}
+              height={104}
+              format={(v) => String(Math.round(v))}
+            />
+          ) : (
+            <p className={s.muted}>Not enough weeks yet.</p>
+          )}
+        </div>
+      </div>
+
+      <div className={s.kpiRow}>
+        <Kpi
+          label="Net feeling"
+          value={
+            sc.net_sentiment_raw == null
+              ? "None"
+              : signed(Math.round(sc.net_sentiment_raw))
+          }
+          tone={
+            sc.net_sentiment_raw == null
+              ? undefined
+              : sc.net_sentiment_raw < 0
+                ? "crit"
+                : undefined
+          }
+          sub="Share of happy posts minus unhappy ones. Above 0 means more love than complaints."
+        />
+        <Kpi
+          label="Average rating"
+          value={sc.avg_rating == null ? "None" : `${one(sc.avg_rating)}★`}
+          sub={
+            sc.counts.rated
+              ? `Across ${sc.counts.rated} star reviews on every channel.`
+              : "No star reviews in this period."
+          }
+        />
+        <Kpi
+          label="Reply rate"
+          value={
+            sc.counts.negative
+              ? `${Math.round(parts?.reply_rate ?? 0)}%`
+              : "All clear"
+          }
+          tone={
+            sc.counts.negative && (parts?.reply_rate ?? 0) < 50
+              ? "crit"
+              : undefined
+          }
+          sub={
+            sc.counts.negative
+              ? `Share of negative mentions we answered or closed (${sc.counts.negatives_handled} of ${sc.counts.negative}).`
+              : "Share of negative mentions we answered or closed. None this period."
+          }
+        />
+        <Kpi
+          label="Open serious issues"
+          value={String(sc.counts.open_critical)}
+          tone={sc.counts.open_critical ? "crit" : undefined}
+          sub="Food safety or other critical posts nobody has handled yet."
+        />
+      </div>
+    </section>
+  );
+}
+
+function Kpi({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  tone?: "crit";
+}) {
+  return (
+    <div className={s.kpi2}>
       <span className={s.kpiL}>{label}</span>
-      <span className={`${s.kpiV}${tone === "crit" ? ` ${s.t_crit}` : ""}`}>{value}</span>
+      <span className={`${s.kpiV}${tone === "crit" ? ` ${s.t_crit}` : ""}`}>
+        {value}
+      </span>
       <span className={s.kpiD}>{sub}</span>
     </div>
   );
 }
 
-function Trend({ trend }: { trend: OrmSummary["trend"] }) {
-  const max = Math.max(1, ...trend.map((d) => d.neg + d.neu + d.pos));
-  const label = (day: string) =>
-    new Date(`${day}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+// ── 2. products ─────────────────────────────────────────────────────────────
+
+function negTone(p: number | null): Tone {
+  if (p == null) return "neu";
+  if (p >= 30) return "crit";
+  if (p >= 15) return "warn";
+  return "good";
+}
+
+const TREND: Record<
+  ProductRow["trend"],
+  { arrow: string; word: string; tone: Tone }
+> = {
+  up: { arrow: "↑", word: "Better", tone: "good" },
+  down: { arrow: "↓", word: "Worse", tone: "crit" },
+  flat: { arrow: "→", word: "Steady", tone: "neu" },
+};
+
+function ProductTable({ products }: { products: ProductRow[] }) {
+  if (!products.length)
+    return <p className={s.muted}>No products named yet.</p>;
+  return (
+    <div className={s.ptable} role="table" aria-label="Product scorecard">
+      <div className={`${s.prow} ${s.phead}`} role="row">
+        <span role="columnheader">Product</span>
+        <span role="columnheader">Rating</span>
+        <span role="columnheader">Mentions</span>
+        <span role="columnheader">Negative</span>
+        <span role="columnheader">Top complaint</span>
+        <span role="columnheader">Rating trend</span>
+      </div>
+      {products.map((p) => {
+        const t = TREND[p.trend];
+        return (
+          <div key={p.product} className={s.prow} role="row">
+            <span className={s.pName} role="cell">
+              {p.product}
+            </span>
+            <span className={s.pRating} role="cell">
+              {p.avg_rating == null ? (
+                <span className={s.hint}>No stars</span>
+              ) : (
+                <>
+                  <b>{one(p.avg_rating)}</b>
+                  <Stars rating={p.avg_rating} />
+                </>
+              )}
+            </span>
+            <span className={s.pMeta}>
+              <span className={s.pNum} role="cell">
+                {p.mentions}
+                <span className={s.pUnit}>
+                  {" "}
+                  {p.mentions === 1 ? "mention" : "mentions"}
+                </span>
+              </span>
+              <span role="cell" className={s.pNeg}>
+                {p.pct_negative == null ? (
+                  <span className={s.hint}>Not scored</span>
+                ) : (
+                  <Mark tone={negTone(p.pct_negative)}>
+                    {p.pct_negative}% negative
+                  </Mark>
+                )}
+              </span>
+              <span role="cell" className={s.pTopic}>
+                {p.top_complaint_topic ? (
+                  topicLabel(p.top_complaint_topic)
+                ) : (
+                  <span className={s.hint}>None</span>
+                )}
+              </span>
+              <span
+                role="cell"
+                className={`${s.pTrend} ${s[`t_${t.tone}`]}`}
+                title="Average rating vs the period before"
+              >
+                <span aria-hidden="true">{t.arrow}</span> {t.word}
+              </span>
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── 4. response, channels, competitors ──────────────────────────────────────
+
+function ResponseRow({ sum }: { sum: OrmSummary }) {
+  const r = sum.response;
+  const c = r.cases;
   return (
     <>
-      <div className={s.trend} role="img" aria-label="Mentions per day by feeling">
-        {trend.map((d) => {
-          const total = d.neg + d.neu + d.pos;
-          return (
-            <div key={d.day} className={s.trendCol} title={`${label(d.day)}: ${d.neg} negative, ${d.neu} neutral, ${d.pos} positive`}>
-              <div className={s.trendBar} style={{ height: `${(total / max) * 100}%` }}>
-                {d.pos > 0 && <span className={s.segPos} style={{ flex: d.pos }} />}
-                {d.neu > 0 && <span className={s.segNeu} style={{ flex: d.neu }} />}
-                {d.neg > 0 && <span className={s.segNeg} style={{ flex: d.neg }} />}
-              </div>
-            </div>
-          );
-        })}
+      <div className={s.kpiRow}>
+        <Kpi
+          label="Unanswered complaints"
+          value={String(r.open_negatives)}
+          tone={r.open_negatives ? "crit" : undefined}
+          sub="Negative mentions nobody has replied to or closed yet."
+        />
+        <Kpi
+          label="Typical reply time"
+          value={hours(r.median_reply_hours)}
+          sub="Half of our replies went out faster than this, counted from when the post went up."
+        />
+        <Kpi
+          label="Oldest unanswered"
+          value={
+            r.oldest_unanswered_days == null
+              ? "None"
+              : r.oldest_unanswered_days === 0
+                ? "Today"
+                : `${r.oldest_unanswered_days} ${r.oldest_unanswered_days === 1 ? "day" : "days"}`
+          }
+          tone={(r.oldest_unanswered_days ?? 0) >= 3 ? "crit" : undefined}
+          sub="How long the longest-waiting complaint has gone without an answer."
+        />
+        <Kpi
+          label="Won back"
+          value={c.recovery_rate == null ? "None yet" : `${c.recovery_rate}%`}
+          sub={
+            c.resolved
+              ? `Closed cases where the customer ended happy (${c.recovered} of ${c.resolved}).`
+              : "Closed cases where the customer ended happy. No cases closed yet."
+          }
+        />
       </div>
-      <div className={s.trendAxis}>
-        <span>{trend[0] ? label(trend[0].day) : ""}</span>
-        <span>{trend.length ? label(trend[trend.length - 1].day) : ""}</span>
-      </div>
-      <div className={s.legend}>
-        <span className={`${s.mark} ${s.t_good}`}>Positive</span>
-        <span className={`${s.mark} ${s.t_neu}`}>Neutral</span>
-        <span className={`${s.mark} ${s.t_crit}`}>Negative</span>
-      </div>
+      <p className={s.casesLine}>
+        <b>Cases:</b> <Mark tone={c.open ? "crit" : "neu"}>{c.open} open</Mark>
+        <Mark tone={c.in_progress ? "warn" : "neu"}>
+          {c.in_progress} in progress
+        </Mark>
+        <Mark tone="good">{c.resolved} resolved</Mark>
+      </p>
     </>
   );
 }
 
-function Bars({ items }: { items: { label: string; value: number; extra?: string }[] }) {
-  const max = Math.max(1, ...items.map((i) => i.value));
+const STAR_KEYS = ["5", "4", "3", "2", "1"] as const;
+
+function Channel({ c }: { c: ChannelStats }) {
+  const rated = c.reviews > 0 || c.weekly.some((w) => w.avg_rating != null);
+  const total = STAR_KEYS.reduce((a, k) => a + c.star_mix[k], 0);
   return (
-    <ul className={s.bars}>
-      {items.map((i) => (
-        <li key={i.label}>
-          <div className={s.barTop}>
-            <span className={s.barL}>{i.label}</span>
-            <span className={s.barV}>
-              {i.value}
-              {i.extra && <span className={s.hint}> · {i.extra}</span>}
+    <div className={s.chan}>
+      <div className={s.chanHead}>
+        <h3 className={s.chanTitle}>{c.label}</h3>
+        <span className={s.chanMeta}>
+          {c.avg_rating != null && (
+            <span className={s.chanBig}>
+              {one(c.avg_rating)}
+              <span className={s.chanStar}>★</span>
             </span>
+          )}
+          <span>
+            {c.reviews ? `${c.reviews} star reviews this period · ` : ""}
+            {c.velocity_per_week} a week lately
+          </span>
+        </span>
+      </div>
+      {rated ? (
+        <div className={s.chanBody}>
+          <div className={s.chanChart}>
+            <span className={s.kpiL}>Average stars per week</span>
+            <LineChart
+              ariaLabel={`${c.label}: average stars per week, last 12 weeks`}
+              points={c.weekly.map((w) => ({
+                key: w.week_start,
+                label: weekLabel(w.week_start),
+                value: w.avg_rating,
+                tip:
+                  w.avg_rating == null
+                    ? `Week of ${weekLabel(w.week_start)}: ${w.count ? `${w.count} mentions, no stars` : "nothing"}`
+                    : `Week of ${weekLabel(w.week_start)}: ${one(w.avg_rating)}★ from ${w.count} ${w.count === 1 ? "review" : "reviews"}`,
+              }))}
+              min={1}
+              max={5}
+              ticks={[1, 3, 5]}
+              height={132}
+              format={(v) => `${one(v)}★`}
+            />
           </div>
-          <div className={s.barTrack}>
-            <span style={{ width: `${(i.value / max) * 100}%` }} />
+          <div className={s.chanMix}>
+            <span className={s.kpiL}>Star mix this period</span>
+            {total ? (
+              <MixBars
+                caption={`${c.label}: reviews per star rating`}
+                rows={STAR_KEYS.map((k) => ({
+                  key: k,
+                  label: `${k}★`,
+                  value: c.star_mix[k],
+                  tip: `${k} stars: ${c.star_mix[k]} ${c.star_mix[k] === 1 ? "review" : "reviews"}`,
+                }))}
+              />
+            ) : (
+              <p className={s.muted}>No star reviews in this period.</p>
+            )}
           </div>
-        </li>
-      ))}
-    </ul>
+        </div>
+      ) : (
+        <p className={s.muted}>
+          No star ratings on this channel. Mentions only.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Competitors({ rows }: { rows: CompetitorSnapshot[] }) {
+  const max = Math.max(1, ...rows.map((r) => r.review_count ?? 0));
+  const latest = rows.reduce((a, r) => (r.taken_on > a ? r.taken_on : a), "");
+  return (
+    <div className={s.comp}>
+      <h3 className={s.chanTitle}>Us vs competitors on Amazon</h3>
+      <p className={s.qLead}>
+        Star rating and number of ratings on each product page. Checked once a
+        month, last on{" "}
+        {new Date(`${latest}T00:00:00Z`).toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          timeZone: "UTC",
+        })}
+        .
+      </p>
+      <ul className={s.compList}>
+        {rows.map((r) => (
+          <li key={r.asin} className={r.is_ours ? s.compOurs : undefined}>
+            <span className={s.compName}>
+              <b>{r.is_ours ? "PROMUNCH" : r.brand || r.asin}</b>
+              <span className={s.hint}>
+                {r.label && r.label !== r.brand ? r.label : r.asin}
+              </span>
+            </span>
+            <span className={s.compRating}>
+              {r.rating == null ? (
+                <span className={s.hint}>No rating</span>
+              ) : (
+                <>
+                  <b>{one(r.rating)}</b>
+                  <Stars rating={r.rating} />
+                </>
+              )}
+            </span>
+            <span
+              className={s.compCount}
+              title={`${r.review_count ?? 0} ratings`}
+            >
+              <span className={s.mixTrack}>
+                <span
+                  className={r.is_ours ? s.compBarOurs : s.compBar}
+                  style={{ width: `${((r.review_count ?? 0) / max) * 100}%` }}
+                />
+              </span>
+              <span className={s.mixV}>
+                {(r.review_count ?? 0).toLocaleString("en-IN")}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

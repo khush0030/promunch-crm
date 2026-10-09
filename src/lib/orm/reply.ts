@@ -14,6 +14,8 @@ const TONE: Record<OrmSourceKey, string> = {
   reddit: "a Reddit comment: plain, honest, conversational, zero marketing speak, no hashtags or emojis",
   rss: "a short, polite note to the writer of a news or blog article",
   instagram: "an Instagram comment reply: friendly and short",
+  whatsapp: "a private WhatsApp note to a customer who said they are not happy with their order: warm, short, ask what went wrong",
+  competitors: "a short public reply",
 };
 
 export const REPLY_SYSTEM_PROMPT = `You write public replies for PROMUNCH, an Indian high-protein snack brand ("Your Munchy Pal").
@@ -62,6 +64,11 @@ export function buildReplyUserPrompt(m: ReplyInput, kb: string): string {
  *  - wrapping quotes stripped, whitespace tidied, capped at REPLY_MAX_CHARS
  */
 export function cleanReply(raw: string): string {
+  return capLength(applyBrandRules(raw), REPLY_MAX_CHARS);
+}
+
+/** cleanReply without the length cap (used for teammate-edited replies). */
+export function applyBrandRules(raw: string): string {
   let t = (raw ?? "").trim();
   // wrapping quotes the model sometimes adds
   t = t.replace(/^["'“‘]+/, "").replace(/["'”’]+$/, "").trim();
@@ -80,7 +87,7 @@ export function cleanReply(raw: string): string {
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-  return capLength(t, REPLY_MAX_CHARS);
+  return t;
 }
 
 /** Cut at the last sentence end (or word) that fits. */

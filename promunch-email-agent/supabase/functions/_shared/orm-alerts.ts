@@ -34,6 +34,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   rss: "News and web",
   amazon: "Amazon review",
   instagram: "Instagram",
+  whatsapp: "WhatsApp review ask",
 };
 
 export interface AlertMention {

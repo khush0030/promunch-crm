@@ -1,17 +1,21 @@
 "use client";
 
-// One mention: full text, what the AI made of it, status actions, the reply
-// box and a team note. Nothing here posts publicly: "Copy and open" copies the
-// reply, opens the post, and marks the mention replied.
+// One mention: full text, what the AI made of it, status actions, the
+// complaint case, the reply box and a team note. "Copy and open" copies the
+// reply, opens the post, and marks the mention replied. Website (Judge.me)
+// reviews can also be answered publicly from here, after a confirm, through
+// POST /api/orm/mentions/[id]/reply (one reply per review, ever).
 
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Sparkles } from "lucide-react";
-import type { OrmAlert, OrmMention, OrmStatus } from "@/lib/orm/types";
+import { ORM_CASE_OUTCOMES, type OrmAlert, type OrmCaseStatus, type OrmMention, type OrmStatus } from "@/lib/orm/types";
 import { api, errText, QK } from "./api";
 import {
   authorOf,
+  CASE_LABEL,
+  CASE_TONE,
   CloseBtn,
   compact,
   dateTime,
@@ -19,7 +23,9 @@ import {
   INTENT_LABEL,
   Mark,
   OPEN_ON,
+  OUTCOME_LABEL,
   relTime,
+  type ReplyClaim,
   SentimentMark,
   SOURCE_SHORT,
   Stars,
@@ -46,7 +52,13 @@ export function MentionDrawer({ id, onClose }: { id: string; onClose: () => void
           <CloseBtn onClose={onClose} />
         </div>
       ) : (
-        <MentionBody m={q.data.mention} alerts={q.data.alerts} onClose={onClose} />
+        <MentionBody
+          m={q.data.mention}
+          alerts={q.data.alerts}
+          claim={q.data.reply_claim ?? null}
+          waThreadId={q.data.wa_thread_id ?? null}
+          onClose={onClose}
+        />
       )}
     </Drawer>
   );
@@ -59,7 +71,19 @@ const ALERT_KIND: Record<string, string> = {
   spike: "sudden rise in mentions",
 };
 
-function MentionBody({ m, alerts, onClose }: { m: OrmMention; alerts: OrmAlert[]; onClose: () => void }) {
+function MentionBody({
+  m,
+  alerts,
+  claim,
+  waThreadId,
+  onClose,
+}: {
+  m: OrmMention;
+  alerts: OrmAlert[];
+  claim: ReplyClaim | null;
+  waThreadId: string | null;
+  onClose: () => void;
+}) {
   const qc = useQueryClient();
   const [reply, setReply] = useState(m.reply_text ?? m.reply_draft ?? "");
   const [note, setNote] = useState(m.note ?? "");
@@ -85,6 +109,20 @@ function MentionBody({ m, alerts, onClose }: { m: OrmMention; alerts: OrmAlert[]
     },
   });
 
+  const [confirmPost, setConfirmPost] = useState(false);
+  const post = useMutation({
+    mutationFn: (retry: boolean) =>
+      api<{ ok: boolean }>(`/api/orm/mentions/${m.id}/reply`, { method: "POST", body: { reply: reply.trim(), retry } }),
+    onSuccess: () => {
+      setConfirmPost(false);
+      refresh();
+    },
+    onError: () => {
+      setConfirmPost(false);
+      qc.invalidateQueries({ queryKey: QK.mention(m.id) });
+    },
+  });
+
   const setStatus = (status: OrmStatus) => patch.mutate({ status });
 
   const copyAndOpen = async () => {
@@ -101,6 +139,10 @@ function MentionBody({ m, alerts, onClose }: { m: OrmMention; alerts: OrmAlert[]
   };
 
   const handled = m.status === "replied" || m.status === "ignored";
+  const postedViaApi = m.reply_channel === "judgeme_api" || claim?.status === "posted";
+  const claimFailed = claim?.status === "failed";
+  const claimBusy = claim?.status === "claimed";
+  const canPostJudgeme = m.source === "judgeme" && /^\d+$/.test(m.external_id) && !postedViaApi && m.status !== "replied";
   const when = m.posted_at ?? m.collected_at;
 
   return (
@@ -187,22 +229,6 @@ function MentionBody({ m, alerts, onClose }: { m: OrmMention; alerts: OrmAlert[]
         <dl className={s.kv}>
           <dt>Product</dt>
           <dd>{m.product ?? <span className={s.hint}>Not mentioned</span>}</dd>
-          {m.order_ref && (
-            <>
-              <dt>Order</dt>
-              <dd>{m.order_ref}</dd>
-            </>
-          )}
-          <dt>Customer</dt>
-          <dd>
-            {m.contact_id ? (
-              <Link className={s.inlineLink} href={`/dashboard/contacts/${m.contact_id}`}>
-                Open customer
-              </Link>
-            ) : (
-              <span className={s.hint}>No match found</span>
-            )}
-          </dd>
           {m.language && m.language !== "en" && m.language.toLowerCase() !== "english" && (
             <>
               <dt>Language</dt>
@@ -211,6 +237,8 @@ function MentionBody({ m, alerts, onClose }: { m: OrmMention; alerts: OrmAlert[]
           )}
         </dl>
       </section>
+
+      <CaseSection m={m} waThreadId={waThreadId} onSaved={refresh} />
 
       <section className={s.section}>
         <div className={s.sectionHead}>
@@ -236,19 +264,73 @@ function MentionBody({ m, alerts, onClose }: { m: OrmMention; alerts: OrmAlert[]
             if (m.status !== "replied" && reply.trim() !== (m.reply_draft ?? "").trim()) patch.mutate({ reply_draft: reply });
           }}
         />
-        <div className={s.replyFoot}>
-          <span className={s.hint}>
-            {reply.length} characters. Check it before posting. We never post for you.
-          </span>
-          <button type="button" className="pm-btn primary sm" disabled={!reply.trim() || patch.isPending} onClick={copyAndOpen}>
-            {m.url ? "Copy and open" : "Copy and mark replied"}
-          </button>
-        </div>
+        {canPostJudgeme ? (
+          <>
+            <div className={s.replyFoot}>
+              <span className={s.hint}>{reply.length} characters. Posts on our website under the review.</span>
+              <button
+                type="button"
+                className="pm-btn sm"
+                disabled={!reply.trim() || patch.isPending || post.isPending}
+                onClick={copyAndOpen}
+              >
+                Copy and open
+              </button>
+              {!confirmPost && (
+                <button
+                  type="button"
+                  className="pm-btn primary sm"
+                  disabled={!reply.trim() || post.isPending || claimBusy}
+                  onClick={() => setConfirmPost(true)}
+                >
+                  {claimFailed ? "Try again" : "Post reply on the website"}
+                </button>
+              )}
+            </div>
+            {confirmPost && (
+              <div className={s.confirm} role="alertdialog" aria-label="Post this reply publicly?">
+                <p>
+                  <b>This posts publicly under PROMUNCH</b> on the product page, below this review. Anyone can read it and it
+                  cannot be taken back from here.
+                </p>
+                <div className={s.confirmActs}>
+                  <button type="button" className="pm-btn sm" disabled={post.isPending} onClick={() => setConfirmPost(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="pm-btn primary sm"
+                    disabled={post.isPending}
+                    onClick={() => post.mutate(claimFailed)}
+                  >
+                    {post.isPending ? "Posting…" : "Yes, post it"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {claimFailed && !post.isPending && !post.error && (
+              <p className={s.err}>The last try did not post{claim?.error ? `: ${claim.error}` : "."}</p>
+            )}
+            {claimBusy && <p className={s.hint}>A reply is being posted right now. Refresh in a minute.</p>}
+            {post.error && <p className={s.err}>{errText(post.error)}</p>}
+          </>
+        ) : (
+          <div className={s.replyFoot}>
+            <span className={s.hint}>
+              {reply.length} characters. {postedViaApi ? "" : "Check it before posting. We never post for you."}
+            </span>
+            {!postedViaApi && (
+              <button type="button" className="pm-btn primary sm" disabled={!reply.trim() || patch.isPending} onClick={copyAndOpen}>
+                {m.url ? "Copy and open" : "Copy and mark replied"}
+              </button>
+            )}
+          </div>
+        )}
         {draft.error && <p className={s.err}>{errText(draft.error)}</p>}
         {copied && <p className={s.ok}>{copied}</p>}
         {m.replied_at && (
-          <p className={s.hint} style={{ marginTop: 8 }}>
-            Marked replied {dateTime(m.replied_at)}
+          <p className={postedViaApi ? s.ok : s.hint} style={{ marginTop: 8 }}>
+            {postedViaApi ? "Posted on the website" : "Marked replied"} {dateTime(m.replied_at)}
             {m.replied_by ? ` by ${m.replied_by}` : ""}.
           </p>
         )}
@@ -294,5 +376,154 @@ function MentionBody({ m, alerts, onClose }: { m: OrmMention; alerts: OrmAlert[]
         </section>
       )}
     </>
+  );
+}
+
+// ── complaint case ──────────────────────────────────────────────────────────
+
+const CASE_STEPS: { key: OrmCaseStatus | "none"; label: string }[] = [
+  { key: "none", label: "No case" },
+  { key: "open", label: "Open" },
+  { key: "in_progress", label: "In progress" },
+  { key: "resolved", label: "Resolved" },
+];
+
+function CaseSection({ m, waThreadId, onSaved }: { m: OrmMention; waThreadId: string | null; onSaved: () => void }) {
+  const [resolving, setResolving] = useState(false);
+  const [outcome, setOutcome] = useState<string>(m.case_outcome ?? "");
+  const [owner, setOwner] = useState(m.assignee ?? "");
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      api<{ mention: OrmMention }>(`/api/orm/mentions/${m.id}`, { method: "PATCH", body }),
+    onSuccess: () => {
+      setResolving(false);
+      onSaved();
+    },
+  });
+  const cur = m.case_status ?? "none";
+
+  const pick = (k: OrmCaseStatus | "none") => {
+    if (k === cur) return;
+    if (k === "resolved") {
+      setResolving(true);
+      return;
+    }
+    setResolving(false);
+    save.mutate({ case_status: k === "none" ? null : k });
+  };
+
+  return (
+    <section className={s.section}>
+      <div className={s.sectionHead}>
+        <h3 className={s.sectionTitle}>Case</h3>
+        {m.case_status && <Mark tone={CASE_TONE[m.case_status]}>{CASE_LABEL[m.case_status]}</Mark>}
+      </div>
+      <p className={s.hint} style={{ margin: "0 0 10px" }}>
+        Track an unhappy customer until it is sorted. Closing a case asks how it ended.
+      </p>
+      <div className={s.seg} role="group" aria-label="Case status">
+        {CASE_STEPS.map((c) => (
+          <button
+            key={c.key}
+            type="button"
+            className={`${s.segBtn}${(resolving ? "resolved" : cur) === c.key ? ` ${s.segOn}` : ""}`}
+            aria-pressed={cur === c.key}
+            disabled={save.isPending}
+            onClick={() => pick(c.key)}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      {resolving && (
+        <div className={s.caseResolve}>
+          <label className={s.field}>
+            <span className={s.label}>How did it end?</span>
+            <select className={s.select} value={outcome} onChange={(e) => setOutcome(e.target.value)}>
+              <option value="">Pick one</option>
+              {ORM_CASE_OUTCOMES.map((o) => (
+                <option key={o} value={o}>
+                  {OUTCOME_LABEL[o]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className={s.confirmActs}>
+            <button type="button" className="pm-btn sm" onClick={() => setResolving(false)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="pm-btn primary sm"
+              disabled={!outcome || save.isPending}
+              onClick={() => save.mutate({ case_status: "resolved", case_outcome: outcome })}
+            >
+              {save.isPending ? "Saving…" : "Resolve case"}
+            </button>
+          </div>
+        </div>
+      )}
+      {save.error && <p className={s.err}>{errText(save.error)}</p>}
+
+      <dl className={s.kv}>
+        {m.case_opened_at && (
+          <>
+            <dt>Opened</dt>
+            <dd>{dateTime(m.case_opened_at)}</dd>
+          </>
+        )}
+        {m.case_status === "resolved" && (
+          <>
+            <dt>Outcome</dt>
+            <dd>
+              {m.case_outcome ? OUTCOME_LABEL[m.case_outcome] ?? m.case_outcome : <span className={s.hint}>Not set</span>}
+              {m.case_resolved_at && <span className={s.hint}> · {dateTime(m.case_resolved_at)}</span>}
+            </dd>
+          </>
+        )}
+        <dt>Owner</dt>
+        <dd>
+          <span className={s.ownerRow}>
+            <input
+              className={s.input}
+              value={owner}
+              maxLength={120}
+              placeholder="Who is on it"
+              onChange={(e) => setOwner(e.target.value)}
+            />
+            <button
+              type="button"
+              className="pm-btn sm"
+              disabled={save.isPending || owner.trim() === (m.assignee ?? "").trim()}
+              onClick={() => save.mutate({ assignee: owner })}
+            >
+              Save
+            </button>
+          </span>
+        </dd>
+        <dt>Customer</dt>
+        <dd>
+          {m.contact_id ? (
+            <span className={s.linkRow}>
+              <Link className={s.inlineLink} href={`/dashboard/contacts/${m.contact_id}`}>
+                Open customer{m.order_ref ? ` (order ${m.order_ref})` : ""}
+              </Link>
+              {waThreadId && (
+                <Link className={s.inlineLink} href={`/dashboard/inbox?open=wa-${waThreadId}`}>
+                  Message on WhatsApp
+                </Link>
+              )}
+            </span>
+          ) : m.order_ref ? (
+            <span>
+              Order {m.order_ref} <span className={s.hint}>· no customer match</span>
+            </span>
+          ) : (
+            <span className={s.hint}>No match found</span>
+          )}
+        </dd>
+      </dl>
+    </section>
   );
 }

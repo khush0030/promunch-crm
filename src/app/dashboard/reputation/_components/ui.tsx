@@ -28,6 +28,8 @@ export const SOURCE_SHORT: Record<OrmSourceKey, string> = {
   reddit: "Reddit",
   rss: "News and web",
   instagram: "Instagram",
+  whatsapp: "WhatsApp",
+  competitors: "Competitors",
 };
 
 export const OPEN_ON: Record<OrmSourceKey, string> = {
@@ -37,6 +39,8 @@ export const OPEN_ON: Record<OrmSourceKey, string> = {
   reddit: "Open on Reddit",
   rss: "Open the article",
   instagram: "Open on Instagram",
+  whatsapp: "Open the WhatsApp chat",
+  competitors: "Open on Amazon",
 };
 
 export const STATUS_LABEL: Record<OrmStatus, string> = {
@@ -244,12 +248,31 @@ export function useMentions(f: FeedFilters) {
   });
 }
 
+export type ReplyClaim = { status: "claimed" | "posted" | "failed"; error: string | null; posted_at: string | null };
+export type MentionDetail = {
+  mention: OrmMention;
+  alerts: OrmAlert[];
+  reply_claim?: ReplyClaim | null;
+  wa_thread_id?: string | null;
+};
+
 export function useMention(id: string) {
   return useQuery({
     queryKey: QK.mention(id),
-    queryFn: () => api<{ mention: OrmMention; alerts: OrmAlert[] }>(`/api/orm/mentions/${id}`),
+    queryFn: () => api<MentionDetail>(`/api/orm/mentions/${id}`),
   });
 }
+
+export const CASE_LABEL: Record<string, string> = { open: "Open", in_progress: "In progress", resolved: "Resolved" };
+export const CASE_TONE: Record<string, Tone> = { open: "crit", in_progress: "warn", resolved: "good" };
+export const OUTCOME_LABEL: Record<string, string> = {
+  recovered: "Customer happy again",
+  refund: "Refunded",
+  replacement: "Sent a replacement",
+  explained: "Explained, no action needed",
+  no_response: "Customer did not respond",
+  not_actionable: "Nothing we can do",
+};
 
 export function useSummary(days: number) {
   return useQuery({

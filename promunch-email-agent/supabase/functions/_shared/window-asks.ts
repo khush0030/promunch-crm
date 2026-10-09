@@ -24,6 +24,8 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4
 import { logConnector } from "./connector-log.ts";
 import { hasPriorityCart } from "./cart-recovery-policy.ts";
 import { REACHED_MIN_SECONDS } from "./voice-eligibility.ts";
+import { getFlowSettings } from "./flow-settings.ts";
+import { reviewFeedbackActiveFor } from "./review-feedback.ts";
 
 // Journeys whose DUE run may be delivered as cap-immune free text when the 24h
 // service window is open. This is BOTH the tick's window-delivery set and the
@@ -117,6 +119,18 @@ export async function findDueAsk(
     .order("next_action_at", { ascending: true });
   if (!data?.length) return null;
 
+  // REVIEW FEEDBACK ask (flag on): a due review_request is delivered by
+  // wa-journey-tick as the 3-button feedback message, never woven into an AI
+  // reply as free text (that would be the old ask without the buttons). The
+  // tick sees the window this inbound just opened on its next run.
+  const feedbackOn = data.some((r) => r.journey_key === "review_request")
+    ? reviewFeedbackActiveFor(
+      (await getFlowSettings()).review_feedback_enabled === true,
+      waId,
+      Deno.env.get("REVIEW_FEEDBACK_ONLY_WA_IDS"),
+    )
+    : false;
+
   // Compare deadlines as epoch millis, never as strings: PostgREST returns
   // "…+00:00" while new Date().toISOString() returns "…Z", and those two do not
   // sort lexicographically against each other at equal instants.
@@ -144,6 +158,7 @@ export async function findDueAsk(
     // an inbound message would deliver it as a WhatsApp nudge and silently
     // consume the call. voice-tick owns it.
     if (runChannel(r.context) === "voice") return false;
+    if (feedbackOn && r.journey_key === "review_request") return false;
     if (cartPriority && r.journey_key !== "abandoned_checkout") return false;
     // delivered_at is the terminal flag on the cart's at-least-once guarantee.
     // A run carrying it has already landed with the customer — never again.

@@ -8,12 +8,24 @@
 //               → update the source row (cursor, last_*, next_run_at).
 //   2. ENRICH   up to 40 un-enriched mentions (enrich_attempts < 3), batches
 //               of 20 per OpenAI call (_shared/orm-enrich.ts).
+//               v2: auto-opens a complaint case (case_status 'open') on a
+//               negative / complaint / critical / high mention when
+//               orm_settings.auto_case_on_negative, only where case_status is null.
 //   3. ALERT    orm_settings.alerts_enabled: newly enriched relevant mentions
 //               that match a rule → claim orm_alert_log → one internal
 //               WhatsApp per mention per recipient (_shared/orm-alerts.ts).
+//   4. DIGEST   (v2) weekly internal WhatsApp, once per IST week, claim on
+//               orm_digest_log (_shared/orm-reports.ts).
+//   5. SPIKE    (v2) internal WhatsApp when ≥ spike_threshold complaints hit
+//               one product + topic within spike_window_days, claim on
+//               orm_spike_log (_shared/orm-reports.ts).
+//
+// The 'competitors' source (v2 §6) collects no mentions: it writes one
+// orm_competitor_snapshots row per ASIN per day.
 //
 // POST {"source":"<key>"} runs COLLECT for that one source now (ignoring
-// next_run_at) + ENRICH; ALERT is left to the cron tick.
+// next_run_at) + ENRICH; ALERT, DIGEST and SPIKE are left to the cron tick.
+// Contract v2: docs/plans/2026-10-09-orm-v2-spec.md.
 //
 // Each step and each source is isolated: one failing never stops the rest.
 // A source without credentials is 'not_connected' and is skipped, never an
@@ -39,13 +51,15 @@ import {
   type EnrichItemInput,
   matchCustomer,
   MAX_ENRICH_ATTEMPTS,
+  shouldAutoCase,
 } from "../_shared/orm-enrich.ts";
 import { runAlerts } from "../_shared/orm-alerts.ts";
+import { runDigest, runSpikes } from "../_shared/orm-reports.ts";
 
 const ENRICH_LIMIT = 40;
 const UPSERT_CHUNK = 200;
 const PENDING_RECHECK_MIN = 15; // Amazon run still going → look again next tick
-const SOURCE_KEYS = new Set(["judgeme", "youtube", "reddit", "rss", "amazon", "instagram"]);
+const SOURCE_KEYS = new Set(["judgeme", "youtube", "reddit", "rss", "amazon", "instagram", "competitors"]);
 
 Deno.serve(async (req) => {
   const gate = requireInternal(req);
@@ -85,9 +99,11 @@ async function tick(only: string | null) {
   const settings = await loadSettings();
   const now = Date.now();
   const collected = await step("collect", () => collectAll(settings, now, only));
-  const enriched = await step("enrich", () => enrich());
+  const enriched = await step("enrich", () => enrich(settings));
   const alerts = only ? { skipped: "manual_run" } : await step("alert", () => runAlerts(settings, Date.now()));
-  return { source: only, collected, enriched, alerts };
+  const digest = only ? { skipped: "manual_run" } : await step("digest", () => runDigest(settings, Date.now()));
+  const spikes = only ? { skipped: "manual_run" } : await step("spike", () => runSpikes(settings, Date.now()));
+  return { source: only, collected, enriched, alerts, digest, spikes };
 }
 
 // ---- 1. COLLECT -------------------------------------------------------------
@@ -127,6 +143,18 @@ async function collectOne(src: OrmSourceRow, settings: OrmSettingsRow, now: numb
 
   if (res.settingsPatch) {
     await sb.from("orm_settings").update({ ...res.settingsPatch, updated_at: new Date().toISOString() }).eq("id", 1);
+    // amazon + competitors share the Apify spend counter in one tick: keep the
+    // in-memory row current so the second source books on top of the first
+    Object.assign(settings, res.settingsPatch);
+  }
+
+  let snapshotted = 0;
+  if (res.snapshots?.length) {
+    const { data, error } = await sb.from("orm_competitor_snapshots")
+      .upsert(res.snapshots, { onConflict: "asin,taken_on" })
+      .select("id");
+    if (error) throw error;
+    snapshotted = data?.length ?? 0;
   }
 
   let inserted = 0;
@@ -167,22 +195,30 @@ async function collectOne(src: OrmSourceRow, settings: OrmSettingsRow, now: numb
     }
   }
 
-  const pending = !!res.cursor?.pending_run;
+  // Apify run still going, or another competitor batch waiting
+  const pending = !!res.cursor?.pending_run || res.cursor?.more === true;
   await sb.from("orm_sources").update({
     cursor: res.cursor ?? {},
     last_run_at: new Date(now).toISOString(),
     last_status: res.status,
     last_error: res.note ?? null,
-    last_count: inserted,
+    last_count: inserted + snapshotted,
     next_run_at: nextRun(pending ? PENDING_RECHECK_MIN : src.every_minutes),
     updated_at: new Date().toISOString(),
   }).eq("key", src.key);
 
-  return { status: res.status, fetched: res.mentions.length, kept: kept.length, inserted, note: res.note ?? null };
+  return {
+    status: res.status,
+    fetched: res.mentions.length,
+    kept: kept.length,
+    inserted,
+    ...(res.snapshots ? { snapshots: snapshotted } : {}),
+    note: res.note ?? null,
+  };
 }
 
 // ---- 2. ENRICH --------------------------------------------------------------
-async function enrich() {
+async function enrich(settings: OrmSettingsRow) {
   const sb = db();
   const { data, error } = await sb.from("orm_mentions")
     .select("id, source, rating, title, body, author_followers, is_owned, enrich_attempts, product_hint:raw->>product_title")
@@ -195,7 +231,7 @@ async function enrich() {
   const rows = (data ?? []) as any[];
   if (!rows.length) return { pending: 0 };
 
-  let done = 0, failed = 0, matched = 0;
+  let done = 0, failed = 0, matched = 0, cases = 0;
   for (let i = 0; i < rows.length; i += ENRICH_BATCH) {
     const batch = rows.slice(i, i + ENRICH_BATCH);
     const items: EnrichItemInput[] = batch.map((r) => ({
@@ -248,8 +284,17 @@ async function enrich() {
         enrich_attempts: (r.enrich_attempts ?? 0) + 1,
         updated_at: new Date().toISOString(),
       }).eq("id", r.id).is("enriched_at", null);
-      if (uErr) { failed++; console.error("[orm-tick] enrich write", r.id, errStr(uErr)); }
-      else done++;
+      if (uErr) { failed++; console.error("[orm-tick] enrich write", r.id, errStr(uErr)); continue; }
+      done++;
+      // v2 §3: auto-open a complaint case, never over a case someone set
+      if (shouldAutoCase(fin, settings.auto_case_on_negative)) {
+        const now = new Date().toISOString();
+        const { data: opened, error: cErr } = await sb.from("orm_mentions")
+          .update({ case_status: "open", case_opened_at: now, updated_at: now })
+          .eq("id", r.id).is("case_status", null).select("id");
+        if (cErr) console.error("[orm-tick] auto-case", r.id, errStr(cErr));
+        else cases += opened?.length ?? 0;
+      }
     }
     if (batchErr) {
       await logConnector({
@@ -261,7 +306,7 @@ async function enrich() {
       }).catch(() => {});
     }
   }
-  return { pending: rows.length, enriched: done, failed, customer_matched: matched };
+  return { pending: rows.length, enriched: done, failed, customer_matched: matched, cases_opened: cases };
 }
 
 function j(o: unknown, s = 200) {

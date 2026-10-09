@@ -6,19 +6,27 @@ import {
   amazonRunInput,
   apifyRunCost,
   applyRelevance,
+  asinFromUrl,
   BODY_MAX,
   cleanAsins,
   cleanText,
+  competitorBatch,
+  competitorRunCost,
+  competitorRunInput,
+  competitorTargets,
+  istDate,
   istMonth,
   judgemePage,
   type MentionInput,
   normalizeAmazonReview,
+  normalizeCompetitorItem,
   normalizeFeedEntry,
   normalizeRedditListing,
   normalizeYoutubeCommentThread,
   normalizeYoutubeSearchItem,
   parseAmazonDate,
   parseFeed,
+  parseInrPrice,
   sha1Hex,
   unwrapGoogleUrl,
 } from "./orm-sources.ts";
@@ -243,3 +251,90 @@ Deno.test("rss: our own site pages are skipped", async () => {
   } as any, "feed");
   assertEquals(other?.url, "https://yourstory.com/x");
 });
+
+// ---- competitors (v2 §6) ------------------------------------------------------
+
+Deno.test("competitor targets: our top 3 first (is_ours), de-duped, invalid dropped", () => {
+  const t = competitorTargets({
+    amazon_asins: ["b0aaaaaaa1", "B0AAAAAAA2", "B0AAAAAAA3", "B0AAAAAAA4"],
+    competitor_asins: [
+      { asin: " b0ccccccc1 ", brand: "Brand C", label: "Roasted chana 200g" },
+      { asin: "B0AAAAAAA1", brand: "dup of ours" },
+      { asin: "bad" },
+      { asin: "B0CCCCCCC1", brand: "dup" },
+      { asin: "B0CCCCCCC2" },
+    ],
+  });
+  assertEquals(t.map((x) => [x.asin, x.is_ours]), [
+    ["B0AAAAAAA1", true], ["B0AAAAAAA2", true], ["B0AAAAAAA3", true], ["B0CCCCCCC1", false], ["B0CCCCCCC2", false],
+  ]);
+  assertEquals(t[0].brand, "PROMUNCH");
+  assertEquals(t[3], { asin: "B0CCCCCCC1", brand: "Brand C", label: "Roasted chana 200g", is_ours: false });
+  assertEquals(t[4].brand, null);
+  assertEquals(competitorTargets({ amazon_asins: null, competitor_asins: null }), []);
+  assertEquals(competitorTargets({ amazon_asins: [], competitor_asins: "x" as unknown as [] }), []);
+});
+
+Deno.test("competitor batches: ≤10 per run, rotate, wrap to 0", () => {
+  const xs = Array.from({ length: 23 }, (_, i) => i);
+  assertEquals(competitorBatch(xs, undefined), { batch: xs.slice(0, 10), nextOffset: 10 });
+  assertEquals(competitorBatch(xs, 10), { batch: xs.slice(10, 20), nextOffset: 20 });
+  assertEquals(competitorBatch(xs, 20), { batch: [20, 21, 22], nextOffset: 0 });
+  assertEquals(competitorBatch(xs, 99), { batch: xs.slice(0, 10), nextOffset: 10 });
+  assertEquals(competitorBatch([1, 2], 0), { batch: [1, 2], nextOffset: 0 });
+});
+
+Deno.test("competitor run input: amazon.in product URLs, no paid extras", () => {
+  const i = competitorRunInput(["B0CCCCCCC1", "B0CCCCCCC2"]);
+  assertEquals(i.categoryOrProductUrls, [
+    { url: "https://www.amazon.in/dp/B0CCCCCCC1" },
+    { url: "https://www.amazon.in/dp/B0CCCCCCC2" },
+  ]);
+  assertEquals(i.maxItemsPerStartUrl, 1);
+  assertEquals(i.maxOffers, 0);
+  assertEquals(i.scrapeSellers, false);
+  assert(!("countryCode" in i) && !("zipCode" in i)); // $0.06 per result each
+});
+
+Deno.test("INR price parsing", () => {
+  assertEquals(parseInrPrice({ value: 299, currency: "₹" }), 299);
+  assertEquals(parseInrPrice({ value: "1,299.50", currency: "INR" }), 1299.5);
+  assertEquals(parseInrPrice("₹1,299.00"), 1299);
+  assertEquals(parseInrPrice(349), 349);
+  assertEquals(parseInrPrice({ value: 12.5, currency: "$" }), null);
+  assertEquals(parseInrPrice(null), null);
+  assertEquals(parseInrPrice({ value: 0, currency: "₹" }), null);
+});
+
+Deno.test("competitor item → snapshot", () => {
+  const targets = competitorTargets({
+    amazon_asins: ["B0AAAAAAA1"],
+    competitor_asins: [{ asin: "B0CCCCCCC1", brand: "Brand C", label: null }],
+  });
+  const s = normalizeCompetitorItem({
+    asin: "B0CCCCCCC1", title: "Brand C Roasted Chana 200g", brand: "Brand C", url: "https://www.amazon.in/dp/B0CCCCCCC1",
+    stars: 4.3, reviewsCount: 1234, price: { value: 199, currency: "₹" }, listPrice: { value: 249, currency: "₹" },
+    starsBreakdown: { "5star": 0.6 }, inStock: true,
+  }, targets, "2026-10-09");
+  assertEquals(s?.asin, "B0CCCCCCC1");
+  assertEquals(s?.is_ours, false);
+  assertEquals(s?.label, "Brand C Roasted Chana 200g"); // no label set → product title
+  assertEquals([s?.rating, s?.review_count, s?.price_inr, s?.taken_on], [4.3, 1234, 199, "2026-10-09"]);
+  assertEquals(s?.raw.list_price, 249);
+  // string fields + ASIN only in the URL (redirected listing)
+  const o = normalizeCompetitorItem({
+    asin: "B0ZZZZZZZZ", url: "https://www.amazon.in/Some-Name/dp/B0AAAAAAA1/ref=x", stars: "4.1 out of 5 stars", reviewsCount: "2,345 ratings", price: "₹349.00",
+  }, targets, "2026-10-09");
+  assertEquals([o?.asin, o?.is_ours, o?.brand, o?.rating, o?.review_count, o?.price_inr], ["B0AAAAAAA1", true, "PROMUNCH", 4.1, 2345, 349]);
+  assertEquals(normalizeCompetitorItem({ asin: "B0UNKNOWN1" }, targets, "2026-10-09"), null);
+  assertEquals(normalizeCompetitorItem({ asin: "B0CCCCCCC1", stars: 9 }, targets, "2026-10-09")?.rating, null);
+  assertEquals(asinFromUrl("https://www.amazon.in/gp/product/b0ccccccc1?th=1"), "B0CCCCCCC1");
+});
+
+Deno.test("competitor run cost + IST date", () => {
+  assertEquals(competitorRunCost({ usageTotalUsd: 0.001, chargedEventCounts: { result: 4 } }, 3), 0.02);
+  assertEquals(competitorRunCost({ usageTotalUsd: 0.5 }, 1), 0.5);
+  assertEquals(istDate(Date.parse("2026-10-08T18:30:00Z")), "2026-10-09");
+  assertEquals(istDate(Date.parse("2026-10-08T18:29:00Z")), "2026-10-08");
+});
+

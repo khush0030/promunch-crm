@@ -82,6 +82,7 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 | [2026-08-27-custom-domain-migration.md](plans/2026-08-27-custom-domain-migration.md) | Runbook for moving off `promunch-crm.vercel.app` to a custom domain (historical; done 2026-10-09, production is now `admin.promunch.in`) |
 | [2026-09-17-brevo-integration.md](plans/2026-09-17-brevo-integration.md) | Brevo email marketing integration: contact sync, order events, unsubscribe webhook, campaign stats page (plan, not built) |
 | [2026-10-07-app-redesign/](plans/2026-10-07-app-redesign/README.md) | Full-app UI redesign prototype in the promunch.in brand: brand, prior work, 55-route inventory, new 8-item IA, clickable screens + pop-ups (design only, not built) |
+| [2026-10-09-orm-v2-spec.md](plans/2026-10-09-orm-v2-spec.md) | ORM v2: Reputation Score + KPI Overview, complaint cases, weekly WhatsApp, spike alerts, Judge.me replies, competitor benchmark (free) |
 | [2026-10-08-orm-build-spec.md](plans/2026-10-08-orm-build-spec.md) | ORM v1 build contract: schema, collectors, enrichment, alerts, API, Reputation screens (free tier) |
 | [2026-10-08-orm-brand-monitoring.md](plans/2026-10-08-orm-brand-monitoring.md) | Online reputation management plan: one Reputation feed for every review/comment/mention, AI sentiment + alerts, KB-grounded replies, phased by source (not built) |
 | [2026-10-07-influencer-automation.md](plans/2026-10-07-influencer-automation.md) | Replace influencer agency: delivery tracker first (brief, dispatch, reminders), IG bot later; owner decisions locked |

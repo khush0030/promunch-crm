@@ -8,7 +8,15 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccess } from "@/components/shell/useAccess";
-import type { AsinSuggestion, OrmSettings, OrmSettingsResponse, OrmSource, OrmSourceKey } from "@/lib/orm/types";
+import { Plus, X } from "lucide-react";
+import type {
+  AsinSuggestion,
+  CompetitorAsin,
+  OrmSettings,
+  OrmSettingsResponse,
+  OrmSource,
+  OrmSourceKey,
+} from "@/lib/orm/types";
 import { api, errText, QK } from "./api";
 import { dateTime, Mark, relTime, Switch, useOrmSettings, type Tone } from "./ui";
 import s from "../reputation.module.css";
@@ -56,7 +64,15 @@ type Form = {
   budget: number;
   feeds: string;
   channelId: string;
+  digestDow: number;
+  digestHour: number;
+  spikeThreshold: number;
+  spikeWindow: number;
+  competitors: CompetitorAsin[];
 };
+
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const hourLabel = (h: number) => `${h % 12 === 0 ? 12 : h % 12}:00 ${h < 12 ? "am" : "pm"}`;
 
 function formOf(st: OrmSettings, sources: OrmSource[]): Form {
   const cfg = (k: OrmSourceKey) => sources.find((x) => x.key === k)?.config ?? {};
@@ -70,6 +86,11 @@ function formOf(st: OrmSettings, sources: OrmSource[]): Form {
     budget: st.apify_monthly_budget_usd,
     feeds: Array.isArray(feeds) ? (feeds as string[]).join("\n") : "",
     channelId: typeof cfg("youtube").channel_id === "string" ? (cfg("youtube").channel_id as string) : "",
+    digestDow: st.weekly_digest_dow,
+    digestHour: st.weekly_digest_hour_ist,
+    spikeThreshold: st.spike_threshold,
+    spikeWindow: st.spike_window_days,
+    competitors: st.competitor_asins.map((c) => ({ ...c })),
   };
 }
 
@@ -98,6 +119,11 @@ function SettingsForm({ data, canEdit }: { data: OrmSettingsResponse; canEdit: b
         amazon_asins: lines(f.asins),
         amazon_reviews_per_asin: Math.round(f.perAsin),
         apify_monthly_budget_usd: f.budget,
+        weekly_digest_dow: f.digestDow,
+        weekly_digest_hour_ist: f.digestHour,
+        spike_threshold: Math.round(f.spikeThreshold),
+        spike_window_days: Math.round(f.spikeWindow),
+        competitor_asins: f.competitors,
         sources: {
           rss: { config: { feeds: urlLines(f.feeds) } },
           youtube: { config: { channel_id: f.channelId.trim() } },
@@ -128,7 +154,8 @@ function SettingsForm({ data, canEdit }: { data: OrmSettingsResponse; canEdit: b
         </div>
       </div>
       <div className={s.card}>
-        {data.sources.map((src) => (
+        {/* "whatsapp" is fed by the WhatsApp review ask, not collected: no toggle. */}
+        {data.sources.filter((src) => src.key !== "whatsapp").map((src) => (
           <SourceRow
             key={src.key}
             src={src}
@@ -214,6 +241,152 @@ function SettingsForm({ data, canEdit }: { data: OrmSettingsResponse; canEdit: b
             onChange={(e) => set({ alertIds: e.target.value })}
           />
         </Field>
+      </div>
+
+      <div className={s.secH}>
+        <div>
+          <h2>Complaint cases</h2>
+          <p>A case follows an unhappy customer until it is sorted, so nobody is forgotten. Close it with how it ended.</p>
+        </div>
+      </div>
+      <div className={`${s.card} ${s.cardPad}`}>
+        <div className={s.switchRow}>
+          <div>
+            <b>Open a case for every new complaint</b>
+            <p className={s.cfgNote} style={{ marginTop: 4 }}>
+              When the AI reads a new negative post, a complaint, or anything urgent, it opens a case on it. Cases show under the
+              Cases chip in the feed.
+            </p>
+          </div>
+          <Switch
+            on={st.auto_case_on_negative}
+            label="Open cases automatically"
+            disabled={!canEdit || save.isPending}
+            onChange={(v) => save.mutate({ auto_case_on_negative: v })}
+          />
+        </div>
+      </div>
+
+      <div className={s.secH}>
+        <div>
+          <h2>Weekly WhatsApp summary</h2>
+          <p>
+            One WhatsApp a week to the alert numbers: the score, mentions, the worst product, the top complaint and open
+            cases. Never more than one a week.
+          </p>
+        </div>
+      </div>
+      <div className={`${s.card} ${s.cardPad}`}>
+        <div className={s.switchRow}>
+          <div>
+            <b>Send the weekly summary</b>
+            {!st.weekly_digest_enabled && <p className={s.cfgNote} style={{ marginTop: 4 }}>Off right now.</p>}
+          </div>
+          <Switch
+            on={st.weekly_digest_enabled}
+            label="Send the weekly WhatsApp summary"
+            disabled={!canEdit || save.isPending}
+            onChange={(v) => save.mutate({ weekly_digest_enabled: v })}
+          />
+        </div>
+        <div className={s.g2}>
+          <Field label="Day" hint="India time.">
+            <select
+              className={s.select}
+              value={f.digestDow}
+              disabled={!canEdit}
+              onChange={(e) => set({ digestDow: Number(e.target.value) })}
+            >
+              {DAYS.map((d, i) => (
+                <option key={d} value={i}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="From this time" hint="Sent at the first check after this hour.">
+            <select
+              className={s.select}
+              value={f.digestHour}
+              disabled={!canEdit}
+              onChange={(e) => set({ digestHour: Number(e.target.value) })}
+            >
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>
+                  {hourLabel(h)}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      </div>
+
+      <div className={s.secH}>
+        <div>
+          <h2>Batch problem alerts</h2>
+          <p>
+            One WhatsApp when several people complain about the same thing on the same product in a few days, for example
+            stale packs from one batch. One alert per product and topic per window.
+          </p>
+        </div>
+      </div>
+      <div className={`${s.card} ${s.cardPad}`}>
+        <div className={s.switchRow}>
+          <div>
+            <b>Send batch problem alerts</b>
+            {!st.spike_alerts_enabled && <p className={s.cfgNote} style={{ marginTop: 4 }}>Off right now.</p>}
+          </div>
+          <Switch
+            on={st.spike_alerts_enabled}
+            label="Send batch problem alerts"
+            disabled={!canEdit || save.isPending}
+            onChange={(v) => save.mutate({ spike_alerts_enabled: v })}
+          />
+        </div>
+        <div className={s.g2}>
+          <Field label="Complaints needed" hint="2 to 20 about the same product and topic.">
+            <input
+              className={s.input}
+              type="number"
+              min={2}
+              max={20}
+              value={f.spikeThreshold}
+              disabled={!canEdit}
+              onChange={(e) => set({ spikeThreshold: Number(e.target.value) || 2 })}
+            />
+          </Field>
+          <Field label="Within this many days" hint="1 to 30.">
+            <input
+              className={s.input}
+              type="number"
+              min={1}
+              max={30}
+              value={f.spikeWindow}
+              disabled={!canEdit}
+              onChange={(e) => set({ spikeWindow: Number(e.target.value) || 1 })}
+            />
+          </Field>
+        </div>
+      </div>
+
+      <div className={s.secH}>
+        <div>
+          <h2>Competitors on Amazon</h2>
+          <p>
+            Products to compare our Amazon rating with, checked once a month. Switch on Competitor ratings under Sources to
+            start. Our own top 3 ASINs are added automatically.
+          </p>
+        </div>
+      </div>
+      <div className={`${s.card} ${s.cardPad}`}>
+        <CompetitorEditor rows={f.competitors} canEdit={canEdit} onChange={(competitors) => set({ competitors })} />
+        <HowTo title="How to find the ASIN">
+          <ol>
+            <li>Open the product on amazon.in.</li>
+            <li>Look at the link in the address bar. The ASIN is the 10 letters and numbers after /dp/.</li>
+            <li>For example amazon.in/dp/B0CXYZ1234 has the ASIN B0CXYZ1234.</li>
+          </ol>
+        </HowTo>
       </div>
 
       <div className={s.secH}>
@@ -493,4 +666,78 @@ function SourceConfig({
     );
   }
   return null;
+}
+
+function CompetitorEditor({
+  rows,
+  canEdit,
+  onChange,
+}: {
+  rows: CompetitorAsin[];
+  canEdit: boolean;
+  onChange: (rows: CompetitorAsin[]) => void;
+}) {
+  const upd = (i: number, p: Partial<CompetitorAsin>) => onChange(rows.map((r, j) => (j === i ? { ...r, ...p } : r)));
+  return (
+    <div className={s.compEdit}>
+      {rows.length === 0 && <p className={s.cfgNote}>No competitors yet.</p>}
+      {rows.map((r, i) => (
+        <div key={i} className={s.compEditRow}>
+          <label className={s.field}>
+            <span className={s.label}>ASIN</span>
+            <input
+              className={s.input}
+              value={r.asin}
+              maxLength={10}
+              placeholder="B0…"
+              disabled={!canEdit}
+              onChange={(e) => upd(i, { asin: e.target.value.toUpperCase() })}
+            />
+          </label>
+          <label className={s.field}>
+            <span className={s.label}>Brand</span>
+            <input
+              className={s.input}
+              value={r.brand}
+              maxLength={60}
+              placeholder="Brand name"
+              disabled={!canEdit}
+              onChange={(e) => upd(i, { brand: e.target.value })}
+            />
+          </label>
+          <label className={s.field}>
+            <span className={s.label}>What it is</span>
+            <input
+              className={s.input}
+              value={r.label}
+              maxLength={120}
+              placeholder="Roasted chana 200g"
+              disabled={!canEdit}
+              onChange={(e) => upd(i, { label: e.target.value })}
+            />
+          </label>
+          {canEdit && (
+            <button
+              type="button"
+              className={`pm-btn ghost sm ${s.compDel}`}
+              aria-label={`Remove ${r.asin || "this row"}`}
+              onClick={() => onChange(rows.filter((_, j) => j !== i))}
+            >
+              <X size={15} />
+            </button>
+          )}
+        </div>
+      ))}
+      {canEdit && rows.length < 10 && (
+        <button
+          type="button"
+          className="pm-btn sm"
+          style={{ marginTop: 14 }}
+          onClick={() => onChange([...rows, { asin: "", brand: "", label: "" }])}
+        >
+          <Plus size={14} aria-hidden="true" /> Add a competitor
+        </button>
+      )}
+    </div>
+  );
 }

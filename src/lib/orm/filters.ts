@@ -8,9 +8,12 @@ import { isSourceKey, isStatus, ORM_URGENCIES, type OrmSourceKey, type OrmStatus
  *   needs_reply  -> still open (new / seen / escalated) and a complaint,
  *                   a question or negative
  *   handled      -> replied or ignored
+ *   cases        -> complaint case open or in progress (any status)
  *   all          -> no status filter
  */
-export type StatusView = "new" | "needs_reply" | "handled" | "all";
+export type StatusView = "new" | "needs_reply" | "handled" | "cases" | "all";
+
+export const OPEN_CASE_STATUSES = ["open", "in_progress"] as const;
 
 export const OPEN_STATUSES: OrmStatus[] = ["new", "seen", "escalated"];
 export const HANDLED_STATUSES: OrmStatus[] = ["replied", "ignored"];
@@ -53,7 +56,7 @@ export function parseMentionFilters(sp: URLSearchParams): MentionFilters {
   const statusRaw = (sp.get("status") ?? "").trim();
   let view: StatusView | null = null;
   let statuses: OrmStatus[] | null = null;
-  if (["new", "needs_reply", "handled", "all"].includes(statusRaw)) view = statusRaw as StatusView;
+  if (["new", "needs_reply", "handled", "cases", "all"].includes(statusRaw)) view = statusRaw as StatusView;
   else if (statusRaw) {
     const list = csv(statusRaw).filter(isStatus);
     statuses = list.length ? list : null;

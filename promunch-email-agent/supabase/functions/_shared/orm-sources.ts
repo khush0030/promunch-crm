@@ -17,7 +17,9 @@ import { apifyDatasetItems } from "./apify.ts";
 
 export const BODY_MAX = 4000;
 
-export type SourceKey = "judgeme" | "youtube" | "reddit" | "rss" | "amazon" | "instagram";
+// "whatsapp" is not collected: rows are written by the WhatsApp review
+// feedback flow (Not happy tap, _shared/review-feedback-flow.ts).
+export type SourceKey = "judgeme" | "youtube" | "reddit" | "rss" | "amazon" | "instagram" | "competitors" | "whatsapp";
 
 export interface MentionInput {
   source: SourceKey;
@@ -47,6 +49,15 @@ export interface OrmSettingsRow {
   apify_monthly_budget_usd: number | string;
   apify_month: string | null;
   apify_spent_usd: number | string;
+  // v2 (20261009100000_orm_v2.sql); optional so a missing column reads as off
+  competitor_asins?: Array<{ asin?: string; brand?: string | null; label?: string | null }> | null;
+  auto_case_on_negative?: boolean | null;
+  weekly_digest_enabled?: boolean | null;
+  weekly_digest_dow?: number | null;
+  weekly_digest_hour_ist?: number | null;
+  spike_alerts_enabled?: boolean | null;
+  spike_threshold?: number | null;
+  spike_window_days?: number | null;
 }
 
 export interface OrmSourceRow {
@@ -66,8 +77,10 @@ export interface CollectResult {
   mentions: MentionInput[];
   cursor: Record<string, any>;
   note?: string;
-  // amazon only: settings patch (Apify spend bookkeeping)
+  // amazon + competitors: settings patch (Apify spend bookkeeping)
   settingsPatch?: Partial<Pick<OrmSettingsRow, "apify_month" | "apify_spent_usd">>;
+  // competitors only: rows for orm_competitor_snapshots (no mentions)
+  snapshots?: CompetitorSnapshot[];
 }
 
 // ---------------------------------------------------------------------------
@@ -851,6 +864,259 @@ export async function fetchAmazon(src: OrmSourceRow, settings: OrmSettingsRow, n
 }
 
 // ---------------------------------------------------------------------------
+// Competitor benchmark via Apify (v2 spec §6)
+//
+// Actor: junglee/Amazon-crawler ("Amazon Product Scraper", Apify's own, same
+// publisher as the reviews actor that runs on our FREE plan; ~25k users,
+// not deprecated, no paid-only notice; checked Oct 9 2026 via
+// api.apify.com/v2/acts/junglee~Amazon-crawler). Pay per event, FREE tier:
+// $0.005 per result. Extra events we never trigger: offer/seller ($0.0025,
+// maxOffers 0 + scrapeSellers false) and deliveryLocation ($0.06 per result,
+// so countryCode/zipCode are NEVER set).
+// Input: { categoryOrProductUrls:[{url:'https://www.amazon.in/dp/<asin>'}],
+//          maxItemsPerStartUrl:1, ... }
+// Output item: { asin, title, brand, url, stars, reviewsCount,
+//   price:{value,currency}, listPrice, starsBreakdown, inStock }
+// At most 10 ASINs per run (the free plan caps runs at ~10 results; the
+// reviews actor proved that); longer lists rotate in batches 15 min apart.
+// Budget: the same monthly Apify budget + maxTotalChargeUsd as Amazon reviews.
+// ---------------------------------------------------------------------------
+
+export const COMPETITOR_ACTOR = "junglee/Amazon-crawler";
+export const COMPETITOR_PRICE_USD = 0.005;
+export const COMPETITOR_MAX_PER_RUN = 10;
+export const OURS_TOP_N = 3;
+
+export interface CompetitorTarget {
+  asin: string;
+  brand: string | null;
+  label: string | null;
+  is_ours: boolean;
+}
+
+export interface CompetitorSnapshot extends CompetitorTarget {
+  rating: number | null;
+  review_count: number | null;
+  price_inr: number | null;
+  taken_on: string; // YYYY-MM-DD (IST)
+  raw: Record<string, unknown>;
+}
+
+/** Our top 3 ASINs (is_ours) then the competitor list; de-duped, ours wins. Pure. */
+export function competitorTargets(settings: Pick<OrmSettingsRow, "amazon_asins" | "competitor_asins">): CompetitorTarget[] {
+  const out = new Map<string, CompetitorTarget>();
+  for (const asin of cleanAsins(settings.amazon_asins).slice(0, OURS_TOP_N)) {
+    out.set(asin, { asin, brand: "PROMUNCH", label: null, is_ours: true });
+  }
+  const list = Array.isArray(settings.competitor_asins) ? settings.competitor_asins : [];
+  for (const c of list) {
+    const asin = cleanAsins([String(c?.asin ?? "")])[0];
+    if (!asin || out.has(asin)) continue;
+    out.set(asin, {
+      asin,
+      brand: strOrNull(c?.brand, 80),
+      label: strOrNull(c?.label, 160),
+      is_ours: false,
+    });
+  }
+  return [...out.values()];
+}
+
+/** Next batch of ≤10 targets from offset; nextOffset 0 = cycle done. Pure. */
+export function competitorBatch<T>(targets: T[], offset: unknown, size = COMPETITOR_MAX_PER_RUN): { batch: T[]; nextOffset: number } {
+  const start = Number.isInteger(offset) && (offset as number) > 0 && (offset as number) < targets.length ? offset as number : 0;
+  const end = Math.min(targets.length, start + size);
+  return { batch: targets.slice(start, end), nextOffset: end >= targets.length ? 0 : end };
+}
+
+/** Run input for junglee/Amazon-crawler (pure). */
+export function competitorRunInput(asins: string[]): Record<string, unknown> {
+  return {
+    categoryOrProductUrls: asins.map((a) => ({ url: `https://www.amazon.in/dp/${a}` })),
+    maxItemsPerStartUrl: 1,
+    maxSearchPagesPerStartUrl: 1,
+    scrapeProductDetails: true,
+    maxProductVariantsAsSeparateResults: 0,
+    scrapeProductVariantPrices: false,
+    maxOffers: 0,
+    scrapeSellers: false,
+    useCaptchaSolver: false,
+    language: "en",
+    // never countryCode / zipCode: $0.06 extra per result
+  };
+}
+
+function firstNumber(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  const m = String(v ?? "").replace(/,/g, "").match(/\d+(?:\.\d+)?/);
+  return m ? Number(m[0]) : null;
+}
+
+/** INR price from {value,currency} | number | "₹1,299.00"; other currencies → null. */
+export function parseInrPrice(p: unknown): number | null {
+  if (p == null) return null;
+  let value: unknown = p;
+  let currency = "";
+  if (typeof p === "object") {
+    value = (p as any).value ?? (p as any).amount ?? null;
+    currency = String((p as any).currency ?? "");
+  } else if (typeof p === "string") {
+    currency = p.replace(/[\d.,\s]/g, "");
+  }
+  if (currency && !/^(₹|inr|rs\.?)$/i.test(currency.trim())) return null;
+  const n = firstNumber(value);
+  return n != null && n > 0 && n < 1_000_000 ? Math.round(n * 100) / 100 : null;
+}
+
+export function asinFromUrl(url: unknown): string | null {
+  const m = String(url ?? "").match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i);
+  return m ? m[1].toUpperCase() : null;
+}
+
+/** One actor item → one snapshot row for a known target, else null. Pure. */
+export function normalizeCompetitorItem(item: any, targets: CompetitorTarget[], takenOn: string): CompetitorSnapshot | null {
+  const byAsin = new Map(targets.map((t) => [t.asin, t]));
+  const candidates = [
+    item?.asin, item?.originalAsin, asinFromUrl(item?.input?.url ?? item?.input), asinFromUrl(item?.url),
+  ].map((a) => String(a ?? "").trim().toUpperCase()).filter(Boolean);
+  const target = candidates.map((a) => byAsin.get(a)).find(Boolean);
+  if (!target) return null;
+  const stars = firstNumber(item?.stars ?? item?.rating);
+  const reviews = firstNumber(item?.reviewsCount ?? item?.ratingsCount ?? item?.reviewCount);
+  return {
+    ...target,
+    brand: target.brand ?? strOrNull(item?.brand, 80),
+    label: target.label ?? strOrNull(item?.title, 160),
+    rating: stars != null && stars >= 0 && stars <= 5 ? Math.round(stars * 100) / 100 : null,
+    review_count: reviews != null && reviews >= 0 ? Math.floor(reviews) : null,
+    price_inr: parseInrPrice(item?.price),
+    taken_on: takenOn,
+    raw: {
+      title: strOrNull(item?.title, 300),
+      brand: strOrNull(item?.brand, 80),
+      url: strOrNull(item?.url, 500),
+      stars_breakdown: item?.starsBreakdown ?? null,
+      list_price: parseInrPrice(item?.listPrice),
+      in_stock: item?.inStock ?? null,
+    },
+  };
+}
+
+/** Real cost of a finished competitor run (largest of usage and PPE results). */
+export function competitorRunCost(run: any, itemCount: number): number {
+  const usage = Number(run?.usageTotalUsd ?? 0) || 0;
+  const evCount = Number(run?.chargedEventCounts?.result ?? 0) || 0;
+  const ppe = Math.max(evCount, itemCount) * COMPETITOR_PRICE_USD;
+  return Math.round(Math.max(usage, ppe) * 10_000) / 10_000;
+}
+
+/** 'YYYY-MM-DD' in IST. */
+export function istDate(t: number): string {
+  return new Date(t + 330 * 60_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Competitor collector. Same shape as fetchAmazon: one Apify run at a time,
+ * parked in cursor.pending_run if still going; spend booked on finish.
+ * cursor.more = another batch is waiting (orm-tick rechecks in 15 min).
+ */
+export async function fetchCompetitors(src: OrmSourceRow, settings: OrmSettingsRow, now: number): Promise<CollectResult> {
+  const token = await apifyToken();
+  if (!token) return { status: "not_connected", mentions: [], cursor: src.cursor ?? {}, note: "APIFY_TOKEN not set" };
+  const month = istMonth(now);
+  const cursor = { ...(src.cursor ?? {}) };
+  const targets = competitorTargets(settings);
+
+  let runId: string | null = cursor.pending_run?.id ?? null;
+  if (!runId) {
+    if (!targets.some((t) => !t.is_ours)) {
+      delete cursor.more;
+      return { status: "not_connected", mentions: [], cursor, note: "no competitor ASINs configured" };
+    }
+    const { batch, nextOffset } = competitorBatch(targets, cursor.offset);
+    const estimateUsd = Math.round(batch.length * COMPETITOR_PRICE_USD * 10_000) / 10_000;
+    const b = amazonBudget(settings, month, estimateUsd);
+    if (!b.ok) {
+      return {
+        status: "budget",
+        mentions: [],
+        cursor,
+        note: `estimate $${estimateUsd} + spent $${b.spent} > budget $${b.budget}`,
+        settingsPatch: b.monthReset ? { apify_month: month, apify_spent_usd: 0 } : undefined,
+      };
+    }
+    const qs = new URLSearchParams({
+      token,
+      maxItems: String(batch.length),
+      maxTotalChargeUsd: b.remaining.toFixed(4),
+    });
+    const res = await fetch(`${APIFY}/acts/${COMPETITOR_ACTOR.replace("/", "~")}/runs?${qs}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(competitorRunInput(batch.map((t) => t.asin))),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(`Apify start HTTP ${res.status}: ${json?.error?.message ?? "unknown"}`);
+    runId = String(json?.data?.id ?? "");
+    if (!runId) throw new Error("Apify start returned no run id");
+    cursor.pending_run = {
+      id: runId,
+      asins: batch.map((t) => t.asin),
+      started_at: new Date(now).toISOString(),
+      estimate_usd: estimateUsd,
+    };
+    cursor.offset = nextOffset;
+  }
+
+  const deadline = Date.now() + AMAZON_WAIT_MS;
+  let run = await apifyGetRun(token, runId);
+  while (!TERMINAL.has(String(run?.status)) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 5_000));
+    run = await apifyGetRun(token, runId);
+  }
+  if (!TERMINAL.has(String(run?.status))) {
+    return { status: "skipped", mentions: [], cursor, note: `Apify run ${runId} still ${run?.status}` };
+  }
+
+  const items = run.defaultDatasetId && run.status === "SUCCEEDED"
+    ? await apifyDatasetItems(run.defaultDatasetId, 100)
+    : [];
+  const takenOn = istDate(now);
+  const byAsin = new Map<string, CompetitorSnapshot>();
+  for (const it of items) {
+    const s = normalizeCompetitorItem(it, targets, takenOn);
+    if (s && !byAsin.has(s.asin)) byAsin.set(s.asin, s);
+  }
+  const snapshots = [...byAsin.values()];
+  const cost = competitorRunCost(run, items.length);
+  const b = amazonBudget(settings, month, 0);
+  const asked: string[] = cursor.pending_run?.asins ?? [];
+  delete cursor.pending_run;
+  cursor.more = Number(cursor.offset ?? 0) > 0;
+  cursor.last_run = {
+    id: runId,
+    status: run.status,
+    cost_usd: cost,
+    items: items.length,
+    missing: asked.filter((a) => !byAsin.has(a)),
+  };
+  // the free plan can refuse an actor with a SUCCEEDED, empty run (axesso did)
+  const note = run.status !== "SUCCEEDED"
+    ? `Apify run ${run.status}`
+    : !items.length
+    ? "Apify run returned no products (free plan limit or Amazon blocked the run)"
+    : undefined;
+  return {
+    status: "ok",
+    mentions: [],
+    snapshots,
+    cursor,
+    note,
+    settingsPatch: { apify_month: month, apify_spent_usd: Math.round((b.spent + cost) * 10_000) / 10_000 },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Instagram / Facebook: phase 3 (Meta app review). Not implemented in v1.
 // ---------------------------------------------------------------------------
 
@@ -870,6 +1136,8 @@ export function collect(src: OrmSourceRow, settings: OrmSettingsRow, now: number
     case "rss": return fetchRss(src);
     case "amazon": return fetchAmazon(src, settings, now);
     case "instagram": return fetchInstagram(src);
+    case "competitors": return fetchCompetitors(src, settings, now);
+    case "whatsapp": return Promise.resolve({ status: "skipped", mentions: [], cursor: src.cursor ?? {}, note: "fed by the WhatsApp review ask, not collected" });
     default: return Promise.resolve({ status: "skipped", mentions: [], cursor: src.cursor ?? {}, note: "unknown source" });
   }
 }
