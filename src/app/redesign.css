@@ -90,7 +90,7 @@ body{font-family:var(--pm-font);font-size:16px;line-height:1.5;color:var(--pm-in
 .pm2-app.rail .pm3-side{padding:18px 12px 12px}
 .pm2-app.rail .pm3-brand{justify-content:center;padding:4px 0 16px}
 .pm2-app.rail .pm3-brand img{width:44px;height:auto;object-fit:contain}
-.pm2-app.rail .pm3-brand span,.pm2-app.rail .lb,.pm2-app.rail .pm3-maya kbd,.pm2-app.rail .pm3-sec-t,.pm2-app.rail .pm3-me .who,.pm2-app.rail .pm3-me .pm2-icbtn,.pm2-app.rail .pm3-tagline{display:none}
+.pm2-app.rail .pm3-brand span,.pm2-app.rail .pm3-side .lb,.pm2-app.rail .pm3-maya kbd,.pm2-app.rail .pm3-sec-t,.pm2-app.rail .pm3-me .who,.pm2-app.rail .pm3-me .pm2-icbtn,.pm2-app.rail .pm3-tagline{display:none}
 .pm2-app.rail .pm3-maya,.pm2-app.rail .pm3-nav{justify-content:center;padding:0}
 .pm2-app.rail .pm3-nav .bd{position:absolute;top:6px;right:8px;min-width:0;width:8px;height:8px;padding:0;font-size:0;background:var(--pm-brand)}
 .pm2-app.rail .pm3-me{justify-content:center;padding:10px 0 4px}
