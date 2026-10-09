@@ -258,7 +258,7 @@ describe("P1 routes added Oct 9 (reports, KB ask, deals, saved answers, buyers)"
   it("maps each new route to its area", () => {
     expect(apiRule("/api/inbox/tickets/reports")?.modules).toEqual(["inbox"]);
     expect(apiRule("/api/whatsapp/kb/ask")?.modules).toEqual(["bot_knowledge"]);
-    expect(apiRule("/api/deals")?.modules).toEqual(["partners"]);
+    expect(apiRule("/api/deals")?.modules).toEqual(["partners", "inbox"]);
     expect(apiRule("/api/assistant/saved/abc")?.modules).toEqual(["home"]);
     expect(apiRule("/api/metrics/buyers")?.modules).toEqual(["sales"]);
     expect(pageModule("/dashboard/inbox/reports", null)).toBe("inbox");
@@ -271,5 +271,6 @@ describe("P1 routes added Oct 9 (reports, KB ask, deals, saved answers, buyers)"
     expect(canCallApi(as(["bot_knowledge"]), "/api/whatsapp/kb/ask", "GET")).toBe(true);
     expect(canCallApi(as(["partners"]), "/api/deals", "POST")).toBe(true);
     expect(canCallApi(as(["sales"]), "/api/deals", "POST")).toBe(false);
+    expect(canCallApi(as(["inbox"]), "/api/deals", "POST")).toBe(true);
   });
 });
