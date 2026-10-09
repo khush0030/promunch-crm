@@ -45,7 +45,7 @@ export function ProfilePanel() {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((p: Profile) => {
         setProfile(p);
-        setName(p.full_name || p.display_name || "");
+        setName(p.full_name || "");
       })
       .catch(() => setLoadErr(true));
   }, []);
@@ -192,7 +192,7 @@ export function ProfilePanel() {
               value={name}
               maxLength={PROFILE_NAME_MAX + 10}
               autoComplete="name"
-              placeholder="Priya Sharma"
+              placeholder={profile?.display_name || "Priya Sharma"}
               onChange={(e) => setName(e.target.value)}
               aria-invalid={!check.ok}
             />

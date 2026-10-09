@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireSession } from '@/lib/leads/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { IG_OFF_BODY, isMissingTable } from "@/lib/instagram/ig-off";
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +54,7 @@ export async function GET() {
     .select('id, kind, query, status, items_count, usage_usd, error, created_at, finished_at')
     .order('created_at', { ascending: false })
     .limit(20);
+  if (isMissingTable(error)) return NextResponse.json(IG_OFF_BODY);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ runs: runs ?? [] });
 }

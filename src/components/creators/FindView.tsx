@@ -99,6 +99,7 @@ export default function FindView({ onGoOutreach }: { onGoOutreach: () => void })
       ]);
       const pd = await pr.json().catch(() => ({}));
       if (!pr.ok) throw new Error(pd.error || "load failed");
+      if (pd.off === true) { setOff(true); setLoadErr(null); return; }
       setProspects(pd.prospects ?? []);
       setStatusCounts(pd.statusCounts ?? {});
       setTotal(pd.total ?? 0);

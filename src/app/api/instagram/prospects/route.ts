@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireSession } from '@/lib/leads/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ilikeContains } from '@/lib/inbox/search';
+import { IG_OFF_BODY, isMissingTable } from "@/lib/instagram/ig-off";
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { data: prospects, count, error } = await query;
+  if (isMissingTable(error)) return NextResponse.json(IG_OFF_BODY);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const statusCounts: Record<string, number> = {};

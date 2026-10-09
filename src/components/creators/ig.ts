@@ -84,6 +84,9 @@ async function getJson<T>(url: string): Promise<T> {
   const r = await fetch(url, { cache: "no-store" });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new IgError(d.error || `${url} answered ${r.status}`);
+  // Routes answer 200 { off: true } while the Instagram tables are not
+  // migrated (src/lib/instagram/ig-off.ts); keep treating that as "off".
+  if (d && d.off === true) throw new IgError(`Could not find the table: ${d.error ?? "instagram"}`);
   return d as T;
 }
 
@@ -93,7 +96,7 @@ export function useIgCounts() {
     queryKey: ["ig", "prospect-counts"],
     queryFn: () => getJson<{ total: number; statusCounts: Record<string, number> }>("/api/instagram/prospects?limit=1"),
     retry: false,
-    refetchInterval: 300_000,
+    refetchInterval: (q) => (isIgOff(q.state.error?.message) ? false : 300_000),
   });
   const threads = useQuery({
     queryKey: ["ig", "collab-counts"],
@@ -102,13 +105,13 @@ export function useIgCounts() {
         "/api/instagram/threads?tab=collab&limit=1",
       ),
     retry: false,
-    refetchInterval: 300_000,
+    refetchInterval: (q) => (isIgOff(q.state.error?.message) ? false : 300_000),
   });
   const followups = useQuery({
     queryKey: ["ig", "followups"],
     queryFn: () => getJson<FollowupsResponse>("/api/instagram/followups"),
     retry: false,
-    refetchInterval: 300_000,
+    refetchInterval: (q) => (isIgOff(q.state.error?.message) ? false : 300_000),
   });
   const err = prospects.error ?? threads.error ?? followups.error;
   const off = isIgOff(err?.message);

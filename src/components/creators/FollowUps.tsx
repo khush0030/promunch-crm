@@ -16,6 +16,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, ExternalLink, Send, SkipForward } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import type { Followup, FollowupsResponse } from "./ig";
+import { isIgOff } from "./ig";
 import s from "./creators.module.css";
 
 const CHANNEL_LABEL: Record<string, string> = {
@@ -41,10 +42,12 @@ export function useFollowups() {
       const r = await fetch(`/api/instagram/followups`, { cache: "no-store" });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "load failed");
+      // Same "not switched on" contract as useIgCounts (shared query key).
+      if (d.off === true) throw new Error(`Could not find the table: ${d.error ?? "instagram"}`);
       return d;
     },
     retry: false,
-    refetchInterval: 300_000,
+    refetchInterval: (q) => (isIgOff(q.state.error?.message) ? false : 300_000),
   });
 }
 

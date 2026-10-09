@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/leads/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { IG_OFF_BODY, isMissingTable } from "@/lib/instagram/ig-off";
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,7 @@ export async function GET() {
   ]);
 
   const err = awaiting.error ?? escalated.error ?? scheduled.error;
+  if (isMissingTable(err)) return NextResponse.json(IG_OFF_BODY);
   if (err) return NextResponse.json({ error: err.message }, { status: 500 });
 
   return NextResponse.json({
