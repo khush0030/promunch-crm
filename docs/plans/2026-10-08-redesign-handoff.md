@@ -1,9 +1,30 @@
 # Redesign handoff: continue in any session (local or cloud)
 
-**Keep this file current.** Updated at every milestone. Last update: **9 Oct 2026**, branch `redesign/app-v2` @ see `git log -1`.
+**Keep this file current.** Updated at every milestone. Last update: **9 Oct 2026 (night)**, branch `redesign/app-v2` @ see `git log -1`.
 
 Read first: `AGENTS.md`, `CLAUDE.md`, `promunch-email-agent/CLAUDE.md` §0 (never message a customer twice).
 
+
+## Update 9 Oct 2026 (night): spacious + colour-coded pass, Inbox / Deals / B2B rebuilt. LIVE
+
+main = 4443b12, live on admin.promunch.in. Rollback: promote promunch-jfqqjpvom in Vercel.
+Data backup before migrations: ~/Projects/promunch-backups-20261009 (deals, lead + draft statuses).
+
+- UI foundation: every small font +1px (dashboard UI only), darker muted text, fluid gutter caps
+  content at ~1560px, 112% scale at >=2200px wide, `<Tag kind|tone>` soft chips (src/components/pm/Tag.tsx,
+  tokens `--tag-*` in redesign.css). One colour per meaning; status pills/badges tinted again.
+- Inbox: default view "Waiting on us"; per-chat drafts (no wrong-customer send); newest 500 msgs;
+  one owner field; 24h bar in 3-pane; inline email approve (same atomic route); Make it a deal.
+  Owner decisions: Enter = new line (Cmd/Ctrl+Enter sends); Mark solved keeps chat with the person
+  (no auto bot resume). Open proposals: Hand back to bot also solve ticket? Waiting on us bot chats?
+- Deals: stages new/talking/samples/negotiating/won + lost/on_hold (reason); follow_up_at, owner,
+  value_inr, phone, source, deal_activity log; POST /api/deals dedupes; ?deal=<id>; deal-scan no
+  longer overrides human decisions (deployed). Migration 20261010100000 APPLIED.
+- B2B: Find > Lists > Approve > Replies > Settings. Tick never drafts; Write only for ticked; Don't send
+  = skipped forever; every send through b2b_claim_send RPC + unique indexes. pg_cron b2b-leads-tick
+  now */2. Migration 20261010110000 APPLIED. 408 old auto-drafts (Jun-Sep) wait in Approve.
+- Known: "81 need a follow-up today" is from old scanner flags, settles after scans; some old AI fit
+  reasons contain em dashes (stored data).
 
 ## Update 9 Oct 2026 (day session), branch head d0308ee
 
