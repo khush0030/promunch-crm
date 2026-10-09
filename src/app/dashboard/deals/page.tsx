@@ -2,9 +2,10 @@
 
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Handshake, LayoutGrid, List } from "lucide-react";
+import { Handshake, LayoutGrid, List, Plus } from "lucide-react";
 import { EmptyState, PageHeader, SearchBar, StatusBadge } from "@/components/pm";
 import { DealDrawer } from "@/components/deals/DealDrawer";
+import { NewDealDrawer } from "@/components/deals/NewDealDrawer";
 import DealsBoard from "@/components/deals/DealsBoard";
 import {
   ALL_KINDS,
@@ -68,6 +69,7 @@ export default function DealsPage() {
   const [onlyFollowUp, setOnlyFollowUp] = useState(false);
   const [q, setQ] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["deals"],
@@ -206,6 +208,9 @@ export default function DealsPage() {
             >
               {scanNow.isPending ? "Scanning…" : "Scan now"}
             </button>
+            <button type="button" className="pm2-btn pri" onClick={() => setAdding(true)}>
+              <Plus size={15} aria-hidden /> New deal
+            </button>
           </>
         }
       />
@@ -328,6 +333,16 @@ export default function DealsPage() {
       </div>
 
       {openId && <DealDrawer dealId={openId} onClose={() => setOpenId(null)} />}
+      {adding && (
+        <NewDealDrawer
+          onClose={() => setAdding(false)}
+          onCreated={(deal) => {
+            setAdding(false);
+            qc.invalidateQueries({ queryKey: ["deals"] });
+            setOpenId(deal.id);
+          }}
+        />
+      )}
     </div>
   );
 }

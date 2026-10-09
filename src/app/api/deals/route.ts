@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/leads/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { parseNewDeal } from "@/lib/deals/create";
 
 export const dynamic = "force-dynamic";
 
@@ -26,4 +27,26 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ deals: deals ?? [], scan: scan ?? null });
+}
+
+// POST /api/deals — add a deal by hand ("New deal" drawer). Validates in
+// src/lib/deals/create.ts. Writes one deals row; never emails anyone.
+// Session-gated here and by the middleware; mapped to the B2B area under
+// /api/deals in src/lib/access.ts.
+export async function POST(req: Request) {
+  const denied = await requireSession();
+  if (denied) return denied;
+
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "bad json" }, { status: 400 });
+  }
+  const parsed = parseNewDeal(body);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+
+  const { data, error } = await supabaseAdmin.from("deals").insert(parsed.row).select().single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ deal: data }, { status: 201 });
 }
