@@ -23,6 +23,8 @@ import {
 import { PageHeader, Card, Table, StackBar, Callout, PeriodPicker, ConfirmDialog, KpiStrip, Kpi } from "@/components/pm";
 import type { TableCol, StackPart } from "@/components/pm";
 import { CallRules } from "./CallRules";
+import { useAccess } from "@/components/shell/useAccess";
+import { canOpenHref } from "@/lib/access";
 import { formatINR } from "@/lib/metrics/money";
 import { initials } from "@/lib/pm/avatar";
 import { useToast } from "@/components/ui/Toast";
@@ -253,6 +255,10 @@ function OrdersPageInner() {
   const toast = useToast();
   const period = parsePeriod(params.get("period"));
   const tab = parseTab(params.get("tab"));
+  // Call rules read WhatsApp flow settings (WhatsApp marketing area); show a
+  // plain no-access card instead of a page of 403 errors for other members.
+  const access = useAccess();
+  const canRules = !access || canOpenHref(access, "/dashboard/whatsapp?tab=flows");
   const hours = HOURS[period];
 
   const setQuery = useCallback(
@@ -495,7 +501,11 @@ function OrdersPageInner() {
       <>
         {header}
         <div className="pm2-body">
-          <CallRules />
+          {canRules ? (
+            <CallRules />
+          ) : (
+            <Callout title="Call rules are managed by the WhatsApp team" body="Ask an admin for WhatsApp marketing access to change when COD and cart calls go out." />
+          )}
         </div>
       </>
     );

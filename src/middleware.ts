@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { safeAuthNext } from "@/lib/auth-options";
 import { isAllowedEmail } from "@/lib/auth-domains";
 import { authCookieOptions } from "@/lib/auth-options";
 import { accessOf, canCallApi, canOpenPage, landingFor } from "@/lib/access";
@@ -91,17 +92,20 @@ export async function middleware(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
     if (!isPublic && !isApi && !isStatic) {
+      // Keep the query (?tab=, ?deal=, ?m=) so deep links survive sign-in.
+      const next = path + req.nextUrl.search;
       const url = req.nextUrl.clone();
       url.pathname = "/login";
-      url.searchParams.set("next", path);
+      url.search = "";
+      url.searchParams.set("next", next);
       return NextResponse.redirect(url);
     }
   }
 
   if (user && path === "/login") {
-    const url = req.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    // Already signed in: go where the login link pointed (same-origin only).
+    const dest = new URL(safeAuthNext(req.nextUrl.searchParams.get("next")), req.nextUrl.origin);
+    return NextResponse.redirect(dest);
   }
 
   // Per-area access (src/lib/access.ts). Only members an admin restricted are

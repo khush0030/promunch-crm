@@ -6,9 +6,11 @@ import { caller, isResponse, bad, migrationHint } from "@/lib/email-studio/route
 
 export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(_req: NextRequest, { params }: Ctx) {
   const { id } = await params;
+  if (!UUID_RE.test(id)) return bad("not found", 404);
   const { data, error } = await supabase.from("email_studio_templates").select("*").eq("id", id).maybeSingle();
   if (error) return bad(migrationHint(error.message), 500);
   if (!data) return bad("not found", 404);
@@ -19,6 +21,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   const me = await caller();
   if (isResponse(me)) return me;
   const { id } = await params;
+  if (!UUID_RE.test(id)) return bad("not found", 404);
   const body = await parseBody<{ name?: string; design?: unknown; subject?: string; preview_text?: string; category?: string }>(req);
   if (!body) return bad("invalid JSON body");
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -45,6 +48,7 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
   const me = await caller();
   if (isResponse(me)) return me;
   const { id } = await params;
+  if (!UUID_RE.test(id)) return bad("not found", 404);
   const { error } = await supabase.from("email_studio_templates").delete().eq("id", id);
   if (error) return bad(migrationHint(error.message), 500);
   return NextResponse.json({ ok: true });
