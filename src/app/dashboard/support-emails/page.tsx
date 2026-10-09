@@ -167,7 +167,7 @@ export default function SupportEmailsPage() {
             <Avatar name={name} size={30} />
             <div>
               <div className="pm-b7">{name}</div>
-              <div className="pm-dim" style={{ fontSize: 11 }}>{t.from_email}</div>
+              <div className="pm-dim" style={{ fontSize: 12 }}>{t.from_email}</div>
             </div>
           </div>
         );
@@ -182,7 +182,7 @@ export default function SupportEmailsPage() {
             {t.subject || "(no subject)"}
           </div>
           {t.snippet && (
-            <div className="pm-dim" style={{ fontSize: 11.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <div className="pm-dim" style={{ fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {t.snippet}
             </div>
           )}
@@ -304,7 +304,7 @@ export default function SupportEmailsPage() {
 
       {pages > 1 && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14 }}>
-          <span className="pm-dim" style={{ fontSize: 12.5 }}>
+          <span className="pm-dim" style={{ fontSize: 13.5 }}>
             Page {page} of {pages}
           </span>
           <div style={{ display: "flex", gap: 6 }}>

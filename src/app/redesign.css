@@ -15,7 +15,7 @@
 :root[data-theme="light"] {
   --pm-app:#F4F1EA; --pm-card:#FFFFFF; --pm-card2:#FAF8F3; --pm-card3:#F1EDE4;
   --pm-border:#E7E2D8; --pm-line:#EFEBE3;
-  --pm-ink:#1A1714; --pm-ink2:#3B342E; --pm-muted:#5C554E; --pm-hint:#6F675F;
+  --pm-ink:#1A1714; --pm-ink2:#3B342E; --pm-muted:#4D4640; --pm-hint:#645C55;
   --pm-brand:#AF272F; --pm-brand-deep:#8E1F26; --pm-brand-ink:#FFFFFF; --pm-brand-soft:#F8E7E5; --pm-brand-line:#EBC6C4;
   --pm-green:#2E7D46; --pm-green-soft:#E4F1E7;
   --pm-gold:#A96500;  --pm-gold-soft:#FCEFD6;
@@ -32,7 +32,7 @@
   --pm-display:var(--font-display),"Arial Black",sans-serif;
   --pm-mono:var(--font-mono),ui-monospace,Menlo,monospace;
   --pm-h1:30px; --pm-kpi:32px; --pm-h3:17px; --pm-body:15.5px; --pm-label:14px; --pm-caption:13px;
-  --pm3-side:248px; --pm3-rail:76px; --pm3-gutter:40px;
+  --pm3-side:248px; --pm3-rail:76px; --pm3-gutter:max(40px, calc((100% - 1560px) / 2));
   color-scheme:light;
 }
 html{background:var(--pm-app)}
@@ -133,7 +133,7 @@ body{font-family:var(--pm-font);font-size:16px;line-height:1.5;color:var(--pm-in
 .pm3-sheet-item .ic svg{width:20px;height:20px;color:var(--pm-ink2)}
 .pm3-sheet-item .tx{display:flex;flex-direction:column;min-width:0}
 .pm3-sheet-item .tx b{font-size:16px}
-.pm3-sheet-item .tx span{font-size:14px;color:var(--pm-muted)}
+.pm3-sheet-item .tx span{font-size:15px;color:var(--pm-muted)}
 .pm3-sheet-item.on .ic{background:var(--pm-brand-soft)}
 .pm3-sheet-item.on .ic svg{color:var(--pm-brand)}
 
@@ -150,7 +150,7 @@ body{font-family:var(--pm-font);font-size:16px;line-height:1.5;color:var(--pm-in
   .pm3-sectabs a.on::after{left:11px;right:11px}
   .pm2-tabs{padding-right:40px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent)}
   .pm3-sectabs+.pm2-tabs{padding-left:var(--pm3-gutter)}
-  .pm3-sectabs+.pm2-tabs button{padding:6px 11px;font-size:14px}
+  .pm3-sectabs+.pm2-tabs button{padding:6px 11px;font-size:15px}
   .pm3-top{padding:calc(10px + env(safe-area-inset-top)) 16px 8px;gap:8px;background:var(--pm-app)}
   .pm3-top-logo{display:flex;align-items:center;margin-right:auto}
   .pm3-top-logo img{height:18px;width:auto}
@@ -177,7 +177,7 @@ body{font-family:var(--pm-font);font-size:16px;line-height:1.5;color:var(--pm-in
 .pm2-btn.pri:hover,.pm-btn.primary:hover{background:var(--pm-brand-deep);border-color:var(--pm-brand-deep)}
 .pm2-btn.dark{background:var(--pm-ink);border-color:var(--pm-ink);color:#fff}
 .pm2-btn.ghost,.pm-btn.ghost{background:transparent;border-color:transparent;color:var(--pm-ink2)}
-.pm2-btn.sm,.pm-btn.sm{padding:6px 12px;font-size:14px;border-radius:11px}
+.pm2-btn.sm,.pm-btn.sm{padding:6px 12px;font-size:15px;border-radius:11px}
 .pm2-btn svg,.pm-btn svg{width:16px;height:16px}
 .pm-btn.danger{background:var(--pm-card);color:var(--pm-terra);border-color:var(--pm-brand-line)}
 .pm-btn.danger.soft{background:transparent}
@@ -189,8 +189,8 @@ body{font-family:var(--pm-font);font-size:16px;line-height:1.5;color:var(--pm-in
 .pm2-seg button.on,.pm-ranges button.on{background:var(--pm-card);color:var(--pm-ink);box-shadow:0 1px 3px rgba(26,23,20,.12)}
 .pm2-chip{padding:7px 14px;font:700 14px var(--pm-font);color:var(--pm-ink2);border-color:var(--pm-border)}
 .pm2-chip.on{background:var(--pm-ink);border-color:var(--pm-ink);color:#fff}
-.pm2-chip em{font-size:12px}
-.pm2-cmp{font-size:13px;color:var(--pm-muted)}
+.pm2-chip em{font-size:13px}
+.pm2-cmp{font-size:14px;color:var(--pm-muted)}
 
 /* page header: mono eyebrow, UPPERCASE display title, calm and not sticky */
 .pm2-top{position:static;background:none;-webkit-backdrop-filter:none;backdrop-filter:none;border-bottom:0;padding:18px var(--pm3-gutter) 14px;align-items:flex-end;gap:16px 24px}
@@ -211,7 +211,9 @@ body{font-family:var(--pm-font);font-size:16px;line-height:1.5;color:var(--pm-in
 .pm3-sectabs+.pm2-tabs{border-bottom:0;padding-top:10px}
 .pm3-sectabs+.pm2-tabs button{padding:7px 13px;border-radius:999px;border:0;font-size:15px}
 .pm3-sectabs+.pm2-tabs button.on{background:var(--pm-ink);color:#fff}
-.pm2-body{padding:22px var(--pm3-gutter) 48px;gap:20px}
+.pm2-body{padding:26px var(--pm3-gutter) 56px;gap:24px}
+/* Work surfaces (Inbox panes) use the full width instead of the reading cap. */
+.pm2-wide{--pm3-gutter:28px}
 
 /* legacy page head (pm-page / pm-head) */
 .pm-page{background:var(--pm-app);padding:18px var(--pm3-gutter) 48px;font-family:var(--pm-font)}
@@ -227,7 +229,7 @@ body{font-family:var(--pm-font);font-size:16px;line-height:1.5;color:var(--pm-in
 .pm2-p-head .basis{font:600 12px var(--pm-mono);color:var(--pm-muted)}
 .pm2-p-body{padding:14px 22px 22px}
 .pm2-p-body.flush{padding:14px 0 0}
-.pm2-p-foot{padding:12px 22px;font-size:14.5px;color:var(--pm-ink2)}
+.pm2-p-foot{padding:12px 22px;font-size:15.5px;color:var(--pm-ink2)}
 .pm2-g2,.pm2-g3,.pm2-g21,.pm2-g12{gap:20px}
 .pm2-skel{border-radius:var(--pm-r)}
 
@@ -236,38 +238,49 @@ body{font-family:var(--pm-font);font-size:16px;line-height:1.5;color:var(--pm-in
 .pm2-kpi{padding:18px 22px}
 .pm2-kpi .l{font:700 11.5px var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-muted)}
 .pm2-kpi .v{font:400 var(--pm-kpi)/1.05 var(--pm-display);letter-spacing:-.01em;margin:10px 0 6px}
-.pm2-kpi .s{font-size:14px;color:var(--pm-ink2)}
+.pm2-kpi .s{font-size:15px;color:var(--pm-ink2)}
 .pm-kpi{border-radius:var(--pm-r);padding:18px 20px}
 .pm-kpi .lab{font:700 11.5px var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-muted)}
 .pm-kpi .num{font:400 var(--pm-kpi)/1.05 var(--pm-display);letter-spacing:-.01em}
 .pm-kpi .ic{display:none}
-.pm-kpi .sub{font-size:13.5px;color:var(--pm-ink2)}
-.pm2-dl{font-size:12.5px;background:none!important;padding:0}
+.pm-kpi .sub{font-size:14.5px;color:var(--pm-ink2)}
+.pm2-dl{font-size:13.5px;background:none!important;padding:0}
 
-/* status: coloured text + small dot, never a filled block */
-.pm2-pill{background:none!important;box-shadow:none!important;padding:0;border-radius:0;font:700 14.5px/1.3 var(--pm-font);gap:6px}
+/* status: soft tinted chip, colour = meaning (Oct 9 owner ask; was text-only) */
+.pm2-pill{box-shadow:none!important;padding:5px 10px;border-radius:999px;font:600 13px/1.2 var(--pm-font);gap:6px}
 .pm2-pill::before{width:7px;height:7px}
-.pm2-pill.neu{color:var(--pm-muted)}
-.pm2-pill.neu::before{background:var(--pm-hint)}
-.pm-badge2,.pm-pill{background:none!important;border:0!important;padding:0!important;font-weight:700}
+.pm2-pill.good{background:var(--tag-green-bg)!important;color:var(--tag-green-ink)}
+.pm2-pill.warn{background:var(--tag-amber-bg)!important;color:var(--tag-amber-ink)}
+.pm2-pill.crit{background:var(--tag-red-bg)!important;color:var(--tag-red-ink)}
+.pm2-pill.info{background:var(--tag-blue-bg)!important;color:var(--tag-blue-ink)}
+.pm2-pill.brand{background:var(--tag-brand-bg)!important;color:var(--tag-brand-ink)}
+.pm2-pill.neu{background:var(--tag-grey-bg)!important;color:var(--tag-grey-ink)}
+.pm2-pill.neu::before{background:currentColor}
+.pm-badge2{border:0!important;padding:5px 10px!important;border-radius:999px;font-weight:600;font-size:13px}
+.pm-badge2.bg-green{background:var(--tag-green-bg)!important;color:var(--tag-green-ink)}
+.pm-badge2.bg-gold{background:var(--tag-amber-bg)!important;color:var(--tag-amber-ink)}
+.pm-badge2.bg-terra{background:var(--tag-red-bg)!important;color:var(--tag-red-ink)}
+.pm-badge2.bg-blue{background:var(--tag-blue-bg)!important;color:var(--tag-blue-ink)}
+.pm-badge2.bg-gray{background:var(--tag-grey-bg)!important;color:var(--tag-grey-ink)}
+.pm-pill{background:none!important;border:0!important;padding:0!important;font-weight:700}
 
 /* tables: full width, mono column labels, 60px rows, readable secondary line */
 table.pm2-tbl,.pm-tbl{font-size:15.5px}
 .pm2-tbl th,.pm-tbl th{font:700 11px/1.2 var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-muted);padding:14px 16px;border-bottom:1px solid var(--pm-border);background:none}
 .pm2-tbl td,.pm-tbl td{padding:14px 16px;border-bottom:1px solid var(--pm-line)}
-.pm2-tbl td .sub{font-size:14px;color:var(--pm-muted);margin-top:1px}
+.pm2-tbl td .sub{font-size:15px;color:var(--pm-muted);margin-top:1px}
 .pm2-tbl tbody tr:hover td{background:var(--pm-card2)}
 .pm2-tbl tr.hl td,.pm2-rowc.hl{background:var(--pm-card2)}
 .pm2-tbl tr.hl td:first-child{box-shadow:inset 3px 0 0 var(--pm-brand)}
 .pm2-rowc{padding:14px 16px}
-.pm2-rowc .m{font-size:14px;color:var(--pm-ink2)}
+.pm2-rowc .m{font-size:15px;color:var(--pm-ink2)}
 .pm2-empty{font-size:15px;color:var(--pm-muted);padding:28px}
 
 /* attention list */
 .pm2-att{padding:14px 22px;gap:4px 14px}
 .pm2-att .ic{width:36px;height:36px;border-radius:11px}
 .pm2-att .t{font-size:16px;font-weight:700}
-.pm2-att .c{font-size:14.5px;color:var(--pm-ink2)}
+.pm2-att .c{font-size:15.5px;color:var(--pm-ink2)}
 
 /* callouts: quiet card, not a coloured slab */
 .pm2-callout{border-radius:16px;padding:14px 18px;background:var(--pm-card)}
@@ -275,13 +288,13 @@ table.pm2-tbl,.pm-tbl{font-size:15.5px}
 /* yellow is Maya's alone: a "sun" callout reads as an amber heads-up */
 .pm2-callout.sun{background:#FFFAF0;border-color:#F3E2BE}
 .pm2-callout .t{font-weight:700;font-size:16px}
-.pm2-callout .c{font-size:14.5px;color:var(--pm-ink2)}
+.pm2-callout .c{font-size:15.5px;color:var(--pm-ink2)}
 
 /* charts */
 .pm2-chart text{font:500 12px var(--pm-mono);fill:var(--pm-muted)}
 .pm2-chart text.lbl{font:700 13px var(--pm-font);fill:var(--pm-ink)}
-.pm2-legend{font-size:14px;color:var(--pm-ink2)}
-.pm2-hb,.pm2-fn,.pm2-money{font-size:14.5px}
+.pm2-legend{font-size:15px;color:var(--pm-ink2)}
+.pm2-hb,.pm2-fn,.pm2-money{font-size:15.5px}
 
 /* dialogs, sheets, palette */
 .pm2-dialog{border-radius:24px;padding:26px;box-shadow:var(--pm-shadow-pop)}
@@ -293,7 +306,7 @@ table.pm2-tbl,.pm-tbl{font-size:15.5px}
 .pm2-cmdk .q{padding:16px 18px}
 .pm2-cmdk .q input{font-size:17px}
 .pm2-cmdk .it{padding:10px 18px;font-size:15.5px}
-.pm2-cmdk .it small{font-size:13.5px;color:var(--pm-muted)}
+.pm2-cmdk .it small{font-size:14.5px;color:var(--pm-muted)}
 .pm2-cmdk h6{font:700 11px var(--pm-mono);letter-spacing:.14em;color:var(--pm-muted);padding:12px 18px 4px}
 
 @media (max-width:760px){
@@ -324,3 +337,31 @@ table.pm2-tbl,.pm-tbl{font-size:15.5px}
 /* a table inside a card is part of the card: no second box */
 .pm-panel .pm-tablewrap,.pm2-panel .pm-tablewrap{border:0;border-radius:0;background:none}
 table.pm-tbl th{background:none}
+
+/* ---------- 4. colour-coded tags (Oct 9) ----------
+   Soft tint + same-hue ink. One colour per meaning app-wide; see
+   src/components/pm/Tag.tsx for the meaning -> colour map. */
+:root{
+  --tag-green-bg:#E3F2E7;  --tag-green-ink:#22663A;
+  --tag-blue-bg:#E2ECFA;   --tag-blue-ink:#2456A6;
+  --tag-red-bg:#FBE4E1;    --tag-red-ink:#A3231C;
+  --tag-amber-bg:#FCEFD3;  --tag-amber-ink:#8A5300;
+  --tag-purple-bg:#EEE7FA; --tag-purple-ink:#5B3EA6;
+  --tag-teal-bg:#DDF1EF;   --tag-teal-ink:#17675F;
+  --tag-pink-bg:#FBE5F0;   --tag-pink-ink:#A02A68;
+  --tag-brand-bg:#F8E7E5;  --tag-brand-ink:#AF272F;
+  --tag-grey-bg:#EFECE6;   --tag-grey-ink:#4D4640;
+}
+.pm-tag{display:inline-flex;align-items:center;gap:6px;font-family:var(--pm-font);font-size:13px;font-weight:600;line-height:1;padding:6px 10px;border-radius:999px;white-space:nowrap;background:var(--tg-bg);color:var(--tg-ink);vertical-align:middle}
+.pm-tag.sm{font-size:12px;padding:4px 8px;gap:5px}
+.pm-tag svg{width:13px;height:13px;flex:none}
+.pm-tag>i{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.pm-tag.t-green{--tg-bg:var(--tag-green-bg);--tg-ink:var(--tag-green-ink)}
+.pm-tag.t-blue{--tg-bg:var(--tag-blue-bg);--tg-ink:var(--tag-blue-ink)}
+.pm-tag.t-red{--tg-bg:var(--tag-red-bg);--tg-ink:var(--tag-red-ink)}
+.pm-tag.t-amber{--tg-bg:var(--tag-amber-bg);--tg-ink:var(--tag-amber-ink)}
+.pm-tag.t-purple{--tg-bg:var(--tag-purple-bg);--tg-ink:var(--tag-purple-ink)}
+.pm-tag.t-teal{--tg-bg:var(--tag-teal-bg);--tg-ink:var(--tag-teal-ink)}
+.pm-tag.t-pink{--tg-bg:var(--tag-pink-bg);--tg-ink:var(--tag-pink-ink)}
+.pm-tag.t-brand{--tg-bg:var(--tag-brand-bg);--tg-ink:var(--tag-brand-ink)}
+.pm-tag.t-grey{--tg-bg:var(--tag-grey-bg);--tg-ink:var(--tag-grey-ink)}

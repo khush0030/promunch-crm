@@ -13,7 +13,7 @@
 .checksOk { color: var(--pm-green); }
 .checksBad { color: var(--pm-terra); }
 .issues { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--pm-line); }
-.issue { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; line-height: 1.45; padding: 10px 0; border-bottom: 1px solid var(--pm-line); color: var(--pm-ink2); }
+.issue { display: flex; gap: 10px; align-items: flex-start; font-size: 15.5px; line-height: 1.45; padding: 10px 0; border-bottom: 1px solid var(--pm-line); color: var(--pm-ink2); }
 .issue svg { flex: none; width: 16px; height: 16px; margin-top: 2px; }
 .issueBlock svg { color: var(--pm-terra); }
 .issueWarn svg { color: var(--pm-gold); }
@@ -34,7 +34,7 @@
 .icOffer { background: var(--pm-green-soft); color: var(--pm-green); }
 .tx { flex: 1; min-width: 0; }
 .tx b { display: block; font-weight: 700; font-size: 16px; line-height: 1.35; overflow-wrap: anywhere; }
-.tx p { margin: 2px 0 0; font-size: 14px; color: var(--pm-muted); line-height: 1.4; }
+.tx p { margin: 2px 0 0; font-size: 15px; color: var(--pm-muted); line-height: 1.4; }
 .picked .tx b { color: var(--pm-ink); }
 .picked .ic { box-shadow: 0 0 0 2px var(--pm-card), 0 0 0 4px var(--pm-ink); }
 .editing { font: 700 11px var(--pm-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--pm-ink2); white-space: nowrap; }
@@ -47,10 +47,10 @@
 .statrows { margin-top: 8px; }
 .srow { display: flex; align-items: baseline; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--pm-line); }
 .srow:last-child { border-bottom: 0; }
-.srow span { flex: 1; font-size: 14.5px; color: var(--pm-muted); }
+.srow span { flex: 1; font-size: 15.5px; color: var(--pm-muted); }
 .srow b { font: 400 20px var(--pm-display); color: var(--pm-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .srow em { font-style: normal; font: 600 13px var(--pm-font); color: var(--pm-muted); margin-left: 6px; }
-.foot { margin: 10px 0 0; font-size: 13px; color: var(--pm-hint); }
+.foot { margin: 10px 0 0; font-size: 14px; color: var(--pm-hint); }
 
 /* who gets it */
 .who summary { cursor: pointer; font-weight: 700; font-size: var(--pm-h3); list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 10px; }

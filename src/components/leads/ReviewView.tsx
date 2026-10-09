@@ -225,7 +225,7 @@ export default function ReviewView({
                   {lead.fit_score >= 70 ? "Good fit" : lead.fit_score >= 50 ? "Maybe" : "Weak fit"} · {lead.fit_score}/100
                 </span>
               ) : "Not scored"}
-              {lead.fit_reason ? <div className={s.muted} style={{ fontSize: 14, marginTop: 4 }}>{lead.fit_reason}</div> : null}
+              {lead.fit_reason ? <div className={s.muted} style={{ fontSize: 15, marginTop: 4 }}>{lead.fit_reason}</div> : null}
             </dd>
             {lead.products?.length ? (<><dt>Pitching</dt><dd>{lead.products.join(", ")}</dd></>) : null}
           </dl>

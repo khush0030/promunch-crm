@@ -11,7 +11,7 @@
 .cardPad{padding:22px}
 .secH{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:26px 0 10px}
 .secH h2{margin:0;font:700 17px/1.3 var(--pm-font);color:var(--pm-ink)}
-.secH span{font-size:14px;color:var(--pm-muted)}
+.secH span{font-size:15px;color:var(--pm-muted)}
 
 .row{display:flex;align-items:center;gap:14px;padding:16px 22px;border-top:1px solid var(--pm-line);min-width:0}
 .row:first-child{border-top:0}
@@ -19,11 +19,11 @@
 .ic svg{width:19px;height:19px}
 .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .tx b{font-size:16px;font-weight:700;color:var(--pm-ink);overflow-wrap:anywhere}
-.tx > span{font-size:14px;color:var(--pm-muted);overflow-wrap:anywhere}
+.tx > span{font-size:15px;color:var(--pm-muted);overflow-wrap:anywhere}
 .right{flex:none;display:flex;align-items:center;gap:8px}
 
 /* status: coloured text + small dot */
-.st{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:14.5px;white-space:nowrap}
+.st{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:15.5px;white-space:nowrap}
 .st::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
 .good{color:var(--pm-green)}
 .warn{color:var(--pm-gold)}
@@ -36,20 +36,20 @@
 .facts dd{margin:0;color:var(--pm-ink);overflow-wrap:anywhere}
 .btnRow{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
 .quiet{color:var(--pm-ink2)!important}
-.note{margin:12px 0 0;font-size:13.5px;color:var(--pm-muted);line-height:1.5}
+.note{margin:12px 0 0;font-size:14.5px;color:var(--pm-muted);line-height:1.5}
 
 /* team rows */
 .member{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 14px;align-items:center;padding:16px 22px;border-top:1px solid var(--pm-line)}
 .member:first-child{border-top:0}
 .mBody{min-width:0;display:flex;flex-direction:column;gap:3px}
 .mName{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:16px;font-weight:700;color:var(--pm-ink)}
-.mMail{font-size:14px;color:var(--pm-muted);overflow-wrap:anywhere}
+.mMail{font-size:15px;color:var(--pm-muted);overflow-wrap:anywhere}
 .role{font:700 10.5px/1 var(--pm-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--pm-ink2);border:1px solid var(--pm-border);border-radius:6px;padding:4px 6px}
 .roleOwner{color:var(--pm-brand);border-color:var(--pm-brand-line)}
 .roleSel{appearance:auto;font:700 11px var(--pm-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--pm-ink2);border:1px solid var(--pm-border);border-radius:7px;padding:3px 4px;background:var(--pm-card);cursor:pointer}
 .areas{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
-.areas em{font-style:normal;font-size:13px;font-weight:600;color:var(--pm-ink2);background:var(--pm-card3);border-radius:999px;padding:3px 10px}
-.seen{font-size:13.5px;color:var(--pm-muted);margin-top:2px}
+.areas em{font-style:normal;font-size:14px;font-weight:600;color:var(--pm-ink2);background:var(--pm-card3);border-radius:999px;padding:3px 10px}
+.seen{font-size:14.5px;color:var(--pm-muted);margin-top:2px}
 .link{appearance:none;border:0;background:none;padding:6px 2px;font:700 15px var(--pm-font);color:var(--pm-ink);text-decoration:underline;text-underline-offset:4px;text-decoration-color:var(--pm-border);cursor:pointer;white-space:nowrap}
 .link:hover{text-decoration-color:var(--pm-ink)}
 .link:disabled{opacity:.5;cursor:default}
@@ -76,7 +76,7 @@
 .check{display:flex;gap:10px;align-items:flex-start;padding:10px 0;cursor:pointer;font-size:15px}
 .check input{margin-top:4px}
 .check b{display:block;color:var(--pm-ink)}
-.check small{display:block;font-size:13px;color:var(--pm-muted)}
+.check small{display:block;font-size:14px;color:var(--pm-muted)}
 .checkAll{border-bottom:1px solid var(--pm-line)}
 .dim{opacity:.45}
 
@@ -89,7 +89,7 @@
   .facts{grid-template-columns:minmax(0,1fr);gap:2px}
   .facts dd{margin-bottom:10px}
 }
-.hintTx{font-size:13px;color:var(--pm-muted);line-height:1.4}
+.hintTx{font-size:14px;color:var(--pm-muted);line-height:1.4}
 .presets{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
 
 /* my profile: photo + name, hairline rows inside one card */

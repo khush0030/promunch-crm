@@ -214,7 +214,7 @@ export function AlertsToggle() {
       <select aria-label="Notification sound" value={sound} title="Pick a sound; it previews on change"
         onChange={(e) => { const id = e.target.value as SoundId; setSound(id); playPing(id); }}
         style={{
-          padding: "6px 8px", borderRadius: 999, fontSize: 12, fontWeight: 600,
+          padding: "6px 8px", borderRadius: 999, fontSize: 13, fontWeight: 600,
           border: "1px solid var(--pm-border)", background: "var(--pm-card)", color: "var(--pm-ink)", cursor: "pointer",
         }}>
         {SOUNDS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
@@ -223,7 +223,7 @@ export function AlertsToggle() {
     <button type="button" onClick={toggle} title={hint} aria-pressed={!muted}
       style={{
         display: "inline-flex", alignItems: "center", gap: 6,
-        padding: "6px 12px", borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: "pointer",
+        padding: "6px 12px", borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: "pointer",
         border: `1px solid ${muted ? "var(--pm-border)" : "var(--pm-green)"}`,
         background: muted ? "var(--pm-card)" : "var(--pm-green)",
         color: muted ? "var(--pm-muted)" : "#fff",

@@ -62,7 +62,7 @@ export function WhatsAppPreview({
     <div style={{ background: "#E5DDD5", borderRadius: 12, padding: 14, minHeight: 120 }}>
       <div style={{
         background: "#fff", borderRadius: 8, maxWidth: 320, padding: 6,
-        boxShadow: "0 1px 1px rgba(0,0,0,0.12)", fontSize: 13.5, lineHeight: 1.4, color: "#111b21",
+        boxShadow: "0 1px 1px rgba(0,0,0,0.12)", fontSize: 14.5, lineHeight: 1.4, color: "#111b21",
       }}>
         {ht === "IMAGE" && headerMediaUrl && (
           <img src={headerMediaUrl} alt="" style={{ width: "100%", borderRadius: 6, marginBottom: 4, display: "block" }} />
@@ -72,7 +72,7 @@ export function WhatsAppPreview({
         )}
         {ht === "DOCUMENT" && headerMediaUrl && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f0f2f5", borderRadius: 6, padding: 8, marginBottom: 4 }}>
-            <FileText size={20} color="#54656f" /><span style={{ fontSize: 12, color: "#54656f" }}>Document attached</span>
+            <FileText size={20} color="#54656f" /><span style={{ fontSize: 13, color: "#54656f" }}>Document attached</span>
           </div>
         )}
         {ht === "TEXT" && headerText && (
@@ -81,8 +81,8 @@ export function WhatsAppPreview({
         <div style={{ padding: "2px 6px 0", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
           {body ? renderWhatsApp(body, "w", mutedPlaceholder) : <span style={{ color: "#8696a0" }}>Your message body…</span>}
         </div>
-        {footer && <div style={{ padding: "4px 6px 2px", fontSize: 11, color: "#8696a0" }}>{footer}</div>}
-        <div style={{ textAlign: "right", fontSize: 10, color: "#8696a0", padding: "0 6px 2px" }}>
+        {footer && <div style={{ padding: "4px 6px 2px", fontSize: 12, color: "#8696a0" }}>{footer}</div>}
+        <div style={{ textAlign: "right", fontSize: 11, color: "#8696a0", padding: "0 6px 2px" }}>
           {(() => { const d = new Date(); let h = d.getHours(); const mm = String(d.getMinutes()).padStart(2, "0"); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return `${h}:${mm} ${ap}`; })()}
         </div>
         {btns.length > 0 && (
@@ -90,7 +90,7 @@ export function WhatsAppPreview({
             {btns.map((b, i) => (
               <div key={i} style={{
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                color: "#00a5f4", fontWeight: 500, padding: "8px 6px", fontSize: 13.5,
+                color: "#00a5f4", fontWeight: 500, padding: "8px 6px", fontSize: 14.5,
                 borderTop: i > 0 ? "1px solid #e9edef" : "none",
               }}>
                 {b.type === "URL" && <ExternalLink size={15} />}

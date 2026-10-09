@@ -1,7 +1,7 @@
 /* Customers list (redesign round 8, other.html #cu-list). Calm: one sentence
    with the numbers, hairline table, status as coloured text + dot. */
 
-.note { font-size: 14px; font-weight: 600; margin-top: -8px; }
+.note { font-size: 15px; font-weight: 600; margin-top: -8px; }
 .noteGood { color: var(--pm-green); }
 .noteBusy { color: var(--pm-muted); }
 .noteBad { color: var(--pm-terra); }
@@ -54,14 +54,14 @@
 .tbl th:first-child, .tbl td:first-child { width: 40%; }
 .r { text-align: right !important; font-variant-numeric: tabular-nums; }
 .main b { display: block; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.main span { display: block; font-size: 14px; color: var(--pm-muted); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.main span { display: block; font-size: 15px; color: var(--pm-muted); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .main { max-width: 0; } /* lets the ellipsis work inside the auto-width column */
 .spent { font-weight: 700; }
 .nil { color: #CFC7B9; font-weight: 400; }
 .date { color: var(--pm-ink2); white-space: nowrap; }
 
 /* group = coloured text + small dot, never a filled pill */
-.grp { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 14.5px; white-space: nowrap; }
+.grp { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 15.5px; white-space: nowrap; }
 .grp::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
 .gRepeat { color: var(--pm-green); }
 .gOne { color: var(--pm-blue); }
@@ -74,9 +74,9 @@
 
 /* ---- pager ---- */
 .pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.pager > span { font-size: 14px; color: var(--pm-muted); }
+.pager > span { font-size: 15px; color: var(--pm-muted); }
 .pagerBtns { display: flex; gap: 6px; align-items: center; }
-.pagerBtns span { font-size: 14px; color: var(--pm-muted); padding: 0 6px; white-space: nowrap; }
+.pagerBtns span { font-size: 15px; color: var(--pm-muted); padding: 0 6px; white-space: nowrap; }
 
 /* ---- add customer dialog ---- */
 .dialog { width: min(460px, 100%); background: var(--pm-card); border-radius: 22px; box-shadow: 0 20px 60px rgba(0, 0, 0, .3); padding: 24px; }
@@ -84,7 +84,7 @@
 .dHead h3 { margin: 0; font-size: 18px; }
 .dForm { display: grid; gap: 12px; }
 .dTwo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.dHint { margin: 0; font-size: 13px; line-height: 1.45; color: var(--pm-muted); }
+.dHint { margin: 0; font-size: 14px; line-height: 1.45; color: var(--pm-muted); }
 .dFoot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 
 @media (max-width: 1000px) {
@@ -103,12 +103,12 @@
   .tbl, .tbl tbody, .tbl tr, .tbl td { display: block; width: 100%; }
   .tbl tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 14px 16px; border-bottom: 1px solid var(--pm-line); }
   .tbl tbody tr:last-child { border-bottom: 0; }
-  .tbl td, .tbl th:first-child, .tbl td:first-child { width: auto; padding: 0; border: 0; font-size: 14.5px; display: inline-flex; gap: 5px; align-items: center; text-align: left !important; }
+  .tbl td, .tbl th:first-child, .tbl td:first-child { width: auto; padding: 0; border: 0; font-size: 15.5px; display: inline-flex; gap: 5px; align-items: center; text-align: left !important; }
   .tbl td[data-l]::before { content: attr(data-l); color: var(--pm-muted); font-weight: 600; }
   .tbl tbody tr:hover td { background: none; }
   .tbl td.main { display: block; flex-basis: 100%; max-width: none; padding-bottom: 2px; }
   .tbl td:has(> .nil) { display: none; }
-  .grp { font-size: 14px; }
+  .grp { font-size: 15px; }
   .dTwo { grid-template-columns: minmax(0, 1fr); }
 
   /* customer page numbers: a hairline stat line, not four stacked boxes */
@@ -131,7 +131,7 @@
 @media (max-width: 768px) {
   .headActions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; }
   .headActions3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .headActions :global(.pm-btn) { min-height: 44px; padding: 10px 8px; font-size: 14.5px; min-width: 0; }
+  .headActions :global(.pm-btn) { min-height: 44px; padding: 10px 8px; font-size: 15.5px; min-width: 0; }
   .wideOnly { display: none; }
 }
 /* Orders table "Items": wrap to at most two lines and end with an ellipsis

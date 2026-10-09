@@ -399,7 +399,7 @@ export function WaConversation({
       <div className="pm2-thread-body">
         <div ref={scrollRef} className="pm2-thread-scroll">
           {items.length === 0 ? (
-            <div style={{ padding: 24, color: "var(--pm-hint)", fontSize: 13.5 }}>No messages yet.</div>
+            <div style={{ padding: 24, color: "var(--pm-hint)", fontSize: 14.5 }}>No messages yet.</div>
           ) : (
             <Bubbles items={items} />
           )}
@@ -429,7 +429,7 @@ export function WaConversation({
             />
           )}
           {thread.status === "bot" ? (
-            <div className={compact ? undefined : t.botNote} style={compact ? { fontSize: 12.5, color: "var(--pm-hint)", padding: "6px 2px 0" } : undefined}>
+            <div className={compact ? undefined : t.botNote} style={compact ? { fontSize: 13.5, color: "var(--pm-hint)", padding: "6px 2px 0" } : undefined}>
               The bot is still replying. Take over to pause it.
             </div>
           ) : null}

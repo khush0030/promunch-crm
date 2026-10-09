@@ -16,7 +16,7 @@
 .it.done::before{background:var(--pm-green);border-color:var(--pm-green)}
 .it.now::before{background:var(--pm-brand);border-color:var(--pm-brand);box-shadow:0 0 0 5px var(--pm-brand-soft)}
 .it b{display:block;font-weight:700;font-size:16.5px;line-height:1.35}
-.it span{display:block;color:var(--pm-muted);font-size:14.5px;line-height:1.45;margin-top:2px}
+.it span{display:block;color:var(--pm-muted);font-size:15.5px;line-height:1.45;margin-top:2px}
 .mf{display:flex;justify-content:flex-end;gap:10px;margin-top:26px;flex-wrap:wrap}
 .mf :global(.pm2-btn){height:46px;padding:0 20px;justify-content:center}
 @media (max-width:760px){

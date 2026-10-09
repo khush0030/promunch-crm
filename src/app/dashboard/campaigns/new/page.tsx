@@ -96,7 +96,7 @@ export default function NewCampaignPage() {
             <CheckCircle2 size={28} color="var(--pm-green)" />
           </div>
           <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>Campaign saved</h2>
-          <p className="pm-muted" style={{ fontSize: 13, marginBottom: 20 }}>&ldquo;{formData.name}&rdquo; — review and send when ready.</p>
+          <p className="pm-muted" style={{ fontSize: 14, marginBottom: 20 }}>&ldquo;{formData.name}&rdquo; — review and send when ready.</p>
           <Link href={`/dashboard/campaigns/${savedId}`} className="pm-btn primary" style={{ display: "inline-flex" }}>Open campaign</Link>
         </div>
       </div>
@@ -107,7 +107,7 @@ export default function NewCampaignPage() {
     <div className="pm-page">
       <PageHead
         back={
-          <Link href="/dashboard/campaigns" className="more" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--pm-muted)", fontSize: 12 }}>
+          <Link href="/dashboard/campaigns" className="more" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--pm-muted)", fontSize: 13 }}>
             <ArrowLeft size={14} /> Back to campaigns
           </Link>
         }
@@ -146,7 +146,7 @@ export default function NewCampaignPage() {
           <div className="pm-field" style={{ marginTop: 12, marginBottom: 0 }}>
             <label>Send time (optional)</label>
             <input type="datetime-local" title="Schedule send time" value={formData.scheduleAt} onChange={(e) => update("scheduleAt", e.target.value)} />
-            <span className="pm-muted" style={{ fontSize: 11, marginTop: 4, display: "block" }}>Leave empty to send now. Set a future time to schedule the send; it fires within about 15 minutes of that time.</span>
+            <span className="pm-muted" style={{ fontSize: 12, marginTop: 4, display: "block" }}>Leave empty to send now. Set a future time to schedule the send; it fires within about 15 minutes of that time.</span>
           </div>
         </Panel>
 
@@ -168,7 +168,7 @@ export default function NewCampaignPage() {
               placeholder="<p>Hi {{first_name}}, …</p>"
               value={formData.body}
               onChange={(e) => update("body", e.target.value)}
-              style={{ minHeight: 240, fontFamily: "var(--pm-mono)", fontSize: 13, resize: "vertical" }}
+              style={{ minHeight: 240, fontFamily: "var(--pm-mono)", fontSize: 14, resize: "vertical" }}
             />
           </div>
         </Panel>

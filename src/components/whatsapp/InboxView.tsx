@@ -81,7 +81,7 @@ function MediaView({ url, type }: { url: string; type: string }) {
     return <video controls src={url} style={{ maxWidth: 240, borderRadius: 8, marginBottom: 4, display: "block" }} />;
   }
   return (
-    <a href={url} target="_blank" rel="noreferrer" style={{ color: "#1d4ed8", fontSize: 12 }}>
+    <a href={url} target="_blank" rel="noreferrer" style={{ color: "#1d4ed8", fontSize: 13 }}>
       📎 Download {type}
     </a>
   );
@@ -233,9 +233,9 @@ export default function InboxView({ ticketsOnly, threadId = null, onThreadChange
           )}
         </div>
         <div style={{ flex: 1, overflowY: "auto" }}>
-          {loading && <div style={{ padding: 24, color: "var(--pm-hint)", fontSize: 13 }}>Loading…</div>}
+          {loading && <div style={{ padding: 24, color: "var(--pm-hint)", fontSize: 14 }}>Loading…</div>}
           {!loading && threads.length === 0 && (
-            <div style={{ padding: 24, color: "var(--pm-hint)", fontSize: 13 }}>No conversations yet.</div>
+            <div style={{ padding: 24, color: "var(--pm-hint)", fontSize: 14 }}>No conversations yet.</div>
           )}
           {threads.map((t) => {
             const active = selected?.id === t.id;
@@ -250,15 +250,15 @@ export default function InboxView({ ticketsOnly, threadId = null, onThreadChange
                   cursor: "pointer", minHeight: isMobile ? 72 : undefined,
                 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: "var(--pm-ink)" }}>
+                  <div style={{ fontWeight: 600, fontSize: 15, color: "var(--pm-ink)" }}>
                     {t.contact.name || t.contact.phone}
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--pm-hint)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 12, color: "var(--pm-hint)" }}>
                     {t.last_message_direction === "outbound" && <Ticks status={t.last_outbound_status} />}
                     <span>{timeAgo(mostRecent(t.last_inbound_at, t.last_outbound_at))}</span>
                   </div>
                 </div>
-                <div style={{ fontSize: 12, color: "var(--pm-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ fontSize: 13, color: "var(--pm-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {t.last_message_snippet || "—"}
                 </div>
                 <div style={{ display: "flex", gap: 6, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}>
@@ -279,7 +279,7 @@ export default function InboxView({ ticketsOnly, threadId = null, onThreadChange
                   <WindowChip lastInboundAt={t.last_inbound_at} />
                   {t.unread_count > 0 && (
                     <span style={{
-                      marginLeft: "auto", background: BRAND, color: "var(--pm-card)", fontSize: 11,
+                      marginLeft: "auto", background: BRAND, color: "var(--pm-card)", fontSize: 12,
                       fontWeight: 700, padding: "1px 7px", borderRadius: 999,
                     }}>{t.unread_count}</span>
                   )}
@@ -400,7 +400,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
       <div style={{
         background: "var(--pm-card)", border: "1px solid var(--pm-border)", borderRadius: 12,
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-        gap: 10, color: "var(--pm-hint)", fontSize: 13.5,
+        gap: 10, color: "var(--pm-hint)", fontSize: 14.5,
       }}>
         <span style={{
           width: 44, height: 44, borderRadius: 13, background: "var(--pm-card2)",
@@ -409,7 +409,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
           <Megaphone size={20} style={{ color: "var(--pm-hint)" }} />
         </span>
         <div style={{ fontWeight: 500, color: "var(--pm-muted)" }}>Pick a conversation</div>
-        <div style={{ fontSize: 12.5, maxWidth: 220, textAlign: "center" }}>
+        <div style={{ fontSize: 13.5, maxWidth: 220, textAlign: "center" }}>
           Select a chat on the left to read it, reply, or manage its ticket.
         </div>
       </div>
@@ -531,14 +531,14 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
           <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontWeight: 700, color: "var(--pm-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {thread.contact.name || thread.contact.phone}
-            <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 500, color: "var(--pm-muted)" }}>{thread.contact.phone}</span>
+            <span style={{ marginLeft: 8, fontSize: 13, fontWeight: 500, color: "var(--pm-muted)" }}>{thread.contact.phone}</span>
           </div>
           <WindowTimer lastInboundAt={lastInboundAt} />
           {/* Status / ticket / priority live in the <select> dropdowns on the right —
               the read-only Pills here were a duplicate and have been removed. */}
           {thread.escalation_reason &&
             (thread.ticket_status === "open" || thread.ticket_status === "pending") && (
-            <div style={{ fontSize: 12, color: "#92400e", marginTop: 6 }}>
+            <div style={{ fontSize: 13, color: "#92400e", marginTop: 6 }}>
               <AlertTriangle size={12} style={{ verticalAlign: -2 }} /> {thread.escalation_reason}
             </div>
           )}
@@ -560,7 +560,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
             title="Copy a link to this chat for a teammate"
             style={{
               display: "inline-flex", alignItems: "center", gap: 5,
-              padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+              padding: "6px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600,
               border: "1px solid var(--pm-border)", background: "var(--pm-card)", color: "var(--pm-ink)",
               cursor: "pointer", whiteSpace: "nowrap",
             }}>
@@ -571,7 +571,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
               title="Mark this ticket resolved"
               style={{
                 display: "inline-flex", alignItems: "center", gap: 5,
-                padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                padding: "6px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600,
                 border: "1px solid var(--pm-green)", background: "var(--pm-green)", color: "#fff",
                 cursor: "pointer", whiteSpace: "nowrap",
               }}>
@@ -592,16 +592,16 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
               <div style={{
                 maxWidth: isMobile ? "85%" : "70%", background: out ? "#dcf8c6" : "var(--pm-card)",
                 color: "var(--pm-ink)", padding: "8px 12px", borderRadius: 10,
-                boxShadow: "0 1px 1px rgba(0,0,0,0.06)", fontSize: 14, lineHeight: 1.45,
+                boxShadow: "0 1px 1px rgba(0,0,0,0.06)", fontSize: 15, lineHeight: 1.45,
               }}>
                 {m.template_name && (
-                  <div style={{ fontSize: 11, fontWeight: 600, color: BRAND, marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: BRAND, marginBottom: 4 }}>
                     Template · {m.template_name}
                   </div>
                 )}
                 {m.media_url && <MediaView url={m.media_url} type={m.type} />}
                 <div style={{ whiteSpace: "pre-wrap" }}>{m.body}</div>
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 4, fontSize: 10, color: "var(--pm-muted)" }}>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 4, fontSize: 11, color: "var(--pm-muted)" }}>
                   {m.sent_by === "bot" && <span style={{ color: WA_GREEN, fontWeight: 600 }}><Sparkles size={10} style={{ verticalAlign: -1 }} /> AI</span>}
                   <span title={new Date(m.created_at).toLocaleString("en-IN")}>{msgTime(m.created_at)}</span>
                   {out && <span>· {m.status}</span>}
@@ -629,7 +629,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, borderRadius: 10, background: "var(--pm-card2)", border: "1px solid var(--pm-border)" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={attachment.url} alt={attachment.name} style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8 }} />
-            <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               <div style={{ fontWeight: 600 }}>{attachment.name}</div>
               <div style={{ color: "var(--pm-hint)" }}>Sends as an image. Text below becomes the caption.</div>
             </div>
@@ -653,7 +653,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
           <button type="button" onClick={() => setPickingTemplate(true)} title="Send template" aria-label="Send template"
             style={{
               minWidth: 44, minHeight: 44, padding: isMobile ? 0 : "10px 14px", borderRadius: 10, border: "1px solid var(--pm-border)",
-              background: "var(--pm-card)", cursor: "pointer", color: BRAND, fontWeight: 600, fontSize: 13,
+              background: "var(--pm-card)", cursor: "pointer", color: BRAND, fontWeight: 600, fontSize: 14,
               display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexShrink: 0,
             }}>
             <Megaphone size={isMobile ? 18 : 14} /> {!isMobile && "Template"}
@@ -661,7 +661,7 @@ function ConversationPane({ thread, onChange, isMobile = false, onBack, onShowDe
           <button type="button" onClick={draftReply} disabled={drafting} title="AI-draft a reply" aria-label="AI draft"
             style={{
               minWidth: 44, minHeight: 44, padding: isMobile ? 0 : "10px 14px", borderRadius: 10, border: "1px solid var(--pm-border)",
-              background: "var(--pm-card)", cursor: drafting ? "wait" : "pointer", color: WA_GREEN, fontWeight: 600, fontSize: 13,
+              background: "var(--pm-card)", cursor: drafting ? "wait" : "pointer", color: WA_GREEN, fontWeight: 600, fontSize: 14,
               display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexShrink: 0,
             }}>
             <Sparkles size={isMobile ? 18 : 14} /> {!isMobile && (drafting ? "Drafting…" : "AI draft")}
@@ -794,13 +794,13 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose, memb
 
   if (!thread) {
     return (
-      <div style={{ ...wrap, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--pm-hint)", fontSize: 13 }}>
+      <div style={{ ...wrap, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--pm-hint)", fontSize: 14 }}>
         Customer details
       </div>
     );
   }
   if (loading && !data) {
-    return <div style={{ ...wrap, color: "var(--pm-hint)", fontSize: 13 }}>Loading customer…</div>;
+    return <div style={{ ...wrap, color: "var(--pm-hint)", fontSize: 14 }}>Loading customer…</div>;
   }
 
   const c = data?.contact ?? null;
@@ -830,11 +830,11 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose, memb
       {/* conversation controls — moved here from the chat header so they get
           real, labeled buttons instead of four cramped dropdowns */}
       <div style={{ border: "1px solid var(--pm-border)", borderRadius: 10, padding: 12, marginBottom: 14, background: "var(--pm-card2)" }}>
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--pm-muted)", marginBottom: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--pm-muted)", marginBottom: 10 }}>
           Conversation
         </div>
 
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Handled by</div>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Handled by</div>
         <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
           {([["bot", "Bot"], ["human", "Human"], ["snoozed", "Snoozed"], ["closed", "Closed"]] as const).map(([v, l]) => {
             const on = thread.status === v;
@@ -842,7 +842,7 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose, memb
             return (
               <button key={v} type="button" onClick={() => patch({ status: v })}
                 style={{
-                  flex: 1, padding: "8px 0", borderRadius: 8, fontSize: 12, cursor: "pointer",
+                  flex: 1, padding: "8px 0", borderRadius: 8, fontSize: 13, cursor: "pointer",
                   fontWeight: on ? 700 : 500,
                   border: `1px solid ${on ? onColor : "var(--pm-border)"}`,
                   background: on ? onColor : "var(--pm-card)",
@@ -856,12 +856,12 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose, memb
           })}
         </div>
 
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Assigned to</div>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Assigned to</div>
         <select aria-label="Assigned to" value={thread.assigned_to ?? ""}
           onChange={(e) => patch({ assigned_to: e.target.value || null })}
           style={{
             width: "100%", padding: "9px 10px", borderRadius: 8, marginBottom: 12,
-            border: "1px solid var(--pm-border)", fontSize: 13, background: "var(--pm-card)",
+            border: "1px solid var(--pm-border)", fontSize: 14, background: "var(--pm-card)",
           }}>
           <option value="">Unassigned</option>
           {members.filter((m) => m.email).map((m) => (
@@ -869,7 +869,7 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose, memb
           ))}
         </select>
 
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
           Ticket{thread.ticket_status !== "none" && (
             <span style={{ color: "var(--pm-muted)", fontWeight: 500 }}> · #{thread.ticket_number}</span>
           )}
@@ -877,7 +877,7 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose, memb
         {thread.ticket_status === "none" ? (
           <button type="button" onClick={() => patch({ ticket_status: "open" })}
             style={{
-              width: "100%", padding: "9px 0", borderRadius: 8, fontSize: 13, fontWeight: 600,
+              width: "100%", padding: "9px 0", borderRadius: 8, fontSize: 14, fontWeight: 600,
               border: "1px solid var(--pm-border)", background: "var(--pm-card)", color: "var(--pm-ink)",
               cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
               gap: 6, marginBottom: 12,
@@ -892,7 +892,7 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose, memb
               return (
                 <button key={v} type="button" onClick={() => patch({ ticket_status: v })}
                   style={{
-                    flex: 1, padding: "8px 0", borderRadius: 8, fontSize: 12, cursor: "pointer",
+                    flex: 1, padding: "8px 0", borderRadius: 8, fontSize: 13, cursor: "pointer",
                     fontWeight: on ? 700 : 500,
                     border: `1px solid ${on ? st.color : "var(--pm-border)"}`,
                     background: on ? st.bg : "var(--pm-card)",
@@ -905,7 +905,7 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose, memb
           </div>
         )}
 
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Priority</div>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Priority</div>
         <div style={{ display: "flex", gap: 6 }}>
           {(["low", "normal", "high", "urgent"] as const).map((v) => {
             const on = (thread.ticket_priority ?? "normal") === v;
@@ -913,7 +913,7 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose, memb
             return (
               <button key={v} type="button" onClick={() => patch({ ticket_priority: v })}
                 style={{
-                  flex: 1, padding: "7px 0", borderRadius: 8, fontSize: 12, cursor: "pointer",
+                  flex: 1, padding: "7px 0", borderRadius: 8, fontSize: 13, cursor: "pointer",
                   textTransform: "capitalize", fontWeight: on ? 700 : 500,
                   border: `1px solid ${on ? st.color : "var(--pm-border)"}`,
                   background: on ? st.bg : "var(--pm-card)",
@@ -935,55 +935,55 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose, memb
           <UserIcon size={18} style={{ color: "var(--pm-green)" }} />
         </div>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: "var(--pm-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "var(--pm-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {display || "Unknown"}
           </div>
-          <div style={{ fontSize: 12, color: "var(--pm-hint)" }}>{thread.contact.phone}</div>
+          <div style={{ fontSize: 13, color: "var(--pm-hint)" }}>{thread.contact.phone}</div>
         </div>
       </div>
 
       {/* CRM contact */}
-      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--pm-hint)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-hint)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 }}>
         CRM contact
       </div>
       {c ? (
         <div style={{ border: "1px solid var(--pm-border)", borderRadius: 8, padding: 10, marginBottom: 14 }}>
-          {c.email && <div style={{ fontSize: 12, color: "var(--pm-muted)", marginBottom: 4, wordBreak: "break-all" }}>{c.email}</div>}
+          {c.email && <div style={{ fontSize: 13, color: "var(--pm-muted)", marginBottom: 4, wordBreak: "break-all" }}>{c.email}</div>}
           {(c.city || c.state) && (
-            <div style={{ fontSize: 12, color: "var(--pm-muted)", marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ fontSize: 13, color: "var(--pm-muted)", marginBottom: 4, display: "flex", alignItems: "center", gap: 4 }}>
               <MapPin size={11} /> {[c.city, c.state].filter(Boolean).join(", ")}
             </div>
           )}
-          <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--pm-muted)", margin: "6px 0" }}>
+          <div style={{ display: "flex", gap: 12, fontSize: 13, color: "var(--pm-muted)", margin: "6px 0" }}>
             <span><strong style={{ color: "var(--pm-ink)" }}>{c.total_orders ?? 0}</strong> orders</span>
             <span>LTV <strong style={{ color: "var(--pm-ink)" }}>₹{Number(c.total_spent ?? 0).toLocaleString("en-IN")}</strong></span>
           </div>
           {c.tags && c.tags.length > 0 && (
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
               {c.tags.slice(0, 6).map((t) => (
-                <span key={t} style={{ fontSize: 10, background: "rgba(185,28,74,0.08)", color: BRAND, padding: "1px 6px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <span key={t} style={{ fontSize: 11, background: "rgba(185,28,74,0.08)", color: BRAND, padding: "1px 6px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 3 }}>
                   <Tag size={9} /> {t}
                 </span>
               ))}
             </div>
           )}
           <a href={`/dashboard/contacts/${c.id}`} target="_blank" rel="noreferrer"
-            style={{ fontSize: 12, color: BRAND, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+            style={{ fontSize: 13, color: BRAND, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
             Open full profile <ExternalLink size={11} />
           </a>
         </div>
       ) : (
-        <div style={{ fontSize: 12, color: "var(--pm-hint)", marginBottom: 14 }}>
+        <div style={{ fontSize: 13, color: "var(--pm-hint)", marginBottom: 14 }}>
           No CRM contact matched this number yet.
         </div>
       )}
 
       {/* Shopify orders */}
-      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--pm-hint)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-hint)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
         <ShoppingBag size={12} /> Orders ({data?.order_count ?? 0})
       </div>
       {orders.length === 0 ? (
-        <div style={{ fontSize: 12, color: "var(--pm-hint)" }}>
+        <div style={{ fontSize: 13, color: "var(--pm-hint)" }}>
           No Shopify orders matched this WhatsApp number.
         </div>
       ) : (
@@ -993,26 +993,26 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose, memb
             return (
               <div key={o.order_number} style={{ border: "1px solid var(--pm-border)", borderRadius: 8, padding: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                  <span style={{ fontWeight: 700, fontSize: 13 }}>{o.order_number}</span>
-                  <span style={{ fontWeight: 700, fontSize: 13 }}>{o.total}</span>
+                  <span style={{ fontWeight: 700, fontSize: 14 }}>{o.order_number}</span>
+                  <span style={{ fontWeight: 700, fontSize: 14 }}>{o.total}</span>
                 </div>
-                <div style={{ fontSize: 11, color: "var(--pm-hint)", marginBottom: 6 }}>{o.placed_at}</div>
+                <div style={{ fontSize: 12, color: "var(--pm-hint)", marginBottom: 6 }}>{o.placed_at}</div>
                 <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 6 }}>
-                  <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: o.financial_status === "paid" ? "rgba(16,185,129,0.14)" : "rgba(245,183,49,0.14)", color: o.financial_status === "paid" ? "var(--pm-green)" : "#92400e", fontWeight: 600 }}>
+                  <span style={{ fontSize: 11, padding: "1px 6px", borderRadius: 999, background: o.financial_status === "paid" ? "rgba(16,185,129,0.14)" : "rgba(245,183,49,0.14)", color: o.financial_status === "paid" ? "var(--pm-green)" : "#92400e", fontWeight: 600 }}>
                     {o.financial_status ?? "—"}
                   </span>
-                  <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 999, background: o.fulfillment_status === "fulfilled" ? "rgba(16,185,129,0.14)" : "rgba(229,231,235,0.7)", color: o.fulfillment_status === "fulfilled" ? "var(--pm-green)" : "var(--pm-muted)", fontWeight: 600 }}>
+                  <span style={{ fontSize: 11, padding: "1px 6px", borderRadius: 999, background: o.fulfillment_status === "fulfilled" ? "rgba(16,185,129,0.14)" : "rgba(229,231,235,0.7)", color: o.fulfillment_status === "fulfilled" ? "var(--pm-green)" : "var(--pm-muted)", fontWeight: 600 }}>
                     {o.fulfillment_status}
                   </span>
                 </div>
                 {o.items.length > 0 && (
-                  <div style={{ fontSize: 11, color: "var(--pm-muted)", marginBottom: 6 }}>
+                  <div style={{ fontSize: 12, color: "var(--pm-muted)", marginBottom: 6 }}>
                     {o.items.map((it) => `${it.qty}× ${it.name}`).join(", ")}
                   </div>
                 )}
                 {link && (
                   <a href={link} target="_blank" rel="noreferrer"
-                    style={{ fontSize: 11, color: BRAND, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                    style={{ fontSize: 12, color: BRAND, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 3 }}>
                     {o.admin_url ? "View in Shopify" : "Track order"} <ExternalLink size={10} />
                   </a>
                 )}
@@ -1024,21 +1024,21 @@ function CustomerPanel({ thread, isMobile = false, visible = true, onClose, memb
 
       {calls.length > 0 && (
         <>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--pm-hint)", textTransform: "uppercase", letterSpacing: 0.4, margin: "14px 0 6px", display: "flex", alignItems: "center", gap: 5 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pm-hint)", textTransform: "uppercase", letterSpacing: 0.4, margin: "14px 0 6px", display: "flex", alignItems: "center", gap: 5 }}>
             <Phone size={12} /> Voice calls ({calls.length})
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {calls.map((c) => (
               <details key={c.id} style={{ border: "1px solid var(--pm-border)", borderRadius: 8, padding: 10 }}>
-                <summary style={{ fontSize: 12, cursor: "pointer" }}>
+                <summary style={{ fontSize: 13, cursor: "pointer" }}>
                   <strong>{c.status}</strong>{c.outcome ? ` · ${c.outcome.replace(/_/g, " ")}` : ""}{c.duration_s ? ` · ${c.duration_s}s` : ""}{c.link_sent_at ? " · link sent" : ""}
                   <span style={{ color: "var(--pm-hint)", marginLeft: 6 }}>{new Date(c.created_at).toLocaleString("en-IN")}</span>
                 </summary>
                 {c.transcript?.length ? (
-                  <div style={{ fontSize: 11.5, marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div style={{ fontSize: 12.5, marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
                     {c.transcript.map((t, i) => <div key={i}><strong>{t.role === "agent" ? "PROMUNCH" : "Customer"}:</strong> {t.en_text}</div>)}
                   </div>
-                ) : <div style={{ fontSize: 11.5, color: "var(--pm-hint)", marginTop: 6 }}>No transcript.</div>}
+                ) : <div style={{ fontSize: 12.5, color: "var(--pm-hint)", marginTop: 6 }}>No transcript.</div>}
               </details>
             ))}
           </div>

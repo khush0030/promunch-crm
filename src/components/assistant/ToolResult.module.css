@@ -4,7 +4,7 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--pm-muted);
   background: var(--pm-card);
   border: 1px solid var(--pm-line);
@@ -41,7 +41,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -57,7 +57,7 @@
   margin-bottom: 4px;
 }
 .kpi { min-width: 0; }
-.kpiLabel { font-size: 11px; color: var(--pm-muted); margin-bottom: 2px; }
+.kpiLabel { font-size: 12px; color: var(--pm-muted); margin-bottom: 2px; }
 .kpiValue {
   font-size: 21px;
   font-weight: 700;
@@ -65,7 +65,7 @@
   color: var(--pm-ink);
   font-variant-numeric: tabular-nums;
 }
-.kpiSub { font-size: 11px; color: var(--pm-hint); }
+.kpiSub { font-size: 12px; color: var(--pm-hint); }
 
 .divider { border: 0; border-top: 1px solid var(--pm-line); margin: 10px 0; }
 
@@ -78,7 +78,7 @@
   padding: 3px 0;
 }
 .barLabel {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--pm-ink);
   white-space: nowrap;
   overflow: hidden;
@@ -87,7 +87,7 @@
 .barTrack { height: 9px; border-radius: 0 4px 4px 0; background: transparent; }
 .barFill { height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; }
 .barValue {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--pm-muted);
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -100,7 +100,7 @@
 .sparkMeta {
   display: flex;
   justify-content: space-between;
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--pm-hint);
   margin-top: 2px;
 }
@@ -119,9 +119,9 @@
 .dotWarn { background: #b87a10; }
 .dotBad { background: #c2492e; }
 .dotUnknown { background: var(--pm-hint); }
-.statusLabel { font-size: 12.5px; color: var(--pm-ink); flex: 1; }
+.statusLabel { font-size: 13.5px; color: var(--pm-ink); flex: 1; }
 .statusPill {
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--pm-muted);
   background: var(--pm-app);
   border: 1px solid var(--pm-line);
@@ -138,7 +138,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--pm-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -152,17 +152,17 @@
 }
 .fact { min-width: 0; }
 .factLabel {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--pm-hint);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .factValue {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 650;
   color: var(--pm-ink);
   font-variant-numeric: tabular-nums;
 }
 
-.footnote { font-size: 10.5px; color: var(--pm-hint); margin-top: 9px; }
+.footnote { font-size: 11.5px; color: var(--pm-hint); margin-top: 9px; }

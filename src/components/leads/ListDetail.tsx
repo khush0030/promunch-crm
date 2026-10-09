@@ -245,7 +245,7 @@ export default function ListDetail({
         )}
       </section>
 
-      <p className={s.muted} style={{ margin: 0, fontSize: 14 }}>
+      <p className={s.muted} style={{ margin: 0, fontSize: 15 }}>
         Tick businesses to email them as a follow-up campaign, find their emails, or remove them from this list (the business itself is kept).
       </p>
 

@@ -505,7 +505,7 @@ export default function GrowthView() {
 
               <Section title="Layout">
                 <LayoutGallery value={p.layout} onChange={(v) => setPopup((x) => ({ ...x, layout: v }))} />
-                <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 10 }}>Pick a ready-made layout, then edit the text, colours and image below.</div>
+                <div style={{ fontSize: 12, color: "var(--pm-hint)", marginTop: 10 }}>Pick a ready-made layout, then edit the text, colours and image below.</div>
               </Section>
 
               <Section title="Picture">

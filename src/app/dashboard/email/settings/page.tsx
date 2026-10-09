@@ -108,7 +108,7 @@ export default function StudioSettingsPage() {
 
           <div className="pm2-panel" style={{ padding: 16, display: "grid", gap: 14 }}>
             <h3 style={{ margin: 0, fontSize: 16 }}>Sending rules</h3>
-            <label className={s.row} style={{ fontSize: 14 }}>
+            <label className={s.row} style={{ fontSize: 15 }}>
               <input type="checkbox" checked={warmOn} onChange={(e) => setWarmOn(e.target.checked)} />
               <b>Domain warm-up</b>: cap each campaign at
               <input className={s.input} type="number" min={10} style={{ width: 90 }} value={warmMax} disabled={!warmOn || !canEdit} onChange={(e) => setWarmMax(Math.max(1, Number(e.target.value) || 1))} />
@@ -117,7 +117,7 @@ export default function StudioSettingsPage() {
             <div className={s.hint}>
               A new sending domain has no reputation yet. Raise the cap roughly weekly (150, 300, 600, then off) while bounces stay under 2% and spam complaints under 0.1%.
             </div>
-            <label className={s.row} style={{ fontSize: 14 }}>
+            <label className={s.row} style={{ fontSize: 15 }}>
               After warm-up, campaigns to more than
               <input className={s.input} type="number" min={1} style={{ width: 100 }} value={threshold} onChange={(e) => setThreshold(Math.max(1, Number(e.target.value) || 1))} />
               people need an admin&apos;s approval.

@@ -180,7 +180,7 @@ export function IgConversation({ id, peek = false, compact = false }: { id: stri
       <div className="pm2-thread-body">
         <div ref={scrollRef} className="pm2-thread-scroll">
           {items.length === 0 ? (
-            <div style={{ padding: 24, color: "var(--pm-hint)", fontSize: 13.5 }}>No messages yet.</div>
+            <div style={{ padding: 24, color: "var(--pm-hint)", fontSize: 14.5 }}>No messages yet.</div>
           ) : (
             <Bubbles items={items} />
           )}

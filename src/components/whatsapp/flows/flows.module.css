@@ -62,7 +62,7 @@
 .fieldValue { font-size: var(--pm-body); font-weight: 600; color: var(--pm-ink); }
 .dur { display: inline-flex; align-items: center; gap: 6px; }
 .num, .text, .select {
-  font: inherit; font-size: 13px; color: var(--pm-ink); background: var(--pm-card);
+  font: inherit; font-size: 14px; color: var(--pm-ink); background: var(--pm-card);
   border: 1px solid var(--pm-border); border-radius: 7px; padding: 6px 8px; min-width: 0;
 }
 .num { width: 76px; font-weight: 600; text-align: center; }
@@ -81,7 +81,7 @@
 
 /* stats */
 .stats { display: flex; flex-wrap: wrap; gap: 6px 16px; padding-top: 10px; border-top: 1px solid var(--pm-line); font-size: var(--pm-label); color: var(--pm-muted); }
-.stats strong { color: var(--pm-ink); font-size: 14px; margin-right: 3px; font-variant-numeric: tabular-nums; }
+.stats strong { color: var(--pm-ink); font-size: 15px; margin-right: 3px; font-variant-numeric: tabular-nums; }
 .statsBasis { margin-left: auto; color: var(--pm-hint); font-size: var(--pm-caption); }
 
 /* technical disclosure */
@@ -162,7 +162,7 @@
 .introActs :global(.pm2-btn) { white-space: nowrap; }
 .sectionHead { gap: 4px 12px; }
 .sectionTitle { font: 700 11.5px/1.2 var(--pm-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--pm-muted); }
-.sectionSub { font-size: 14px; }
+.sectionSub { font-size: 15px; }
 
 /* list */
 .list { background: var(--pm-card); border: 1px solid var(--pm-border); border-radius: var(--pm-r, 20px); overflow: hidden; }
@@ -179,17 +179,17 @@
 .rowIcOff { color: var(--pm-hint); }
 .rowTx { min-width: 0; display: grid; gap: 3px; }
 .rowTx b { font-size: 15.5px; font-weight: 700; overflow-wrap: anywhere; line-height: 1.35; }
-.rowTx span { font-size: 14px; color: var(--pm-muted); line-height: 1.45; }
+.rowTx span { font-size: 15px; color: var(--pm-muted); line-height: 1.45; }
 .rowState { white-space: nowrap; }
-.rowSetting { font-size: 14px; color: var(--pm-muted); white-space: nowrap; }
+.rowSetting { font-size: 15px; color: var(--pm-muted); white-space: nowrap; }
 .rowChev { width: 18px; height: 18px; color: var(--pm-hint); }
-.listNote { margin: 0; font-size: 14px; color: var(--pm-muted); }
+.listNote { margin: 0; font-size: 15px; color: var(--pm-muted); }
 
 /* detail */
 .detail { display: grid; gap: 20px; min-width: 0; }
 .dHead { display: grid; gap: 10px; }
 .back {
-  appearance: none; border: 0; background: none; padding: 0; font: inherit; font-size: 14.5px; font-weight: 700; color: var(--pm-ink2);
+  appearance: none; border: 0; background: none; padding: 0; font: inherit; font-size: 15.5px; font-weight: 700; color: var(--pm-ink2);
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer; justify-self: start;
 }
 .back svg { width: 16px; height: 16px; }
@@ -208,8 +208,8 @@
 .dH3 { margin: 0; font: 400 18px/1.2 var(--pm-display); color: var(--pm-ink); letter-spacing: -.01em; }
 .dSettings { display: grid; gap: 14px; padding-top: 18px; border-top: 1px solid var(--pm-line); }
 .dSettings .num, .dSettings .text, .dSettings .select { font-size: 15px; padding: 8px 10px; border-radius: 10px; }
-.dSettings .fieldLabel { font-size: 14px; color: var(--pm-ink2); }
-.dStats .stats { font-size: 14.5px; }
+.dSettings .fieldLabel { font-size: 15px; color: var(--pm-ink2); }
+.dStats .stats { font-size: 15.5px; }
 .dStats .stats strong { font-size: 18px; }
 
 /* the timeline: one continuous line, no boxes */
@@ -224,7 +224,7 @@
 .tlBody { display: grid; gap: 2px; padding-top: 1px; min-width: 0; }
 .tlKind { font: 700 11px/1.3 var(--pm-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--pm-muted); }
 .tlTitle { font-size: 16px; font-weight: 700; color: var(--pm-ink); overflow-wrap: anywhere; }
-.tlDetail { font-size: 14px; color: var(--pm-muted); line-height: 1.45; }
+.tlDetail { font-size: 15px; color: var(--pm-muted); line-height: 1.45; }
 .tlWait { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 14px; align-items: center; padding: 14px 0; }
 .tlClock { position: relative; z-index: 1; justify-self: center; width: 22px; height: 22px; display: grid; place-items: center; background: var(--pm-card); color: var(--pm-muted); }
 .tlClock svg { width: 15px; height: 15px; }

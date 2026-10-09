@@ -78,29 +78,29 @@ export default function AnalyticsView() {
 
       <div className="pm-kpis" style={{ marginBottom: 16 }}>
         <div className="pm-kpi">
-          <div className="pm-muted" style={{ fontSize: 12 }}>Emails sent</div>
+          <div className="pm-muted" style={{ fontSize: 13 }}>Emails sent</div>
           <div className={styles.anNum}>{h.sent}</div>
           {data.prior && data.prior.sent > 0
             ? delta(Math.round(((h.sent - data.prior.sent) / data.prior.sent) * 1000) / 10, 0, "%")
             : null}
         </div>
         <div className="pm-kpi">
-          <div className="pm-muted" style={{ fontSize: 12 }}>Open rate</div>
+          <div className="pm-muted" style={{ fontSize: 13 }}>Open rate</div>
           <div className={styles.anNum}>{h.open_rate}%</div>
           {delta(h.open_rate, data.prior?.open_rate, "pts")}
         </div>
         <div className="pm-kpi">
-          <div className="pm-muted" style={{ fontSize: 12 }}>Click rate</div>
+          <div className="pm-muted" style={{ fontSize: 13 }}>Click rate</div>
           <div className={styles.anNum}>{h.click_rate}%</div>
           {delta(h.click_rate, data.prior?.click_rate, "pts")}
         </div>
         <div className="pm-kpi">
-          <div className="pm-muted" style={{ fontSize: 12 }}>Reply rate</div>
+          <div className="pm-muted" style={{ fontSize: 13 }}>Reply rate</div>
           <div className={styles.anNum}>{h.reply_rate}%</div>
           {delta(h.reply_rate, data.prior?.reply_rate, "pts")}
         </div>
         <div className="pm-kpi">
-          <div className="pm-muted" style={{ fontSize: 12 }}>Bounce rate</div>
+          <div className="pm-muted" style={{ fontSize: 13 }}>Bounce rate</div>
           <div className={styles.anNum}>{h.bounce_rate}%</div>
           {delta(h.bounce_rate, data.prior?.bounce_rate, "pts")}
         </div>

@@ -78,7 +78,7 @@ export default function SequencesView({ onChanged }: { onChanged: () => void }) 
           <Plus size={14} /> New sequence
         </button>
         {sequences.length === 0 ? (
-          <p className="pm-muted" style={{ fontSize: 12.5, marginTop: 12 }}>
+          <p className="pm-muted" style={{ fontSize: 13.5, marginTop: 12 }}>
             No sequences yet. A sequence is the series of emails a list receives: intro, then
             follow-ups a few days apart. Replies stop it automatically.
           </p>
@@ -94,7 +94,7 @@ export default function SequencesView({ onChanged }: { onChanged: () => void }) 
                 onClick={() => setSelectedId(s.id)}
               >
                 <span className={styles.seqIndexName}>{listLabel(s.name)}</span>
-                <span className="pm-dim" style={{ fontSize: 11.5 }}>
+                <span className="pm-dim" style={{ fontSize: 12.5 }}>
                   {s.steps.length} step{s.steps.length === 1 ? "" : "s"}
                   {active ? ` · ${active} in flight` : ""}
                 </span>
@@ -254,7 +254,7 @@ function SequenceBuilder({
                     </div>
                   )}
                   {typeof step.sent === "number" && step.sent > 0 && (
-                    <div className="pm-dim" style={{ fontSize: 11.5, marginTop: 6 }}>{step.sent} sent from this step</div>
+                    <div className="pm-dim" style={{ fontSize: 12.5, marginTop: 6 }}>{step.sent} sent from this step</div>
                   )}
                 </div>
               </div>
@@ -286,7 +286,7 @@ function SequenceBuilder({
           </label>
           <h4 style={{ marginTop: 16 }}>Enrolled</h4>
           {totalEnrolled === 0 ? (
-            <p className="pm-muted" style={{ fontSize: 12.5 }}>
+            <p className="pm-muted" style={{ fontSize: 13.5 }}>
               Nobody yet. Open a list and hit “Enroll in sequence”.
             </p>
           ) : (

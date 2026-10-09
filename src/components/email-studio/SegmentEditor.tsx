@@ -76,7 +76,7 @@ export function AudienceCount({ rules }: { rules: AudienceRules }) {
   const { count, sample, loading, error } = useAudienceCount(rules);
   return (
     <div className="pm2-panel" style={{ padding: 16, display: "grid", gap: 6 }}>
-      <div className={s.row} style={{ color: "var(--pm-muted)", fontSize: 13 }}>
+      <div className={s.row} style={{ color: "var(--pm-muted)", fontSize: 14 }}>
         <Users size={15} /> Who gets this email
       </div>
       <div className={s.bigCount} style={{ opacity: loading ? 0.5 : 1 }}>{count == null ? "…" : count.toLocaleString("en-IN")}</div>

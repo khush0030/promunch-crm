@@ -59,3 +59,5 @@ export type { Channel } from "./Avatar";
 export { ListRow } from "./ListRow";
 export { Board } from "./Board";
 export type { BoardColumn } from "./Board";
+export { Tag, toneFor } from "./Tag";
+export type { TagTone } from "./Tag";

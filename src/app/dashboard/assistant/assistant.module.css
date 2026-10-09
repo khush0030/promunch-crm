@@ -43,7 +43,7 @@
   background: var(--pm-card);
   color: var(--pm-ink);
   font: inherit;
-  font-size: 14.5px;
+  font-size: 15.5px;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
@@ -89,7 +89,7 @@
 .railTitle {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
+  font-size: 15px;
   color: var(--pm-ink);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -109,7 +109,7 @@
 }
 .railItem:hover .railDelete, .railDelete:focus-visible { opacity: 1; }
 .railDelete:hover { color: var(--pm-ink); }
-.railEmpty { font-size: 13.5px; color: var(--pm-muted); padding: 8px 8px; line-height: 1.45; }
+.railEmpty { font-size: 14.5px; color: var(--pm-muted); padding: 8px 8px; line-height: 1.45; }
 
 /* ── Chat canvas ───────────────────────────────────────────────────── */
 
@@ -167,7 +167,7 @@
   margin-bottom: 12px;
 }
 .mayaName b { font-weight: 800; }
-.looked { font-size: 13.5px; color: var(--pm-muted); }
+.looked { font-size: 14.5px; color: var(--pm-muted); }
 .avatar {
   display: inline-flex;
   align-items: center;
@@ -194,7 +194,7 @@
   padding-top: 12px;
   border-top: 1px solid var(--pm-line);
 }
-.sources { flex: 1; min-width: 0; display: inline-flex; align-items: flex-start; gap: 7px; font-size: 13.5px; color: var(--pm-muted); line-height: 1.45; }
+.sources { flex: 1; min-width: 0; display: inline-flex; align-items: flex-start; gap: 7px; font-size: 14.5px; color: var(--pm-muted); line-height: 1.45; }
 .sources svg { flex: none; margin-top: 2px; }
 .copyBtn {
   display: inline-flex;
@@ -206,7 +206,7 @@
   background: var(--pm-card);
   color: var(--pm-ink2);
   font: inherit;
-  font-size: 13.5px;
+  font-size: 14.5px;
   font-weight: 600;
   cursor: pointer;
   border-radius: 10px;
@@ -301,7 +301,7 @@
 .md :global(table) {
   border-collapse: collapse;
   margin: 10px 0;
-  font-size: 14px;
+  font-size: 15px;
   background: var(--pm-card);
   border-radius: 12px;
   box-shadow: 0 0 0 1px var(--pm-border);
@@ -329,7 +329,7 @@
   border: 1px solid var(--pm-line);
   border-radius: 5px;
   padding: 1px 5px;
-  font-size: 13px;
+  font-size: 14px;
 }
 .md :global(a) { color: var(--pm-ink); text-decoration: underline; text-underline-offset: 3px; }
 
@@ -441,12 +441,12 @@
 .stopBtn:hover { background: var(--pm-border); }
 
 .hint {
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--pm-muted);
   text-align: center;
   padding: 8px 0 12px;
 }
-.error { padding: 10px 2px 0; color: var(--pm-terra); font-size: 14px; font-weight: 600; }
+.error { padding: 10px 2px 0; color: var(--pm-terra); font-size: 15px; font-weight: 600; }
 
 /* ── Responsive ────────────────────────────────────────────────────── */
 

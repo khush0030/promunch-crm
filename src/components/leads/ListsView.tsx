@@ -210,7 +210,7 @@ export default function ListsView({
   return (
     <div>
       <div className={styles.tplToolbar} style={{ marginBottom: 10, justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 14, color: "var(--pm-muted)" }}>
+        <span style={{ fontSize: 15, color: "var(--pm-muted)" }}>
           Open a list to see every business and its stage. Tick lists to merge or delete them.
         </span>
         <button type="button" className="pm-btn" onClick={() => setDialog({ kind: "new" })} disabled={busy}>

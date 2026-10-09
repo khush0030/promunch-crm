@@ -9,12 +9,12 @@
 .body { flex: 1 1 auto; overflow-y: auto; padding: 18px 24px; display: grid; gap: 14px; align-content: start; }
 .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .field { display: grid; gap: 6px; min-width: 0; }
-.field > span { font-size: 14px; font-weight: 600; color: var(--pm-ink2); }
+.field > span { font-size: 15px; font-weight: 600; color: var(--pm-ink2); }
 .in { width: 100%; min-width: 0; height: 42px; padding: 0 12px; border: 1px solid var(--pm-border); border-radius: 12px; background: var(--pm-card); color: var(--pm-ink); font: 400 15px var(--pm-font); }
 .in:focus { outline: 2px solid var(--pm-ink); outline-offset: 1px; }
 .ta { height: auto; min-height: 110px; padding: 10px 12px; resize: vertical; line-height: 1.5; }
-.hint { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--pm-muted); }
-.err { margin: 0; font-size: 14px; color: var(--pm-terra); }
+.hint { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--pm-muted); }
+.err { margin: 0; font-size: 15px; color: var(--pm-terra); }
 .foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 24px 18px; border-top: 1px solid var(--pm-line); }
 
 @media (max-width: 720px) {

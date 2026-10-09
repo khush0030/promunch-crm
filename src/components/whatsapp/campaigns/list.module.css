@@ -10,7 +10,7 @@
 .headText { min-width: 0; flex: 1 1 320px; }
 .title { margin: 0; font: 400 22px/1.15 var(--pm-display); color: var(--pm-ink); letter-spacing: -.01em; }
 .sum { margin: 6px 0 0; font-size: 15px; color: var(--pm-ink2); line-height: 1.5; }
-.help { margin: 4px 0 0; font-size: 13.5px; color: var(--pm-muted); line-height: 1.5; }
+.help { margin: 4px 0 0; font-size: 14.5px; color: var(--pm-muted); line-height: 1.5; }
 .newBtn { flex: none; white-space: nowrap; }
 
 /* filters left, search right */
@@ -23,7 +23,7 @@
 .search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--pm-hint); pointer-events: none; }
 .search input {
   width: 100%; box-sizing: border-box; height: 40px; padding: 0 12px 0 36px; border: 1px solid var(--pm-border); border-radius: 12px;
-  background: var(--pm-card); color: var(--pm-ink); font: inherit; font-size: 14.5px;
+  background: var(--pm-card); color: var(--pm-ink); font: inherit; font-size: 15.5px;
 }
 .search input:focus-visible { outline: 2px solid var(--pm-ink); outline-offset: 1px; }
 
@@ -50,9 +50,9 @@
 .name { font-weight: 700; color: var(--pm-ink); text-decoration: none; overflow-wrap: anywhere; line-height: 1.35; }
 .name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .name:focus-visible { outline: 2px solid var(--pm-ink); outline-offset: 2px; border-radius: 4px; }
-.sub { display: block; font-size: 14px; color: var(--pm-muted); line-height: 1.45; margin-top: 2px; overflow-wrap: anywhere; }
+.sub { display: block; font-size: 15px; color: var(--pm-muted); line-height: 1.45; margin-top: 2px; overflow-wrap: anywhere; }
 .sub svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 3px; }
-.fu { display: block; font-size: 13.5px; color: var(--pm-ink2); font-weight: 600; margin-top: 1px; }
+.fu { display: block; font-size: 14.5px; color: var(--pm-ink2); font-weight: 600; margin-top: 1px; }
 .child { position: relative; }
 .childMark {
   display: inline-block; flex: none; width: 12px; height: 12px; margin-right: 2px; transform: translateY(-2px);
@@ -60,7 +60,7 @@
 }
 
 /* status: coloured text + small dot, never a filled block */
-.status { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 14.5px; white-space: nowrap; color: var(--pm-muted); }
+.status { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 15.5px; white-space: nowrap; color: var(--pm-muted); }
 .status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
 .stSending { color: var(--pm-green); }
 .stScheduled { color: var(--pm-blue); }
@@ -89,7 +89,7 @@
 }
 .menu :global(.pm2-btn) {
   width: 100%; justify-content: flex-start; border: 0; box-shadow: none; background: none; border-radius: 9px;
-  font-weight: 600; font-size: 14.5px; padding: 9px 10px; color: var(--pm-ink);
+  font-weight: 600; font-size: 15.5px; padding: 9px 10px; color: var(--pm-ink);
 }
 .menu :global(.pm2-btn.pri) { background: none; color: var(--pm-ink); box-shadow: none; }
 .menu :global(.pm2-btn:hover) { background: var(--pm-card2); }
@@ -104,7 +104,7 @@
 .stripHead { display: flex; gap: 6px; align-items: center; justify-content: space-between; }
 .stripLabel { font: 700 11px/1.2 var(--pm-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--pm-muted); }
 .stripValue { font-size: 20px; font-weight: 750; margin-top: 8px; font-variant-numeric: tabular-nums; color: var(--pm-ink); line-height: 1.2; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.stripSub { font-size: 13px; color: var(--pm-muted); margin-top: 4px; line-height: 1.45; }
+.stripSub { font-size: 14px; color: var(--pm-muted); margin-top: 4px; line-height: 1.45; }
 .meter { height: 4px; border-radius: 999px; background: var(--pm-card3); overflow: hidden; margin-top: 10px; }
 .meter > div { height: 100%; background: var(--pm-green); border-radius: 999px; }
 .meterFull > div { background: var(--pm-gold); }
@@ -132,8 +132,8 @@
   .chevron { display: none !important; }
   /* status + numbers share one wrapping line under the name */
   .tbl td.meta { display: none; }
-  .metaLine { grid-area: meta; display: flex !important; flex-wrap: wrap; gap: 4px 14px; align-items: center; font-size: 14.5px; color: var(--pm-ink2); }
-  .metaLine .status { font-size: 14px; }
+  .metaLine { grid-area: meta; display: flex !important; flex-wrap: wrap; gap: 4px 14px; align-items: center; font-size: 15.5px; color: var(--pm-ink2); }
+  .metaLine .status { font-size: 15px; }
 }
 @container (max-width: 520px) {
   .strip { grid-template-columns: minmax(0, 1fr); }

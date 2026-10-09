@@ -101,7 +101,7 @@ export default function AttentionPage() {
         <div className="pm2-body">
           <Card title="Done today" flush>
             {doneItems.length === 0 ? (
-              <div style={{ color: "var(--pm-hint)", fontSize: 13, padding: "16px" }}>
+              <div style={{ color: "var(--pm-hint)", fontSize: 14, padding: "16px" }}>
                 Nothing resolved yet today
               </div>
             ) : (
@@ -133,7 +133,7 @@ export default function AttentionPage() {
       <div className="pm2-body">
         {groupCards.length === 0 ? (
           <Card flush>
-            <div style={{ color: "var(--pm-hint)", fontSize: 13, padding: "16px" }}>{emptyText}</div>
+            <div style={{ color: "var(--pm-hint)", fontSize: 14, padding: "16px" }}>{emptyText}</div>
           </Card>
         ) : (
           groupCards.map((g) => (

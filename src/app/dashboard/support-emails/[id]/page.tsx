@@ -186,7 +186,7 @@ export default function SupportEmailDetail() {
           <Link
             href="/dashboard/support-emails"
             className="more"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--pm-muted)", fontSize: 12 }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--pm-muted)", fontSize: 13 }}
           >
             <ArrowLeft size={14} /> Back to inbox
           </Link>
@@ -221,7 +221,7 @@ export default function SupportEmailDetail() {
               )}
             </div>
             {thread.classification_meta?.rationale && (
-              <div style={{ background: "var(--pm-card2)", border: "1px solid var(--pm-line)", borderRadius: 10, padding: "12px 14px", fontSize: 13, color: "var(--pm-muted)" }}>
+              <div style={{ background: "var(--pm-card2)", border: "1px solid var(--pm-line)", borderRadius: 10, padding: "12px 14px", fontSize: 14, color: "var(--pm-muted)" }}>
                 {thread.classification_meta.rationale}
               </div>
             )}
@@ -229,13 +229,13 @@ export default function SupportEmailDetail() {
 
           <Panel title="Incoming email" icon={<Mail className="tic" />} style={{ marginBottom: 14 }}>
             {thread.body_plain ? (
-              <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit", fontSize: 13.5, color: "var(--pm-ink)", lineHeight: 1.6, margin: 0 }}>
+              <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit", fontSize: 14.5, color: "var(--pm-ink)", lineHeight: 1.6, margin: 0 }}>
                 {thread.body_plain}
               </pre>
             ) : thread.snippet ? (
-              <div style={{ fontSize: 13.5, color: "var(--pm-muted)" }}>{thread.snippet}</div>
+              <div style={{ fontSize: 14.5, color: "var(--pm-muted)" }}>{thread.snippet}</div>
             ) : (
-              <div className="pm-dim" style={{ fontSize: 13 }}>No body captured.</div>
+              <div className="pm-dim" style={{ fontSize: 14 }}>No body captured.</div>
             )}
           </Panel>
 
@@ -262,7 +262,7 @@ export default function SupportEmailDetail() {
                   </>
                 )}
               </div>
-              <div className="pm-dim" style={{ fontSize: 11.5, marginTop: 10 }}>
+              <div className="pm-dim" style={{ fontSize: 12.5, marginTop: 10 }}>
                 Sending, rewriting &amp; editing happen in the Slack approval bot.
               </div>
             </Panel>
@@ -273,7 +273,7 @@ export default function SupportEmailDetail() {
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {sent.map((s) => (
                   <div key={s.id}>
-                    <div style={{ fontSize: 12, color: "var(--pm-green)", fontWeight: 600, marginBottom: 6 }}>
+                    <div style={{ fontSize: 13, color: "var(--pm-green)", fontWeight: 600, marginBottom: 6 }}>
                       Sent {fmtDate(s.sent_at)}
                       {s.approved_by_slack_user && <span className="pm-dim" style={{ fontWeight: 400 }}> · approved by {s.approved_by_slack_user}</span>}
                     </div>
@@ -291,17 +291,17 @@ export default function SupportEmailDetail() {
                   <div key={d.id} style={{ background: "var(--pm-card2)", border: "1px solid var(--pm-line)", borderRadius: 10, padding: 14 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span className="pm-b7" style={{ fontSize: 13 }}>v{d.revision}</span>
-                        {d.model && <span className="pm-dim" style={{ fontSize: 11 }}>{d.model}</span>}
+                        <span className="pm-b7" style={{ fontSize: 14 }}>v{d.revision}</span>
+                        {d.model && <span className="pm-dim" style={{ fontSize: 12 }}>{d.model}</span>}
                       </div>
-                      <span className="pm-dim" style={{ fontSize: 11 }}>{fmtDate(d.created_at)}</span>
+                      <span className="pm-dim" style={{ fontSize: 12 }}>{fmtDate(d.created_at)}</span>
                     </div>
                     {d.feedback && (
-                      <div style={{ fontSize: 12, color: "var(--pm-muted)", marginBottom: 8, paddingLeft: 10, borderLeft: "2px solid var(--pm-border)" }}>
+                      <div style={{ fontSize: 13, color: "var(--pm-muted)", marginBottom: 8, paddingLeft: 10, borderLeft: "2px solid var(--pm-border)" }}>
                         Feedback: {d.feedback}
                       </div>
                     )}
-                    <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit", fontSize: 13, color: "var(--pm-ink)", lineHeight: 1.6, margin: 0 }}>
+                    <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit", fontSize: 14, color: "var(--pm-ink)", lineHeight: 1.6, margin: 0 }}>
                       {d.body}
                     </pre>
                   </div>
@@ -320,7 +320,7 @@ export default function SupportEmailDetail() {
           </Panel>
 
           <Panel title="How to handle" icon={<Bot className="tic" />}>
-            <div style={{ fontSize: 13, color: "var(--pm-muted)", lineHeight: 1.6 }}>
+            <div style={{ fontSize: 14, color: "var(--pm-muted)", lineHeight: 1.6 }}>
               {thread.classification_meta?.rationale ||
                 "Review the AI draft, approve in Slack, and route high-value wholesale/partnership leads to the B2B pipeline."}
             </div>

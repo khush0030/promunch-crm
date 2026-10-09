@@ -436,11 +436,11 @@ export default function CampaignWizard({
                 <div className={styles.wizModeRow}>
                   <label className={`${styles.enrollOption}${mode === "quick" ? ` ${styles.enrollOptionOn}` : ""}`}>
                     <input type="radio" name="mode" checked={mode === "quick"} onChange={() => setMode("quick")} />
-                    <span><b>One email now</b><span className="pm-dim" style={{ display: "block", fontSize: 12 }}>Write it here (or AI-draft it). Sent once; replies land in Replies.</span></span>
+                    <span><b>One email now</b><span className="pm-dim" style={{ display: "block", fontSize: 13 }}>Write it here (or AI-draft it). Sent once; replies land in Replies.</span></span>
                   </label>
                   <label className={`${styles.enrollOption}${mode === "sequence" ? ` ${styles.enrollOptionOn}` : ""}`}>
                     <input type="radio" name="mode" checked={mode === "sequence"} onChange={() => setMode("sequence")} />
-                    <span><b>Existing sequence</b><span className="pm-dim" style={{ display: "block", fontSize: 12 }}>Intro + timed follow-ups you set up in the Campaigns tab.</span></span>
+                    <span><b>Existing sequence</b><span className="pm-dim" style={{ display: "block", fontSize: 13 }}>Intro + timed follow-ups you set up in the Campaigns tab.</span></span>
                   </label>
                 </div>
 
@@ -495,9 +495,9 @@ export default function CampaignWizard({
                         {variants.map((v) => (
                           <div key={v.label} className={styles.variantCard}>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <b style={{ fontSize: 12.5 }}>{v.label}</b>
-                              <div className="pm-b7" style={{ fontSize: 12 }}>{v.subject}</div>
-                              <div className="pm-dim" style={{ fontSize: 11.5, marginTop: 2 }}>
+                              <b style={{ fontSize: 13.5 }}>{v.label}</b>
+                              <div className="pm-b7" style={{ fontSize: 13 }}>{v.subject}</div>
+                              <div className="pm-dim" style={{ fontSize: 12.5, marginTop: 2 }}>
                                 {v.body.slice(0, 120)}{v.body.length > 120 ? "…" : ""}
                               </div>
                             </div>
@@ -554,7 +554,7 @@ export default function CampaignWizard({
                           <input type="radio" name="sequence" checked={selectedSequenceId === s.id} onChange={() => setSelectedSequenceId(s.id)} />
                           <span>
                             <b>{s.name}</b>
-                            <span className="pm-dim" style={{ display: "block", fontSize: 12 }}>
+                            <span className="pm-dim" style={{ display: "block", fontSize: 13 }}>
                               {s.steps.length} step{s.steps.length === 1 ? "" : "s"}
                               {s.steps.length > 1 ? ` · waits ${s.steps.slice(1).map((st) => `${st.wait_days}d`).join(", ")}` : " (one-shot)"}
                               {" · "}first email: “{s.steps[0]?.template_subject ?? "?"}”
@@ -594,7 +594,7 @@ export default function CampaignWizard({
                       <button type="button" className="pm-btn" disabled={previewIdx >= recipients.length - 1} onClick={() => setPreviewIdx((i) => i + 1)} aria-label="Next lead">
                         <ChevronRight size={14} />
                       </button>
-                      <span className="pm-dim" style={{ fontSize: 12 }}>{previewIdx + 1} of {recipients.length}</span>
+                      <span className="pm-dim" style={{ fontSize: 13 }}>{previewIdx + 1} of {recipients.length}</span>
                     </div>
                     <div className={styles.tplPreview} style={{ marginTop: 10 }}>
                       <div className={styles.tplPreviewFrom}>
@@ -713,7 +713,7 @@ function RecipGroup({
               onChange={(e) => onToggle(l.id, e.target.checked)}
             />
             <span className={styles.recipName}>{l.name}</span>
-            <span className="pm-dim mono" style={{ fontSize: 12 }}>{contact?.email}</span>
+            <span className="pm-dim mono" style={{ fontSize: 13 }}>{contact?.email}</span>
             {l.enrollment && ["active", "sending"].includes(l.enrollment.status) && (
               <span className="pm-badge2 bg-blue" title={l.enrollment.sequence_name ?? undefined}>in “{l.enrollment.sequence_name}”</span>
             )}
@@ -741,7 +741,7 @@ function LaunchedPanel({
         Campaign launched: {result.enrolled} lead{result.enrolled === 1 ? "" : "s"} queued
       </h3>
       {skippedNote && (
-        <p className="pm-muted" style={{ fontSize: 12.5 }}>Skipped: {skippedNote}.</p>
+        <p className="pm-muted" style={{ fontSize: 13.5 }}>Skipped: {skippedNote}.</p>
       )}
       <div className={styles.guideTips} style={{ textAlign: "left", marginTop: 16 }}>
         <div className={styles.guideTipsTitle}>What happens now</div>

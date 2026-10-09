@@ -134,7 +134,7 @@ export default function AnalyticsPage() {
       />
       <div className="pm-page">
         {q.error && (
-          <div role="alert" style={{ marginBottom: 14, fontSize: 14, color: "var(--pm-terra)" }}>
+          <div role="alert" style={{ marginBottom: 14, fontSize: 15, color: "var(--pm-terra)" }}>
             Could not load results: {(q.error as Error).message}
           </div>
         )}
@@ -156,12 +156,12 @@ export default function AnalyticsPage() {
                     { n: n(d.unsubscribed), l: "Unsubscribed", color: "var(--pm-ink)" },
                   ]}
                 />
-                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--pm-line)", fontSize: 14, color: "var(--pm-ink2)" }}>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--pm-line)", fontSize: 15, color: "var(--pm-ink2)" }}>
                   Clicks are the number to trust. Opens run high because Apple Mail opens every email for privacy.
                 </div>
               </>
             ) : (
-              <div className="pm-dim" style={{ fontSize: 13 }}>Loading…</div>
+              <div className="pm-dim" style={{ fontSize: 14 }}>Loading…</div>
             )}
           </Panel>
 
@@ -169,7 +169,7 @@ export default function AnalyticsPage() {
             <MiniBar label="Bounce rate (keep under 2%)" value={d ? pct(d.bounceRate) : "…"} pct={bar(d?.bounceRate ?? null, 0.02)} color="var(--pm-gold)" />
             <MiniBar label="Spam complaints (keep under 0.1%)" value={d ? pct(d.complaintRate) : "…"} pct={bar(d?.complaintRate ?? null, 0.001)} color="var(--pm-terra)" />
             {d && d.bounceRate == null && (
-              <div style={{ marginTop: 12, fontSize: 14, color: "var(--pm-muted)" }}>
+              <div style={{ marginTop: 12, fontSize: 15, color: "var(--pm-muted)" }}>
                 No campaign sends in the last {span}. Health shows once a campaign goes out.
               </div>
             )}
@@ -184,7 +184,7 @@ export default function AnalyticsPage() {
                 <LineCards rows={d.campaigns.slice(0, 5)} />
               </>
             ) : (
-              <div className="pm-dim" style={{ textAlign: "center", fontSize: 12.5, padding: "32px 0" }}>{d ? "No campaigns sent in this range" : "Loading…"}</div>
+              <div className="pm-dim" style={{ textAlign: "center", fontSize: 13.5, padding: "32px 0" }}>{d ? "No campaigns sent in this range" : "Loading…"}</div>
             )}
           </Panel>
           <Panel title="Top automations" icon={<TrendingUp className="tic" />} caption={`Sent in the last ${span}`}>
@@ -194,7 +194,7 @@ export default function AnalyticsPage() {
                 <LineCards rows={d.automations.slice(0, 5)} />
               </>
             ) : (
-              <div className="pm-dim" style={{ textAlign: "center", fontSize: 12.5, padding: "32px 0" }}>{d ? "No automation emails in this range" : "Loading…"}</div>
+              <div className="pm-dim" style={{ textAlign: "center", fontSize: 13.5, padding: "32px 0" }}>{d ? "No automation emails in this range" : "Loading…"}</div>
             )}
           </Panel>
         </div>

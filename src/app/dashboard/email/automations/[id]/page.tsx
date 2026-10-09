@@ -444,7 +444,7 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
                   hint={Number(cfg.once_per_contact_days ?? 0) > 0 ? undefined : "Off: every matching event enters them."}
                 >
                   {Number(cfg.once_per_contact_days ?? 0) > 0 && (
-                    <span className={s.row} style={{ fontSize: 13, color: "var(--pm-muted)" }}>
+                    <span className={s.row} style={{ fontSize: 14, color: "var(--pm-muted)" }}>
                       At most once every
                       <input className={s.input} style={{ width: 70 }} type="number" min={1} disabled={rulesLocked} value={Number(cfg.once_per_contact_days)} onChange={(e) => setCfg("once_per_contact_days", Math.max(1, Number(e.target.value) || 1))} />
                       days
@@ -493,7 +493,7 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
                 <StepSettings step={step} index={sel} trigger={draft.trigger_type} winback={cfg.segment === "winback"} onChange={(patch) => setStep(sel, patch)} />
                 <VisualEmailEditor key={sel} html={step.body_html} trigger={draft.trigger_type} tags={tags} onChange={(html) => setStep(sel, { body_html: html })} />
                 <details className="pm2-panel" style={{ padding: 14 }}>
-                  <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 14 }}>Advanced</summary>
+                  <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 15 }}>Advanced</summary>
                   <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
                     {!rulesLocked && (
                       <div className={s.row}>
@@ -509,7 +509,7 @@ function Editor({ params }: { params: Promise<{ id: string }> }) {
                     </label>
                     <label className={s.field}>
                       <span>Email HTML <em>for experts, the editor above writes this</em></span>
-                      <textarea className={s.textarea} style={{ minHeight: 220, fontFamily: "var(--pm-mono)", fontSize: 12 }} value={step.body_html} onChange={(e) => setStep(sel, { body_html: e.target.value })} />
+                      <textarea className={s.textarea} style={{ minHeight: 220, fontFamily: "var(--pm-mono)", fontSize: 13 }} value={step.body_html} onChange={(e) => setStep(sel, { body_html: e.target.value })} />
                     </label>
                   </div>
                 </details>
@@ -679,7 +679,7 @@ function Lines({ label, hint, main, variants, onMain, onVariants }: {
       <span className={s.row} style={{ justifyContent: "space-between" }}>
         <span className={s.hint} style={{ fontWeight: 500 }}>{hint}</span>
         {variants.length < 2 && (
-          <button type="button" className="pm2-btn ghost" style={{ height: 28, fontSize: 12.5 }} onClick={() => onVariants([...variants, ""])}>
+          <button type="button" className="pm2-btn ghost" style={{ height: 28, fontSize: 13.5 }} onClick={() => onVariants([...variants, ""])}>
             <Plus size={12} /> Add an option to test
           </button>
         )}
@@ -691,7 +691,7 @@ function Lines({ label, hint, main, variants, onMain, onVariants }: {
 function Toggle({ checked, onChange, label, hint, disabled, children }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string; disabled?: boolean; children?: React.ReactNode }) {
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      <label className={s.check} style={{ fontSize: 14, cursor: disabled ? "default" : "pointer" }}>
+      <label className={s.check} style={{ fontSize: 15, cursor: disabled ? "default" : "pointer" }}>
         <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
         <span style={{ display: "grid", gap: 2 }}>
           <b style={{ fontWeight: 600 }}>{label}</b>

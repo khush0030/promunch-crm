@@ -69,7 +69,7 @@ export function Pill({ icon: Icon, label, bg, color }: { icon: any; label: strin
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 4,
-      background: bg, color, fontSize: 11, fontWeight: 600,
+      background: bg, color, fontSize: 12, fontWeight: 600,
       padding: "2px 8px", borderRadius: 999, textTransform: "capitalize",
     }}>
       <Icon size={11} /> {label}
@@ -80,7 +80,7 @@ export function Pill({ icon: Icon, label, bg, color }: { icon: any; label: strin
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pm-ink)", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--pm-ink)", marginBottom: 4 }}>{label}</div>
       {children}
     </div>
   );

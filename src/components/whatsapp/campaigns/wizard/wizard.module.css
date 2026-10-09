@@ -16,7 +16,7 @@
 .step:disabled .label { opacity: .7; }
 .n {
   width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none;
-  border: 1.5px solid var(--pm-border); background: var(--pm-card); font-size: 14px; color: var(--pm-muted); font-variant-numeric: tabular-nums;
+  border: 1.5px solid var(--pm-border); background: var(--pm-card); font-size: 15px; color: var(--pm-muted); font-variant-numeric: tabular-nums;
 }
 .n svg { width: 15px; height: 15px; }
 .done { color: var(--pm-ink2); }
@@ -32,15 +32,15 @@
 }
 .footer :global(.pm2-btn) { white-space: nowrap; }
 .footLeft { display: flex; gap: 10px; align-items: center; min-width: 0; flex-wrap: wrap; }
-.saveState { font-size: 13px; color: var(--pm-muted); }
+.saveState { font-size: 14px; color: var(--pm-muted); }
 
 @media (max-width: 760px) {
   .steps { flex-wrap: nowrap; gap: 5px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
   .steps::-webkit-scrollbar { display: none; }
   .stepItem { gap: 5px; flex: none; }
   .line { width: 8px; }
-  .step { gap: 7px; font-size: 14px; }
-  .n { width: 26px; height: 26px; font-size: 13px; }
+  .step { gap: 7px; font-size: 15px; }
+  .n { width: 26px; height: 26px; font-size: 14px; }
   .step .label { display: none; }
   .on .label { display: inline; }
   .stepsNav { margin-bottom: 18px; }

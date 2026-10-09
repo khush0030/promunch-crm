@@ -115,7 +115,7 @@ export default function CampaignsPage() {
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <Tabs tabs={tabs.map((t) => ({ key: t, label: t }))} active={activeTab} onSelect={setActiveTab} />
-        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--pm-hint)", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "var(--pm-hint)", marginBottom: 16 }}>
           Sort by
           <FilterChips
             chips={[{ key: "date", label: "Date" }, { key: "revenue", label: "Revenue" }, { key: "openRate", label: "Open rate" }]}

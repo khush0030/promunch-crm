@@ -214,7 +214,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const backLink = (
-    <Link href="/dashboard/contacts" className="more" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--pm-muted)", fontSize: 12 }}>
+    <Link href="/dashboard/contacts" className="more" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--pm-muted)", fontSize: 13 }}>
       <ArrowLeft size={14} /> Back to customers
     </Link>
   );
@@ -347,7 +347,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                       <td title={itemText} className={css.itemsCell}>
                         <span className={css.itemsText}>{itemText}</span>
                         {(o.products?.itemCount ?? 0) > 0 && (
-                          <span className="pm-dim" style={{ fontSize: 11 }}>
+                          <span className="pm-dim" style={{ fontSize: 12 }}>
                             {o.products!.itemCount} item{o.products!.itemCount === 1 ? "" : "s"}
                           </span>
                         )}
@@ -425,7 +425,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
                       <Icon size={12} color={chipColor} />
                     </span>
                     <span className="nm" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{text}</span>
-                    <span className="pm-dim" style={{ fontSize: 12 }}>{fmtDate(it.at)}</span>
+                    <span className="pm-dim" style={{ fontSize: 13 }}>{fmtDate(it.at)}</span>
                   </div>
                 );
               })}
@@ -435,7 +435,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
         <Panel title="Audience" icon={<MapPin className="tic" />} caption="Lists & segments">
           {tags.length === 0 && lists.length === 0 && segments.length === 0 ? (
-            <div className="pm-dim" style={{ fontSize: 13 }}>No tags or segments.</div>
+            <div className="pm-dim" style={{ fontSize: 14 }}>No tags or segments.</div>
           ) : (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
               {tags.map((t) => <span key={`t-${t}`} className="pm-tag">{t}</span>)}
@@ -451,8 +451,8 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
           <div className="pm-frow" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
             {propEntries.slice(0, 12).map(([k, v]) => (
               <div key={k}>
-                <div className="pm-dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600, marginBottom: 4 }}>{k}</div>
-                <div style={{ fontSize: 13.5, wordBreak: "break-word" }}>
+                <div className="pm-dim" style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600, marginBottom: 4 }}>{k}</div>
+                <div style={{ fontSize: 14.5, wordBreak: "break-word" }}>
                   {isLinkValue(v) ? (
                     <a href={v.trim()} target="_blank" rel="noopener noreferrer" style={{ color: "var(--pm-brand)", textDecoration: "underline" }}>{v.trim()}</a>
                   ) : typeof v === "object" ? JSON.stringify(v) : String(v)}

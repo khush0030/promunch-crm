@@ -55,7 +55,7 @@ export default function ConnectorBanner() {
     >
       <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}>
         <AlertTriangle size={16} style={{ color, flexShrink: 0 }} />
-        <div style={{ fontWeight: 600, color, fontSize: 13.5 }}>
+        <div style={{ fontWeight: 600, color, fontSize: 14.5 }}>
           {isDown
             ? `${broken.length} integration${broken.length === 1 ? "" : "s"} need attention`
             : `${broken.length} integration${broken.length === 1 ? "" : "s"} degraded`}
@@ -80,7 +80,7 @@ export default function ConnectorBanner() {
               flexShrink: 0,
             }}
           />
-          <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--text-2)" }}>
+          <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: "var(--text-2)" }}>
             <b style={{ color: "var(--text)" }}>{c.label}:</b> {c.headline}
           </div>
           <Link

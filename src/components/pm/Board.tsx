@@ -7,7 +7,7 @@ export type BoardColumn = { key: string; title: string; count: number; cards: Re
 // never scrolls sideways (see .pm2-kan in the phone media query).
 export function Board({ columns, empty = "Nothing here" }: { columns: BoardColumn[]; empty?: string }) {
   if (columns.length === 0) {
-    return <div style={{ color: "var(--pm-hint)", fontSize: 13.5 }}>{empty}</div>;
+    return <div style={{ color: "var(--pm-hint)", fontSize: 14.5 }}>{empty}</div>;
   }
   return (
     <div className="pm2-kan">

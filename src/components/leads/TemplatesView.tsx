@@ -133,8 +133,8 @@ export default function TemplatesView({ onChanged }: { onChanged: () => void }) 
                   <span className="pm-badge2 bg-blue">{t.used_in_sequences} sequence{t.used_in_sequences === 1 ? "" : "s"}</span>
                 )}
               </div>
-              <div className="pm-b7" style={{ fontSize: 12.5 }}>{t.subject}</div>
-              <div className="pm-dim" style={{ fontSize: 12, lineHeight: 1.45 }}>
+              <div className="pm-b7" style={{ fontSize: 13.5 }}>{t.subject}</div>
+              <div className="pm-dim" style={{ fontSize: 13, lineHeight: 1.45 }}>
                 {t.body_text.slice(0, 110)}{t.body_text.length > 110 ? "…" : ""}
               </div>
             </button>
@@ -197,7 +197,7 @@ export default function TemplatesView({ onChanged }: { onChanged: () => void }) 
                       <p key={i}>{p}</p>
                     ))}
                 </div>
-                <p className="pm-muted" style={{ fontSize: 11.5, marginTop: 8 }}>
+                <p className="pm-muted" style={{ fontSize: 12.5, marginTop: 8 }}>
                   Variables fill in per lead at send time. With AI polish on, the first paragraph is
                   additionally personalised from the lead&apos;s website.
                 </p>
@@ -271,7 +271,7 @@ function AiDraftModal({
     <div className={styles.overlay} onClick={onClose}>
       <div className={`pm-panel ${styles.modal} ${styles.modalLg}`} onClick={(e) => e.stopPropagation()} style={{ padding: 20 }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Draft with AI</h3>
-        <p className="pm-muted" style={{ fontSize: 12.5, marginBottom: 12 }}>
+        <p className="pm-muted" style={{ fontSize: 13.5, marginBottom: 12 }}>
           Describe the pitch; you get three template options grounded in the PROMUNCH knowledge base.
           Pick one, then edit it like any template.
         </p>
@@ -292,9 +292,9 @@ function AiDraftModal({
         {variants.map((v) => (
           <div key={v.label} className={styles.variantCard}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <b style={{ fontSize: 13 }}>{v.label}</b>
-              <div className="pm-b7" style={{ fontSize: 12.5, marginTop: 2 }}>{v.subject}</div>
-              <div className="pm-dim" style={{ fontSize: 12, marginTop: 4, whiteSpace: "pre-wrap" }}>{v.body}</div>
+              <b style={{ fontSize: 14 }}>{v.label}</b>
+              <div className="pm-b7" style={{ fontSize: 13.5, marginTop: 2 }}>{v.subject}</div>
+              <div className="pm-dim" style={{ fontSize: 13, marginTop: 4, whiteSpace: "pre-wrap" }}>{v.body}</div>
             </div>
             <button type="button" className="pm-btn primary" onClick={() => onUse(v)}>Use this</button>
           </div>

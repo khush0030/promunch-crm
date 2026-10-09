@@ -56,7 +56,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             style={{
               pointerEvents: "auto",
               padding: "8px 14px",
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 500,
               boxShadow: "var(--card-shadow)",
             }}

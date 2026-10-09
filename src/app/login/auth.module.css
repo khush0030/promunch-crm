@@ -43,7 +43,7 @@
 
 .eyebrow {
   font-family: var(--font-mono), ui-monospace, Menlo, monospace;
-  font-size: 12.5px;
+  font-size: 13.5px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   opacity: 0.85;
@@ -103,7 +103,7 @@
 
 .label {
   font-weight: 700;
-  font-size: 14.5px;
+  font-size: 15.5px;
   letter-spacing: 0.1px;
 }
 
@@ -127,7 +127,7 @@
 }
 
 .hint {
-  font-size: 14px;
+  font-size: 15px;
   color: #5c554e;
 }
 
@@ -198,14 +198,14 @@
 
 .note {
   margin: 16px 0 0;
-  font-size: 14.5px;
+  font-size: 15.5px;
   line-height: 1.45;
   color: #5c554e;
 }
 
 .switchLine {
   margin: 12px 0 0;
-  font-size: 14.5px;
+  font-size: 15.5px;
   color: #5c554e;
 }
 

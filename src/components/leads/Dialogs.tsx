@@ -91,7 +91,7 @@ export function ConfirmModal({
           <div className="card-title">{title}</div>
           <button type="button" className="pm-btn" onClick={onClose} aria-label="Close"><X size={14} /></button>
         </div>
-        <div style={{ fontSize: 13.5, color: "var(--pm-muted)", lineHeight: 1.55 }}>{message}</div>
+        <div style={{ fontSize: 14.5, color: "var(--pm-muted)", lineHeight: 1.55 }}>{message}</div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
           <button type="button" className="pm-btn" onClick={onClose} disabled={busy}>Cancel</button>
           <button

@@ -72,7 +72,7 @@ export function WindowTimer({ lastInboundAt }: { lastInboundAt: string | null | 
   return (
     <div role="status" title={title} style={{
       display: "inline-flex", alignItems: "center", gap: 5,
-      fontSize: 12, fontWeight: 600, color: stateColor(left), marginTop: 4,
+      fontSize: 13, fontWeight: 600, color: stateColor(left), marginTop: 4,
     }}>
       {open ? <Clock size={12} /> : <Lock size={12} />}
       <span>{text}</span>
@@ -89,7 +89,7 @@ export function WindowChip({ lastInboundAt }: { lastInboundAt: string | null | u
     <span title={open ? `${fmtLeft(left)} left in the 24h customer window` : "24h customer window closed, template required"}
       style={{
         display: "inline-flex", alignItems: "center", gap: 3,
-        fontSize: 10.5, fontWeight: 700, color,
+        fontSize: 11.5, fontWeight: 700, color,
         background: open ? "rgba(37,211,102,0.10)" : "var(--pm-app)",
         padding: "1px 7px", borderRadius: 999,
       }}>

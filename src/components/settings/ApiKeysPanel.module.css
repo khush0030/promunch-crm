@@ -23,10 +23,10 @@
   color: var(--pm-ink);
   border-radius: 16px;
   padding: 12px 16px;
-  font-size: 14.5px;
+  font-size: 15.5px;
   margin-bottom: 16px;
 }
-.banner code { font-size: 13px; }
+.banner code { font-size: 14px; }
 
 .group { margin-bottom: 22px; }
 .groupLabel {
@@ -70,7 +70,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: 15px;
   color: var(--pm-muted);
   cursor: pointer;
 }
@@ -90,16 +90,16 @@
 
 .id { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .label { font-size: 16px; font-weight: 700; color: var(--pm-ink); overflow-wrap: anywhere; }
-.meta { font-size: 13.5px; color: var(--pm-muted); overflow-wrap: anywhere; }
-.mono { font-family: var(--pm-mono); font-size: 12.5px; }
-.hint { font-size: 13.5px; color: var(--pm-muted); }
+.meta { font-size: 14.5px; color: var(--pm-muted); overflow-wrap: anywhere; }
+.mono { font-family: var(--pm-mono); font-size: 13.5px; }
+.hint { font-size: 14.5px; color: var(--pm-muted); }
 
 .status {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 15px;
 }
 .status::before {
   content: "";
@@ -167,14 +167,14 @@
   white-space: nowrap;
 }
 .saveBtn:disabled { opacity: 0.45; cursor: default; }
-.testNote { grid-column: 1 / -1; font-size: 13.5px; padding-top: 6px; }
+.testNote { grid-column: 1 / -1; font-size: 14.5px; padding-top: 6px; }
 .testOk { color: var(--pm-green); }
 .testFail { color: var(--pm-terra); }
 
 .addRow { display: flex; gap: 8px; padding: 16px 22px; flex-wrap: wrap; }
 .addName { flex: 0 1 260px; text-transform: uppercase; }
 
-.note { font-size: 13.5px; color: var(--pm-muted); margin-top: 4px; line-height: 1.5; }
+.note { font-size: 14.5px; color: var(--pm-muted); margin-top: 4px; line-height: 1.5; }
 
 @media (max-width: 760px) {
   .row { grid-template-columns: auto minmax(0, 1fr) auto; padding: 14px 16px; gap: 4px 12px; }

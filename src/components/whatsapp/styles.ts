@@ -38,24 +38,24 @@ export const campaignStatusStyle: Record<string, { bg: string; color: string }> 
 
 export const inputStyle: CSSProperties = {
   width: "100%", padding: "8px 10px", border: "1px solid var(--pm-border)",
-  borderRadius: 8, fontSize: 13, outline: "none", background: "var(--pm-card)", color: "var(--pm-ink)",
+  borderRadius: 8, fontSize: 14, outline: "none", background: "var(--pm-card)", color: "var(--pm-ink)",
 };
 export const cardStyle: CSSProperties = {
   background: "var(--pm-card)", border: "1px solid var(--pm-border)", borderRadius: 12, padding: 14,
 };
 export const primaryBtn: CSSProperties = {
   padding: "9px 15px", borderRadius: 12, border: "none", background: BRAND,
-  color: "var(--pm-card)", fontWeight: 700, fontSize: 14, cursor: "pointer",
+  color: "var(--pm-card)", fontWeight: 700, fontSize: 15, cursor: "pointer",
   display: "inline-flex", alignItems: "center", gap: 6,
 };
 export const smallBtn: CSSProperties = {
   padding: "6px 10px", borderRadius: 8, border: "1px solid var(--pm-border)",
-  background: "var(--pm-card)", color: "var(--pm-ink)", fontSize: 12, fontWeight: 600,
+  background: "var(--pm-card)", color: "var(--pm-ink)", fontSize: 13, fontWeight: 600,
   cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4,
 };
 export const chip: CSSProperties = {
   padding: "6px 13px", borderRadius: 999, border: "1px solid var(--pm-border)",
-  background: "var(--pm-card)", color: "var(--pm-ink2)", fontSize: 14, fontWeight: 700,
+  background: "var(--pm-card)", color: "var(--pm-ink2)", fontSize: 15, fontWeight: 700,
   cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5,
 };
 // Complete on its own (some views spread only this one for the selected chip).

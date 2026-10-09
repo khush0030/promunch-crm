@@ -204,7 +204,7 @@ function CoverageCards({
       <Card title="Confirmation coverage" basis={PERIOD_LABEL[period]}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
           <span style={{ fontSize: 34, fontWeight: 700, fontFamily: "var(--pm-display)" }}>{s.coveragePct}%</span>
-          <span style={{ fontSize: 13, color: "var(--pm-muted)", textAlign: "right" }}>
+          <span style={{ fontSize: 14, color: "var(--pm-muted)", textAlign: "right" }}>
             {s.sent} of {eligible} orders got a
             <br />
             WhatsApp confirmation
@@ -213,7 +213,7 @@ function CoverageCards({
         <div className="pm2-meter">
           <div style={{ width: `${Math.min(100, Math.max(0, s.coveragePct))}%`, background: "var(--pm-green)" }} />
         </div>
-        <div style={{ fontSize: 13, color: "var(--pm-muted)", marginTop: 8 }}>
+        <div style={{ fontSize: 14, color: "var(--pm-muted)", marginTop: 8 }}>
           {missing} missing: {s.noPhone} not on WhatsApp, {s.outstanding} failed
         </div>
       </Card>

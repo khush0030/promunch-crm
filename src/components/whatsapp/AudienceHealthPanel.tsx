@@ -78,7 +78,7 @@ export default function AudienceHealthPanel() {
   if (error) {
     return (
       <Panel title="Audience quality">
-        <div style={{ fontSize: 12.5, color: "var(--pm-terra)" }}>
+        <div style={{ fontSize: 13.5, color: "var(--pm-terra)" }}>
           Could not load audience health: {String((error as Error).message)}
         </div>
       </Panel>
@@ -87,7 +87,7 @@ export default function AudienceHealthPanel() {
   if (!data || "needsMigration" in data) {
     return (
       <Panel title="Audience quality" caption="Engagement tiering is not switched on yet.">
-        <div style={{ fontSize: 12.5, color: "var(--pm-muted)", lineHeight: 1.5 }}>
+        <div style={{ fontSize: 13.5, color: "var(--pm-muted)", lineHeight: 1.5 }}>
           {(data as { hint?: string })?.hint ??
             "Apply supabase/migrations/014_wa_engagement_tiers_and_consent.sql in the Supabase SQL editor to switch on engagement tiers."}
         </div>
@@ -168,7 +168,7 @@ export default function AudienceHealthPanel() {
         />
       </div>
 
-      <div style={{ marginTop: 14, fontSize: 12, color: "var(--pm-muted)", lineHeight: 1.55 }}>
+      <div style={{ marginTop: 14, fontSize: 13, color: "var(--pm-muted)", lineHeight: 1.55 }}>
         <strong style={{ color: "var(--pm-ink)" }}>{num(h.inbound30d)}</strong> people messaged us in the last 30 days.{" "}
         <strong style={{ color: "var(--pm-ink)" }}>{num(h.consentTotal)}</strong> contacts have a recorded opt-in with the
         wording they agreed to ({num(h.consent30d)} added in the last 30 days).{" "}
@@ -202,7 +202,7 @@ function TierBar({ byTier, total }: { byTier: Record<Tier, number>; total: numbe
         {TIERS.map((t) => {
           const n = byTier[t] ?? 0;
           return (
-            <div key={t} style={{ display: "flex", alignItems: "baseline", gap: 6, fontSize: 12 }} title={TIER_META[t].hint}>
+            <div key={t} style={{ display: "flex", alignItems: "baseline", gap: 6, fontSize: 13 }} title={TIER_META[t].hint}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: TIER_META[t].color, display: "inline-block" }} />
               <span style={{ fontWeight: 700 }}>{num(n)}</span>
               <span style={{ color: "var(--pm-muted)" }}>{TIER_META[t].label}</span>
@@ -219,11 +219,11 @@ function Compare({ title, rate, detail, good }: { title: string; rate: number | 
   const color = rate == null ? "var(--pm-muted)" : good ? "var(--pm-green)" : "var(--pm-terra)";
   return (
     <div style={{ border: "1px solid var(--pm-border)", borderRadius: 10, padding: "11px 13px", background: "var(--pm-app)" }}>
-      <div style={{ fontSize: 12, color: "var(--pm-muted)", marginBottom: 3 }}>{title}</div>
+      <div style={{ fontSize: 13, color: "var(--pm-muted)", marginBottom: 3 }}>{title}</div>
       <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5, color }}>
         {rate == null ? "no sends" : pct(rate)}
       </div>
-      <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 2 }}>{detail}</div>
+      <div style={{ fontSize: 12, color: "var(--pm-hint)", marginTop: 2 }}>{detail}</div>
     </div>
   );
 }

@@ -52,7 +52,7 @@ export function MediaUploader({
 
   return (
     <div style={{ marginBottom: 10 }}>
-      {label && <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pm-ink)", marginBottom: 4 }}>{label}</div>}
+      {label && <div style={{ fontSize: 13, fontWeight: 600, color: "var(--pm-ink)", marginBottom: 4 }}>{label}</div>}
 
       {value && !busy && (
         <div style={{ marginBottom: 8, maxWidth: 280 }}>
@@ -64,7 +64,7 @@ export function MediaUploader({
             <video src={value} controls style={{ width: "100%", borderRadius: 8, border: "1px solid var(--pm-border)", display: "block" }} />
           )}
           {kind === "document" && (
-            <a href={value} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--pm-ink)" }}>
+            <a href={value} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--pm-ink)" }}>
               <FileText size={14} /> Open the uploaded PDF
             </a>
           )}
@@ -92,14 +92,14 @@ export function MediaUploader({
           </button>
         )}
         {busy && (
-          <span style={{ fontSize: 11, color: "var(--pm-muted)" }}>
+          <span style={{ fontSize: 12, color: "var(--pm-muted)" }}>
             {busy.name} ({(busy.size / (1024 * 1024)).toFixed(1)} MB). Keep this window open.
           </span>
         )}
       </div>
-      <div style={{ fontSize: 11, color: "var(--pm-hint)", marginTop: 4 }}>{rule.label}</div>
+      <div style={{ fontSize: 12, color: "var(--pm-hint)", marginTop: 4 }}>{rule.label}</div>
       {error && (
-        <div role="alert" style={{ fontSize: 12, color: "var(--pm-terra)", marginTop: 6, display: "flex", gap: 6, alignItems: "flex-start" }}>
+        <div role="alert" style={{ fontSize: 13, color: "var(--pm-terra)", marginTop: 6, display: "flex", gap: 6, alignItems: "flex-start" }}>
           <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} /> {error}
         </div>
       )}

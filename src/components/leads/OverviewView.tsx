@@ -260,7 +260,7 @@ export default function OverviewView({
             <div><b data-tone={deals?.followUp ? "warn" : undefined}>{deals ? nf(deals.followUp) : "–"}</b><span>need follow-up</span></div>
             <div><b data-tone={deals?.won ? "good" : undefined}>{deals ? nf(deals.won) : "–"}</b><span>won</span></div>
           </div>
-          <p className={s.muted} style={{ margin: "12px 0 0", fontSize: 14 }}>
+          <p className={s.muted} style={{ margin: "12px 0 0", fontSize: 15 }}>
             Deals build themselves from the hello@promunch.in mailbox. Drag them between stages on the board.
           </p>
         </section>

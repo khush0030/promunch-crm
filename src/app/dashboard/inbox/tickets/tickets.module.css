@@ -13,7 +13,7 @@
 .view.on{background:var(--pm-card);color:var(--pm-ink);box-shadow:0 1px 3px rgba(26,23,20,.08)}
 .view.on svg{color:var(--pm-ink)}
 .vl{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.n{font-weight:700;font-size:13.5px;color:var(--pm-muted);font-variant-numeric:tabular-nums}
+.n{font-weight:700;font-size:14.5px;color:var(--pm-muted);font-variant-numeric:tabular-nums}
 .view.on .n{color:var(--pm-ink)}
 
 /* queue */
@@ -37,10 +37,10 @@
 .subj{min-width:0;display:flex;flex-direction:column;gap:2px}
 .title{display:block;font-weight:700;font-size:15.5px;color:var(--pm-ink);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .title:hover{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--pm-border)}
-.meta{display:block;font-size:14px;color:var(--pm-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{display:block;font-size:15px;color:var(--pm-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .dueCell,.stCell,.who{min-width:0}
-.due{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;color:var(--pm-muted);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.due{display:inline-flex;align-items:center;gap:6px;font-size:15px;font-weight:600;color:var(--pm-muted);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .due svg{width:15px;height:15px;flex:none}
 .due > span{overflow:hidden;text-overflow:ellipsis}
 .soon{color:var(--pm-gold)}
@@ -48,7 +48,7 @@
 .late{color:var(--pm-gold);font-weight:700}
 .dueSub{font-weight:600}
 
-.st{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:14.5px;white-space:nowrap}
+.st{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:15.5px;white-space:nowrap}
 .st::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
 .st_new{color:var(--pm-blue)}
 .st_open{color:var(--pm-ink2)}
@@ -56,7 +56,7 @@
 .st_solved{color:var(--pm-green)}
 
 .whoAv{display:inline-flex}
-.nobody{font-size:13.5px;color:var(--pm-hint)}
+.nobody{font-size:14.5px;color:var(--pm-hint)}
 
 .act{position:relative;display:flex;justify-content:flex-end}
 .more{width:36px;height:36px;padding:0!important;display:inline-grid;place-items:center}
@@ -66,7 +66,7 @@
 .menu button{justify-content:flex-start;text-align:left}
 
 .empty{padding:40px 20px;color:var(--pm-hint);font-size:15px;text-align:center}
-.note{margin:0;font-size:13.5px;color:var(--pm-muted)}
+.note{margin:0;font-size:14.5px;color:var(--pm-muted)}
 
 @media (max-width:1024px){
   .tq{grid-template-columns:minmax(0,1fr)}

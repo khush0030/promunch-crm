@@ -263,8 +263,8 @@ export default function Onboarding() {
               <div key={s.tour} style={{ display: "flex", gap: 10 }}>
                 <span style={{ ...badgeStyle, flex: "0 0 auto" }}>{s.icon}</span>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{s.title}</div>
-                  <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.5 }}>{s.body}</div>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>{s.title}</div>
+                  <div style={{ fontSize: 14, color: "var(--text-2)", lineHeight: 1.5 }}>{s.body}</div>
                 </div>
               </div>
             ))}
@@ -328,9 +328,9 @@ export default function Onboarding() {
             <X size={16} />
           </button>
         </div>
-        <p style={{ fontSize: 13, lineHeight: 1.55, color: "var(--text-2)", margin: "0 0 14px" }}>{s.body}</p>
+        <p style={{ fontSize: 14, lineHeight: 1.55, color: "var(--text-2)", margin: "0 0 14px" }}>{s.body}</p>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 12, color: "var(--text-3)" }}>
+          <span style={{ fontSize: 13, color: "var(--text-3)" }}>
             {step + 1} / {STEPS.length}
           </span>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>

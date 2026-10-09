@@ -51,7 +51,7 @@ export function ConversationHeader({
           <Pill tone={pill.tone}>{pill.text}</Pill>
           <span className={ch.acts}>{actions}</span>
         </div>
-        {note ? <div style={{ padding: "8px 16px 0", fontSize: 13, color: "var(--pm-muted)" }}>{note}</div> : null}
+        {note ? <div style={{ padding: "8px 16px 0", fontSize: 14, color: "var(--pm-muted)" }}>{note}</div> : null}
       </>
     );
   }
@@ -70,9 +70,9 @@ export function ConversationHeader({
       {facts || note ? (
         <div style={{ padding: "12px 28px 0", display: "flex", flexDirection: "column", gap: 6 }} className="pm2-facts">
           {facts ? (
-            <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 13.5, alignItems: "center" }}>{facts}</div>
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 14.5, alignItems: "center" }}>{facts}</div>
           ) : null}
-          {note ? <div style={{ fontSize: 13, color: "var(--pm-muted)" }}>{note}</div> : null}
+          {note ? <div style={{ fontSize: 14, color: "var(--pm-muted)" }}>{note}</div> : null}
         </div>
       ) : null}
     </>

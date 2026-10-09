@@ -99,16 +99,16 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
                 </span>
               ) : null}
             </div>
-            {lead.fit_reason ? <p style={{ margin: "8px 0 0", fontSize: 14.5, color: "var(--pm-ink2)" }}>{lead.fit_reason}</p> : null}
+            {lead.fit_reason ? <p style={{ margin: "8px 0 0", fontSize: 15.5, color: "var(--pm-ink2)" }}>{lead.fit_reason}</p> : null}
             {lead.products?.length ? (
-              <p className={b.muted} style={{ margin: "4px 0 0", fontSize: 14 }}>Pitching: {lead.products.join(", ")}</p>
+              <p className={b.muted} style={{ margin: "4px 0 0", fontSize: 15 }}>Pitching: {lead.products.join(", ")}</p>
             ) : null}
           </div>
           <button type="button" className="pm-btn ghost" onClick={onClose} aria-label="Close"><X size={16} /></button>
         </div>
         <div className={b.db}>
         {lead.error ? (
-          <div className="pm-muted" style={{ fontSize: 12, color: "var(--amber)" }}>Last error: {lead.error}</div>
+          <div className="pm-muted" style={{ fontSize: 13, color: "var(--amber)" }}>Last error: {lead.error}</div>
         ) : null}
 
         <div className={styles.actionRow} style={{ marginTop: 12 }}>
@@ -168,7 +168,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
             <UserSearch size={14} /> {busy === "buyers" ? "Finding…" : "Find decision maker"}
           </button>
         </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8, fontSize: 12.5 }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8, fontSize: 13.5 }}>
           <span className="pm-muted">Roles:</span>
           {[["hr", "HR"], ["buyer", "Procurement"], ["admin", "Admin"], ["operations", "Operations"], ["ceo", "CEO"]].map(([key, label]) => (
             <label key={key} style={{ display: "flex", gap: 4, alignItems: "center" }}>
@@ -202,7 +202,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
           </div>
         ) : null}
 
-        <div style={{ fontSize: 12.5, fontWeight: 600, margin: "16px 0 6px" }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600, margin: "16px 0 6px" }}>
           Contacts ({(lead.lead_contacts ?? []).length})
         </div>
         {(lead.lead_contacts ?? []).length ? (
@@ -213,11 +213,11 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
             <tbody>
               {lead.lead_contacts.map((c) => (
                 <tr key={c.id}>
-                  <td className="mono" style={{ fontSize: 12.5 }}>
+                  <td className="mono" style={{ fontSize: 13.5 }}>
                     {c.email}
                     {c.is_primary ? <span className="pm-badge2 bg-green" style={{ marginLeft: 6 }}>primary</span> : null}
                     {c.mailbox_status === "valid" ? <span className="pm-badge2 bg-green" style={{ marginLeft: 6 }} title={`Mailbox verified by ${c.mailbox_provider ?? "provider"}${c.mailbox_checked_at ? " on " + c.mailbox_checked_at.slice(0, 10) : ""}`}>verified</span> : null}
-                    {c.person_name ? <div className="pm-muted" style={{ fontSize: 12, fontFamily: "inherit" }}>{c.person_name}{c.person_title ? `, ${c.person_title}` : ""}</div> : null}
+                    {c.person_name ? <div className="pm-muted" style={{ fontSize: 13, fontFamily: "inherit" }}>{c.person_name}{c.person_title ? `, ${c.person_title}` : ""}</div> : null}
                   </td>
                   <td className="pm-muted">{c.role_hint ?? c.kind}</td>
                   <td className="pm-muted">{c.verify_status}</td>
@@ -234,7 +234,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
             </tbody>
           </table>
         ) : (
-          <div className="pm-muted" style={{ fontSize: 12.5 }}>
+          <div className="pm-muted" style={{ fontSize: 13.5 }}>
             No contacts found by the crawler. Add one manually (check their site or LinkedIn).
           </div>
         )}
@@ -329,15 +329,15 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
           </div>
         ) : null}
 
-        <div style={{ fontSize: 12.5, fontWeight: 600, margin: "18px 0 6px" }}>Outreach email</div>
+        <div style={{ fontSize: 13.5, fontWeight: 600, margin: "18px 0 6px" }}>Outreach email</div>
         {activeDraft ? (
           <>
             {activeDraft.error ? (
-              <div className="pm-muted" style={{ fontSize: 12, color: "var(--amber)", marginBottom: 6 }}>
+              <div className="pm-muted" style={{ fontSize: 13, color: "var(--amber)", marginBottom: 6 }}>
                 Last send error: {activeDraft.error}
               </div>
             ) : null}
-            <div className="pm-muted" style={{ fontSize: 12, marginBottom: 6 }}>
+            <div className="pm-muted" style={{ fontSize: 13, marginBottom: 6 }}>
               To: <span className="mono">{contactEmail(activeDraft.contact_id)}</span>
               {activeDraft.edited ? " · edited" : ""}
             </div>
@@ -370,11 +370,11 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
           </>
         ) : sentDraft ? (
           <div>
-            <div className="pm-muted" style={{ fontSize: 12.5, marginBottom: 6 }}>
+            <div className="pm-muted" style={{ fontSize: 13.5, marginBottom: 6 }}>
               Sent to <span className="mono">{contactEmail(sentDraft.contact_id)}</span>
               {sentDraft.sent_at ? ` on ${new Date(sentDraft.sent_at).toLocaleString()}` : ""} · status: {sentDraft.status}
             </div>
-            <div className="pm-panel" style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>
+            <div className="pm-panel" style={{ whiteSpace: "pre-wrap", fontSize: 14 }}>
               <strong>{sentDraft.subject}</strong>
               {"\n\n"}
               {sentDraft.body_text}
@@ -391,7 +391,7 @@ export default function LeadModal({ lead, onClose, onChanged }: { lead: Lead; on
           </div>
         ) : (
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span className="pm-muted" style={{ fontSize: 12.5 }}>No draft yet.</span>
+            <span className="pm-muted" style={{ fontSize: 13.5 }}>No draft yet.</span>
             <button
               type="button" className="pm-btn"
               disabled={busy !== null || !(lead.lead_contacts ?? []).some((c) => c.verify_status === "mx_ok")}

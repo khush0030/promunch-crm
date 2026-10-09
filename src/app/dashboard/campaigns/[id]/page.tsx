@@ -114,7 +114,7 @@ export default function CampaignDetailPage() {
   }
 
   const backLink = (
-    <Link href="/dashboard/campaigns" className="more" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--pm-muted)", fontSize: 12 }}>
+    <Link href="/dashboard/campaigns" className="more" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 8, color: "var(--pm-muted)", fontSize: 13 }}>
       <ArrowLeft size={14} /> Back to campaigns
     </Link>
   );
@@ -180,7 +180,7 @@ export default function CampaignDetailPage() {
               <MiniBar label="Clicked" value={clicked.toLocaleString()} pct={sent ? (clicked / sent) * 100 : 0} color="var(--pm-terra)" />
             </div>
           ) : (
-            <div className="pm-dim" style={{ padding: "32px 0", textAlign: "center", fontSize: 13 }}>No sends yet</div>
+            <div className="pm-dim" style={{ padding: "32px 0", textAlign: "center", fontSize: 14 }}>No sends yet</div>
           )}
         </Panel>
 
@@ -199,12 +199,12 @@ export default function CampaignDetailPage() {
       <Panel title="Content" style={{ marginTop: 14 }}>
         <div className="pm-frow" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div>
-            <div className="pm-dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600, marginBottom: 4 }}>Subject</div>
-            <div style={{ fontSize: 13.5 }}>{campaign.subject || "—"}</div>
+            <div className="pm-dim" style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600, marginBottom: 4 }}>Subject</div>
+            <div style={{ fontSize: 14.5 }}>{campaign.subject || "—"}</div>
           </div>
           <div>
-            <div className="pm-dim" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600, marginBottom: 4 }}>Preview</div>
-            <div className="pm-muted" style={{ fontSize: 13.5 }}>{campaign.preview_text || "—"}</div>
+            <div className="pm-dim" style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600, marginBottom: 4 }}>Preview</div>
+            <div className="pm-muted" style={{ fontSize: 14.5 }}>{campaign.preview_text || "—"}</div>
           </div>
         </div>
         {campaign.body_html ? (
@@ -213,7 +213,7 @@ export default function CampaignDetailPage() {
             dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(campaign.body_html) }}
           />
         ) : (
-          <div className="pm-dim" style={{ marginTop: 18, fontSize: 13 }}>No HTML body yet.</div>
+          <div className="pm-dim" style={{ marginTop: 18, fontSize: 14 }}>No HTML body yet.</div>
         )}
       </Panel>
     </div>

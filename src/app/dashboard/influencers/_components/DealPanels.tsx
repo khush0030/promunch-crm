@@ -777,12 +777,12 @@ function DraftItem({ dealId, draft: d }: { dealId: string; draft: DraftSubmissio
   return (
     <div className={s.draftItem}>
       <div className={s.row}>
-        <strong style={{ fontSize: 13 }}>Version {d.version}</strong>
+        <strong style={{ fontSize: 14 }}>Version {d.version}</strong>
         <Pill tone={TONE_PILL[REVIEW_TONE[d.review_status]]}>{REVIEW_LABEL[d.review_status]}</Pill>
         <span className={s.hint}>Submitted {dateTime(d.submitted_at)}</span>
       </div>
       {d.url && (
-        <p style={{ margin: "6px 0 0", fontSize: 12.5 }}>
+        <p style={{ margin: "6px 0 0", fontSize: 13.5 }}>
           <a href={d.url} target="_blank" rel="noreferrer">
             Open draft link <ExternalLink size={11} style={{ verticalAlign: -1 }} />
           </a>
@@ -913,7 +913,7 @@ export function PostPanel({ detail }: { detail: DealDetail }) {
         </Field>
       </div>
       {deal.post_url && (
-        <p style={{ margin: "8px 0 0", fontSize: 12.5 }}>
+        <p style={{ margin: "8px 0 0", fontSize: 13.5 }}>
           <a href={deal.post_url} target="_blank" rel="noreferrer">
             Open the live post <ExternalLink size={11} style={{ verticalAlign: -1 }} />
           </a>

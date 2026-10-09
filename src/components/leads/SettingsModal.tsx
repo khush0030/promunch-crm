@@ -95,12 +95,12 @@ export default function SettingsModal({
         </label>
         {finders?.length ? (
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--line, #e5e0d6)" }}>
-            <div className="card-title" style={{ fontSize: 14 }}>Decision-maker email finder</div>
-            <div className="pm-muted" style={{ fontSize: 12, margin: "2px 0 8px" }}>
+            <div className="card-title" style={{ fontSize: 15 }}>Decision-maker email finder</div>
+            <div className="pm-muted" style={{ fontSize: 13, margin: "2px 0 8px" }}>
               Pay-as-you-go. Off until you set a monthly credit cap. Owner only. The API key goes in Settings, API keys.
             </div>
             {finders.map((p) => (
-              <div key={p.provider} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13 }}>
+              <div key={p.provider} style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 14 }}>
                 <label style={{ display: "flex", gap: 6, alignItems: "center", minWidth: 130 }}>
                   <input type="checkbox" checked={p.enabled}
                     onChange={(e) => setFinders((fs) => fs!.map((f) => (f.provider === p.provider ? { ...f, enabled: e.target.checked } : f)))} />

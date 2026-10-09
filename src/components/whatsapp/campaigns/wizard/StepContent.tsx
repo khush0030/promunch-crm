@@ -231,7 +231,7 @@ function Box({
     <div className={s.subBlock}>
       <div className={s.fieldHead}>
         <span className={s.label}>{title}</span>
-        {basis && <span className={s.muted} style={{ fontSize: 12 }}>{basis}</span>}
+        {basis && <span className={s.muted} style={{ fontSize: 13 }}>{basis}</span>}
         {right}
       </div>
       {children}

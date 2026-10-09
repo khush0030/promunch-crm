@@ -48,7 +48,7 @@
 .laneH.good .lic { background: var(--pm-green-soft); color: var(--pm-green); }
 .laneH b { font-size: 16.5px; font-weight: 700; color: var(--pm-ink); }
 .laneN { font: 700 14px var(--pm-mono); color: var(--pm-muted); }
-.hint { font-size: 14px; color: var(--pm-muted); margin-left: auto; }
+.hint { font-size: 15px; color: var(--pm-muted); margin-left: auto; }
 
 /* lane card + rows */
 .lane {
@@ -71,7 +71,7 @@
   display: grid;
   place-items: center;
   font-weight: 800;
-  font-size: 12px;
+  font-size: 13px;
   flex-shrink: 0;
   margin-top: 2px;
   background: var(--pm-card3);
@@ -89,7 +89,7 @@
 }
 .meta {
   display: block;
-  font-size: 14.5px;
+  font-size: 15.5px;
   color: var(--pm-muted);
 }
 .meta b { font-weight: 700; color: var(--pm-ink2); }
@@ -101,7 +101,7 @@
   align-items: flex-start;
   gap: 6px;
   margin-top: 4px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.4;
   color: var(--pm-muted);
@@ -156,7 +156,7 @@
   margin-top: 8px;
   padding: 14px 0 0;
   border-top: 1px solid var(--pm-line);
-  font-size: 14.5px;
+  font-size: 15.5px;
   line-height: 1.5;
   color: var(--pm-ink2);
 }

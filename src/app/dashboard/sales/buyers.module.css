@@ -1,6 +1,6 @@
 /* Insights → Repeat & cohorts / What people buy: cohort grid + group rows. */
 .heatWrap { overflow-x: auto; margin-top: 4px; }
-.heat { width: 100%; border-collapse: separate; border-spacing: 4px; font-size: 14px; min-width: 420px; }
+.heat { width: 100%; border-collapse: separate; border-spacing: 4px; font-size: 15px; min-width: 420px; }
 .heat th { font: 700 11.5px/1.2 var(--pm-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--pm-muted); text-align: center; padding: 4px 2px; }
 .heat th:first-child, .heat td:first-child { text-align: left; }
 .heat td { text-align: center; padding: 10px 4px; border-radius: 8px; font-variant-numeric: tabular-nums; color: var(--pm-ink); }
@@ -15,7 +15,7 @@
 .dot { width: 10px; height: 10px; border-radius: 50%; }
 .grp b { font-size: 15.5px; }
 .grp .n { font: 400 19px var(--pm-display); font-variant-numeric: tabular-nums; }
-.grp .d { grid-column: 2 / -1; font-size: 14px; color: var(--pm-muted); }
+.grp .d { grid-column: 2 / -1; font-size: 15px; color: var(--pm-muted); }
 .bar { grid-column: 2 / -1; height: 8px; border-radius: 4px; background: var(--pm-card3); overflow: hidden; }
 .bar i { display: block; height: 100%; border-radius: 4px; }
 
@@ -24,5 +24,5 @@
 .pair:first-child { padding-top: 4px; }
 .pair:last-child { border-bottom: 0; padding-bottom: 0; }
 .pair b { font-size: 15.5px; overflow-wrap: anywhere; }
-.pair span { font-size: 14px; color: var(--pm-muted); }
-.idea { margin: 14px 0 0; padding: 12px 14px; border: 1px solid var(--pm-border); border-radius: 14px; font-size: 14.5px; line-height: 1.5; color: var(--pm-ink2); background: var(--pm-card); }
+.pair span { font-size: 15px; color: var(--pm-muted); }
+.idea { margin: 14px 0 0; padding: 12px 14px; border: 1px solid var(--pm-border); border-radius: 14px; font-size: 15.5px; line-height: 1.5; color: var(--pm-ink2); background: var(--pm-card); }
