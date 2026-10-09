@@ -41,3 +41,4 @@ All of these are SILENT (audio was off) except the v2 test.
 | 14 | dc5792c3-fef5-4032-b58d-7854519ee062 |
 | 15 (first+last frame) | 079b8b08-1a89-42d3-bc94-88b3cb91123f |
 | 16 | caa4b0fd-eb07-404d-be40-5afb76043911 |
+| 02 VEO 3.1 Fast test, 6s, Hindi line, 60 credits | 30b7bef9-a7a9-412e-afc7-a0dbe252975a |
