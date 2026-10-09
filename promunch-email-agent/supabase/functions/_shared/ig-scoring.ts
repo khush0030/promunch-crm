@@ -38,3 +38,12 @@ export type AccountKind = "creator" | "brand";
 export function applyAccountKind(fit: number, kind: AccountKind | null | undefined): number {
   return kind === "brand" ? Math.min(fit, BRAND_FIT_CAP) : fit;
 }
+
+// PROMUNCH only ships in India: an account whose audience is clearly not
+// Indian (foreign brand/creator, non-Indian language and location) is capped
+// too, a little above brands so it still reads as "not a fit" in Find.
+export const FOREIGN_FIT_CAP = 20;
+
+export function applyAudience(fit: number, india: "yes" | "no" | "unknown" | null | undefined): number {
+  return india === "no" ? Math.min(fit, FOREIGN_FIT_CAP) : fit;
+}
