@@ -1,0 +1,13 @@
+/* Quick segments: hairline rows, count on the right. */
+.card { background: var(--pm-card); border: 1px solid var(--pm-border); border-radius: var(--pm-r); padding: 16px 20px; }
+.h { margin: 0 0 4px; font: 700 16px var(--pm-font); color: var(--pm-ink); }
+.list { list-style: none; margin: 0; padding: 0; }
+.row { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--pm-line); }
+.row:last-child { border-bottom: 0; }
+.tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tx b { font-size: 15px; color: var(--pm-ink); }
+.tx span { font-size: 13.5px; color: var(--pm-ink2); }
+.num { display: flex; flex-direction: column; align-items: flex-end; font: 700 20px var(--pm-font); font-variant-numeric: tabular-nums; color: var(--pm-ink); }
+.reach { display: inline-flex; align-items: center; gap: 4px; font: 500 12.5px var(--pm-font); color: var(--pm-muted); }
+.reach svg { width: 13px; height: 13px; }
+.foot { margin: 8px 0 0; font-size: 13px; color: var(--pm-muted); }

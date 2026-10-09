@@ -12,6 +12,7 @@ import { SegmentEditor, AudienceCount } from "@/components/email-studio/SegmentE
 import { useSegments, type SegmentsDto } from "@/components/email-studio/hooks";
 import { sendJson, when } from "@/components/email-studio/api";
 import { parseRules, type AudienceRules } from "@/lib/email-studio/segments";
+import { QuickSegments, useSegmentCounts } from "@/components/customers/QuickSegments";
 import s from "@/components/email-studio/studio.module.css";
 
 type Saved = SegmentsDto["saved"][number];
@@ -23,6 +24,7 @@ export default function AudiencesPage() {
   const [editing, setEditing] = useState<{ id: string | null; name: string; rules: AudienceRules } | null>(null);
   const [del, setDel] = useState<Saved | null>(null);
   const [busy, setBusy] = useState(false);
+  const live = useSegmentCounts();
 
   const save = async () => {
     if (!editing) return;
@@ -82,8 +84,8 @@ export default function AudiencesPage() {
             cols={[
               { h: "Segment", render: (r) => <b>{r.name}</b> },
               { h: "Who", render: (r) => <span className={s.hint}>{r.summary}</span> },
-              { h: "People", num: true, render: (r) => (r.last_count ?? "–").toLocaleString() },
-              { h: "Counted", render: (r) => when(r.counted_at) },
+              { h: "People", num: true, render: (r) => (live.data?.saved[r.id] ?? r.last_count ?? "–").toLocaleString("en-IN") },
+              { h: "Counted", render: (r) => (live.data?.saved[r.id] != null ? "Just now" : when(r.counted_at)) },
               {
                 h: "",
                 render: (r) => (
@@ -100,14 +102,7 @@ export default function AudiencesPage() {
           />
         </div>
 
-        <div className="pm2-panel" style={{ padding: 16 }}>
-          <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>Quick segments</h3>
-          <div className={s.stack} style={{ gap: 4 }}>
-            {(q.data?.presets ?? []).map((p) => (
-              <div key={p.key} className={s.linkRow}><span><b style={{ color: "var(--pm-ink)" }}>{p.label}</b> · {p.hint}</span></div>
-            ))}
-          </div>
-        </div>
+        <QuickSegments presets={q.data?.presets ?? []} />
       </div>
       {del && (
         <ConfirmDialog

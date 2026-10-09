@@ -205,6 +205,13 @@ export function matchesAudience(c: AudienceContact, rules: AudienceRules, ctx: M
   return inBaseAudience(c, ctx.suppressed) && rules.conditions.every((cond) => matchesCondition(c, cond, ctx));
 }
 
+/** How many contacts each audience matches, in one pass over the contacts. */
+export function countMatching(contacts: AudienceContact[], list: AudienceRules[], ctx: MatchContext): number[] {
+  const out = list.map(() => 0);
+  for (const c of contacts) list.forEach((rules, i) => { if (matchesAudience(c, rules, ctx)) out[i]++; });
+  return out;
+}
+
 /** Plain-English one-liner for a condition (review step, segment list). */
 export function describeCondition(c: Condition): string {
   switch (c.field) {

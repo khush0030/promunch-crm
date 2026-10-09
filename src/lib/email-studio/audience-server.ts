@@ -5,6 +5,7 @@
 
 import { supabaseAdmin as supabase } from "@/lib/supabase-admin";
 import {
+  countMatching,
   matchesAudience,
   type AudienceContact,
   type AudienceRules,
@@ -200,4 +201,24 @@ export async function countAudience(rules: AudienceRules): Promise<{ count: numb
     .slice(0, 5)
     .map((c) => [c.first_name, c.last_name].filter(Boolean).join(" ") || (c.email ?? "").replace(/(.{2}).*(@.*)/, "$1…$2"));
   return { count: list.length, sample };
+}
+
+/**
+ * Counts for several audiences at once (Customers → Segments list), loading
+ * contacts, suppressions and the engagement/buyer lookups ONCE instead of per
+ * audience. Same consent + suppression rules as resolveAudience, no freq cap.
+ * Read-only.
+ */
+export async function countAudiences(list: AudienceRules[]): Promise<number[]> {
+  const [contacts, suppressed] = await Promise.all([fetchContacts(), fetchSuppressed()]);
+  const ctx: MatchContext = { now: Date.now(), suppressed };
+  const all = list.flatMap((r) => r.conditions);
+  const windows = [...new Set(all.filter((c) => c.field === "engaged_days").map((c) => c.value as number))];
+  if (windows.length) {
+    ctx.engaged = new Map();
+    for (const d of windows) ctx.engaged.set(d, await engagedSince(d));
+  }
+  const needles = [...new Set(all.filter((c) => c.field === "bought").map((c) => String(c.value)))];
+  if (needles.length) ctx.buyers = await buyersOf(needles, contacts);
+  return countMatching(contacts, list, ctx);
 }
