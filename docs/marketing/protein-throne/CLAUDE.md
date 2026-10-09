@@ -28,7 +28,7 @@ Last updated: 9 Oct 2026 (status revised after user review).
 | Edamame warrior form | **Locked 9 Oct**: the user's own image (`images/locked/edamame-warrior.jpg`), not v2/v3. |
 | Edamame tiny | **Locked 9 Oct**: option A "pure baby", generated from the warrior. Option C (rolling bean) kept in `images/options/` as a possible roll-in pose. |
 | Needs rework (user, 9 Oct) | **Himalayan Rock Salt, Masala Mania, Indori Chatka.** NOT locked. Images moved to `images/wip/`. |
-| Character sheets | 10 in `images/sheets/`. **Edamame tiny and Makhana sheets redone 9 Oct** for the locked designs (Studio ids dfcb9793-0433-49cb-8d61-7ec69c2bfaea / 3c786192-056b-463c-b337-e629d5b995f1; repo copies are 1024px previews, full 2K is in Studio because the container cannot reach cdn.oltaflock.ai). Old sheets in `images/wip/*-old.jpg`. Still to redo: Chips (after choice) and the flavour warriors (after rework). Awaiting user approval of the two new sheets. |
+| Character sheets | 10 in `images/sheets/`. **Edamame tiny and Makhana sheets redone 9 Oct** for the locked designs (Studio ids dfcb9793-0433-49cb-8d61-7ec69c2bfaea / 3c786192-056b-463c-b337-e629d5b995f1; repo copies are 1024px previews, full 2K is in Studio because the container cannot reach cdn.oltaflock.ai). Old sheets in `images/wip/*-old.jpg`. Still to redo: Chips (after choice) and the flavour warriors (after rework). Both new sheets approved by user 9 Oct. |
 | Progress zip sent to Parth | Yes (1 Oct). |
 
 ## Pending script change
