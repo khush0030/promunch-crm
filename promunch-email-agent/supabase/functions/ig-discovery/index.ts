@@ -20,6 +20,9 @@
 import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { logConnector, errStr } from "../_shared/connector-log.ts";
+import { discoverProfile, igGraphCreds } from "../_shared/ig-graph.ts";
+import { scoreAndSaveProfiles } from "../_shared/ig-prospect-score.ts";
+import type { ProfileNorm } from "../_shared/apify.ts";
 import { apifyStart, cleanHandle } from "../_shared/apify.ts";
 
 const ACTORS = {
@@ -29,6 +32,7 @@ const ACTORS = {
   reels: "apify/instagram-reel-scraper",
 } as const;
 
+const GRAPH_CONCURRENCY = 4;
 const ENRICH_CHUNK = 50;
 
 interface Body {
@@ -101,9 +105,33 @@ Deno.serve(async (req) => {
       const handles = (body.handles ?? []).map(cleanHandle).filter((h): h is string => !!h);
       if (!handles.length) return j({ error: "handles required" }, 400);
       const capped = handles.slice(0, maxProfiles);
+      // seed prospect rows now so the dashboard shows them as pending-enrich
+      // (existing rows untouched — ignoreDuplicates)
+      await sb.from("ig_prospects").upsert(
+        capped.map((handle) => ({ handle, source: body.parent_run_id ? null : "manual" })),
+        { onConflict: "handle", ignoreDuplicates: true },
+      );
+
+      // 1) Free first: Instagram's own Business Discovery API (when an IG token
+      //    is connected). Public Business/Creator accounts come back here.
+      const viaGraph: ProfileNorm[] = [];
+      const leftover: string[] = [];
+      if (await igGraphCreds()) {
+        for (let i = 0; i < capped.length; i += GRAPH_CONCURRENCY) {
+          const part = capped.slice(i, i + GRAPH_CONCURRENCY);
+          const got = await Promise.all(part.map((h) => discoverProfile(h)));
+          part.forEach((h, k) => (got[k] ? viaGraph.push(got[k]!) : leftover.push(h)));
+        }
+        if (viaGraph.length) await scoreAndSaveProfiles(viaGraph);
+      } else {
+        leftover.push(...capped);
+      }
+
+      // 2) Paid fallback: Apify profile scraper for accounts the free API
+      //    can't see (personal/private) or when no IG token is connected.
       const runIds: string[] = [];
-      for (let i = 0; i < capped.length; i += ENRICH_CHUNK) {
-        const chunk = capped.slice(i, i + ENRICH_CHUNK);
+      for (let i = 0; i < leftover.length; i += ENRICH_CHUNK) {
+        const chunk = leftover.slice(i, i + ENRICH_CHUNK);
         const input = { usernames: chunk };
         const run = await apifyStart(ACTORS.profiles, input);
         const { data: row, error } = await sb.from("ig_discovery_runs").insert({
@@ -118,13 +146,7 @@ Deno.serve(async (req) => {
         if (error) throw error;
         runIds.push(row.id);
       }
-      // seed prospect rows now so the dashboard shows them as pending-enrich
-      // (existing rows untouched — ignoreDuplicates)
-      await sb.from("ig_prospects").upsert(
-        capped.map((handle) => ({ handle, source: body.parent_run_id ? null : "manual" })),
-        { onConflict: "handle", ignoreDuplicates: true },
-      );
-      return j({ ok: true, run_ids: runIds, queued: capped.length, dropped: handles.length - capped.length });
+      return j({ ok: true, run_ids: runIds, queued: capped.length, free: viaGraph.length, paid: leftover.length, dropped: handles.length - capped.length });
     }
 
     if (body.action === "reels") {
