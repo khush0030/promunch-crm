@@ -284,3 +284,6 @@
   .row2 { grid-template-columns: minmax(0, 1fr); }
 }
 .trigName, .trigDesc { display: block; }
+
+/* Phones: the fixed bottom tab bar (~72px, redesign.css) would cover this bar. */
+@media (max-width: 760px) { .saveBar { bottom: calc(72px + env(safe-area-inset-bottom)); } }

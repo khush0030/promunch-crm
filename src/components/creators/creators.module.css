@@ -93,6 +93,7 @@
 .form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
 .form + .form { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--pm-line); }
 .form > span { font-size: 14.5px; color: var(--pm-ink2); white-space: nowrap; }
+@media (max-width: 760px) { .form > span { white-space: normal; flex: 1 1 100%; } }
 .form :global(.pm-btn) { white-space: nowrap; }
 .input, .select, .textarea {
   height: 40px; border: 1px solid var(--pm-border); border-radius: 12px; background: var(--pm-card);

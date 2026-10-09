@@ -47,3 +47,6 @@
   .footer { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
   .footer > :last-child { margin-left: auto; }
 }
+
+/* Phones: the fixed bottom tab bar (~72px, redesign.css) would cover this bar. */
+@media (max-width: 760px) { .footer { bottom: calc(72px + env(safe-area-inset-bottom)); } }
