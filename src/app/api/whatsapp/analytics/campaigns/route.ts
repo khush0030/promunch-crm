@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { attributeOrders, loadAttributableOrders, pageAll, touchesFrom } from "@/lib/whatsapp/campaign-attribution";
+import { attributeOrders, ID_BATCH, loadAttributableOrders, pageAll, touchesFrom } from "@/lib/whatsapp/campaign-attribution";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   const msgs = await pageAll<Msg>(() =>
     supabaseAdmin
       .from("wa_messages")
-      .select("campaign_id,contact_id,status,created_at")
+      .select("campaign_id,contact_id,status,created_at").order("id", { ascending: true })
       .eq("direction", "outbound")
       .not("campaign_id", "is", null)
       .gte("created_at", since)
@@ -51,8 +51,8 @@ export async function GET(req: NextRequest) {
   // wa_contact → wa_id (phone) + rfm tag, for revenue + segment hints.
   const allWa = [...new Set(msgs.map((m) => m.contact_id).filter(Boolean))] as string[];
   const waMeta = new Map<string, { phone: string | null; rfm: string | null }>();
-  for (let i = 0; i < allWa.length; i += 500) {
-    const slice = allWa.slice(i, i + 500);
+  for (let i = 0; i < allWa.length; i += ID_BATCH) {
+    const slice = allWa.slice(i, i + ID_BATCH);
     const { data } = await supabaseAdmin.from("wa_contacts").select("id,wa_id,tags").in("id", slice);
     (data ?? []).forEach((w: { id: string; wa_id: string | null; tags: string[] | null }) =>
       waMeta.set(w.id, { phone: w.wa_id, rfm: (w.tags || []).find((t) => t.startsWith("rfm:")) || null })
@@ -117,7 +117,7 @@ async function buildHints(
 ) {
   // Best time to send: when do customer replies land (IST hour histogram)?
   const inbound = await pageAll<{ created_at: string }>(() =>
-    supabaseAdmin.from("wa_messages").select("created_at").eq("direction", "inbound").gte("created_at", since)
+    supabaseAdmin.from("wa_messages").select("created_at").order("id", { ascending: true }).eq("direction", "inbound").gte("created_at", since)
   );
   const IST = 5.5 * 60 * 60 * 1000;
   const byHour = new Array(24).fill(0);
@@ -140,7 +140,7 @@ async function buildHints(
   // who among them replied (paged — .limit(5000) still gets capped at
   // PostgREST's 1000-row response ceiling)
   const repliers = await pageAll<{ contact_id: string | null }>(() =>
-    supabaseAdmin.from("wa_messages").select("contact_id").eq("direction", "inbound").gte("created_at", since)
+    supabaseAdmin.from("wa_messages").select("contact_id").order("id", { ascending: true }).eq("direction", "inbound").gte("created_at", since)
   );
   repliers.forEach((r: { contact_id: string | null }) => {
     if (!r.contact_id) return;

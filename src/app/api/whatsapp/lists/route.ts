@@ -28,8 +28,9 @@ export async function POST(req: NextRequest) {
 
   let tagged = 0;
   let matched = 0;
-  for (let i = 0; i < phones.length; i += 1000) {
-    const slice = phones.slice(i, i + 1000);
+  // 400 phones keeps the .in() URL well under the proxy limit (~13 chars each).
+  for (let i = 0; i < phones.length; i += 400) {
+    const slice = phones.slice(i, i + 400);
     const { data: rows, error } = await supabaseAdmin.from("wa_contacts").select("id,wa_id,tags").in("wa_id", slice);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     matched += rows?.length ?? 0;

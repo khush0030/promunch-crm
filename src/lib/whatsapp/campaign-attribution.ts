@@ -12,6 +12,10 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 // seeds and refunded/voided orders never count.
 export const ATTRIBUTION_WINDOW_DAYS = 7;
 
+// Ids per .in() lookup. 500 uuids made the request URL ~18KB, past the
+// PostgREST/proxy limit, so the lookup failed silently and no phone matched.
+export const ID_BATCH = 150;
+
 export type Touch = { campaignId: string; phone: string; at: number };
 export type AttributableOrder = { phone: string; at: number; total: number };
 export type Attribution = Map<string, { orders: number; revenue: number }>;
@@ -83,7 +87,7 @@ export async function loadAttributableOrders(since: string): Promise<Attributabl
   const rows = await pageAll<Ord>(() =>
     supabaseAdmin
       .from("shopify_orders")
-      .select("customer_phone,total_price,shopify_created_at,financial_status,is_creator")
+      .select("customer_phone,total_price,shopify_created_at,financial_status,is_creator").order("id", { ascending: true })
       .gte("shopify_created_at", since)
       .not("customer_phone", "is", null)
   );
@@ -95,8 +99,8 @@ export async function loadAttributableOrders(since: string): Promise<Attributabl
 // wa_contacts.id -> wa_id for the given contact ids.
 export async function loadContactPhones(contactIds: string[]): Promise<Map<string, string | null>> {
   const out = new Map<string, string | null>();
-  for (let i = 0; i < contactIds.length; i += 500) {
-    const { data } = await supabaseAdmin.from("wa_contacts").select("id,wa_id").in("id", contactIds.slice(i, i + 500));
+  for (let i = 0; i < contactIds.length; i += ID_BATCH) {
+    const { data } = await supabaseAdmin.from("wa_contacts").select("id,wa_id").in("id", contactIds.slice(i, i + ID_BATCH));
     (data ?? []).forEach((w: { id: string; wa_id: string | null }) => out.set(w.id, w.wa_id));
   }
   return out;
@@ -109,7 +113,7 @@ export async function loadCampaignAttribution(since: string): Promise<Attributio
   const msgs = await pageAll<CampaignMsg>(() =>
     supabaseAdmin
       .from("wa_messages")
-      .select("campaign_id,contact_id,status,created_at")
+      .select("campaign_id,contact_id,status,created_at").order("id", { ascending: true })
       .eq("direction", "outbound")
       .not("campaign_id", "is", null)
       .in("status", ["delivered", "read"])

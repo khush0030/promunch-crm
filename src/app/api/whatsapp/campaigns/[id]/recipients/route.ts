@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { ID_BATCH } from "@/lib/whatsapp/campaign-attribution";
 
 export const dynamic = "force-dynamic";
 
@@ -44,8 +45,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   // hydrate contact names/numbers
   const ids = [...byContact.keys()];
   const nameById = new Map<string, { name: string | null; wa_id: string | null }>();
-  for (let i = 0; i < ids.length; i += 500) {
-    const { data } = await supabaseAdmin.from("wa_contacts").select("id,name,wa_id").in("id", ids.slice(i, i + 500));
+  for (let i = 0; i < ids.length; i += ID_BATCH) {
+    const { data } = await supabaseAdmin.from("wa_contacts").select("id,name,wa_id").in("id", ids.slice(i, i + ID_BATCH));
     (data ?? []).forEach((c: { id: string; name: string | null; wa_id: string | null }) => nameById.set(c.id, { name: c.name, wa_id: c.wa_id }));
   }
 
