@@ -171,3 +171,25 @@
   .phone { display: none; }
   .btn { width: 38px; padding: 0; }
 }
+
+/* All orders: channel chips + search on one row (wraps on a phone). */
+.toolbar { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; }
+.search {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 0 1 300px;
+  border: 1px solid var(--pm-border);
+  border-radius: 999px;
+  background: var(--pm-card);
+  padding: 7px 14px;
+  color: var(--pm-muted);
+}
+.search svg { width: 15px; height: 15px; flex-shrink: 0; }
+.search input { border: 0; outline: 0; background: transparent; font: 14px var(--pm-font); color: var(--pm-ink); width: 100%; min-width: 0; }
+.search:focus-within { border-color: var(--pm-ink2); }
+@media (max-width: 720px) {
+  .search { margin-left: 0; flex: 1 1 100%; }
+}

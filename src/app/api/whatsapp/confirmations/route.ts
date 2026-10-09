@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { channelOf } from "@/lib/metrics/channel";
 
 // WhatsApp order-confirmation coverage.
 //
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
   const [ordersRes, eventsRes, msgsRes] = await Promise.all([
     supabaseAdmin
       .from("shopify_orders")
-      .select("order_number, customer_name, customer_phone, total_price, currency, financial_status, raw, shopify_created_at")
+      .select("order_number, customer_name, customer_phone, total_price, currency, financial_status, raw, shopify_created_at, source_name, first_utm_source, first_source, is_creator")
       .gte("shopify_created_at", since)
       .order("shopify_created_at", { ascending: false })
       .limit(500),
@@ -102,8 +103,10 @@ export async function GET(req: NextRequest) {
   const orders = (ordersRes.data ?? []).map((o) => {
     const ref = norm(o.order_number);
     const rawOrder = (o.raw ?? {}) as Record<string, unknown>;
-    const nameFrom = (src: any): string | null =>
-      (src && ([src.first_name, src.last_name].filter(Boolean).join(" ").trim() || (typeof src.name === "string" ? src.name.trim() : ""))) || null;
+    const nameFrom = (raw: unknown): string | null => {
+      const src = raw as { first_name?: unknown; last_name?: unknown; name?: unknown } | null | undefined;
+      return (src && ([src.first_name, src.last_name].filter(Boolean).join(" ").trim() || (typeof src.name === "string" ? src.name.trim() : ""))) || null;
+    };
     const customerName =
       o.customer_name ||
       nameFrom(rawOrder.customer) ||
@@ -144,6 +147,9 @@ export async function GET(req: NextRequest) {
       status,
       detail,
       confirmed_at: sentAt,
+      // Sales channel for the All orders chips (read-only, additive).
+      channel: channelOf(o),
+      is_creator: !!o.is_creator,
     };
   });
 

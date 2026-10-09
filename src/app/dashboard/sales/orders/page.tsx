@@ -17,6 +17,8 @@ import {
   AlertCircle,
   Info,
   Minus,
+  Download,
+  Search,
 } from "lucide-react";
 import { PageHeader, Card, Table, StackBar, Callout, PeriodPicker, ConfirmDialog, KpiStrip, Kpi } from "@/components/pm";
 import type { TableCol, StackPart } from "@/components/pm";
@@ -24,6 +26,10 @@ import { CallRules } from "./CallRules";
 import { formatINR } from "@/lib/metrics/money";
 import { initials } from "@/lib/pm/avatar";
 import { useToast } from "@/components/ui/Toast";
+import type { ChannelKey } from "@/lib/metrics/channel";
+import {
+  CHANNEL_LABEL, channelCounts, chipOf, filterOrders, formatPhone, isCreatorSeed, toCsv, viewTotals, type OrderChannel,
+} from "@/lib/orders-view";
 import s from "./orders.module.css";
 
 // Orders & COD (Task 1.6) — replaces /dashboard/order-confirmations. Joins
@@ -55,6 +61,8 @@ type ConfirmOrder = {
   status: ConfirmStatus;
   detail: string | null;
   confirmed_at: string | null;
+  channel?: ChannelKey | null;
+  is_creator?: boolean | null;
 };
 
 type ConfirmData = {
@@ -293,6 +301,8 @@ function OrdersPageInner() {
   const [resendBusy, setResendBusy] = useState(false);
   const [rowResendBusy, setRowResendBusy] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "missing" | "cod" | "cancelled">("all");
+  const [channel, setChannel] = useState<OrderChannel>("all");
+  const [search, setSearch] = useState("");
 
   const gateAction = useCallback(
     async (o: GateOrder, action: "confirm" | "cancel") => {
@@ -369,17 +379,75 @@ function OrdersPageInner() {
   const confirmedCall = gateOrders.filter((o) => o.confirmation_status === "confirmed" && o.confirmed_via === "manual").length;
   const cancelledCount = gateOrders.filter((o) => o.confirmation_status === "cancelled").length;
 
+  // All orders view: channel chip + search, then the confirmation chip.
+  const isCodWaiting = useCallback((o: ConfirmOrder) => {
+    const g = gateByOrderNumber.get(o.order_number);
+    return g?.confirmation_status === "pending" || g?.confirmation_status === "needs_call";
+  }, [gateByOrderNumber]);
+  const channelRows = useMemo(() => filterOrders(confirmData?.orders ?? [], channel, search), [confirmData, channel, search]);
+  const counts = useMemo(() => channelCounts(confirmData?.orders ?? []), [confirmData]);
+  const sortedOrders = useMemo(() => {
+    const rows = channelRows.filter((o) => {
+      if (filter === "missing") return isOutstanding(o.status);
+      if (filter === "cancelled") {
+        const g = gateByOrderNumber.get(o.order_number);
+        return o.status === "cancelled" || g?.confirmation_status === "cancelled";
+      }
+      if (filter === "cod") return isCodWaiting(o);
+      return true;
+    });
+    return [...rows].sort((a, b) => Number(isOutstanding(b.status)) - Number(isOutstanding(a.status)));
+  }, [channelRows, filter, gateByOrderNumber, isCodWaiting]);
+
+  // Export = exactly the rows on screen (channel, search and status applied).
+  const exportCsv = useCallback(() => {
+    const confirmLabel: Record<ConfirmStatus, string> = {
+      sent: "Sent", missing: "Missing", failed: "Failed", gave_up: "Gave up", no_phone: "No phone", cancelled: "Cancelled",
+    };
+    const gateLabel = (o: ConfirmOrder) => {
+      const g = gateByOrderNumber.get(o.order_number);
+      if (!g?.confirmation_status) return "Prepaid";
+      if (g.confirmation_status === "confirmed") return g.confirmed_via === "manual" ? "Confirmed by call" : "Confirmed";
+      return { pending: "Waiting for tap", needs_call: "Needs a call", cancelled: "Cancelled" }[g.confirmation_status];
+    };
+    const csv = toCsv(
+      ["Order", "Placed", "Customer", "Phone", "Channel", "Total (INR)", "WhatsApp confirmation", "COD"],
+      sortedOrders.map((o) => [
+        o.order_number,
+        new Date(o.created_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }),
+        o.customer_name ?? "",
+        formatPhone(o.phone),
+        isCreatorSeed(o) ? "HYPD creator seed" : CHANNEL_LABEL[chipOf(o)],
+        o.total ?? "",
+        confirmLabel[o.status],
+        gateLabel(o),
+      ]),
+    );
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `promunch-orders-${period}${channel === "all" ? "" : `-${channel}`}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [sortedOrders, gateByOrderNumber, period, channel]);
+
   const TITLES: Record<Tab, string> = { call: "Confirm COD", all: "All orders", rules: "Call rules" };
   const summary: ReactNode =
     tab === "rules" ? (
       <>When the voice agent calls, how often, and what it says. Only the owner or an admin can change them.</>
     ) : !confirmData ? undefined : tab === "all" ? (
-      <>
-        <b>
-          {confirmData.summary.total} order{confirmData.summary.total === 1 ? "" : "s"}
-        </b>{" "}
-        in the last {PERIOD_LABEL[period]}. {confirmData.summary.coveragePct}% got a WhatsApp confirmation.
-      </>
+      (() => {
+        const t = viewTotals(confirmData.orders);
+        return (
+          <>
+            <b>
+              {t.orders} order{t.orders === 1 ? "" : "s"} ({formatINR(t.revenue)})
+            </b>{" "}
+            in the last {PERIOD_LABEL[period]}{t.seeds > 0 ? `, not counting ${t.seeds} creator seed${t.seeds === 1 ? "" : "s"}` : ""}.{" "}
+            {confirmData.summary.coveragePct}% got a WhatsApp confirmation.
+          </>
+        );
+      })()
     ) : needsCall.length > 0 ? (
       <>
         <b>
@@ -406,6 +474,11 @@ function OrdersPageInner() {
         tab === "rules" ? undefined : (
           <>
             <PeriodPicker options={PERIODS} value={period} onChange={setPeriod} />
+            {tab === "all" && confirmData && (
+              <button type="button" className="pm2-btn" onClick={exportCsv} title="Download the orders shown below as a CSV file">
+                <Download size={14} /> Export
+              </button>
+            )}
             {outstanding.length > 0 && (
               <button type="button" className="pm2-btn pri pm2-d-only" onClick={() => setResendOpen(true)}>
                 <Send size={14} /> Resend {outstanding.length} missing
@@ -477,7 +550,7 @@ function OrdersPageInner() {
   );
 
   const codRow = (o: GateOrder, lane: "warn" | "good") => {
-    const name = o.customer_name || o.customer_phone || "Customer";
+    const name = o.customer_name || formatPhone(o.customer_phone) || "Customer";
     const wa = waLabel(confirmByOrderNumber.get(o.order_number)?.status);
     const waiting = waitingText(o.confirmation_sent_at);
     return (
@@ -489,7 +562,7 @@ function OrdersPageInner() {
           <b className={s.name}>{name}</b>
           <span className={s.meta}>
             <b>{o.order_number}</b> · {formatINR(o.total_price ?? 0)} COD
-            {o.customer_name && o.customer_phone && <span className={s.phone}> · {o.customer_phone}</span>}
+            {o.customer_name && o.customer_phone && <span className={s.phone}> · {formatPhone(o.customer_phone)}</span>}
           </span>
           {lane === "warn" ? (
             <StatusText
@@ -536,13 +609,21 @@ function OrdersPageInner() {
   };
 
   const allCols: TableCol<ConfirmOrder>[] = [
-    { h: "Order", render: (o) => o.order_number },
+    {
+      h: "Order",
+      render: (o) => (
+        <div>
+          <div>{o.order_number}</div>
+          <span className="sub">{isCreatorSeed(o) ? "HYPD creator seed" : CHANNEL_LABEL[chipOf(o)]}</span>
+        </div>
+      ),
+    },
     {
       h: "Customer",
       render: (o) => (
         <div>
           <div>{o.customer_name || "—"}</div>
-          {o.phone && <span className="sub">{o.phone}</span>}
+          {o.phone && <span className="sub">{formatPhone(o.phone)}</span>}
         </div>
       ),
     },
@@ -594,20 +675,6 @@ function OrdersPageInner() {
       },
     },
   ];
-
-  const filteredOrders = confirmData.orders.filter((o) => {
-    if (filter === "missing") return isOutstanding(o.status);
-    if (filter === "cancelled") {
-      const g = gateByOrderNumber.get(o.order_number);
-      return o.status === "cancelled" || g?.confirmation_status === "cancelled";
-    }
-    if (filter === "cod") {
-      const g = gateByOrderNumber.get(o.order_number);
-      return g?.confirmation_status === "pending" || g?.confirmation_status === "needs_call";
-    }
-    return true;
-  });
-  const sortedOrders = [...filteredOrders].sort((a, b) => Number(isOutstanding(b.status)) - Number(isOutstanding(a.status)));
 
   return (
     <>
@@ -681,15 +748,42 @@ function OrdersPageInner() {
 
         {tab === "all" && (
           <>
-            <span className="pm2-chips">
+            <div className={s.toolbar}>
+              <span className="pm2-chips" role="group" aria-label="Channel">
+                {(["all", "web", "hypd", "amazon", "other"] as const)
+                  .filter((c) => c === "all" || c === "web" || c === "hypd" || counts[c] > 0)
+                  .map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={`pm2-chip${channel === c ? " on" : ""}`}
+                      aria-pressed={channel === c}
+                      onClick={() => setChannel(c)}
+                    >
+                      {c === "all" ? "All channels" : CHANNEL_LABEL[c]} <em>{counts[c]}</em>
+                    </button>
+                  ))}
+              </span>
+              <label className={s.search}>
+                <Search aria-hidden="true" />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Order number, name, phone"
+                  aria-label="Search orders by order number, name or phone"
+                />
+              </label>
+            </div>
+            <span className="pm2-chips" role="group" aria-label="Confirmation">
               <button type="button" className={`pm2-chip${filter === "all" ? " on" : ""}`} onClick={() => setFilter("all")}>
-                All <em>{confirmData.orders.length}</em>
+                Any status <em>{channelRows.length}</em>
               </button>
               <button type="button" className={`pm2-chip${filter === "missing" ? " on" : ""}`} onClick={() => setFilter("missing")}>
-                Missing <em>{outstanding.length}</em>
+                Missing <em>{channelRows.filter((o) => isOutstanding(o.status)).length}</em>
               </button>
               <button type="button" className={`pm2-chip${filter === "cod" ? " on" : ""}`} onClick={() => setFilter("cod")}>
-                COD waiting <em>{needsCall.length + gateOrders.filter((o) => o.confirmation_status === "pending").length}</em>
+                COD waiting <em>{channelRows.filter(isCodWaiting).length}</em>
               </button>
               <button type="button" className={`pm2-chip${filter === "cancelled" ? " on" : ""}`} onClick={() => setFilter("cancelled")}>
                 Cancelled
@@ -700,15 +794,15 @@ function OrdersPageInner() {
                 cols={allCols}
                 rows={sortedOrders}
                 rowKey={(o) => o.order_number}
-                empty="No orders in this window."
+                empty={search || channel !== "all" ? "No orders match this search." : "No orders in this window."}
                 card={(o) => {
                   const g = gateByOrderNumber.get(o.order_number);
                   return {
-                    title: `${o.order_number} · ${o.customer_name || o.phone || "—"}`,
+                    title: `${o.order_number} · ${o.customer_name || formatPhone(o.phone) || "—"}`,
                     value: formatINR(o.total ?? 0),
                     meta: (
                       <>
-                        <span>{timeAgo(o.created_at)}</span>
+                        <span>{timeAgo(o.created_at)} · {isCreatorSeed(o) ? "Creator seed" : CHANNEL_LABEL[chipOf(o)]}</span>
                         {gateChip(g?.confirmation_status, g?.confirmed_via)}
                       </>
                     ),
