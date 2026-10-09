@@ -232,6 +232,7 @@ export const API_RULES: ApiRule[] = [
   { prefix: "/api/metrics/sales", modules: ["home", "sales"] },
 
   { prefix: "/api/metrics/web", modules: ["sales"] },
+  { prefix: "/api/metrics/channels", modules: ["sales"] },
   { prefix: "/api/metrics/buyers", modules: ["sales"] },
   { prefix: "/api/amazon", modules: ["sales"] },
   { prefix: "/api/shopify/stats", modules: ["sales"] },

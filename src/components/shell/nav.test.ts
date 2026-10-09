@@ -121,7 +121,8 @@ describe("shell nav", () => {
 
   it("shows section tabs only for places with two or more pages", () => {
     const owner = accessOf({ email: "boss@promunch.in", app_metadata: { role: "admin" } });
-    expect(sectionTabs(at("/dashboard/sales/web"), owner).map((p) => p.label)).toEqual(["Sales", "Website", "Repeat & cohorts", "What people buy", "Amazon"]);
+    expect(sectionTabs(at("/dashboard/sales/web"), owner).map((p) => p.label)).toEqual(["Sales", "Channels", "Website", "Repeat & cohorts", "What people buy", "Amazon"]);
+    expect(page("/dashboard/sales/channels")).toBe("Channels");
     expect(page("/dashboard/sales/repeat")).toBe("Repeat & cohorts");
     expect(page("/dashboard/sales/products")).toBe("What people buy");
     expect(sectionTabs(at("/dashboard/influencers"), owner).map((p) => p.label)).toEqual(["Find", "Outreach", "Collabs", "Settings"]);
