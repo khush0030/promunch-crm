@@ -290,11 +290,11 @@ const TEMPLATES: TemplateDef[] = [
     language: "en",
     category: "MARKETING",
     body:
-      "Hey {{1}}! Have the snacks hit the spot yet? 😋\n\n" +
-      "If PROMUNCH made your munch-time better, a quick review would make our day, 30 seconds, promise:\n{{2}}\n\n" +
-      "Your Munchy Pal 💚",
+      "Hi {{1}}, hope you're loving your PROMUNCH snacks! 💚\n\n" +
+      "Mind leaving a quick review? It really helps us:\n{{2}}\n\n" +
+      "Thanks a ton! Your Munchy Pal, Team PROMUNCH 💚",
     bodyExample: ["Aarav", "https://promunch.in/reviews"],
-    footer: "Reply STOP to unsubscribe",
+    footer: "Reply STOP to opt out",
   },
   {
     // Review FEEDBACK ask (owner-approved Oct 9 2026), the buttoned successor
@@ -320,11 +320,11 @@ const TEMPLATES: TemplateDef[] = [
     language: "en",
     category: "MARKETING",
     body:
-      "Snack check, {{1}} — running low? 👀\n\n" +
-      "It's been about a month since your last PROMUNCH haul. Restock before the jar hits empty:\n{{2}}\n\n" +
-      "— Your Munchy Pal 💚",
+      "Running low, {{1}}? 🥜\n\n" +
+      "Restock your PROMUNCH favourites in a tap:\n{{2}}\n\n" +
+      "Happy munching! Your Munchy Pal 💚",
     bodyExample: ["Aarav", "https://promunch.in"],
-    footer: "Reply STOP to unsubscribe",
+    footer: "Reply STOP to opt out",
   },
   {
     // COD confirmation gate (RTO reduction). Sent instead of order_confirmation
