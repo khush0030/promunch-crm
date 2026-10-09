@@ -15,7 +15,7 @@ import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Banknote, ChevronRight, Info, PhoneOff, RefreshCw, Search, ShoppingCart } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import { PageHeader } from "@/components/pm";
+import { PageHeader, PeriodPicker } from "@/components/pm";
 import { HeaderMenu } from "@/components/inbox/HeaderMenu";
 import { WaHeaderContext } from "./WaHeader";
 import { apiFetch } from "@/lib/api-fetch";
@@ -26,6 +26,8 @@ import {
   pct, scoreJob, statusLabel, triesKey,
 } from "./voice/model";
 import { VoiceTracker } from "./voice/VoiceTracker";
+import { VOICE_PERIODS, VoiceKpis } from "./voice/VoiceKpis";
+import type { VoicePeriod } from "@/lib/voice-summary";
 import { CallDrawer } from "./voice/CallDrawer";
 import s from "./voice.module.css";
 
@@ -114,7 +116,8 @@ const unfilteredCalls = () => ({
 // Page header for Orders & COD → Voice calls: eyebrow, VOICE CALLS, the
 // results sentence, and "Refresh call results" in the ⋯ menu. Render it in
 // the WhatsApp page header slot (VoiceView portals it there when one exists).
-export function VoiceHeader() {
+// With `period`, the 24h / 7d / 30d picker for the KPI strip sits beside it.
+export function VoiceHeader({ period, onPeriod }: { period?: VoicePeriod; onPeriod?: (p: VoicePeriod) => void } = {}) {
   const { data, isLoading } = useQuery(unfilteredCalls());
   const { syncing, handleSync } = useVoiceSync();
   return (
@@ -123,6 +126,8 @@ export function VoiceHeader() {
       title="Voice calls"
       summary={isLoading ? undefined : headline(data?.calls ?? [])}
       actions={
+        <>
+        {period && onPeriod && <PeriodPicker options={VOICE_PERIODS} value={period} onChange={onPeriod} ariaLabel="Totals period" />}
         <HeaderMenu
           label="More voice call actions"
           items={[
@@ -135,6 +140,7 @@ export function VoiceHeader() {
             },
           ]}
         />
+        </>
       }
     />
   );
@@ -150,6 +156,7 @@ export default function VoiceView({ headerInPage: headerProp = false }: { header
   const [outcome, setOutcome] = useState("");
   const [q, setQ] = useState("");
   const [purpose, setPurpose] = useState<"all" | "cart" | "cod_confirm">("all");
+  const [period, setPeriod] = useState<VoicePeriod>("7d");
   const { syncing, handleSync } = useVoiceSync();
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -184,7 +191,7 @@ export default function VoiceView({ headerInPage: headerProp = false }: { header
 
   return (
     <div className={s.wrap}>
-      {slotEl && createPortal(<VoiceHeader />, slotEl)}
+      {slotEl && createPortal(<VoiceHeader period={period} onPeriod={setPeriod} />, slotEl)}
       {headerInPage ? (
         <p className={s.sub}>
           {isLoading ? "Loading calls…" : hasFilters ? "Showing the calls that match your filters. " : ""}
@@ -205,6 +212,9 @@ export default function VoiceView({ headerInPage: headerProp = false }: { header
           </button>
         </div>
       )}
+
+      {!headerInPage && <PeriodPicker options={VOICE_PERIODS} value={period} onChange={setPeriod} ariaLabel="Totals period" />}
+      <VoiceKpis period={period} />
 
       <details className={s.how}>
         <summary><Info size={14} /> How it works</summary>
