@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getCaller } from "@/lib/rbac-server";
 import {
   type InboxFilter,
+  type SqlFilter,
   type InboxItem,
   type WaThreadRow,
   type IgThreadRow,
@@ -11,6 +12,8 @@ import {
   igToItem,
   emailToItem,
   matchesFilter,
+  compareWaiting,
+  WAITING_DAYS,
 } from "@/lib/inbox/conversations";
 import { waSearchOr, igSearchOr, emSearchOr, quotePostgrestValue } from "@/lib/inbox/search";
 import { waFilterPlan, igFilterPlan, emFilterPlan, type FilterPlan, type NonSkipFilterPlan } from "@/lib/inbox/filters";
@@ -39,12 +42,12 @@ import {
 export const dynamic = "force-dynamic";
 
 type Channel = "wa" | "ig" | "em";
-const ALL_CHANNELS: Channel[] = ["wa", "ig", "em"];
-const FILTERS: InboxFilter[] = ["human", "mine", "bot", "all"];
+const FILTERS: InboxFilter[] = ["waiting", "human", "mine", "bot", "snoozed", "all"];
+const SQL_FILTERS: SqlFilter[] = ["human", "mine", "bot", "snoozed", "all"];
 const EMAIL_STATUSES = ["pending", "sent", "skipped", "failed"];
 
 const WA_COLUMNS =
-  "id, status, assigned_to, ticket_status, ticket_number, ticket_assignee, unread_count, last_message_snippet, last_activity_at, created_at, archived_at, contact:wa_contacts!inner(name, phone, wa_id)";
+  "id, status, assigned_to, ticket_status, ticket_number, ticket_assignee, ticket_category, unread_count, last_message_snippet, last_activity_at, last_inbound_at, last_outbound_at, created_at, archived_at, contact:wa_contacts!inner(name, phone, wa_id)";
 // Includes created_at so igToItem's last_activity_at → created_at fallback
 // (ig_threads.last_activity_at is nullable, unlike wa_threads' — see the WA
 // exclusion below) is actually populated, not silently always "".
@@ -65,12 +68,16 @@ function pruneCountsCache(now: number) {
 }
 
 function parseFilter(raw: string | null): InboxFilter {
-  return (FILTERS as string[]).includes(raw ?? "") ? (raw as InboxFilter) : "human";
+  return (FILTERS as string[]).includes(raw ?? "") ? (raw as InboxFilter) : "waiting";
 }
 
+// Instagram is hidden from the Inbox switcher until its backend is live, so
+// "all" means WhatsApp + email: counts and rows must match what the screen
+// offers. An explicit ?channel=ig still works.
+const DEFAULT_CHANNELS: Channel[] = ["wa", "em"];
 function parseChannels(raw: string | null): Channel[] {
   if (raw === "wa" || raw === "ig" || raw === "em") return [raw];
-  return ALL_CHANNELS; // "all", missing, or an invalid value
+  return DEFAULT_CHANNELS; // "all", missing, or an invalid value
 }
 
 // Minimal structural type every PostgREST filter builder we chain against
@@ -131,7 +138,7 @@ function applyCursorBound<Q extends QueryBuilder<Q>>(query: Q, column: string, b
 }
 
 async function fetchWaRows(
-  filter: InboxFilter,
+  filter: SqlFilter,
   limit: number,
   q: string,
   cursor: Cursor | null,
@@ -180,7 +187,7 @@ async function fetchWaRows(
   return { rows: raw.slice(0, limit), truncated: raw.length > limit };
 }
 
-async function countWaFilter(filter: InboxFilter, q: string, me: string): Promise<number> {
+async function countWaFilter(filter: SqlFilter, q: string, me: string): Promise<number> {
   // Same inner join as the list query (contact:wa_contacts!inner) so a
   // wa_threads row with no matching wa_contacts row doesn't inflate the
   // count above what's reachable, and the same last_activity_at-null
@@ -211,7 +218,7 @@ async function countWaFilter(filter: InboxFilter, q: string, me: string): Promis
 // Failures are collected on `igIssues` and logged once, at the end of the
 // request, by the caller, including the real error message.
 async function fetchIgRows(
-  filter: InboxFilter,
+  filter: SqlFilter,
   limit: number,
   q: string,
   cursor: Cursor | null,
@@ -242,7 +249,7 @@ async function fetchIgRows(
   }
 }
 
-async function countIgFilter(filter: InboxFilter, q: string, me: string, igIssues: string[]): Promise<number> {
+async function countIgFilter(filter: SqlFilter, q: string, me: string, igIssues: string[]): Promise<number> {
   try {
     let query = supabaseAdmin
       .from("ig_threads")
@@ -263,7 +270,7 @@ async function countIgFilter(filter: InboxFilter, q: string, me: string, igIssue
 }
 
 async function fetchEmRows(
-  filter: InboxFilter,
+  filter: SqlFilter,
   limit: number,
   q: string,
   cursor: Cursor | null,
@@ -290,7 +297,7 @@ async function fetchEmRows(
   return { rows: raw.slice(0, limit), truncated: raw.length > limit };
 }
 
-async function countEmFilter(filter: InboxFilter, q: string): Promise<number> {
+async function countEmFilter(filter: SqlFilter, q: string): Promise<number> {
   let query = supabaseAdmin
     .from("email_threads")
     .select("id", { count: "exact", head: true })
@@ -341,7 +348,7 @@ function hasAt(item: InboxItem): boolean {
 
 async function fetchChannelPage(
   channel: Channel,
-  filter: InboxFilter,
+  filter: SqlFilter,
   limit: number,
   q: string,
   cursor: Cursor | null,
@@ -374,7 +381,7 @@ async function fetchChannelPage(
 
 async function countChannelFilter(
   channel: Channel,
-  filter: InboxFilter,
+  filter: SqlFilter,
   q: string,
   me: string,
   igIssues: string[],
@@ -382,6 +389,65 @@ async function countChannelFilter(
   if (channel === "wa") return countWaFilter(filter, q, me);
   if (channel === "ig") return countIgFilter(filter, q, me, igIssues);
   return countEmFilter(filter, q);
+}
+
+// ---- Waiting on us --------------------------------------------------------
+// The customer wrote last (WhatsApp: last_inbound_at after last_outbound_at,
+// bot or human mode, not snoozed/closed/archived) or an email reply is drafted
+// but not sent, within the last WAITING_DAYS days. Oldest first: whoever has
+// waited longest is on top. Two-column comparisons are not expressible in
+// PostgREST, so the recent candidates are fetched and filtered with the same
+// pure rule the rows use (waToItem's `waiting`). Paged by plain offset.
+const WAITING_FETCH_CAP = 1000;
+
+async function fetchWaiting(channels: Channel[], q: string): Promise<InboxItem[]> {
+  const since = new Date(Date.now() - WAITING_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const parts: Promise<InboxItem[]>[] = [];
+  if (channels.includes("wa")) {
+    parts.push(
+      (async () => {
+        let query = supabaseAdmin
+          .from("wa_threads")
+          .select(WA_COLUMNS)
+          .is("archived_at", null)
+          .in("status", ["bot", "human"])
+          .gte("last_inbound_at", since)
+          .order("last_inbound_at", { ascending: true })
+          .limit(WAITING_FETCH_CAP);
+        const orClause = waSearchOr(q);
+        if (orClause) query = query.or(orClause);
+        const { data, error } = await query;
+        if (error) throw new Error(`wa_threads waiting: ${error.message}`);
+        return ((data ?? []) as unknown as WaThreadRow[]).map(waToItem).filter((i) => i.waiting && i.at !== "");
+      })(),
+    );
+  }
+  if (channels.includes("em")) {
+    parts.push(
+      (async () => {
+        let query = supabaseAdmin
+          .from("email_threads")
+          .select(EM_COLUMNS)
+          .eq("status", "pending")
+          .or("should_reply.is.null,should_reply.eq.true")
+          .gte("created_at", since)
+          .order("created_at", { ascending: true })
+          .limit(WAITING_FETCH_CAP);
+        const orClause = emSearchOr(q);
+        if (orClause) query = query.or(orClause);
+        const { data, error } = await query;
+        if (error) throw new Error(`email_threads waiting: ${error.message}`);
+        return ((data ?? []) as unknown as EmailThreadRow[]).map(emailToItem).filter((i) => i.waiting);
+      })(),
+    );
+  }
+  const lists = await Promise.all(parts);
+  return lists.flat().sort(compareWaiting);
+}
+
+function parseWaitingOffset(raw: string | null): number {
+  const m = /^w(\d{1,6})$/.exec(raw ?? "");
+  return m ? Number(m[1]) : 0;
 }
 
 export async function GET(req: NextRequest) {
@@ -392,62 +458,85 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const filter = parseFilter(searchParams.get("filter"));
   const channels = parseChannels(searchParams.get("channel"));
-  const channelKey = channels.length === ALL_CHANNELS.length ? "all" : channels[0];
+  const channelKey = channels.length === DEFAULT_CHANNELS.length ? "all" : channels[0];
   const q = searchParams.get("q") || "";
-  const cursor = parseCursor(searchParams.get("cursor"));
+  const rawCursor = searchParams.get("cursor");
   const rawLimit = parseInt(searchParams.get("limit") || "20", 10);
   const limit = Math.min(50, Math.max(1, Number.isFinite(rawLimit) ? rawLimit : 20));
+  // ?fresh=1: the screen just changed something (take over, resolve,
+  // assign...) and wants counts that already reflect it.
+  const fresh = searchParams.get("fresh") === "1";
 
   const igIssues: string[] = [];
 
-  const [channelPages, countsResult] = await Promise.all([
-    // ---- list pass ----
-    // Each channel fetches up to `limit` rows already matching the
-    // requested filter (pushed into SQL) and bounded by the exact cursor
-    // tuple/lt/lte (channelCursorBound) — see src/lib/inbox/cursor.ts for
-    // the tie-safety/correctness argument. pageFromChannels does the final
-    // cross-channel merge + nextCursor decision.
-    Promise.all(channels.map((channel) => fetchChannelPage(channel, filter, limit, q, cursor, me, igIssues))),
-    (async () => {
-      // ---- counts pass (30s cache, pruned on every write) ----
-      // Independent of the cursor — describes the whole matching set, not
-      // just this page. Exact `count: "exact", head: true` queries, one per
-      // (channel, filter) pair in scope, all in flight together.
-      const cacheKey = `${me}|${channelKey}|${q}`;
-      const cached = countsCache.get(cacheKey);
-      const now = Date.now();
-      if (cached && now - cached.ts < COUNTS_TTL_MS) return cached.counts;
+  // One waiting fetch per request, shared by the list and the counts.
+  let waitingP: Promise<InboxItem[]> | null = null;
+  const waitingAll = () => (waitingP ??= fetchWaiting(channels, q));
 
-      const pairs = channels.flatMap((channel) => FILTERS.map((f) => ({ channel, filter: f })));
-      const values = await Promise.all(
-        pairs.map(({ channel, filter: f }) => countChannelFilter(channel, f, q, me, igIssues)),
+  try {
+    const [page, countsResult] = await Promise.all([
+      // ---- list pass ----
+      (async (): Promise<{ items: InboxItem[]; nextCursor: string | null }> => {
+        if (filter === "waiting") {
+          const all = await waitingAll();
+          const offset = parseWaitingOffset(rawCursor);
+          const items = all.slice(offset, offset + limit);
+          return { items, nextCursor: offset + limit < all.length ? `w${offset + limit}` : null };
+        }
+        // Each channel fetches up to `limit` rows already matching the
+        // requested filter (pushed into SQL) and bounded by the exact cursor
+        // tuple/lt/lte (channelCursorBound) — see src/lib/inbox/cursor.ts for
+        // the tie-safety/correctness argument. pageFromChannels does the final
+        // cross-channel merge + nextCursor decision.
+        const cursor = parseCursor(rawCursor);
+        const channelPages = await Promise.all(
+          channels.map((channel) => fetchChannelPage(channel, filter, limit, q, cursor, me, igIssues)),
+        );
+        return pageFromChannels(channelPages, cursor, limit);
+      })(),
+      (async () => {
+        // ---- counts pass (30s cache unless ?fresh=1, pruned on every write) ----
+        // Independent of the cursor — describes the whole matching set, not
+        // just this page. Exact `count: "exact", head: true` queries, one per
+        // (channel, filter) pair in scope, all in flight together.
+        const cacheKey = `${me}|${channelKey}|${q}`;
+        const cached = countsCache.get(cacheKey);
+        const now = Date.now();
+        if (!fresh && cached && now - cached.ts < COUNTS_TTL_MS) return cached.counts;
+
+        const pairs = channels.flatMap((channel) => SQL_FILTERS.map((f) => ({ channel, filter: f })));
+        const [values, waiting] = await Promise.all([
+          Promise.all(pairs.map(({ channel, filter: f }) => countChannelFilter(channel, f, q, me, igIssues))),
+          waitingAll(),
+        ]);
+        const counts = { waiting: waiting.length, human: 0, mine: 0, bot: 0, snoozed: 0, all: 0 } as Record<InboxFilter, number>;
+        pairs.forEach(({ filter: f }, i) => {
+          counts[f] += values[i];
+        });
+
+        pruneCountsCache(now);
+        countsCache.set(cacheKey, { ts: now, counts });
+        return counts;
+      })(),
+    ]);
+
+    const counts = countsResult;
+
+    if (igIssues.length) {
+      const unique = Array.from(new Set(igIssues));
+      console.warn(
+        `[inbox/conversations] ig_threads query failed (missing table or unavailable env) — Instagram treated as empty: ${unique.join("; ")}`,
       );
-      const counts = { human: 0, mine: 0, bot: 0, all: 0 } as Record<InboxFilter, number>;
-      pairs.forEach(({ filter: f }, i) => {
-        counts[f] += values[i];
-      });
+    }
 
-      pruneCountsCache(now);
-      countsCache.set(cacheKey, { ts: now, counts });
-      return counts;
-    })(),
-  ]);
-
-  const { items, nextCursor } = pageFromChannels(channelPages, cursor, limit);
-  const counts = countsResult;
-
-  if (igIssues.length) {
-    const unique = Array.from(new Set(igIssues));
-    console.warn(
-      `[inbox/conversations] ig_threads query failed (missing table or unavailable env) — Instagram treated as empty: ${unique.join("; ")}`,
-    );
+    return NextResponse.json({
+      items: page.items,
+      counts,
+      total: counts[filter],
+      nextCursor: page.nextCursor,
+      me,
+    });
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
-
-  return NextResponse.json({
-    items,
-    counts,
-    total: counts[filter],
-    nextCursor,
-    me,
-  });
 }

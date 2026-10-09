@@ -79,6 +79,10 @@ describe("pageFromChannels", () => {
       assignee: null,
       bot: false,
       unread: 0,
+      state: "bot",
+      waiting: false,
+      ticketNumber: null,
+      category: null,
     };
   }
 

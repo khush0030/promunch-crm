@@ -369,3 +369,5 @@ table.pm-tbl th{background:none}
 /* Very wide monitors (owner's 2560px screen): scale the whole UI like a
    112% browser zoom so text is not tiny next to the reading-width cap. */
 @media (min-width:2200px){:root{zoom:1.12}.pm3-side{height:calc(100vh / 1.12)}}
+/* Inbox work surfaces on phones: same 16px gutter as every other page. */
+@media (max-width:760px){.pm2-wide{--pm3-gutter:16px}}

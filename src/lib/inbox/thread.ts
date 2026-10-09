@@ -364,7 +364,7 @@ export function igReplyErrorCopy(status: number, error: string | null | undefine
 /** Copy for the WhatsApp thread status pill. */
 export function waStatusPill(status: string | null | undefined): { tone: "info" | "warn" | "good" | "neu"; text: string } {
   if (status === "bot") return { tone: "info", text: "Bot is replying" };
-  if (status === "human") return { tone: "warn", text: "You are replying" };
+  if (status === "human") return { tone: "warn", text: "A person is replying" };
   if (status === "closed") return { tone: "good", text: "Closed" };
   return { tone: "neu", text: "Snoozed" };
 }

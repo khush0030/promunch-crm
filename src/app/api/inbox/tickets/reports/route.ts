@@ -21,6 +21,7 @@ type WaRow = {
   ticket_status: string | null;
   ticket_category: string | null;
   ticket_assignee: string | null;
+  assigned_to: string | null;
   ticket_opened_at: string | null;
   ticket_resolved_at: string | null;
 };
@@ -39,7 +40,7 @@ export async function GET(req: Request) {
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabaseAdmin
       .from("wa_threads")
-      .select("id, ticket_status, ticket_category, ticket_assignee, ticket_opened_at, ticket_resolved_at")
+      .select("id, ticket_status, ticket_category, ticket_assignee, assigned_to, ticket_opened_at, ticket_resolved_at")
       .not("ticket_status", "is", null)
       .or(`ticket_opened_at.gte.${sinceIso},ticket_resolved_at.gte.${sinceIso},ticket_status.in.(open,pending)`)
       .order("ticket_opened_at", { ascending: true, nullsFirst: true })
@@ -78,7 +79,7 @@ export async function GET(req: Request) {
   const rows: ReportTicketRow[] = threads.map((t) => ({
     status: t.ticket_status,
     category: t.ticket_category,
-    assignee: t.ticket_assignee,
+    assignee: t.assigned_to ?? t.ticket_assignee, // same owner rule as Live chats and Tickets
     openedAt: t.ticket_opened_at,
     resolvedAt: t.ticket_resolved_at,
     firstReplyAt: replies[t.id] ?? null,

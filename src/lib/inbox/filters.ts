@@ -10,7 +10,7 @@
 // filters.test.ts checks, so SQL and the pure rule can't drift apart
 // unnoticed.
 
-import type { InboxFilter, WaThreadRow, IgThreadRow, EmailThreadRow } from "./conversations";
+import type { SqlFilter, WaThreadRow, IgThreadRow, EmailThreadRow } from "./conversations";
 import { ilikeExact } from "./search";
 
 // All string-carrying plan values (`clause`, and eqOr's `value`) are already
@@ -41,7 +41,7 @@ export type NonSkipFilterPlan = Exclude<FilterPlan, { type: "skip" }>;
 //   assignee     = assigned_to ?? ticket_assignee   (nullish coalescing: only
 //                  falls back when assigned_to is null, not "")
 //   mine         = !!assignee && assignee.toLowerCase() === me.toLowerCase()
-export function waFilterPlan(filter: InboxFilter, me: string): NonSkipFilterPlan {
+export function waFilterPlan(filter: SqlFilter, me: string): NonSkipFilterPlan {
   switch (filter) {
     case "human":
       return { type: "or", clause: "status.eq.human,ticket_status.in.(open,pending)" };
@@ -63,6 +63,8 @@ export function waFilterPlan(filter: InboxFilter, me: string): NonSkipFilterPlan
       const x = ilikeExact(me);
       return { type: "or", clause: `assigned_to.ilike.${x},and(assigned_to.is.null,ticket_assignee.ilike.${x})` };
     }
+    case "snoozed":
+      return { type: "or", clause: "status.eq.snoozed" };
     case "all":
     default:
       return { type: "none" };
@@ -72,7 +74,7 @@ export function waFilterPlan(filter: InboxFilter, me: string): NonSkipFilterPlan
 // Pure JS mirror of waFilterPlan, for the table test: for a fixture row,
 // waMatchesSql(row, filter, me) must agree with
 // matchesFilter(waToItem(row), filter, me) for every filter.
-export function waMatchesSql(row: WaThreadRow, filter: InboxFilter, me: string): boolean {
+export function waMatchesSql(row: WaThreadRow, filter: SqlFilter, me: string): boolean {
   const ticketActive = row.ticket_status === "open" || row.ticket_status === "pending";
   switch (filter) {
     case "human":
@@ -83,6 +85,8 @@ export function waMatchesSql(row: WaThreadRow, filter: InboxFilter, me: string):
       const effective = row.assigned_to ?? row.ticket_assignee;
       return !!effective && effective.toLowerCase() === me.toLowerCase();
     }
+    case "snoozed":
+      return row.status === "snoozed";
     case "all":
     default:
       return true;
@@ -97,7 +101,7 @@ export function waMatchesSql(row: WaThreadRow, filter: InboxFilter, me: string):
 //   bot        = status === "bot" && !ticketOpen
 //   assignee   = assigned_to (no ticket_assignee fallback for IG)
 //   mine       = !!assignee && assignee.toLowerCase() === me.toLowerCase()
-export function igFilterPlan(filter: InboxFilter, me: string): FilterPlan {
+export function igFilterPlan(filter: SqlFilter, me: string): FilterPlan {
   switch (filter) {
     case "human":
       return { type: "or", clause: "status.eq.human,ticket_status.eq.open" };
@@ -114,13 +118,16 @@ export function igFilterPlan(filter: InboxFilter, me: string): FilterPlan {
       // (see the FilterPlan doc comment above) instead of also relying on
       // the `.ilike()` builder method's own (unquoted) encoding.
       return { type: "or", clause: `assigned_to.ilike.${ilikeExact(me)}` };
+    case "snoozed":
+      // ig_threads.status is only bot/human: nothing is ever snoozed.
+      return { type: "skip" };
     case "all":
     default:
       return { type: "none" };
   }
 }
 
-export function igMatchesSql(row: IgThreadRow, filter: InboxFilter, me: string): boolean {
+export function igMatchesSql(row: IgThreadRow, filter: SqlFilter, me: string): boolean {
   const ticketOpen = row.ticket_status === "open";
   switch (filter) {
     case "human":
@@ -129,6 +136,8 @@ export function igMatchesSql(row: IgThreadRow, filter: InboxFilter, me: string):
       return row.status === "bot" && !ticketOpen;
     case "mine":
       return !!row.assigned_to && row.assigned_to.toLowerCase() === me.toLowerCase();
+    case "snoozed":
+      return false;
     case "all":
     default:
       return true;
@@ -142,12 +151,13 @@ export function igMatchesSql(row: IgThreadRow, filter: InboxFilter, me: string):
 //   needsHuman = draftReady
 //   bot        = false always
 //   assignee   = null always
-export function emFilterPlan(filter: InboxFilter): FilterPlan {
+export function emFilterPlan(filter: SqlFilter): FilterPlan {
   switch (filter) {
     case "human":
       return { type: "eqOr", column: "status", value: "pending", clause: "should_reply.is.null,should_reply.eq.true" };
     case "bot":
     case "mine":
+    case "snoozed":
       // emailToItem's bot/assignee are always false/null — no email can ever
       // satisfy these filters, so skip the query rather than run a doomed one.
       return { type: "skip" };
@@ -157,13 +167,14 @@ export function emFilterPlan(filter: InboxFilter): FilterPlan {
   }
 }
 
-export function emMatchesSql(row: EmailThreadRow, filter: InboxFilter): boolean {
+export function emMatchesSql(row: EmailThreadRow, filter: SqlFilter): boolean {
   const draftReady = row.status === "pending" && row.should_reply !== false;
   switch (filter) {
     case "human":
       return draftReady;
     case "bot":
     case "mine":
+    case "snoozed":
       return false;
     case "all":
     default:

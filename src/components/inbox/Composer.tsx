@@ -2,14 +2,16 @@
 
 import { useRef, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
 import { canSend } from "@/lib/pm/composer";
+import c from "./composer.module.css";
 
 const MIN_ROWS = 2;
 const MAX_ROWS = 6;
 
 // Reply composer shared by the thread panel and inline list-row reply.
-// Grows with content up to 6 rows, then scrolls. Plain Enter inserts a
-// newline (textarea default); ⌘/Ctrl+Enter sends, matching the WhatsApp/
-// email clients staff already use. `disabledReason` (e.g. a closed 24h
+// Grows with content up to 6 rows, then scrolls. On a laptop Enter sends and
+// Shift+Enter adds a new line (the hint says so); Cmd/Ctrl+Enter still sends.
+// On touch screens Enter is a new line and only the Send button sends. IME
+// composition (e.g. Hindi keyboards) never sends mid-word. `disabledReason` (e.g. a closed 24h
 // window) shows as a line above the action row AND blocks sending outright
 // (both the Send button and ⌘/Ctrl+Enter) — the way out of that state is
 // the `actions` slot (e.g. a Template button), not the text box. The
@@ -25,6 +27,7 @@ export function Composer({
   onSend,
   onAttach,
   attachment,
+  reasonShownElsewhere = false,
 }: {
   placeholder: string;
   value: string;
@@ -35,6 +38,8 @@ export function Composer({
   onSend: () => void;
   onAttach?: (f: File) => void;
   attachment?: { name: string } | null;
+  /** the host already shows disabledReason (e.g. the 24h window bar); still blocks sending */
+  reasonShownElsewhere?: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const sendable = canSend({ busy, value, disabledReason, hasAttachment: !!attachment });
@@ -53,8 +58,12 @@ export function Composer({
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+    if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+    const modifier = e.metaKey || e.ctrlKey;
+    const touch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+    if (modifier || (!e.shiftKey && !e.altKey && !touch)) {
       e.preventDefault();
+      // Same rule as the button (canSend): never while a send is in flight.
       if (sendable) onSend();
     }
   };
@@ -66,7 +75,7 @@ export function Composer({
   };
 
   return (
-    <div className="pm2-composer">
+    <div className={`pm2-composer ${c.box}`}>
       <textarea
         rows={MIN_ROWS}
         placeholder={placeholder}
@@ -77,7 +86,7 @@ export function Composer({
         aria-label={placeholder}
       />
       {attachment ? <div className="attachment">📎 {attachment.name}</div> : null}
-      {disabledReason ? <div className="reason">{disabledReason}</div> : null}
+      {disabledReason && !reasonShownElsewhere ? <div className="reason">{disabledReason}</div> : null}
       <div className="row">
         {actions}
         {onAttach ? (
@@ -88,7 +97,8 @@ export function Composer({
             </button>
           </>
         ) : null}
-        <button type="button" className="pm2-btn pri sm" style={{ marginLeft: "auto" }} onClick={onSend} disabled={!sendable}>
+        <span className={c.hint}>Enter to send, Shift+Enter for new line</span>
+        <button type="button" className={`pm2-btn pri ${c.send}`} onClick={onSend} disabled={!sendable}>
           {busy ? "Sending…" : "Send"}
         </button>
       </div>

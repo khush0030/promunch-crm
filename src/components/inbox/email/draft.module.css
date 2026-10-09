@@ -1,0 +1,6 @@
+/* The AI draft inside Live chats: a soft card labelled "Our reply", no stripe. */
+.detail :global(.pm2-panel){border:0;box-shadow:none;background:none}
+.detail :global(.pm2-p-head){padding-left:0;padding-right:0}
+.detail :global(.pm2-p-body){padding-left:0;padding-right:0}
+.detail :global(.pm2-draft-block){border-left:0;border:1px solid var(--pm-border);background:var(--pm-card);border-radius:14px;padding:16px 18px}
+.detail :global(.pm2-draft-eyebrow){font:700 12px var(--pm-font);letter-spacing:0;text-transform:none;color:var(--pm-ink2);margin-bottom:8px}

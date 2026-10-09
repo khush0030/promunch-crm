@@ -31,7 +31,9 @@ import {
   UserCheck,
   Wallet,
 } from "lucide-react";
-import { PageHeader, Avatar, Callout, ConfirmDialog } from "@/components/pm";
+import { PageHeader, Avatar, Callout, ConfirmDialog, Tag as ColorTag } from "@/components/pm";
+import type { TagTone } from "@/components/pm";
+import { topicTag } from "@/components/inbox/labels";
 import { formatINR } from "@/lib/metrics/money";
 import { useToast } from "@/components/ui/Toast";
 import { patchThread } from "@/components/inbox/shared";
@@ -67,10 +69,13 @@ const TOPIC_ICON: Record<string, ReactNode> = {
 
 const STATUS_WORD: Record<Status, string> = {
   new: "New",
-  open: "Open",
-  waiting: "Waiting",
+  open: "With someone",
+  waiting: "Waiting on customer",
   solved: "Solved",
 };
+// One colour per meaning: new and unowned = red, being handled = blue,
+// waiting on the customer = amber, solved = green.
+const STATUS_TONE: Record<Status, TagTone> = { new: "red", open: "blue", waiting: "amber", solved: "green" };
 
 const CHANNEL_WORD: Record<"wa" | "ig", string> = { wa: "WhatsApp", ig: "Instagram" };
 
@@ -238,7 +243,9 @@ function TicketsPageInner() {
       if (v.startsWith("topic:")) return live && topicKey(r.card.category) === v.slice(6);
       switch (v) {
         case "mine":
-          return live && !!me && r.card.assignee === me;
+          // card.assignee is the chat owner (assigned_to ?? ticket_assignee),
+          // the same rule Live chats uses for Mine.
+          return live && !!me && !!r.card.assignee && r.card.assignee.toLowerCase() === me.toLowerCase();
         case "unassigned":
           return live && !r.card.assignee;
         case "overdue":
@@ -366,11 +373,11 @@ function TicketsPageInner() {
     {
       title: "All tickets",
       items: [
-        { key: "open", label: "All open", icon: <ListTodo aria-hidden /> },
-        { key: "new", label: "New", icon: <CircleDot aria-hidden /> },
-        { key: "assigned", label: "Open", icon: <UserCheck aria-hidden /> },
+        { key: "open", label: "All open tickets", icon: <ListTodo aria-hidden /> },
+        { key: "new", label: "New, nobody on it", icon: <CircleDot aria-hidden /> },
+        { key: "assigned", label: "With someone", icon: <UserCheck aria-hidden /> },
         { key: "waiting", label: "Waiting on customer", icon: <Hourglass aria-hidden /> },
-        { key: "resolved", label: "Solved, 7 days", icon: <CircleCheck aria-hidden /> },
+        { key: "resolved", label: "Solved, last 7 days", icon: <CircleCheck aria-hidden /> },
       ],
     },
   ];
@@ -384,9 +391,9 @@ function TicketsPageInner() {
   if (topicItems.length) viewGroups.push({ title: "Topics", items: topicItems });
 
   return (
-    <>
+    <div className="pm2-wide">
       {header}
-      <div className="pm2-body">
+      <div className="pm2-body pm2-wide">
         <div className={s.tq}>
           <nav className={s.views} aria-label="Ticket views">
             {viewGroups.map((g) => (
@@ -490,7 +497,7 @@ function TicketsPageInner() {
         </div>
         <p className={s.note}>Ops can also close a ticket by replying &quot;done #N&quot; on WhatsApp.</p>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -560,6 +567,7 @@ function TicketRowView({
     };
   }, [menuOpen]);
 
+  const topic = topicTag(card.category);
   const meta = [
     card.number != null ? `#${card.number}` : null,
     card.customer,
@@ -576,12 +584,21 @@ function TicketRowView({
           {card.title}
         </Link>
         <span className={s.meta}>{meta}</span>
+        {topic ? (
+          <span className={s.tagLine}>
+            <ColorTag tone={topic.tone} size="sm">
+              {topic.text}
+            </ColorTag>
+          </span>
+        ) : null}
       </div>
       <div className={s.dueCell}>
         <DueLabel card={card} status={status} />
       </div>
       <div className={s.stCell}>
-        <span className={`${s.st} ${s[`st_${status}`]}`}>{STATUS_WORD[status]}</span>
+        <ColorTag tone={STATUS_TONE[status]} size="sm">
+          {STATUS_WORD[status]}
+        </ColorTag>
       </div>
       <div className={s.who}>
         {assigneeName ? (
@@ -647,15 +664,19 @@ function TicketRowView({
                 setConfirming(true);
               }}
             >
-              Resolve
+              Mark solved
             </button>
           </div>
         ) : null}
         {confirming ? (
           <ConfirmDialog
-            title={card.number != null ? `Resolve ticket #${card.number}?` : "Resolve this ticket?"}
-            body="The customer is not messaged."
-            confirmLabel="Resolve"
+            title={card.number != null ? `Mark ticket #${card.number} solved?` : "Mark this ticket solved?"}
+            body={
+              channel === "wa"
+                ? "Marks the ticket solved and the bot will answer this customer again. The customer is not messaged."
+                : "Marks the ticket solved. The customer is not messaged."
+            }
+            confirmLabel="Mark solved"
             busy={busy}
             onConfirm={() => {
               onResolve(channel, id);

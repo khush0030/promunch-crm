@@ -203,8 +203,23 @@ export async function GET(req: Request) {
   const rawId = url.searchParams.get("id");
   const wantedId = rawId && isEmailThreadId(rawId) ? rawId : null;
 
-  const pending = tab === "approve" || tab === "noreply";
   const nowMs = Date.now();
+
+  // ?only=selected&id=: one email and its draft, no queue or counts. Used by
+  // Live chats to review a draft inline (same data, same action route).
+  if (url.searchParams.get("only") === "selected") {
+    if (!wantedId) return NextResponse.json({ error: "id required" }, { status: 400 });
+    try {
+      const selected = await loadSelected(wantedId, nowMs);
+      const counts = Object.fromEntries(EMAIL_TABS.map((t) => [t, null])) as Record<EmailQueueTab, number | null>;
+      const body: EmailQueueResponse = { counts, items: [], selected };
+      return NextResponse.json(body);
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    }
+  }
+
+  const pending = tab === "approve" || tab === "noreply";
   const [countList, itemsRes] = await Promise.all([
     Promise.all(EMAIL_TABS.map((t) => countTab(t, nowMs))),
     itemsQuery(tab, pending, pending ? PENDING_WINDOW : MAX_ITEMS, nowMs),

@@ -9,25 +9,26 @@
 // Header buttons only PATCH thread state; none of them message anyone.
 
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/Toast";
-import { ConfirmDialog, Callout } from "@/components/pm";
+import { ConfirmDialog, Callout, Tag } from "@/components/pm";
 import { Bubbles } from "./Bubbles";
 import { Composer } from "./Composer";
 import { TemplatePicker } from "./TemplatePicker";
 import { ConversationHeader } from "./ConversationHeader";
-import { useMeEmail, useNow, useStickToBottom, useTeamMembers } from "./hooks";
+import { useDocVisible, useMeEmail, useNow, useStickToBottom, useTeamMembers } from "./hooks";
 import { AssignSelect, ConnectionNotice, NotFoundCard, patchThread, shareLink } from "./shared";
-import { WindowChip, windowLeftMs } from "@/components/whatsapp/WindowTimer";
+import { windowLeftMs } from "@/components/whatsapp/WindowTimer";
 import { TicketProperties, WindowStrip } from "./TicketSide";
-import { CustomerContext } from "./CustomerContext";
+import { CustomerContext, TONE_TAG, useInboxContext } from "./CustomerContext";
+import { topicTag } from "./labels";
 import t from "./ticket.module.css";
 import type { Template, Thread } from "@/components/whatsapp/types";
 import { formatINR } from "@/lib/metrics/money";
 import {
   waBubbles,
-  waStatusPill,
   maskPhone,
   firstNameOf,
   latestInboundAt,
@@ -42,35 +43,39 @@ import {
 
 type ThreadRow = Thread & { ticket_opened_at?: string | null };
 
-type CustomerData = {
-  wa_id: string;
-  contact: { id: string; city: string | null; total_orders: number | null; total_spent: number | null } | null;
-  orders: { order_number: string; total: string }[];
-  order_count: number;
-};
-
 const WINDOW_CLOSED = "24-hour window closed. Send a template to restart the chat.";
 const DUPLICATE_TOAST = "Already sent a moment ago, not sent again.";
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
-function rupeesFromLabel(s: string): number {
-  const n = Number(s.replace(/[^\d.]/g, ""));
-  return Number.isFinite(n) ? n : 0;
-}
+// Typed-but-unsent replies, per chat, for this browser tab. Switching to
+// another chat and back restores the draft; it never follows you to a
+// different customer (the component is keyed by thread id).
+const drafts = new Map<string, string>();
 
+type Confirm = "handback" | "resolve" | "archive" | null;
 export function WaConversation({
   id,
   peek = false,
   compact = false,
+  markRead = false,
   extraActions,
+  onChanged,
+  onArchived,
 }: {
   id: string;
   peek?: boolean;
   compact?: boolean;
+  /** this chat is on screen in Live chats: clear its unread badge when new messages land (only while the tab is visible) */
+  markRead?: boolean;
   /** extra header buttons from the host page (UI only, e.g. "Customer" drawer toggle) */
   extraActions?: ReactNode;
+  /** the host should refresh its list and counts (an action changed this chat) */
+  onChanged?: () => void;
+  /** the chat was archived (the host may close the pane) */
+  onArchived?: () => void;
 }) {
   const toast = useToast();
+  const router = useRouter();
   const qc = useQueryClient();
   const me = useMeEmail();
   const members = useTeamMembers();
@@ -97,15 +102,8 @@ export function WaConversation({
   const thread = threadQ.data?.thread ?? null;
   const messages = useMemo(() => threadQ.data?.messages ?? [], [threadQ.data]);
 
-  const customerQ = useQuery({
-    queryKey: ["wa-thread-customer", id],
-    queryFn: async (): Promise<CustomerData | null> => {
-      const r = await fetch(`/api/whatsapp/threads/${id}/customer`);
-      const j = await r.json();
-      return r.ok && !j.error ? (j as CustomerData) : null;
-    },
-    staleTime: 5 * 60_000,
-  });
+  // Same query (and numbers) as the customer panel next to it.
+  const ctxQ = useInboxContext(`wa-${id}`);
 
   const codQ = useQuery({
     queryKey: ["cod-gate-orders", 168],
@@ -137,13 +135,39 @@ export function WaConversation({
   const name = thread?.contact?.name || thread?.contact?.phone || "WhatsApp chat";
   const firstName = firstNameOf(me);
 
-  const customer = customerQ.data ?? null;
-  const orderCount = customer?.contact?.total_orders ?? customer?.order_count ?? 0;
-  const orderTotal = customer?.contact?.total_spent ?? (customer?.orders ?? []).reduce((s, o) => s + rupeesFromLabel(o.total), 0);
-  const city = customer?.contact?.city ?? null;
+  const ctx = ctxQ.data ?? null;
+  const orderCount = ctx?.stats.orders ?? null;
+  const orderTotal = ctx?.stats.spent ?? 0;
+  const city = ctx?.person.city ?? null;
+  const owner = thread ? (thread.assigned_to ?? thread.ticket_assignee ?? null) : null;
+
+  // ---- unread: clear it while this chat is on screen ----------------------
+  const visible = useDocVisible();
+  const unread = thread?.unread_count ?? 0;
+  const markingRef = useRef(false);
+  useEffect(() => {
+    if (!markRead || !peek || unread <= 0 || !visible || markingRef.current) return;
+    markingRef.current = true;
+    // The one non-peek GET is what resets unread_count (same as opening the
+    // chat on its own page). Read-only otherwise; nothing is sent.
+    fetch(`/api/whatsapp/threads/${id}`, { cache: "no-store" })
+      .catch(() => undefined)
+      .finally(() => {
+        markingRef.current = false;
+        onChanged?.();
+      });
+  }, [markRead, peek, unread, visible, id, onChanged]);
 
   // ---- composer state ----------------------------------------------------
-  const [text, setText] = useState("");
+  const [text, setTextState] = useState(() => drafts.get(id) ?? "");
+  const setText = useCallback(
+    (v: string) => {
+      setTextState(v);
+      if (v) drafts.set(id, v);
+      else drafts.delete(id);
+    },
+    [id],
+  );
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [attachment, setAttachment] = useState<{ url: string; name: string } | null>(null);
@@ -152,6 +176,7 @@ export function WaConversation({
   const [confirmCod, setConfirmCod] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [patching, setPatching] = useState(false);
+  const [confirm, setConfirm] = useState<Confirm>(null);
   // setSending is async, so two clicks in the same tick both pass the state
   // check. The ref flips synchronously and is the real in-flight guard.
   const sendingRef = useRef(false);
@@ -204,7 +229,7 @@ export function WaConversation({
         setSending(false);
       }
     },
-    [uploading, me, attachment, id, text, toast, refresh],
+    [uploading, me, attachment, id, text, toast, refresh, setText],
   );
 
   async function pickImage(file: File | null) {
@@ -237,15 +262,40 @@ export function WaConversation({
     }
   }
 
-  async function patch(p: Partial<Thread>) {
-    if (patching) return;
+  async function patch(p: Partial<Thread> & { archived?: boolean }, done?: string): Promise<boolean> {
+    if (patching) return false;
     setPatching(true);
     try {
-      await patchThread(`/api/whatsapp/threads/${id}`, p, toast);
+      const ok = await patchThread(`/api/whatsapp/threads/${id}`, p, toast);
+      if (ok && done) toast.push({ kind: "success", text: done });
       await refresh();
+      qc.invalidateQueries({ queryKey: ["tickets-board"] });
+      qc.invalidateQueries({ queryKey: ["inbox-context", `wa-${id}`] });
+      onChanged?.();
+      return ok;
     } finally {
       setPatching(false);
     }
+  }
+
+  // Take over: the bot stops replying in this chat (status "human", same as
+  // before) and the chat is assigned to you, so it shows under Mine.
+  function takeOver() {
+    const body: Partial<Thread> = { status: "human" };
+    if (me) body.assigned_to = me;
+    void patch(body, me ? "You took over. The bot is paused here and the chat is assigned to you." : "You took over. The bot is paused here.");
+  }
+
+  async function runConfirm() {
+    const what = confirm;
+    if (!what) return;
+    if (what === "handback") await patch({ status: "bot" }, "Handed back. The bot will answer this customer's next messages.");
+    if (what === "resolve") await patch({ ticket_status: "resolved" }, "Ticket marked solved. The bot will answer this customer again.");
+    if (what === "archive") {
+      const ok = await patch({ archived: true }, "Chat archived. It comes back if the customer writes again.");
+      if (ok) onArchived?.();
+    }
+    setConfirm(null);
   }
 
   async function draftReply() {
@@ -312,54 +362,84 @@ export function WaConversation({
     return <div className={compact ? undefined : "pm2-body"}><div className="pm2-skel" style={{ minHeight: 320 }} /></div>;
   }
 
-  const pill = waStatusPill(thread.status);
   // Same control + handler in both layouts: the header in compact mode, the
-  // "Assigned to" property tile on the full page.
+  // "Assigned to" property tile on the full page. Writes assigned_to; the
+  // route mirrors it into ticket_assignee so every Inbox screen agrees.
   const assignSelect = (
-    <AssignSelect value={thread.assigned_to} members={members} disabled={patching} onChange={(email) => patch({ assigned_to: email || null })} />
+    <AssignSelect value={owner} members={members} disabled={patching} onChange={(email) => patch({ assigned_to: email || null })} />
   );
   const btn = compact ? "pm2-btn sm" : "pm2-btn";
   const headerActions = (
     <>
-      {compact ? <WindowChip lastInboundAt={lastInbound} /> : null}
       {thread.status === "human" ? (
-        <button type="button" className={btn} disabled={patching} onClick={() => patch({ status: "bot" })}>Hand back to bot</button>
+        <button type="button" className={btn} disabled={patching} onClick={() => setConfirm("handback")}>Hand back to bot</button>
       ) : thread.status === "closed" ? null : (
         // bot or snoozed: a person can pick the chat up
-        <button type="button" className={btn} disabled={patching} onClick={() => patch({ status: "human" })}>Take over</button>
+        <button type="button" className={`${btn} pri`} disabled={patching} onClick={takeOver}>Take over</button>
       )}
       {ticketOpen ? (
-        <button type="button" className={`${btn} ghost`} disabled={patching} onClick={() => patch({ ticket_status: "resolved" })}>Resolve</button>
+        <button type="button" className={btn} disabled={patching} onClick={() => setConfirm("resolve")}>Mark solved</button>
       ) : null}
       <button type="button" className={`${btn} ghost`} onClick={() => shareLink(`/dashboard/inbox/wa-${id}`, toast)}>Share</button>
+      <button type="button" className={`${btn} ghost`} disabled={patching} onClick={() => setConfirm("archive")}>Archive</button>
       {compact ? assignSelect : null}
       {extraActions}
+    </>
+  );
+
+  const statusTagEl =
+    thread.status === "bot" ? (
+      <Tag kind="bot" size="sm">Bot is replying</Tag>
+    ) : thread.status === "human" ? (
+      <Tag tone="amber" size="sm">A person is replying</Tag>
+    ) : thread.status === "snoozed" ? (
+      <Tag kind="snoozed" size="sm">Snoozed</Tag>
+    ) : (
+      <Tag kind="closed" size="sm">Closed</Tag>
+    );
+  const topic = topicTag(thread.ticket_category);
+  const ownerName = owner ? (owner === me ? "You" : members.find((m) => m.email === owner)?.name || owner.split("@")[0]) : null;
+  const headerTags = (
+    <>
+      {statusTagEl}
+      {ticketOpen ? (
+        <Tag tone={thread.ticket_status === "pending" ? "amber" : "red"} size="sm">
+          {thread.ticket_status === "pending" ? `Ticket #${thread.ticket_number}, waiting on customer` : `Ticket #${thread.ticket_number}`}
+        </Tag>
+      ) : null}
+      {topic ? <Tag tone={topic.tone} size="sm">{topic.text}</Tag> : null}
+      {ownerName ? <Tag tone="grey" size="sm">{`Owner: ${ownerName}`}</Tag> : null}
     </>
   );
 
   const factsLine = [
     "WhatsApp",
     city,
-    `${orderCount} ${orderCount === 1 ? "order" : "orders"}${orderTotal ? ` · ${formatINR(orderTotal)}` : ""}`,
+    orderCount != null ? `${orderCount} ${orderCount === 1 ? "order" : "orders"}${orderTotal ? ` · ${formatINR(orderTotal)}` : ""}` : null,
   ].filter(Boolean).join(" · ");
 
+  const codTag = ctx?.cod ? (
+    <Tag tone={TONE_TAG[ctx.cod.tone]} size="sm">{`COD ${ctx.cod.orderNumber}: ${ctx.cod.text}`}</Tag>
+  ) : null;
   const facts = (
     <>
+      <span>{maskPhone(thread.contact?.phone || thread.wa_id)}</span>
       {city ? <span><b>{city}</b></span> : null}
-      <span>
-        <b className="num">{orderCount}</b> {orderCount === 1 ? "order" : "orders"}
-        {orderTotal ? <> · <b className="num">{formatINR(orderTotal)}</b></> : null}
-      </span>
-      {codOrder ? <span>{orderLabel(codOrder.order_number)} · COD · <b>waiting</b></span> : null}
-      {compact ? <WindowChip lastInboundAt={lastInbound} /> : null}
-      {customer?.contact?.id ? (
-        <Link className="pm2-lnk" style={compact ? { marginLeft: "auto" } : undefined} href={`/dashboard/contacts/${customer.contact.id}`}>Profile →</Link>
+      {orderCount != null ? (
+        <span>
+          <b className="num">{orderCount}</b> {orderCount === 1 ? "order" : "orders"}
+          {orderTotal ? <> · <b className="num">{formatINR(orderTotal)}</b> spent</> : null}
+        </span>
+      ) : null}
+      {codTag}
+      {ctx?.person.contactId ? (
+        <Link className="pm2-lnk" href={`/dashboard/contacts/${ctx.person.contactId}`}>Profile →</Link>
       ) : null}
     </>
   );
 
   const ticketNote = ticketOpen ? (
-    <span>Ticket #{thread.ticket_number}{thread.escalation_reason ? ` · ${thread.escalation_reason}` : ""}</span>
+    <span>Ticket #{thread.ticket_number}{thread.escalation_reason ? `: ${thread.escalation_reason}` : ""}</span>
   ) : null;
 
   const composerActions = (
@@ -405,7 +485,7 @@ export function WaConversation({
           )}
         </div>
         {pollFailed ? <ConnectionNotice /> : null}
-        {compact || !windowOpen ? null : <WindowStrip lastInboundAt={lastInbound} now={now} />}
+        <WindowStrip lastInboundAt={lastInbound} now={now} />
         <div className="pm2-thread-foot">
           {pickingTemplate ? (
             <div className="pm2-panel">
@@ -423,15 +503,16 @@ export function WaConversation({
               onChange={setText}
               busy={sending || uploading}
               disabledReason={windowOpen ? undefined : WINDOW_CLOSED}
+              reasonShownElsewhere
               actions={composerActions}
               onSend={() => send("text")}
               attachment={attachment ? { name: attachment.name } : null}
             />
           )}
           {thread.status === "bot" ? (
-            <div className={compact ? undefined : t.botNote} style={compact ? { fontSize: 13.5, color: "var(--pm-hint)", padding: "6px 2px 0" } : undefined}>
-              The bot is still replying. Take over to pause it.
-            </div>
+            <div className={t.botNote}>The bot is still answering this chat. Take over to pause it.</div>
+          ) : thread.status === "human" ? (
+            <div className={t.botNote}>The bot is paused here. Hand back to bot when you are done.</div>
           ) : null}
         </div>
       </div>
@@ -445,10 +526,25 @@ export function WaConversation({
         name={name}
         crumb={`Inbox · WhatsApp · ${maskPhone(thread.contact?.phone || thread.wa_id)}`}
         faint={factsLine}
-        pill={pill}
+        tags={headerTags}
         actions={headerActions}
-        facts={compact ? facts : undefined}
+        facts={facts}
         note={compact ? ticketNote : undefined}
+        back={
+          compact ? undefined : (
+            <button
+              type="button"
+              className="pm2-lnk"
+              style={{ background: "none", border: 0, padding: 0, cursor: "pointer", font: "inherit" }}
+              onClick={() => {
+                if (window.history.length > 1) router.back();
+                else router.push("/dashboard/inbox");
+              }}
+            >
+              ← Back to Inbox
+            </button>
+          )
+        }
       />
       {compact ? (
         threadBody
@@ -459,7 +555,7 @@ export function WaConversation({
             <TicketProperties
               ticketStatus={thread.ticket_status}
               ticketNumber={thread.ticket_number}
-              ticketAssignee={thread.ticket_assignee}
+              ticketAssignee={owner}
               priority={thread.ticket_priority}
               category={thread.ticket_category}
               teamName={teamName}
@@ -473,6 +569,32 @@ export function WaConversation({
           </aside>
         </div>
       )}
+      {confirm ? (
+        <ConfirmDialog
+          title={
+            confirm === "resolve"
+              ? `Mark ticket #${thread.ticket_number} solved?`
+              : confirm === "handback"
+                ? "Hand this chat back to the bot?"
+                : "Archive this chat?"
+          }
+          body={
+            confirm === "resolve"
+              ? thread.status === "bot"
+                ? "Marks the ticket solved. The bot keeps answering this customer. The customer is not messaged."
+                : "Marks the ticket solved and the bot will answer this customer again. The customer is not messaged."
+              : confirm === "handback"
+                ? ticketOpen
+                  ? `The bot will answer this customer's next messages. Ticket #${thread.ticket_number} stays open until someone marks it solved. The customer is not messaged.`
+                  : "The bot will answer this customer's next messages. The customer is not messaged."
+                : "It leaves the inbox lists and all messages are kept. Nothing is sent to the customer, and the chat comes back if they write again."
+          }
+          confirmLabel={confirm === "resolve" ? "Mark solved" : confirm === "handback" ? "Hand back to bot" : "Archive"}
+          busy={patching}
+          onConfirm={() => void runConfirm()}
+          onClose={() => setConfirm(null)}
+        />
+      ) : null}
       {confirmCod && codOrder ? (
         <ConfirmDialog
           title={`Confirm order ${orderLabel(codOrder.order_number)}?`}

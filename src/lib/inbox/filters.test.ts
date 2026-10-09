@@ -15,11 +15,11 @@ import {
   type WaThreadRow,
   type IgThreadRow,
   type EmailThreadRow,
-  type InboxFilter,
+  type SqlFilter,
 } from "./conversations";
 
 const ME = "kmutha@vippysoya.com";
-const FILTERS: InboxFilter[] = ["human", "mine", "bot", "all"];
+const FILTERS: SqlFilter[] = ["human", "mine", "bot", "snoozed", "all"];
 
 // ---- exact clause-string assertions, one per channel × filter ----
 

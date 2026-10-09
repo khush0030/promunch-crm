@@ -299,3 +299,33 @@ describe("mergeItems", () => {
   });
 });
 
+
+describe("waiting on us", () => {
+  it("WA is waiting when the customer wrote after our last message", () => {
+    const item = waToItem(
+      waRow({ status: "human", last_inbound_at: "2026-09-15T10:00:00.000Z", last_outbound_at: "2026-09-15T09:00:00.000Z" }),
+    );
+    expect(item.waiting).toBe(true);
+    expect(matchesFilter(item, "waiting", "me@x.com")).toBe(true);
+  });
+
+  it("WA is not waiting once we replied, and never when snoozed or closed", () => {
+    const replied = { last_inbound_at: "2026-09-15T09:00:00.000Z", last_outbound_at: "2026-09-15T10:00:00.000Z" };
+    expect(waToItem(waRow({ status: "bot", ...replied })).waiting).toBe(false);
+    const spoke = { last_inbound_at: "2026-09-15T10:00:00.000Z", last_outbound_at: null };
+    expect(waToItem(waRow({ status: "bot", ...spoke })).waiting).toBe(true);
+    expect(waToItem(waRow({ status: "snoozed", ...spoke })).waiting).toBe(false);
+    expect(waToItem(waRow({ status: "closed", ...spoke })).waiting).toBe(false);
+  });
+
+  it("an email with a draft ready is waiting; a sent one is not", () => {
+    expect(emailToItem(emailRow({ status: "pending", should_reply: true })).waiting).toBe(true);
+    expect(emailToItem(emailRow({ status: "sent" })).waiting).toBe(false);
+  });
+
+  it("snoozed wins over an open ticket for the row state", () => {
+    const item = waToItem(waRow({ status: "snoozed", ticket_status: "open", ticket_number: 9 }));
+    expect(item.state).toBe("snoozed");
+    expect(matchesFilter(item, "snoozed", "me@x.com")).toBe(true);
+  });
+});

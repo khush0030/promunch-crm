@@ -213,7 +213,7 @@ describe("igReplyErrorCopy", () => {
 describe("waStatusPill", () => {
   it("one pill per status", () => {
     expect(waStatusPill("bot")).toEqual({ tone: "info", text: "Bot is replying" });
-    expect(waStatusPill("human")).toEqual({ tone: "warn", text: "You are replying" });
+    expect(waStatusPill("human")).toEqual({ tone: "warn", text: "A person is replying" });
     expect(waStatusPill("closed")).toEqual({ tone: "good", text: "Closed" });
   });
 });

@@ -361,7 +361,7 @@ describe("draftBlock", () => {
   it("shows the reviewing eyebrow on To approve", () => {
     expect(draftBlock(base, fmt)).toEqual({
       kind: "draft",
-      label: "Draft · reply goes to a@b.in · grounded in Master KB",
+      label: "Our reply · AI draft from the knowledge base · goes to a@b.in",
       body: "Draft body",
     });
   });

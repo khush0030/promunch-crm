@@ -63,7 +63,7 @@ describe("shell nav", () => {
   it("follows the IA tab sets (04-ia.md)", () => {
     const owner = accessOf({ email: "boss@promunch.in", app_metadata: { role: "admin" } });
     const labels = (path: string, tab: string | null = null, hash = "") => sectionTabs(findActive(path, tab, hash), owner).map((p) => p.label);
-    expect(labels("/dashboard/inbox/tickets")).toEqual(["Tickets", "Live chats", "Email drafts", "Bot knowledge", "Reports"]);
+    expect(labels("/dashboard/inbox/tickets")).toEqual(["Live chats", "Tickets", "Email drafts", "Bot knowledge", "Reports"]);
     expect(page("/dashboard/inbox/reports")).toBe("Reports");
     expect(labels("/dashboard/sales/orders")).toEqual(["Confirm COD", "Voice calls", "All orders", "Call rules"]);
     expect(page("/dashboard/sales/orders", "all")).toBe("All orders");

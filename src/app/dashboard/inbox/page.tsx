@@ -1,36 +1,37 @@
 "use client";
 
-// /dashboard/inbox: Live chats. One list across WhatsApp and support email
-// (src/lib/inbox/conversations.ts / /api/inbox/conversations). Laptop is
-// three panels filling the viewport, each scrolling on its own:
-//   1. conversation list (channel switch All / WhatsApp / Email, views,
-//      search, dense rows with channel colour + unread + assignee)
+// /dashboard/inbox: Live chats, the Inbox landing page. One list across
+// WhatsApp and support email (src/lib/inbox/conversations.ts /
+// /api/inbox/conversations). Laptop is three panels filling the viewport,
+// each scrolling on its own:
+//   1. conversation list (views: Waiting on us / Needs a human / Mine / Bot /
+//      Snoozed / All, channel tags, search, colour-tagged rows)
 //   2. the open conversation (WaConversation/IgConversation in peek+compact
-//      mode, or a lightweight email summary)
-//   3. the customer panel (CustomerContext: orders, COD, WhatsApp, email,
-//      tickets, tags), a drawer on narrow laptops
-// Phone has the list only; taps navigate to the full conversation page. Opening the list, or the
-// auto-selected first item, never marks anything read — only an explicit
-// row click on a WA/IG row fires the one real (non-peek) GET that clears
-// its unread badge (see openRow below).
+//      mode, or the email with its AI draft to review inline)
+//   3. the customer panel (CustomerContext), a drawer on narrow laptops
+// Phone has the list only; taps navigate to the full conversation page.
+//
+// Selection is sticky: the open chat lives in ?open= and stays open even if
+// an action moves it out of the current view, so the reply box never swaps
+// customers under a typed draft. With no ?open=, the first row is pinned
+// once. While a WhatsApp chat is on screen (and the tab is visible) its
+// unread badge is cleared, including when new messages arrive.
 
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { Inbox, UserRound } from "lucide-react";
-import { PageHeader, Callout, Avatar } from "@/components/pm";
+import { UserRound } from "lucide-react";
+import { PageHeader, Callout, Avatar, Tag } from "@/components/pm";
 import { SearchBar } from "@/components/pm";
 import { WaConversation } from "@/components/inbox/WaConversation";
 import { IgConversation } from "@/components/inbox/IgConversation";
-import { ConversationHeader } from "@/components/inbox/ConversationHeader";
 import { AlertsControl } from "@/components/inbox/AlertsControl";
 import { CustomerContext } from "@/components/inbox/CustomerContext";
-import { ChannelIcon, ChannelTag } from "@/components/inbox/ChannelTag";
-import { categoryWord } from "@/components/inbox/labels";
+import { InlineEmailReview } from "@/components/inbox/email/InlineEmailReview";
+import { statusTag, topicTag } from "@/components/inbox/labels";
 import { formatWhen } from "@/lib/inbox/when";
 import { useMediaPhone } from "@/components/shell/useMediaPhone";
-import type { InboxFilter, InboxItem } from "@/lib/inbox/conversations";
+import { WAITING_DAYS, type InboxFilter, type InboxItem } from "@/lib/inbox/conversations";
 import st from "./inbox.module.css";
 
 type Channel = "all" | "wa" | "ig" | "em";
@@ -44,28 +45,32 @@ type InboxListResponse = {
 };
 
 // Instagram stays out of the switcher until its backend is live (nav.ts Partners hub).
-const CHANNELS: { key: "all" | "wa" | "em"; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "wa", label: "WhatsApp" },
-  { key: "em", label: "Email" },
+const CHANNELS: { key: "all" | "wa" | "em"; label: string; kind?: string }[] = [
+  { key: "all", label: "All channels" },
+  { key: "wa", label: "WhatsApp", kind: "whatsapp" },
+  { key: "em", label: "Email", kind: "email" },
 ];
 
-const FILTER_CHIPS: { key: InboxFilter; label: string }[] = [
-  { key: "human", label: "Need a human" },
-  { key: "mine", label: "Mine" },
-  { key: "bot", label: "Bot" },
-  { key: "all", label: "All" },
+const VIEWS: { key: InboxFilter; label: string; title: string }[] = [
+  { key: "waiting", label: "Waiting on us", title: `The customer wrote last (past ${WAITING_DAYS} days), longest wait first` },
+  { key: "human", label: "Needs a human", title: "Open tickets, chats a person took over, and email drafts to approve" },
+  { key: "mine", label: "Mine", title: "Chats and tickets assigned to you" },
+  { key: "bot", label: "Bot", title: "Chats the bot is answering" },
+  { key: "snoozed", label: "Snoozed", title: "Chats set aside for later" },
+  { key: "all", label: "All", title: "Every conversation, newest first" },
 ];
 
 const EMPTY_COPY: Record<InboxFilter, string> = {
-  human: "Nobody is waiting on a person right now.",
-  mine: "Nothing assigned to you.",
+  waiting: `Nobody is waiting on a reply. Customers who wrote last in the past ${WAITING_DAYS} days show here, longest wait first.`,
+  human: "Nobody needs a person right now.",
+  mine: "Nothing is assigned to you.",
   bot: "No conversations match.",
+  snoozed: "Nothing is snoozed.",
   all: "No conversations match.",
 };
 
 function parseFilter(raw: string | null): InboxFilter {
-  return raw === "mine" || raw === "bot" || raw === "all" ? raw : "human";
+  return VIEWS.some((v) => v.key === raw) ? (raw as InboxFilter) : "waiting";
 }
 function parseChannel(raw: string | null): Channel {
   return raw === "wa" || raw === "ig" || raw === "em" ? raw : "all";
@@ -74,6 +79,10 @@ function parseChannel(raw: string | null): Channel {
 // The list item's key is always "<2-letter prefix>-<id>" (wa-/ig-/em-).
 function idFromKey(key: string): string {
   return key.slice(3);
+}
+function channelFromKey(key: string): "wa" | "ig" | "em" | null {
+  const p = key.slice(0, 3);
+  return p === "wa-" ? "wa" : p === "ig-" ? "ig" : p === "em-" ? "em" : null;
 }
 
 export default function InboxPage() {
@@ -86,7 +95,7 @@ export default function InboxPage() {
 
 function InboxFallback() {
   return (
-    <div className="pm2-body">
+    <div className="pm2-body pm2-wide">
       <div className="pm2-skel" style={{ minHeight: 500 }} />
     </div>
   );
@@ -113,7 +122,7 @@ function InboxPageInner() {
       const c = next.channel ?? channel;
       const query = next.q ?? q;
       const open = next.open !== undefined ? next.open : openParam;
-      if (f === "human") sp.delete("filter");
+      if (f === "waiting") sp.delete("filter");
       else sp.set("filter", f);
       if (c === "all") sp.delete("channel");
       else sp.set("channel", c);
@@ -122,23 +131,19 @@ function InboxPageInner() {
       if (open) sp.set("open", open);
       else sp.delete("open");
       const qs = sp.toString();
-      router.replace(`/dashboard/inbox${qs ? `?${qs}` : ""}`);
+      router.replace(`/dashboard/inbox${qs ? `?${qs}` : ""}`, { scroll: false });
     },
     [params, filter, channel, q, openParam, router],
   );
 
-  // Filter/channel/search define a new result set — the cursor stack from
-  // the old one no longer means anything, so paging always restarts at
-  // page 1. Runs on mount too, which is a harmless no-op (both already
-  // start empty).
+  // Filter/channel/search define a new result set, so paging restarts at
+  // page 1. Runs on mount too, which is a harmless no-op.
   useEffect(() => {
     setCursor(null);
     setCursorStack([]);
   }, [filter, channel, q]);
 
-  // Search box: debounce keystrokes 250ms before committing to the URL
-  // (and therefore the query key) — the API call, not just the input, is
-  // what's debounced.
+  // Search box: debounce keystrokes 250ms before committing to the URL.
   useEffect(() => {
     const t = setTimeout(() => {
       if (qDraft !== q) setQuery({ q: qDraft });
@@ -146,12 +151,13 @@ function InboxPageInner() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qDraft]);
-  // Keep the draft in sync when q changes from outside typing (back/forward
-  // nav, a shared link with ?q=).
   useEffect(() => {
     setQDraft(q);
   }, [q]);
 
+  // After an action (take over, assign, solve, approve...) the next list
+  // read asks for fresh counts instead of the 30s server cache.
+  const freshRef = useRef(false);
   const listQ = useQuery({
     queryKey: ["inbox-list", filter, channel, q, cursor],
     queryFn: async (): Promise<InboxListResponse> => {
@@ -161,6 +167,10 @@ function InboxPageInner() {
       if (q) sp.set("q", q);
       if (cursor) sp.set("cursor", cursor);
       sp.set("limit", "20");
+      if (freshRef.current) {
+        sp.set("fresh", "1");
+        freshRef.current = false;
+      }
       const r = await fetch(`/api/inbox/conversations?${sp.toString()}`, { cache: "no-store" });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.error) throw new Error(j.error || `inbox ${r.status}`);
@@ -169,21 +179,27 @@ function InboxPageInner() {
     refetchInterval: 4000,
     placeholderData: keepPreviousData,
   });
+  const refreshList = useCallback(() => {
+    freshRef.current = true;
+    qc.invalidateQueries({ queryKey: ["inbox-list"] });
+  }, [qc]);
 
   const items = useMemo(() => listQ.data?.items ?? [], [listQ.data]);
   const counts = listQ.data?.counts;
   const total = listQ.data?.total ?? 0;
-
-  // The pane's selection: an explicit ?open= if it's still in the current
-  // page, otherwise the first item (peek-only — never fires the unread
-  // clear below).
-  const selectedKey = useMemo(() => {
-    if (openParam && items.some((i) => i.key === openParam)) return openParam;
-    return items[0]?.key ?? null;
-  }, [openParam, items]);
-  const selectedItem = items.find((i) => i.key === selectedKey) ?? null;
-
   const isPhone = useMediaPhone();
+
+  // No ?open= yet: pin the first row once, so later list refreshes never
+  // swap the open chat. Laptop only (phones open a full page per chat).
+  useEffect(() => {
+    if (isPhone || openParam || listQ.isPlaceholderData || !items[0]) return;
+    setQuery({ open: items[0].key });
+  }, [isPhone, openParam, items, listQ.isPlaceholderData, setQuery]);
+
+  const selectedKey = openParam && channelFromKey(openParam) ? openParam : null;
+  const selectedChannel = selectedKey ? channelFromKey(selectedKey) : null;
+  const inList = !!selectedKey && items.some((i) => i.key === selectedKey);
+
   const openRow = useCallback(
     (item: InboxItem) => {
       if (isPhone) {
@@ -191,14 +207,8 @@ function InboxPageInner() {
         return;
       }
       setQuery({ open: item.key });
-      if ((item.channel === "wa" || item.channel === "ig") && item.unread > 0) {
-        const path = item.channel === "wa" ? `/api/whatsapp/threads/${idFromKey(item.key)}` : `/api/instagram/threads/${idFromKey(item.key)}`;
-        fetch(path, { cache: "no-store" })
-          .catch(() => undefined)
-          .finally(() => qc.invalidateQueries({ queryKey: ["inbox-list"] }));
-      }
     },
-    [isPhone, router, setQuery, qc],
+    [isPhone, router, setQuery],
   );
 
   const goNext = useCallback(() => {
@@ -233,12 +243,14 @@ function InboxPageInner() {
       const el = shellRef.current;
       if (!el) return;
       const top = el.getBoundingClientRect().top + window.scrollY;
-      setShellH(Math.max(560, window.innerHeight - top - 20));
+      setShellH(Math.max(600, window.innerHeight - top - 20));
     };
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, [isPhone, listQ.isLoading]);
+
+  const visibleViews = VIEWS.filter((v) => v.key !== "snoozed" || filter === "snoozed" || (counts?.snoozed ?? 0) > 0);
 
   const header = (
     <PageHeader
@@ -248,9 +260,9 @@ function InboxPageInner() {
         counts ? (
           <>
             <b>
-              {counts.human} {counts.human === 1 ? "chat needs" : "chats need"} a human.
+              {counts.waiting} {counts.waiting === 1 ? "customer is" : "customers are"} waiting on a reply.
             </b>{" "}
-            {counts.bot.toLocaleString("en-IN")} {counts.bot === 1 ? "chat is" : "chats are"} with the bot.
+            {counts.human} {counts.human === 1 ? "chat needs" : "chats need"} a person, {counts.bot.toLocaleString("en-IN")} with the bot.
           </>
         ) : undefined
       }
@@ -260,9 +272,9 @@ function InboxPageInner() {
 
   if (listQ.isError && !listQ.data) {
     return (
-      <>
+      <div className="pm2-wide">
         {header}
-        <div className="pm2-body">
+        <div className="pm2-body pm2-wide">
           <Callout
             tone="crit"
             title="Couldn't load conversations"
@@ -274,7 +286,7 @@ function InboxPageInner() {
             }
           />
         </div>
-      </>
+      </div>
     );
   }
 
@@ -285,40 +297,40 @@ function InboxPageInner() {
   );
 
   return (
-    <>
+    <div className="pm2-wide">
       {header}
-      <div className={st.wrap}>
+      <div className={`${st.wrap} pm2-wide`}>
         <div ref={shellRef} className={`${st.shell}${ctxOpen ? ` ${st.ctxShown}` : ""}`} style={!isPhone && shellH ? { height: shellH } : undefined}>
           {/* ---- 1. conversation list ---- */}
           <section className={st.listCol} aria-label="Conversations">
             <div className={st.listHead}>
-              <div className={st.seg} role="tablist" aria-label="Channel">
+              <div className={st.views} role="tablist" aria-label="Views">
+                {visibleViews.map((v) => (
+                  <button
+                    key={v.key}
+                    type="button"
+                    role="tab"
+                    title={v.title}
+                    aria-selected={filter === v.key}
+                    className={`${st.view}${filter === v.key ? ` ${st.on}` : ""}${v.key === "waiting" && (counts?.waiting ?? 0) > 0 ? ` ${st.hot}` : ""}`}
+                    onClick={() => setQuery({ filter: v.key })}
+                  >
+                    <span className={st.l}>{v.label}</span>
+                    <span className={st.n}>{counts ? counts[v.key].toLocaleString("en-IN") : "·"}</span>
+                  </button>
+                ))}
+              </div>
+              <div className={st.chans} role="tablist" aria-label="Channel">
                 {CHANNELS.map((c) => (
                   <button
                     key={c.key}
                     type="button"
                     role="tab"
                     aria-selected={channel === c.key}
-                    className={`${st.segBtn} ${st[`seg_${c.key}`]}${channel === c.key ? ` ${st.on}` : ""}`}
+                    className={`${st.chan} ${st[`chan_${c.key}`]}${channel === c.key ? ` ${st.on}` : ""}`}
                     onClick={() => setQuery({ channel: c.key })}
                   >
-                    {c.key === "all" ? <Inbox width={15} height={15} aria-hidden="true" /> : <ChannelIcon channel={c.key} size={15} />}
                     {c.label}
-                  </button>
-                ))}
-              </div>
-              <div className={st.views} role="tablist" aria-label="Filter conversations">
-                {FILTER_CHIPS.map((f) => (
-                  <button
-                    key={f.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={filter === f.key}
-                    className={`${st.view}${filter === f.key ? ` ${st.on}` : ""}`}
-                    onClick={() => setQuery({ filter: f.key })}
-                  >
-                    <span className={st.n}>{counts ? counts[f.key].toLocaleString("en-IN") : "·"}</span>
-                    <span className={st.l}>{f.label}</span>
                   </button>
                 ))}
               </div>
@@ -326,9 +338,9 @@ function InboxPageInner() {
             </div>
             <div className={st.rows}>
               {listQ.isLoading ? (
-                <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
                   {[0, 1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="pm2-skel" style={{ minHeight: 58 }} />
+                    <div key={i} className="pm2-skel" style={{ minHeight: 72 }} />
                   ))}
                 </div>
               ) : items.length === 0 ? (
@@ -342,10 +354,11 @@ function InboxPageInner() {
             <div className={st.listFoot}>
               <span>
                 {total.toLocaleString("en-IN")} conversation{total === 1 ? "" : "s"}
+                {filter === "waiting" ? ", longest wait first" : ""}
               </span>
               {cursorStack.length > 0 ? (
                 <button type="button" className={st.pager} style={{ marginLeft: "auto" }} onClick={goNewer}>
-                  ← Newer
+                  ← Back
                 </button>
               ) : null}
               {listQ.data?.nextCursor ? (
@@ -362,13 +375,27 @@ function InboxPageInner() {
             <>
               {/* ---- 2. open conversation ---- */}
               <section className={st.convCol} aria-label="Conversation">
-                {selectedItem ? (
-                  selectedItem.channel === "wa" ? (
-                    <WaConversation id={idFromKey(selectedItem.key)} peek compact extraActions={ctxToggle} />
-                  ) : selectedItem.channel === "ig" ? (
-                    <IgConversation id={idFromKey(selectedItem.key)} peek compact />
+                {selectedKey && !inList && !listQ.isLoading ? (
+                  <div className={st.outOfView} role="status">
+                    This chat is not in the current view any more. It stays open until you pick another one.
+                  </div>
+                ) : null}
+                {selectedKey ? (
+                  selectedChannel === "wa" ? (
+                    <WaConversation
+                      key={selectedKey}
+                      id={idFromKey(selectedKey)}
+                      peek
+                      compact
+                      markRead
+                      extraActions={ctxToggle}
+                      onChanged={refreshList}
+                      onArchived={() => setQuery({ open: null })}
+                    />
+                  ) : selectedChannel === "ig" ? (
+                    <IgConversation key={selectedKey} id={idFromKey(selectedKey)} peek compact />
                   ) : (
-                    <EmailPane id={idFromKey(selectedItem.key)} extraActions={ctxToggle} />
+                    <InlineEmailReview key={selectedKey} id={idFromKey(selectedKey)} extraActions={ctxToggle} onChanged={refreshList} />
                   )
                 ) : (
                   <div className={st.empty}>Pick a conversation on the left.</div>
@@ -377,11 +404,11 @@ function InboxPageInner() {
 
               {/* ---- 3. customer context ---- */}
               <aside className={st.ctxCol} aria-label="Customer">
-                {selectedItem && selectedItem.channel !== "ig" ? (
-                  <CustomerContext key={selectedItem.key} conversationKey={selectedItem.key} onClose={ctxOpen ? () => setCtxOpen(false) : undefined} />
+                {selectedKey && selectedChannel !== "ig" ? (
+                  <CustomerContext key={selectedKey} conversationKey={selectedKey} onClose={ctxOpen ? () => setCtxOpen(false) : undefined} />
                 ) : (
                   <div className={st.empty}>
-                    {selectedItem ? "Customer details are not available for Instagram yet." : "The customer's orders, chats and tickets show here."}
+                    {selectedKey ? "Customer details are not available for Instagram yet." : "The customer's orders, chats and tickets show here."}
                   </div>
                 )}
               </aside>
@@ -390,29 +417,28 @@ function InboxPageInner() {
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
 // ---- conversation row -----------------------------------------------------
 
-const PILL_TONE: Record<InboxItem["pill"]["tone"], string> = {
-  crit: st.tCrit,
-  warn: st.tWarn,
-  good: st.tGood,
-  info: st.tInfo,
-  neu: st.tNeu,
-};
+const CHANNEL_KIND: Record<InboxItem["channel"], string> = { wa: "whatsapp", em: "email", ig: "instagram" };
+const CHANNEL_WORD: Record<InboxItem["channel"], string> = { wa: "WhatsApp", em: "Email", ig: "Instagram" };
 
 function ConvRow({ item, me, selected, onOpen }: { item: InboxItem; me: string; selected: boolean; onOpen: () => void }) {
-  const mine = !!me && item.assignee === me;
+  const mine = !!me && !!item.assignee && item.assignee.toLowerCase() === me.toLowerCase();
   const who = item.assignee ? (mine ? "You" : item.assignee.split("@")[0]) : null;
+  const status = statusTag(item);
+  const topic = topicTag(item.category);
+  // The open chat is being read right now; its badge is cleared in the pane.
+  const unread = !selected && item.unread > 0;
   return (
     <div
       role="button"
       tabIndex={0}
       aria-current={selected ? "true" : undefined}
-      className={`${st.row} ${st[`row_${item.channel}`]}${selected ? ` ${st.sel}` : ""}${item.unread > 0 ? ` ${st.unread}` : ""}`}
+      className={`${st.row}${selected ? ` ${st.sel}` : ""}${unread ? ` ${st.unread}` : ""}`}
       onClick={onOpen}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -421,116 +447,35 @@ function ConvRow({ item, me, selected, onOpen }: { item: InboxItem; me: string; 
         }
       }}
     >
-      <Avatar name={item.name} channel={item.channel} size={34} />
+      <Avatar name={item.name} channel={item.channel} size={40} />
       <div className={st.rowTx}>
         <div className={st.rowA}>
           <b>{item.name}</b>
+          {unread ? <i className={st.dot} aria-label={`${item.unread} unread`} title={`${item.unread} unread`} /> : null}
           <time>{formatWhen(item.at)}</time>
         </div>
         <p>{item.preview || "No messages yet"}</p>
         <div className={st.rowM}>
-          <ChannelTag channel={item.channel} />
-          <span className={`${st.state} ${PILL_TONE[item.pill.tone]}`}>{item.pill.text}</span>
+          <Tag kind={CHANNEL_KIND[item.channel]} size="sm">
+            {CHANNEL_WORD[item.channel]}
+          </Tag>
+          {status ? (
+            <Tag tone={status.tone} size="sm">
+              {status.text}
+            </Tag>
+          ) : null}
+          {topic ? (
+            <Tag tone={topic.tone} size="sm">
+              {topic.text}
+            </Tag>
+          ) : null}
           {who ? (
             <span className={`${st.who}${mine ? ` ${st.whoMe}` : ""}`} title={`Assigned to ${item.assignee}`}>
-              <UserRound width={12} height={12} aria-hidden="true" />
+              <UserRound width={13} height={13} aria-hidden="true" />
               {who}
             </span>
           ) : null}
-          {item.unread > 0 ? <span className={st.badge} aria-label={`${item.unread} unread`}>{item.unread}</span> : null}
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ---- email pane -----------------------------------------------------------
-
-type EmailThreadFull = {
-  id: string;
-  from_email: string;
-  from_name: string | null;
-  subject: string | null;
-  snippet: string | null;
-  body_plain: string | null;
-  created_at: string;
-  lead_category: string | null;
-};
-type EmailDraft = { id: string; body: string; is_current: boolean };
-
-function EmailPane({ id, extraActions }: { id: string; extraActions?: ReactNode }) {
-  const q = useQuery({
-    queryKey: ["inbox-email-pane", id],
-    queryFn: async (): Promise<{ thread: EmailThreadFull; drafts: EmailDraft[] }> => {
-      const r = await fetch(`/api/support-emails/${id}`, { cache: "no-store" });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || j.error) throw new Error(j.error || `email ${r.status}`);
-      return j;
-    },
-    staleTime: 30_000,
-  });
-
-  if (q.isLoading) {
-    return (
-      <div style={{ padding: 20 }}>
-        <div className="pm2-skel" style={{ minHeight: 240 }} />
-      </div>
-    );
-  }
-  if (q.isError || !q.data) {
-    return (
-      <div style={{ padding: 20 }}>
-        <Callout
-          tone="crit"
-          title="Could not load this email"
-          action={
-            <button type="button" className="pm2-btn sm" onClick={() => q.refetch()}>
-              Retry
-            </button>
-          }
-        />
-      </div>
-    );
-  }
-
-  const { thread, drafts } = q.data;
-  const currentDraft = drafts.find((d) => d.is_current) || drafts[0] || null;
-  const name = thread.from_name?.trim() || thread.from_email;
-
-  return (
-    <div className="pm2-thread compact">
-      <ConversationHeader
-        compact
-        channel="em"
-        name={name}
-        crumb={`Inbox · Email · ${thread.from_email}`}
-        faint={`${thread.subject || "(no subject)"} · ${formatWhen(thread.created_at)}`}
-        pill={{ tone: "neu", text: categoryWord(thread.lead_category) }}
-        actions={
-          <>
-            <Link className="pm2-btn sm" href={`/dashboard/inbox/email?id=${encodeURIComponent(id)}`}>
-              Open in Email drafts
-            </Link>
-            {extraActions}
-          </>
-        }
-      />
-      <div className={st.mail}>
-        <div className={st.mailMsg}>
-          <div className={st.mailMeta}>
-            <b>{name}</b>
-            <span>{thread.from_email}</span>
-            <time>{formatWhen(thread.created_at)}</time>
-          </div>
-          <h3>{thread.subject || "(no subject)"}</h3>
-          <div className={st.mailBody}>{thread.body_plain || thread.snippet || "No preview available."}</div>
-        </div>
-        {currentDraft ? (
-          <div className={st.mailDraft}>
-            <div className={st.mailDraftH}>Reply drafted by the bot · approve it in Email drafts</div>
-            <div className={st.mailBody}>{currentDraft.body}</div>
-          </div>
-        ) : null}
       </div>
     </div>
   );

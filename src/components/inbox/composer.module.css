@@ -1,0 +1,10 @@
+/* Reply box: roomy text area, actions on one row, a clear Send button. */
+.box{gap:10px!important;padding:12px 14px!important}
+.box textarea{font-size:15.5px!important;line-height:1.5!important;padding:10px 12px!important;border-radius:10px!important;min-height:64px!important}
+.hint{margin-left:auto;font-size:13px;color:var(--pm-hint);white-space:nowrap}
+.send{margin-left:auto;min-width:96px;justify-content:center}
+.hint + .send{margin-left:4px}
+@media (pointer:coarse),(max-width:760px){
+  .hint{display:none}
+  .hint + .send{margin-left:auto}
+}

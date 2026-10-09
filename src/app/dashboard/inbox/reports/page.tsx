@@ -11,7 +11,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import { BarChart, Callout, Card, HBars, Kpi, KpiStrip, PageHeader, Table } from "@/components/pm";
+import { BarChart, Callout, Card, HBars, Kpi, KpiStrip, PageHeader, Table, Tag } from "@/components/pm";
 import type { HBarItem, TableCol } from "@/components/pm";
 import { pctChange } from "@/lib/metrics/period";
 import { parseReportPeriod, REPORT_PERIODS, spanText, type ReportPeriod, type TicketReport } from "@/lib/inbox/ticket-reports";
@@ -173,9 +173,9 @@ function ReportsInner() {
   }
 
   return (
-    <>
+    <div className="pm2-wide">
       {header}
-      <div className="pm2-body">
+      <div className="pm2-body pm2-wide">
         <KpiStrip>
           <Kpi
             label="Opened"
@@ -235,7 +235,12 @@ function ReportsInner() {
             />
             {rep.unassignedOpen > 0 ? (
               <p className={`${s.note} ${s.pad}`}>
-                {rep.unassignedOpen} open {rep.unassignedOpen === 1 ? "ticket has" : "tickets have"} nobody on {rep.unassignedOpen === 1 ? "it" : "them"}.
+                <Tag tone="red" size="sm">
+                  {`${rep.unassignedOpen} with nobody on ${rep.unassignedOpen === 1 ? "it" : "them"}`}
+                </Tag>{" "}
+                <Link className="pm2-lnk" href="/dashboard/inbox/tickets?filter=unassigned">
+                  Assign {rep.unassignedOpen === 1 ? "it" : "them"}
+                </Link>
               </p>
             ) : null}
           </Card>
@@ -256,6 +261,6 @@ function ReportsInner() {
           Days are in IST.
         </p>
       </div>
-    </>
+    </div>
   );
 }

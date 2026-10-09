@@ -266,7 +266,7 @@ export function draftBlock(
   }
   if (!s.draft) return null;
   if (s.tab === "approve") {
-    return { kind: "draft", label: `Draft · reply goes to ${s.from_email} · grounded in Master KB`, body: s.draft.body };
+    return { kind: "draft", label: `Our reply · AI draft from the knowledge base · goes to ${s.from_email}`, body: s.draft.body };
   }
   if (s.tab === "attention") {
     return { kind: "draft", label: "Draft · may or may not have gone out", body: s.draft.body };

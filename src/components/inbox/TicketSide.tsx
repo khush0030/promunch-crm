@@ -85,11 +85,16 @@ function fmtLeft(ms: number): string {
   return "under a minute";
 }
 
-/** Hairline strip above the composer: Meta's 24h customer-service window. */
+/**
+ * Colour-coded bar above the composer: Meta's 24h customer-service window.
+ * Green while open, amber in the last 4 hours, red in the last hour, amber
+ * once closed (only a template can restart the chat).
+ */
 export function WindowStrip({ lastInboundAt, now }: { lastInboundAt: string | null | undefined; now: number }) {
   const left = windowLeftMs(lastInboundAt, now);
   const open = left !== null && left > 0;
   const tone = !open ? t.wClosed : left < 60 * 60 * 1000 ? t.wUrgent : left < 4 * 60 * 60 * 1000 ? t.wSoon : t.wOpen;
+  const leftText = open ? fmtLeft(left) : "";
   return (
     <div
       className={`${t.window} ${tone}`}
@@ -100,10 +105,12 @@ export function WindowStrip({ lastInboundAt, now }: { lastInboundAt: string | nu
       <span>
         {open ? (
           <>
-            WhatsApp window open · <b>{fmtLeft(left)} left</b>
+            Window open, <b>{leftText} left</b> to reply freely
           </>
         ) : (
-          <>WhatsApp window closed. Only approved templates can be sent.</>
+          <>
+            <b>Window closed.</b> Send a template to restart the chat.
+          </>
         )}
       </span>
     </div>

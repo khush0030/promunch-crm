@@ -16,25 +16,28 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 404 });
 
-  const { data: messages } = await supabaseAdmin
+  // The NEWEST 500, returned oldest-first for the transcript. Reading
+  // ascending with a limit used to cut off the latest messages on long chats.
+  const { data: newestFirst } = await supabaseAdmin
     .from("wa_messages")
     .select("*")
     .eq("thread_id", id)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(500);
+  const messages = (newestFirst ?? []).slice().reverse();
 
   // Voice calls with this customer, shown inline in the conversation.
   const { data: calls } = await supabaseAdmin
     .from("voice_calls")
     .select("id, purpose, order_ref, status, outcome, duration_s, link_sent_at, tool_action, created_at")
     .eq("wa_id", thread.wa_id)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(50);
 
   // mark read
   if (!peek) await supabaseAdmin.from("wa_threads").update({ unread_count: 0 }).eq("id", id);
 
-  return NextResponse.json({ thread, messages: messages ?? [], calls: calls ?? [] });
+  return NextResponse.json({ thread, messages, calls: (calls ?? []).slice().reverse() });
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -52,6 +55,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   ];
   const patch: Record<string, unknown> = {};
   for (const k of allowed) if (k in body) patch[k] = body[k];
+  // One owner per chat: the chat's "Assigned to" (assigned_to) and the
+  // ticket's assignee (ticket_assignee) are the same person. Assigning from
+  // anywhere (Live chats, a ticket, the Tickets list) writes both, so "Mine"
+  // shows it everywhere. Ownership only; nothing here messages anyone.
+  if ("assigned_to" in body && !("ticket_assignee" in body)) patch.ticket_assignee = body.assigned_to ?? null;
+  if ("ticket_assignee" in body && !("assigned_to" in body)) patch.assigned_to = body.ticket_assignee ?? null;
   if (body.ticket_status === "resolved" || body.ticket_status === "closed") {
     patch.ticket_resolved_at = new Date().toISOString();
     // Resume the bot once the issue is handled. Opening a ticket flips the

@@ -1,0 +1,21 @@
+/* Conversation header (Live chats middle pane + full page facts line).
+   Calm: hairline under it, colour lives in the small tags only. */
+.head{display:flex!important;flex-direction:column;align-items:stretch!important;gap:10px!important;padding:16px 20px 14px!important;border-bottom:1px solid var(--pm-border)!important;background:var(--pm-card)}
+.top{display:flex;align-items:center;gap:12px;min-width:0}
+.who{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1}
+.name{display:block;font-size:17px;font-weight:800;line-height:1.2;color:var(--pm-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.facts{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;font-size:14.5px;color:var(--pm-ink2);min-width:0}
+/* in the Live chats pane the facts stay on one line; the customer panel has the rest */
+.head .facts{flex-wrap:nowrap;overflow:hidden;white-space:nowrap}
+.head .facts > *{flex:none}
+.facts b{color:var(--pm-ink)}
+.note{font-size:14px;color:var(--pm-muted);line-height:1.45}
+.acts{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.back{padding:14px var(--pm3-gutter,40px) 0;font-size:14.5px}
+.fullFacts{display:flex;flex-direction:column;gap:8px;padding:10px var(--pm3-gutter,40px) 0}
+@media (max-width:760px){
+  .head{padding:14px 16px 12px!important}
+  .fullFacts{padding:8px 16px 0}
+  .back{padding:10px 16px 0}
+}

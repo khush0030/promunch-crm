@@ -1,0 +1,16 @@
+/* Email drafts list rows: roomy, two text lines, colour tags for the topic
+   (Partnership teal, Wholesale purple, Support blue, Job application grey)
+   and the age (amber after 2 days, red after 7). */
+.grid{grid-template-columns:minmax(320px,1fr) minmax(0,1.7fr)!important}
+.row{display:flex;gap:13px;padding:15px 16px;border-bottom:1px solid var(--pm-line);cursor:pointer;outline-offset:-2px}
+.row:hover{background:var(--pm-card2)}
+.row.sel{background:var(--pm-brand-soft)}
+.tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.top{display:flex;align-items:center;gap:8px;min-width:0}
+.top b{flex:1;min-width:0;font-size:15.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top time{flex:none;font:500 12.5px var(--pm-mono);color:var(--pm-muted)}
+.tx p{margin:0;font-size:14.5px;color:var(--pm-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+/* the draft: a soft card, clearly "our reply", no stripe */
+.detail :global(.pm2-draft-block){border-left:0;border:1px solid var(--pm-border);background:var(--pm-card2);border-radius:14px;padding:16px 18px}
+.detail :global(.pm2-draft-eyebrow){font:700 12px var(--pm-font);letter-spacing:0;text-transform:none;color:var(--pm-ink2);margin-bottom:8px}

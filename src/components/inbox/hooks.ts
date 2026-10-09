@@ -75,3 +75,15 @@ export function useStickToBottom(ref: RefObject<HTMLDivElement | null>, threadId
     }
   }, [ref, threadId, lastKey]);
 }
+
+/** True while this browser tab is visible (document.visibilityState). */
+export function useDocVisible(): boolean {
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    const read = () => setVisible(document.visibilityState === "visible");
+    read();
+    document.addEventListener("visibilitychange", read);
+    return () => document.removeEventListener("visibilitychange", read);
+  }, []);
+  return visible;
+}

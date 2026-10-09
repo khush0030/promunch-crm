@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { categoryWord, urgencyPill, ticketStatusWord } from "./labels";
+import { categoryWord, urgencyPill, ticketStatusWord, statusTag, topicTag, ageTag } from "./labels";
 
 describe("categoryWord", () => {
   it("maps customer_support to Support", () => {
@@ -90,5 +90,31 @@ describe("ticketStatusWord", () => {
   it("anything else is blank", () => {
     expect(ticketStatusWord(null, null, teamName)).toBe("");
     expect(ticketStatusWord("snoozed", null, teamName)).toBe("");
+  });
+});
+
+
+describe("colour-coded inbox tags", () => {
+  it("a customer waiting on a person is a red Needs reply", () => {
+    expect(statusTag({ channel: "wa", state: "human", waiting: true, ticketNumber: null })).toEqual({ tone: "red", text: "Needs reply" });
+    expect(statusTag({ channel: "wa", state: "ticket", waiting: false, ticketNumber: 4 })).toEqual({ tone: "amber", text: "Waiting on customer" });
+  });
+  it("bot chats are grey, drafts amber, plain emails have no status tag", () => {
+    expect(statusTag({ channel: "wa", state: "bot", waiting: false, ticketNumber: null })?.tone).toBe("grey");
+    expect(statusTag({ channel: "em", state: "draft", waiting: true, ticketNumber: null })).toEqual({ tone: "amber", text: "Draft ready" });
+    expect(statusTag({ channel: "em", state: "email", waiting: false, ticketNumber: null })).toBeNull();
+  });
+  it("topics map to one colour each", () => {
+    expect(topicTag("wholesale")?.tone).toBe("purple");
+    expect(topicTag("partnership_inquiry")?.tone).toBe("teal");
+    expect(topicTag("job_application")?.tone).toBe("grey");
+    expect(topicTag("customer_support")?.tone).toBe("blue");
+    expect(topicTag("general")).toBeNull();
+  });
+  it("email age turns amber after 2 days and red after 7", () => {
+    const now = Date.parse("2026-10-09T12:00:00Z");
+    expect(ageTag("2026-10-08T12:00:00Z", now)).toBeNull();
+    expect(ageTag("2026-10-06T11:00:00Z", now)?.tone).toBe("amber");
+    expect(ageTag("2026-09-30T12:00:00Z", now)?.tone).toBe("red");
   });
 });

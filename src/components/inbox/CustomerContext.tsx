@@ -8,7 +8,8 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, ExternalLink, Ticket, UserRound, X } from "lucide-react";
-import { Avatar } from "@/components/pm";
+import { Avatar, Tag } from "@/components/pm";
+import type { TagTone } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
 import { formatINR } from "@/lib/metrics/money";
 import { formatWhen } from "@/lib/inbox/when";
@@ -18,6 +19,26 @@ import { ChannelIcon } from "./ChannelTag";
 import s from "./context.module.css";
 
 const TONE: Record<Tone, string> = { good: s.good, info: s.info, warn: s.warn, crit: s.crit, neu: s.neu };
+/** Context tone -> colour tag tone (one colour per meaning). */
+export const TONE_TAG: Record<Tone, TagTone> = { good: "green", info: "blue", warn: "amber", crit: "red", neu: "grey" };
+
+/**
+ * The customer's cross-channel context. One query key per conversation, so
+ * the conversation header and the customer panel show the same numbers.
+ */
+export function useInboxContext(conversationKey: string) {
+  return useQuery({
+    queryKey: ["inbox-context", conversationKey],
+    queryFn: async (): Promise<InboxContext> => {
+      const r = await fetch(`/api/inbox/context?key=${encodeURIComponent(conversationKey)}`, { cache: "no-store" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.error) throw new Error(j.error || `context ${r.status}`);
+      return j as InboxContext;
+    },
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  });
+}
 
 function shortDate(iso: string | null): string {
   if (!iso) return "";
@@ -39,17 +60,7 @@ export function CustomerContext({
   embedded?: boolean;
 }) {
   const toast = useToast();
-  const q = useQuery({
-    queryKey: ["inbox-context", conversationKey],
-    queryFn: async (): Promise<InboxContext> => {
-      const r = await fetch(`/api/inbox/context?key=${encodeURIComponent(conversationKey)}`, { cache: "no-store" });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || j.error) throw new Error(j.error || `context ${r.status}`);
-      return j as InboxContext;
-    },
-    staleTime: 60_000,
-    refetchInterval: 60_000,
-  });
+  const q = useInboxContext(conversationKey);
 
   const root = `${s.root}${embedded ? ` ${s.embedded}` : ""}`;
   const close = onClose ? (
@@ -134,7 +145,7 @@ export function CustomerContext({
 
       {/* numbers */}
       <div className={`${s.sec} ${s.stats}`}>
-        <div>
+        <div title="Orders that were not cancelled. The list below shows the latest ones, cancelled included.">
           <b>{c.stats.orders}{c.stats.ordersCapped ? "+" : ""}</b>
           <span>{c.stats.orders === 1 ? "order" : "orders"}</span>
         </div>
@@ -152,7 +163,9 @@ export function CustomerContext({
         <div className={s.sec}>
           <div className={s.tags}>
             {c.tags.map((t) => (
-              <span key={t.text} className={`${s.tag} ${TONE[t.tone]}`}>{t.text}</span>
+              <Tag key={t.text} tone={TONE_TAG[t.tone]} size="sm">
+                {t.text}
+              </Tag>
             ))}
           </div>
         </div>
@@ -171,7 +184,7 @@ export function CustomerContext({
 
       {/* orders */}
       <div className={s.sec}>
-        <div className={s.eyebrow}>Orders</div>
+        <div className={s.eyebrow}>{c.orders.length > 0 && c.orders.length < c.stats.orders ? `Latest ${c.orders.length} orders` : "Orders"}</div>
         {c.orders.length === 0 ? (
           <p className={s.muted}>No orders on this number or email.</p>
         ) : (

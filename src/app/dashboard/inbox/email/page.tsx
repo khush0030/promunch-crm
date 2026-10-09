@@ -16,7 +16,9 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PageHeader, Chips, ListRow, Pill, Callout, ConfirmDialog } from "@/components/pm";
+import { PageHeader, Chips, Avatar, Tag, Callout, ConfirmDialog } from "@/components/pm";
+import { ageTag, topicTagForWord } from "@/components/inbox/labels";
+import e from "./email.module.css";
 import type { ChipItem } from "@/components/pm";
 import { useMediaPhone } from "@/components/shell/useMediaPhone";
 import { EmailDetail } from "@/components/inbox/email/EmailDetail";
@@ -401,7 +403,7 @@ function EmailDraftsInner() {
     ) : (
       <ConfirmDialog
         title="Skip this email?"
-        body="Similar emails will be skipped automatically."
+        body="No reply is sent. Similar emails will be skipped automatically."
         confirmLabel="Skip"
         busy={Boolean(busy[confirming.threadId])}
         onConfirm={() => void runAction(confirming.threadId, { action: "skip" })}
@@ -446,45 +448,67 @@ function EmailDraftsInner() {
   }
 
   return (
-    <>
+    <div className="pm2-wide">
       {header}
-      <div className="pm2-body">
-        <div className="pm2-g12">
+      <div className="pm2-body pm2-wide">
+        <div className={`pm2-g12 ${e.grid}`}>
           <div className="pm2-panel pm2-drafts-list">
-            <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--pm-line)" }}>{chips}</div>
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--pm-line)" }}>{chips}</div>
             {items.length === 0 ? (
               <div className="pm2-empty">{tab === "approve" ? "No drafts waiting." : "No emails here."}</div>
             ) : (
               items.map((it) => {
-                const daysOld = tab === "approve" ? oldEmailDays(it.created_at) : null;
+                const topic = topicTagForWord(it.category);
+                const age = tab === "approve" ? ageTag(it.created_at) : null;
+                const name = it.from_name?.trim() || it.from_email;
+                const sel = it.id === selectedId;
                 return (
-                <ListRow
-                  key={it.id}
-                  name={it.from_name?.trim() || it.from_email}
-                  pill={
-                    <>
-                      <Pill tone={it.urgency?.tone ?? "neu"} plain>
-                        {it.category}
-                      </Pill>
-                      {/* Short form: the row shares its pill slot with the
-                          category, and "N days old" gets clipped mid-word.
-                          The full wording is on the detail pane and dialog. */}
-                      {daysOld != null ? <Pill tone="warn" tip={`${daysOld} days old`}>{`${daysOld}d`}</Pill> : null}
-                    </>
-                  }
-                  preview={it.subject || "(no subject)"}
-                  when={formatWhen(it.created_at)}
-                  selected={it.id === selectedId}
-                  onClick={() => setQuery({ id: it.id })}
-                />
+                  <div
+                    key={it.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-current={sel ? "true" : undefined}
+                    className={`${e.row}${sel ? ` ${e.sel}` : ""}`}
+                    onClick={() => setQuery({ id: it.id })}
+                    onKeyDown={(ev) => {
+                      if (ev.key === "Enter" || ev.key === " ") {
+                        ev.preventDefault();
+                        setQuery({ id: it.id });
+                      }
+                    }}
+                  >
+                    <Avatar name={name} channel="em" size={40} />
+                    <div className={e.tx}>
+                      <div className={e.top}>
+                        <b>{name}</b>
+                        <time>{formatWhen(it.created_at)}</time>
+                      </div>
+                      <p>{it.subject || "(no subject)"}</p>
+                      <div className={e.tags}>
+                        {it.urgency ? (
+                          <Tag tone={it.urgency.tone === "crit" ? "red" : "amber"} size="sm">
+                            {it.urgency.text}
+                          </Tag>
+                        ) : null}
+                        <Tag tone={topic?.tone ?? "grey"} size="sm">
+                          {topic?.text ?? it.category}
+                        </Tag>
+                        {age ? (
+                          <Tag tone={age.tone} size="sm">
+                            {age.text}
+                          </Tag>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
                 );
               })
             )}
           </div>
-          {detail}
+          <div className={e.detail} style={{ minWidth: 0 }}>{detail}</div>
         </div>
       </div>
       {dialog}
-    </>
+    </div>
   );
 }

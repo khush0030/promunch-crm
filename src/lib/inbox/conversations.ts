@@ -6,7 +6,15 @@
 
 import { categoryWord } from "../../components/inbox/labels";
 
-export type InboxFilter = "human" | "mine" | "bot" | "all";
+// "waiting" = the customer wrote last and nobody has answered yet (oldest
+// first). It compares two timestamp columns, which PostgREST cannot filter on,
+// so the API route builds it in memory (fetchWaiting) instead of through a
+// FilterPlan. Every other filter is pushed into SQL (filters.ts).
+export type InboxFilter = "waiting" | "human" | "mine" | "bot" | "snoozed" | "all";
+export type SqlFilter = Exclude<InboxFilter, "waiting">;
+
+/** Recent enough to still count as "waiting on us" (older ones live under All). */
+export const WAITING_DAYS = 7;
 
 export type WaThreadRow = {
   id: string;
@@ -21,6 +29,11 @@ export type WaThreadRow = {
   created_at: string;
   archived_at: string | null;
   contact: { name: string | null; phone: string | null; wa_id: string } | null;
+  // Optional: selected by the Inbox list route so rows can say who spoke
+  // last. Callers that leave them out simply never mark a row as waiting.
+  ticket_category?: string | null;
+  last_inbound_at?: string | null;
+  last_outbound_at?: string | null;
 };
 
 export type IgThreadRow = {
@@ -64,7 +77,25 @@ export type InboxItem = {
   assignee: string | null;
   bot: boolean;
   unread: number;
+  /** what the row's status tag says (see statusTag in components/inbox/labels.ts) */
+  state: "ticket" | "human" | "bot" | "snoozed" | "closed" | "draft" | "email";
+  /** the customer wrote last and nobody has answered yet */
+  waiting: boolean;
+  ticketNumber: number | null;
+  /** raw topic: WA ticket_category or the email's lead_category */
+  category: string | null;
 };
+
+/** Customer spoke last: an inbound with no outbound after it. */
+export function customerSpokeLast(inbound: string | null | undefined, outbound: string | null | undefined): boolean {
+  if (!inbound) return false;
+  if (!outbound) return true;
+  const i = Date.parse(inbound);
+  const o = Date.parse(outbound);
+  if (!Number.isFinite(i)) return false;
+  if (!Number.isFinite(o)) return true;
+  return i > o;
+}
 
 function toPreview(raw: string | null | undefined, fallback = ""): string {
   const collapsed = (raw ?? "").replace(/\s+/g, " ").trim();
@@ -105,6 +136,14 @@ export function waToItem(r: WaThreadRow): InboxItem {
     assignee: r.assigned_to ?? r.ticket_assignee,
     bot: r.status === "bot" && !ticketActive,
     unread: r.unread_count ?? 0,
+    // Snoozed wins over an open ticket so the Snoozed view (status = snoozed
+    // in SQL) and this field always agree.
+    state:
+      r.status === "snoozed" ? "snoozed" : ticketActive ? "ticket" : r.status === "human" ? "human" : r.status === "closed" ? "closed" : "bot",
+    waiting:
+      (r.status === "bot" || r.status === "human") && customerSpokeLast(r.last_inbound_at, r.last_outbound_at),
+    ticketNumber: ticketActive ? r.ticket_number : null,
+    category: r.ticket_category ?? null,
   };
 }
 
@@ -135,6 +174,10 @@ export function igToItem(r: IgThreadRow): InboxItem {
     assignee: r.assigned_to,
     bot: r.status === "bot" && !ticketOpen,
     unread: r.unread_count ?? 0,
+    state: ticketOpen ? "ticket" : r.status === "human" ? "human" : "bot",
+    waiting: false,
+    ticketNumber: null,
+    category: r.classification,
   };
 }
 
@@ -157,6 +200,11 @@ export function emailToItem(r: EmailThreadRow): InboxItem {
     assignee: null,
     bot: false,
     unread: 0,
+    state: draftReady ? "draft" : "email",
+    // A reply drafted but not yet approved: the customer is still waiting.
+    waiting: draftReady,
+    ticketNumber: null,
+    category: r.lead_category,
   };
 }
 
@@ -168,6 +216,10 @@ export function matchesFilter(i: InboxItem, f: InboxFilter, me: string): boolean
       return !!i.assignee && i.assignee.toLowerCase() === me.toLowerCase();
     case "bot":
       return i.bot;
+    case "waiting":
+      return i.waiting;
+    case "snoozed":
+      return i.state === "snoozed";
     case "all":
     default:
       return true;
@@ -189,6 +241,12 @@ export type AtKey = { at: string; key: string };
 export function compareItems(a: AtKey, b: AtKey): number {
   if (a.at !== b.at) return a.at < b.at ? 1 : -1; // desc by at
   return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; // asc by key
+}
+
+/** Waiting view order: oldest first (longest wait on top), key as the tiebreak. */
+export function compareWaiting(a: AtKey, b: AtKey): number {
+  if (a.at !== b.at) return a.at < b.at ? -1 : 1;
+  return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
 }
 
 export function mergeItems(lists: InboxItem[][], limit: number): InboxItem[] {

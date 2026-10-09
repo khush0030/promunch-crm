@@ -11,7 +11,8 @@
 .main :global(.pm2-thread-foot .pm2-composer){border:0;border-radius:0;box-shadow:none;padding:12px 18px 14px}
 .main :global(.pm2-thread-foot .pm2-panel){border:0;border-radius:0;box-shadow:none}
 .main :global(.pm2-thread-notice){padding:6px 18px 0}
-.botNote{font-size:14px;color:var(--pm-muted);padding:0 18px 12px}
+.botNote{font-size:13.5px;color:var(--pm-muted);padding:0 18px 12px}
+:global(.pm2-thread.compact) .botNote{padding:6px 4px 0}
 .side{display:flex;flex-direction:column;min-width:0;overflow-y:auto}
 
 /* property tiles */
@@ -48,28 +49,31 @@
 .note{font-size:15px;color:var(--pm-muted);line-height:1.45}
 
 /* 24h window strip */
-.window{display:flex;align-items:center;gap:8px;padding:9px 18px;font-size:14.5px;font-weight:600;border-top:1px solid var(--pm-border);background:var(--pm-card)}
+.window{display:flex;align-items:center;gap:8px;padding:9px 20px;font-size:14.5px;font-weight:600;border-top:1px solid var(--pm-border);background:var(--tg-bg,var(--pm-card));color:var(--tg-ink,var(--pm-ink2))}
 .window svg{width:15px;height:15px;flex:none}
 .window b{font-weight:800}
-.wOpen{color:var(--pm-green)}
-.wSoon{color:var(--pm-gold)}
-.wUrgent{color:var(--pm-terra)}
-.wClosed{color:var(--pm-muted)}
+/* soft tag colours (same tokens as <Tag>), not heavy fills */
+.wOpen{--tg-bg:var(--tag-green-bg);--tg-ink:var(--tag-green-ink)}
+.wSoon{--tg-bg:var(--tag-amber-bg);--tg-ink:var(--tag-amber-ink)}
+.wUrgent{--tg-bg:var(--tag-red-bg);--tg-ink:var(--tag-red-ink)}
+.wClosed{--tg-bg:var(--tag-amber-bg);--tg-ink:var(--tag-amber-ink)}
 
 @media (max-width:1180px){
   .layout{grid-template-columns:minmax(0,1fr) 280px}
 }
 
-/* phones: properties sit above the thread, page scrolls */
+/* phones: the chat comes first and fills the screen with the reply box
+   pinned under it; ticket properties and customer facts follow below */
 @media (max-width:760px){
   .full{min-height:0}
   .layout{display:flex;flex-direction:column;margin:12px 16px 24px;height:auto;min-height:0;border-radius:16px}
   .side{display:contents}
-  .props{order:-1;padding:14px;border-bottom:1px solid var(--pm-border)}
-  .blkFacts{order:2;padding:0 14px 14px}
   .main{border-right:0;order:1}
-  .main :global(.pm2-thread-scroll){max-height:60dvh;min-height:260px}
+  .main :global(.pm2-thread-scroll){height:calc(100dvh - 300px);min-height:300px;max-height:none}
+  .main :global(.pm2-thread-foot){position:sticky;bottom:0;z-index:2}
   .main :global(.pm2-thread-foot .pm2-composer){padding:10px 12px 12px}
+  .props{order:2;padding:14px;border-top:1px solid var(--pm-border)}
+  .blkFacts{order:3;padding:0 14px 14px}
   .window{padding:9px 14px}
 }
 

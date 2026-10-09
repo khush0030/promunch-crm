@@ -11,7 +11,7 @@ import { resolveTeamDisplayName } from "@/lib/team";
 export const dynamic = "force-dynamic";
 
 const WA_COLUMNS =
-  "id, ticket_number, ticket_status, ticket_subject, ticket_category, escalation_reason, ticket_assignee, ticket_opened_at, ticket_resolved_at, contact:wa_contacts!inner(name, phone, wa_id)";
+  "id, ticket_number, ticket_status, ticket_subject, ticket_category, escalation_reason, ticket_assignee, assigned_to, ticket_opened_at, ticket_resolved_at, contact:wa_contacts!inner(name, phone, wa_id)";
 // ig_threads has no ticket_number/ticket_subject/ticket_category/
 // ticket_resolved_at/ticket_assignee columns (see the Instagram DM
 // migration) — select only what exists and fill the rest with null below.
@@ -27,6 +27,7 @@ type WaThreadRow = {
   ticket_category: string | null;
   escalation_reason: string | null;
   ticket_assignee: string | null;
+  assigned_to: string | null;
   ticket_opened_at: string | null;
   ticket_resolved_at: string | null;
   contact: { name: string | null; phone: string | null; wa_id: string } | null;
@@ -133,7 +134,9 @@ export async function GET() {
       ticket_subject: r.ticket_subject,
       ticket_category: r.ticket_category,
       escalation_reason: r.escalation_reason,
-      ticket_assignee: r.ticket_assignee,
+      // Same owner rule as Live chats (assigned_to ?? ticket_assignee), so
+      // "Mine" means the same thing on every Inbox screen.
+      ticket_assignee: r.assigned_to ?? r.ticket_assignee,
       ticket_opened_at: r.ticket_opened_at,
       ticket_resolved_at: r.ticket_resolved_at,
       customer: name || r.contact?.phone || r.contact?.wa_id || "Unknown",

@@ -27,6 +27,11 @@ export default function ConversationPage() {
     return <NotFoundCard />;
   }
 
-  if (parsed.channel === "ig") return <IgConversation id={parsed.id} />;
-  return <WaConversation id={parsed.id} />;
+  // Full width like the rest of the Inbox; keyed so moving between chats
+  // never carries a typed reply over to another customer.
+  return (
+    <div className="pm2-wide">
+      {parsed.channel === "ig" ? <IgConversation key={parsed.id} id={parsed.id} /> : <WaConversation key={parsed.id} id={parsed.id} />}
+    </div>
+  );
 }

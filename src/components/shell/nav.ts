@@ -120,14 +120,15 @@ export const NAV: NavSection[] = [
       {
         area: "Inbox",
         label: "Inbox",
-        href: ROUTES.inboxTickets,
+        // Live chats is the one Inbox landing (sidebar, access landing, onboarding).
+        href: ROUTES.inbox,
         icon: Inbox,
         desc: "Chats, tickets and email drafts",
         badge: "inbox",
         tours: ["whatsapp", "support-emails"],
         pages: [
-          { label: "Tickets", href: ROUTES.inboxTickets },
           { label: "Live chats", href: ROUTES.inbox },
+          { label: "Tickets", href: ROUTES.inboxTickets },
           { label: "Email drafts", href: ROUTES.inboxEmail },
           { label: "Bot knowledge", href: "/dashboard/whatsapp?tab=kb" },
           { label: "Reports", href: ROUTES.inboxReports },
