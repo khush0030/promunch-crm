@@ -21,13 +21,14 @@ Last updated: 9 Oct 2026 (status revised after user review).
 | Hindi script (3 eps + teaser + brand frame) | Done, in Hinglish with Devanagari and Roman lines. `docs/hindi-script.pdf` / `.txt` |
 | Character prompt library | Done. `docs/character-prompts.pdf` / `.txt` |
 | Voices | Neutral Hindi accents (the user chose this over Lucknowi/Haryanvi). |
-| Locked by user | Protein Bar, Peanut (8 Oct); **Edamame warrior** (9 Oct). Which warrior file (v2 or v3) is the locked one: confirm with user. |
+| Locked by user | Protein Bar, Peanut (8 Oct); **Edamame warrior, Edamame tiny (baby), Makhana** (9 Oct). Files in `images/locked/`. |
 | Locked as Oltaflock elements (by Claude after approval) | See the table below |
-| Makhana | Re-exploring. Options A/B/C in `images/options/makhana-*`. Claude recommends **A (Floating Nawab)**. Awaiting choice. |
+| Makhana | **Locked 9 Oct**: single hero portrait built from the user's new sheet (thick black spiral moustache, lumpy puffed body, floats). Old options A/B/C superseded. Known nits: shrink the brown spot by his right cheek; turban gold band thinner than the user's sheet. |
 | Protein Chips | Redesigned as a **square chip character** (not a pouch), no "PROTEIN" text anywhere, per user request. Options in `images/options/chip-A/B/C`. Claude recommends **A (Caped Hero)** as the base, with B/C as poses. Awaiting choice. |
-| Edamame warrior form | **Locked by user 9 Oct.** v2/v3 files in `images/wip/` until the chosen one is confirmed. |
-| Needs rework (user, 9 Oct) | **Edamame tiny bean, Himalayan Rock Salt, Masala Mania, Indori Chatka.** NOT locked. Images moved to `images/wip/`. The tiny bean must still match the locked warrior (same face, maroon headband). |
-| Character sheets | 10 done in `images/sheets/`. Makhana back view is weak, and the tiny bean's expressions are too similar. The Chips sheet is for the old pouch design. |
+| Edamame warrior form | **Locked 9 Oct**: the user's own image (`images/locked/edamame-warrior.jpg`), not v2/v3. |
+| Edamame tiny | **Locked 9 Oct**: option A "pure baby", generated from the warrior. Option C (rolling bean) kept in `images/options/` as a possible roll-in pose. |
+| Needs rework (user, 9 Oct) | **Himalayan Rock Salt, Masala Mania, Indori Chatka.** NOT locked. Images moved to `images/wip/`. |
+| Character sheets | 10 in `images/sheets/`, but the Edamame tiny, Makhana and Chips sheets are for OLD designs and must be redone. Flavour-warrior sheets will be redone after rework. |
 | Progress zip sent to Parth | Yes (1 Oct). |
 
 ## Pending script change
@@ -44,16 +45,19 @@ Chips no longer has PROTEIN written on him, so Ep 2 needs a new line. Proposed (
 ## Tools and production stack
 - **Oltaflock Studio MCP** (Khush's own studio) is the main generator. Model: `nano-banana-2` (text-to-image, refs allowed) and `nano-banana-2-edit` (image edit). 2K, 2:3 for hero poses and 16:9 for sheets. About 12 credits per image.
 - Library folder: **"PROMUNCH - Protein Throne Characters"**, id `0ca195c3-5e38-450b-add4-afbefd22bd53`.
-- Saved elements (use `@Name` in prompts): `@ProteinBar`, `@Makhana` (the user's original image), `@EdamameTiny`, `@Peanut`, `@ProteinChips` (OLD pouch design, likely superseded), `@Crown`, `@RoyalJudge`, `@HimalayanRockSalt`, `@MasalaMania`, `@IndoriChatka`.
-- Uploading a local file to Studio: base64 is too token-heavy. The trick that worked: Higgsfield `media_upload` gives a presigned PUT URL, then curl PUT, then `media_confirm`, which returns a public URL. Pass that URL to Studio `studio_upload_media(url=...)`.
+- Saved elements (use `@Name` in prompts): `@ProteinBar`, `@Makhana` (locked v4 hero, 9 Oct), `@EdamameTiny` (locked baby, 9 Oct), `@EdamameWarrior` (locked, user's image), `@Peanut`, `@ProteinChips` (OLD pouch design, likely superseded), `@Crown`, `@RoyalJudge`, `@HimalayanRockSalt`, `@MasalaMania`, `@IndoriChatka`.
+- Uploading a local file to Studio: base64 is too token-heavy. What worked on 9 Oct: commit the file to the branch and pass its raw.githubusercontent.com URL to `studio_upload_media(url=...)` (the repo is public, so only do this for assets that are OK to be public). Older route: The trick that worked: Higgsfield `media_upload` gives a presigned PUT URL, then curl PUT, then `media_confirm`, which returns a public URL. Pass that URL to Studio `studio_upload_media(url=...)`.
 - For video, Khush likes **Seedance 2.0** (particle and morph effects). There is a `seedance2-director` skill.
 - The `promunch-visual-prompts` skill holds the PROMUNCH product-photo visual DNA. Use it for pack and product shots.
 
 ## Key image URLs (Oltaflock CDN, base `https://cdn.oltaflock.ai/generations/4b898802-8bdc-4320-b849-8c596ffe8abe/`)
 | Asset | File id (.png) |
 |---|---|
-| Edamame tiny (rework, not locked) | 06e01017-d8ee-453f-b82c-942e79cc9df7 |
-| Edamame warrior v2 / v3 (locked; confirm which) | f6b7d840-126e-43c4-a0bc-0c20799938f7 / da920994-de92-459c-bbc0-8d633d468704 |
+| Edamame tiny (LOCKED, baby A, .jpg) | 96ee9d48-8378-4ce2-bc85-e6df2d06574b |
+| Edamame warrior (LOCKED, user upload) | https://cdn.oltaflock.ai/uploads/4b898802-8bdc-4320-b849-8c596ffe8abe/1791534445706-edamame-warrior-locked.jpeg |
+| Makhana (LOCKED, v4 hero, .jpg) | e789e28c-685b-41a4-96e5-bcc55c291b34 |
+| Edamame tiny (old, superseded) | 06e01017-d8ee-453f-b82c-942e79cc9df7 |
+| Edamame warrior v2 / v3 (superseded) | f6b7d840-126e-43c4-a0bc-0c20799938f7 / da920994-de92-459c-bbc0-8d633d468704 |
 | Peanut (locked) | 104c761d-913a-4c98-b98d-0d4d7a987a4f |
 | Protein Bar (locked, torn wrapper, 2 arms) | 3437fe1e-6c99-4487-b513-5644562fe78e |
 | Crown | 2028e2f7-bb43-4389-9ed2-3a9051ad32d8 |
@@ -61,7 +65,7 @@ Chips no longer has PROTEIN written on him, so Ep 2 needs a new line. Proposed (
 | Himalayan Rock Salt v2 (rework) | a029dcba-3341-4742-8162-a1901d68da75 |
 | Masala Mania (rework) | 0bf68e48-82e4-44bc-a955-0768d1717027 |
 | Indori Chatka (rework) | 2a7375b6-9f1d-4216-b9b7-90524b262491 |
-| Makhana option A / B / C | 66b49c3c-bcef-4735-9764-670f61e77c1e / a097c8b3-58f4-4fda-9f70-d98fa2d59fe3 / 63e8cf67-6ead-4674-9320-8a4c90334a7d |
+| Makhana option A / B / C (superseded) | 66b49c3c-bcef-4735-9764-670f61e77c1e / a097c8b3-58f4-4fda-9f70-d98fa2d59fe3 / 63e8cf67-6ead-4674-9320-8a4c90334a7d |
 | Chip character A / B / C | 1571fef2-a5e1-44be-a397-875400403240 / 63407c2e-c454-4b70-ade1-3eae72c2460e / 086585f8-d964-4c31-a95e-83e11f2f3f5d |
 | Makhana original (user's) | https://cdn.oltaflock.ai/uploads/4b898802-8bdc-4320-b849-8c596ffe8abe/1790787080333-makhana-original.png |
 
