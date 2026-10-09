@@ -270,10 +270,12 @@ export const NAV: NavSection[] = [
         label: "Insights",
         href: "/dashboard/sales",
         icon: LineChart,
-        desc: "Sales, website and Amazon",
+        desc: "Sales, website, repeat buyers, products and Amazon",
         pages: [
           { label: "Sales", href: "/dashboard/sales" },
           { label: "Website", href: "/dashboard/sales/web" },
+          { label: "Repeat & cohorts", href: "/dashboard/sales/repeat" },
+          { label: "What people buy", href: "/dashboard/sales/products" },
           { label: "Amazon", href: "/dashboard/sales/amazon" },
         ],
       },
