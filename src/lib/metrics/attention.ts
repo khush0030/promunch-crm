@@ -77,6 +77,8 @@ export type TicketRow = {
 
 export type EmailDraftRow = {
   id: string;
+  // Optional: the notification feed uses it to date the "drafts to review" item.
+  created_at?: string | null;
 };
 
 // Candidate campaigns: status === 'sending' with resume_at set (the real

@@ -189,6 +189,9 @@ describe("my profile", () => {
       expect(canCallApi(a, "/api/me/profile", "GET")).toBe(true);
       expect(canCallApi(a, "/api/me/profile", "PATCH")).toBe(true);
       expect(canCallApi(a, "/api/me/avatar", "POST")).toBe(true);
+      expect(canCallApi(a, "/api/me/notifications", "PATCH")).toBe(true);
+      // The bell feed is open; the route itself filters items to the caller's areas.
+      expect(canCallApi(a, "/api/notifications", "GET")).toBe(true);
       expect(canOpenPage(a, PROFILE_PATH, null)).toBe(true);
     }
     expect(pageModule(PROFILE_PATH, null)).toBe("open");

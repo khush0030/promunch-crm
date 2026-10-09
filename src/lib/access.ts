@@ -219,9 +219,12 @@ export const API_RULES: ApiRule[] = [
   // Shell chrome every teammate loads: badge counts, WhatsApp status pill,
   // current-user lookup (team writes are Admin-gated inside the route).
   { prefix: "/api/metrics/attention", open: true },
+  // Header bell feed; filtered per caller to the areas they can open.
+  { prefix: "/api/notifications", open: true },
   { prefix: "/api/whatsapp/health", open: true },
   { prefix: "/api/team", open: true },
-  // My profile: each member edits only their own name and photo.
+  // My profile: each member edits only their own name, photo and
+  // notification settings (/api/me/notifications).
   { prefix: "/api/me", open: true },
 
   { prefix: "/api/assistant", modules: ["home"] },
