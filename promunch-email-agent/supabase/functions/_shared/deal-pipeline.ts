@@ -1,6 +1,10 @@
 // Pure helpers for the deal-scan pipeline (no network, no DB) — keep them
 // pure so deal-pipeline_test.ts runs without secrets.
 
+// The AI's vocabulary (deal-extract.ts prompts with these): fine-grained so
+// the model can say exactly what it read. The CRM pipeline stores the
+// simpler owner-approved stages (PIPELINE_STAGES) since migration
+// 20261010100000_deals_simplify.sql; toPipelineStage maps one onto the other.
 export const DEAL_STAGES = [
   "new_inquiry",
   "in_discussion",
@@ -12,6 +16,50 @@ export const DEAL_STAGES = [
   "dormant",
 ] as const;
 export type DealStage = (typeof DEAL_STAGES)[number];
+
+export const PIPELINE_STAGES = [
+  "new",
+  "talking",
+  "samples",
+  "negotiating",
+  "won",
+  "lost",
+  "on_hold",
+] as const;
+export type PipelineStage = (typeof PIPELINE_STAGES)[number];
+
+const AI_TO_PIPELINE: Record<DealStage, PipelineStage> = {
+  new_inquiry: "new",
+  in_discussion: "talking",
+  samples_requested: "samples",
+  samples_sent: "samples",
+  negotiation: "negotiating",
+  won: "won",
+  lost: "lost",
+  dormant: "on_hold",
+};
+
+const PIPELINE_TO_AI: Record<PipelineStage, DealStage> = {
+  new: "new_inquiry",
+  talking: "in_discussion",
+  samples: "samples_requested",
+  negotiating: "negotiation",
+  won: "won",
+  lost: "lost",
+  on_hold: "dormant",
+};
+
+/** Any stage name (AI / old DB / new DB) to the pipeline stage. */
+export function toPipelineStage(s: string | null | undefined): PipelineStage {
+  if (s && (PIPELINE_STAGES as readonly string[]).includes(s)) return s as PipelineStage;
+  if (s && s in AI_TO_PIPELINE) return AI_TO_PIPELINE[s as DealStage];
+  return "new";
+}
+
+/** Pipeline stage to the old DB / AI name (pre-migration writes, AI hints). */
+export function toAiStage(s: PipelineStage): DealStage {
+  return PIPELINE_TO_AI[s];
+}
 
 export const DEAL_KINDS = [
   "hotel_hospitality",
@@ -26,34 +74,46 @@ export const DEAL_KINDS = [
 ] as const;
 export type DealKind = (typeof DEAL_KINDS)[number];
 
-// Stage ratchet order. dormant sits below everything so any real signal
-// revives a dormant deal; won/lost are terminal.
-const STAGE_ORDER: Record<DealStage, number> = {
-  dormant: 0,
-  new_inquiry: 1,
-  in_discussion: 2,
-  samples_requested: 3,
-  samples_sent: 4,
-  negotiation: 5,
-  won: 6,
-  lost: 6,
+// Stage ratchet order. on_hold sits below everything so any real signal
+// revives a paused deal; won/lost are terminal.
+const STAGE_ORDER: Record<PipelineStage, number> = {
+  on_hold: 0,
+  new: 1,
+  talking: 2,
+  samples: 3,
+  negotiating: 4,
+  won: 5,
+  lost: 5,
 };
 
-const TERMINAL: DealStage[] = ["won", "lost"];
+const TERMINAL: PipelineStage[] = ["won", "lost"];
 
 // Deals move forward automatically, never backwards on their own. A human
 // stage edit (manualOverride) always wins; AI can still close a deal
-// (won/lost) and any signal revives a dormant one.
+// (won/lost) and any signal revives an on-hold one.
 export function mergeStage(
-  existing: DealStage,
-  incoming: DealStage,
+  existing: PipelineStage,
+  incoming: PipelineStage,
   manualOverride: boolean,
-): DealStage {
+): PipelineStage {
   if (manualOverride) return existing;
   if (TERMINAL.includes(existing)) return existing;
   if (TERMINAL.includes(incoming)) return incoming;
-  if (existing === "dormant") return incoming;
+  if (existing === "on_hold") return incoming;
   return STAGE_ORDER[incoming] > STAGE_ORDER[existing] ? incoming : existing;
+}
+
+/**
+ * True while a human decision (stage / next step / follow-up, stamped as
+ * human_touched_at) must stand: the scanner may not rewrite next step or
+ * follow-up until an inbound email arrives AFTER that decision.
+ */
+export function humanDecisionStands(
+  humanTouchedAtMs: number | null,
+  lastInboundAtMs: number | null,
+): boolean {
+  if (!humanTouchedAtMs) return false;
+  return !(lastInboundAtMs && lastInboundAtMs > humanTouchedAtMs);
 }
 
 const NOISE_SENDER_RE = [
@@ -155,7 +215,7 @@ export function buildTranscript(msgs: TranscriptMsg[], mailbox: string, maxChars
 }
 
 export interface FollowUpInput {
-  stage: DealStage;
+  stage: PipelineStage;
   lastEmailAtMs: number | null;
   lastDirection: "inbound" | "outbound" | null;
   samplesSentAtMs: number | null;
@@ -176,35 +236,37 @@ export function computeFollowUp(
 
   if (input.stage !== "won") {
     if (input.lastDirection === "inbound" && age !== null && age >= 2) {
-      return { needed: true, reason: `Their message is waiting on our reply (${age}d)` };
+      return { needed: true, reason: `Their message has waited ${age} days for our reply` };
     }
-    if (input.stage === "samples_sent" && input.samplesSentAtMs) {
+    if (input.stage === "samples" && input.samplesSentAtMs) {
       const sAge = Math.floor((nowMs - input.samplesSentAtMs) / DAY);
       if (sAge >= 7) {
-        return { needed: true, reason: `Samples sent ${sAge}d ago with no feedback — nudge them` };
+        return { needed: true, reason: `Samples sent ${sAge} days ago with no feedback. Nudge them` };
       }
     }
     if (
-      input.lastDirection === "outbound" && age !== null && age >= 5 && input.stage !== "dormant"
+      input.lastDirection === "outbound" && age !== null && age >= 5 && input.stage !== "on_hold"
     ) {
-      return { needed: true, reason: `No reply from them in ${age}d — send a nudge` };
+      return { needed: true, reason: `No reply from them in ${age} days. Send a nudge` };
     }
   }
   if (input.aiFollowUp) return { needed: true, reason: input.aiReason || "Flagged by inbox scan" };
   return { needed: false, reason: null };
 }
 
-const DORMANT_AFTER_DAYS = 45;
+const ON_HOLD_AFTER_DAYS = 45;
 
-// Auto-park deals that went silent for 45+ days (unless a human pinned the
-// stage). Any new email revives them via mergeStage.
-export function shouldGoDormant(
-  stage: DealStage,
+// Auto-park deals that went silent for 45+ days, unless a human pinned the
+// stage or made a decision since. Any new email revives them via mergeStage.
+export function shouldPutOnHold(
+  stage: PipelineStage,
   lastEmailAtMs: number | null,
   manualOverride: boolean,
   nowMs: number,
+  humanTouchedAtMs: number | null = null,
 ): boolean {
-  if (manualOverride || TERMINAL.includes(stage) || stage === "dormant") return false;
+  if (manualOverride || TERMINAL.includes(stage) || stage === "on_hold") return false;
   if (!lastEmailAtMs) return false;
-  return nowMs - lastEmailAtMs > DORMANT_AFTER_DAYS * DAY;
+  if (humanTouchedAtMs && nowMs - humanTouchedAtMs < ON_HOLD_AFTER_DAYS * DAY) return false;
+  return nowMs - lastEmailAtMs > ON_HOLD_AFTER_DAYS * DAY;
 }

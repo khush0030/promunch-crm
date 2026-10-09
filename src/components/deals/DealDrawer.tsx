@@ -1,61 +1,66 @@
 "use client";
 
-// One deal, one clear story. The drawer answers three questions in order:
-//   1. Where are we?      → clickable stage stepper + time-in-stage
-//   2. Whose move is it?  → ball-in-court card (our action, or what we wait on)
-//   3. What are they weighing? → AI read: willingness, drivers, risks, tone
-// Everything else (summary, commercials, notes, edit, raw emails) sits below.
+// One deal, top to bottom, in the order you need it:
+//   1. Who and where: company, stage, value, owner, stage buttons
+//   2. Next step: what to do, by when (follow-up date), Done
+//   3. Contact: name, email, phone, type (all editable in place)
+//   4. How keen they seem (read from their emails), where it stands
+//   5. Activity log: notes, calls, WhatsApp, meetings (append-only)
+//   6. Emails (collapsed), then Merge / Delete
+// Right-hand sheet on desktop, full-screen on phones. Opened by
+// /dashboard/deals?deal=<id>. Nothing here sends a message: email and phone
+// are plain mailto: / tel: links the person taps themselves.
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronDown, ChevronRight, Hourglass, Mail, X, Zap } from "lucide-react";
-import { StatusBadge } from "@/components/pm";
+import { ChevronDown, ChevronRight, Mail, Phone, Trash2, X } from "lucide-react";
+import { ConfirmDialog, Tag } from "@/components/pm";
 import {
+  ACTIVITY_LABEL,
   ALL_KINDS,
-  ALL_STAGES,
-  BOARD_STAGES,
   KIND_LABEL,
-  KIND_TONE,
-  STAGE_LABEL,
-  TEMP_LABEL,
-  TEMP_TONE,
-} from "./constants";
-import { daysSince, shortDate, timeAgo } from "./format";
-import type { Deal, DealDetailResponse, DealEmail, DealKind, DealStage } from "./types";
+  LOGGABLE_KINDS,
+  SOURCE_LABEL,
+  SOURCE_TONE,
+  formatPhone,
+  formatRupees,
+  istToday,
+  type ActivityKind,
+  type Deal,
+  type DealActivity,
+  type DealDetailResponse,
+  type DealKind,
+  type TeamPerson,
+} from "@/lib/deals/model";
+import { STAGE_LABEL, STAGE_TONE, isClosedStage } from "@/lib/deals/stages";
+import { KEEN_LABEL, KEEN_TONE } from "./constants";
+import { FollowUpTag, nextStepText, personName } from "./DealBits";
+import { NextStageButton, StageSelect, useStageMover } from "./StageControls";
+import { usePatchDeal, DEALS_KEY, type DealPatchBody } from "./useDeals";
+import { daysSince, dateTime, shortDate, timeAgo } from "./format";
 import css from "./deals.module.css";
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  border: "1px solid var(--pm-border)",
-  borderRadius: "var(--pm-r3)",
-  background: "var(--pm-card2)",
-  color: "inherit",
-  font: "inherit",
-  fontSize: 13.5,
-  padding: "7px 10px",
-};
-const flab: React.CSSProperties = {
-  fontSize: 13.5,
-  letterSpacing: "0.12em",
-  textTransform: "uppercase",
-  color: "var(--pm-hint)",
-  fontWeight: 700,
-  marginBottom: 4,
-};
-
-const TEMP_BAR: Record<string, string> = {
-  hot: "var(--pm-terra)",
-  warm: "var(--pm-gold)",
-  cool: "var(--pm-blue)",
-};
-
-export function DealDrawer({ dealId, onClose }: { dealId: string; onClose: () => void }) {
+export function DealDrawer({
+  dealId,
+  allDeals,
+  people,
+  onClose,
+  onGone,
+}: {
+  dealId: string;
+  allDeals: Deal[];
+  people: TeamPerson[];
+  onClose: () => void;
+  /** The deal was deleted or merged away (optionally: open this one instead). */
+  onGone: (openId?: string) => void;
+}) {
+  const titleId = useId();
   const { data, isLoading, error } = useQuery({
     queryKey: ["deal", dealId],
     queryFn: async (): Promise<DealDetailResponse> => {
       const res = await fetch(`/api/deals/${dealId}`, { cache: "no-store" });
       const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "failed to load deal");
+      if (!res.ok) throw new Error(d.error || "Could not load this deal");
       return d;
     },
   });
@@ -63,556 +68,644 @@ export function DealDrawer({ dealId, onClose }: { dealId: string; onClose: () =>
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
   }, [onClose]);
 
+  // The board cache is updated optimistically, so prefer it for the fields.
+  const listDeal = allDeals.find((d) => d.id === dealId) ?? null;
+  const deal = listDeal ?? data?.deal ?? null;
+
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(26,23,20,0.35)",
-        zIndex: 60,
-        display: "flex",
-        justifyContent: "flex-end",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "min(640px, 96vw)",
-          height: "100%",
-          background: "var(--pm-card)",
-          borderLeft: "1px solid var(--pm-border)",
-          overflowY: "auto",
-          padding: "24px 26px 40px",
-          boxShadow: "var(--pm-shadow-pop)",
-        }}
-        className={css.scope}
-      >
-        {isLoading && <p style={{ color: "var(--pm-hint)" }}>Loading…</p>}
-        {error instanceof Error && <p style={{ color: "var(--pm-terra)" }}>{error.message}</p>}
-        {data?.deal && (
+    <div className={css.scrim} onClick={onClose}>
+      <aside className={css.sheet} role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(e) => e.stopPropagation()}>
+        <button type="button" className={css.sheetX} onClick={onClose} aria-label="Close">
+          <X size={20} />
+        </button>
+        {!deal && isLoading && <p className={css.muted}>Loading…</p>}
+        {!deal && error instanceof Error && <p className={css.err}>{error.message}</p>}
+        {deal && (
           <DrawerBody
-            key={`${data.deal.id}:${data.deal.updated_at}`}
-            deal={data.deal}
-            emails={data.emails}
-            onClose={onClose}
+            titleId={titleId}
+            deal={deal}
+            detail={data ?? null}
+            allDeals={allDeals}
+            people={people}
+            onGone={onGone}
           />
         )}
-      </div>
+      </aside>
     </div>
   );
 }
 
-// ── stage stepper ────────────────────────────────────────────────────────────
-
-function StageStepper({
-  deal, busy, onMove,
+function DrawerBody({
+  titleId,
+  deal,
+  detail,
+  allDeals,
+  people,
+  onGone,
 }: {
+  titleId: string;
   deal: Deal;
-  busy: boolean;
-  onMove: (stage: DealStage) => void;
+  detail: DealDetailResponse | null;
+  allDeals: Deal[];
+  people: TeamPerson[];
+  onGone: (openId?: string) => void;
 }) {
-  const closed = deal.stage === "lost" || deal.stage === "dormant";
-  const currentIdx = BOARD_STAGES.indexOf(deal.stage);
-  const inStageDays = daysSince(deal.stage_updated_at);
-
-  if (closed) {
-    return (
-      <div
-        style={{
-          marginTop: 16,
-          background: "var(--pm-card2)",
-          border: "1px solid var(--pm-border)",
-          borderRadius: "var(--pm-r2)",
-          padding: "12px 14px",
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          flexWrap: "wrap",
-        }}
-      >
-        <StatusBadge tone={deal.stage === "lost" ? "terra" : "gray"}>{STAGE_LABEL[deal.stage]}</StatusBadge>
-        <span style={{ fontSize: 13.5, color: "var(--pm-muted)" }}>
-          Closed {timeAgo(deal.stage_updated_at)}. Nothing is expected from either side.
-        </span>
-        <button
-          type="button"
-          className="pm-btn ghost sm"
-          disabled={busy}
-          onClick={() => onMove("in_discussion")}
-          style={{ marginLeft: "auto" }}
-        >
-          Reopen deal
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ marginTop: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <div style={flab}>Where this deal is</div>
-        {inStageDays !== null && (
-          <span style={{ fontSize: 13.5, color: "var(--pm-hint)" }}>
-            in this stage {inStageDays <= 0 ? "since today" : `for ${inStageDays}d`}
-          </span>
-        )}
-      </div>
-      <div className={css.stepper} style={{ display: "flex", alignItems: "flex-start", gap: 0 }}>
-        {BOARD_STAGES.map((s, i) => {
-          const done = i < currentIdx || deal.stage === "won";
-          const current = s === deal.stage;
-          return (
-            <button
-              key={s}
-              type="button"
-              disabled={busy || current}
-              title={current ? "Current stage" : `Move to ${STAGE_LABEL[s]}`}
-              className={css.stepBtn}
-              onClick={() => onMove(s)}
-              style={{
-                flex: 1,
-                background: "none",
-                border: "none",
-                padding: 0,
-                cursor: current ? "default" : "pointer",
-                font: "inherit",
-                minWidth: 0,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center" }}>
-                <span
-                  style={{
-                    flex: 1,
-                    height: 3,
-                    background: i === 0 ? "transparent" : done || current ? "var(--pm-ink)" : "var(--pm-line)",
-                  }}
-                />
-                <span
-                  style={{
-                    width: current ? 22 : 16,
-                    height: current ? 22 : 16,
-                    borderRadius: 999,
-                    flexShrink: 0,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: done ? "var(--pm-ink)" : current ? "var(--pm-card)" : "var(--pm-card2)",
-                    border: current ? "3px solid var(--pm-ink)" : done ? "none" : "2px solid var(--pm-line)",
-                    color: "#fff",
-                  }}
-                >
-                  {done && <Check size={11} strokeWidth={3.5} />}
-                </span>
-                <span
-                  style={{
-                    flex: 1,
-                    height: 3,
-                    background:
-                      i === BOARD_STAGES.length - 1 ? "transparent" : done ? "var(--pm-ink)" : "var(--pm-line)",
-                  }}
-                />
-              </div>
-              <div
-                className={css.stepLabel}
-                style={{
-                  marginTop: 5,
-                  fontSize: 13,
-                  lineHeight: 1.25,
-                  textAlign: "center",
-                  fontWeight: current ? 750 : 550,
-                  color: current ? "var(--pm-ink)" : done ? "var(--pm-ink2)" : "var(--pm-muted)",
-                  padding: "0 3px",
-                }}
-              >
-                {STAGE_LABEL[s]}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-      <p style={{ margin: "8px 0 0", fontSize: 13.5, color: "var(--pm-muted)", textAlign: "center" }}>
-        Click a stage to move the deal. The mail scanner respects manual moves.
-      </p>
-    </div>
-  );
-}
-
-// ── ball in court ────────────────────────────────────────────────────────────
-
-// Whose move is it? Explicit owner wins; otherwise an inbound last email means
-// they are waiting on us, an outbound one means the ball is with them.
-function ballOwner(deal: Deal): "us" | "them" {
-  if (deal.next_step_owner) return deal.next_step_owner;
-  return deal.last_email_direction === "inbound" ? "us" : "them";
-}
-
-function BallInCourt({
-  deal, emails, busy, onFollowUpDone, onEdit,
-}: {
-  deal: Deal;
-  emails: DealEmail[];
-  busy: boolean;
-  onFollowUpDone: () => void;
-  onEdit: () => void;
-}) {
-  const closed = deal.stage === "lost" || deal.stage === "dormant";
-  if (closed) return null;
-
-  const owner = ballOwner(deal);
-  const sinceLast = daysSince(deal.last_email_at);
-  const ours = owner === "us";
-
-  const lastSubject = emails.length ? emails[emails.length - 1].subject : null;
-  const mailto = deal.contact_email
-    ? `mailto:${deal.contact_email}${lastSubject ? `?subject=${encodeURIComponent(`Re: ${lastSubject}`)}` : ""}`
-    : null;
-
-  const action =
-    deal.next_step ||
-    deal.insights?.recommended_move ||
-    (ours ? "Reply to their last email" : "Wait for their reply");
-
-  const stale = !ours && sinceLast !== null && sinceLast >= 5;
-
-  return (
-    <div
-      style={{
-        marginTop: 16,
-        background: "var(--pm-card2)",
-        border: "1px solid var(--pm-line)",
-        borderRadius: "var(--pm-r2)",
-        padding: "13px 15px",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        {ours ? (
-          <Zap size={13} style={{ color: "var(--pm-ink)" }} />
-        ) : (
-          <Hourglass size={13} style={{ color: "var(--pm-gold)" }} />
-        )}
-        <span style={{ ...flab, marginBottom: 0, color: ours ? "var(--pm-ink)" : "var(--pm-muted)" }}>
-          {ours ? "Your move" : "Waiting on them"}
-        </span>
-        {sinceLast !== null && (
-          <span style={{ marginLeft: "auto", fontSize: 13.5, color: "var(--pm-hint)" }}>
-            last email {sinceLast <= 0 ? "today" : `${sinceLast}d ago`}
-            {deal.last_email_direction ? (deal.last_email_direction === "inbound" ? " (theirs)" : " (ours)") : ""}
-          </span>
-        )}
-      </div>
-
-      <p style={{ margin: "7px 0 0", fontSize: 15, fontWeight: 650, lineHeight: 1.45 }}>{action}</p>
-
-      {deal.follow_up_needed && deal.follow_up_reason && (
-        <p style={{ margin: "5px 0 0", fontSize: 13, color: "var(--pm-muted)" }}>{deal.follow_up_reason}</p>
-      )}
-      {stale && (
-        <p style={{ margin: "5px 0 0", fontSize: 14, color: "var(--pm-gold)", fontWeight: 600 }}>
-          Quiet for {sinceLast}d. A short nudge keeps it warm.
-        </p>
-      )}
-
-      <div style={{ display: "flex", gap: 8, marginTop: 11, flexWrap: "wrap" }}>
-        {mailto && (
-          <a className="pm-btn primary sm" href={mailto} style={{ textDecoration: "none" }}>
-            <Mail size={13} /> {ours || stale ? "Write the email" : "Email them anyway"}
-          </a>
-        )}
-        {deal.follow_up_needed && (
-          <button type="button" className="pm-btn sm" disabled={busy} onClick={onFollowUpDone}>
-            <Check size={13} /> Follow-up handled
-          </button>
-        )}
-        <button type="button" className="pm-btn ghost sm" onClick={onEdit}>
-          Edit next step
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── drawer body ──────────────────────────────────────────────────────────────
-
-function DrawerBody({ deal, emails, onClose }: { deal: Deal; emails: DealEmail[]; onClose: () => void }) {
   const qc = useQueryClient();
-  const [stage, setStage] = useState<DealStage>(deal.stage);
-  const [kind, setKind] = useState<DealKind>(deal.kind);
-  const [nextStep, setNextStep] = useState(deal.next_step ?? "");
-  const [owner, setOwner] = useState<"us" | "them" | "">(deal.next_step_owner ?? "");
-  const [followUp, setFollowUp] = useState(deal.follow_up_needed);
-  const [notes, setNotes] = useState(deal.notes ?? "");
-  const [showEmails, setShowEmails] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
-
-  const save = useMutation({
-    mutationFn: async (patch: Record<string, unknown>) => {
-      const res = await fetch(`/api/deals/${deal.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "save failed");
-      return d.deal as Deal;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["deal", deal.id] });
-      qc.invalidateQueries({ queryKey: ["deals"] });
-    },
-  });
-
-  const dirty = stage !== deal.stage ||
-    kind !== deal.kind ||
-    nextStep !== (deal.next_step ?? "") ||
-    owner !== (deal.next_step_owner ?? "") ||
-    followUp !== deal.follow_up_needed ||
-    notes !== (deal.notes ?? "");
-
+  const patch = usePatchDeal();
+  const today = istToday();
+  const save = (body: DealPatchBody) => patch.mutate({ id: deal.id, body });
+  const { move, dialog } = useStageMover((_d, stage, reason) => save({ stage, ...(reason ? { reason } : {}) }), patch.isPending);
+  const closed = isClosedStage(deal.stage);
+  const inStage = daysSince(deal.stage_updated_at);
   const ins = deal.insights;
-  const temp = deal.interest_temp;
+  const emails = detail?.emails ?? [];
 
   return (
     <>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 18 }}>{deal.company_name}</h2>
-          <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap", alignItems: "center" }}>
-            <StatusBadge tone={KIND_TONE[deal.kind]}>{KIND_LABEL[deal.kind]}</StatusBadge>
-            {temp && ins && (
-              <StatusBadge tone={TEMP_TONE[temp]}>
-                {TEMP_LABEL[temp]} · {ins.willingness}/100 willing
-              </StatusBadge>
-            )}
-            {deal.contact_email && (
-              <span style={{ fontSize: 13, color: "var(--pm-muted)" }}>
-                {deal.contact_name ? `${deal.contact_name} · ` : ""}
-                {deal.contact_email}
-              </span>
-            )}
-          </div>
+      {/* 1 · who and where */}
+      <header className={css.dHead}>
+        <InlineText
+          id={titleId}
+          className={css.dTitle}
+          value={deal.company_name}
+          placeholder="Business name"
+          ariaLabel="Business name"
+          onSave={(v) => v && save({ company_name: v })}
+        />
+        <div className={css.dMeta}>
+          <Tag tone={STAGE_TONE[deal.stage]} dot>
+            {STAGE_LABEL[deal.stage]}
+          </Tag>
+          <Tag tone={SOURCE_TONE[deal.source]} size="sm">
+            {SOURCE_LABEL[deal.source]}
+            {deal.source_ref && deal.source === "bulk_form" ? ` ${deal.source_ref}` : ""}
+          </Tag>
+          <FollowUpTag deal={deal} today={today} size="md" />
+          {inStage !== null && <span className={css.muted}>{inStage <= 0 ? "In this stage since today" : `In this stage ${inStage} days`}</span>}
         </div>
-        <button type="button" className="pm-btn ghost sm" onClick={onClose} aria-label="Close">
-          <X size={15} />
+        <div className={css.dFacts}>
+          <label className={css.fact}>
+            <span>Value</span>
+            <InlineText
+              className={css.factInput}
+              value={deal.value_inr != null ? formatRupees(deal.value_inr, false) : ""}
+              placeholder="Add ₹ value"
+              ariaLabel="Value in rupees"
+              inputMode="decimal"
+              onSave={(v) => save({ value_inr: v })}
+            />
+          </label>
+          <label className={css.fact}>
+            <span>Owner</span>
+            <select className={css.factSelect} value={deal.owner_email ?? ""} onChange={(e) => save({ owner_email: e.target.value || null })}>
+              <option value="">No owner</option>
+              {deal.owner_email && !people.some((p) => p.email === deal.owner_email) && (
+                <option value={deal.owner_email}>{personName(deal.owner_email, people)}</option>
+              )}
+              {people.map((p) => (
+                <option key={p.email} value={p.email}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className={css.fact}>
+            <span>Stage</span>
+            <StageSelect deal={deal} onPick={(s) => move(deal, s)} disabled={patch.isPending} />
+          </label>
+        </div>
+        {closed ? (
+          <div className={css.closedNote}>
+            <span>
+              {deal.stage === "lost" ? "Lost" : "On hold"}
+              {deal.closed_reason ? `: ${deal.closed_reason}` : ""}
+            </span>
+            <button type="button" className="pm2-btn sm" onClick={() => save({ stage: "talking" })} disabled={patch.isPending}>
+              Reopen
+            </button>
+          </div>
+        ) : (
+          <div className={css.dStageRow}>
+            <NextStageButton deal={deal} onPick={(s) => move(deal, s)} disabled={patch.isPending} size="md" />
+          </div>
+        )}
+        {patch.error instanceof Error && <p className={css.err}>{patch.error.message}</p>}
+      </header>
+
+      {/* 2 · next step */}
+      {!closed && <NextStepBlock deal={deal} emails={emails} today={today} busy={patch.isPending} onSave={save} />}
+
+      {/* 3 · contact */}
+      <Section title="Contact">
+        <div className={css.fields}>
+          <Field label="Name">
+            <InlineText className={css.fieldInput} value={deal.contact_name ?? ""} placeholder="Add name" ariaLabel="Contact name" onSave={(v) => save({ contact_name: v })} />
+          </Field>
+          <Field label="Email">
+            <InlineText className={css.fieldInput} value={deal.contact_email ?? ""} placeholder="Add email" ariaLabel="Contact email" inputMode="email" onSave={(v) => save({ contact_email: v })} />
+          </Field>
+          <Field label="Phone">
+            <InlineText
+              className={css.fieldInput}
+              value={deal.contact_phone ? formatPhone(deal.contact_phone) : ""}
+              placeholder="Add phone"
+              ariaLabel="Contact phone"
+              inputMode="tel"
+              onSave={(v) => save({ contact_phone: v })}
+            />
+          </Field>
+          <Field label="Type">
+            <select className={css.fieldInput} value={deal.kind} onChange={(e) => save({ kind: e.target.value as DealKind })}>
+              {ALL_KINDS.map((k) => (
+                <option key={k} value={k}>
+                  {KIND_LABEL[k]}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <div className={css.contactLinks}>
+          {deal.contact_email && closed && (
+            <a className="pm2-btn sm" href={`mailto:${deal.contact_email}`}>
+              <Mail size={15} aria-hidden /> Write an email
+            </a>
+          )}
+          {deal.contact_phone && (
+            <a className="pm2-btn sm" href={`tel:+${deal.contact_phone}`}>
+              <Phone size={15} aria-hidden /> Call
+            </a>
+          )}
+        </div>
+      </Section>
+
+      {/* 4 · how keen + where it stands */}
+      {(ins || deal.summary || deal.commercials) && (
+        <Section title="What we know">
+          {ins && deal.interest_temp && (
+            <div className={css.keen}>
+              <span className={css.keenLabel}>How keen they seem</span>
+              <Tag tone={KEEN_TONE[deal.interest_temp]} dot>
+                {KEEN_LABEL[deal.interest_temp]}
+              </Tag>
+            </div>
+          )}
+          {ins?.sentiment && <p className={css.prose}>{ins.sentiment}</p>}
+          {deal.summary && (
+            <>
+              <h4 className={css.subhead}>Where it stands</h4>
+              <p className={css.prose}>{deal.summary}</p>
+            </>
+          )}
+          {deal.commercials && (
+            <>
+              <h4 className={css.subhead}>Terms discussed</h4>
+              <p className={css.prose}>{deal.commercials}</p>
+            </>
+          )}
+          {ins && ins.drivers.length > 0 && (
+            <>
+              <h4 className={css.subhead}>What they care about</h4>
+              <ul className={css.bullets}>{ins.drivers.map((x) => <li key={x}>{x}</li>)}</ul>
+            </>
+          )}
+          {ins && ins.risks.length > 0 && (
+            <>
+              <h4 className={css.subhead}>What could stop it</h4>
+              <ul className={css.bullets}>{ins.risks.map((x) => <li key={x}>{x}</li>)}</ul>
+            </>
+          )}
+          {deal.samples_sent_at && <p className={css.muted}>Samples sent {shortDate(deal.samples_sent_at)} ({timeAgo(deal.samples_sent_at)})</p>}
+        </Section>
+      )}
+
+      {/* 5 · activity */}
+      <Section title="Activity">
+        <ActivityComposer dealId={deal.id} />
+        <ActivityTimeline activity={detail?.activity ?? []} notes={detail && !detail.schema_ready ? deal.notes : null} people={people} loading={!detail} />
+      </Section>
+
+      {/* 6 · emails, merge, delete */}
+      <EmailList emails={emails} />
+      <DangerZone
+        deal={deal}
+        allDeals={allDeals}
+        onDone={(openId) => {
+          qc.invalidateQueries({ queryKey: DEALS_KEY });
+          onGone(openId);
+        }}
+      />
+      {dialog}
+    </>
+  );
+}
+
+// ── next step ───────────────────────────────────────────────────────────────
+
+function addDays(ymd: string, n: number): string {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function NextStepBlock({
+  deal,
+  emails,
+  today,
+  busy,
+  onSave,
+}: {
+  deal: Deal;
+  emails: { subject: string | null }[];
+  today: string;
+  busy: boolean;
+  onSave: (b: DealPatchBody) => void;
+}) {
+  const n = nextStepText(deal);
+  const theirs = deal.next_step_owner === "them";
+  const suggestion = deal.insights?.recommended_move;
+  const canDone = !!deal.next_step || !!deal.follow_up_at || deal.follow_up_needed;
+  const lastSubject = emails[0]?.subject ?? null;
+
+  return (
+    <section className={css.nextBlock} data-who={theirs ? "them" : "us"}>
+      <div className={css.nextHead}>
+        <h3 className={css.sectionTitle}>{theirs ? "Waiting on them" : "Your move"}</h3>
+        <div className={css.whoSeg} role="group" aria-label="Who acts next">
+          <button type="button" data-on={!theirs} onClick={() => onSave({ next_step_owner: "us" })} disabled={busy}>
+            Us
+          </button>
+          <button type="button" data-on={theirs} onClick={() => onSave({ next_step_owner: "them" })} disabled={busy}>
+            Them
+          </button>
+        </div>
+      </div>
+      <InlineText
+        className={css.nextInput}
+        value={deal.next_step ?? ""}
+        placeholder={n.who === "none" ? "What happens next? e.g. Send the price list" : n.text}
+        ariaLabel="Next step"
+        onSave={(v) => onSave({ next_step: v })}
+      />
+      {deal.follow_up_reason && deal.follow_up_needed && !deal.follow_up_at && <p className={css.muted}>{deal.follow_up_reason}</p>}
+      {!deal.next_step && suggestion && (
+        <p className={css.suggest}>
+          Suggested: {suggestion}{" "}
+          <button type="button" className={css.linkBtn} onClick={() => onSave({ next_step: suggestion })}>
+            Use this
+          </button>
+        </p>
+      )}
+      <div className={css.nextRow}>
+        <label className={css.dateField}>
+          <span>Follow up on</span>
+          <input
+            type="date"
+            className={css.input}
+            value={deal.follow_up_at ?? ""}
+            min={today}
+            onChange={(e) => onSave({ follow_up_at: e.target.value || null })}
+          />
+        </label>
+        <div className={css.quickDates}>
+          <button type="button" className={css.chipBtn} onClick={() => onSave({ follow_up_at: addDays(today, 1) })} disabled={busy}>
+            Tomorrow
+          </button>
+          <button type="button" className={css.chipBtn} onClick={() => onSave({ follow_up_at: addDays(today, 3) })} disabled={busy}>
+            In 3 days
+          </button>
+          <button type="button" className={css.chipBtn} onClick={() => onSave({ follow_up_at: addDays(today, 7) })} disabled={busy}>
+            Next week
+          </button>
+        </div>
+      </div>
+      <div className={css.nextActions}>
+        {canDone && (
+          <button type="button" className="pm2-btn dark" disabled={busy} onClick={() => onSave({ done: true })}>
+            Done
+          </button>
+        )}
+        {deal.contact_email && (
+          <a
+            className="pm2-btn"
+            href={`mailto:${deal.contact_email}${lastSubject ? `?subject=${encodeURIComponent(`Re: ${lastSubject}`)}` : ""}`}
+          >
+            <Mail size={15} aria-hidden /> Write the email
+          </a>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ── activity ────────────────────────────────────────────────────────────────
+
+function ActivityComposer({ dealId }: { dealId: string }) {
+  const qc = useQueryClient();
+  const [kind, setKind] = useState<ActivityKind>("note");
+  const [body, setBody] = useState("");
+  const add = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/deals/${dealId}/activity`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind, body }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Could not save");
+      return d;
+    },
+    onSuccess: () => {
+      setBody("");
+      qc.invalidateQueries({ queryKey: ["deal", dealId] });
+    },
+  });
+  const placeholder: Record<string, string> = {
+    note: "Write a note for the team…",
+    call: "What came out of the call?",
+    whatsapp: "What was said on WhatsApp?",
+    meeting: "What was agreed in the meeting?",
+  };
+  return (
+    <form
+      className={css.composer}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (body.trim() && !add.isPending) add.mutate();
+      }}
+    >
+      <div className={css.kindChips} role="group" aria-label="What are you logging">
+        {LOGGABLE_KINDS.map((k) => (
+          <button key={k} type="button" className={css.chipBtn} data-on={kind === k} onClick={() => setKind(k)}>
+            {k === "call" ? "Log a call" : k === "whatsapp" ? "WhatsApp" : k === "meeting" ? "Meeting" : "Note"}
+          </button>
+        ))}
+      </div>
+      <textarea className={css.textarea} value={body} rows={3} maxLength={4000} placeholder={placeholder[kind]} onChange={(e) => setBody(e.target.value)} />
+      <div className={css.composerFoot}>
+        {add.error instanceof Error && <span className={css.err}>{add.error.message}</span>}
+        <button type="submit" className="pm2-btn pri" disabled={!body.trim() || add.isPending}>
+          {add.isPending ? "Saving…" : "Add to log"}
         </button>
       </div>
+    </form>
+  );
+}
 
-      {/* 1 · where we are */}
-      <StageStepper deal={deal} busy={save.isPending} onMove={(s) => save.mutate({ stage: s })} />
+const ACT_TONE: Record<ActivityKind, "grey" | "blue" | "green" | "teal" | "amber" | "purple"> = {
+  note: "grey",
+  call: "teal",
+  whatsapp: "green",
+  meeting: "purple",
+  email: "blue",
+  stage: "amber",
+  system: "grey",
+};
 
-      {/* 2 · whose move */}
-      <BallInCourt
-        deal={deal}
-        emails={emails}
-        busy={save.isPending}
-        onFollowUpDone={() => save.mutate({ follow_up_needed: false })}
-        onEdit={() => setShowEdit(true)}
-      />
-
-      {/* 3 · what they're weighing */}
-      {ins ? (
-        <div
-          style={{
-            marginTop: 14,
-            border: "1px solid var(--pm-border)",
-            borderRadius: "var(--pm-r2)",
-            padding: "12px 14px",
-          }}
-        >
-          <div style={flab}>Their side of the table</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
-            <div style={{ flex: 1, height: 6, borderRadius: 999, background: "var(--pm-line)", overflow: "hidden" }}>
-              <div
-                style={{
-                  width: `${Math.min(100, Math.max(2, ins.willingness))}%`,
-                  height: "100%",
-                  borderRadius: 999,
-                  background: temp ? TEMP_BAR[temp] : "var(--pm-hint)",
-                }}
-              />
-            </div>
-            <span style={{ fontSize: 13.5, color: "var(--pm-hint)", whiteSpace: "nowrap" }}>
-              {ins.willingness}/100 willing to buy
-            </span>
+function ActivityTimeline({
+  activity,
+  notes,
+  people,
+  loading,
+}: {
+  activity: DealActivity[];
+  notes: string | null;
+  people: TeamPerson[];
+  loading: boolean;
+}) {
+  if (loading) return <p className={css.muted}>Loading activity…</p>;
+  if (!activity.length && !notes) return <p className={css.muted}>Nothing logged yet. Notes, calls and stage moves show up here.</p>;
+  return (
+    <ol className={css.timeline}>
+      {activity.map((a) => (
+        <li key={a.id} className={css.tItem}>
+          <div className={css.tHead}>
+            <Tag tone={ACT_TONE[a.kind]} size="sm">
+              {ACTIVITY_LABEL[a.kind]}
+            </Tag>
+            <span className={css.tWho}>{authorName(a.author, people)}</span>
+            <time className={css.tWhen} dateTime={a.created_at}>
+              {dateTime(a.created_at)}
+            </time>
           </div>
-          {ins.sentiment && (
-            <p style={{ margin: "9px 0 0", fontSize: 13.5, lineHeight: 1.5 }}>{ins.sentiment}</p>
-          )}
-          {(ins.drivers.length || ins.risks.length) ? (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 10 }}>
-              {ins.drivers.length > 0 && (
-                <div>
-                  <div style={flab}>They&apos;re evaluating</div>
-                  <ul style={{ margin: 0, paddingLeft: 16, fontSize: 13.5, color: "var(--pm-muted)", lineHeight: 1.5 }}>
-                    {ins.drivers.map((x) => <li key={x}>{x}</li>)}
-                  </ul>
-                </div>
-              )}
-              {ins.risks.length > 0 && (
-                <div>
-                  <div style={flab}>Could kill it</div>
-                  <ul style={{ margin: 0, paddingLeft: 16, fontSize: 13.5, color: "var(--pm-muted)", lineHeight: 1.5 }}>
-                    {ins.risks.map((x) => <li key={x}>{x}</li>)}
-                  </ul>
-                </div>
-              )}
-            </div>
-          ) : null}
-          {ins.emotions.length > 0 && (
-            <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-              {ins.emotions.map((e) => (
-                <span
-                  key={e}
-                  style={{
-                    fontSize: 13.5,
-                    padding: "2px 9px",
-                    borderRadius: 999,
-                    background: "var(--pm-card2)",
-                    border: "1px solid var(--pm-border)",
-                    color: "var(--pm-muted)",
-                  }}
-                >
-                  {e}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        <p style={{ marginTop: 14, fontSize: 13.5, color: "var(--pm-hint)" }}>
-          AI read pending. The next mail scan fills in willingness, drivers and risks.
-        </p>
+          <p className={css.tBody}>{a.body}</p>
+        </li>
+      ))}
+      {notes && (
+        <li className={css.tItem}>
+          <div className={css.tHead}>
+            <Tag tone="grey" size="sm">
+              Notes
+            </Tag>
+          </div>
+          <p className={css.tBody}>{notes}</p>
+        </li>
       )}
+    </ol>
+  );
+}
 
-      {/* the story so far */}
-      {deal.summary && (
-        <div style={{ marginTop: 16 }}>
-          <div style={flab}>The story so far</div>
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: "var(--pm-muted)" }}>{deal.summary}</p>
-        </div>
-      )}
+function authorName(a: string | null, people: TeamPerson[]): string {
+  if (!a) return "";
+  if (a === "scanner") return "Inbox check";
+  if (a === "bulk_form") return "Bulk form";
+  if (a === "imported") return "Earlier notes";
+  return personName(a, people) ?? a;
+}
 
-      {deal.commercials && (
-        <div style={{ marginTop: 14 }}>
-          <div style={flab}>Commercials discussed</div>
-          <p style={{ margin: 0, fontSize: 14 }}>{deal.commercials}</p>
-        </div>
-      )}
-      {deal.samples_sent_at && (
-        <p style={{ margin: "14px 0 0", fontSize: 13.5, color: "var(--pm-muted)" }}>
-          Samples sent {shortDate(deal.samples_sent_at)} ({timeAgo(deal.samples_sent_at)})
-        </p>
-      )}
-      {deal.notes && !showEdit && (
-        <div style={{ marginTop: 14 }}>
-          <div style={flab}>Your notes</div>
-          <p style={{ margin: 0, fontSize: 13.5, color: "var(--pm-muted)", whiteSpace: "pre-wrap" }}>{deal.notes}</p>
-        </div>
-      )}
+// ── emails ──────────────────────────────────────────────────────────────────
 
-      {/* Edit, collapsed by default */}
-      <button
-        type="button"
-        onClick={() => setShowEdit(!showEdit)}
-        style={{ marginTop: 22, display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit", fontSize: 13.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pm-hint)" }}
-      >
-        {showEdit ? <ChevronDown size={12} /> : <ChevronRight size={12} />} Edit deal
+function EmailList({ emails }: { emails: DealDetailResponse["emails"] }) {
+  const [open, setOpen] = useState(false);
+  if (!emails.length) return null;
+  return (
+    <section className={css.section}>
+      <button type="button" className={css.collapse} aria-expanded={open} onClick={() => setOpen(!open)}>
+        {open ? <ChevronDown size={18} aria-hidden /> : <ChevronRight size={18} aria-hidden />}
+        Emails <span className={css.laneN}>{emails.length}</span>
       </button>
-      {showEdit && (
-        <div style={{ marginTop: 10 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
-              <div style={flab}>Stage</div>
-              <select aria-label="Stage" value={stage} onChange={(e) => setStage(e.target.value as DealStage)} style={inputStyle}>
-                {ALL_STAGES.map((s) => (
-                  <option key={s} value={s}>{STAGE_LABEL[s]}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <div style={flab}>Kind</div>
-              <select aria-label="Kind" value={kind} onChange={(e) => setKind(e.target.value as DealKind)} style={inputStyle}>
-                {ALL_KINDS.map((k) => (
-                  <option key={k} value={k}>{KIND_LABEL[k]}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
-            <div>
-              <div style={flab}>Next step</div>
-              <input value={nextStep} onChange={(e) => setNextStep(e.target.value)} placeholder="What happens next?" style={inputStyle} />
-            </div>
-            <div>
-              <div style={flab}>Who acts</div>
-              <select aria-label="Who acts next" value={owner} onChange={(e) => setOwner(e.target.value as "us" | "them" | "")} style={inputStyle}>
-                <option value="">Auto (last email)</option>
-                <option value="us">Us</option>
-                <option value="them">Them</option>
-              </select>
-            </div>
-          </div>
-          <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
-            <input id="fu" type="checkbox" checked={followUp} onChange={(e) => setFollowUp(e.target.checked)} />
-            <label htmlFor="fu" style={{ fontSize: 14 }}>Needs follow-up</label>
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <div style={flab}>Notes (yours)</div>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Context the emails don't capture…" rows={3} style={{ ...inputStyle, resize: "vertical" }} />
-          </div>
-          <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
-            <button
-              type="button"
-              className={`pm-btn sm ${css.onBtn}`}
-              disabled={!dirty || save.isPending}
-              onClick={() =>
-                save.mutate({
-                  ...(stage !== deal.stage ? { stage } : {}),
-                  ...(kind !== deal.kind ? { kind } : {}),
-                  ...(nextStep !== (deal.next_step ?? "") ? { next_step: nextStep } : {}),
-                  ...(owner !== (deal.next_step_owner ?? "") ? { next_step_owner: owner || null } : {}),
-                  ...(followUp !== deal.follow_up_needed ? { follow_up_needed: followUp } : {}),
-                  ...(notes !== (deal.notes ?? "") ? { notes } : {}),
-                })}
-            >
-              {save.isPending ? "Saving…" : "Save"}
-            </button>
-            {save.error instanceof Error && (
-              <span style={{ color: "var(--pm-terra)", fontSize: 13 }}>{save.error.message}</span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Emails, collapsed by default */}
-      <button
-        type="button"
-        onClick={() => setShowEmails(!showEmails)}
-        style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit", fontSize: 13.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--pm-hint)" }}
-      >
-        {showEmails ? <ChevronDown size={12} /> : <ChevronRight size={12} />} Emails ({emails.length})
-      </button>
-      {showEmails && (
-        <div style={{ marginTop: 8, border: "1px solid var(--pm-line)", borderRadius: "var(--pm-r2)", padding: "4px 14px" }}>
-          {emails.length === 0 && <p style={{ color: "var(--pm-hint)", fontSize: 13.5 }}>No emails linked yet.</p>}
+      {open && (
+        <ol className={css.timeline}>
           {emails.map((m) => (
-            <div key={m.id} style={{ borderTop: "1px solid var(--pm-line)", padding: "9px 0" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13.5, color: "var(--pm-hint)" }}>
-                <span style={{ color: m.direction === "inbound" ? "var(--pm-blue)" : "var(--pm-green)", fontWeight: 700 }}>
-                  {m.direction === "inbound" ? `← ${m.from_email ?? "them"}` : "→ us"}
-                </span>
-                <span>{shortDate(m.sent_at)}</span>
+            <li key={m.id} className={css.tItem}>
+              <div className={css.tHead}>
+                <Tag tone={m.direction === "inbound" ? "blue" : "green"} size="sm">
+                  {m.direction === "inbound" ? "From them" : "From us"}
+                </Tag>
+                <span className={css.tWho}>{m.direction === "inbound" ? m.from_email : m.to_email}</span>
+                <time className={css.tWhen}>{dateTime(m.sent_at)}</time>
               </div>
-              <div style={{ fontSize: 13.5, marginTop: 2 }}>{m.subject || "(no subject)"}</div>
-              {m.snippet && <div style={{ fontSize: 13, color: "var(--pm-muted)", marginTop: 2 }}>{m.snippet}</div>}
-            </div>
+              <p className={css.tBody}>
+                <b>{m.subject || "(no subject)"}</b>
+                {m.snippet ? ` ${m.snippet}` : ""}
+              </p>
+            </li>
           ))}
-        </div>
+        </ol>
       )}
-    </>
+    </section>
+  );
+}
+
+// ── merge / delete ──────────────────────────────────────────────────────────
+
+function DangerZone({ deal, allDeals, onDone }: { deal: Deal; allDeals: Deal[]; onDone: (openId?: string) => void }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [mergeInto, setMergeInto] = useState("");
+  const [confirmMerge, setConfirmMerge] = useState(false);
+  const targets = useMemo(
+    () => allDeals.filter((d) => d.id !== deal.id).sort((a, b) => a.company_name.localeCompare(b.company_name)),
+    [allDeals, deal.id],
+  );
+  const target = targets.find((d) => d.id === mergeInto) ?? null;
+
+  const del = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/deals/${deal.id}`, { method: "DELETE" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Could not delete");
+    },
+    onSuccess: () => onDone(),
+  });
+  const merge = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/deals/${deal.id}/merge`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ into: mergeInto }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Could not merge");
+    },
+    onSuccess: () => onDone(mergeInto),
+  });
+
+  return (
+    <section className={css.danger}>
+      <div className={css.mergeRow}>
+        <label className={css.dateField}>
+          <span>Same business as another deal?</span>
+          <select className={css.input} value={mergeInto} onChange={(e) => setMergeInto(e.target.value)}>
+            <option value="">Merge into…</option>
+            {targets.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.company_name} ({STAGE_LABEL[d.stage]})
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="button" className="pm2-btn" disabled={!mergeInto || merge.isPending} onClick={() => setConfirmMerge(true)}>
+          Merge
+        </button>
+      </div>
+      <button type="button" className={css.deleteBtn} onClick={() => setConfirmDelete(true)}>
+        <Trash2 size={15} aria-hidden /> Delete this deal
+      </button>
+      {(del.error instanceof Error || merge.error instanceof Error) && (
+        <p className={css.err}>{(del.error ?? merge.error)?.message}</p>
+      )}
+      {confirmDelete && (
+        <ConfirmDialog
+          title={`Delete ${deal.company_name}?`}
+          body="The deal and its activity log are removed for everyone. Emails stay in the mailbox. Nobody is messaged."
+          confirmLabel="Delete deal"
+          danger
+          busy={del.isPending}
+          onConfirm={() => del.mutate()}
+          onClose={() => setConfirmDelete(false)}
+        />
+      )}
+      {confirmMerge && target && (
+        <ConfirmDialog
+          title={`Merge into ${target.company_name}?`}
+          body={`Emails, activity and contact details from ${deal.company_name} move to ${target.company_name}, then this deal is removed. Nobody is messaged.`}
+          confirmLabel="Merge"
+          busy={merge.isPending}
+          onConfirm={() => merge.mutate()}
+          onClose={() => setConfirmMerge(false)}
+        />
+      )}
+    </section>
+  );
+}
+
+// ── small building blocks ───────────────────────────────────────────────────
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className={css.section}>
+      <h3 className={css.sectionTitle}>{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className={css.field}>
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+/** Looks like text, edits in place, saves on blur or Enter (Esc undoes). */
+function InlineText({
+  value,
+  onSave,
+  placeholder,
+  ariaLabel,
+  className,
+  id,
+  inputMode,
+}: {
+  value: string;
+  onSave: (v: string | null) => void;
+  placeholder?: string;
+  ariaLabel: string;
+  className?: string;
+  id?: string;
+  inputMode?: "text" | "email" | "tel" | "decimal";
+}) {
+  const [draft, setDraft] = useState(value);
+  const [prev, setPrev] = useState(value);
+  const ref = useRef<HTMLInputElement>(null);
+  if (prev !== value) {
+    setPrev(value);
+    setDraft(value);
+  }
+  const commit = () => {
+    const v = draft.trim();
+    if (v !== value.trim()) onSave(v || null);
+  };
+  return (
+    <input
+      ref={ref}
+      id={id}
+      className={`${css.inline} ${className ?? ""}`}
+      value={draft}
+      placeholder={placeholder}
+      aria-label={ariaLabel}
+      inputMode={inputMode}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          ref.current?.blur();
+        } else if (e.key === "Escape") {
+          e.stopPropagation();
+          setDraft(value);
+          requestAnimationFrame(() => ref.current?.blur());
+        }
+      }}
+    />
   );
 }

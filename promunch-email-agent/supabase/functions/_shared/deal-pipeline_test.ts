@@ -4,9 +4,12 @@ import {
   companyDomainOf,
   computeFollowUp,
   extractAddress,
+  humanDecisionStands,
   isNoiseSender,
   mergeStage,
-  shouldGoDormant,
+  shouldPutOnHold,
+  toAiStage,
+  toPipelineStage,
 } from "./deal-pipeline.ts";
 import { parseExtraction } from "./deal-extract.ts";
 
@@ -14,26 +17,42 @@ const DAY = 86_400_000;
 const NOW = 1_800_000_000_000; // fixed clock for determinism
 
 Deno.test("mergeStage ratchets forward, never backwards", () => {
-  assertEquals(mergeStage("in_discussion", "negotiation", false), "negotiation");
-  assertEquals(mergeStage("negotiation", "in_discussion", false), "negotiation");
-  assertEquals(mergeStage("samples_sent", "samples_requested", false), "samples_sent");
+  assertEquals(mergeStage("talking", "negotiating", false), "negotiating");
+  assertEquals(mergeStage("negotiating", "talking", false), "negotiating");
+  assertEquals(mergeStage("samples", "talking", false), "samples");
 });
 
 Deno.test("mergeStage: manual override always wins", () => {
-  assertEquals(mergeStage("won", "new_inquiry", true), "won");
-  assertEquals(mergeStage("in_discussion", "won", true), "in_discussion");
+  assertEquals(mergeStage("won", "new", true), "won");
+  assertEquals(mergeStage("talking", "won", true), "talking");
 });
 
 Deno.test("mergeStage: AI may close a deal; terminal stages stick", () => {
-  assertEquals(mergeStage("negotiation", "lost", false), "lost");
-  assertEquals(mergeStage("in_discussion", "won", false), "won");
-  assertEquals(mergeStage("won", "negotiation", false), "won");
-  assertEquals(mergeStage("lost", "in_discussion", false), "lost");
+  assertEquals(mergeStage("negotiating", "lost", false), "lost");
+  assertEquals(mergeStage("talking", "won", false), "won");
+  assertEquals(mergeStage("won", "negotiating", false), "won");
+  assertEquals(mergeStage("lost", "talking", false), "lost");
 });
 
-Deno.test("mergeStage: any signal revives a dormant deal", () => {
-  assertEquals(mergeStage("dormant", "new_inquiry", false), "new_inquiry");
-  assertEquals(mergeStage("dormant", "negotiation", false), "negotiation");
+Deno.test("mergeStage: any signal revives an on-hold deal", () => {
+  assertEquals(mergeStage("on_hold", "new", false), "new");
+  assertEquals(mergeStage("on_hold", "negotiating", false), "negotiating");
+});
+
+Deno.test("stage mapping: AI / old DB names to pipeline and back", () => {
+  assertEquals(toPipelineStage("samples_sent"), "samples");
+  assertEquals(toPipelineStage("samples_requested"), "samples");
+  assertEquals(toPipelineStage("dormant"), "on_hold");
+  assertEquals(toPipelineStage("negotiating"), "negotiating");
+  assertEquals(toPipelineStage("???"), "new");
+  assertEquals(toAiStage("talking"), "in_discussion");
+});
+
+Deno.test("humanDecisionStands until they write in after it", () => {
+  assertEquals(humanDecisionStands(null, NOW), false);
+  assertEquals(humanDecisionStands(NOW, null), true);
+  assertEquals(humanDecisionStands(NOW, NOW - DAY), true);
+  assertEquals(humanDecisionStands(NOW - DAY, NOW), false);
 });
 
 Deno.test("isNoiseSender flags machine mail, passes humans", () => {
@@ -60,41 +79,41 @@ Deno.test("companyDomainOf: corporate domains yes, freemail no", () => {
 
 Deno.test("computeFollowUp: inbound waiting on our reply", () => {
   const fu = computeFollowUp({
-    stage: "in_discussion",
+    stage: "talking",
     lastEmailAtMs: NOW - 3 * DAY,
     lastDirection: "inbound",
     samplesSentAtMs: null,
   }, NOW);
   assertEquals(fu.needed, true);
-  assertEquals(fu.reason, "Their message is waiting on our reply (3d)");
+  assertEquals(fu.reason, "Their message has waited 3 days for our reply");
 });
 
 Deno.test("computeFollowUp: samples aging beats outbound-nudge rule", () => {
   const fu = computeFollowUp({
-    stage: "samples_sent",
+    stage: "samples",
     lastEmailAtMs: NOW - 6 * DAY,
     lastDirection: "outbound",
     samplesSentAtMs: NOW - 9 * DAY,
   }, NOW);
   assertEquals(fu.needed, true);
-  assertEquals(fu.reason, "Samples sent 9d ago with no feedback — nudge them");
+  assertEquals(fu.reason, "Samples sent 9 days ago with no feedback. Nudge them");
 });
 
 Deno.test("computeFollowUp: quiet counterparty gets a nudge after 5d", () => {
   const fu = computeFollowUp({
-    stage: "negotiation",
+    stage: "negotiating",
     lastEmailAtMs: NOW - 6 * DAY,
     lastDirection: "outbound",
     samplesSentAtMs: null,
   }, NOW);
   assertEquals(fu.needed, true);
-  assertEquals(fu.reason, "No reply from them in 6d — send a nudge");
+  assertEquals(fu.reason, "No reply from them in 6 days. Send a nudge");
 });
 
 Deno.test("computeFollowUp: fresh threads and closed deals stay quiet", () => {
   assertEquals(
     computeFollowUp({
-      stage: "in_discussion",
+      stage: "talking",
       lastEmailAtMs: NOW - DAY,
       lastDirection: "inbound",
       samplesSentAtMs: null,
@@ -123,7 +142,7 @@ Deno.test("computeFollowUp: fresh threads and closed deals stay quiet", () => {
 
 Deno.test("computeFollowUp: AI flag is the fallback", () => {
   const fu = computeFollowUp({
-    stage: "new_inquiry",
+    stage: "new",
     lastEmailAtMs: NOW - DAY,
     lastDirection: "outbound",
     samplesSentAtMs: null,
@@ -134,12 +153,13 @@ Deno.test("computeFollowUp: AI flag is the fallback", () => {
   assertEquals(fu.reason, "Expo payment deadline approaching");
 });
 
-Deno.test("shouldGoDormant: 45d of silence, unless pinned or terminal", () => {
-  assertEquals(shouldGoDormant("in_discussion", NOW - 50 * DAY, false, NOW), true);
-  assertEquals(shouldGoDormant("in_discussion", NOW - 10 * DAY, false, NOW), false);
-  assertEquals(shouldGoDormant("in_discussion", NOW - 50 * DAY, true, NOW), false);
-  assertEquals(shouldGoDormant("won", NOW - 90 * DAY, false, NOW), false);
-  assertEquals(shouldGoDormant("dormant", NOW - 90 * DAY, false, NOW), false);
+Deno.test("shouldPutOnHold: 45d of silence, unless pinned, terminal or recently decided", () => {
+  assertEquals(shouldPutOnHold("talking", NOW - 50 * DAY, false, NOW), true);
+  assertEquals(shouldPutOnHold("talking", NOW - 10 * DAY, false, NOW), false);
+  assertEquals(shouldPutOnHold("talking", NOW - 50 * DAY, true, NOW), false);
+  assertEquals(shouldPutOnHold("won", NOW - 90 * DAY, false, NOW), false);
+  assertEquals(shouldPutOnHold("on_hold", NOW - 90 * DAY, false, NOW), false);
+  assertEquals(shouldPutOnHold("talking", NOW - 50 * DAY, false, NOW, NOW - 3 * DAY), false);
 });
 
 Deno.test("buildTranscript labels directions and drops the middle of long threads", () => {

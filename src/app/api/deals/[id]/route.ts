@@ -1,84 +1,86 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/leads/auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { ALL_KINDS, ALL_STAGES } from "@/components/deals/constants";
+import { parseDealPatch } from "@/lib/deals/patch";
+import { addActivity, getDeal, listActivity, updateDeal } from "@/lib/deals/repo";
+import { dealActor, UUID_RE } from "@/lib/deals/session";
 
 export const dynamic = "force-dynamic";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+type Ctx = { params: Promise<{ id: string }> };
 
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const denied = await requireSession();
-  if (denied) return denied;
+// One deal: the row, its emails, its activity log (newest first).
+export async function GET(_req: NextRequest, ctx: Ctx) {
+  const who = await dealActor();
+  if ("denied" in who) return who.denied;
   const { id } = await ctx.params;
   if (!UUID_RE.test(id)) return NextResponse.json({ error: "bad id" }, { status: 400 });
 
-  const [{ data: deal, error }, { data: emails }] = await Promise.all([
-    supabaseAdmin.from("deals").select("*").eq("id", id).maybeSingle(),
-    supabaseAdmin
-      .from("deal_emails")
-      .select("id, deal_id, gmail_message_id, gmail_thread_id, direction, from_email, to_email, subject, snippet, sent_at")
-      .eq("deal_id", id)
-      .order("sent_at", { ascending: true })
-      .limit(200),
-  ]);
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!deal) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json({ deal, emails: emails ?? [] });
+  try {
+    const [deal, { data: emails }, activity] = await Promise.all([
+      getDeal(id),
+      supabaseAdmin
+        .from("deal_emails")
+        .select("id, deal_id, gmail_message_id, gmail_thread_id, direction, from_email, to_email, subject, snippet, sent_at")
+        .eq("deal_id", id)
+        .order("sent_at", { ascending: false })
+        .limit(200),
+      listActivity(id),
+    ]);
+    if (!deal) return NextResponse.json({ error: "This deal no longer exists." }, { status: 404 });
+    return NextResponse.json({ deal, emails: emails ?? [], activity: activity.rows, schema_ready: activity.ready });
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "failed" }, { status: 500 });
+  }
 }
 
-// Manual edits from the drawer. A hand-set stage flips manual_stage_override
-// so the scanner never fights the human.
-export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const denied = await requireSession();
-  if (denied) return denied;
+// Edits from the board and drawer. Contract in src/lib/deals/patch.ts.
+// A hand-set stage pins it (manual_stage_override); stage / next step /
+// follow-up edits stamp human_touched_at so the scanner leaves them alone.
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  const who = await dealActor();
+  if ("denied" in who) return who.denied;
   const { id } = await ctx.params;
   if (!UUID_RE.test(id)) return NextResponse.json({ error: "bad id" }, { status: 400 });
 
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "bad json" }, { status: 400 });
   }
 
-  const patch: Record<string, unknown> = {};
-  if (typeof body.company_name === "string" && body.company_name.trim()) {
-    patch.company_name = body.company_name.trim().slice(0, 200);
-  }
-  if (typeof body.kind === "string" && (ALL_KINDS as string[]).includes(body.kind)) {
-    patch.kind = body.kind;
-    patch.manual_kind_override = true;
-  }
-  if (typeof body.stage === "string" && (ALL_STAGES as string[]).includes(body.stage)) {
-    patch.stage = body.stage;
-    patch.stage_updated_at = new Date().toISOString();
-    patch.manual_stage_override = true;
-    if (body.stage === "samples_sent") patch.samples_sent_at = new Date().toISOString();
-  }
-  if (typeof body.next_step === "string") patch.next_step = body.next_step.slice(0, 500) || null;
-  if (body.next_step_owner === "us" || body.next_step_owner === "them" || body.next_step_owner === null) {
-    patch.next_step_owner = body.next_step_owner;
-  }
-  if (typeof body.follow_up_needed === "boolean") {
-    patch.follow_up_needed = body.follow_up_needed;
-    if (!body.follow_up_needed) patch.follow_up_reason = null;
-  }
-  if (typeof body.notes === "string") patch.notes = body.notes.slice(0, 4000) || null;
+  try {
+    const current = await getDeal(id);
+    if (!current) return NextResponse.json({ error: "This deal no longer exists." }, { status: 404 });
+    const parsed = parseDealPatch(body, current);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
-  if (Object.keys(patch).length === 0) {
-    return NextResponse.json({ error: "no editable fields in body" }, { status: 400 });
+    const { patch, activities } = parsed.value;
+    const deal = Object.keys(patch).length ? await updateDeal(id, patch, current.notes) : current;
+    if (!deal) return NextResponse.json({ error: "This deal no longer exists." }, { status: 404 });
+    if (activities.length) {
+      await addActivity(id, activities, who.actor.email).catch((e) => console.error("[deals] activity failed", e));
+    }
+    return NextResponse.json({ deal });
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "save failed" }, { status: 500 });
   }
+}
 
-  const { data, error } = await supabaseAdmin
-    .from("deals")
-    .update(patch)
-    .eq("id", id)
-    .select()
-    .maybeSingle();
+// Delete a deal (the UI asks to confirm first). Its activity goes with it;
+// its emails stay in the scan ledger, unlinked, so a rescan does not
+// recreate the deal from the same messages.
+export async function DELETE(_req: NextRequest, ctx: Ctx) {
+  const who = await dealActor();
+  if ("denied" in who) return who.denied;
+  const { id } = await ctx.params;
+  if (!UUID_RE.test(id)) return NextResponse.json({ error: "bad id" }, { status: 400 });
 
+  // deal_emails.deal_id cascades on delete; detach first so the ledger rows
+  // (the scanner's idempotency set) survive.
+  const { error: detachErr } = await supabaseAdmin.from("deal_emails").update({ deal_id: null }).eq("deal_id", id);
+  if (detachErr) return NextResponse.json({ error: detachErr.message }, { status: 500 });
+  const { error } = await supabaseAdmin.from("deals").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!data) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json({ deal: data });
+  return NextResponse.json({ ok: true });
 }

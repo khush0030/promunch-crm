@@ -11,6 +11,16 @@
 //                 threads, one small page per invocation (cron chews through it)
 //   incremental — after backfill, each run picks up threads newer than the
 //                 watermark (with a 6h overlap for safety)
+//
+// Human decisions win (Oct 10 2026): a stage set by hand is never moved
+// (manual_stage_override), and once a person sets the next step / follow-up
+// / stage (deals.human_touched_at) the scanner leaves next step and
+// follow-up alone until a NEW inbound email arrives after that moment. The
+// scanner still creates deals, attaches mail, refreshes the AI read and
+// appends to the activity log (deal_activity, author 'scanner').
+// Stages are the simplified pipeline names (new/talking/samples/
+// negotiating/won/lost/on_hold); before migration 20261010100000 is applied
+// it writes the old names instead (schemaV2 probe below).
 
 import { requireInternal } from "../_shared/require-internal.ts";
 import { db } from "../_shared/supabase.ts";
@@ -22,11 +32,14 @@ import {
   buildTranscript,
   companyDomainOf,
   computeFollowUp,
-  type DealStage,
   extractAddress,
+  humanDecisionStands,
   isNoiseSender,
   mergeStage,
-  shouldGoDormant,
+  type PipelineStage,
+  shouldPutOnHold,
+  toAiStage,
+  toPipelineStage,
 } from "../_shared/deal-pipeline.ts";
 
 const MAILBOX = Deno.env.get("MAILBOX_EMAIL") ?? "hello@promunch.in";
@@ -50,11 +63,42 @@ interface DealRow {
   kind: string;
   contact_name: string | null;
   contact_email: string | null;
-  stage: DealStage;
+  stage: string;
   samples_sent_at: string | null;
   first_email_at: string | null;
   manual_stage_override: boolean;
   manual_kind_override: boolean;
+  human_touched_at?: string | null;
+}
+
+const BASE_SEL =
+  "id, company_name, company_domain, kind, contact_name, contact_email, stage, samples_sent_at, first_email_at, manual_stage_override, manual_kind_override";
+
+// Is the deals_simplify migration applied? Probed once per invocation.
+let schemaV2 = false;
+async function probeSchema() {
+  const { error } = await db().from("deals").select("id, human_touched_at, follow_up_at").limit(1);
+  schemaV2 = !error;
+}
+function dealSel(): string {
+  return schemaV2 ? `${BASE_SEL}, human_touched_at` : BASE_SEL;
+}
+/** Pipeline stage as the DB of this moment wants it. */
+function dbStage(s: PipelineStage): string {
+  return schemaV2 ? s : toAiStage(s);
+}
+const ms = (iso: string | null | undefined) => (iso ? new Date(iso).getTime() : null);
+
+/** Append to the deal's activity log; silently skipped before the migration. */
+async function logActivity(dealId: string, kind: "email" | "stage" | "system", body: string) {
+  if (!schemaV2) return;
+  const { error } = await db().from("deal_activity").insert({
+    deal_id: dealId,
+    kind,
+    body: body.slice(0, 4000),
+    author: "scanner",
+  });
+  if (error) console.error("[deal-scan] activity insert failed", error.message);
 }
 
 Deno.serve(async (req) => {
@@ -81,6 +125,7 @@ Deno.serve(async (req) => {
   if (!claimed?.length) return json({ ok: true, locked: true });
 
   try {
+    await probeSchema();
     // mode=insights re-reads threads of deals that predate sentiment analysis;
     // mode=reclassify re-judges `kind` for deals a human has not pinned
     const stats = body.mode === "insights"
@@ -234,9 +279,8 @@ async function processThread(
 
   let existing: DealRow | null = null;
   if (existingDealId) {
-    const { data } = await db().from("deals").select(
-      "id, company_name, company_domain, kind, contact_name, contact_email, stage, samples_sent_at, first_email_at, manual_stage_override, manual_kind_override",
-    ).eq("id", existingDealId).maybeSingle();
+    const { data } = await db().from("deals").select(dealSel()).eq("id", existingDealId)
+      .maybeSingle();
     existing = (data as DealRow | null) ?? null;
   }
 
@@ -254,7 +298,11 @@ async function processThread(
   const ex = await extractDeal(
     transcript,
     existing
-      ? { company_name: existing.company_name, stage: existing.stage, kind: existing.kind }
+      ? {
+        company_name: existing.company_name,
+        stage: toAiStage(toPipelineStage(existing.stage)),
+        kind: existing.kind,
+      }
       : null,
   );
 
@@ -272,13 +320,20 @@ async function processThread(
   const lastDir = (lastMsg.email.from_email ?? "").toLowerCase().includes(MAILBOX)
     ? "outbound"
     : "inbound";
+  const inboundTimes = msgs
+    .filter((m) => !(m.email.from_email ?? "").toLowerCase().includes(MAILBOX))
+    .map((m) => m.internalDateMs)
+    .filter((t) => t > 0);
+  const lastInboundMs = inboundTimes.length ? Math.max(...inboundTimes) : null;
+  const aiStage = toPipelineStage(ex.stage);
+  const newSubject = newMsgs[newMsgs.length - 1]?.email.subject ?? null;
 
   let dealId: string;
   let outcome: Outcome;
 
   if (!existing) {
     const fu = computeFollowUp({
-      stage: ex.stage,
+      stage: aiStage,
       lastEmailAtMs: lastMs,
       lastDirection: lastDir,
       samplesSentAtMs: ex.samples_sent ? lastMs : null,
@@ -291,7 +346,7 @@ async function processThread(
       kind: ex.kind,
       contact_name: ex.contact_name,
       contact_email: ex.contact_email ?? threadContactEmail(msgs),
-      stage: ex.stage,
+      stage: dbStage(aiStage),
       samples_sent_at: ex.samples_sent ? new Date(lastMs).toISOString() : null,
       next_step: ex.next_step,
       next_step_owner: ex.next_step_owner,
@@ -309,6 +364,7 @@ async function processThread(
     if (error) throw new Error(`deals insert failed: ${error.message}`);
     dealId = (data as { id: string }).id;
     outcome = "created";
+    await logActivity(dealId, "email", `Found in the inbox${newSubject ? `: ${newSubject}` : ""}`);
 
     // Fresh wholesale / partnership lead → WhatsApp the lead desk once.
     // Claim-guarded on the deal id, so a rescan can never re-ping. Recency
@@ -327,7 +383,11 @@ async function processThread(
       }).catch((e) => console.error("[deal-scan] lead desk ping failed", e));
     }
   } else {
-    const stage = mergeStage(existing.stage, ex.stage, existing.manual_stage_override);
+    const before = toPipelineStage(existing.stage);
+    const stage = mergeStage(before, aiStage, existing.manual_stage_override);
+    // A human set the next step / follow-up and nothing new came in from
+    // them since: leave those fields exactly as the human left them.
+    const humanStands = humanDecisionStands(ms(existing.human_touched_at), lastInboundMs);
     const samplesSentAt = existing.samples_sent_at ??
       (ex.samples_sent ? new Date(lastMs).toISOString() : null);
     const fu = computeFollowUp({
@@ -339,7 +399,7 @@ async function processThread(
       aiReason: ex.follow_up_reason,
     }, Date.now());
     const patch: Record<string, unknown> = {
-      stage,
+      stage: dbStage(stage),
       // The scanner may correct a misclassified kind (e.g. an influencer
       // collab filed under HoReCa) unless a human set it from the dashboard.
       kind: existing.manual_kind_override || !ex.is_deal || ex.kind === "other"
@@ -348,10 +408,12 @@ async function processThread(
       contact_name: existing.contact_name ?? ex.contact_name,
       contact_email: existing.contact_email ?? ex.contact_email,
       samples_sent_at: samplesSentAt,
-      next_step: ex.next_step,
-      next_step_owner: ex.next_step_owner,
-      follow_up_needed: fu.needed,
-      follow_up_reason: fu.reason,
+      ...(humanStands ? {} : {
+        next_step: ex.next_step,
+        next_step_owner: ex.next_step_owner,
+        follow_up_needed: fu.needed,
+        follow_up_reason: fu.reason,
+      }),
       commercials: ex.commercials ?? undefined,
       summary: ex.summary ?? undefined,
       last_email_at: new Date(lastMs).toISOString(),
@@ -364,11 +426,19 @@ async function processThread(
       interest_temp: ex.temperature,
       insights: insightsOf(ex),
     };
-    if (stage !== existing.stage) patch.stage_updated_at = new Date().toISOString();
+    if (stage !== before) patch.stage_updated_at = new Date().toISOString();
     const { error } = await db().from("deals").update(patch).eq("id", existing.id);
     if (error) throw new Error(`deals update failed: ${error.message}`);
     dealId = existing.id;
     outcome = "updated";
+    await logActivity(
+      dealId,
+      "email",
+      `${newMsgs.length} new ${newMsgs.length === 1 ? "email" : "emails"}${newSubject ? `: ${newSubject}` : ""}`,
+    );
+    if (stage !== before) {
+      await logActivity(dealId, "stage", `Inbox check moved it from ${STAGE_NAME[before]} to ${STAGE_NAME[stage]}`);
+    }
   }
 
   await insertLedger(newMsgs, dealId);
@@ -390,8 +460,7 @@ async function processThread(
 // match must be corroborated by the same contact email, or the candidate must
 // have no contact identity at all to contradict.
 async function matchDeal(ex: DealExtraction, msgs: ThreadMessage[]): Promise<DealRow | null> {
-  const sel =
-    "id, company_name, company_domain, kind, contact_name, contact_email, stage, samples_sent_at, first_email_at, manual_stage_override, manual_kind_override";
+  const sel = dealSel();
   // Same contact first: a person who filled the promunch.in bulk form already
   // has a deal (contact_email set, often a personal Gmail with no company
   // domain), so their reply must land on it instead of opening a duplicate.
@@ -400,19 +469,19 @@ async function matchDeal(ex: DealExtraction, msgs: ThreadMessage[]): Promise<Dea
     const { data } = await db().from("deals").select(sel).ilike("contact_email", contact)
       .not("stage", "in", "(won,lost)")
       .order("created_at", { ascending: false }).limit(1);
-    if (data?.length) return data[0] as DealRow;
+    if (data?.length) return data[0] as unknown as DealRow;
   }
   const domain = ex.company_domain ?? threadCompanyDomain(msgs);
   if (domain) {
     const { data } = await db().from("deals").select(sel).ilike("company_domain", domain)
       .order("created_at", { ascending: false }).limit(1);
-    if (data?.length) return data[0] as DealRow;
+    if (data?.length) return data[0] as unknown as DealRow;
   }
   if (ex.company_name) {
     const { data } = await db().from("deals").select(sel).ilike("company_name", ex.company_name)
       .order("created_at", { ascending: false }).limit(1);
     if (data?.length) {
-      const cand = data[0] as DealRow;
+      const cand = data[0] as unknown as DealRow;
       const email = (ex.contact_email ?? threadContactEmail(msgs))?.toLowerCase() ?? null;
       const sameContact = !!email && !!cand.contact_email &&
         cand.contact_email.toLowerCase() === email;
@@ -443,33 +512,56 @@ async function insertLedger(msgs: ThreadMessage[], dealId: string | null) {
   if (error) throw new Error(`deal_emails insert failed: ${error.message}`);
 }
 
-// Refresh follow-up flags + auto-dormancy across the live pipeline, so flags
-// age correctly even when no new mail arrives.
+// Refresh follow-up flags + auto on-hold across the live pipeline, so flags
+// age correctly even when no new mail arrives. Never touches a deal whose
+// follow-up a human decided (human_touched_at, or a follow-up date) unless
+// they have written to us since.
 async function sweepFollowUps() {
-  const { data } = await db()
-    .from("deals")
-    .select(
-      "id, stage, last_email_at, last_email_direction, samples_sent_at, manual_stage_override, follow_up_needed, follow_up_reason",
-    )
-    .not("stage", "in", "(won,lost)");
+  const cols = schemaV2
+    ? "id, stage, last_email_at, last_email_direction, samples_sent_at, manual_stage_override, follow_up_needed, follow_up_reason, human_touched_at, follow_up_at"
+    : "id, stage, last_email_at, last_email_direction, samples_sent_at, manual_stage_override, follow_up_needed, follow_up_reason";
+  const { data } = await db().from("deals").select(cols).not("stage", "in", "(won,lost)");
   const now = Date.now();
-  for (const d of data ?? []) {
-    const lastMs = d.last_email_at ? new Date(d.last_email_at).getTime() : null;
-    let stage = d.stage as DealStage;
-    if (shouldGoDormant(stage, lastMs, d.manual_stage_override, now)) stage = "dormant";
+  for (const raw of (data ?? []) as unknown as Record<string, unknown>[]) {
+    const d = raw as {
+      id: string;
+      stage: string;
+      last_email_at: string | null;
+      last_email_direction: "inbound" | "outbound" | null;
+      samples_sent_at: string | null;
+      manual_stage_override: boolean;
+      follow_up_needed: boolean;
+      follow_up_reason: string | null;
+      human_touched_at?: string | null;
+      follow_up_at?: string | null;
+    };
+    const lastMs = ms(d.last_email_at);
+    const lastInboundMs = d.last_email_direction === "inbound" ? lastMs : null;
+    const humanMs = ms(d.human_touched_at);
+    if (humanDecisionStands(humanMs, lastInboundMs) || d.follow_up_at) continue;
+
+    const before = toPipelineStage(d.stage);
+    let stage = before;
+    if (shouldPutOnHold(stage, lastMs, d.manual_stage_override, now, humanMs)) stage = "on_hold";
     const fu = computeFollowUp({
       stage,
       lastEmailAtMs: lastMs,
-      lastDirection: (d.last_email_direction as "inbound" | "outbound" | null) ?? null,
-      samplesSentAtMs: d.samples_sent_at ? new Date(d.samples_sent_at).getTime() : null,
+      lastDirection: d.last_email_direction ?? null,
+      samplesSentAtMs: ms(d.samples_sent_at),
     }, now);
-    if (stage !== d.stage || fu.needed !== d.follow_up_needed || fu.reason !== d.follow_up_reason) {
+    if (stage !== before || fu.needed !== d.follow_up_needed || fu.reason !== d.follow_up_reason) {
       await db().from("deals").update({
-        stage,
-        ...(stage !== d.stage ? { stage_updated_at: new Date().toISOString() } : {}),
+        stage: dbStage(stage),
+        ...(stage !== before
+          ? {
+            stage_updated_at: new Date().toISOString(),
+            ...(schemaV2 ? { closed_reason: "No emails for 45 days" } : {}),
+          }
+          : {}),
         follow_up_needed: fu.needed,
         follow_up_reason: fu.reason,
       }).eq("id", d.id);
+      if (stage !== before) await logActivity(d.id, "stage", "Put on hold: no emails for 45 days");
     }
   }
 }
@@ -511,7 +603,7 @@ async function refreshInsights(max: number) {
       );
       const ex = await extractDeal(transcript, {
         company_name: d.company_name,
-        stage: d.stage,
+        stage: toAiStage(toPipelineStage(d.stage)),
         kind: d.kind,
       });
       await db().from("deals").update({
@@ -578,7 +670,7 @@ async function reclassifyKinds(max: number, afterId: string | null) {
       );
       const ex = await extractDeal(transcript, {
         company_name: d.company_name,
-        stage: d.stage,
+        stage: toAiStage(toPipelineStage(d.stage)),
         kind: d.kind,
       });
       scanned++;
@@ -688,11 +780,13 @@ async function splitFrankenDeals(max: number, afterId: string | null) {
             kind: deal.manual_kind_override || !ex.is_deal || ex.kind === "other"
               ? deal.kind
               : ex.kind,
-            stage: deal.manual_stage_override ? deal.stage : ex.stage,
+            stage: deal.manual_stage_override ? deal.stage : dbStage(toPipelineStage(ex.stage)),
             contact_name: ex.contact_name ?? deal.contact_name,
             contact_email: ex.contact_email ?? deal.contact_email,
-            next_step: ex.next_step,
-            next_step_owner: ex.next_step_owner,
+            ...(deal.human_touched_at ? {} : {
+              next_step: ex.next_step,
+              next_step_owner: ex.next_step_owner,
+            }),
             commercials: ex.commercials,
             summary: ex.summary,
             ai_confidence: ex.confidence,
@@ -733,7 +827,7 @@ async function splitFrankenDeals(max: number, afterId: string | null) {
           ? "outbound"
           : "inbound";
         const fu = computeFollowUp({
-          stage: ex.stage,
+          stage: toPipelineStage(ex.stage),
           lastEmailAtMs: tLast,
           lastDirection: lastDir,
           samplesSentAtMs: ex.samples_sent ? tLast : null,
@@ -746,7 +840,7 @@ async function splitFrankenDeals(max: number, afterId: string | null) {
           kind: ex.kind,
           contact_name: ex.contact_name,
           contact_email: ex.contact_email ?? threadContactEmail(msgs),
-          stage: ex.stage,
+          stage: dbStage(toPipelineStage(ex.stage)),
           samples_sent_at: ex.samples_sent ? new Date(tLast).toISOString() : null,
           next_step: ex.next_step,
           next_step_owner: ex.next_step_owner,
@@ -809,6 +903,16 @@ async function recountDeal(dealId: string) {
     last_email_direction: data[data.length - 1].direction,
   }).eq("id", dealId);
 }
+
+const STAGE_NAME: Record<PipelineStage, string> = {
+  new: "New",
+  talking: "Talking",
+  samples: "Samples",
+  negotiating: "Negotiating",
+  won: "Won",
+  lost: "Lost",
+  on_hold: "On hold",
+};
 
 function fallbackCompanyName(msgs: ThreadMessage[]): string {
   const firstInbound = msgs.find((m) =>

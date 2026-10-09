@@ -14,6 +14,8 @@ import { sendEmail } from "@/lib/resend";
 import { renderBulkInquiryEmail } from "./email";
 import { TEAM_ALERT_FROM, renderTeamAlertEmail } from "./team-email";
 import { buildOpener } from "./opener";
+import { addActivity, findOpenDuplicate, insertDeal, updateDeal } from "@/lib/deals/repo";
+import { normalizePhone } from "@/lib/deals/model";
 import {
   PRODUCTS,
   QUANTITY_BANDS,
@@ -78,8 +80,9 @@ export async function intakeBulkInquiry(q: BulkInquiryInput, userAgent: string |
   const row = inserted as Row;
 
   // 2. Deal board. Failure here must not block the customer email.
+  let dealId: string | null = null;
   try {
-    await attachDeal(row, q);
+    dealId = await attachDeal(row, q);
   } catch (e) {
     console.error("[bulk-inquiry] deal attach failed", e);
   }
@@ -89,14 +92,20 @@ export async function intakeBulkInquiry(q: BulkInquiryInput, userAgent: string |
 
   // 4. Team email alert. Never blocks or fails the customer flow.
   try {
-    await sendTeamAlert(row, q, emailStatus);
+    await sendTeamAlert(row, q, emailStatus, dealId);
   } catch (e) {
     console.error("[bulk-inquiry] team alert failed", e);
   }
   return { refNo: row.ref_no, duplicate: false, emailStatus };
 }
 
-async function attachDeal(row: Row, q: BulkInquiryInput) {
+// Bulk form -> deal (source bulk_form, ref B-<n>, phone in contact_phone).
+// The follow-up is due today and stamped as a deliberate decision
+// (human_touched_at) so the 30-min deal-scan never clears it. A repeat
+// submission from the same email or phone reuses the open deal and adds an
+// activity entry. Works before the deals_simplify migration too (repo.ts
+// falls back to the old columns and notes).
+async function attachDeal(row: Row, q: BulkInquiryInput): Promise<string> {
   const db = supabaseAdmin;
   const uc = USE_CASES[q.useCase];
   const products = q.products.map((p) => PRODUCTS[p]).join(", ");
@@ -108,52 +117,56 @@ async function attachDeal(row: Row, q: BulkInquiryInput) {
     products ? `products: ${products}` : null,
   ].filter(Boolean).join(" · ");
   const now = new Date().toISOString();
+  const today = istDay();
+  const ref = `B-${row.ref_no}`;
+  const phone = normalizePhone(q.phone);
+  const note = `Bulk form ${ref}: ${facts}.${q.notes ? ` Note: ${q.notes}` : ""}`;
 
-  // Same person already has an open deal (repeat submission): reuse it.
-  const { data: open } = await db
-    .from("deals")
-    .select("id, notes")
-    .ilike("contact_email", q.email)
-    .not("stage", "in", "(won,lost)")
-    .order("created_at", { ascending: false })
-    .limit(1);
-
-  const note = `Bulk form B-${row.ref_no} (${istDay()}): ${facts}. Phone ${q.phone}.${q.notes ? ` Note: ${q.notes}` : ""}`;
+  const open = await findOpenDuplicate({ source_ref: null, contact_email: q.email.toLowerCase(), contact_phone: phone });
 
   let dealId: string;
-  if (open?.length) {
-    dealId = open[0].id;
-    await db.from("deals").update({
-      notes: [open[0].notes, note].filter(Boolean).join("\n\n").slice(0, 8000),
+  if (open) {
+    dealId = open.id;
+    await updateDeal(dealId, {
       follow_up_needed: true,
       follow_up_reason: "New bulk form submission",
+      follow_up_at: today,
+      human_touched_at: now,
       next_step: "Send quote",
       next_step_owner: "us",
       last_email_at: now,
       last_email_direction: "inbound",
-    }).eq("id", dealId);
+      ...(open.contact_phone || !phone ? {} : { contact_phone: phone }),
+    }, open.notes);
   } else {
-    const { data, error } = await db.from("deals").insert({
+    const deal = await insertDeal({
       company_name: q.company,
       company_domain: companyDomain(q.email),
       kind: uc.dealKind,
       contact_name: q.name,
       contact_email: q.email,
-      stage: "new_inquiry",
+      contact_phone: phone,
+      stage: "new",
       next_step: "Send quote",
       next_step_owner: "us",
       follow_up_needed: true,
       follow_up_reason: "New bulk form submission",
+      follow_up_at: today,
+      human_touched_at: now,
+      source: "bulk_form",
+      source_ref: ref,
       summary: `${q.name} from ${q.company} asked for a bulk quote via promunch.in: ${facts}.`,
-      notes: note,
       first_email_at: now,
       last_email_at: now,
       last_email_direction: "inbound",
-    }).select("id").single();
-    if (error) throw new Error(`deals insert: ${error.message}`);
-    dealId = data.id;
+    });
+    dealId = deal.id;
   }
+  await addActivity(dealId, [{ kind: "system", body: note }], "bulk_form").catch((e) =>
+    console.error("[bulk-inquiry] deal activity failed", e),
+  );
   await db.from("bulk_inquiries").update({ deal_id: dealId }).eq("id", row.id);
+  return dealId;
 }
 
 async function sendAutoReply(row: Row, q: BulkInquiryInput): Promise<string> {
@@ -227,7 +240,7 @@ async function sendAutoReply(row: Row, q: BulkInquiryInput): Promise<string> {
 const DEFAULT_TEAM = ["hello@promunch.in", "parth.mutha@vippysoya.com"];
 
 /** One internal email per inquiry to the team list (claimed pending→sending). */
-async function sendTeamAlert(row: Row, q: BulkInquiryInput, emailStatus: string) {
+async function sendTeamAlert(row: Row, q: BulkInquiryInput, emailStatus: string, dealId: string | null) {
   const db = supabaseAdmin;
   const { data: claimed } = await db
     .from("bulk_inquiries")
@@ -246,7 +259,7 @@ async function sendTeamAlert(row: Row, q: BulkInquiryInput, emailStatus: string)
   }
 
   const base = (process.env.SITE_APP_URL || "https://admin.promunch.in").replace(/\/+$/, "");
-  const mail = renderTeamAlertEmail({ inquiry: q, refNo: row.ref_no, autoReply: emailStatus, crmUrl: `${base}/dashboard/deals` });
+  const mail = renderTeamAlertEmail({ inquiry: q, refNo: row.ref_no, autoReply: emailStatus, crmUrl: `${base}/dashboard/deals${dealId ? `?deal=${dealId}` : ""}` });
   try {
     const res = await sendEmail({ to, subject: mail.subject, html: mail.html, text: mail.text, from: TEAM_ALERT_FROM, replyTo: q.email });
     const err = (res as { error?: { message?: string } | null }).error;

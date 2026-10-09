@@ -1,153 +1,182 @@
 "use client";
 
-// Notion-style kanban for the deal pipeline: one column per live stage plus
-// Closed, drag a card to move it (PATCH sets the stage and flips
-// manual_stage_override so the scanner never fights the human). Cards open
-// the same DealDrawer as the list view.
+// Kanban for the deal pipeline: five live columns (New, Talking, Samples,
+// Negotiating, Won), each with a count and a ₹ total, plus a collapsible
+// Closed section (Lost, On hold) underneath. Cards move three ways:
+//   - drag and drop (mouse)
+//   - "Move to <next>" button (one tap, phones)
+//   - the stage menu on each card (any stage; Lost / On hold ask why)
 
 import { useState } from "react";
-import { StatusBadge } from "@/components/pm";
-import {
-  BOARD_STAGES,
-  KIND_LABEL,
-  STAGE_LABEL,
-  STAGE_TONE,
-  TEMP_LABEL,
-} from "./constants";
-import { timeAgo } from "./format";
-import type { Deal, DealStage } from "./types";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { Tag } from "@/components/pm";
+import { PIPELINE_STAGES, STAGE_HINT, STAGE_LABEL, STAGE_TONE, type DealStage } from "@/lib/deals/stages";
+import { formatRupees, type Deal, type TeamPerson } from "@/lib/deals/model";
+import { DealTags, NextStepLine, AgeLine } from "./DealBits";
+import { NextStageButton, StageSelect } from "./StageControls";
 import css from "./deals.module.css";
 
-function initials(name: string): string {
-  const parts = name.replace(/[^\p{L}\p{N} ]/gu, " ").trim().split(/\s+/).filter(Boolean);
-  return ((parts[0]?.[0] ?? "?") + (parts[1]?.[0] ?? "")).toUpperCase();
-}
-
-const COLUMN_DOT: Record<string, string> = {
-  new_inquiry: "var(--pm-blue)",
-  in_discussion: "var(--pm-gold)",
-  samples_requested: "var(--pm-gold)",
-  samples_sent: "var(--pm-blue)",
-  negotiation: "var(--pm-gold)",
-  won: "var(--pm-green)",
-  closed: "var(--pm-hint)",
-};
-
-type ColumnKey = DealStage | "closed";
-
-const COLUMNS: { key: ColumnKey; label: string; hint: string }[] = [
-  ...BOARD_STAGES.map((s) => ({
-    key: s as ColumnKey,
-    label: STAGE_LABEL[s],
-    hint: "",
-  })),
-  { key: "closed", label: "Closed", hint: "lost + dormant" },
-];
-
-function columnOf(d: Deal): ColumnKey {
-  return d.stage === "lost" || d.stage === "dormant" ? "closed" : d.stage;
-}
-
 export default function DealsBoard({
-  deals, onOpen, onMove,
+  deals,
+  closed,
+  people,
+  today,
+  onOpen,
+  onMove,
 }: {
   deals: Deal[];
+  closed: Deal[];
+  people: TeamPerson[];
+  today: string;
   onOpen: (id: string) => void;
-  /** Move a deal to a stage (drag-and-drop). Dropping on Closed marks it lost. */
-  onMove: (id: string, stage: DealStage) => void;
+  onMove: (deal: Deal, stage: DealStage) => void;
 }) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [overCol, setOverCol] = useState<ColumnKey | null>(null);
+  const [overCol, setOverCol] = useState<DealStage | null>(null);
+  const [showClosed, setShowClosed] = useState(false);
 
-  function dropStage(col: ColumnKey): DealStage {
-    return col === "closed" ? "lost" : col;
-  }
-
-  function handleDrop(col: ColumnKey) {
-    if (draggingId) {
-      const deal = deals.find((d) => d.id === draggingId);
-      if (deal && columnOf(deal) !== col) onMove(draggingId, dropStage(col));
-    }
+  function handleDrop(col: DealStage) {
+    const deal = draggingId ? deals.find((d) => d.id === draggingId) : null;
+    if (deal && deal.stage !== col) onMove(deal, col);
     setDraggingId(null);
     setOverCol(null);
   }
 
   return (
-    <div className={css.board}>
-      {COLUMNS.map((col) => {
-        const cards = deals.filter((d) => columnOf(d) === col.key);
-        const isOver = overCol === col.key;
-        return (
-          <div
-            key={col.key}
-            onDragOver={(e) => { e.preventDefault(); setOverCol(col.key); }}
-            onDragLeave={() => setOverCol((prev) => (prev === col.key ? null : prev))}
-            onDrop={(e) => { e.preventDefault(); handleDrop(col.key); }}
-            className={css.lane}
-            data-over={isOver ? "true" : undefined}
-          >
-            <div className={css.laneHead}>
-              <span className={css.laneDot} style={{ background: COLUMN_DOT[col.key] }} />
-              <span className={css.laneName}>{col.label}</span>
-              <span className={css.laneN}>{cards.length}</span>
-              {col.hint && <span className={css.laneHint}>{col.hint}</span>}
-            </div>
+    <>
+      <div className={css.board}>
+        {PIPELINE_STAGES.map((stage) => {
+          const cards = deals.filter((d) => d.stage === stage);
+          const total = cards.reduce((s, d) => s + (d.value_inr ?? 0), 0);
+          return (
+            <section
+              key={stage}
+              aria-label={STAGE_LABEL[stage]}
+              className={css.lane}
+              data-stage={stage}
+              data-over={overCol === stage ? "true" : undefined}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setOverCol(stage);
+              }}
+              onDragLeave={() => setOverCol((p) => (p === stage ? null : p))}
+              onDrop={(e) => {
+                e.preventDefault();
+                handleDrop(stage);
+              }}
+            >
+              <header className={css.laneHead}>
+                <Tag tone={STAGE_TONE[stage]} dot>
+                  {STAGE_LABEL[stage]}
+                </Tag>
+                <span className={css.laneN}>{cards.length}</span>
+                {total > 0 && <span className={css.laneTotal}>{formatRupees(total)}</span>}
+              </header>
+              <p className={css.laneHint}>{STAGE_HINT[stage]}</p>
 
-            <div className={css.laneCards}>
-              {cards.length === 0 && (
-                <div className={css.laneEmpty}>{isOver ? "Drop here" : "No deals"}</div>
-              )}
-              {cards.map((d) => (
-                <div
-                  key={d.id}
-                  role="button"
-                  tabIndex={0}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = "move";
-                    e.dataTransfer.setData("text/plain", d.id);
-                    setDraggingId(d.id);
-                  }}
-                  onDragEnd={() => { setDraggingId(null); setOverCol(null); }}
-                  onClick={() => onOpen(d.id)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(d.id); } }}
-                  className={css.card}
-                  data-dragging={draggingId === d.id ? "true" : undefined}
-                >
-                  <div className={css.cardTop}>
-                    <span
-                      className={css.av}
-                      data-temp={d.interest_temp ?? undefined}
-                      title={d.interest_temp ? `${TEMP_LABEL[d.interest_temp]} lead` : "Not analysed yet"}
-                    >
-                      {initials(d.company_name)}
-                    </span>
-                    <div className={css.cardWho}>
+              <div className={css.laneCards}>
+                {cards.length === 0 && <div className={css.laneEmpty}>{overCol === stage ? "Drop here" : "Nothing here yet"}</div>}
+                {cards.map((d) => (
+                  <article
+                    key={d.id}
+                    role="button"
+                    tabIndex={0}
+                    draggable
+                    aria-label={`${d.company_name}, ${STAGE_LABEL[d.stage]}`}
+                    className={css.card}
+                    data-dragging={draggingId === d.id ? "true" : undefined}
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", d.id);
+                      setDraggingId(d.id);
+                    }}
+                    onDragEnd={() => {
+                      setDraggingId(null);
+                      setOverCol(null);
+                    }}
+                    onClick={() => onOpen(d.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onOpen(d.id);
+                      }
+                    }}
+                  >
+                    <div className={css.cardTop}>
                       <b className={css.cardName}>{d.company_name}</b>
-                      <span>
-                        {KIND_LABEL[d.kind]}
-                        {d.contact_name ? ` · ${d.contact_name}` : ""}
+                      {d.value_inr != null && d.value_inr > 0 && <span className={css.cardValue}>{formatRupees(d.value_inr)}</span>}
+                    </div>
+                    {d.contact_name && d.contact_name !== d.company_name && <div className={css.cardContact}>{d.contact_name}</div>}
+                    <NextStepLine deal={d} />
+                    <DealTags deal={d} people={people} today={today} />
+                    <div className={css.cardFoot}>
+                      <AgeLine deal={d} />
+                      <span className={css.cardActions}>
+                        <NextStageButton deal={d} onPick={(s) => onMove(d, s)} />
+                        <StageSelect compact deal={d} onPick={(s) => onMove(d, s)} />
                       </span>
                     </div>
-                  </div>
-                  {col.key === "closed" && (
-                    <div className={css.cardTags}>
-                      <StatusBadge tone={STAGE_TONE[d.stage]}>{STAGE_LABEL[d.stage]}</StatusBadge>
-                    </div>
-                  )}
-                  {(d.next_step || d.summary) && (
-                    <div className={css.cardNext}>{d.next_step || d.summary}</div>
-                  )}
-                  <div className={css.cardFoot}>
-                    {d.follow_up_needed && <span className={css.followUp}>Follow up</span>}
-                    <span className={css.cardAge}>{timeAgo(d.last_email_at)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+
+      <section className={css.closed}>
+        <button type="button" className={css.closedToggle} aria-expanded={showClosed} onClick={() => setShowClosed(!showClosed)}>
+          {showClosed ? <ChevronDown size={18} aria-hidden /> : <ChevronRight size={18} aria-hidden />}
+          Closed
+          <span className={css.laneN}>{closed.length}</span>
+          <span className={css.closedSub}>Lost and On hold</span>
+        </button>
+        {showClosed && (
+          <div className={css.rows}>
+            {closed.length === 0 && <p className={css.muted}>No closed deals match these filters.</p>}
+            {closed.map((d) => (
+              <ClosedRow key={d.id} deal={d} onOpen={onOpen} onMove={onMove} />
+            ))}
           </div>
-        );
-      })}
+        )}
+      </section>
+    </>
+  );
+}
+
+function ClosedRow({ deal: d, onOpen, onMove }: { deal: Deal; onOpen: (id: string) => void; onMove: (deal: Deal, stage: DealStage) => void }) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      className={css.row}
+      onClick={() => onOpen(d.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen(d.id);
+        }
+      }}
+    >
+      <div className={css.rowMain}>
+        <b className={css.rowName}>{d.company_name}</b>
+        <span className={css.rowSub}>{d.closed_reason || (d.stage === "lost" ? "No reason given" : "Paused")}</span>
+      </div>
+      <Tag tone={STAGE_TONE[d.stage]} dot size="sm">
+        {STAGE_LABEL[d.stage]}
+      </Tag>
+      <span className={css.rowEnd}>
+        <button
+          type="button"
+          className={css.nextBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onMove(d, "talking");
+          }}
+        >
+          Reopen
+        </button>
+      </span>
     </div>
   );
 }

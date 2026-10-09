@@ -1,175 +1,180 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Handshake, LayoutGrid, List, Plus } from "lucide-react";
-import { EmptyState, PageHeader, SearchBar, StatusBadge } from "@/components/pm";
+// Deals: B2B buyers, partners and creators we are working on.
+// Stages: New, Talking, Samples, Negotiating, Won (+ Lost, On hold).
+// Board on desktop, list on phones. Filters, view and the open deal live in
+// the URL (?view=list&type=distribution_wholesale&owner=me&due=1&deal=<id>),
+// so a link like /dashboard/deals?deal=<id> opens that deal's drawer.
+// Nothing on this page sends a message to anyone.
+
+import { Suspense, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Handshake, LayoutGrid, List, Plus, RefreshCw } from "lucide-react";
+import { EmptyState, PageHeader, SearchBar } from "@/components/pm";
 import { DealDrawer } from "@/components/deals/DealDrawer";
 import { NewDealDrawer } from "@/components/deals/NewDealDrawer";
 import DealsBoard from "@/components/deals/DealsBoard";
-import {
-  ALL_KINDS,
-  BUCKET_OF,
-  BUCKETS,
-  DEFAULT_HIDDEN_KINDS,
-  KIND_LABEL,
-  KIND_TONE,
-  PRIORITY_KIND,
-  TEMP_LABEL,
-  type Bucket,
-} from "@/components/deals/constants";
-import { timeAgo } from "@/components/deals/format";
-import type { Deal, DealsResponse, DealStage } from "@/components/deals/types";
+import DealsList, { type ListStage } from "@/components/deals/DealsList";
+import { useStageMover } from "@/components/deals/StageControls";
+import { DEALS_KEY, useDealsQuery, usePatchDeal, usePeople } from "@/components/deals/useDeals";
+import { ALL_KINDS, DEFAULT_HIDDEN_KINDS, KIND_LABEL, PRIORITY_KIND } from "@/components/deals/constants";
+import { elapsed, timeAgo } from "@/components/deals/format";
+import { formatRupees, istToday, type Deal } from "@/lib/deals/model";
+import { isClosedStage, isOpenStage } from "@/lib/deals/stages";
 import css from "@/components/deals/deals.module.css";
 
-const VIEW_KEY = "deals_view_v1";
-
-// Board/list preference in localStorage, read via useSyncExternalStore so the
-// server render ("board") hydrates cleanly and then syncs to the stored value.
-function subscribeView(cb: () => void) {
-  window.addEventListener("deals-view-change", cb);
-  return () => window.removeEventListener("deals-view-change", cb);
-}
-function useStoredView(): ["board" | "list", (v: "board" | "list") => void] {
-  const view = useSyncExternalStore(
-    subscribeView,
-    () => (localStorage.getItem(VIEW_KEY) === "list" ? "list" : "board"),
-    () => "board" as const,
-  );
-  const set = (v: "board" | "list") => {
-    localStorage.setItem(VIEW_KEY, v);
-    window.dispatchEvent(new Event("deals-view-change"));
-  };
-  return [view, set];
-}
-
-// One row, one deal: temperature dot · company · kind · next step · flag · age.
-// HoReCa and flagged deals float to the top of each bucket.
-function rank(a: Deal, b: Deal): number {
-  if (a.follow_up_needed !== b.follow_up_needed) return a.follow_up_needed ? -1 : 1;
-  const pa = a.kind === PRIORITY_KIND ? 0 : 1;
-  const pb = b.kind === PRIORITY_KIND ? 0 : 1;
-  if (pa !== pb) return pa - pb;
-  return (b.last_email_at ?? "").localeCompare(a.last_email_at ?? "");
-}
-
-const OPEN_BUCKETS: Bucket[] = ["inquiries", "discussions", "samples"];
-
-const TEMP_DOT: Record<string, string> = {
-  hot: "var(--pm-terra)",
-  warm: "var(--pm-gold)",
-  cool: "var(--pm-blue)",
-};
-
 export default function DealsPage() {
+  return (
+    <Suspense fallback={null}>
+      <DealsScreen />
+    </Suspense>
+  );
+}
+
+// Phones get the list by default (drag-and-drop is not touch friendly).
+function subscribeNarrow(cb: () => void) {
+  const mq = window.matchMedia("(max-width: 720px)");
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+}
+function useNarrow(): boolean {
+  return useSyncExternalStore(
+    subscribeNarrow,
+    () => window.matchMedia("(max-width: 720px)").matches,
+    () => false,
+  );
+}
+
+// Overdue first, then due today, then cafes and restaurants, then newest activity.
+function rank(today: string) {
+  return (a: Deal, b: Deal) => {
+    const ua = urgency(a, today);
+    const ub = urgency(b, today);
+    if (ua !== ub) return ua - ub;
+    const pa = a.kind === PRIORITY_KIND ? 0 : 1;
+    const pb = b.kind === PRIORITY_KIND ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+    return (b.last_email_at ?? b.updated_at).localeCompare(a.last_email_at ?? a.updated_at);
+  };
+}
+function urgency(d: Deal, today: string): number {
+  if (d.follow_up_at && d.follow_up_at < today) return 0;
+  if (d.follow_up_needed) return 1;
+  return 2;
+}
+
+function DealsScreen() {
   const qc = useQueryClient();
-  const [view, switchView] = useStoredView();
-  const [bucket, setBucket] = useState<Bucket>("inquiries");
-  const [kind, setKind] = useState("all");
-  const [onlyFollowUp, setOnlyFollowUp] = useState(false);
-  const [q, setQ] = useState("");
-  const [openId, setOpenId] = useState<string | null>(null);
+  const router = useRouter();
+  const params = useSearchParams();
+  const narrow = useNarrow();
+  const today = istToday();
+
+  const view = params.get("view") === "list" || params.get("view") === "board"
+    ? (params.get("view") as "list" | "board")
+    : narrow ? "list" : "board";
+  const q = params.get("q") ?? "";
+  const type = params.get("type") ?? "all";
+  const owner = params.get("owner") ?? "all";
+  const dueOnly = params.get("due") === "1";
+  const listStage = (params.get("stage") as ListStage | null) ?? "open";
+  const openId = params.get("deal");
   const [adding, setAdding] = useState(false);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["deals"],
-    queryFn: async (): Promise<DealsResponse> => {
-      const res = await fetch("/api/deals", { cache: "no-store" });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "failed to load deals");
-      return d;
+  const setParams = useCallback(
+    (patch: Record<string, string | null>) => {
+      const next = new URLSearchParams(params.toString());
+      for (const [k, v] of Object.entries(patch)) {
+        if (v == null || v === "") next.delete(k);
+        else next.set(k, v);
+      }
+      const s = next.toString();
+      router.replace(s ? `?${s}` : "?", { scroll: false });
     },
-    refetchInterval: 120_000,
-  });
+    [params, router],
+  );
 
-  // Drag-and-drop stage moves: optimistic so the card lands instantly; the
-  // PATCH flips manual_stage_override server-side.
-  const moveStage = useMutation({
-    mutationFn: async ({ id, stage }: { id: string; stage: DealStage }) => {
-      const res = await fetch(`/api/deals/${id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ stage }),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "failed to move deal");
-      return d;
-    },
-    onMutate: async ({ id, stage }) => {
-      await qc.cancelQueries({ queryKey: ["deals"] });
-      const prev = qc.getQueryData<DealsResponse>(["deals"]);
-      qc.setQueryData<DealsResponse>(["deals"], (old) =>
-        old
-          ? {
-              ...old,
-              deals: old.deals.map((d) =>
-                d.id === id ? { ...d, stage, manual_stage_override: true } : d,
-              ),
-            }
-          : old,
-      );
-      return { prev };
-    },
-    onError: (_e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(["deals"], ctx.prev);
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["deals"] }),
-  });
+  const { data, isLoading, error } = useDealsQuery();
+  const peopleQ = usePeople();
+  const people = useMemo(() => peopleQ.data?.people ?? [], [peopleQ.data?.people]);
+  const me = peopleQ.data?.me ?? null;
+  const patch = usePatchDeal();
 
+  const { move, dialog } = useStageMover(
+    (deal, stage, reason) => patch.mutate({ id: deal.id, body: { stage, ...(reason ? { reason } : {}) } }),
+    patch.isPending,
+  );
+
+  // "Check inbox for new deals": runs deal-scan now. Takes a while; the page
+  // stays usable and shows how long it has been going.
+  const [scanStart, setScanStart] = useState<number | null>(null);
+  const [scanMs, setScanMs] = useState(0);
   const scanNow = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/deals/scan", { method: "POST" });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "scan failed");
-      return d;
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "The inbox check failed");
+      return d as { created?: number; updated?: number; locked?: boolean };
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["deals"] }),
+    onMutate: () => {
+      setScanMs(0);
+      setScanStart(Date.now());
+    },
+    onSettled: () => {
+      setScanStart(null);
+      qc.invalidateQueries({ queryKey: DEALS_KEY });
+    },
   });
+  useEffect(() => {
+    if (scanStart == null) return;
+    const t = setInterval(() => setScanMs(Date.now() - scanStart), 1000);
+    return () => clearInterval(t);
+  }, [scanStart]);
 
   const deals = useMemo(() => data?.deals ?? [], [data?.deals]);
 
-  // Kind/search/follow-up filters apply across buckets so the segment counts
-  // always reflect what the list below would show.
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return deals.filter((d) => {
-      if (kind === "all" && (DEFAULT_HIDDEN_KINDS as string[]).includes(d.kind)) return false;
-      if (kind !== "all" && d.kind !== kind) return false;
-      if (onlyFollowUp && !d.follow_up_needed) return false;
-      if (
-        needle &&
-        ![d.company_name, d.company_domain, d.contact_name, d.contact_email, d.summary, d.next_step]
-          .filter(Boolean)
-          .some((v) => (v as string).toLowerCase().includes(needle))
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [deals, kind, onlyFollowUp, q]);
+    return deals
+      .filter((d) => {
+        if (type === "all" && (DEFAULT_HIDDEN_KINDS as string[]).includes(d.kind)) return false;
+        if (type !== "all" && type !== "everything" && d.kind !== type) return false;
+        if (owner === "me" && d.owner_email !== me) return false;
+        if (owner === "none" && d.owner_email) return false;
+        if (owner !== "all" && owner !== "me" && owner !== "none" && d.owner_email !== owner) return false;
+        if (dueOnly && !d.follow_up_needed) return false;
+        if (
+          needle &&
+          ![d.company_name, d.company_domain, d.contact_name, d.contact_email, d.contact_phone, d.summary, d.next_step, d.source_ref]
+            .filter(Boolean)
+            .some((v) => (v as string).toLowerCase().includes(needle))
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .sort(rank(today));
+  }, [deals, q, type, owner, me, dueOnly, today]);
 
-  const byBucket = useMemo(() => {
-    const m: Record<Bucket, Deal[]> = { inquiries: [], discussions: [], samples: [], orders: [], closed: [] };
-    for (const d of filtered) m[BUCKET_OF[d.stage]].push(d);
-    (Object.keys(m) as Bucket[]).forEach((k) => m[k].sort(rank));
-    return m;
-  }, [filtered]);
+  const live = useMemo(() => filtered.filter((d) => !isClosedStage(d.stage)), [filtered]);
+  const closed = useMemo(() => filtered.filter((d) => isClosedStage(d.stage)), [filtered]);
 
-  // Follow-ups among OPEN deals only (same buckets as the "open" count), so
-  // "need follow-up" can never exceed "open". Won/closed deals don't need one.
-  const followUps = useMemo(
-    () =>
-      deals.filter(
-        (d) =>
-          d.follow_up_needed &&
-          !(DEFAULT_HIDDEN_KINDS as string[]).includes(d.kind) &&
-          OPEN_BUCKETS.includes(BUCKET_OF[d.stage]),
-      ).length,
-    [deals],
-  );
+  // Header numbers ignore the filters (except hidden pitches): the whole picture.
+  const summary = useMemo(() => {
+    const pipeline = deals.filter((d) => !(DEFAULT_HIDDEN_KINDS as string[]).includes(d.kind));
+    const open = pipeline.filter((d) => isOpenStage(d.stage));
+    return {
+      open: open.length,
+      value: open.reduce((s, d) => s + (d.value_inr ?? 0), 0),
+      due: open.filter((d) => d.follow_up_needed).length,
+      overdue: open.filter((d) => d.follow_up_at && d.follow_up_at < today).length,
+      won: pipeline.filter((d) => d.stage === "won").length,
+    };
+  }, [deals, today]);
 
-  const rows = byBucket[bucket];
   const scan = data?.scan;
+  const scanLabel = scanStart != null ? `Checking inbox… ${elapsed(scanMs)}` : "Check inbox for new deals";
 
   return (
     <div className={css.scope}>
@@ -178,171 +183,163 @@ export default function DealsPage() {
         title="Deals"
         summary={
           isLoading ? (
-            "Loading the pipeline…"
+            "Loading your deals…"
           ) : (
             <>
-              <b>{byBucket.inquiries.length + byBucket.discussions.length + byBucket.samples.length} open</b>
-              {followUps > 0 ? <>, <b>{followUps} need a follow-up</b></> : ""}
-              {byBucket.samples.length ? `, ${byBucket.samples.length} at samples` : ""}
-              {byBucket.orders.length ? `, ${byBucket.orders.length} won` : ""}. Last scan{" "}
-              {scan?.last_run_at ? timeAgo(scan.last_run_at) : "never"}
-              {scan && !scan.backfill_done ? ", still reading older mail" : ""}.
+              {summary.value > 0 ? (
+                <>
+                  <b>{formatRupees(summary.value)}</b> in {summary.open} open {summary.open === 1 ? "deal" : "deals"}
+                </>
+              ) : (
+                <>
+                  <b>{summary.open}</b> open {summary.open === 1 ? "deal" : "deals"}
+                </>
+              )}
+              {summary.due > 0 ? (
+                <>
+                  , <b className={css.sumWarn}>{summary.due} need a follow-up today</b>
+                  {summary.overdue > 0 ? ` (${summary.overdue} overdue)` : ""}
+                </>
+              ) : (
+                ", nothing to chase today"
+              )}
+              {summary.won > 0 ? `, ${summary.won} won` : ""}. Inbox checked {scan?.last_run_at ? timeAgo(scan.last_run_at) : "never"}.
             </>
           )
         }
         actions={
           <>
             <div className="pm2-seg" role="group" aria-label="View">
-              <button type="button" className={view === "board" ? "on" : undefined} aria-pressed={view === "board"} onClick={() => switchView("board")}>
-                <LayoutGrid size={14} /> Board
+              <button type="button" className={view === "board" ? "on" : undefined} aria-pressed={view === "board"} onClick={() => setParams({ view: "board" })}>
+                <LayoutGrid size={15} aria-hidden /> Board
               </button>
-              <button type="button" className={view === "list" ? "on" : undefined} aria-pressed={view === "list"} onClick={() => switchView("list")}>
-                <List size={14} /> List
+              <button type="button" className={view === "list" ? "on" : undefined} aria-pressed={view === "list"} onClick={() => setParams({ view: "list" })}>
+                <List size={15} aria-hidden /> List
               </button>
             </div>
-            <button
-              type="button"
-              className="pm-btn"
-              disabled={scanNow.isPending}
-              onClick={() => scanNow.mutate()}
-            >
-              {scanNow.isPending ? "Scanning…" : "Scan now"}
+            <button type="button" className="pm2-btn" disabled={scanNow.isPending} onClick={() => scanNow.mutate()} aria-live="polite">
+              <RefreshCw size={15} aria-hidden className={scanNow.isPending ? css.spin : undefined} /> {scanLabel}
             </button>
             <button type="button" className="pm2-btn pri" onClick={() => setAdding(true)}>
-              <Plus size={15} aria-hidden /> New deal
+              <Plus size={16} aria-hidden /> Add a deal
             </button>
           </>
         }
       />
 
       <div className={css.body}>
-      {(scanNow.error instanceof Error || scan?.last_error) && (
-        <p className={css.err}>
-          {scanNow.error instanceof Error ? scanNow.error.message : `Last scan error: ${scan?.last_error}`}
-        </p>
-      )}
-
-      {/* View toggle + segmented buckets (list only) + compact filters, one row */}
-      <div className={css.bar}>
-        {view === "list" && (
-          <>
-            <div className={css.seg}>
-              {BUCKETS.map((b) => (
-                <button key={b.key} type="button" className={css.segBtn} data-on={bucket === b.key} onClick={() => setBucket(b.key)}>
-                  {b.label} {byBucket[b.key].length > 0 && <span className={css.segN}>{byBucket[b.key].length}</span>}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              className={css.closedBtn}
-              data-on={bucket === "closed"}
-              onClick={() => setBucket("closed")}
-            >
-              Closed {byBucket.closed.length}
-            </button>
-          </>
+        {scanNow.error instanceof Error && <p className={css.err}>{scanNow.error.message}</p>}
+        {scanNow.isSuccess && scanNow.data && (
+          <p className={css.note}>
+            {scanNow.data.locked
+              ? "An inbox check is already running. New deals will show up in a minute."
+              : `Inbox checked: ${scanNow.data.created ?? 0} new, ${scanNow.data.updated ?? 0} updated.`}
+          </p>
         )}
-        <span className={css.spacer} />
-        <SearchBar value={q} onChange={setQ} placeholder="Search deals…" />
-        <select
-          value={kind}
-          aria-label="Filter by kind"
-          onChange={(e) => setKind(e.target.value)}
-          className={css.kindSelect}
-        >
-          <option value="all">All kinds</option>
-          {ALL_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {KIND_LABEL[k]}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className={`pm-btn sm${onlyFollowUp ? ` ${css.onBtn}` : " ghost"}`}
-          aria-pressed={onlyFollowUp}
-          onClick={() => setOnlyFollowUp(!onlyFollowUp)}
-        >
-          Needs follow-up
-        </button>
-      </div>
+        {!scanNow.error && scan?.last_error && <p className={css.err}>Last inbox check had a problem: {scan.last_error}</p>}
+        {data && !data.schema_ready && (
+          <p className={css.note}>
+            The database update for deals is not applied yet. Follow-up dates, owner, value and phone are kept in notes until it is.
+          </p>
+        )}
 
-      {/* Kanban board */}
-      {view === "board" &&
-        (isLoading ? (
-          <p className={css.hint}>Loading deals…</p>
-        ) : error instanceof Error ? (
-          <p className={css.err} style={{ padding: 20 }}>{error.message}</p>
-        ) : filtered.length === 0 ? (
-          <EmptyState icon={<Handshake />} title="Nothing here">
-            {deals.length === 0
-              ? "Hit “Scan now”. The pipeline builds itself from hello@promunch.in."
-              : "No deals match the current filters."}
-          </EmptyState>
-        ) : (
-          <>
-            <p className={css.hint} style={{ margin: 0 }}>
-              Drag a card to another stage. Drop on Closed to mark it lost.
-            </p>
-            <DealsBoard
-              deals={[...filtered].sort(rank)}
-              onOpen={setOpenId}
-              onMove={(id, stage) => moveStage.mutate({ id, stage })}
-            />
-          </>
-        ))}
+        <div className={css.bar}>
+          <SearchBar value={q} onChange={(v) => setParams({ q: v })} placeholder="Search company, person, phone…" />
+          <select className={css.filter} value={type} aria-label="Type" onChange={(e) => setParams({ type: e.target.value === "all" ? null : e.target.value })}>
+            <option value="all">All types</option>
+            {ALL_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {KIND_LABEL[k]}
+              </option>
+            ))}
+            <option value="everything">Everything, incl. selling to us</option>
+          </select>
+          <select className={css.filter} value={owner} aria-label="Owner" onChange={(e) => setParams({ owner: e.target.value === "all" ? null : e.target.value })}>
+            <option value="all">Anyone</option>
+            <option value="me">Mine</option>
+            <option value="none">No owner</option>
+            {people.map((p) => (
+              <option key={p.email} value={p.email}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <button type="button" className={css.toggle} data-on={dueOnly} aria-pressed={dueOnly} onClick={() => setParams({ due: dueOnly ? null : "1" })}>
+            Needs a follow-up
+          </button>
+        </div>
 
-      {/* The list */}
-      {view === "list" && (
-      <div className={css.list}>
         {isLoading ? (
-          <p className={css.hint} style={{ padding: 20, margin: 0 }}>Loading deals…</p>
+          <p className={css.muted}>Loading deals…</p>
         ) : error instanceof Error ? (
-          <p className={css.err} style={{ padding: 20 }}>{error.message}</p>
-        ) : rows.length === 0 ? (
-          <EmptyState icon={<Handshake />} title="Nothing here" style={{ border: "none" }}>
-            {deals.length === 0
-              ? "Hit “Scan now”. The pipeline builds itself from hello@promunch.in."
-              : "No deals in this lane with the current filters."}
+          <p className={css.err}>{error.message}</p>
+        ) : deals.length === 0 ? (
+          <EmptyState
+            icon={<Handshake />}
+            title="No deals yet"
+            cta={
+              <div className={css.emptyActions}>
+                <button type="button" className="pm2-btn pri" onClick={() => setAdding(true)}>
+                  <Plus size={16} aria-hidden /> Add a deal
+                </button>
+                <button type="button" className="pm2-btn" disabled={scanNow.isPending} onClick={() => scanNow.mutate()}>
+                  {scanLabel}
+                </button>
+              </div>
+            }
+          >
+            Add one by hand, or check hello@promunch.in for buyers and partners who wrote in.
           </EmptyState>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={<Handshake />}
+            title="Nothing matches"
+            cta={
+              <button type="button" className="pm2-btn" onClick={() => setParams({ q: null, type: null, owner: null, due: null })}>
+                Clear filters
+              </button>
+            }
+          >
+            No deals match these filters.
+          </EmptyState>
+        ) : view === "board" ? (
+          <DealsBoard deals={live} closed={closed} people={people} today={today} onOpen={(id) => setParams({ deal: id })} onMove={move} />
         ) : (
-          rows.map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              onClick={() => setOpenId(d.id)}
-              className={`deal-row ${css.row}`}
-            >
-              <span
-                title={d.interest_temp ? `${TEMP_LABEL[d.interest_temp]} lead` : "Not analysed yet"}
-                className={css.tempDot}
-                style={{ background: d.interest_temp ? TEMP_DOT[d.interest_temp] : "var(--pm-line)" }}
-              />
-              <span className={css.rowName}>{d.company_name}</span>
-              <StatusBadge tone={KIND_TONE[d.kind]}>{KIND_LABEL[d.kind]}</StatusBadge>
-              <span className={css.rowNext}>{d.next_step || d.summary || "–"}</span>
-              {d.follow_up_needed && <span className={css.followUp}>Follow up</span>}
-              <span className={css.rowAge}>{timeAgo(d.last_email_at)}</span>
-            </button>
-          ))
+          <DealsList
+            deals={filtered}
+            stage={listStage}
+            onStage={(s) => setParams({ stage: s === "open" ? null : s })}
+            people={people}
+            today={today}
+            onOpen={(id) => setParams({ deal: id })}
+            onMove={move}
+          />
         )}
+        {patch.error instanceof Error && <p className={css.err}>{patch.error.message}</p>}
       </div>
+
+      {openId && (
+        <DealDrawer
+          dealId={openId}
+          allDeals={deals}
+          people={people}
+          onClose={() => setParams({ deal: null })}
+          onGone={(id) => setParams({ deal: id ?? null })}
+        />
       )}
-
-      </div>
-
-      {openId && <DealDrawer dealId={openId} onClose={() => setOpenId(null)} />}
       {adding && (
         <NewDealDrawer
+          people={people}
+          me={me}
           onClose={() => setAdding(false)}
           onCreated={(deal) => {
             setAdding(false);
-            qc.invalidateQueries({ queryKey: ["deals"] });
-            setOpenId(deal.id);
+            qc.invalidateQueries({ queryKey: DEALS_KEY });
+            setParams({ deal: deal.id });
           }}
         />
       )}
+      {dialog}
     </div>
   );
 }
