@@ -12,6 +12,7 @@ import { Callout, ConfirmDialog } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
 import { StudioHeader } from "@/components/email-studio/StudioHeader";
 import { NewCampaignButton } from "@/components/email-studio/NewCampaignButton";
+import { NewTemplateButton } from "@/components/email-studio/NewTemplateButton";
 import { useProducts } from "@/components/email-studio/Builder";
 import { useStudioSettings } from "@/components/email-studio/hooks";
 import { getJson, sendJson, when } from "@/components/email-studio/api";
@@ -70,6 +71,11 @@ function Inner() {
               Saved designs. Start a campaign from any of them. Colours and fonts come from{" "}
               <Link className="pm2-lnk" href="/dashboard/email/settings">Brand &amp; email</Link>.
             </>
+          )
+        }
+        actions={
+          picking || !q.data || q.data.savedError ? undefined : (
+            <NewTemplateButton starts={q.data.system.map((t) => ({ key: t.key, name: t.name, description: t.description }))} />
           )
         }
       />

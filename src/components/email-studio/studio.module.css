@@ -237,3 +237,23 @@
 /* plain text toggle under a short list ("Show all 14") */
 .moreLink { appearance: none; border: 0; background: none; padding: 0; justify-self: start; font: 700 14px var(--pm-font); color: var(--pm-ink2); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .moreLink:hover { color: var(--pm-ink); }
+
+/* New template dialog */
+.ntForm { display: grid; gap: 14px; }
+.ntField { display: grid; gap: 6px; }
+.ntField > span, .ntStarts legend { font-size: 14px; font-weight: 600; color: var(--pm-ink2); }
+.ntIn { width: 100%; min-width: 0; height: 42px; padding: 0 12px; border: 1px solid var(--pm-border); border-radius: 12px; background: var(--pm-card); color: var(--pm-ink); font: 400 15px var(--pm-font); }
+.ntStarts { border: 0; margin: 0; padding: 0; display: grid; gap: 0; max-height: 300px; overflow-y: auto; border-top: 1px solid var(--pm-line); }
+.ntStarts legend { padding: 0 0 8px; }
+.ntStart { display: flex; gap: 10px; align-items: flex-start; padding: 10px 4px; border-bottom: 1px solid var(--pm-line); cursor: pointer; }
+.ntStart input { margin-top: 3px; accent-color: var(--pm-brand); flex: none; }
+.ntStart span { display: grid; gap: 2px; min-width: 0; }
+.ntStart b { font-size: 15px; color: var(--pm-ink); }
+.ntStart small { font-size: 13.5px; line-height: 1.4; color: var(--pm-muted); }
+.ntOn b { color: var(--pm-brand); }
+.ntHint { margin: 0; font-size: 13.5px; color: var(--pm-muted); }
+.ntErr { margin: 0; font-size: 14px; color: var(--pm-terra); }
+.ntFoot { display: flex; justify-content: flex-end; gap: 8px; }
+@media (max-width: 720px) {
+  .ntFoot :global(.pm2-btn) { flex: 1 1 0; justify-content: center; }
+}
