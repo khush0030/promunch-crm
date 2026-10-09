@@ -291,7 +291,7 @@ export function WaConversation({
     const what = confirm;
     if (!what) return;
     if (what === "handback") await patch({ status: "bot" }, "Handed back. The bot will answer this customer's next messages.");
-    if (what === "resolve") await patch({ ticket_status: "resolved" }, "Ticket marked solved. The bot will answer this customer again.");
+    if (what === "resolve") await patch({ ticket_status: "resolved" }, "Ticket marked solved. Hand back to bot when you are done.");
     if (what === "archive") {
       const ok = await patch({ archived: true }, "Chat archived. It comes back if the customer writes again.");
       if (ok) onArchived?.();
@@ -620,7 +620,7 @@ export function WaConversation({
             confirm === "resolve"
               ? thread.status === "bot"
                 ? "Marks the ticket solved. The bot keeps answering this customer. The customer is not messaged."
-                : "Marks the ticket solved and the bot will answer this customer again. The customer is not messaged."
+                : "Marks the ticket solved. The chat stays with a person until someone presses Hand back to bot. The customer is not messaged."
               : confirm === "handback"
                 ? ticketOpen
                   ? `The bot will answer this customer's next messages. Ticket #${thread.ticket_number} stays open until someone marks it solved. The customer is not messaged.`

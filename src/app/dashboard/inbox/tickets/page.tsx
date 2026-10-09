@@ -673,7 +673,7 @@ function TicketRowView({
             title={card.number != null ? `Mark ticket #${card.number} solved?` : "Mark this ticket solved?"}
             body={
               channel === "wa"
-                ? "Marks the ticket solved and the bot will answer this customer again. The customer is not messaged."
+                ? "Marks the ticket solved. The chat stays with a person until someone presses Hand back to bot. The customer is not messaged."
                 : "Marks the ticket solved. The customer is not messaged."
             }
             confirmLabel="Mark solved"

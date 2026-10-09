@@ -63,11 +63,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ("ticket_assignee" in body && !("assigned_to" in body)) patch.assigned_to = body.ticket_assignee ?? null;
   if (body.ticket_status === "resolved" || body.ticket_status === "closed") {
     patch.ticket_resolved_at = new Date().toISOString();
-    // Resume the bot once the issue is handled. Opening a ticket flips the
-    // thread to 'human' (bot goes silent so a person owns the conversation);
-    // resolving it hands the customer back to the assistant — unless the agent
-    // explicitly set a status in this same request (respect that).
-    if (!("status" in body)) patch.status = "bot";
+    // Owner decision (Oct 9 2026): solving a ticket does NOT hand the chat
+    // back to the bot. A chat a person owns stays with that person until
+    // someone presses "Hand back to bot" (it stays under Needs a human, so it
+    // is never lost). An explicit status in the same request still applies.
   }
   // archive / unarchive — hides the thread from the inbox, keeps all messages
   if ("archived" in body) {

@@ -8,9 +8,8 @@ const MIN_ROWS = 2;
 const MAX_ROWS = 6;
 
 // Reply composer shared by the thread panel and inline list-row reply.
-// Grows with content up to 6 rows, then scrolls. On a laptop Enter sends and
-// Shift+Enter adds a new line (the hint says so); Cmd/Ctrl+Enter still sends.
-// On touch screens Enter is a new line and only the Send button sends. IME
+// Grows with content up to 6 rows, then scrolls. Enter is a new line;
+// Cmd/Ctrl+Enter or the Send button sends (owner choice, Oct 9). IME
 // composition (e.g. Hindi keyboards) never sends mid-word. `disabledReason` (e.g. a closed 24h
 // window) shows as a line above the action row AND blocks sending outright
 // (both the Send button and ⌘/Ctrl+Enter) — the way out of that state is
@@ -59,9 +58,9 @@ export function Composer({
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
-    const modifier = e.metaKey || e.ctrlKey;
-    const touch = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
-    if (modifier || (!e.shiftKey && !e.altKey && !touch)) {
+    // Owner choice (Oct 9): Enter is a new line; only Cmd/Ctrl+Enter or the
+    // Send button sends, so a half-typed reply never goes out by accident.
+    if (e.metaKey || e.ctrlKey) {
       e.preventDefault();
       // Same rule as the button (canSend): never while a send is in flight.
       if (sendable) onSend();
@@ -97,7 +96,7 @@ export function Composer({
             </button>
           </>
         ) : null}
-        <span className={c.hint}>Enter to send, Shift+Enter for new line</span>
+        <span className={c.hint}>⌘ or Ctrl + Enter to send</span>
         <button type="button" className={`pm2-btn pri ${c.send}`} onClick={onSend} disabled={!sendable}>
           {busy ? "Sending…" : "Send"}
         </button>
