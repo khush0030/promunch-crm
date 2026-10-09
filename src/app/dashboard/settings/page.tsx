@@ -1,32 +1,35 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Plus, UserPlus, ShoppingBag, Mail, Inbox, Sparkles, MessageSquare, Plug, type LucideIcon } from "lucide-react";
+import { ChevronRight, Plus, UserPlus, ShoppingBag, Mail, Inbox, Sparkles, MessageCircle, Package, Phone, Camera, Plug, type LucideIcon } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { PageHeader, Avatar } from "@/components/pm";
 import { ApiKeysPanel } from "@/components/settings/ApiKeysPanel";
 import { ProfilePanel } from "@/components/settings/ProfilePanel";
 import { MODULES, ROLE_PRESETS, presetForModules, rolePreset, type ModuleKey } from "@/lib/access";
+import { STATUS_LABEL, type ConnStatus, type Connection } from "@/lib/connections";
 import { ago } from "@/components/admin/format";
 import { useHash } from "@/components/shell/useShellData";
 import css from "@/components/settings/Settings.module.css";
 import { displayRole, isOwnerMember } from "@/components/settings/teamRole";
 
-type Status = "healthy" | "degraded" | "down" | "unknown";
-type Connector = { id: string; label: string; description: string; status: Status; headline: string; metrics: { label: string; value: string }[] };
-type Health = { connectors: Connector[] };
+// Settings → Connections reads GET /api/settings/connections: every service
+// the CRM depends on, each with a live status from data we already store.
+type Health = { summary: { total: number; working: number; needLook: number; off: number }; connections: Connection[] };
 
-const statusLabel: Record<Status, string> = { healthy: "Working", degraded: "Needs a look", down: "Broken", unknown: "No data" };
-const STATUS_CLASS: Record<Status, "good" | "warn" | "bad" | "off"> = { healthy: "good", degraded: "warn", down: "bad", unknown: "off" };
+const STATUS_CLASS: Record<ConnStatus, "good" | "warn" | "bad" | "off"> = { healthy: "good", degraded: "warn", down: "bad", unknown: "off", off: "off" };
 
-function connectorIcon(id: string): LucideIcon {
-  if (id.includes("slack")) return MessageSquare;
-  if (id.includes("gmail")) return Inbox;
-  if (id.includes("shopify")) return ShoppingBag;
-  if (id.includes("anthropic") || id.includes("openai") || id.includes("ai")) return Sparkles;
-  return Plug;
-}
+const CONN_ICON: Record<string, LucideIcon> = {
+  shopify: ShoppingBag,
+  whatsapp: MessageCircle,
+  amazon: Package,
+  resend: Mail,
+  gmail: Inbox,
+  voice: Phone,
+  instagram: Camera,
+  openai: Sparkles,
+};
 
 const TABS = [
   { key: "profile", label: "My profile" },
@@ -87,9 +90,9 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    fetch("/api/integrations", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => setHealth(d))
+    fetch("/api/settings/connections", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setHealth(d && Array.isArray(d.connections) ? d : null))
       .catch(() => {});
   }, []);
 
@@ -176,10 +179,9 @@ export default function SettingsPage() {
   }
 
   const tabMeta = TAB_META[tab] ?? TAB_META.connections;
-  const connectors = health?.connectors ?? [];
-  const total = connectors.length + 2; // + Shopify and Resend, always listed
-  const working = connectors.filter((c) => c.status === "healthy").length + 2;
-  const needLook = connectors.filter((c) => c.status === "degraded" || c.status === "down").length;
+  const connections = health?.connections ?? [];
+  const shopify = connections.find((c) => c.id === "shopify") ?? null;
+  const { total, working, needLook, off } = health?.summary ?? { total: 0, working: 0, needLook: 0, off: 0 };
 
   const summary =
     tab === "profile" ? (
@@ -188,9 +190,9 @@ export default function SettingsPage() {
       !health ? (
         "Checking every connection…"
       ) : working === total ? (
-        <><b>All {total} connections are working.</b> Checked when you opened this page.</>
+        <><b>All {total} connections are working.</b> Checked when you opened this page.{off > 0 ? ` ${off} switched off.` : ""}</>
       ) : (
-        <><b>{working} of {total} connections are working.</b>{needLook > 0 ? ` ${needLook} need a look.` : " The rest have no recent data."}</>
+        <><b>{working} of {total} connections are working.</b>{needLook > 0 ? ` ${needLook} ${needLook === 1 ? "needs" : "need"} a look.` : " The rest have no recent data."}{off > 0 ? ` ${off} switched off.` : ""}</>
       )
     ) : tab === "team" ? (
       teamCount ? <><b>{teamCount} {teamCount === 1 ? "person" : "people"}.</b> Choose which areas each person can open.</> : "Choose which areas each person can open."
@@ -226,23 +228,17 @@ export default function SettingsPage() {
         {tab === "connections" && (
           <div>
             <div className={css.card}>
-              <div className={css.row}>
-                <span className={css.ic}><ShoppingBag /></span>
-                <div className={css.tx}><b>Shopify</b><span>Orders, customers and catalog</span></div>
-                <span className={`${css.st} ${css.good}`}>Connected</span>
-              </div>
-              <div className={css.row}>
-                <span className={css.ic}><Mail /></span>
-                <div className={css.tx}><b>Email sending (Resend)</b><span>SPF · DKIM · DMARC verified</span></div>
-                <span className={`${css.st} ${css.good}`}>Working</span>
-              </div>
-              {connectors.map((c) => {
-                const Icon = connectorIcon(c.id);
+              {!health && <div className={css.row}><div className={css.tx}><span>Checking every connection…</span></div></div>}
+              {connections.map((c) => {
+                const Icon = CONN_ICON[c.id] ?? Plug;
                 return (
                   <div key={c.id} className={css.row}>
                     <span className={css.ic}><Icon /></span>
-                    <div className={css.tx}><b>{c.label}</b><span>{c.headline || c.description}</span></div>
-                    <span className={`${css.st} ${css[STATUS_CLASS[c.status]]}`}>{statusLabel[c.status]}</span>
+                    <div className={css.tx}>
+                      <b>{c.label}</b>
+                      <span>{c.headline}{c.lastAt && c.status !== "off" ? ` · ${ago(c.lastAt).toLowerCase()}` : ""}</span>
+                    </div>
+                    <span className={`${css.st} ${css[STATUS_CLASS[c.status]]}`}>{STATUS_LABEL[c.status]}</span>
                   </div>
                 );
               })}
@@ -252,7 +248,7 @@ export default function SettingsPage() {
             <div className={`${css.card} ${css.cardPad}`}>
               <dl className={css.facts}>
                 <dt>Store URL</dt><dd>{process.env.NEXT_PUBLIC_SHOPIFY_STORE_URL || "Not set"}</dd>
-                <dt>Status</dt><dd><span className={`${css.st} ${css.good}`}>Connected</span></dd>
+                <dt>Status</dt><dd>{shopify ? <span className={`${css.st} ${css[STATUS_CLASS[shopify.status]]}`}>{STATUS_LABEL[shopify.status]}</span> : "Checking…"}</dd>
               </dl>
               <div className={css.btnRow}>
                 <button type="button" className="pm2-btn" onClick={handleCatalogSync} disabled={catalogBusy}>
