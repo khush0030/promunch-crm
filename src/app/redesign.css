@@ -365,3 +365,7 @@ table.pm-tbl th{background:none}
 .pm-tag.t-pink{--tg-bg:var(--tag-pink-bg);--tg-ink:var(--tag-pink-ink)}
 .pm-tag.t-brand{--tg-bg:var(--tag-brand-bg);--tg-ink:var(--tag-brand-ink)}
 .pm-tag.t-grey{--tg-bg:var(--tag-grey-bg);--tg-ink:var(--tag-grey-ink)}
+
+/* Very wide monitors (owner's 2560px screen): scale the whole UI like a
+   112% browser zoom so text is not tiny next to the reading-width cap. */
+@media (min-width:2200px){:root{zoom:1.12}.pm3-side{height:calc(100vh / 1.12)}}

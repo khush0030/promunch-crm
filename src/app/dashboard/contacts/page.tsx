@@ -25,7 +25,7 @@ type ContactRow = {
 };
 
 // Group = what the row already tells us (status + order count), shown as
-// coloured text with a small dot. Bounced is the only red one.
+// a colour-coded chip. Bounced is the only red one.
 function groupFor(r: ContactRow): { label: string; cls: string } {
   const st = (r.status || "active").toLowerCase();
   if (st === "bounced") return { label: "Email bounced", cls: css.gBounced };

@@ -60,17 +60,16 @@
 .nil { color: #CFC7B9; font-weight: 400; }
 .date { color: var(--pm-ink2); white-space: nowrap; }
 
-/* group = coloured text + small dot, never a filled pill */
-.grp { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 15.5px; white-space: nowrap; }
+/* group = soft tinted chip, colour = meaning (Oct 9) */
+.grp { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13.5px; white-space: nowrap; padding: 5px 11px; border-radius: 999px; }
 .grp::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
-.gRepeat { color: var(--pm-green); }
-.gOne { color: var(--pm-blue); }
-.gSigned { color: var(--pm-muted); }
-.gSigned::before { background: var(--pm-hint); }
-.gInactive { color: var(--pm-gold); }
-.gUnsub { color: var(--pm-hint); font-weight: 600; }
+.gRepeat { background: var(--tag-green-bg); color: var(--tag-green-ink); }
+.gOne { background: var(--tag-blue-bg); color: var(--tag-blue-ink); }
+.gSigned { background: var(--tag-grey-bg); color: var(--tag-grey-ink); }
+.gInactive { background: var(--tag-amber-bg); color: var(--tag-amber-ink); }
+.gUnsub { background: var(--tag-grey-bg); color: var(--tag-grey-ink); }
 .gUnsub::before { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
-.gBounced { color: var(--pm-terra); }
+.gBounced { background: var(--tag-red-bg); color: var(--tag-red-ink); }
 
 /* ---- pager ---- */
 .pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
