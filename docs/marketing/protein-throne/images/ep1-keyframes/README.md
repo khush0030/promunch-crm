@@ -20,3 +20,24 @@ Repo copies are 1024px previews; full 2K files are in the Studio folder "PROMUNC
 | 14 Makhana mocks | kf14.jpg | f763c1f3-d764-4c1b-807c-98b0b1e306b6 | OK |
 | 15 Warrior shadow | kf15.jpg | 4f611fce-eae9-4a92-a295-f83bec0f9a60 | OK (v2, crown moved to corner) |
 | 16 Bean deadpan | kf16.jpg | 94fcd3b7-50a9-44ea-b93f-aafcf3953533 | OK |
+
+## Video clips (Seedance 2.0 Fast, 720p, 9:16)
+
+All of these are SILENT (audio was off) except the v2 test.
+
+| Shot | Studio id |
+|---|---|
+| 01 | 0430e730-927b-4082-8d77-18c8919df5c8 |
+| 02 (silent) | 6e821a26-062b-4a9d-b006-92f8ff4eca57 |
+| 02 v2 WITH AUDIO, Hindi line | 6e6484d5-006b-4b99-a15a-47eb66d5ac1f |
+| 03 | 3c67f5e6-56e5-448a-b3f8-8a82e74e545f |
+| 04 | 3bfcb09d-cbb0-425e-89a2-395684cdffff |
+| 05 | 9051335b-ef94-4b9f-982a-83fc9f799013 |
+| 06-08 (first+last frame) | 5b817ca6-8f07-4185-9bc5-85d6675ad454 |
+| 09 | 02ae6f00-6a1d-4478-a2df-ee5dba590e11 |
+| 11 | 490933b9-3eb3-443f-868d-b69078b6427c |
+| 12 | a5aa8c19-e7a6-4787-8b66-4e05e0bd91a5 |
+| 13 | 8a496509-b16d-4772-a9db-0c87f17bdde4 |
+| 14 | dc5792c3-fef5-4032-b58d-7854519ee062 |
+| 15 (first+last frame) | 079b8b08-1a89-42d3-bc94-88b3cb91123f |
+| 16 | caa4b0fd-eb07-404d-be40-5afb76043911 |
