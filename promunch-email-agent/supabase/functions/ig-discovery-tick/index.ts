@@ -25,7 +25,8 @@ import { applyAccountKind, applyAudience, compositeFit, clamp, type AccountKind 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 const MODEL = Deno.env.get("IG_AI_MODEL") ?? "gpt-4o-mini";
 const RUN_BATCH = 10;
-const NICHE_CHUNK = 15;
+const UNCHECKED_FIT_CAP = 35;
+const NICHE_CHUNK = 8;
 
 Deno.serve(async (req) => {
   const gate = requireInternal(req);
@@ -160,22 +161,37 @@ async function importProfiles(run: any, items: any[]) {
   const nicheByHandle = new Map<string, { niche: string | null; score: number; reason: string | null; kind: AccountKind | null; india: "yes" | "no" | "unknown" | null }>();
   for (let i = 0; i < profiles.length; i += NICHE_CHUNK) {
     const chunk = profiles.slice(i, i + NICHE_CHUNK);
-    const scored = await nicheScoreBatch(chunk).catch((e) => {
+    let scored = await nicheScoreBatch(chunk).catch((e) => {
       console.error("[ig-discovery-tick] niche scoring failed", errStr(e));
-      return [];
+      return [] as Awaited<ReturnType<typeof nicheScoreBatch>>;
     });
+    if (scored.length < chunk.length) {
+      // one retry, one handle at a time for the ones the batch missed
+      const missing = chunk.filter((c) => !scored.some((s) => s.handle === c.handle));
+      for (const m of missing) {
+        const one = await nicheScoreBatch([m]).catch(() => []);
+        scored = scored.concat(one);
+      }
+    }
     for (const s of scored) nicheByHandle.set(s.handle, s);
   }
 
   for (const p of profiles) {
     const niche = nicheByHandle.get(p.handle!) ?? { niche: null, score: 0, reason: null, kind: null, india: null };
-    const fit = applyAudience(
-      applyAccountKind(compositeFit(p.followers, p.engagement_rate, niche.score, min, max), niche.kind),
-      niche.india,
+    // No AI verdict (call failed or skipped this handle): don't hand out
+    // full marks on numbers alone; cap until it is re-checked.
+    const checked = nicheByHandle.has(p.handle!);
+    const fit = Math.min(
+      applyAudience(
+        applyAccountKind(compositeFit(p.followers, p.engagement_rate, niche.score, min, max), niche.kind),
+        niche.india,
+      ),
+      checked ? 100 : UNCHECKED_FIT_CAP,
     );
     const reasonBits = [
       niche.kind === "brand" ? "Brand or shop account, not a creator" : null,
       niche.india === "no" ? "Audience not in India" : null,
+      checked ? null : "Not checked by AI yet",
       niche.reason ? `Niche: ${niche.reason}` : null,
       `Followers: ${p.followers ?? "unknown"}`,
       p.engagement_rate != null ? `ER (last 3): ${(p.engagement_rate * 100).toFixed(1)}%` : "ER: unknown",
@@ -263,7 +279,7 @@ async function nicheScoreBatch(
   const client = new OpenAI({ apiKey: OPENAI_API_KEY });
   const resp = await client.chat.completions.create({
     model: MODEL,
-    max_tokens: 120 * profiles.length + 200,
+    max_tokens: 220 * profiles.length + 300,
     response_format: { type: "json_object" },
     messages: [{ role: "system", content: sys }, { role: "user", content: user }],
   });

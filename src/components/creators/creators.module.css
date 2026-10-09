@@ -281,3 +281,8 @@
 @media (prefers-reduced-motion: reduce) {
   .drawer, .spin { animation: none; }
 }
+
+/* ---- Find: Good matches / Everything ---- */
+.seg { display: inline-flex; border: 1px solid var(--pm-border); border-radius: 999px; padding: 2px; background: var(--pm-card); flex: none; }
+.seg button { appearance: none; border: 0; background: none; cursor: pointer; font: 600 13px/1 var(--pm-font); color: var(--pm-ink2); padding: 8px 12px; border-radius: 999px; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--pm-ink); color: var(--pm-card); }

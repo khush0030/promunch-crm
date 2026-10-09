@@ -172,3 +172,18 @@ export function useEscape(open: boolean, onClose: () => void) {
     return () => window.removeEventListener("keydown", h);
   }, [open, onClose]);
 }
+
+/** "Good matches" in Find: micro-creators the scorer rates well. Brands are
+ *  capped at 15 and non-Indian audiences at 20, so min fit 45 drops both. */
+export const GOOD_MATCH = { minFollowers: 1000, maxFollowers: 15000, minFit: 45 } as const;
+
+/** One-click Indian micro-creator search: creator-style tags (snack-word tags
+ *  mostly return brands). Each runs as its own hashtag search. */
+export const CREATOR_HASHTAGS = [
+  "gymfoodindia",
+  "highproteinrecipes",
+  "indianfitnesscreator",
+  "fitnessindia",
+  "healthyrecipesindia",
+  "fitmomindia",
+] as const;

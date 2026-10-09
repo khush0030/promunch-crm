@@ -19,7 +19,7 @@ import { Ban, Copy, ExternalLink, Mail, RefreshCw, Search, Send, Sparkles, Star,
 import { useToast } from "@/components/ui/Toast";
 import PitchQueue from "./PitchQueue";
 import { IgOff } from "./IgOff";
-import { PROSPECT_LABEL, PROSPECT_STATUS, er, fmtNum, isIgOff, useEscape, type Prospect } from "./ig";
+import { CREATOR_HASHTAGS, GOOD_MATCH, PROSPECT_LABEL, PROSPECT_STATUS, er, fmtNum, isIgOff, useEscape, type Prospect } from "./ig";
 import s from "./creators.module.css";
 
 type Run = {
@@ -65,7 +65,7 @@ export default function FindView({ onGoOutreach }: { onGoOutreach: () => void })
   const [batchProgress, setBatchProgress] = useState<string | null>(null);
 
   // search form
-  const [kind, setKind] = useState<"search" | "hashtag">("search");
+  const [kind, setKind] = useState<"search" | "hashtag">("hashtag");
   const [query, setQuery] = useState("");
   const [maxItems, setMaxItems] = useState(30);
   const [starting, setStarting] = useState(false);
@@ -79,6 +79,9 @@ export default function FindView({ onGoOutreach }: { onGoOutreach: () => void })
   const [minFit, setMinFit] = useState("");
   const [hasEmail, setHasEmail] = useState(false);
   const [q, setQ] = useState("");
+  // Default to good matches only; typed filters override the matching default.
+  const [view, setView] = useState<"good" | "all">("good");
+  const [presetBusy, setPresetBusy] = useState(false);
 
   const refreshCounts = useCallback(() => qc.invalidateQueries({ queryKey: ["ig"] }), [qc]);
 
@@ -87,10 +90,14 @@ export default function FindView({ onGoOutreach }: { onGoOutreach: () => void })
     try {
       const params = new URLSearchParams();
       if (status) params.set("status", status);
-      if (minFollowers) params.set("min_followers", minFollowers);
-      if (maxFollowers) params.set("max_followers", maxFollowers);
+      const good = view === "good";
+      const minF = minFollowers || (good ? String(GOOD_MATCH.minFollowers) : "");
+      const maxF = maxFollowers || (good ? String(GOOD_MATCH.maxFollowers) : "");
+      const fitMin = minFit || (good ? String(GOOD_MATCH.minFit) : "");
+      if (minF) params.set("min_followers", minF);
+      if (maxF) params.set("max_followers", maxF);
       if (minEr) params.set("min_er", minEr);
-      if (minFit) params.set("min_fit", minFit);
+      if (fitMin) params.set("min_fit", fitMin);
       if (hasEmail) params.set("has_email", "1");
       if (q) params.set("q", q);
       const [pr, rr] = await Promise.all([
@@ -114,7 +121,7 @@ export default function FindView({ onGoOutreach }: { onGoOutreach: () => void })
     } finally {
       setLoading(false);
     }
-  }, [status, minFollowers, maxFollowers, minEr, minFit, hasEmail, q]);
+  }, [status, minFollowers, maxFollowers, minEr, minFit, hasEmail, q, view]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -138,6 +145,29 @@ export default function FindView({ onGoOutreach }: { onGoOutreach: () => void })
       setStarting(false);
     }
   }, [kind, query, maxItems, push, load, notifyErr]);
+
+  // One click: run every creator hashtag (same start call as a manual search).
+  const findMicroCreators = useCallback(async () => {
+    setPresetBusy(true);
+    let started = 0;
+    try {
+      for (const tag of CREATOR_HASHTAGS) {
+        const r = await fetch(`/api/instagram/discovery`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "start", kind: "hashtag", query: tag, max_items: 30 }),
+        });
+        if (r.ok) started++;
+      }
+      if (started) push({ kind: "success", text: `Searching ${started} creator hashtags. Good matches land here within about 10 to 15 minutes.` });
+      else push({ kind: "error", text: "Could not start the searches. Check today's search budget in Settings." });
+      load();
+    } catch (e) {
+      notifyErr("Could not start the searches", e);
+    } finally {
+      setPresetBusy(false);
+    }
+  }, [push, load, notifyErr]);
 
   const addHandles = useCallback(async () => {
     const handles = handlesInput.split(/[\s,]+/).map((h) => h.trim()).filter(Boolean);
@@ -287,7 +317,7 @@ export default function FindView({ onGoOutreach }: { onGoOutreach: () => void })
             id={FIND_INPUT_ID}
             className={`${s.input} ${s.grow}`}
             aria-label={kind === "hashtag" ? "Hashtag" : "Niche keyword"}
-            placeholder={kind === "hashtag" ? "#healthysnacksindia" : "healthy snacks india"}
+            placeholder={kind === "hashtag" ? "#gymfoodindia" : "nutritionist"}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && startSearch()}
@@ -306,6 +336,12 @@ export default function FindView({ onGoOutreach }: { onGoOutreach: () => void })
           </label>
           <button type="button" className="pm-btn" onClick={startSearch} disabled={starting || !query.trim()}>
             <Search size={15} /> {starting ? "Starting" : "Find creators"}
+          </button>
+        </div>
+        <div className={s.form}>
+          <span>Or let PROMUNCH search the best Indian creator hashtags for micro-influencers (1k to 15k followers)</span>
+          <button type="button" className="pm-btn primary" onClick={findMicroCreators} disabled={presetBusy}>
+            <Search size={15} /> {presetBusy ? "Starting" : "Find Indian micro-creators"}
           </button>
         </div>
         <div className={s.form}>
@@ -353,6 +389,10 @@ export default function FindView({ onGoOutreach }: { onGoOutreach: () => void })
 
       <section className={`${s.card} ${s.cardFlush}`} aria-label="Creators found">
         <div className={s.filters}>
+          <div className={s.seg} role="group" aria-label="Which creators to show">
+            <button type="button" aria-pressed={view === "good"} onClick={() => setView("good")}>Good matches</button>
+            <button type="button" aria-pressed={view === "all"} onClick={() => setView("all")}>Everything</button>
+          </div>
           <input className={`${s.input} ${s.grow}`} aria-label="Search handle or bio" placeholder="Search handle or bio" value={q} onChange={(e) => setQ(e.target.value)} />
           <input className={`${s.input} ${s.num}`} aria-label="Min followers" placeholder="Min followers" inputMode="numeric" value={minFollowers} onChange={(e) => setMinFollowers(e.target.value.replace(/\D/g, ""))} />
           <input className={`${s.input} ${s.num}`} aria-label="Max followers" placeholder="Max followers" inputMode="numeric" value={maxFollowers} onChange={(e) => setMaxFollowers(e.target.value.replace(/\D/g, ""))} />
