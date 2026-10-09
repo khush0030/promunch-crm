@@ -273,7 +273,8 @@ export const API_RULES: ApiRule[] = [
   { prefix: "/api/import", modules: ["audience"] },
 
   { prefix: "/api/leads", modules: ["partners"] },
-  { prefix: "/api/deals", modules: ["partners"] },
+  // Inbox agents can turn a wholesale chat into a deal (POST /api/deals).
+  { prefix: "/api/deals", modules: ["partners", "inbox"] },
   { prefix: "/api/instagram", modules: ["partners"] },
   { prefix: "/api/influencers", modules: ["partners"] },
 

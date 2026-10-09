@@ -75,6 +75,7 @@ export function WaConversation({
   onArchived?: () => void;
 }) {
   const toast = useToast();
+  const [makingDeal, setMakingDeal] = useState(false);
   const router = useRouter();
   const qc = useQueryClient();
   const me = useMeEmail();
@@ -362,6 +363,40 @@ export function WaConversation({
     return <div className={compact ? undefined : "pm2-body"}><div className="pm2-skel" style={{ minHeight: 320 }} /></div>;
   }
 
+  // Wholesale / partnership chats become a deal in one click. POST /api/deals
+  // returns the existing open deal for this chat or number instead of a
+  // duplicate, and never messages anyone.
+  async function makeDeal() {
+    if (!thread || makingDeal) return;
+    setMakingDeal(true);
+    try {
+      const cat = (thread.ticket_category || "").toLowerCase();
+      const r = await fetch("/api/deals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company: thread.contact?.name || null,
+          contact_name: thread.contact?.name || null,
+          contact_phone: thread.contact?.phone || thread.wa_id,
+          kind: cat.includes("partner") ? "partnership" : "wholesale",
+          stage: "talking",
+          notes: thread.last_message_snippet ? `From WhatsApp: ${thread.last_message_snippet}` : "From WhatsApp chat",
+          source: "whatsapp",
+          source_ref: thread.id,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      const dealId = j?.deal?.id;
+      if (!r.ok || !dealId) throw new Error(j?.error || `deal ${r.status}`);
+      toast.push({ kind: "success", text: j.existing ? "This chat already has a deal. Opening it." : "Deal created." });
+      router.push(`/dashboard/deals?deal=${dealId}`);
+    } catch (e) {
+      toast.push({ kind: "error", text: e instanceof Error && e.message.includes("403") ? "You don't have access to Deals." : "Couldn't make the deal. Try again." });
+    } finally {
+      setMakingDeal(false);
+    }
+  }
+
   // Same control + handler in both layouts: the header in compact mode, the
   // "Assigned to" property tile on the full page. Writes assigned_to; the
   // route mirrors it into ticket_assignee so every Inbox screen agrees.
@@ -380,6 +415,9 @@ export function WaConversation({
       {ticketOpen ? (
         <button type="button" className={btn} disabled={patching} onClick={() => setConfirm("resolve")}>Mark solved</button>
       ) : null}
+      <button type="button" className={`${btn} ghost`} disabled={makingDeal} onClick={makeDeal}>
+        {makingDeal ? "Opening deal…" : "Make it a deal"}
+      </button>
       <button type="button" className={`${btn} ghost`} onClick={() => shareLink(`/dashboard/inbox/wa-${id}`, toast)}>Share</button>
       <button type="button" className={`${btn} ghost`} disabled={patching} onClick={() => setConfirm("archive")}>Archive</button>
       {compact ? assignSelect : null}
