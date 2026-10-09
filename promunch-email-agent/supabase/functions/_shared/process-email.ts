@@ -108,6 +108,26 @@ export async function processIncomingMessage(messageId: string): Promise<{
     return { status: "skipped", reason: "already-processed" };
   }
 
+  // email_threads.gmail_message_id only holds the LATEST message of a thread,
+  // and listUnreadInbox returns every inbox message from the last day (read or
+  // not). So in a thread with several recent messages, each continuation
+  // overwrote the id and the others looked new again once their claim window
+  // lapsed: an endless re-draft + Slack repost loop. The per-message outcome
+  // log is the durable record; a message that already reached a terminal
+  // outcome is done. Bounded by created_at so it rides email_logs_event_idx
+  // (Gmail only lists newer_than:1d). A lookup error skips this cycle; the
+  // next poll retries (when in doubt, do nothing).
+  const since = new Date(Date.now() - 3 * 86_400_000).toISOString();
+  const { data: doneLog, error: doneErr } = await supabase
+    .from("email_logs")
+    .select("id")
+    .eq("gmail_message_id", messageId)
+    .in("event_type", ["drafted", "revised", "skipped"])
+    .gte("created_at", since)
+    .limit(1);
+  if (doneErr) return { status: "skipped", reason: "done-check-failed" };
+  if (doneLog && doneLog.length > 0) return { status: "skipped", reason: "already-processed" };
+
   // NEW message. Take an atomic claim BEFORE the expensive fetch + OpenAI draft.
   // Pub/Sub is at-least-once and a push can race the 2-min poll, so several
   // invocations reach here for the same id; the claim lets exactly one proceed
