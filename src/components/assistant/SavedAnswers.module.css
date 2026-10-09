@@ -1,0 +1,32 @@
+/* Ask Maya → Saved answers. Hairline list, one yellow mark for Maya. */
+.sum { margin: 0 0 14px; font-size: 15.5px; line-height: 1.5; color: var(--pm-ink2); max-width: 70ch; }
+.card { background: var(--pm-card); border: 1px solid var(--pm-border); border-radius: var(--pm-r, 20px); }
+.row { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-top: 1px solid var(--pm-line); min-width: 0; }
+.row:first-child { border-top: 0; }
+.open { appearance: none; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; flex: 1 1 auto; min-width: 0; display: grid; gap: 3px; font: inherit; color: inherit; }
+.open b { font-size: 15.5px; color: var(--pm-ink); overflow-wrap: anywhere; }
+.open span { font-size: 14px; color: var(--pm-muted); }
+.open:hover b { color: var(--pm-brand); }
+.pinned { flex: none; font-size: 13.5px; font-weight: 600; color: var(--pm-gold); display: inline-flex; align-items: center; gap: 6px; }
+.pinned::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #D99A00; }
+.acts { flex: none; display: inline-flex; gap: 2px; }
+.icon { appearance: none; border: 0; background: none; width: 36px; height: 36px; border-radius: 10px; display: inline-grid; place-items: center; color: var(--pm-muted); cursor: pointer; }
+.icon:hover { background: var(--pm-card3); color: var(--pm-ink); }
+.empty { padding: 32px 18px; text-align: center; color: var(--pm-muted); font-size: 15px; }
+
+.form { display: grid; gap: 14px; }
+.lead { margin: 0; font-size: 14.5px; color: var(--pm-ink2); }
+.field { display: grid; gap: 6px; }
+.field > span { font-size: 14px; font-weight: 600; color: var(--pm-ink2); }
+.in { width: 100%; min-width: 0; height: 42px; padding: 0 12px; border: 1px solid var(--pm-border); border-radius: 12px; background: var(--pm-card); color: var(--pm-ink); font: 400 15px var(--pm-font); }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; color: var(--pm-ink); }
+.check input { accent-color: var(--pm-brand); width: 16px; height: 16px; }
+.err { margin: 0; font-size: 14px; color: var(--pm-terra); }
+.foot { display: flex; justify-content: flex-end; gap: 8px; }
+
+@media (max-width: 720px) {
+  .row { flex-wrap: wrap; padding: 12px 14px; }
+  .open { flex-basis: calc(100% - 90px); }
+  .pinned { order: 3; }
+  .foot :global(.pm2-btn) { flex: 1 1 0; justify-content: center; }
+}

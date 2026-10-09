@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,6 +21,8 @@ import { PageHeader } from "@/components/pm";
 import { Markdown } from "@/components/assistant/Markdown";
 import { ToolResult } from "@/components/assistant/ToolResult";
 import { scrubInternalNames, sourcesOf } from "@/components/assistant/toolLabels";
+import { SaveAnswerButton, SavedAnswersList, useSavedAnswers } from "@/components/assistant/SavedAnswers";
+import { useMeEmail } from "@/components/inbox/hooks";
 import styles from "./assistant.module.css";
 
 type Convo = { id: string; title: string | null; updated_at: string };
@@ -78,6 +80,13 @@ function AssistantInner() {
   const qc = useQueryClient();
   // ?q= prefills the box (suggested questions on Home); nothing is sent until they press send.
   const params = useSearchParams();
+  const router = useRouter();
+  const me = useMeEmail();
+  // Saved answers tab: only once the table exists (migration applied by hand).
+  const savedQ = useSavedAnswers();
+  const savedOn = savedQ.data?.available === true;
+  const tab = savedOn && params.get("tab") === "saved" ? "saved" : "ask";
+  const setTab = (t: string) => router.replace(t === "saved" ? "/dashboard/assistant?tab=saved" : "/dashboard/assistant");
   const [input, setInput] = useState(() => params.get("q") ?? "");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -121,10 +130,10 @@ function AssistantInner() {
     }
   }, [error]);
 
-  async function send(text: string) {
+  async function send(text: string, fresh = false) {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
-    let id = activeId;
+    let id = fresh ? null : activeId;
     if (!id) {
       try {
         const res = await fetch("/api/assistant/conversations", { method: "POST" });
@@ -168,6 +177,16 @@ function AssistantInner() {
     );
   }
 
+  // Opening a saved answer asks Maya again in a new conversation, so the
+  // numbers are today's, not the ones from when it was saved.
+  function openSaved(question: string) {
+    if (busy) return;
+    setTab("ask");
+    setActiveId(null);
+    setMessages([]);
+    void send(question, true);
+  }
+
   function newChat() {
     if (busy) return;
     setActiveId(null);
@@ -195,7 +214,25 @@ function AssistantInner() {
 
   return (
     <div className={styles.page}>
-      <PageHeader crumb="Your data, plain answers" title="Ask Maya" />
+      <PageHeader
+        crumb="Your data, plain answers"
+        title={tab === "saved" ? "Saved answers" : "Ask Maya"}
+        tabs={
+          savedOn
+            ? [
+                { key: "ask", label: "Ask" },
+                { key: "saved", label: "Saved answers", count: savedQ.data?.saved.length || undefined },
+              ]
+            : undefined
+        }
+        activeTab={tab}
+        onTab={setTab}
+      />
+      {tab === "saved" ? (
+        <div className="pm2-body">
+          <SavedAnswersList me={me} onOpen={openSaved} />
+        </div>
+      ) : (
       <div className="pm2-body">
       <p className={styles.sum}>
         Ask about sales, orders, WhatsApp, email, B2B leads, Amazon or system health. Maya reads the live data before she answers, and shows where the numbers came from.
@@ -308,6 +345,17 @@ function AssistantInner() {
                             {sources.length ? `Sources: ${sources.join(", ")}` : "Answered from what Maya already knows about PROMUNCH"}
                           </span>
                         )}
+                        {savedOn && mi > 0 && messages[mi - 1]?.role === "user" && (
+                          <SaveAnswerButton
+                            className={styles.copyBtn}
+                            question={messages[mi - 1].parts
+                              .filter((p) => p.type === "text")
+                              .map((p) => (p as { text: string }).text)
+                              .join("\n\n")}
+                            answer={fullText}
+                            conversationId={activeId}
+                          />
+                        )}
                         <button
                           type="button"
                           className={styles.copyBtn}
@@ -382,6 +430,7 @@ function AssistantInner() {
         </section>
       </div>
       </div>
+      )}
     </div>
   );
 }
