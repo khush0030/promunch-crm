@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { accessOf } from "@/lib/access";
 import { buildAttention, type AttentionInput } from "@/lib/metrics/attention";
-import { buildNotifications, connectorLabel, istDay, FEED_LIMIT, type NotificationSources } from "./feed";
+import { buildNotifications, connectorLabel, istDay, plainError, FEED_LIMIT, type NotificationSources } from "./feed";
 import {
   applyNotifPatch,
   DEFAULT_PREFS,
@@ -162,7 +162,20 @@ describe("buildNotifications", () => {
     );
     expect(out).toHaveLength(2);
     expect(out[0]).toMatchObject({ category: "issues", kind: "template_rejected", title: 'Meta rejected template "diwali_offer"', body: "Promotional content in utility." });
-    expect(out[1]).toMatchObject({ category: "needs_you", kind: "template_approved" });
+    expect(out[1]).toMatchObject({ category: "needs_you", kind: "template_approved", title: 'Template "restock" is approved' });
+  });
+
+  it("several approvals collapse into one line", () => {
+    const ev = (id: string, mins: number, name: string) => ({ id, connector: "whatsapp", level: "info", event: "template_status", message: `Template '${name}' → APPROVED.`, created_at: iso(mins) });
+    const out = buildNotifications(sources({ templateEvents: [ev("a", 5, "one"), ev("b", 6, "two"), ev("c", 7, "three")] }), { email: null, access: marketer });
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ id: "tpl-ok:a:3", title: "3 templates approved by Meta", body: '"one", "two" and 1 more. Ready to use in campaigns.', created_at: iso(5) });
+  });
+
+  it("connector messages keep the plain lead-in, not the URL dump", () => {
+    expect(plainError('Inbox poll could not run: Gmail API /users/me/messages?q=x failed: 500 { "error": 1 }')).toBe("Inbox poll could not run.");
+    expect(plainError("HMAC mismatch")).toBe("HMAC mismatch");
+    expect(plainError("Send failed: recipient opted out")).toBe("Send failed: recipient opted out");
   });
 
   it("failed campaigns within 7 days and WhatsApp down", () => {

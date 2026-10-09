@@ -185,7 +185,7 @@ export default function SettingsPage() {
 
   const summary =
     tab === "profile" ? (
-      "Your name and photo, as your teammates see them."
+      "Your name and photo, and how the CRM alerts you."
     ) : tab === "connections" ? (
       !health ? (
         "Checking every connection…"

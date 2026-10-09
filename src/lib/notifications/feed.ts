@@ -213,7 +213,18 @@ function connectorTarget(id: string): { href: string; area: ModuleKey } {
   }
 }
 
-const TOKEN_RE = /token|expired|unauthori[sz]ed|invalid_grant|\b190\b|oauth|permission denied|401/i;
+// Raw connector messages often carry a URL or a JSON dump after a colon
+// ("Inbox poll could not run: Gmail API /users/... failed: 500 {...}"). Keep
+// the plain-words lead-in when there is one.
+export function plainError(msg: string | null | undefined): string {
+  const t = (msg ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  const lead = t.split(/:\s/)[0];
+  const noisy = /[{}[\]\/?=&]|https?:/.test(t.slice(lead.length));
+  return clip(lead.length >= 8 && noisy && lead.length < t.length ? lead + "." : t);
+}
+
+const TOKEN_RE = /token|expired|unauthori[sz]ed|invalid_grant|\b190\b|\b401\b/i;
 
 // Events that are a status line, not a failure, even if logged at error.
 const NOT_AN_ISSUE = new Set(["template_status", "health_ok"]);
@@ -386,27 +397,19 @@ export function buildNotifications(src: NotificationSources, viewer: Viewer): No
   }
 
   // ---- Template status changes (from wa-webhook's template_status log) ----
-  // Newest event per template name only.
+  // Newest event per template name only. Approvals are good news, so several
+  // in a row collapse into one line; rejections stay one per template.
   const seenTpl = new Set<string>();
+  const approved: { name: string; ev: ConnectorEventRow }[] = [];
+  const tplHref = "/dashboard/whatsapp?tab=templates";
   for (const ev of [...src.templateEvents].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))) {
     const m = (ev.message ?? "").match(/^Template '([^']*)' → ([A-Z_]+)(?::\s*(.*))?/);
     if (!m) continue;
     const [, name, status, reason] = m;
     if (seenTpl.has(name)) continue;
     seenTpl.add(name);
-    const href = "/dashboard/whatsapp?tab=templates";
     if (status === "APPROVED" || status === "REINSTATED") {
-      items.push({
-        id: `tpl:${ev.id}`,
-        category: "needs_you",
-        kind: "template_approved",
-        area: "wa_marketing",
-        severity: "info",
-        title: `Template "${clip(name, 60)}" is approved`,
-        body: "Meta approved it. It is ready to use in campaigns.",
-        href,
-        created_at: ev.created_at,
-      });
+      approved.push({ name, ev });
     } else if (status === "REJECTED" || ["PAUSED", "DISABLED", "FLAGGED", "LIMIT_EXCEEDED"].includes(status)) {
       const rejected = status === "REJECTED";
       items.push({
@@ -419,10 +422,29 @@ export function buildNotifications(src: NotificationSources, viewer: Viewer): No
           ? `Meta rejected template "${clip(name, 60)}"`
           : `Meta ${status === "FLAGGED" ? "flagged" : "paused"} template "${clip(name, 60)}"`,
         body: clip(reason) || "Open it to edit and send it again.",
-        href,
+        href: tplHref,
         created_at: ev.created_at,
       });
     }
+  }
+  if (approved.length) {
+    const top = approved[0]; // newest
+    const names = approved.slice(0, 2).map((a) => `"${clip(a.name, 40)}"`).join(", ");
+    const more = approved.length - 2;
+    items.push({
+      id: `tpl-ok:${top.ev.id}:${approved.length}`,
+      category: "needs_you",
+      kind: "template_approved",
+      area: "wa_marketing",
+      severity: "info",
+      title: approved.length === 1 ? `Template "${clip(top.name, 60)}" is approved` : `${approved.length} templates approved by Meta`,
+      body:
+        approved.length === 1
+          ? "Meta approved it. It is ready to use in campaigns."
+          : `${names}${more > 0 ? ` and ${more} more` : ""}. Ready to use in campaigns.`,
+      href: tplHref,
+      created_at: top.ev.created_at,
+    });
   }
 
   // ---- WhatsApp down (newest heartbeat says so) ---------------------------
@@ -468,7 +490,7 @@ export function buildNotifications(src: NotificationSources, viewer: Viewer): No
       title: token
         ? `${label}: login expired or access was removed`
         : `${label} failed ${rows.length === 1 ? "once" : `${rows.length} times`} in the last 24 hours`,
-      body: clip(latest.message) || event.replace(/_/g, " "),
+      body: plainError(latest.message) || event.replace(/_/g, " "),
       href,
       created_at: latest.created_at,
     });

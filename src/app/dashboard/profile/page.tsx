@@ -7,7 +7,7 @@ import { ProfilePanel } from "@/components/settings/ProfilePanel";
 export default function ProfilePage() {
   return (
     <>
-      <PageHeader crumb="Settings" title="My profile" summary="Your name and photo, as your teammates see them." />
+      <PageHeader crumb="Settings" title="My profile" summary="Your name and photo, and how the CRM alerts you." />
       <div className="pm2-body">
         <ProfilePanel />
       </div>
