@@ -10,6 +10,8 @@ import {
   FEEDBACK_TEMPLATE_BUTTON_LABELS,
   feedbackAskBody,
   feedbackReplyMarker,
+  buildFeedbackReplyInteractive,
+  feedbackReplyBody,
   feedbackReplyText,
   feedbackTemplateVars,
   isFeedbackPayload,
@@ -84,23 +86,23 @@ Deno.test("interactive ask: approved emoji titles within Meta's 20-char limit", 
   for (const t of Object.values(FEEDBACK_TEMPLATE_BUTTON_LABELS)) assert(!/\p{Extended_Pictographic}/u.test(t), t);
 });
 
-Deno.test("replies are the approved copy, carry the link, no em dashes", () => {
-  assertEquals(
-    feedbackReplyText("loved", URL),
-    `Yay, that made our day! 💚 Could you share it in a quick review? It takes 30 seconds and really helps a small Indian brand: ${URL}`,
-  );
-  assertEquals(
-    feedbackReplyText("okay", URL),
-    `Thanks for being honest! What would make it a 😍 for you: taste, crunch, price, or something else? Just reply here, a real person reads every message.\n\nIf you'd like to leave a review, here's the link: ${URL}`,
-  );
-  assertEquals(
-    feedbackReplyText("unhappy", URL),
-    `So sorry about that. 😕 Please tell us what went wrong, and add a photo if you can. Our team will sort it out within 24 hours.\n\nYou're always welcome to leave a review too: ${URL}`,
-  );
+Deno.test("replies: formatted body + a Write a review button with UTM, no em dashes", () => {
   for (const c of ["loved", "okay", "unhappy"] as const) {
-    assert(!feedbackReplyText(c, URL).includes("—"));
+    const m = buildFeedbackReplyInteractive(c, URL) as any;
+    assertEquals(m.type, "cta_url");
+    assertEquals(m.action.name, "cta_url");
+    assertEquals(m.action.parameters.display_text, "Write a review");
+    assert(m.action.parameters.display_text.length <= 20);
+    assert(m.action.parameters.url.startsWith(URL));
+    assert(m.action.parameters.url.includes("utm_source=whatsapp"));
+    assert(m.body.text.includes("\n\n"));          // spaced paragraphs
+    assert(!m.body.text.includes("http"));           // link lives on the button
+    assert(!m.body.text.includes("—"));
     assert(!feedbackReplyText(c, URL).includes("Oltaflock"));
+    assert(m.body.text.length <= 1024);
   }
+  assert(feedbackReplyBody("loved").startsWith("Yay, that made our day! 💚"));
+  assert(feedbackReplyBody("unhappy").includes("*within 24 hours*"));
   assert(!feedbackAskBody("A").includes("—"));
 });
 

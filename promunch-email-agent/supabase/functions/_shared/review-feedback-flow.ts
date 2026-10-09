@@ -27,7 +27,7 @@ import {
   classifyTapRun,
   type FeedbackChoice,
   feedbackReplyMarker,
-  feedbackReplyText,
+  buildFeedbackReplyInteractive,
   isRunRef,
   REVIEW_FEEDBACK_LANGUAGE,
   REVIEW_FEEDBACK_TEMPLATE,
@@ -194,8 +194,8 @@ export async function handleReviewFeedbackTap(t: {
 
   const res = await waSend({
     thread_id: t.threadId,
-    kind: "text",
-    text: feedbackReplyText(t.choice, REVIEW_URL),
+    kind: "interactive",
+    interactive: buildFeedbackReplyInteractive(t.choice, REVIEW_URL),
     sent_by: marker,
   });
   await sb.from("wa_review_feedback").update({

@@ -127,19 +127,51 @@ export function buildFeedbackInteractive(
   };
 }
 
-// The approved replies, verbatim. No em dashes.
-export function feedbackReplyText(choice: FeedbackChoice, reviewUrl: string): string {
+// Replies to a tap (owner-approved copy; Oct 9 2026 owner asked for
+// spacing/bold and a real review BUTTON instead of a pasted link). Sent as a
+// WhatsApp cta_url interactive message: formatted body + "Write a review"
+// button. No em dashes. *bold* is WhatsApp formatting.
+export const REVIEW_CTA_TEXT = "Write a review"; // Meta limit: 20 chars
+
+export function feedbackReplyBody(choice: FeedbackChoice): string {
   switch (choice) {
     case "loved":
-      return `Yay, that made our day! 💚 Could you share it in a quick review? It takes 30 seconds and really helps a small Indian brand: ${reviewUrl}`;
+      return "Yay, that made our day! 💚\n\nCould you share it in a quick review? It takes *30 seconds* and really helps a small Indian brand.";
     case "okay":
-      return `Thanks for being honest! What would make it a 😍 for you: taste, crunch, price, or something else? Just reply here, a real person reads every message.\n\nIf you'd like to leave a review, here's the link: ${reviewUrl}`;
+      return "Thanks for being honest! 🙏\n\nWhat would make it a 😍 for you: *taste*, *crunch*, *price*, or something else?\n\nJust reply here. A real person reads every message.";
     case "unhappy":
-      return `So sorry about that. 😕 Please tell us what went wrong, and add a photo if you can. Our team will sort it out within 24 hours.\n\nYou're always welcome to leave a review too: ${reviewUrl}`;
+      return "So sorry about that. 😕\n\nPlease tell us what went wrong, and add a photo if you can. Our team will sort it out *within 24 hours*.\n\nYou're always welcome to leave a review too.";
   }
 }
 
-// wa_messages.sent_by ledger marker for a tap reply. One per (ask, customer):
+/** Review page link with WhatsApp attribution tags (keeps any existing query). */
+export function reviewCtaUrl(reviewUrl: string): string {
+  try {
+    const u = new URL(reviewUrl);
+    u.searchParams.set("utm_source", "whatsapp");
+    u.searchParams.set("utm_medium", "review_ask");
+    u.searchParams.set("utm_campaign", "review_feedback");
+    return u.toString();
+  } catch {
+    return reviewUrl;
+  }
+}
+
+/** The tap reply as a cta_url interactive message (wa-send kind 'interactive'). */
+export function buildFeedbackReplyInteractive(choice: FeedbackChoice, reviewUrl: string): Record<string, unknown> {
+  return {
+    type: "cta_url",
+    body: { text: feedbackReplyBody(choice) },
+    footer: { text: REVIEW_FEEDBACK_FOOTER },
+    action: { name: "cta_url", parameters: { display_text: REVIEW_CTA_TEXT, url: reviewCtaUrl(reviewUrl) } },
+  };
+}
+
+/** Plain-text form (ledger/body summaries and tests). */
+export function feedbackReplyText(choice: FeedbackChoice, reviewUrl: string): string {
+  return `${feedbackReplyBody(choice)}\n\n${REVIEW_CTA_TEXT}: ${reviewCtaUrl(reviewUrl)}`;
+}
+
 // the ref is the journey run, which already belongs to exactly one wa_id.
 export function feedbackReplyMarker(ref: string): string {
   return `review_feedback:${ref}`;
