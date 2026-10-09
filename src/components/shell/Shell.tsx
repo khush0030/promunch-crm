@@ -5,6 +5,7 @@ import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import TabBar from "./TabBar";
 import CommandPalette from "./CommandPalette";
+import NotificationAlerter from "./notifications/NotificationAlerter";
 import { findActive } from "./nav";
 import { useAttentionCounts, useHash, useShellUser } from "./useShellData";
 
@@ -58,6 +59,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       </Suspense>
       <main className="pm2-main">{children}</main>
       {paletteOpen && <CommandPalette onClose={closePalette} />}
+      <NotificationAlerter />
     </div>
   );
 }

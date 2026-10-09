@@ -1,5 +1,11 @@
 "use client";
 
+// Browser-side alerts for WhatsApp chats a human must answer (5s poll, so
+// chats ring fast). Scope: this is the Inbox "Alerts on/off" switch, per
+// browser. The CRM-wide switches (sound, pop-ups) in Settings → My profile
+// sit above it via lib/notifications/alert-gate; the header bell skips chat
+// items while this pinger is on, so a chat never rings twice.
+//
 // Browser-side alerts for WhatsApp chats a human must answer. Mounted once in
 // the dashboard layout so it runs on every dashboard page while a tab is open.
 //
@@ -16,6 +22,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { Thread } from "./types";
 import { useAccess } from "@/components/shell/useAccess";
 import { canUse } from "@/lib/access";
+import { canPopup, ringOnce } from "@/lib/notifications/alert-gate";
 
 const MUTE_KEY = "wa_alerts_muted";
 const POLL_MS = 5000;
@@ -131,8 +138,10 @@ export default function InboxNotifier() {
     }
     seen.current = next;
     if (!fresh.length || isAlertsMuted()) return;
-    playPing();
-    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+    // Shared gate: respects Settings → My profile → Notifications (sound,
+    // pop-ups) and rings once per burst together with the header bell.
+    ringOnce(() => playPing());
+    if (canPopup()) {
       for (const t of fresh.slice(0, 3)) {
         const title = `WhatsApp: ${t.contact?.name || t.contact?.phone || t.wa_id}`;
         const n = new Notification(title, {

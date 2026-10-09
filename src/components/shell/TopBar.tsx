@@ -1,10 +1,12 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { Search, Bell } from "lucide-react";
+import { Search } from "lucide-react";
+import NotificationCenter from "./notifications/NotificationCenter";
 
-// Top bar over the page: one wide search (⌘K) and the bell. On phones it also
-// carries the logo, and search shrinks to an icon.
+// Top bar over the page: one wide search (⌘K) and the notification bell. On
+// phones it also carries the logo, and search shrinks to an icon. `alerts`
+// (the attention count) is only the bell's fallback dot if its feed fails.
 export default function TopBar({ onSearch, alerts }: { onSearch: (opener: HTMLElement) => void; alerts: number }) {
   return (
     <header className="pm3-top">
@@ -16,10 +18,7 @@ export default function TopBar({ onSearch, alerts }: { onSearch: (opener: HTMLEl
         <span>Search orders, customers, tickets, anything</span>
         <kbd>⌘K</kbd>
       </button>
-      <Link href="/dashboard/attention" className="pm3-bell" aria-label={alerts ? `${alerts} things need you` : "Needs you"}>
-        <Bell aria-hidden />
-        {alerts > 0 && <i aria-hidden />}
-      </Link>
+      <NotificationCenter fallbackAlerts={alerts} />
     </header>
   );
 }

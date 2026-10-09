@@ -5,6 +5,7 @@ import { Avatar } from "@/components/pm";
 import { useToast } from "@/components/ui/Toast";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { AVATAR_BUCKET, AVATAR_MAX_BYTES, AVATAR_TYPES, PROFILE_EVENT, PROFILE_NAME_MAX, validateProfileName, type ProfileEventDetail } from "@/lib/profile";
+import { NotificationPrefs } from "./NotificationPrefs";
 import css from "./Settings.module.css";
 
 type Profile = { id: string; email: string | null; full_name: string; display_name: string; avatar_url: string | null };
@@ -139,6 +140,7 @@ export function ProfilePanel() {
   const shownName = check.ok ? check.value : profile.display_name;
 
   return (
+    <>
     <div className={css.card}>
       <div className={css.profTop}>
         <Avatar name={shownName} src={profile.avatar_url} size={72} />
@@ -206,5 +208,7 @@ export function ProfilePanel() {
         </div>
       </form>
     </div>
+    <NotificationPrefs />
+    </>
   );
 }
