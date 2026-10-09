@@ -18,6 +18,7 @@ import { HelpTip } from "@/components/guide";
 import type { KbDoc } from "./types";
 import { inputStyle } from "./styles";
 import { Modal, Field } from "./primitives";
+import { KbAskButton } from "./KbAsk";
 import k from "./KbView.module.css";
 
 const SOURCE_LABEL: Record<string, string> = { upload: "Uploaded file", manual: "Pasted text", text: "Pasted text", url: "Web page" };
@@ -97,6 +98,8 @@ export function KbHeader() {
         title="Bot knowledge"
         summary={isLoading ? undefined : kbSummary(docs)}
         actions={
+          <>
+          <KbAskButton />
           <HeaderMenu
             label="Add knowledge"
             triggerClass="pm2-btn pri"
@@ -106,6 +109,7 @@ export function KbHeader() {
               { key: "upload", label: "Upload a file (PDF, TXT, MD)", icon: <Upload aria-hidden />, onSelect: add.pickFile, disabled: add.uploading },
             ]}
           />
+          </>
         }
       />
       {add.elements}
@@ -163,6 +167,7 @@ export default function KbView({ headerInPage: headerProp = false }: { headerInP
           )}
         </div>
         <div className={k.acts}>
+          <KbAskButton />
           <button type="button" onClick={add.openPaste} className="pm2-btn"><FileText size={15} aria-hidden /> Paste text</button>
           <button type="button" onClick={add.pickFile} className="pm2-btn pri" disabled={add.uploading}>
             <Upload size={15} aria-hidden /> {add.uploading ? "Uploading…" : "Upload a file"}

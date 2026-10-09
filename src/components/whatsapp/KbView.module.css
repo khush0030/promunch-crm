@@ -36,3 +36,22 @@
   .status { grid-area: st; justify-self: start; font-size: 14px; }
   .rowActs { grid-area: acts; }
 }
+
+/* Test a question (dry-run retrieval preview) */
+.askLead { margin: 0 0 12px; font-size: 14.5px; line-height: 1.5; color: var(--pm-ink2); }
+.askForm { display: flex; gap: 8px; align-items: stretch; }
+.askForm input { flex: 1 1 auto; min-width: 0; }
+.askForm :global(.pm2-btn) { flex: none; }
+.askOut { display: grid; gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--pm-line); }
+.askBlock { display: grid; gap: 6px; min-width: 0; }
+.askEye { display: inline-flex; align-items: center; gap: 6px; font: 700 11.5px/1.2 var(--pm-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--pm-muted); }
+.askList { list-style: none; margin: 0; padding: 0; display: grid; }
+.askList li { display: grid; gap: 4px; padding: 10px 0; border-top: 1px solid var(--pm-line); min-width: 0; }
+.askList li:first-child { border-top: 0; padding-top: 2px; }
+.askList b { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--pm-ink2); }
+.askText { font-size: 14.5px; line-height: 1.5; color: var(--pm-ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.hl { background: #FBEFC4; color: inherit; border-radius: 3px; padding: 0 2px; }
+.askNote { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--pm-muted); }
+@media (max-width: 720px) {
+  .askForm { flex-direction: column; }
+}
