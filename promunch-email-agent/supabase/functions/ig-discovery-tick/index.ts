@@ -20,7 +20,7 @@ import { db } from "../_shared/supabase.ts";
 import { requireInternal } from "../_shared/require-internal.ts";
 import { logConnector, errStr } from "../_shared/connector-log.ts";
 import { apifyRunStatus, apifyDatasetItems, extractHandle, normalizeProfileItem, normalizeReelViews } from "../_shared/apify.ts";
-import { compositeFit, clamp } from "../_shared/ig-scoring.ts";
+import { applyAccountKind, compositeFit, clamp, type AccountKind } from "../_shared/ig-scoring.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 const MODEL = Deno.env.get("IG_AI_MODEL") ?? "gpt-4o-mini";
@@ -157,7 +157,7 @@ async function importProfiles(run: any, items: any[]) {
   const profiles = items.map(normalizeProfileItem).filter((p) => p.handle);
 
   // one batched niche call per chunk — bio + captions in, {handle, niche, score} out
-  const nicheByHandle = new Map<string, { niche: string | null; score: number; reason: string | null }>();
+  const nicheByHandle = new Map<string, { niche: string | null; score: number; reason: string | null; kind: AccountKind | null }>();
   for (let i = 0; i < profiles.length; i += NICHE_CHUNK) {
     const chunk = profiles.slice(i, i + NICHE_CHUNK);
     const scored = await nicheScoreBatch(chunk).catch((e) => {
@@ -168,9 +168,10 @@ async function importProfiles(run: any, items: any[]) {
   }
 
   for (const p of profiles) {
-    const niche = nicheByHandle.get(p.handle!) ?? { niche: null, score: 0, reason: null };
-    const fit = compositeFit(p.followers, p.engagement_rate, niche.score, min, max);
+    const niche = nicheByHandle.get(p.handle!) ?? { niche: null, score: 0, reason: null, kind: null };
+    const fit = applyAccountKind(compositeFit(p.followers, p.engagement_rate, niche.score, min, max), niche.kind);
     const reasonBits = [
+      niche.kind === "brand" ? "Brand or shop account, not a creator" : null,
       niche.reason ? `Niche: ${niche.reason}` : null,
       `Followers: ${p.followers ?? "unknown"}`,
       p.engagement_rate != null ? `ER (last 3): ${(p.engagement_rate * 100).toFixed(1)}%` : "ER: unknown",
@@ -227,23 +228,29 @@ async function importReels(run: any, items: any[]) {
 
 // ---- batched AI niche scoring ----------------------------------------------
 async function nicheScoreBatch(
-  profiles: { handle: string | null; biography: string | null; captions: string[] }[],
-): Promise<{ handle: string; niche: string | null; score: number; reason: string | null }[]> {
+  profiles: { handle: string | null; full_name?: string | null; biography: string | null; captions: string[]; business_category?: string | null; is_business?: boolean }[],
+): Promise<{ handle: string; niche: string | null; score: number; reason: string | null; kind: AccountKind | null }[]> {
   if (!OPENAI_API_KEY || !profiles.length) return [];
   const sys =
     `You evaluate Instagram creators for PROMUNCH (Indian healthy-snack brand — protein munchies, ` +
     `edamame, soya crunchies; "Your Munchy Pal"). Food, fitness, health, lifestyle, student and ` +
-    `mom-focused creators fit well; unrelated or spammy accounts do not.`;
+    `mom-focused creators fit well; unrelated or spammy accounts do not. ` +
+    `We want INDIVIDUAL creators (a person who posts content), not brands: shops, food/snack ` +
+    `brands, D2C sellers, bakeries, restaurants, cafes, distributors, gyms, agencies and pages ` +
+    `that mainly sell products are "brand". A person who has a business account but posts ` +
+    `personal content is still "creator".`;
   const user = [
-    `For each creator below, return a niche label and a 0-25 brand-fit score.`,
+    `For each account below, decide kind ("creator" = an individual person, "brand" = shop/brand/business page), and return a niche label and a 0-25 brand-fit score (give brands 0-5).`,
     ``,
     ...profiles.map((p, i) => [
       `--- CREATOR ${i + 1}: @${p.handle}`,
+      `NAME: ${p.full_name ?? "(none)"}`,
       `BIO: ${(p.biography ?? "").slice(0, 300) || "(none)"}`,
+      `INSTAGRAM CATEGORY: ${p.business_category ?? (p.is_business ? "business account" : "none")}`,
       `CAPTIONS: ${p.captions.slice(0, 4).map((c) => c.slice(0, 120)).join(" | ") || "(none)"}`,
     ].join("\n")),
     ``,
-    `Return JSON ONLY: {"creators":[{"handle":"...","niche":"<2-4 word label>","score":<0-25>,"reason":"<one short line>"}]}`,
+    `Return JSON ONLY: {"creators":[{"handle":"...","kind":"creator|brand","niche":"<2-4 word label>","score":<0-25>,"reason":"<one short line>"}]}`,
   ].join("\n");
 
   const client = new OpenAI({ apiKey: OPENAI_API_KEY });
@@ -263,6 +270,7 @@ async function nicheScoreBatch(
       niche: (c.niche ?? null) ? String(c.niche).slice(0, 60) : null,
       score: Number(c.score) || 0,
       reason: (c.reason ?? null) ? String(c.reason).slice(0, 200) : null,
+      kind: c.kind === "brand" ? "brand" : c.kind === "creator" ? "creator" : null,
     }));
 }
 

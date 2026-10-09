@@ -29,3 +29,12 @@ export function compositeFit(
 ): number {
   return clamp(scoreBand(followers, min, max) + scoreEr(er) + clamp(nicheScore, 0, 25), 0, 100);
 }
+
+// Brand / shop / competitor accounts are not creators: whatever their
+// numbers, cap their fit so they sink below real creators in Find.
+export const BRAND_FIT_CAP = 15;
+export type AccountKind = "creator" | "brand";
+
+export function applyAccountKind(fit: number, kind: AccountKind | null | undefined): number {
+  return kind === "brand" ? Math.min(fit, BRAND_FIT_CAP) : fit;
+}

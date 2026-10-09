@@ -118,6 +118,10 @@ export interface ProfileNorm {
   bio_email: string | null;
   last3: { likes: number | null; comments: number | null; views: number | null; caption: string | null; type: string | null; taken_at: string | null }[];
   captions: string[];
+  // Instagram's own account hints (creators often use business accounts too,
+  // so these only inform the AI creator-vs-brand call, never decide it).
+  business_category: string | null;
+  is_business: boolean;
 }
 
 // instagram-profile-scraper output → our prospect shape.
@@ -154,6 +158,8 @@ export function normalizeProfileItem(item: any): ProfileNorm {
     bio_email: bio ? (bio.match(EMAIL_RE)?.[0]?.toLowerCase() ?? null) : null,
     last3,
     captions: posts.slice(0, 8).map((p) => str(p?.caption) ?? "").filter(Boolean).map((c) => c.slice(0, 200)),
+    business_category: str(item?.businessCategoryName, item?.business_category_name, item?.categoryName) ?? null,
+    is_business: item?.isBusinessAccount === true || item?.is_business_account === true,
   };
 }
 
