@@ -249,3 +249,24 @@ describe("coverage", () => {
     expect(pages.filter((u) => pageModule(u, null) === null)).toEqual([]);
   });
 });
+
+describe("P1 routes added Oct 9 (reports, KB ask, deals, saved answers, buyers)", () => {
+  const as = (modules: string[]) => accessOf({ email: "m@promunch.in", app_metadata: { role: "agent", modules } });
+  it("maps each new route to its area", () => {
+    expect(apiRule("/api/inbox/tickets/reports")?.modules).toEqual(["inbox"]);
+    expect(apiRule("/api/whatsapp/kb/ask")?.modules).toEqual(["bot_knowledge"]);
+    expect(apiRule("/api/deals")?.modules).toEqual(["partners"]);
+    expect(apiRule("/api/assistant/saved/abc")?.modules).toEqual(["home"]);
+    expect(apiRule("/api/metrics/buyers")?.modules).toEqual(["sales"]);
+    expect(pageModule("/dashboard/inbox/reports", null)).toBe("inbox");
+    expect(pageModule("/dashboard/sales/repeat", null)).toBe("sales");
+    expect(pageModule("/dashboard/sales/products", null)).toBe("sales");
+  });
+  it("refuses members without the area", () => {
+    expect(canCallApi(as(["wa_marketing"]), "/api/metrics/buyers", "GET")).toBe(false);
+    expect(canCallApi(as(["inbox"]), "/api/whatsapp/kb/ask", "GET")).toBe(false);
+    expect(canCallApi(as(["bot_knowledge"]), "/api/whatsapp/kb/ask", "GET")).toBe(true);
+    expect(canCallApi(as(["partners"]), "/api/deals", "POST")).toBe(true);
+    expect(canCallApi(as(["sales"]), "/api/deals", "POST")).toBe(false);
+  });
+});
