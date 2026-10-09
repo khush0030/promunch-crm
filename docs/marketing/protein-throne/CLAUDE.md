@@ -29,6 +29,8 @@ Last updated: 9 Oct 2026 (status revised after user review).
 | Edamame tiny | **Locked 9 Oct**: option A "pure baby", generated from the warrior. Option C (rolling bean) kept in `images/options/` as a possible roll-in pose. |
 | Needs rework (user, 9 Oct) | **Himalayan Rock Salt, Masala Mania, Indori Chatka.** NOT locked. Images moved to `images/wip/`. |
 | Character sheets | 10 in `images/sheets/`. **Edamame tiny and Makhana sheets redone 9 Oct** for the locked designs (Studio ids dfcb9793-0433-49cb-8d61-7ec69c2bfaea / 3c786192-056b-463c-b337-e629d5b995f1; repo copies are 1024px previews, full 2K is in Studio because the container cannot reach cdn.oltaflock.ai). Old sheets in `images/wip/*-old.jpg`. Chips sheet redone 9 Oct. Still to redo: the flavour warriors (after rework). Both new sheets approved by user 9 Oct. |
+| Palace / throne room | **Locked 9 Oct: palace C (snack-kingdom hall)** with our Crown character swapped in. Studio id 87dd8ae5-5a3f-4a2c-a546-6b58b804d718, element `@PalaceThroneRoom`. Options A/B in `images/locations/`. |
+| Scale lineup | NOT locked. Model keeps redrawing Makhana with a thin moustache and blending designs; v3 (`images/sheets/scale-lineup-ep1-v3.jpg`) is the best draft. Enforce scale per keyframe instead: warrior 100%, Protein Bar 75%, Peanut 62%, Chips 52%, Makhana 50% (floats), tiny bean 15% (knee-high to Peanut), Crown about Peanut's head size. Always pass Makhana's own locked image as a reference when he is in a shot. |
 | Progress zip sent to Parth | Yes (1 Oct). |
 
 ## Pending script change
