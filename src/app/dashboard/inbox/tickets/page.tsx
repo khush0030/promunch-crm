@@ -14,16 +14,22 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlarmClock,
+  Building2,
   CircleCheck,
+  CircleHelp,
   CircleDot,
   Clock,
   Hourglass,
   Inbox as InboxIcon,
   ListTodo,
   MoreHorizontal,
+  Package,
   Search,
+  Tag,
+  TriangleAlert,
   User,
   UserCheck,
+  Wallet,
 } from "lucide-react";
 import { PageHeader, Avatar, Callout, ConfirmDialog } from "@/components/pm";
 import { formatINR } from "@/lib/metrics/money";
@@ -31,6 +37,7 @@ import { useToast } from "@/components/ui/Toast";
 import { patchThread } from "@/components/inbox/shared";
 import { useMeEmail } from "@/components/inbox/hooks";
 import type { TicketCard, TicketsBoard } from "@/lib/inbox/tickets";
+import { topicKey, topicWord } from "@/lib/inbox/ticket-reports";
 import s from "./tickets.module.css";
 
 // Views map straight onto the board columns the API already builds:
@@ -38,12 +45,25 @@ import s from "./tickets.module.css";
 //   with:*    = open/pending + assigned    ("Open")
 //   waiting   = pending + unassigned       ("Waiting on customer")
 //   resolved  = resolved in the last 7 days ("Solved")
-type ViewKey = "mine" | "unassigned" | "overdue" | "open" | "new" | "assigned" | "waiting" | "resolved";
+// Topics views ("topic:<category>") group live tickets by ticket_category.
+type BaseView = "mine" | "unassigned" | "overdue" | "open" | "new" | "assigned" | "waiting" | "resolved";
+type ViewKey = BaseView | `topic:${string}`;
 type Status = "new" | "open" | "waiting" | "solved";
 type ChannelFilter = "all" | "wa" | "ig";
 type SortKey = "oldest" | "newest";
 
-const VIEW_KEYS: ViewKey[] = ["mine", "unassigned", "overdue", "open", "new", "assigned", "waiting", "resolved"];
+const VIEW_KEYS: BaseView[] = ["mine", "unassigned", "overdue", "open", "new", "assigned", "waiting", "resolved"];
+
+// Icons for the topics the bot writes; anything else gets a plain tag.
+const TOPIC_ICON: Record<string, ReactNode> = {
+  order_issue: <Package aria-hidden />,
+  order_tracking: <Package aria-hidden />,
+  refund: <Wallet aria-hidden />,
+  product_query: <CircleHelp aria-hidden />,
+  wholesale: <Building2 aria-hidden />,
+  partnership: <Building2 aria-hidden />,
+  complaint: <TriangleAlert aria-hidden />,
+};
 
 const STATUS_WORD: Record<Status, string> = {
   new: "New",
@@ -55,7 +75,8 @@ const STATUS_WORD: Record<Status, string> = {
 const CHANNEL_WORD: Record<"wa" | "ig", string> = { wa: "WhatsApp", ig: "Instagram" };
 
 function parseView(raw: string | null): ViewKey {
-  return VIEW_KEYS.includes(raw as ViewKey) ? (raw as ViewKey) : "open";
+  if (raw && raw.startsWith("topic:") && raw.length > 6) return raw as ViewKey;
+  return VIEW_KEYS.includes(raw as BaseView) ? (raw as BaseView) : "open";
 }
 
 // Display-only sort key off the aggregator's age text ("40m", "2h 10m",
@@ -214,6 +235,7 @@ function TicketsPageInner() {
   const inView = useCallback(
     (r: Row, v: ViewKey): boolean => {
       const live = r.status !== "solved";
+      if (v.startsWith("topic:")) return live && topicKey(r.card.category) === v.slice(6);
       switch (v) {
         case "mine":
           return live && !!me && r.card.assignee === me;
@@ -231,16 +253,34 @@ function TicketsPageInner() {
           return r.status === "waiting";
         case "resolved":
           return r.status === "solved";
+        default:
+          return false;
       }
     },
     [me],
   );
 
+  // Topics among live tickets, biggest first. Merged by display word so
+  // "support" and "customer_support" are one row.
+  const topics = useMemo(() => {
+    const m = new Map<string, { key: string; word: string; n: number }>();
+    for (const r of allRows) {
+      if (r.status === "solved") continue;
+      const key = topicKey(r.card.category);
+      const word = topicWord(key);
+      const t = m.get(word) ?? { key, word, n: 0 };
+      t.n++;
+      m.set(word, t);
+    }
+    return [...m.values()].sort((a, b) => b.n - a.n || a.word.localeCompare(b.word));
+  }, [allRows]);
+
   const counts = useMemo(() => {
-    const c = {} as Record<ViewKey, number>;
+    const c = {} as Record<string, number>;
     for (const k of VIEW_KEYS) c[k] = allRows.filter((r) => inView(r, k)).length;
+    for (const t of topics) c[`topic:${t.key}`] = t.n;
     return c;
-  }, [allRows, inView]);
+  }, [allRows, inView, topics]);
 
   const nameOf = useCallback(
     (email: string | null) => (email ? teamUsers.find((u) => u.email === email)?.name || email : null),
@@ -334,6 +374,14 @@ function TicketsPageInner() {
       ],
     },
   ];
+  // Topics: every topic with a live ticket, plus the one being viewed (so a
+  // topic that just emptied keeps its row instead of vanishing under you).
+  const topicItems = topics.map((t) => ({ key: `topic:${t.key}` as ViewKey, label: t.word, icon: TOPIC_ICON[t.key] ?? <Tag aria-hidden /> }));
+  if (view.startsWith("topic:") && !topicItems.some((t) => t.key === view)) {
+    const key = view.slice(6);
+    topicItems.push({ key: view, label: topicWord(key), icon: TOPIC_ICON[key] ?? <Tag aria-hidden /> });
+  }
+  if (topicItems.length) viewGroups.push({ title: "Topics", items: topicItems });
 
   return (
     <>
@@ -354,7 +402,7 @@ function TicketsPageInner() {
                   >
                     {it.icon}
                     <span className={s.vl}>{it.label}</span>
-                    <span className={s.n}>{it.key === "mine" && !me ? "" : counts[it.key]}</span>
+                    <span className={s.n}>{it.key === "mine" && !me ? "" : (counts[it.key] ?? 0)}</span>
                   </button>
                 ))}
               </div>
@@ -373,7 +421,7 @@ function TicketsPageInner() {
                   <optgroup key={g.title} label={g.title}>
                     {g.items.map((it) => (
                       <option key={it.key} value={it.key}>
-                        {it.label} ({counts[it.key]})
+                        {it.label} ({counts[it.key] ?? 0})
                       </option>
                     ))}
                   </optgroup>

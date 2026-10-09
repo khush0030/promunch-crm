@@ -42,6 +42,7 @@ export const ROUTES = {
   inbox: "/dashboard/inbox",
   inboxTickets: "/dashboard/inbox/tickets",
   inboxEmail: "/dashboard/inbox/email",
+  inboxReports: "/dashboard/inbox/reports",
   // Deep link to a single conversation on the unified Inbox page. `key`
   // carries its channel as a prefix: wa-<uuid> (WhatsApp), ig-<uuid>
   // (Instagram), em-<uuid> (support email, redirected to inboxEmail).
@@ -129,6 +130,7 @@ export const NAV: NavSection[] = [
           { label: "Live chats", href: ROUTES.inbox },
           { label: "Email drafts", href: ROUTES.inboxEmail },
           { label: "Bot knowledge", href: "/dashboard/whatsapp?tab=kb" },
+          { label: "Reports", href: ROUTES.inboxReports },
         ],
       },
       {

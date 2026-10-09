@@ -40,6 +40,8 @@ export type TicketCard = {
   tone: "crit" | "warn" | "neu";
   pastTarget: boolean;
   assignee: string | null;
+  // Raw ticket_category (e.g. "order_issue"), for the queue's Topics views.
+  category: string | null;
   href: string;
 };
 
@@ -278,6 +280,7 @@ export function buildBoard(
       orderRef,
       orderValue,
       assignee: r.ticket_assignee,
+      category: r.ticket_category,
       href,
     };
 
