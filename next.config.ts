@@ -41,17 +41,17 @@ const nextConfig: NextConfig = {
         destination: "/dashboard/sales/orders",
         permanent: false,
       },
-      // Instagram is hidden until its backend is live (its tables were never
-      // migrated in prod, so the page only errors). Temporary: remove this with
-      // the Creators nav entry when Instagram ships.
+      // Instagram is folded into Creators (Find · Outreach · Collabs ·
+      // Settings). Customer DMs live in Inbox; the old page's collab work
+      // (pitches, follow-ups, collab chats) is Creators → Outreach.
       {
         source: "/dashboard/instagram",
-        destination: "/dashboard",
+        destination: "/dashboard/influencers?tab=outreach",
         permanent: false,
       },
       {
         source: "/dashboard/instagram/:path*",
-        destination: "/dashboard",
+        destination: "/dashboard/influencers?tab=outreach",
         permanent: false,
       },
       // Inbox hub (Phase 2): old WhatsApp/support-email URLs redirect to the

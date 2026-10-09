@@ -1,42 +1,26 @@
 "use client";
 
-// Influencer discovery: start Apify searches, filter scored prospects, and
-// reach out (manual DM assist / bio email). Backed by /api/instagram/discovery
-// + /api/instagram/prospects. Results import asynchronously (ig-discovery-tick,
-// every 5 min) — the runs strip shows progress.
+// Creators · Find (was Instagram → Discovery). Start an Apify search by niche
+// or hashtag, or score pasted handles; filter the scored prospects; open one
+// to shortlist, reject, draft the pitch (DM to copy, or email when the bio
+// has one); select several and tap through the pitch queue.
+// Every call and body is the one the old DiscoveryTab made:
+//   GET  /api/instagram/prospects?…   GET /api/instagram/discovery
+//   POST /api/instagram/discovery {action:"start", kind, query, max_items}
+//   POST /api/instagram/prospects {handles}
+//   PATCH /api/instagram/prospects/:id {status}
+//   POST /api/instagram/prospects/:id/draft
+//   POST /api/instagram/prospects/:id/email {}
+// Results import asynchronously (ig-discovery-tick, every 5 min).
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  Search, RefreshCw, Sparkles, ExternalLink, Copy, Mail, Star, X, UserPlus, Ban, Send,
-} from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Ban, Copy, ExternalLink, Mail, RefreshCw, Search, Send, Sparkles, Star, UserPlus, X } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import PitchQueue from "./PitchQueue";
-import styles from "@/app/dashboard/instagram/instagram.module.css";
-
-export type Prospect = {
-  id: string;
-  handle: string;
-  full_name: string | null;
-  biography: string | null;
-  followers: number | null;
-  media_count: number | null;
-  avg_likes: number | null;
-  avg_comments: number | null;
-  avg_views: number | null;
-  engagement_rate: number | null;
-  last3: { likes: number | null; comments: number | null; views: number | null; caption: string | null; type: string | null }[] | null;
-  niche: string | null;
-  fit_score: number | null;
-  fit_reason: string | null;
-  bio_email: string | null;
-  status: "new" | "shortlisted" | "contacted" | "in_convo" | "rejected";
-  source: string | null;
-  thread_id: string | null;
-  pitch_dm: string | null;
-  pitch_email_subject: string | null;
-  pitch_email_body: string | null;
-  scraped_at: string | null;
-};
+import { IgOff } from "./IgOff";
+import { PROSPECT_LABEL, PROSPECT_STATUS, er, fmtNum, isIgOff, useEscape, type Prospect } from "./ig";
+import s from "./creators.module.css";
 
 type Run = {
   id: string;
@@ -49,18 +33,28 @@ type Run = {
   created_at: string;
 };
 
-const STATUS_LABEL: Record<Prospect["status"], string> = {
-  new: "New", shortlisted: "Shortlisted", contacted: "Contacted", in_convo: "In convo", rejected: "Rejected",
+const STATUS_TONE: Record<Prospect["status"], string | undefined> = {
+  new: "info",
+  shortlisted: "warn",
+  contacted: undefined,
+  in_convo: "good",
+  rejected: "mute",
 };
 
-export default function DiscoveryTab() {
+export const FIND_INPUT_ID = "cr-find-query";
+
+export default function FindView({ onGoOutreach }: { onGoOutreach: () => void }) {
   const { push } = useToast();
-  const notifyErr = useCallback((label: string, e: unknown) => push({ kind: "error", text: `${label}: ${String(e)}` }), [push]);
+  const qc = useQueryClient();
+  const notifyErr = useCallback((label: string, e: unknown) => push({ kind: "error", text: `${label}: ${e instanceof Error ? e.message : String(e)}` }), [push]);
 
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  const [total, setTotal] = useState(0);
   const [runs, setRuns] = useState<Run[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [off, setOff] = useState(false);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [active, setActive] = useState<Prospect | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [emailing, setEmailing] = useState(false);
@@ -86,6 +80,8 @@ export default function DiscoveryTab() {
   const [hasEmail, setHasEmail] = useState(false);
   const [q, setQ] = useState("");
 
+  const refreshCounts = useCallback(() => qc.invalidateQueries({ queryKey: ["ig"] }), [qc]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -101,18 +97,23 @@ export default function DiscoveryTab() {
         fetch(`/api/instagram/prospects?${params}`, { cache: "no-store" }),
         fetch(`/api/instagram/discovery`, { cache: "no-store" }),
       ]);
-      const pd = await pr.json();
+      const pd = await pr.json().catch(() => ({}));
       if (!pr.ok) throw new Error(pd.error || "load failed");
       setProspects(pd.prospects ?? []);
       setStatusCounts(pd.statusCounts ?? {});
-      const rd = await rr.json();
+      setTotal(pd.total ?? 0);
+      const rd = await rr.json().catch(() => ({}));
       if (rr.ok) setRuns(rd.runs ?? []);
+      setOff(false);
+      setLoadErr(null);
     } catch (e) {
-      notifyErr("Couldn't load prospects", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (isIgOff(msg)) setOff(true);
+      else setLoadErr(msg);
     } finally {
       setLoading(false);
     }
-  }, [status, minFollowers, maxFollowers, minEr, minFit, hasEmail, q, notifyErr]);
+  }, [status, minFollowers, maxFollowers, minEr, minFit, hasEmail, q]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -127,11 +128,11 @@ export default function DiscoveryTab() {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "start failed");
-      push({ kind: "success", text: "Discovery started. Results import within ~10 minutes." });
+      push({ kind: "success", text: "Search started. Scored creators land here within about 10 minutes." });
       setQuery("");
       load();
     } catch (e) {
-      notifyErr("Couldn't start discovery", e);
+      notifyErr("Could not start the search", e);
     } finally {
       setStarting(false);
     }
@@ -151,10 +152,11 @@ export default function DiscoveryTab() {
       push({ kind: "success", text: `${d.queued ?? handles.length} handle(s) queued for scoring.` });
       setHandlesInput("");
       load();
+      refreshCounts();
     } catch (e) {
-      notifyErr("Couldn't add handles", e);
+      notifyErr("Could not add handles", e);
     }
-  }, [handlesInput, push, load, notifyErr]);
+  }, [handlesInput, push, load, notifyErr, refreshCounts]);
 
   const patchProspect = useCallback(async (id: string, patch: Record<string, unknown>) => {
     try {
@@ -167,10 +169,11 @@ export default function DiscoveryTab() {
       if (!r.ok) throw new Error(d.error || "update failed");
       setActive((p) => (p && p.id === id ? { ...p, ...d.prospect } : p));
       load();
+      refreshCounts();
     } catch (e) {
       notifyErr("Update failed", e);
     }
-  }, [load, notifyErr]);
+  }, [load, notifyErr, refreshCounts]);
 
   const generateDraft = useCallback(async (id: string) => {
     setDrafting(true);
@@ -179,9 +182,9 @@ export default function DiscoveryTab() {
       const d = await r.json();
       if (!r.ok || d.ok === false) throw new Error(d.error || "draft failed");
       setActive((p) => (p && p.id === id ? { ...p, ...d.prospect } : p));
-      push({ kind: "success", text: "Pitch drafted. Review before sending." });
+      push({ kind: "success", text: "Pitch written. Read it before sending." });
     } catch (e) {
-      notifyErr("Draft failed", e);
+      notifyErr("Could not write the pitch", e);
     } finally {
       setDrafting(false);
     }
@@ -200,33 +203,30 @@ export default function DiscoveryTab() {
       setActive((p) => (p && p.id === id ? { ...p, ...d.prospect } : p));
       push({ kind: "success", text: "Pitch emailed." });
       load();
+      refreshCounts();
     } catch (e) {
       notifyErr("Email failed", e);
     } finally {
       setEmailing(false);
     }
-  }, [push, load, notifyErr]);
+  }, [push, load, notifyErr, refreshCounts]);
 
   const copyText = useCallback(async (text: string) => {
     await navigator.clipboard.writeText(text).catch(() => {});
     push({ kind: "success", text: "Copied. Paste it in the Instagram app." });
   }, [push]);
 
+  const selectable = prospects.filter((p) => p.status !== "rejected" && p.status !== "in_convo");
   const toggleSelect = useCallback((id: string) => {
-    setSelected((s) => {
-      const next = new Set(s);
+    setSelected((cur) => {
+      const next = new Set(cur);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
   }, []);
-
-  const toggleSelectAll = useCallback(() => {
-    setSelected((s) => {
-      const selectable = prospects.filter((p) => p.status !== "rejected" && p.status !== "in_convo");
-      return s.size >= selectable.length ? new Set<string>() : new Set(selectable.map((p) => p.id));
-    });
-  }, [prospects]);
+  const toggleSelectAll = () =>
+    setSelected((cur) => (cur.size >= selectable.length ? new Set<string>() : new Set(selectable.map((p) => p.id))));
 
   // Draft any missing pitches (3 at a time), then open the tap-through queue.
   const openQueue = useCallback(async () => {
@@ -237,7 +237,7 @@ export default function DiscoveryTab() {
     let failed = 0;
     for (let i = 0; i < missing.length; i += 3) {
       const chunk = missing.slice(i, i + 3);
-      setBatchProgress(`Drafting pitches ${Math.min(i + chunk.length, missing.length)}/${missing.length}…`);
+      setBatchProgress(`Writing pitches ${Math.min(i + chunk.length, missing.length)}/${missing.length}`);
       await Promise.all(chunk.map(async (p) => {
         try {
           const r = await fetch(`/api/instagram/prospects/${p.id}/draft`, { method: "POST" });
@@ -250,10 +250,8 @@ export default function DiscoveryTab() {
       }));
     }
     setBatchProgress(null);
-    if (failed) push({ kind: "error", text: `${failed} pitch draft(s) failed — those prospects are skipped.` });
-    const ready = picked
-      .map((p) => drafted.get(p.id) ?? p)
-      .filter((p) => p.pitch_dm);
+    if (failed) push({ kind: "error", text: `${failed} pitch draft(s) failed. Those creators are skipped.` });
+    const ready = picked.map((p) => drafted.get(p.id) ?? p).filter((p) => p.pitch_dm);
     if (!ready.length) {
       push({ kind: "error", text: "No pitches to queue." });
       return;
@@ -262,29 +260,41 @@ export default function DiscoveryTab() {
     setQueue(ready);
   }, [prospects, selected, push]);
 
+  const closeActive = useCallback(() => setActive(null), []);
+  useEscape(!!active && !queue, closeActive);
+
+  if (off) return <div className={s.body}><IgOff part="Find" /></div>;
+
   const activeRuns = runs.filter((r) => r.status === "running" || r.status === "queued");
+  const failedRuns = runs.filter((r) => r.status === "failed").slice(0, 2);
+  const allCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+  const anyFilter = !!(status || minFollowers || maxFollowers || minEr || minFit || hasEmail || q);
 
   return (
-    <div className={styles.discWrap}>
-      {/* search + intake */}
-      <div className={styles.discCard}>
-        <div className={styles.discCardLabel}>Find new influencers</div>
-        <div className={styles.discSearchRow}>
-          <select className={styles.field} value={kind} onChange={(e) => setKind(e.target.value as "search" | "hashtag")}>
+    <div className={s.body}>
+      <section className={s.card} aria-labelledby="cr-find-h">
+        <div className={s.secT}>
+          <h3 id="cr-find-h">Search Instagram</h3>
+          <span className={s.small}>Each profile is scored for fit, size and engagement</span>
+        </div>
+        <div className={s.form}>
+          <select className={s.select} aria-label="Search by" value={kind} onChange={(e) => setKind(e.target.value as "search" | "hashtag")}>
             <option value="search">By niche keyword</option>
             <option value="hashtag">By hashtag</option>
           </select>
           <input
-            className={styles.field}
+            id={FIND_INPUT_ID}
+            className={`${s.input} ${s.grow}`}
+            aria-label={kind === "hashtag" ? "Hashtag" : "Niche keyword"}
             placeholder={kind === "hashtag" ? "#healthysnacksindia" : "healthy snacks india"}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && startSearch()}
           />
-          <label className={styles.discMax}>
+          <label className={s.inline}>
             up to
             <input
-              className={styles.field}
+              className={`${s.input} ${s.num}`}
               type="number"
               min={5}
               max={200}
@@ -293,195 +303,251 @@ export default function DiscoveryTab() {
             />
             profiles
           </label>
-          <button className="pm-btn primary" onClick={startSearch} disabled={starting || !query.trim()}>
-            <Search size={15} /> {starting ? "Starting…" : "Find influencers"}
+          <button type="button" className="pm-btn" onClick={startSearch} disabled={starting || !query.trim()}>
+            <Search size={15} /> {starting ? "Starting" : "Find creators"}
           </button>
         </div>
-        <div className={styles.discAltRow}>
-          <span>or score specific accounts:</span>
+        <div className={s.form}>
+          <span>Or score accounts you already know</span>
           <input
-            className={styles.field}
+            className={`${s.input} ${s.grow}`}
+            aria-label="Instagram handles"
             placeholder="Paste handles, comma or space separated"
             value={handlesInput}
             onChange={(e) => setHandlesInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addHandles()}
           />
-          <button className="pm-btn" onClick={addHandles} disabled={!handlesInput.trim()}>
+          <button type="button" className="pm-btn" onClick={addHandles} disabled={!handlesInput.trim()}>
             <UserPlus size={15} /> Score handles
           </button>
         </div>
-      </div>
+        {(activeRuns.length > 0 || failedRuns.length > 0) && (
+          <div className={s.runs}>
+            {activeRuns.map((r) => (
+              <span key={r.id} className={s.tg} data-tone="info">
+                Searching {r.kind === "hashtag" ? "hashtag" : "for"}{r.query ? ` "${r.query}"` : ""}
+              </span>
+            ))}
+            {failedRuns.map((r) => (
+              <span key={r.id} className={s.tg} data-tone="red" title={r.error ?? ""}>
+                Search{r.query ? ` "${r.query}"` : ""} failed
+              </span>
+            ))}
+          </div>
+        )}
+      </section>
 
-      {/* runs strip */}
-      {(activeRuns.length > 0 || runs.some((r) => r.status === "failed")) && (
-        <div className={styles.discRuns}>
-          {activeRuns.map((r) => (
-            <span key={r.id} className={styles.discRunPill}>
-              <RefreshCw size={11} className={styles.spin} /> {r.kind}{r.query ? ` "${r.query}"` : ""} scraping…
-            </span>
-          ))}
-          {runs.filter((r) => r.status === "failed").slice(0, 2).map((r) => (
-            <span key={r.id} className={`${styles.discRunPill} ${styles.discRunFailed}`} title={r.error ?? ""}>
-              {r.kind}{r.query ? ` "${r.query}"` : ""} failed
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* filters */}
-      <div className={styles.discFilters}>
-        <span className={styles.filterLabel}>Filter</span>
-        <select className={styles.field} value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">All statuses</option>
-          {Object.entries(STATUS_LABEL).map(([k, v]) => (
-            <option key={k} value={k}>{v}{statusCounts[k] ? ` (${statusCounts[k]})` : ""}</option>
-          ))}
-        </select>
-        <input className={styles.field} placeholder="Min followers" value={minFollowers} onChange={(e) => setMinFollowers(e.target.value.replace(/\D/g, ""))} style={{ width: 110 }} />
-        <input className={styles.field} placeholder="Max followers" value={maxFollowers} onChange={(e) => setMaxFollowers(e.target.value.replace(/\D/g, ""))} style={{ width: 110 }} />
-        <input className={styles.field} placeholder="Min ER %" value={minEr} onChange={(e) => setMinEr(e.target.value.replace(/[^\d.]/g, ""))} style={{ width: 90 }} />
-        <input className={styles.field} placeholder="Min fit" value={minFit} onChange={(e) => setMinFit(e.target.value.replace(/\D/g, ""))} style={{ width: 80 }} />
-        <label className={styles.discCheck}>
-          <input type="checkbox" checked={hasEmail} onChange={(e) => setHasEmail(e.target.checked)} /> Has email
-        </label>
-        <input className={styles.field} placeholder="Search handle / bio" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && load()} />
-        <button className="pm-btn" onClick={load} disabled={loading}>
-          <RefreshCw size={15} className={loading ? styles.spin : ""} /> Refresh
+      <div className={s.tiles} role="group" aria-label="Show creators by status">
+        <button type="button" className={s.tile} aria-pressed={status === ""} onClick={() => setStatus("")}>
+          <b>{fmtCount(allCount)}</b>
+          <span>All</span>
         </button>
+        {PROSPECT_STATUS.map((st) => (
+          <button key={st.key} type="button" className={s.tile} aria-pressed={status === st.key} onClick={() => setStatus(status === st.key ? "" : st.key)}>
+            <b>{fmtCount(statusCounts[st.key] ?? 0)}</b>
+            <span>{st.label}</span>
+          </button>
+        ))}
       </div>
 
-      {/* bulk pitch bar */}
-      {selected.size > 0 && (
-        <div className={styles.bulkBar}>
-          <span>{selected.size} selected</span>
-          <button className="pm-btn primary" onClick={openQueue} disabled={!!batchProgress}>
-            <Send size={14} /> {batchProgress ?? "Draft & queue pitches"}
+      <section className={`${s.card} ${s.cardFlush}`} aria-label="Creators found">
+        <div className={s.filters}>
+          <input className={`${s.input} ${s.grow}`} aria-label="Search handle or bio" placeholder="Search handle or bio" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className={`${s.input} ${s.num}`} aria-label="Min followers" placeholder="Min followers" inputMode="numeric" value={minFollowers} onChange={(e) => setMinFollowers(e.target.value.replace(/\D/g, ""))} />
+          <input className={`${s.input} ${s.num}`} aria-label="Max followers" placeholder="Max followers" inputMode="numeric" value={maxFollowers} onChange={(e) => setMaxFollowers(e.target.value.replace(/\D/g, ""))} />
+          <input className={`${s.input} ${s.num}`} aria-label="Min engagement %" placeholder="Min ER %" inputMode="decimal" value={minEr} onChange={(e) => setMinEr(e.target.value.replace(/[^\d.]/g, ""))} />
+          <input className={`${s.input} ${s.num}`} aria-label="Min fit score" placeholder="Min fit" inputMode="numeric" value={minFit} onChange={(e) => setMinFit(e.target.value.replace(/\D/g, ""))} />
+          <label className={s.check}>
+            <input type="checkbox" checked={hasEmail} onChange={(e) => setHasEmail(e.target.checked)} /> Has email
+          </label>
+          <button type="button" className="pm-btn ghost" onClick={load} disabled={loading} aria-label="Refresh">
+            <RefreshCw size={15} className={loading ? s.spin : undefined} />
           </button>
-          <button className="pm-btn" onClick={() => setSelected(new Set())} disabled={!!batchProgress}>Clear</button>
         </div>
-      )}
 
-      {/* table + drawer */}
-      <div className={styles.discBody}>
-        <div className={styles.discTableWrap}>
-          {prospects.length === 0 && !loading ? (
-            <div className={styles.empty}>
-              No prospects yet. Run a niche or hashtag search above — scored creators land here in a few minutes.
+        {loadErr ? (
+          <div className={s.empty}><p className={s.err}>Could not load creators: {loadErr}</p></div>
+        ) : loading && prospects.length === 0 ? (
+          <div className={s.empty}><p className={s.muted}>Loading creators</p></div>
+        ) : prospects.length === 0 ? (
+          <div className={s.empty}>
+            {anyFilter ? (
+              <>
+                <b>Nothing matches</b>
+                <p>No creators match these filters. Clear one to see more.</p>
+              </>
+            ) : (
+              <>
+                <b>No creators found yet</b>
+                <p>Search a niche like &ldquo;fitness mumbai&rdquo; or a hashtag above. Each profile is scored for fit, followers and engagement and lands here in a few minutes.</p>
+              </>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className={s.rowHead} aria-hidden>
+              <span className={s.rowCheck}>
+                <input
+                  type="checkbox"
+                  aria-label="Select all"
+                  checked={selected.size > 0 && selected.size >= selectable.length}
+                  onChange={toggleSelectAll}
+                />
+              </span>
+              <span>Creator</span><span>Followers</span><span>ER</span><span>Fit</span><span>Niche</span><span>Status</span>
             </div>
-          ) : (
-            <table className={styles.discTable}>
-              <thead>
-                <tr>
-                  <th className={styles.checkCell}>
-                    <input type="checkbox" checked={selected.size > 0 && selected.size >= prospects.filter((p) => p.status !== "rejected" && p.status !== "in_convo").length} onChange={toggleSelectAll} title="Select all" />
-                  </th>
-                  <th>Creator</th><th>Followers</th><th>ER</th><th>Avg likes</th><th>Fit</th><th>Niche</th><th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {prospects.map((p) => (
-                  <tr key={p.id} className={active?.id === p.id ? styles.discRowOn : ""} onClick={() => setActive(p)}>
-                    <td className={styles.checkCell} onClick={(e) => e.stopPropagation()}>
+            <ul className={s.rows}>
+              {prospects.map((p) => (
+                <li key={p.id}>
+                  <div
+                    className={s.row}
+                    data-on={active?.id === p.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setActive(p)}
+                    onKeyDown={(e) => { if (e.key === "Enter") setActive(p); }}
+                  >
+                    <span className={s.rowCheck} onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
+                        aria-label={`Select @${p.handle}`}
                         checked={selected.has(p.id)}
                         disabled={p.status === "rejected" || p.status === "in_convo"}
                         onChange={() => toggleSelect(p.id)}
                       />
-                    </td>
-                    <td>
-                      <span className={styles.handle}>@{p.handle}</span>
-                      {p.bio_email && <Mail size={11} className={styles.discEmailIcon} />}
-                      {!p.scraped_at && <span className={styles.discPending}>scoring…</span>}
-                    </td>
-                    <td>{p.followers != null ? fmtNum(p.followers) : "—"}</td>
-                    <td>{p.engagement_rate != null ? `${(p.engagement_rate * 100).toFixed(1)}%` : "—"}</td>
-                    <td>{p.avg_likes != null ? fmtNum(Math.round(p.avg_likes)) : "—"}</td>
-                    <td>{p.fit_score != null ? <span className={styles.scorePill}>{p.fit_score}</span> : "—"}</td>
-                    <td className={styles.discNiche}>{p.niche ?? "—"}</td>
-                    <td><span className={styles.stagePill}>{STATUS_LABEL[p.status]}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                    </span>
+                    <span className={s.who}>
+                      <b>@{p.handle}</b>
+                      <span>
+                        {[p.full_name, p.bio_email ? "has email" : null, !p.scraped_at ? "scoring" : null].filter(Boolean).join(" · ") || " "}
+                      </span>
+                    </span>
+                    <span className={s.n} data-empty={p.followers == null}>{p.followers != null ? fmtNum(p.followers) : ""}</span>
+                    <span className={s.n} data-empty={p.engagement_rate == null}>{er(p.engagement_rate) ?? ""}</span>
+                    <span className={s.fit} data-tone={p.fit_score != null && p.fit_score >= 70 ? "good" : undefined}>
+                      {p.fit_score != null ? <>{p.fit_score}<small>fit</small></> : <small>not scored</small>}
+                    </span>
+                    <span className={s.cellNiche}>{p.niche ?? ""}</span>
+                    <span className={s.tg} data-tone={STATUS_TONE[p.status]}>{PROSPECT_LABEL[p.status]}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {total > prospects.length && (
+              <p className={`${s.small} ${s.more}`}>Showing the best {prospects.length} of {total} by fit. Filter to narrow down.</p>
+            )}
+          </>
+        )}
+      </section>
 
-        {active && (
-          <div className={styles.discDrawer}>
-            <div className={styles.discDrawerHead}>
-              <a href={`https://instagram.com/${active.handle}`} target="_blank" rel="noreferrer" className={styles.convoHandle}>
-                @{active.handle} <ExternalLink size={13} />
-              </a>
-              <button className={styles.backBtnAlways} onClick={() => setActive(null)}><X size={16} /></button>
+      {selected.size > 0 && (
+        <div className={s.bulk} role="region" aria-label="Selected creators">
+          <span>{selected.size} selected</span>
+          <button type="button" className="pm-btn primary" onClick={openQueue} disabled={!!batchProgress}>
+            <Send size={14} /> {batchProgress ?? "Write and queue pitches"}
+          </button>
+          <button type="button" className="pm-btn" onClick={() => setSelected(new Set())} disabled={!!batchProgress}>Clear</button>
+        </div>
+      )}
+
+      {active && (
+        <div className={s.backdrop} onClick={() => setActive(null)}>
+          <aside className={s.drawer} role="dialog" aria-modal="true" aria-label={`@${active.handle}`} onClick={(e) => e.stopPropagation()}>
+            <div className={s.dHead}>
+              <div style={{ minWidth: 0 }}>
+                <span className={s.eyebrow}>Creator found · {PROSPECT_LABEL[active.status]}</span>
+                <h2 className={s.dTitle}>
+                  <a href={`https://instagram.com/${active.handle}`} target="_blank" rel="noreferrer">@{active.handle}</a>
+                  <ExternalLink aria-hidden />
+                </h2>
+                <div className={s.stats}>
+                  {active.followers != null && <span><b>{fmtNum(active.followers)}</b> followers</span>}
+                  {active.engagement_rate != null && <span><b>{er(active.engagement_rate)}</b> engagement</span>}
+                  {active.avg_views != null && <span><b>{fmtNum(Math.round(active.avg_views))}</b> avg reel views</span>}
+                  {active.fit_score != null && <span><b>{active.fit_score}</b>/100 fit</span>}
+                </div>
+              </div>
+              <button type="button" className={s.close} onClick={() => setActive(null)} aria-label="Close"><X size={16} /></button>
             </div>
-            <div className={styles.collabMetrics}>
-              {active.followers != null && <span>{fmtNum(active.followers)} followers</span>}
-              {active.engagement_rate != null && <span>{(active.engagement_rate * 100).toFixed(1)}% ER</span>}
-              {active.avg_views != null && <span>{fmtNum(Math.round(active.avg_views))} avg reel views</span>}
-              {active.fit_score != null && <span className={styles.scorePill}>{active.fit_score}/100</span>}
+
+            <div className={s.acts}>
+              <button type="button" className="pm-btn" onClick={() => generateDraft(active.id)} disabled={drafting}>
+                <Sparkles size={14} /> {drafting ? "Writing" : active.pitch_dm ? "Rewrite pitch" : "Write pitch"}
+              </button>
+              {active.status !== "shortlisted" && active.status !== "in_convo" && (
+                <button type="button" className="pm-btn" onClick={() => patchProspect(active.id, { status: "shortlisted" })}>
+                  <Star size={14} /> Shortlist
+                </button>
+              )}
+              {active.status !== "rejected" && active.status !== "in_convo" && (
+                <button type="button" className="pm-btn ghost" onClick={() => patchProspect(active.id, { status: "rejected" })}>
+                  <Ban size={14} /> Not a fit
+                </button>
+              )}
             </div>
-            {active.fit_reason && <div className={styles.fitReason}>{active.fit_reason}</div>}
-            {active.biography && <div className={styles.discBio}>{active.biography}</div>}
-            {active.bio_email && <div className={styles.discEmailLine}><Mail size={12} /> {active.bio_email}</div>}
+
+            {active.fit_reason && (
+              <div className={s.dSec}>
+                <h4>Why this fit score</h4>
+                <p>{active.fit_reason}</p>
+              </div>
+            )}
+            {(active.biography || active.bio_email) && (
+              <div className={s.dSec}>
+                <h4>Bio</h4>
+                {active.biography && <p>{active.biography}</p>}
+                {active.bio_email && <p className={s.note}><Mail size={13} style={{ verticalAlign: "-2px" }} /> {active.bio_email}</p>}
+              </div>
+            )}
             {Array.isArray(active.last3) && active.last3.length > 0 && (
-              <div className={styles.discLast3}>
+              <div className={s.dSec}>
+                <h4>Last {active.last3.length} posts</h4>
                 {active.last3.map((p, i) => (
-                  <div key={i} className={styles.discPost}>
-                    <span>{p.likes != null ? `${fmtNum(p.likes)} likes` : "likes —"}</span>
-                    <span>{p.comments != null ? `${fmtNum(p.comments)} comments` : ""}</span>
-                    {p.views != null && <span>{fmtNum(p.views)} views</span>}
+                  <div key={i} className={s.stats} style={{ marginTop: i ? 4 : 0 }}>
+                    <span><b>{p.likes != null ? fmtNum(p.likes) : "?"}</b> likes</span>
+                    {p.comments != null && <span><b>{fmtNum(p.comments)}</b> comments</span>}
+                    {p.views != null && <span><b>{fmtNum(p.views)}</b> views</span>}
                   </div>
                 ))}
               </div>
             )}
 
-            <div className={styles.discActions}>
-              {active.status !== "shortlisted" && active.status !== "in_convo" && (
-                <button className="pm-btn" onClick={() => patchProspect(active.id, { status: "shortlisted" })}>
-                  <Star size={14} /> Shortlist
-                </button>
-              )}
-              {active.status !== "rejected" && active.status !== "in_convo" && (
-                <button className="pm-btn" onClick={() => patchProspect(active.id, { status: "rejected" })}>
-                  <Ban size={14} /> Reject
-                </button>
-              )}
-              <button className="pm-btn" onClick={() => generateDraft(active.id)} disabled={drafting}>
-                <Sparkles size={14} /> {drafting ? "Drafting…" : active.pitch_dm ? "Redraft pitch" : "Draft pitch"}
-              </button>
-            </div>
-
             {active.pitch_dm && (
-              <div className={styles.draftBox}>
-                <div className={styles.draftLabel}>DM pitch (send it from the Instagram app — the API cannot cold-DM)</div>
-                <div className={styles.draftText}>{active.pitch_dm}</div>
-                <div className={styles.discActions}>
-                  <button className="pm-btn" onClick={() => copyText(active.pitch_dm!)}>
+              <div className={s.dSec}>
+                <h4>DM pitch</h4>
+                <p className={s.note}>Send it from the Instagram app. Instagram does not let anyone cold-DM through the API.</p>
+                <div className={s.draft}>{active.pitch_dm}</div>
+                <div className={s.acts}>
+                  <button type="button" className="pm-btn" onClick={() => copyText(active.pitch_dm!)}>
                     <Copy size={14} /> Copy DM
                   </button>
                   {active.status !== "contacted" && active.status !== "in_convo" && (
-                    <button className="pm-btn" onClick={() => patchProspect(active.id, { status: "contacted" })}>
+                    <button type="button" className="pm-btn" onClick={() => patchProspect(active.id, { status: "contacted" })}>
                       Mark DM sent
                     </button>
+                  )}
+                  {(active.status === "contacted" || active.status === "in_convo") && (
+                    <button type="button" className={s.txtLink} onClick={onGoOutreach}>Track in Outreach</button>
                   )}
                 </div>
               </div>
             )}
 
             {active.pitch_email_body && active.bio_email && (
-              <div className={styles.draftBox}>
-                <div className={styles.draftLabel}>Email pitch → {active.bio_email}</div>
-                {active.pitch_email_subject && <div className={styles.discSubject}>{active.pitch_email_subject}</div>}
-                <div className={styles.draftText}>{active.pitch_email_body}</div>
-                <button className="pm-btn primary" onClick={() => sendEmail(active.id)} disabled={emailing || active.status === "contacted"}>
-                  <Mail size={14} /> {emailing ? "Sending…" : active.status === "contacted" ? "Contacted" : "Send email"}
-                </button>
+              <div className={s.dSec}>
+                <h4>Email pitch to {active.bio_email}</h4>
+                {active.pitch_email_subject && <p className={s.subject}>{active.pitch_email_subject}</p>}
+                <div className={s.draft}>{active.pitch_email_body}</div>
+                <div className={s.acts}>
+                  <button type="button" className="pm-btn primary" onClick={() => sendEmail(active.id)} disabled={emailing || active.status === "contacted"}>
+                    <Mail size={14} /> {emailing ? "Sending" : active.status === "contacted" ? "Pitched" : "Send email"}
+                  </button>
+                </div>
               </div>
             )}
-          </div>
-        )}
-      </div>
+          </aside>
+        </div>
+      )}
 
       {queue && (
         <PitchQueue
@@ -490,15 +556,13 @@ export default function DiscoveryTab() {
             setProspects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
             setActive((a) => (a && a.id === updated.id ? updated : a));
           }}
-          onClose={() => { setQueue(null); setSelected(new Set()); load(); }}
+          onClose={() => { setQueue(null); setSelected(new Set()); load(); refreshCounts(); }}
         />
       )}
     </div>
   );
 }
 
-function fmtNum(n: number): string {
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
-  return String(n);
+function fmtCount(n: number): string {
+  return n.toLocaleString("en-IN");
 }

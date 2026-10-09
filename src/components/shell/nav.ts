@@ -201,7 +201,21 @@ export const NAV: NavSection[] = [
         label: "Creators",
         href: "/dashboard/influencers",
         icon: Sparkles,
-        desc: "Influencer collabs: brief, box, draft, post",
+        desc: "Find creators, pitch them, run collabs to the post",
+        // One guided pipeline (Instagram folded in, audit
+        // 2026-10-09-creators-reputation-fidelity.md). Collabs is the default
+        // view; its Board / Library / Kits sub views count as Collabs.
+        pages: [
+          { label: "Find", href: "/dashboard/influencers?tab=find" },
+          { label: "Outreach", href: "/dashboard/influencers?tab=outreach" },
+          {
+            label: "Collabs",
+            href: "/dashboard/influencers",
+            also: ["board", "collabs", "creators", "kits"].map((t) => `/dashboard/influencers?tab=${t}`),
+          },
+          { label: "Settings", href: "/dashboard/influencers?tab=settings" },
+        ],
+        palette: [{ label: "Add a creator collab", href: "/dashboard/influencers?add=1" }],
       },
       {
         area: "B2B",
@@ -236,13 +250,18 @@ export const NAV: NavSection[] = [
         ],
       },
       {
-        // Reviews, comments and mentions across the web (ORM feed). One page;
-        // its Feed / Overview / Settings tabs live on the page itself.
+        // Reviews, comments and mentions across the web (ORM feed). One page,
+        // its Feed / Overview / Settings tabs are ?tab= section tabs.
         area: "Reputation",
         label: "Reputation",
         href: "/dashboard/reputation",
         icon: Star,
         desc: "Reviews and mentions across the web",
+        pages: [
+          { label: "Feed", href: "/dashboard/reputation", also: ["/dashboard/reputation?tab=feed"] },
+          { label: "Overview", href: "/dashboard/reputation?tab=overview" },
+          { label: "Settings", href: "/dashboard/reputation?tab=settings" },
+        ],
       },
       {
         area: "Insights",

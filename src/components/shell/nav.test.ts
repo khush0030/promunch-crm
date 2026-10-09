@@ -95,6 +95,15 @@ describe("shell nav", () => {
     expect(place("/dashboard/flows")).toBe("Email");
   });
 
+  it("keeps Creators (Instagram folded in) highlighted on every pipeline tab", () => {
+    expect(at("/dashboard/influencers", "find")?.page?.label).toBe("Find");
+    expect(at("/dashboard/influencers", "outreach")?.page?.label).toBe("Outreach");
+    expect(at("/dashboard/influencers")?.page?.label).toBe("Collabs");
+    for (const t of ["board", "creators", "kits"]) expect(at("/dashboard/influencers", t)?.page?.label).toBe("Collabs");
+    expect(at("/dashboard/influencers", "settings")?.page?.label).toBe("Settings");
+    expect(place("/dashboard/influencers", "settings")).toBe("Creators");
+  });
+
   it("lists Reputation in Know and keeps it highlighted on every tab and deep link", () => {
     expect(NAV[2].items.map((it) => it.label)).toEqual(["Customers", "Reputation", "Insights"]);
     expect(place("/dashboard/reputation")).toBe("Reputation");
@@ -102,7 +111,7 @@ describe("shell nav", () => {
     expect(at("/dashboard/reputation", "overview")?.area).toBe("Reputation");
   });
 
-  it("never lists Instagram while its backend is off, keeps WhatsApp jumps in the palette", () => {
+  it("never lists Instagram (folded into Creators), keeps WhatsApp jumps in the palette", () => {
     const hrefs = allItems().flatMap((it) => [it.href, ...(it.pages ?? []).map((p) => p.href), ...(it.palette ?? []).map((p) => p.href)]);
     expect(hrefs.some((h) => h.startsWith("/dashboard/instagram"))).toBe(false);
     for (const t of ["campaigns", "templates", "flows", "analytics"]) expect(hrefs).toContain(`/dashboard/whatsapp?tab=${t}`);
@@ -112,7 +121,8 @@ describe("shell nav", () => {
   it("shows section tabs only for places with two or more pages", () => {
     const owner = accessOf({ email: "boss@promunch.in", app_metadata: { role: "admin" } });
     expect(sectionTabs(at("/dashboard/sales/web"), owner).map((p) => p.label)).toEqual(["Sales", "Website", "Amazon"]);
-    expect(sectionTabs(at("/dashboard/influencers"), owner)).toEqual([]);
+    expect(sectionTabs(at("/dashboard/influencers"), owner).map((p) => p.label)).toEqual(["Find", "Outreach", "Collabs", "Settings"]);
+    expect(sectionTabs(at("/dashboard/reputation", "overview"), owner).map((p) => p.label)).toEqual(["Feed", "Overview", "Settings"]);
     expect(sectionTabs(at("/dashboard/admin"), owner).map((p) => p.label)).toEqual(["My profile", "Connections", "Team & access", "API keys", "Brand & email", "Security"]);
     const agent = accessOf({ email: "a@promunch.in", app_metadata: { role: "agent" } });
     expect(sectionTabs(at("/dashboard/settings"), agent).map((p) => p.label)).toEqual(["My profile", "Connections", "Team & access", "Brand & email"]);

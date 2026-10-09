@@ -1,15 +1,16 @@
 "use client";
 
 // Batch pitch queue ("blast mode" for manual DMs): tap through a shortlist of
-// prospects one by one — copy the AI pitch, open the profile, send it from the
+// creators one by one: copy the AI pitch, open the profile, send it from the
 // Instagram app, mark sent, auto-advance. The API cannot cold-DM (Meta forbids
 // it), so the final tap stays human; everything around it is automated.
+// Same call as before: PATCH /api/instagram/prospects/:id {status:"contacted", pitch_dm?}.
 
 import { useCallback, useMemo, useState } from "react";
-import { Check, Copy, ExternalLink, SkipForward, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, ExternalLink, SkipForward, X } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
-import styles from "@/app/dashboard/instagram/instagram.module.css";
-import type { Prospect } from "./DiscoveryTab";
+import { er, fmtNum, type Prospect } from "./ig";
+import s from "./creators.module.css";
 
 export default function PitchQueue({
   prospects,
@@ -28,10 +29,8 @@ export default function PitchQueue({
 
   const current = prospects[idx] ?? null;
   const sentCount = useMemo(() => Object.values(done).filter((v) => v === "sent").length, [done]);
-  const draftOf = useCallback(
-    (p: Prospect) => drafts[p.id] ?? p.pitch_dm ?? "",
-    [drafts],
-  );
+  const doneCount = Object.keys(done).length;
+  const draftOf = useCallback((p: Prospect) => drafts[p.id] ?? p.pitch_dm ?? "", [drafts]);
 
   const advance = useCallback(() => {
     setIdx((i) => {
@@ -46,7 +45,7 @@ export default function PitchQueue({
     const text = draftOf(p);
     await navigator.clipboard.writeText(text).catch(() => {});
     window.open(`https://instagram.com/${p.handle}`, "_blank", "noopener");
-    push({ kind: "success", text: "Pitch copied. Paste it in the DM, then hit Sent." });
+    push({ kind: "success", text: "Pitch copied. Paste it in the DM, then tap Sent." });
   }, [draftOf, push]);
 
   const markSent = useCallback(async (p: Prospect) => {
@@ -66,7 +65,7 @@ export default function PitchQueue({
       setDone((m) => ({ ...m, [p.id]: "sent" }));
       advance();
     } catch (e) {
-      push({ kind: "error", text: `Couldn't mark sent: ${String(e)}` });
+      push({ kind: "error", text: `Could not mark sent: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
       setBusy(false);
     }
@@ -80,55 +79,65 @@ export default function PitchQueue({
   const finished = idx >= prospects.length || (current && done[current.id] && idx === prospects.length - 1);
 
   return (
-    <div className={styles.queueOverlay} role="dialog" aria-label="Pitch queue">
-      <div className={styles.queueCard}>
-        <div className={styles.queueHead}>
-          <span className={styles.tasksTitle}>
-            Pitch queue · {Math.min(idx + 1, prospects.length)}/{prospects.length}
-            {sentCount > 0 && <span className={styles.queueSent}> · {sentCount} sent</span>}
-          </span>
-          <button className={styles.backBtnAlways} onClick={onClose} aria-label="Close"><X size={18} /></button>
+    <div className={s.qWrap} role="dialog" aria-modal="true" aria-label="Pitch queue">
+      <div className={s.qCard}>
+        <div className={s.dHead}>
+          <div>
+            <span className={s.eyebrow}>Pitch queue</span>
+            <h2 className={s.dTitle}>
+              {Math.min(idx + 1, prospects.length)} of {prospects.length}
+              {sentCount > 0 && <span className={s.tg} data-tone="good">{sentCount} sent</span>}
+            </h2>
+          </div>
+          <button type="button" className={s.close} onClick={onClose} aria-label="Close"><X size={16} /></button>
         </div>
+        <div className={s.qBar} aria-hidden><span style={{ width: `${(doneCount / Math.max(1, prospects.length)) * 100}%` }} /></div>
 
         {finished || !current ? (
-          <div className={styles.queueDone}>
-            <Check size={28} />
-            <p>Queue done. {sentCount} pitch{sentCount === 1 ? "" : "es"} sent.</p>
-            <button className="pm-btn primary" onClick={onClose}>Back to Discovery</button>
+          <div className={s.empty}>
+            <b>Queue done</b>
+            <p>{sentCount} pitch{sentCount === 1 ? "" : "es"} sent. Replies show up in Outreach and in the Inbox.</p>
+            <button type="button" className="pm-btn primary" onClick={onClose}>Back to Find</button>
           </div>
         ) : (
           <>
-            <div className={styles.taskTop}>
-              <a href={`https://instagram.com/${current.handle}`} target="_blank" rel="noreferrer" className={styles.convoHandle}>
-                @{current.handle} <ExternalLink size={12} />
-              </a>
-              {current.followers != null && <span className={styles.taskSilent}>{fmtNum(current.followers)} followers</span>}
-              {current.engagement_rate != null && <span className={styles.taskSilent}>{(current.engagement_rate * 100).toFixed(1)}% ER</span>}
-              {current.fit_score != null && <span className={styles.scorePill}>{current.fit_score}</span>}
-              {done[current.id] && <span className={styles.stagePill}>{done[current.id]}</span>}
+            <div className={s.taskTop}>
+              <span className={s.who}>
+                <b>
+                  <a href={`https://instagram.com/${current.handle}`} target="_blank" rel="noreferrer" className={s.inkLink}>
+                    @{current.handle} <ExternalLink size={12} />
+                  </a>
+                </b>
+                <span>{current.niche ?? " "}</span>
+              </span>
+              {current.followers != null && <span className={s.small}><b>{fmtNum(current.followers)}</b> followers</span>}
+              {current.engagement_rate != null && <span className={s.small}>{er(current.engagement_rate)} ER</span>}
+              {current.fit_score != null && <span className={s.fit}>{current.fit_score}<small>fit</small></span>}
+              {done[current.id] && <span className={s.tg}>{done[current.id]}</span>}
             </div>
-            {current.niche && <div className={styles.snippet}>{current.niche}</div>}
             <textarea
-              className={styles.taskDraft}
+              className={s.textarea}
               rows={6}
+              aria-label="Pitch"
               value={draftOf(current)}
               onChange={(e) => setDrafts((d) => ({ ...d, [current.id]: e.target.value }))}
+              style={{ marginTop: 12 }}
             />
-            <div className={styles.taskActions}>
-              <button className="pm-btn primary" onClick={() => copyAndOpen(current)} disabled={!draftOf(current).trim()}>
-                <Copy size={14} /> Copy & open profile
+            <div className={s.acts}>
+              <button type="button" className="pm-btn" onClick={() => copyAndOpen(current)} disabled={!draftOf(current).trim()}>
+                <Copy size={14} /> Copy and open profile
               </button>
-              <button className="pm-btn primary" onClick={() => markSent(current)} disabled={busy || done[current.id] === "sent"}>
-                <Check size={14} /> {busy ? "Saving…" : "Sent"}
+              <button type="button" className="pm-btn primary" onClick={() => markSent(current)} disabled={busy || done[current.id] === "sent"}>
+                <Check size={14} /> {busy ? "Saving" : "Sent"}
               </button>
-              <button className="pm-btn" onClick={() => skip(current)} disabled={busy}>
+              <button type="button" className="pm-btn ghost" onClick={() => skip(current)} disabled={busy}>
                 <SkipForward size={14} /> Skip
               </button>
-              <span className={styles.queueNav}>
-                <button className="pm-btn" onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx === 0} aria-label="Previous">
+              <span className={s.qNav}>
+                <button type="button" className="pm-btn" onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx === 0} aria-label="Previous">
                   <ChevronLeft size={14} />
                 </button>
-                <button className="pm-btn" onClick={() => setIdx((i) => Math.min(prospects.length - 1, i + 1))} disabled={idx >= prospects.length - 1} aria-label="Next">
+                <button type="button" className="pm-btn" onClick={() => setIdx((i) => Math.min(prospects.length - 1, i + 1))} disabled={idx >= prospects.length - 1} aria-label="Next">
                   <ChevronRight size={14} />
                 </button>
               </span>
@@ -138,10 +147,4 @@ export default function PitchQueue({
       </div>
     </div>
   );
-}
-
-function fmtNum(n: number): string {
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
-  return String(n);
 }

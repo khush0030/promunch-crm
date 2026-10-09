@@ -1,7 +1,8 @@
 "use client";
 
-// Board tab: the "what needs doing" strip, then every collab as a kanban
-// (one column per stage group) or a sortable table.
+// Board tab (Creators · Collabs): filter chips with counts, then every
+// collab as a kanban (one column per stage group) or a sortable table. The
+// headline counts live in the "How it flows" strip above (CollabFlow).
 
 import { useMemo, useState } from "react";
 import { BellOff, LayoutGrid, List, Sparkles } from "lucide-react";
@@ -34,7 +35,7 @@ import {
 } from "./ui";
 import s from "../influencers.module.css";
 
-type StripKey = keyof BoardSummary;
+export type StripKey = keyof BoardSummary;
 
 const STRIP: { key: StripKey; label: string }[] = [
   { key: "drafts_to_review", label: "Drafts to review" },
@@ -75,13 +76,26 @@ const HEALTH_RANK: Record<DealHealth, number> = { overdue: 0, at_risk: 1, waitin
 
 type SortKey = "handle" | "tier" | "stage" | "health" | "next" | "kit";
 
-export function BoardTab({ onOpenDeal, onAdd }: { onOpenDeal: (id: string) => void; onAdd: () => void }) {
+export function BoardTab({
+  onOpenDeal,
+  onAdd,
+  focus,
+  onFocus,
+}: {
+  onOpenDeal: (id: string) => void;
+  onAdd: () => void;
+  /** Board filter driven from outside (the Creators "How it flows" strip). */
+  focus?: StripKey | null;
+  onFocus?: (k: StripKey | null) => void;
+}) {
 
   const summary = useSummary();
   const settings = useSettings();
 
   const [view, setView] = useState<"board" | "list">("board");
-  const [strip, setStrip] = useState<StripKey | null>(null);
+  const [stripLocal, setStripLocal] = useState<StripKey | null>(null);
+  const strip = focus !== undefined ? focus : stripLocal;
+  const setStrip = (k: StripKey | null) => (onFocus ? onFocus(k) : setStripLocal(k));
   const [health, setHealth] = useState<DealHealth | "all">("all");
   const [tier, setTier] = useState<InfluencerTier | "all">("all");
   const [q, setQ] = useState("");
@@ -154,7 +168,6 @@ export function BoardTab({ onOpenDeal, onAdd }: { onOpenDeal: (id: string) => vo
   );
 
   const count = (k: StripKey) => (sum ? sum[k] : summary.isLoading ? "…" : "–");
-  const needs = sum ? sum.briefs_to_approve + sum.drafts_to_review + sum.kits_to_ship : null;
   const toggle = (k: StripKey) => setStrip(strip === k ? null : k);
 
   return (
@@ -167,40 +180,6 @@ export function BoardTab({ onOpenDeal, onAdd }: { onOpenDeal: (id: string) => vo
           </span>
         </p>
       )}
-
-      <div className={s.kpis}>
-        <div className={s.kpi}>
-          <span className={s.kpiL}>Needs you</span>
-          <span className={s.kpiV}>{needs ?? count("drafts_to_review")}</span>
-          <span className={s.kpiD}>
-            {sum
-              ? `Drafts ${sum.drafts_to_review} · briefs ${sum.briefs_to_approve} · boxes ${sum.kits_to_ship}`
-              : "Drafts, briefs and boxes"}
-          </span>
-        </div>
-        <button
-          type="button"
-          className={`${s.kpi} ${strip === "overdue" ? s.kpiOn : ""}`}
-          aria-pressed={strip === "overdue"}
-          title={strip === "overdue" ? "Click again to show everything" : "Show only: Overdue"}
-          onClick={() => toggle("overdue")}
-        >
-          <span className={s.kpiL}>Overdue</span>
-          <span className={s.kpiV}>{count("overdue")}</span>
-          <span className={s.kpiD}>{sum ? `${sum.at_risk} at risk` : "Creators running late"}</span>
-        </button>
-        <button
-          type="button"
-          className={`${s.kpi} ${strip === "due_today" ? s.kpiOn : ""}`}
-          aria-pressed={strip === "due_today"}
-          title={strip === "due_today" ? "Click again to show everything" : "Show only: Due today"}
-          onClick={() => toggle("due_today")}
-        >
-          <span className={s.kpiL}>Due today</span>
-          <span className={s.kpiV}>{count("due_today")}</span>
-          <span className={s.kpiD}>{sum ? `${sum.waiting_on_us} waiting on us` : "Drafts and posts"}</span>
-        </button>
-      </div>
 
       <div className={s.chips} role="group" aria-label="Show">
         <button

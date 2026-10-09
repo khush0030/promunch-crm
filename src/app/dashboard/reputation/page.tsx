@@ -1,32 +1,28 @@
 "use client";
 
 // Reputation (ORM): one feed of every review, comment and mention of PROMUNCH
-// across the web. Tabs and the open mention live in the URL
-// (?tab=overview|settings, ?m=<id>) so WhatsApp alerts can deep-link a mention.
+// across the web. Tabs (Feed · Overview · Settings) are shell section tabs
+// (nav.ts pages, ?tab=overview|settings) and the open mention lives in ?m=<id>,
+// so WhatsApp alerts can deep-link a mention.
 // Build contract: docs/plans/2026-10-08-orm-build-spec.md §7.
+// Audit: docs/audits/2026-10-09-creators-reputation-fidelity.md §2.
 
 import { Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { PageHead, Tabs } from "@/components/pm";
+import { Settings2 } from "lucide-react";
+import { PageHeader } from "@/components/pm";
 import { FeedTab } from "./_components/FeedTab";
 import { MentionDrawer } from "./_components/MentionDrawer";
 import { OverviewTab } from "./_components/OverviewTab";
 import { SettingsTab } from "./_components/SettingsTab";
 import { useSummary } from "./_components/ui";
 import s from "./reputation.module.css";
-// Same calm redesign scope as the Influencers page (tokens + fonts). Remove
-// together with the Influencers copy when the full redesign merges.
-import { REDESIGN_SCOPE } from "../influencers/fonts";
-import "../influencers/redesign-scope.css";
 
 type TabKey = "feed" | "overview" | "settings";
-const TABS: { key: TabKey; label: string }[] = [
-  { key: "feed", label: "Feed" },
-  { key: "overview", label: "Overview" },
-  { key: "settings", label: "Settings" },
-];
-const parseTab = (v: string | null): TabKey => (TABS.some((t) => t.key === v) ? (v as TabKey) : "feed");
+const TAB_KEYS: TabKey[] = ["feed", "overview", "settings"];
+const parseTab = (v: string | null): TabKey => (TAB_KEYS.includes(v as TabKey) ? (v as TabKey) : "feed");
 
+const TITLE: Record<TabKey, string> = { feed: "Reputation", overview: "Overview", settings: "Listening setup" };
 const SUBTITLE: Record<TabKey, string> = {
   feed: "Reviews, comments and mentions of PROMUNCH across the web, newest first.",
   overview: "How people feel about PROMUNCH and what they talk about.",
@@ -35,11 +31,9 @@ const SUBTITLE: Record<TabKey, string> = {
 
 export default function ReputationPage() {
   return (
-    <div className={REDESIGN_SCOPE}>
-      <Suspense fallback={<div className="pm-page" />}>
-        <ReputationInner />
-      </Suspense>
-    </div>
+    <Suspense fallback={null}>
+      <ReputationInner />
+    </Suspense>
   );
 }
 
@@ -71,7 +65,8 @@ function ReputationInner() {
   const toSettings = useCallback(() => setQuery({ tab: "settings" }), [setQuery]);
 
   const unanswered = week.data?.unanswered_negative ?? 0;
-  const subtitle =
+  const total = week.data?.total ?? null;
+  const summary =
     tab === "feed" && unanswered > 0 ? (
       <>
         <b>
@@ -79,14 +74,28 @@ function ReputationInner() {
         </b>{" "}
         from the last 7 days.
       </>
+    ) : tab === "feed" && total != null ? (
+      <>
+        <b>{total} {total === 1 ? "mention" : "mentions"}</b> in the last 7 days. Nothing negative is waiting for a reply.
+      </>
     ) : (
       SUBTITLE[tab]
     );
 
   return (
-    <div className={`pm-page ${s.page}`}>
-      <PageHead title="Reputation" subtitle={<span className={s.sum}>{subtitle}</span>} />
-      <Tabs tabs={TABS} active={tab} onSelect={(k) => setQuery({ tab: parseTab(k) })} />
+    <div className={s.page}>
+      <PageHeader
+        crumb="Reputation"
+        title={TITLE[tab]}
+        summary={summary}
+        actions={
+          tab === "settings" ? undefined : (
+            <button type="button" className="pm-btn ghost" onClick={toSettings} title="Sources, keywords and alerts">
+              <Settings2 size={15} /> Setup
+            </button>
+          )
+        }
+      />
       <div className={s.body}>
         {tab === "feed" && <FeedTab onOpen={open} onSettings={toSettings} />}
         {tab === "overview" && <OverviewTab onSettings={toSettings} />}

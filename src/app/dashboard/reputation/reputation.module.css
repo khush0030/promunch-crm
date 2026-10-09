@@ -1,11 +1,10 @@
-/* Reputation (ORM). Calm warm-editorial, tokens from the redesign scope
+/* Reputation (ORM). Calm warm-editorial, shared tokens from redesign.css
    (--pm-*): status = coloured text + small dot, hairlines instead of boxes
    inside boxes, selected = ink, one red element per screen (the primary
    action), dark readable subtext. */
 
 .page { min-width: 0; }
-.sum b { color: var(--pm-ink); font-weight: 700; }
-.body { margin-top: 18px; min-width: 0; }
+.body { padding: 20px var(--pm3-gutter) 64px; min-width: 0; }
 
 .muted { font-size: 14.5px; color: var(--pm-muted); line-height: 1.5; margin: 0; }
 .hint { font-size: 13.5px; color: var(--pm-hint); line-height: 1.45; }
@@ -210,7 +209,6 @@
 }
 
 @media (max-width: 760px) {
-  .page :global(.pm-head) { align-items: stretch; }
   .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: -16px; padding-right: 16px; }
   .chips::-webkit-scrollbar { display: none; }
   .filters { gap: 8px; }
