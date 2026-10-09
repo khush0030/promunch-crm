@@ -105,3 +105,9 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 ## archive/ — superseded, historical only
 
 Do not follow anything here; kept for context. Old redesign specs/mockups (pre warm-editorial), the original Claude Code brief, June 2026 WhatsApp template copy worksheets, and the superseded `wa-campaign-pgcron.sql` (replaced by the canonical pg_cron migration `20260705100000_cron_jobs_canonical.sql`).
+
+## marketing/ — brand content production
+
+| Doc | What it answers |
+|---|---|
+| [protein-throne/CLAUDE.md](marketing/protein-throne/CLAUDE.md) | "The Protein Throne" AI video series (3 episodes, 9:16): project status, locked characters, open decisions, brand/claim rules, Studio asset ids, production plan. Script + prompt library in `protein-throne/docs/`, character art in `protein-throne/images/` |

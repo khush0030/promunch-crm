@@ -1,0 +1,575 @@
+The Protein Throne — Character Prompts (Nano Banana)
+
+
+
+
+The Protein Throne — Character Prompts
+(Nano Banana)
+  ​Sep 30, 2026       · ​@Oltaflock
+
+
+How to use
+Every prompt below is complete and ready to paste. Each one starts with the same
+universe style block, so all characters come out looking like they belong in one film.
+Generate in this order:
+
+ 1. Hero pose (2:3) for each character. Regenerate until the face and personality feel right.
+ 2. Lock it. Save the approved image. From now on, attach it as reference image #1 and
+    start every prompt with "Keep this exact character identical."
+ 3. Model sheet + expression sheet (16:9) using the templates at the end.
+ 4. Scale lineup of all five together, so sizes stay the same in every episode.
+
+For Makhana and Peanut, attach your current images as the reference and use the
+prompts as edit instructions. They're already close.
+
+Universe style block (already inside every prompt; shown here for reference):
+
+  Premium 3D animated feature-film character design, stylised and highly
+  expressive, tactile realistic food textures with soft subsurface scattering,
+  cinematic studio lighting with a warm key light and soft rim light, seamless
+  warm-grey studio background, full body, centred. Exaggerated cartoon
+  proportions with strong squash-and-stretch appeal and a bold, readable
+  silhouette. The comedy is in the acting: the face and pose instantly tell you
+  who this character is. Premium and polished, not childish, not creepy.
+
+
+
+
+Cast at a glance
+Each character gets one clear comic type, one visual gag viewers will remember, and its
+own colour lane, so no two characters are ever confused in a fast cut.
+
+
+
+
+                                                                                         Page 1 of 12
+The Protein Throne — Character Prompts (Nano Banana)
+
+
+
+
+  Character                      Comic type            Signature gag (the hook)      Colour lane
+
+  PROMUNCH                       The unbothered        Tiny cute body, totally       Roasted olive-green +
+  Edamame                        legend                deadpan face. As a            PROMUNCH maroon &
+                                                       warrior he wins               gold
+                                                       everything with one
+                                                       finger and never raises
+                                                       his voice
+
+  Makhana                        The snob              So light he floats a little   Cream + royal purple &
+                                                       when he gasps.                gold
+                                                       Obsessed with his
+                                                       moustache (which he
+                                                       loses in Ep 3)
+
+  Peanut                         The loud lovable      Slaps his own belly for       Peanut tan + maroon
+                                 show-off              punctuation. His              langot, red-check
+                                                       moustache twirls itself       gamchha
+                                                       when he's proud
+
+  Protein Chips                  The influencer        Huge PROTEIN crest on         Chrome silver + hot
+                                 superhero             his chest, but he's mostly    magenta cape
+                                                       air inside: three chips
+                                                       rattling around
+
+  Protein Bar                    The joyless gym       Massive upper body on         Chocolate brown +
+                                 coach                 tiny legs. He skipped leg     charcoal & steel grey
+                                                       day, and it's never
+                                                       mentioned
+
+
+
+
+PROMUNCH Edamame
+Hook: the calmest character in the room is also the strongest. The joke is the contrast:
+everyone else is loud and dramatic, and he just doesn't care. Both forms share the same
+face, so viewers instantly know it's him.
+
+
+
+
+                                                                                                           Page 2 of 12
+The Protein Throne — Character Prompts (Nano Banana)
+
+
+
+
+Form 1: Tiny bean (Episode 1 entrance)
+
+  Premium 3D animated feature-film character design, stylised and highly
+  expressive, tactile realistic food textures with soft subsurface scattering,
+  cinematic studio lighting with a warm key light and soft rim light, seamless
+  warm-grey studio background, full body, centred. Exaggerated cartoon
+  proportions with strong squash-and-stretch appeal and a bold, readable
+  silhouette. Premium and polished, not childish, not creepy.
+
+  Character: a single tiny roasted edamame bean, small, round and adorable,
+  with a smooth olive-green roasted surface, a slightly split seam and a light
+  dusting of salt speckles. Tiny stubby arms and legs, no clothing except a
+  thin maroon headband with a small gold trim tied at the back, its ends
+  fluttering. The comedy: the body is cute, but the face is completely deadpan:
+  heavy-lidded, unimpressed eyes, one eyebrow very slightly raised, a flat,
+  tiny mouth. He looks like nothing in the world could surprise him. Pose:
+  standing perfectly still with arms at his sides, one tiny foot resting on a
+  fallen crumb, like a movie villain who has just arrived. A long dramatic
+  shadow stretches behind him on the floor, shaped like a huge armoured
+  warrior.
+
+
+  Aspect ratio 2:3. No text, words, logos, watermarks or lettering anywhere in
+  the image.
+
+
+Swap: remove the warrior shadow for a clean character-sheet version.
+
+
+
+
+                                                                             Page 3 of 12
+The Protein Throne — Character Prompts (Nano Banana)
+
+
+
+
+Form 2: Warrior (Episodes 2–3)
+
+  Premium 3D animated feature-film character design, stylised and highly
+  expressive, tactile realistic food textures with soft subsurface scattering,
+  cinematic studio lighting with a warm key light and soft rim light, seamless
+  warm-grey studio background, full body, centred. Exaggerated cartoon
+  proportions with strong squash-and-stretch appeal and a bold, readable
+  silhouette. Premium and polished, not childish, not creepy.
+
+
+  Character: a tall, heroic warrior whose head and body are a roasted edamame
+  bean: olive-green roasted skin with a subtle salt speckle and a faint seam
+  down the head. A powerful V-shaped torso, broad shoulders, thick forearms,
+  strong legs, standing roughly twice the height of the other snack characters.
+  Same face as the tiny bean: heavy-lidded calm eyes, a tiny confident half-
+  smile, one eyebrow slightly raised, completely relaxed. Armour in deep
+  PROMUNCH maroon with polished gold trim: a sculpted chest plate with a gold
+  bean-shaped emblem at the centre, shoulder pauldrons shaped like split
+  edamame pods, gold arm bracers, an armoured maroon battle skirt with gold
+  edging, maroon knee-high boots with gold bands, and a long maroon cape lined
+  in gold flowing behind him. The same thin maroon headband from his tiny form.
+  Pose: standing calmly with one hand behind his back, the other hand raising a
+  single finger, while small crumbs and seasoning dust float around him as if
+  pushed away by his power. Unbothered, witty, extremely strong.
+
+  Aspect ratio 2:3. No text, words, logos, watermarks or lettering anywhere in
+  the image.
+
+
+Swap: change the pose to arms folded, glancing sideways at the camera with a smirk: the
+thumbnail pose.
+
+
+Makhana
+Hook: a royal snob who thinks he's too refined to be touched, and so light he drifts off the
+ground when he gasps. He loves his moustache more than anything, which sets up the
+Episode 3 payoff. Attach your current Makhana image as reference; this pushes the
+attitude further.
+
+
+
+
+                                                                                      Page 4 of 12
+The Protein Throne — Character Prompts (Nano Banana)
+
+
+
+
+  Premium 3D animated feature-film character design, stylised and highly
+  expressive, tactile realistic food textures with soft subsurface scattering,
+  cinematic studio lighting with a warm key light and soft rim light, seamless
+  warm-grey studio background, full body, centred. Exaggerated cartoon
+  proportions with strong squash-and-stretch appeal and a bold, readable
+  silhouette. Premium and polished, not childish, not creepy.
+
+
+  Character: a large, round puffed makhana (fox nut / lotus seed) with a light,
+  airy cream surface full of tiny puffed pores and a few natural golden-brown
+  husk patches. Thin, elegant arms and long delicate legs. He wears a royal
+  purple velvet turban with gold embroidery, a pearl brooch and a tall cream
+  feather; a sleeveless purple velvet vest with dense gold floral embroidery; a
+  long string of pearls; a gold ring with a ruby on his little finger; and
+  curled gold-and-purple jutti shoes. His prized feature is a thin, perfectly
+  waxed moustache that curls up into two elegant spirals, with a tiny glint of
+  shine on it. Expression: chin held very high, half-closed eyes looking down
+  his nose at the viewer, one eyebrow arched, lips pursed in disapproval, as if
+  someone just offered him a plastic plate. Pose: gliding forward on tiptoe,
+  little finger raised, fluttering a small embroidered silk fan near his face
+  with the other hand, his feet hovering just above the floor because he is
+  that light, with a faint soft shadow beneath him.
+
+
+  Aspect ratio 2:3. No text, words, logos, watermarks or lettering anywhere in
+  the image.
+
+
+Swap for Episode 3: same character, moustache gone, bare upper lip, eyes wide in horror,
+both hands touching the empty space where it used to be.
+
+
+Peanut
+Hook: the loud, lovable desi pehelwan who's all chest-thumping, but secretly a softie.
+That's why it's funny when he gets caught snacking on PROMUNCH in Episode 3. His thick
+moustache must look nothing like Makhana's thin curled one. Attach your current Peanut
+image as reference.
+
+
+
+
+                                                                                    Page 5 of 12
+The Protein Throne — Character Prompts (Nano Banana)
+
+
+
+
+  Premium 3D animated feature-film character design, stylised and highly
+  expressive, tactile realistic food textures with soft subsurface scattering,
+  cinematic studio lighting with a warm key light and soft rim light, seamless
+  warm-grey studio background, full body, centred. Exaggerated cartoon
+  proportions with strong squash-and-stretch appeal and a bold, readable
+  silhouette. Premium and polished, not childish, not creepy.
+
+
+  Character: a big, barrel-chested peanut in its shell, the classic two-lobed
+  peanut shape with a deep waffle-textured tan shell, the lower lobe forming a
+  proud round belly. The shell has a light sheen of wrestling oil and a dusting
+  of reddish akhada mud on the feet and knees. Short, thick, muscular arms and
+  legs. He wears a maroon wrestling langot, white cloth wrist wraps, and a red-
+  and-white checked cotton gamchha towel over one shoulder. He has a huge,
+  thick, bushy dark-brown handlebar moustache, big bushy eyebrows, and a wide
+  gap-toothed grin. Expression: loud, proud and overconfident, eyes squinting
+  with joy, like he has just challenged the whole village to a wrestling match.
+  Pose: wide wrestler's stance, one hand slapping his own belly mid-laugh, the
+  other hand twirling one end of his moustache, a small puff of dust rising
+  from his feet.
+
+
+  Aspect ratio 2:3. No text, words, logos, watermarks or lettering anywhere in
+  the image.
+
+
+Swap for Episode 3: hiding behind a pillar, cheeks stuffed, holding a PROMUNCH pouch
+(attach the pack render as reference image #2), caught mid-chew with guilty wide eyes.
+
+
+Protein Chips
+Hook: an influencer superhero who is all branding and no substance. He's always posing
+for a camera that isn't there. Inside the puffed-up pouch there's mostly air, with just three
+chips rattling around. That's the whole Episode 2 joke ("writing it is easy"). New colours
+move him away from the blue of any real chip packet.
+
+
+
+
+                                                                                      Page 6 of 12
+The Protein Throne — Character Prompts (Nano Banana)
+
+
+
+
+  Premium 3D animated feature-film character design, stylised and highly
+  expressive, tactile realistic food textures with soft subsurface scattering,
+  cinematic studio lighting with a warm key light and soft rim light, seamless
+  warm-grey studio background, full body, centred. Exaggerated cartoon
+  proportions with strong squash-and-stretch appeal and a bold, readable
+  silhouette. Premium and polished, not childish, not creepy.
+
+
+  Character: a superhero whose body is a generic snack pouch in shiny
+  iridescent chrome-silver foil with crimped silver seals at the top and
+  bottom. The pouch is over-inflated like a balloon, puffed out proudly, and
+  slightly see-through near the bottom so you can spot just three small chips
+  rattling around inside an otherwise empty pouch. On his chest is a huge,
+  glossy superhero crest: a bold magenta shield with the single word "PROTEIN"
+  in thick white block capital letters. A dramatic hot-magenta cape that
+  billows in a wind that doesn't exist, a small black domino mask, white
+  superhero gloves, and tall silver boots. A square jaw and a cleft chin drawn
+  onto the foil. Expression: massively self-satisfied, eyebrows up, a dazzling
+  smile, with a small star-shaped sparkle glinting off one tooth. Pose: the
+  classic hero pose, fists on hips and chest pushed out, one foot on a tiny
+  rock, looking up and off to the side as if the camera is on him.
+
+  Aspect ratio 2:3. The only text in the image is the word "PROTEIN" on his
+  chest crest. No other text, words, logos, brand names, watermarks or
+  lettering anywhere.
+
+
+Swap for Episode 2: same pose, but deflating with a sad squeak, the crest crumpling and
+crumbs falling from the bottom seal.
+
+
+Protein Bar
+Hook: a joyless gym coach who treats snacking like a military drill. He has an enormous
+upper body on tiny stick legs, because he skipped leg day. Nobody ever mentions it, and
+that's what makes it funny. Grey-only colours fit his personality: colour is a distraction.
+
+
+
+
+                                                                                        Page 7 of 12
+The Protein Throne — Character Prompts (Nano Banana)
+
+
+
+
+  Premium 3D animated feature-film character design, stylised and highly
+  expressive, tactile realistic food textures with soft subsurface scattering,
+  cinematic studio lighting with a warm key light and soft rim light, seamless
+  warm-grey studio background, full body, centred. Exaggerated cartoon
+  proportions with strong squash-and-stretch appeal and a bold, readable
+  silhouette. Premium and polished, not childish, not creepy.
+
+
+  Character: a tall rectangular chocolate protein bar with a dense, chewy
+  chocolate-brown texture studded with rolled oats and chopped nut chunks. A
+  massively over-developed upper body: huge bulging biceps, broad shoulders,
+  big chest muscles, and visible veins, all made of the same bar texture. Below
+  the waist he has comically tiny, skinny stick legs in oversized chunky white
+  high-top gym sneakers. His plain charcoal-black foil wrapper is peeled down
+  and folded around his waist like gym shorts, with steel-grey stripes and no
+  printing. A tight charcoal sweatband on his forehead, a thick black
+  weightlifting belt, black wrist wraps, and a silver coach's whistle on a
+  cord. In one hand he holds a plain steel-grey shaker bottle. Expression: dead
+  serious, jaw clenched, one heavy eyebrow lowered, a stare that judges your
+  life choices. Zero smile. Pose: a stiff bodybuilder front double-bicep flex,
+  standing very straight, his tiny legs trembling slightly under the weight of
+  his upper body.
+
+  Aspect ratio 2:3. No text, words, logos, brand names, watermarks or lettering
+  anywhere in the image.
+
+
+Swap for Episode 2: squeezed into a tiny cube, the same stern face squished onto one
+side, tiny legs still sticking out underneath.
+
+
+Supporting cast
+These appear briefly, so each one needs to read in under two seconds. The flavour
+warriors take their colours from each pack, so they also help people learn the range.
+
+
+The Crown
+Hook: a bored, judgmental royal crown who has seen a thousand pretenders and is
+impressed by none.
+
+
+
+
+                                                                                        Page 8 of 12
+The Protein Throne — Character Prompts (Nano Banana)
+
+
+
+
+  Premium 3D animated feature-film character design, stylised and highly
+  expressive, cinematic studio lighting with a warm key light and soft rim
+  light, seamless warm-grey studio background, centred. Premium and polished,
+  not childish, not creepy.
+
+
+  Character: an ornate floating golden royal crown in an Indian palace style,
+  with tall pointed arches, filigree and deep maroon ruby gems. Two of the
+  large front rubies are its eyes, heavy-lidded and deeply unimpressed. A thin
+  line in the gold band below them forms a small, sceptical mouth. It floats in
+  mid-air above a soft golden glow, with tiny sparkles drifting off it, tilted
+  slightly as if raising an eyebrow at the viewer.
+
+
+  Aspect ratio 2:3. No text, words, logos, watermarks or lettering anywhere in
+  the image.
+
+
+
+The Royal Judge
+Hook: an elderly royal food critic who takes one bite very, very seriously.
+
+  Premium 3D animated feature-film character design, stylised and highly
+  expressive, tactile realistic food textures with soft subsurface scattering,
+  cinematic studio lighting with a warm key light and soft rim light, seamless
+  warm-grey studio background, full body, centred. Exaggerated cartoon
+  proportions with strong squash-and-stretch appeal. Premium and polished, not
+  childish, not creepy.
+
+
+  Character: an old, wise, plump golden samosa with a crisp flaky pastry
+  texture, wearing flowing royal-court judge robes in maroon and gold, a small
+  round pair of spectacles perched on the tip of the samosa, and a long, wispy
+  white beard. He holds a small golden gavel in one hand and a silver tasting
+  spoon in the other. Expression: eyes closed, eyebrows raised, lips pursed,
+  concentrating as seriously as a wine expert tasting something important.
+  Pose: standing still, gavel raised, about to deliver a verdict.
+
+
+  Aspect ratio 2:3. No text, words, logos, watermarks or lettering anywhere in
+  the image.
+
+
+
+Flavour warriors (Episode 3, Taste test)
+Generate all three with the same pose so they line up side by side. Each one is an
+armoured edamame-bean warrior built like Edamame's warrior form, but slimmer, with its
+own element.
+
+Himalayan Rock Salt — the zen one
+
+
+
+
+                                                                                     Page 9 of 12
+The Protein Throne — Character Prompts (Nano Banana)
+
+
+
+
+  Premium 3D animated feature-film character design, stylised and highly
+  expressive, tactile realistic textures with soft subsurface scattering,
+  cinematic studio lighting with a cool key light and soft rim light, seamless
+  warm-grey studio background, full body, centred. Premium and polished, not
+  childish, not creepy.
+
+
+  Character: a slim, graceful warrior whose head and body are a light, glossy
+  green roasted edamame bean. Armour made of translucent pale-pink Himalayan
+  rock-salt crystals and frosted ice, trimmed in cool teal and aqua, with small
+  salt crystals floating around him like snowflakes and a faint cold mist at
+  his feet. Expression: serene, eyes calmly half-closed, a tiny peaceful smile,
+  like a monk who has never been in a hurry. Pose: standing balanced in a calm
+  martial-arts stance, one open palm forward, a light snowfall of salt flakes
+  drifting past.
+
+
+  Aspect ratio 2:3. No text, words, logos, watermarks or lettering anywhere in
+  the image.
+
+
+Masala Mania — the hothead
+
+  Premium 3D animated feature-film character design, stylised and highly
+  expressive, tactile realistic textures with soft subsurface scattering,
+  cinematic studio lighting with a warm orange key light and soft rim light,
+  seamless warm-grey studio background, full body, centred. Premium and
+  polished, not childish, not creepy.
+
+
+  Character: a stocky, fiery warrior whose head and body are a reddish-orange
+  edamame bean, heavily coated in masala spice. Armour of hammered copper and
+  brass, trimmed in rust and gold, decorated with dried red chillies, star
+  anise and cinnamon sticks. Small flames lick off his shoulders, and a puff of
+  spicy red-orange smoke rises from his head as if he's too hot to handle.
+  Expression: intense and fired-up, eyes blazing, grinning with gritted teeth.
+  Pose: fists clenched, leaning forward, ready to charge, a swirl of red spice
+  dust around him.
+
+
+  Aspect ratio 2:3. No text, words, logos, watermarks or lettering anywhere in
+  the image.
+
+
+Indori Chatka — the street-smart swagger
+
+
+
+
+                                                                           Page 10 of 12
+The Protein Throne — Character Prompts (Nano Banana)
+
+
+
+
+  Premium 3D animated feature-film character design, stylised and highly
+  expressive, tactile realistic textures with soft subsurface scattering,
+  cinematic studio lighting with a warm key light and soft rim light, seamless
+  warm-grey studio background, full body, centred. Premium and polished, not
+  childish, not creepy.
+
+
+  Character: a lively, cheeky warrior whose head and body are a golden, tangy
+  masala-coated edamame bean. Colourful street-style armour in bright violet
+  and purple, with chilli-red and lime-green accents, a small red-and-green
+  chilli tucked behind one ear like a flower, a lemon-wedge shoulder guard, and
+  a dusting of chaat masala and crunchy yellow sev sprinkled over him like
+  confetti. Expression: playful and full of swagger, one eyebrow up, a big
+  mischievous grin, winking. Pose: casual and confident, one hand holding a
+  steel chaat plate like a shield, the other pointing at the viewer.
+
+
+  Aspect ratio 2:3. No text, words, logos, watermarks or lettering anywhere in
+  the image.
+
+
+
+
+Model sheets and lineup
+Run these only after a hero image is approved. Attach it as reference image #1 every time.
+
+Turnaround sheet (one per character)
+
+  Keep this exact character identical to the reference image: same face,
+  proportions, colours, textures, costume and accessories. Create a
+  professional 3D animation character model sheet on a seamless warm-grey
+  background: four full-body views in a row at the same scale and height (front
+  view, three-quarter view, side profile, back view), neutral standing pose,
+  arms slightly away from the body, even studio lighting, no shadows
+  overlapping. Aspect ratio 16:9. No text, labels, numbers, watermarks or
+  lettering anywhere in the image.
+
+
+Expression sheet (one per character)
+
+  Keep this exact character identical to the reference image. Create a
+  character expression sheet on a seamless warm-grey background: a 3 x 2 grid
+  of head-and-shoulders close-ups, same angle and lighting in each, showing six
+  exaggerated cartoon expressions: smug, shocked, furious, laughing hard,
+  defeated and sulking, scheming. Keep the face design, colours and accessories
+  identical in every panel. Aspect ratio 16:9. No text, labels, watermarks or
+  lettering anywhere in the image.
+
+
+Scale lineup (attach all five approved hero images)
+
+
+
+
+                                                                                   Page 11 of 12
+The Protein Throne — Character Prompts (Nano Banana)
+
+
+
+
+  Keep all five characters exactly as they appear in the reference images.
+  Place them standing side by side in a single row on a seamless warm-grey
+  background, full body, feet on the same floor line, neutral poses, even
+  studio lighting, showing their relative sizes: the PROMUNCH Edamame warrior
+  in the centre, the tallest by far, about twice the height of the others;
+  Protein Bar and Peanut next to him, roughly equal in height; Makhana slightly
+  shorter and rounder; Protein Chips tall and thin. Each character keeps their
+  own signature expression. Aspect ratio 16:9. No text, labels, watermarks or
+  lettering anywhere in the image.
+
+
+
+
+Flags before production
+     Protein claim doesn't match the packs. The script says "up to 45 g protein per 100 g",
+     but the approved pack badges are 46g (Himalayan Rock Salt) and 42g (Indori Chatka
+     and Masala Mania). The Episode 3 on-screen line needs to change to match the label.
+     Don't put any protein number inside the generated images.
+     Brand colours. The PROMUNCH palette is maroon, cyan blue, sunny yellow and orange,
+     not bright red. Edamame's armour uses maroon and gold to stay on-brand.
+     Keep rivals generic. No logos, brand names or recognisable pack designs on Makhana,
+     Peanut, Chips or Bar. Chips is the one to watch: that's why he moved from blue to
+     chrome and magenta.
+     PROMUNCH pack. Whenever the pouch appears (Peanut's Episode 3 scene, the
+     coronation, the end frame), attach the real pack render as a reference. Don't let the
+     model invent the label.
+
+
+
+
+                                                                                      Page 12 of 12
+
