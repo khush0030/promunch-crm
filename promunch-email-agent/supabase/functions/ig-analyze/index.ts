@@ -38,8 +38,8 @@ Deno.serve(async (req) => {
   if (!thread) return j({ error: "thread not found" }, 404);
   if (!thread.handle) return j({ error: "no handle on this thread — can't run Business Discovery" }, 400);
 
-  const min = settings?.min_followers ?? 20000;
-  const max = settings?.max_followers ?? 100000;
+  const min = settings?.min_followers ?? 1000;
+  const max = settings?.max_followers ?? 15000;
 
   // ---- official public metrics (no scraping) ----
   const bd = await businessDiscovery(thread.handle).catch(() => null);

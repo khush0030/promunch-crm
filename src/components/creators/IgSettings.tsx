@@ -54,8 +54,8 @@ function Form({ settings }: { settings: Settings }) {
   // State starts from props; the parent remounts this form (key) when the
   // saved settings change, so no prop-to-state sync effect is needed.
   const [terms, setTerms] = useState(settings.barter_terms ?? "");
-  const [min, setMin] = useState(settings.min_followers ?? 20000);
-  const [max, setMax] = useState(settings.max_followers ?? 100000);
+  const [min, setMin] = useState(settings.min_followers ?? 1000);
+  const [max, setMax] = useState(settings.max_followers ?? 15000);
 
   const save = useCallback(async (patch: Partial<Settings>) => {
     try {

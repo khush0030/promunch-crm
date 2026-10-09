@@ -151,8 +151,8 @@ async function importProfiles(run: any, items: any[]) {
     .select("min_followers, max_followers")
     .eq("id", 1)
     .maybeSingle();
-  const min = settings?.min_followers ?? 20000;
-  const max = settings?.max_followers ?? 100000;
+  const min = settings?.min_followers ?? 1000;
+  const max = settings?.max_followers ?? 15000;
 
   const profiles = items.map(normalizeProfileItem).filter((p) => p.handle);
 
