@@ -13,7 +13,7 @@ import { Tag } from "@/components/pm";
 import { PIPELINE_STAGES, STAGE_HINT, STAGE_LABEL, STAGE_TONE, type DealStage } from "@/lib/deals/stages";
 import { formatRupees, type Deal, type TeamPerson } from "@/lib/deals/model";
 import { DealTags, NextStepLine, AgeLine } from "./DealBits";
-import { NextStageButton, StageSelect } from "./StageControls";
+import { NextStageButton } from "./StageControls";
 import css from "./deals.module.css";
 
 export default function DealsBoard({
@@ -108,12 +108,11 @@ export default function DealsBoard({
                     </div>
                     {d.contact_name && d.contact_name !== d.company_name && <div className={css.cardContact}>{d.contact_name}</div>}
                     <NextStepLine deal={d} />
-                    <DealTags deal={d} people={people} today={today} />
+                    <DealTags deal={d} people={people} today={today} showSource={false} />
                     <div className={css.cardFoot}>
                       <AgeLine deal={d} />
                       <span className={css.cardActions}>
                         <NextStageButton deal={d} onPick={(s) => onMove(d, s)} />
-                        <StageSelect compact deal={d} onPick={(s) => onMove(d, s)} />
                       </span>
                     </div>
                   </article>

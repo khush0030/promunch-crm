@@ -11,6 +11,8 @@ export type TagTone =
   | "purple" // wholesale, B2B buyer
   | "teal" // partnership, collab
   | "pink" // Instagram, creators
+  | "indigo" // categories (hotels, cafes)
+  | "olive" // categories (retail, quick commerce)
   | "brand" // PROMUNCH accent (use sparingly)
   | "grey"; // bot, neutral, closed, skipped
 

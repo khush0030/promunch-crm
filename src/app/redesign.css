@@ -349,6 +349,8 @@ table.pm-tbl th{background:none}
   --tag-purple-bg:#EEE7FA; --tag-purple-ink:#5B3EA6;
   --tag-teal-bg:#DDF1EF;   --tag-teal-ink:#17675F;
   --tag-pink-bg:#FBE5F0;   --tag-pink-ink:#A02A68;
+  --tag-indigo-bg:#E7E9FA; --tag-indigo-ink:#3A429C;
+  --tag-olive-bg:#EDEFD9;  --tag-olive-ink:#545B12;
   --tag-brand-bg:#F8E7E5;  --tag-brand-ink:#AF272F;
   --tag-grey-bg:#EFECE6;   --tag-grey-ink:#4D4640;
 }
@@ -363,6 +365,8 @@ table.pm-tbl th{background:none}
 .pm-tag.t-purple{--tg-bg:var(--tag-purple-bg);--tg-ink:var(--tag-purple-ink)}
 .pm-tag.t-teal{--tg-bg:var(--tag-teal-bg);--tg-ink:var(--tag-teal-ink)}
 .pm-tag.t-pink{--tg-bg:var(--tag-pink-bg);--tg-ink:var(--tag-pink-ink)}
+.pm-tag.t-indigo{--tg-bg:var(--tag-indigo-bg);--tg-ink:var(--tag-indigo-ink)}
+.pm-tag.t-olive{--tg-bg:var(--tag-olive-bg);--tg-ink:var(--tag-olive-ink)}
 .pm-tag.t-brand{--tg-bg:var(--tag-brand-bg);--tg-ink:var(--tag-brand-ink)}
 .pm-tag.t-grey{--tg-bg:var(--tag-grey-bg);--tg-ink:var(--tag-grey-ink)}
 

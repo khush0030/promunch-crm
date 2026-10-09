@@ -35,9 +35,9 @@ export const KIND_LABEL: Record<DealKind, string> = {
 };
 
 export const KIND_TONE: Record<DealKind, TagTone> = {
-  hotel_hospitality: "brand",
+  hotel_hospitality: "indigo",
   corporate_pantry_gifting: "blue",
-  retail_qcommerce: "amber",
+  retail_qcommerce: "olive",
   distribution_wholesale: "purple",
   influencer_collab: "pink",
   brand_partnership: "teal",

@@ -67,16 +67,18 @@ export function OwnerTag({ email, people, size = "sm" }: { email: string | null;
   );
 }
 
-export function DealTags({ deal: d, people, today }: { deal: Deal; people: TeamPerson[]; today: string }) {
+export function DealTags({ deal: d, people, today, showSource = true }: { deal: Deal; people: TeamPerson[]; today: string; showSource?: boolean }) {
   return (
     <div className={css.tags}>
       <FollowUpTag deal={d} today={today} />
       <Tag tone={KIND_TONE[d.kind]} size="sm">
         {KIND_LABEL[d.kind]}
       </Tag>
-      <Tag tone={SOURCE_TONE[d.source]} size="sm">
-        {SOURCE_LABEL[d.source]}
-      </Tag>
+      {showSource && (
+        <Tag tone={SOURCE_TONE[d.source]} size="sm">
+          {SOURCE_LABEL[d.source]}
+        </Tag>
+      )}
       <OwnerTag email={d.owner_email} people={people} />
     </div>
   );
