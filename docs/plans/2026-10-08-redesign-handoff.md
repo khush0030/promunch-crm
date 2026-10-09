@@ -4,6 +4,34 @@
 
 Read first: `AGENTS.md`, `CLAUDE.md`, `promunch-email-agent/CLAUDE.md` §0 (never message a customer twice).
 
+
+## Update 9 Oct 2026 (day session), branch head d0308ee
+
+Done on redesign/app-v2 (pushed, NOT merged, NOT deployed; main merged in, 0 behind):
+- Owner decisions applied: COD waiting = pending/needs_call, unshipped, uncancelled, any age (badge = page);
+  Home action button neutral (sales tile is the one red); campaign Orders = shared 7-day last-touch rule
+  (src/lib/whatsapp/campaign-attribution.ts); cart templates = live wording minus dashes (resubmitted to Meta).
+- Rebuilt: Inbox three-panel Live chats + customer context panel; B2B guided flow (Overview, Lists, Review,
+  Replies, Find, Setup) + Deals; Creators = Find · Outreach · Collabs · Settings (Instagram folded in,
+  /dashboard/instagram redirects); Reputation on the shared shell; My profile (name + photo, email-assets bucket).
+- P1 gaps closed: Settings Connections (live status, Slack gone), Voice calls KPIs, All orders chips/search/CSV,
+  Segments counts, Tickets Reports + Topics, Bot knowledge Test a question (dry run), Insights Repeat & cohorts +
+  What people buy, Maya Saved answers, New deal, New email template.
+- QA: docs/audits/2026-10-09-full-qa.md (untracked) pass 1 + 2, no open P0.
+- Checks at d0308ee: tsc clean, vitest 1582/1582, build green.
+
+Live prod changes made today (outside the branch): 148 stale COD rows settled, 47 WA tickets resolved (5 human
+threads kept human), COD call spacing 3h -> 6h, 7 pg_cron jobs + SITE_URL/SITE_APP_URL secrets + Vercel
+SITE_APP_URL moved to admin.promunch.in (prod redeployed, no code change).
+
+Needs owner / manual:
+- Paste supabase/migrations/20261009120000_assistant_saved_answers.sql (Saved answers hidden until then).
+- Instagram tables never migrated: Creators Find/Outreach show "Not switched on yet" (needs IG migrations,
+  ig-* crons, APIFY_TOKEN).
+- Bot KB is 32.7k chars > 28k budget, so the bot uses stale kb_chunks: trim or re-embed.
+- review_request / replenishment_reminder templates still have em dashes (ask before resubmitting).
+- Merge: owner says "merge" -> merge to main, vercel --prod, live-test, report committed vs deployed.
+
 ## 1. Where things stand (one paragraph)
 
 The full CRM redesign lives on branch **`redesign/app-v2`** (pushed; ~32 commits ahead of `main`, `main` already merged in). It is **NOT merged and NOT deployed**. The branch exists because the owner asked for a review branch (exception to "commit to main"). Owner wants it merged soon; merging needs the owner's explicit "merge".
