@@ -21,14 +21,14 @@ Last updated: 9 Oct 2026 (status revised after user review).
 | Hindi script (3 eps + teaser + brand frame) | Done, in Hinglish with Devanagari and Roman lines. `docs/hindi-script.pdf` / `.txt` |
 | Character prompt library | Done. `docs/character-prompts.pdf` / `.txt` |
 | Voices | Neutral Hindi accents (the user chose this over Lucknowi/Haryanvi). |
-| Locked by user | Protein Bar, Peanut (8 Oct); **Edamame warrior, Edamame tiny (baby), Makhana** (9 Oct). Files in `images/locked/`. |
+| Locked by user | Protein Bar, Peanut (8 Oct); **Edamame warrior, Edamame tiny (baby), Makhana, Protein Chips (option A)** (9 Oct). Files in `images/locked/`. |
 | Locked as Oltaflock elements (by Claude after approval) | See the table below |
 | Makhana | **Locked 9 Oct**: single hero portrait built from the user's new sheet (thick black spiral moustache, lumpy puffed body, floats). Old options A/B/C superseded. Known nits: shrink the brown spot by his right cheek; turban gold band thinner than the user's sheet. |
-| Protein Chips | Redesigned as a **square chip character** (not a pouch), no "PROTEIN" text anywhere, per user request. Options in `images/options/chip-A/B/C`. Claude recommends **A (Caped Hero)** as the base, with B/C as poses. Awaiting choice. |
+| Protein Chips | **Locked 9 Oct: option A (Caped Hero)**, square chip character, no "PROTEIN" text. `@ProteinChips` now points to A. B/C kept in `images/options/` as pose references. New sheet done (Studio id a6907108-3c27-4c12-9e45-4ca5c2c54e1f); its "wink" expression is weak. |
 | Edamame warrior form | **Locked 9 Oct**: the user's own image (`images/locked/edamame-warrior.jpg`), not v2/v3. |
 | Edamame tiny | **Locked 9 Oct**: option A "pure baby", generated from the warrior. Option C (rolling bean) kept in `images/options/` as a possible roll-in pose. |
 | Needs rework (user, 9 Oct) | **Himalayan Rock Salt, Masala Mania, Indori Chatka.** NOT locked. Images moved to `images/wip/`. |
-| Character sheets | 10 in `images/sheets/`. **Edamame tiny and Makhana sheets redone 9 Oct** for the locked designs (Studio ids dfcb9793-0433-49cb-8d61-7ec69c2bfaea / 3c786192-056b-463c-b337-e629d5b995f1; repo copies are 1024px previews, full 2K is in Studio because the container cannot reach cdn.oltaflock.ai). Old sheets in `images/wip/*-old.jpg`. Still to redo: Chips (after choice) and the flavour warriors (after rework). Both new sheets approved by user 9 Oct. |
+| Character sheets | 10 in `images/sheets/`. **Edamame tiny and Makhana sheets redone 9 Oct** for the locked designs (Studio ids dfcb9793-0433-49cb-8d61-7ec69c2bfaea / 3c786192-056b-463c-b337-e629d5b995f1; repo copies are 1024px previews, full 2K is in Studio because the container cannot reach cdn.oltaflock.ai). Old sheets in `images/wip/*-old.jpg`. Chips sheet redone 9 Oct. Still to redo: the flavour warriors (after rework). Both new sheets approved by user 9 Oct. |
 | Progress zip sent to Parth | Yes (1 Oct). |
 
 ## Pending script change
@@ -45,7 +45,7 @@ Chips no longer has PROTEIN written on him, so Ep 2 needs a new line. Proposed (
 ## Tools and production stack
 - **Oltaflock Studio MCP** (Khush's own studio) is the main generator. Model: `nano-banana-2` (text-to-image, refs allowed) and `nano-banana-2-edit` (image edit). 2K, 2:3 for hero poses and 16:9 for sheets. About 12 credits per image.
 - Library folder: **"PROMUNCH - Protein Throne Characters"**, id `0ca195c3-5e38-450b-add4-afbefd22bd53`.
-- Saved elements (use `@Name` in prompts): `@ProteinBar`, `@Makhana` (locked v4 hero, 9 Oct), `@EdamameTiny` (locked baby, 9 Oct), `@EdamameWarrior` (locked, user's image), `@Peanut`, `@ProteinChips` (OLD pouch design, likely superseded), `@Crown`, `@RoyalJudge`, `@HimalayanRockSalt`, `@MasalaMania`, `@IndoriChatka`.
+- Saved elements (use `@Name` in prompts): `@ProteinBar`, `@Makhana` (locked v4 hero, 9 Oct), `@EdamameTiny` (locked baby, 9 Oct), `@EdamameWarrior` (locked, user's image), `@Peanut`, `@ProteinChips` (locked option A square chip, 9 Oct), `@Crown`, `@RoyalJudge`, `@HimalayanRockSalt`, `@MasalaMania`, `@IndoriChatka`.
 - Uploading a local file to Studio: base64 is too token-heavy. What worked on 9 Oct: commit the file to the branch and pass its raw.githubusercontent.com URL to `studio_upload_media(url=...)` (the repo is public, so only do this for assets that are OK to be public). Older route: The trick that worked: Higgsfield `media_upload` gives a presigned PUT URL, then curl PUT, then `media_confirm`, which returns a public URL. Pass that URL to Studio `studio_upload_media(url=...)`.
 - For video, Khush likes **Seedance 2.0** (particle and morph effects). There is a `seedance2-director` skill.
 - The `promunch-visual-prompts` skill holds the PROMUNCH product-photo visual DNA. Use it for pack and product shots.
@@ -66,7 +66,7 @@ Chips no longer has PROTEIN written on him, so Ep 2 needs a new line. Proposed (
 | Masala Mania (rework) | 0bf68e48-82e4-44bc-a955-0768d1717027 |
 | Indori Chatka (rework) | 2a7375b6-9f1d-4216-b9b7-90524b262491 |
 | Makhana option A / B / C (superseded) | 66b49c3c-bcef-4735-9764-670f61e77c1e / a097c8b3-58f4-4fda-9f70-d98fa2d59fe3 / 63e8cf67-6ead-4674-9320-8a4c90334a7d |
-| Chip character A / B / C | 1571fef2-a5e1-44be-a397-875400403240 / 63407c2e-c454-4b70-ade1-3eae72c2460e / 086585f8-d964-4c31-a95e-83e11f2f3f5d |
+| Chip character A (LOCKED) / B / C | 1571fef2-a5e1-44be-a397-875400403240 / 63407c2e-c454-4b70-ade1-3eae72c2460e / 086585f8-d964-4c31-a95e-83e11f2f3f5d |
 | Makhana original (user's) | https://cdn.oltaflock.ai/uploads/4b898802-8bdc-4320-b849-8c596ffe8abe/1790787080333-makhana-original.png |
 
 ## Cast summary
