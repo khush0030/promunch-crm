@@ -40,10 +40,6 @@ export const EDITABLE_KEYS: SecretDef[] = [
   // by edge functions via app_secrets (_shared/ig-graph.ts): free Business
   // Discovery profile lookups for creator scoring. DMs stay off regardless.
   { name: "INSTAGRAM_ACCESS_TOKEN", label: "Instagram (Meta)", group: "Instagram", hint: "Free creator profile lookups (Business Discovery). Meta system user token with instagram_basic, pages_show_list, pages_read_engagement", testable: true },
-  // Meta system-user token for the PROMUNCH Instagram business account. Read
-  // by edge functions via app_secrets (_shared/ig-graph.ts): free Business
-  // Discovery profile lookups for creator scoring. DMs stay off regardless.
-  { name: "INSTAGRAM_ACCESS_TOKEN", label: "Instagram (Meta)", group: "Instagram", hint: "Free creator profile lookups (Business Discovery). Meta system user token with instagram_basic, pages_show_list, pages_read_engagement", testable: true },
   // Reputation (ORM) collectors. Read by the orm-tick edge function from
   // app_secrets (_shared/app-secrets.ts, env fallback), so a key saved here
   // reaches the collector on its next run without a redeploy.
@@ -136,15 +132,6 @@ export async function testSecret(name: string, value: string): Promise<TestResul
       case "APIFY_TOKEN": {
         const r = await t(fetch(`https://api.apify.com/v2/users/me?token=${encodeURIComponent(value)}`));
         return r?.ok ? { ok: true, detail: "Apify accepted the token" } : { ok: false, detail: `Apify rejected the token (${r?.status ?? "network error"})` };
-      }
-      case "INSTAGRAM_ACCESS_TOKEN": {
-        const r = await t(fetch(`https://graph.facebook.com/v21.0/me/accounts?fields=name,instagram_business_account{id,username}&limit=50&access_token=${encodeURIComponent(value)}`));
-        if (!r?.ok) return { ok: false, detail: `Meta rejected the token (${r?.status ?? "network error"})` };
-        const d = (await r.json().catch(() => ({}))) as { data?: { name?: string; instagram_business_account?: { username?: string } }[] };
-        const page = (d.data ?? []).find((p) => p.instagram_business_account);
-        return page
-          ? { ok: true, detail: `Connected to @${page.instagram_business_account?.username ?? "instagram"} via the ${page.name ?? "Facebook"} Page` }
-          : { ok: false, detail: "Token works but sees no Instagram business account. Assign the Page and Instagram account to the system user." };
       }
       case "INSTAGRAM_ACCESS_TOKEN": {
         const r = await t(fetch(`https://graph.facebook.com/v21.0/me/accounts?fields=name,instagram_business_account{id,username}&limit=50&access_token=${encodeURIComponent(value)}`));
