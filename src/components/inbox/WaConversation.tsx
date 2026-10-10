@@ -18,6 +18,7 @@ import { Bubbles } from "./Bubbles";
 import { Composer } from "./Composer";
 import { TemplatePicker } from "./TemplatePicker";
 import { ConversationHeader } from "./ConversationHeader";
+import { HeaderMenu } from "./HeaderMenu";
 import { useDocVisible, useMeEmail, useNow, useStickToBottom, useTeamMembers } from "./hooks";
 import { AssignSelect, ConnectionNotice, NotFoundCard, patchThread, shareLink } from "./shared";
 import { windowLeftMs } from "@/components/whatsapp/WindowTimer";
@@ -415,12 +416,31 @@ export function WaConversation({
       {ticketOpen ? (
         <button type="button" className={btn} disabled={patching} onClick={() => setConfirm("resolve")}>Mark solved</button>
       ) : null}
-      <button type="button" className={`${btn} ghost`} disabled={makingDeal} onClick={makeDeal}>
-        {makingDeal ? "Opening deal…" : "Make it a deal"}
-      </button>
-      <button type="button" className={`${btn} ghost`} onClick={() => shareLink(`/dashboard/inbox/wa-${id}`, toast)}>Share</button>
-      <button type="button" className={`${btn} ghost`} disabled={patching} onClick={() => setConfirm("archive")}>Archive</button>
-      {compact ? assignSelect : null}
+      {compact ? (
+        // Live chats pane: one primary button, the owner picker, and the
+        // rest in the ⋯ menu so the header stays one row and the messages
+        // keep their room. Same handlers as the full page buttons.
+        <>
+          {assignSelect}
+          <HeaderMenu
+            label="More actions"
+            triggerClass={`${btn} ghost`}
+            items={[
+              { key: "deal", label: makingDeal ? "Opening deal…" : "Make it a deal", onSelect: () => void makeDeal(), disabled: makingDeal },
+              { key: "share", label: "Share", onSelect: () => shareLink(`/dashboard/inbox/wa-${id}`, toast) },
+              { key: "archive", label: "Archive", onSelect: () => setConfirm("archive"), disabled: patching },
+            ]}
+          />
+        </>
+      ) : (
+        <>
+          <button type="button" className={`${btn} ghost`} disabled={makingDeal} onClick={makeDeal}>
+            {makingDeal ? "Opening deal…" : "Make it a deal"}
+          </button>
+          <button type="button" className={`${btn} ghost`} onClick={() => shareLink(`/dashboard/inbox/wa-${id}`, toast)}>Share</button>
+          <button type="button" className={`${btn} ghost`} disabled={patching} onClick={() => setConfirm("archive")}>Archive</button>
+        </>
+      )}
       {extraActions}
     </>
   );

@@ -332,9 +332,9 @@ function TicketsPageInner() {
 
   if (boardQ.isError && !board) {
     return (
-      <>
+      <div className="pm2-wide">
         {header}
-        <div className="pm2-body">
+        <div className="pm2-body pm2-wide">
           <Callout
             tone="crit"
             title="Couldn't load tickets"
@@ -346,18 +346,18 @@ function TicketsPageInner() {
             }
           />
         </div>
-      </>
+      </div>
     );
   }
 
   if (boardQ.isLoading || !board) {
     return (
-      <>
+      <div className="pm2-wide">
         {header}
-        <div className="pm2-body">
+        <div className="pm2-body pm2-wide">
           <div className="pm2-skel" style={{ minHeight: 400 }} />
         </div>
-      </>
+      </div>
     );
   }
 
@@ -391,10 +391,10 @@ function TicketsPageInner() {
   if (topicItems.length) viewGroups.push({ title: "Topics", items: topicItems });
 
   return (
-    <div className="pm2-wide">
+    <div className="pm2-wide pm-fill-page">
       {header}
       <div className="pm2-body pm2-wide">
-        <div className={s.tq}>
+        <div className={`${s.tq} pm-fill`}>
           <nav className={s.views} aria-label="Ticket views">
             {viewGroups.map((g) => (
               <div key={g.title}>

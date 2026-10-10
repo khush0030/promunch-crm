@@ -1,19 +1,47 @@
 /* Live chats: three panels in one card that fills the viewport below the
-   page header. 1 list · 2 conversation · 3 customer. Each column scrolls on
-   its own. Spacious and colour coded: hairlines between columns, colour
-   lives in small soft tags (channel, status, topic), the selected row is a
-   soft tint, no stripes, no filled blocks. Full width (pm2-wide). */
+   page header. 1 list · 2 conversation · 3 customer. Spacious and colour
+   coded: hairlines between columns, colour lives in small soft tags
+   (channel, status, topic), the selected row is a soft tint, no stripes, no
+   filled blocks. Full width (pm2-wide).
 
-.wrap{padding:0 var(--pm3-gutter,28px) 20px}
-.shell{position:relative;display:grid;grid-template-columns:340px minmax(0,1fr) 300px;background:var(--pm-card);border:1px solid var(--pm-border);border-radius:var(--pm-r,20px);overflow:hidden;height:calc(100dvh - 260px);min-height:600px}
+   Scrolling (laptop and up): an app-style viewport via the shared
+   pm-fill-page / pm-fill mechanism (redesign.css section 5, also used by
+   Tickets and Email drafts). The page itself never scrolls; the header and
+   section tabs keep their natural height and the shell flexes into the rest
+   with a 20px bottom margin. Inside, only the rows / messages / customer
+   body scroll, each on its own with overscroll contained; pane heads, list
+   footer and composer stay put.
+
+   Spacing: an 8px rhythm. Every pane pads 20px at the sides, heads pad 16px
+   top/bottom. Heads keep their natural height: the conversation needs the
+   room more than lined-up hairlines. */
+
+/* the summary is one sentence: let it run the full width instead of
+   wrapping into a narrow column */
+.page :global(.pm2-sum){max-width:none}
+.wrap{flex:1 1 0;min-height:0;display:flex;flex-direction:column;padding:16px var(--pm3-gutter,28px) 20px;container-type:inline-size}
+.shell{position:relative;display:grid;grid-template-columns:340px minmax(0,1fr) 300px;background:var(--pm-card);border:1px solid var(--pm-border);border-radius:var(--pm-r,20px);overflow:hidden}
+
+/* thin, quiet scrollbars on everything that scrolls inside the panes */
+.shell,.shell *{scrollbar-width:thin;scrollbar-color:var(--pm-scroll-thumb,var(--pm-border)) transparent}
+.shell ::-webkit-scrollbar{width:8px;height:8px}
+.shell ::-webkit-scrollbar-thumb{background:var(--pm-scroll-thumb,var(--pm-border));border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+.shell ::-webkit-scrollbar-track{background:transparent}
+
+
+/* short laptop windows: the page header goes compact (redesign.css, shared
+   by every Inbox tab); the gaps around the shell tighten to match */
+@media (max-height:820px) and (min-width:721px){
+  .wrap{padding-top:12px}
+}
 
 /* ---- 1. list ---- */
 .listCol{display:flex;flex-direction:column;min-height:0;min-width:0;border-right:1px solid var(--pm-border)}
-.listHead{flex:none;display:flex;flex-direction:column;gap:12px;padding:16px 16px 14px;border-bottom:1px solid var(--pm-border);background:var(--pm-card)}
+.listHead{flex:none;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--pm-border);background:var(--pm-card)}
 
 /* views: a clean segmented row with counts; wraps to two lines when narrow */
 .views{display:flex;flex-wrap:wrap;gap:6px}
-.view{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px;border:1px solid var(--pm-border);border-radius:999px;background:var(--pm-card);cursor:pointer;font:600 14px var(--pm-font);color:var(--pm-ink2);white-space:nowrap}
+.view{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:1px solid var(--pm-border);border-radius:999px;background:var(--pm-card);cursor:pointer;font:600 14px var(--pm-font);color:var(--pm-ink2);white-space:nowrap}
 .view:hover{color:var(--pm-ink);border-color:var(--pm-ink2)}
 .view .n{font:700 12.5px var(--pm-mono);color:var(--pm-muted);font-variant-numeric:tabular-nums}
 .view.on{background:var(--pm-ink);border-color:var(--pm-ink);color:var(--pm-card)}
@@ -22,20 +50,20 @@
 .view.hot:not(.on) .n{color:var(--tag-red-ink,#B3261E)}
 
 /* channel filter: small colour tags */
-.chans{display:flex;flex-wrap:wrap;gap:6px}
-.chan{height:28px;padding:0 11px;border-radius:999px;border:0;background:none;cursor:pointer;font:600 13px var(--pm-font);color:var(--pm-muted)}
+.chans{display:flex;flex-wrap:wrap;gap:6px;margin:0 -2px}
+.chan{height:28px;padding:0 12px;border-radius:999px;border:0;background:none;cursor:pointer;font:600 13px var(--pm-font);color:var(--pm-muted)}
 .chan:hover{color:var(--pm-ink)}
 .chan.on{background:var(--pm-card3);color:var(--pm-ink)}
 .chan_wa.on{background:var(--tag-green-bg);color:var(--tag-green-ink)}
 .chan_em.on{background:var(--tag-blue-bg);color:var(--tag-blue-ink)}
 
 .rows{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
-.listFoot{flex:none;display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--pm-border);font-size:14px;color:var(--pm-muted)}
+.listFoot{flex:none;display:flex;align-items:center;gap:8px;min-height:48px;padding:8px 20px;border-top:1px solid var(--pm-border);font-size:14px;color:var(--pm-muted)}
 .pager{background:none;border:0;padding:0;font:700 13.5px var(--pm-font);color:var(--pm-ink);cursor:pointer}
 .empty{padding:32px 20px;color:var(--pm-muted);font-size:15px;line-height:1.5}
 
 /* row: avatar · name + time · one-line preview · tags */
-.row{position:relative;display:flex;gap:13px;padding:15px 16px;border-bottom:1px solid var(--pm-line);cursor:pointer;outline-offset:-2px}
+.row{position:relative;display:flex;gap:12px;padding:16px 20px;border-bottom:1px solid var(--pm-line);cursor:pointer;outline-offset:-2px}
 .row:hover{background:var(--pm-card2)}
 .row.sel{background:var(--pm-brand-soft)}
 .rowTx{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
@@ -56,7 +84,7 @@
 .convCol > *{flex:1;min-height:0}
 .convCol > .outOfView{flex:none;padding:8px 20px;font-size:13.5px;color:var(--tag-amber-ink,#8A5300);background:var(--tag-amber-bg,#FCEFD3);border-bottom:1px solid var(--pm-border)}
 .convCol :global(.pm2-thread){background:var(--pm-card2)}
-.convCol :global(.pm2-thread-foot){padding:12px 16px 16px;border-top:1px solid var(--pm-border);background:var(--pm-card)}
+.convCol :global(.pm2-thread-foot){padding:12px 20px 16px;border-top:1px solid var(--pm-border);background:var(--pm-card)}
 .convCol :global(.pm2-thread-foot .pm2-composer){box-shadow:none}
 
 /* ---- 3. customer ---- */
@@ -65,37 +93,49 @@
 .ctxToggle{display:none!important}
 .scrim{display:none}
 
-/* big screens: a little more room for the list and the customer */
-@media (min-width:1600px){
+/* Column widths follow the space the shell actually has (a container
+   query on .wrap), so the collapsed sidebar rail and root zoom are
+   accounted for. Wide: more room for list and customer. */
+@container (min-width:1500px){
   .shell{grid-template-columns:380px minmax(0,1fr) 340px}
 }
-@media (min-width:2000px){
+@container (min-width:1800px){
   .shell{grid-template-columns:420px minmax(0,1fr) 380px}
 }
 
-/* narrow laptops: list + conversation; customer opens as a drawer */
-@media (max-width:1279px){
+/* Not enough width for three readable panes (the conversation would drop
+   under ~500px): list + conversation, the customer opens as a drawer.
+   Covers narrow laptops and 1280-1366px screens with the sidebar open. */
+@container (max-width:1099px){
   .shell{grid-template-columns:340px minmax(0,1fr)}
   .ctxToggle{display:inline-flex!important;align-items:center;gap:6px}
   .ctxCol{position:absolute;top:0;right:0;bottom:0;width:min(380px,90%);z-index:5;background:var(--pm-card);box-shadow:var(--pm-shadow-pop);transform:translateX(105%);transition:transform .18s ease;visibility:hidden}
   .ctxShown .ctxCol{transform:none;visibility:visible}
   .ctxShown .scrim{display:block;position:absolute;inset:0;z-index:4;border:0;background:rgba(26,23,20,.18);cursor:pointer}
 }
-@media (max-width:1023px){
-  .wrap{padding:0 20px 16px}
+@container (max-width:860px){
   .shell{grid-template-columns:300px minmax(0,1fr)}
+}
+@media (max-width:1023px){
+  .wrap{padding-left:20px;padding-right:20px}
+}
+/* small tablets (721-760px): the panes are mounted but pm-fill is off
+   (phone page scroll), so the shell gets a viewport-ish height of its own */
+@media (min-width:721px) and (max-width:760px){
+  .shell{height:max(480px,calc(100dvh - 300px))}
 }
 
 /* phones: the list only, full width, page scrolls; taps open the chat page.
    720px matches useMediaPhone, which decides whether the panes mount at all,
    so the CSS layout and the mounted panes always agree. */
 @media (max-width:720px){
-  .wrap{padding:0 0 16px}
-  .shell{display:block;height:auto!important;min-height:0;border-radius:0;border-width:1px 0}
+  .wrap{display:block;padding:0 0 16px;container-type:normal}
+  .shell{display:block;border-radius:0;border-width:1px 0}
   .listCol{border-right:0}
   .listHead{padding:12px 16px}
   .views{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px}
   .views::-webkit-scrollbar{display:none}
   .rows{overflow:visible}
-  .row{padding:14px 16px}
+  .row{padding:16px}
+  .listFoot{padding:8px 16px}
 }

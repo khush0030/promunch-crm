@@ -173,20 +173,16 @@ export function InlineEmailReview({
         tags={tags}
         facts={
           <>
-            <span>{s.from_email}</span>
+            <span className={d.fromEmail} title={s.from_email}>{s.from_email}</span>
             <span>{formatWhen(s.created_at)}</span>
-          </>
-        }
-        actions={
-          <>
-            <Link className="pm2-btn sm ghost" href={`/dashboard/inbox/email?id=${encodeURIComponent(id)}`}>
-              Open in Email drafts
+            <Link className="pm2-lnk" href={`/dashboard/inbox/email?id=${encodeURIComponent(id)}`}>
+              Open in Email drafts →
             </Link>
-            {extraActions}
           </>
         }
+        actions={extraActions}
       />
-      <div className={`pm2-thread-scroll ${d.detail}`} style={{ padding: "8px 24px 24px" }}>
+      <div className={`pm2-thread-scroll ${d.detail}`}>
         <EmailDetail
           s={s}
           isPhone={false}

@@ -69,20 +69,24 @@ export function ConversationHeader({
   const faintText = faint && faint.startsWith(`${channelName} · `) ? faint.slice(channelName.length + 3) : faint;
 
   if (compact) {
+    // One row: identity left, actions right. The name ellipsizes and the
+    // tags wrap under it when the pane is narrow; facts and note follow.
     return (
       <div className={`pm2-thread-h ${h.head}`}>
         <div className={h.top}>
-          <Avatar name={name} channel={channel} size={40} />
-          <div className={h.who}>
-            <b className={h.name} title={name}>
-              {name}
-            </b>
-            <div className={h.tags}>{tagRow}</div>
+          <div className={h.ident}>
+            <Avatar name={name} channel={channel} size={40} />
+            <div className={h.who}>
+              <b className={h.name} title={name}>
+                {name}
+              </b>
+              <div className={h.tags}>{tagRow}</div>
+            </div>
           </div>
+          <div className={h.acts}>{actions}</div>
         </div>
         {facts ? <div className={h.facts}>{facts}</div> : faintText ? <div className={h.facts}>{faintText}</div> : null}
         {note ? <div className={h.note}>{note}</div> : null}
-        <div className={h.acts}>{actions}</div>
       </div>
     );
   }

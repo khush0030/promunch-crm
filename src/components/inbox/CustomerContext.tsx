@@ -109,8 +109,8 @@ export function CustomerContext({
   return (
     <div className={root} aria-label="Customer">
       {close}
-      {/* who */}
-      <div className={s.sec}>
+      {/* who (the pane head: its height lines up with the other two panes) */}
+      <div className={`${s.sec} ${s.head}`}>
         <div className={s.who}>
           <Avatar name={p.name} size={34} />
           <div className={s.whoTx}>

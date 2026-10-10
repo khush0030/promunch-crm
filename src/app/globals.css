@@ -105,13 +105,13 @@ select {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #ddd4c2;
+  background: var(--pm-scroll-thumb, #ddd4c2);
   border-radius: 6px;
   border: 3px solid transparent;
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #c8bda5;
+  background: var(--pm-scroll-thumb-hover, #c8bda5);
   background-clip: padding-box;
   border: 3px solid transparent;
 }

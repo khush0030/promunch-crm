@@ -110,10 +110,14 @@ function WhatsAppPageInner() {
     onTab,
   }), [slotEl, allowedTabs, tab, onTab]);
   const elsewhere = ELSEWHERE[tab];
+  // Bot knowledge sits in the Inbox hub, whose other pages (Live chats,
+  // Tickets, Email drafts, Reports) are full-width work surfaces: give it the
+  // same 28px gutter so the header and section tabs don't jump between them.
+  const wide = tab === "kb" ? " pm2-wide" : "";
 
   return (
     <WaHeaderContext.Provider value={slot}>
-      <div ref={tabsRef} className={h.tabsFade}>
+      <div ref={tabsRef} className={`${h.tabsFade}${wide}`}>
         {elsewhere && tab !== "kb" && tab !== "voice" ? (
           <PageHeader crumb={elsewhere.crumb} title={elsewhere.title} summary={elsewhere.summary} />
         ) : (
@@ -123,7 +127,7 @@ function WhatsAppPageInner() {
           <div ref={setSlotEl} />
         )}
       </div>
-      <div className="pm2-body">
+      <div className={`pm2-body${wide}`}>
         {tab === "home" && <HealthNotice />}
         {tabAllowed && <div>
           {tab === "home" && <StartHere />}

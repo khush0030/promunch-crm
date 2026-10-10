@@ -95,3 +95,17 @@
   .row{padding:14px 14px}
   .menu{right:0;top:auto;bottom:40px}
 }
+
+/* Laptop: the card fills the space under the header (pm-fill, redesign.css)
+   and the page does not scroll. Views column and ticket rows scroll on their
+   own; search, filters and column labels stay put. Phones and tablets below
+   761px keep normal page scroll. */
+@media (min-width:761px){
+  .views{overflow-y:auto;overscroll-behavior:contain;min-height:0}
+  .queue{display:flex;flex-direction:column;min-height:0}
+  .tools,.thead{flex:none}
+  .rows,.empty{flex:1 1 0;min-height:0}
+  .rows{overflow-y:auto;overscroll-behavior:contain}
+  /* the last row's menu opens upward so the scroll edge never clips it */
+  .row:last-child .menu{top:auto;bottom:40px}
+}

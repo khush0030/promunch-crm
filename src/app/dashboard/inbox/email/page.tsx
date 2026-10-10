@@ -261,9 +261,9 @@ function EmailDraftsInner() {
 
   if (q.isError && !data) {
     return (
-      <>
+      <div className="pm2-wide">
         {header}
-        <div className="pm2-body">
+        <div className="pm2-body pm2-wide">
           <Callout
             tone="crit"
             title="Couldn't load email drafts"
@@ -275,18 +275,18 @@ function EmailDraftsInner() {
             }
           />
         </div>
-      </>
+      </div>
     );
   }
 
   if (!data) {
     return (
-      <>
+      <div className="pm2-wide">
         {header}
-        <div className="pm2-body">
+        <div className="pm2-body pm2-wide">
           <div className="pm2-skel" style={{ minHeight: 400 }} />
         </div>
-      </>
+      </div>
     );
   }
 
@@ -448,62 +448,64 @@ function EmailDraftsInner() {
   }
 
   return (
-    <div className="pm2-wide">
+    <div className="pm2-wide pm-fill-page">
       {header}
       <div className="pm2-body pm2-wide">
-        <div className={`pm2-g12 ${e.grid}`}>
+        <div className={`pm2-g12 ${e.grid} pm-fill`}>
           <div className="pm2-panel pm2-drafts-list">
-            <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--pm-line)" }}>{chips}</div>
-            {items.length === 0 ? (
-              <div className="pm2-empty">{tab === "approve" ? "No drafts waiting." : "No emails here."}</div>
-            ) : (
-              items.map((it) => {
-                const topic = topicTagForWord(it.category);
-                const age = tab === "approve" ? ageTag(it.created_at) : null;
-                const name = it.from_name?.trim() || it.from_email;
-                const sel = it.id === selectedId;
-                return (
-                  <div
-                    key={it.id}
-                    role="button"
-                    tabIndex={0}
-                    aria-current={sel ? "true" : undefined}
-                    className={`${e.row}${sel ? ` ${e.sel}` : ""}`}
-                    onClick={() => setQuery({ id: it.id })}
-                    onKeyDown={(ev) => {
-                      if (ev.key === "Enter" || ev.key === " ") {
-                        ev.preventDefault();
-                        setQuery({ id: it.id });
-                      }
-                    }}
-                  >
-                    <Avatar name={name} channel="em" size={40} />
-                    <div className={e.tx}>
-                      <div className={e.top}>
-                        <b>{name}</b>
-                        <time>{formatWhen(it.created_at)}</time>
-                      </div>
-                      <p>{it.subject || "(no subject)"}</p>
-                      <div className={e.tags}>
-                        {it.urgency ? (
-                          <Tag tone={it.urgency.tone === "crit" ? "red" : "amber"} size="sm">
-                            {it.urgency.text}
+            <div className={e.listHead}>{chips}</div>
+            <div className={e.listRows}>
+              {items.length === 0 ? (
+                <div className="pm2-empty">{tab === "approve" ? "No drafts waiting." : "No emails here."}</div>
+              ) : (
+                items.map((it) => {
+                  const topic = topicTagForWord(it.category);
+                  const age = tab === "approve" ? ageTag(it.created_at) : null;
+                  const name = it.from_name?.trim() || it.from_email;
+                  const sel = it.id === selectedId;
+                  return (
+                    <div
+                      key={it.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-current={sel ? "true" : undefined}
+                      className={`${e.row}${sel ? ` ${e.sel}` : ""}`}
+                      onClick={() => setQuery({ id: it.id })}
+                      onKeyDown={(ev) => {
+                        if (ev.key === "Enter" || ev.key === " ") {
+                          ev.preventDefault();
+                          setQuery({ id: it.id });
+                        }
+                      }}
+                    >
+                      <Avatar name={name} channel="em" size={40} />
+                      <div className={e.tx}>
+                        <div className={e.top}>
+                          <b>{name}</b>
+                          <time>{formatWhen(it.created_at)}</time>
+                        </div>
+                        <p>{it.subject || "(no subject)"}</p>
+                        <div className={e.tags}>
+                          {it.urgency ? (
+                            <Tag tone={it.urgency.tone === "crit" ? "red" : "amber"} size="sm">
+                              {it.urgency.text}
+                            </Tag>
+                          ) : null}
+                          <Tag tone={topic?.tone ?? "grey"} size="sm">
+                            {topic?.text ?? it.category}
                           </Tag>
-                        ) : null}
-                        <Tag tone={topic?.tone ?? "grey"} size="sm">
-                          {topic?.text ?? it.category}
-                        </Tag>
-                        {age ? (
-                          <Tag tone={age.tone} size="sm">
-                            {age.text}
-                          </Tag>
-                        ) : null}
+                          {age ? (
+                            <Tag tone={age.tone} size="sm">
+                              {age.text}
+                            </Tag>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
           <div className={e.detail} style={{ minWidth: 0 }}>{detail}</div>
         </div>

@@ -1,6 +1,25 @@
-/* The AI draft inside Live chats: a soft card labelled "Our reply", no stripe. */
-.detail :global(.pm2-panel){border:0;box-shadow:none;background:none}
-.detail :global(.pm2-p-head){padding-left:0;padding-right:0}
-.detail :global(.pm2-p-body){padding-left:0;padding-right:0}
-.detail :global(.pm2-draft-block){border-left:0;border:1px solid var(--pm-border);background:var(--pm-card);border-radius:14px;padding:16px 18px}
-.detail :global(.pm2-draft-eyebrow){font:700 12px var(--pm-font);letter-spacing:0;text-transform:none;color:var(--pm-ink2);margin-bottom:8px}
+/* The email + AI draft inside Live chats. One reading column (capped so
+   lines stay readable on wide screens), the customer's email and "Our reply"
+   as two matching soft cards with the same padding, radius and type, on an
+   8px rhythm. No stripe, no panel box around them. */
+.detail{padding:24px 20px 32px}
+.detail :global(.pm2-panel){border:0;box-shadow:none;background:none;max-width:760px}
+.detail :global(.pm2-p-head){padding:0;margin-bottom:16px;row-gap:4px}
+.detail :global(.pm2-p-head h3){font-size:17px;line-height:1.35}
+.detail :global(.pm2-p-body){padding:0}
+.detail :global(.pm2-draft-gap){margin-bottom:16px}
+/* the customer's email and our reply: same card */
+.detail :global(.pm2-bub.in),
+.detail :global(.pm2-draft-block){border:1px solid var(--pm-border);background:var(--pm-card);border-radius:14px;padding:16px 20px;font-size:15.5px;line-height:1.6}
+.detail :global(.pm2-bub.in){margin-bottom:12px}
+.detail :global(.pm2-draft-eyebrow){font:700 12.5px var(--pm-font);letter-spacing:0;text-transform:none;color:var(--pm-ink2);margin-bottom:8px}
+/* tags under the email belong to it: tight above, a full step below */
+.detail :global(.pm2-draft-pills){gap:6px;margin:0 0 24px}
+.detail :global(.pm2-draft-actions){margin-top:16px}
+
+/* facts line in the header: the address gives way first */
+.fromEmail{flex:0 1 auto!important;min-width:0;overflow:hidden;text-overflow:ellipsis}
+
+@media (max-width:760px){
+  .detail{padding:16px}
+}

@@ -117,9 +117,9 @@ function ReportsInner() {
 
   if (q.isError && !rep) {
     return (
-      <>
+      <div className="pm2-wide">
         {header}
-        <div className="pm2-body">
+        <div className="pm2-body pm2-wide">
           <Callout
             tone="crit"
             title="Couldn't load the report"
@@ -131,19 +131,19 @@ function ReportsInner() {
             }
           />
         </div>
-      </>
+      </div>
     );
   }
 
   if (!rep) {
     return (
-      <>
+      <div className="pm2-wide">
         {header}
-        <div className="pm2-body">
+        <div className="pm2-body pm2-wide">
           <div className="pm2-skel" style={{ minHeight: 120 }} />
           <div className="pm2-skel" style={{ minHeight: 280 }} />
         </div>
-      </>
+      </div>
     );
   }
 

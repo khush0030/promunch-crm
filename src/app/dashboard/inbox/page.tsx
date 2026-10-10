@@ -17,7 +17,7 @@
 // once. While a WhatsApp chat is on screen (and the tab is visible) its
 // unread badge is cleared, including when new messages arrive.
 
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { UserRound } from "lucide-react";
@@ -232,24 +232,10 @@ function InboxPageInner() {
   // A different conversation starts with the drawer closed (narrow laptops).
   useEffect(() => setCtxOpen(false), [selectedKey]);
 
-  // The shell fills the rest of the viewport below the page header; each
-  // column scrolls on its own. Measured (not a fixed calc) because the
-  // header height changes with the summary line and section tabs.
-  const shellRef = useRef<HTMLDivElement>(null);
-  const [shellH, setShellH] = useState<number | null>(null);
-  useLayoutEffect(() => {
-    if (isPhone) return;
-    const measure = () => {
-      const el = shellRef.current;
-      if (!el) return;
-      const top = el.getBoundingClientRect().top + window.scrollY;
-      setShellH(Math.max(600, window.innerHeight - top - 20));
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [isPhone, listQ.isLoading]);
-
+  // App-style viewport on laptop: the page never scrolls. Shared pure-CSS
+  // mechanism (redesign.css section 5, same as Tickets and Email drafts):
+  // pm-fill-page on the root, pm-fill on the shell; the shell takes exactly
+  // the height left under the header and each pane scrolls on its own.
   const visibleViews = VIEWS.filter((v) => v.key !== "snoozed" || filter === "snoozed" || (counts?.snoozed ?? 0) > 0);
 
   const header = (
@@ -297,10 +283,10 @@ function InboxPageInner() {
   );
 
   return (
-    <div className="pm2-wide">
+    <div className={`${st.page} pm2-wide pm-fill-page`}>
       {header}
       <div className={`${st.wrap} pm2-wide`}>
-        <div ref={shellRef} className={`${st.shell}${ctxOpen ? ` ${st.ctxShown}` : ""}`} style={!isPhone && shellH ? { height: shellH } : undefined}>
+        <div className={`${st.shell} pm-fill${ctxOpen ? ` ${st.ctxShown}` : ""}`}>
           {/* ---- 1. conversation list ---- */}
           <section className={st.listCol} aria-label="Conversations">
             <div className={st.listHead}>

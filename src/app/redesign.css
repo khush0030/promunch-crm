@@ -36,6 +36,13 @@
   color-scheme:light;
 }
 html{background:var(--pm-app)}
+/* mouse + classic scrollbars: reserve the bar so pages do not jump sideways
+   when content crosses the viewport height (no effect on overlay bars) */
+@media (hover:hover) and (pointer:fine){html{scrollbar-gutter:stable}}
+/* Scrollbars: thin and warm, from the ink token so dark mode follows. :where()
+   keeps this at zero specificity so strips that hide their bar still win. */
+:root{--pm-scroll-thumb:color-mix(in srgb,var(--pm-ink) 18%,transparent);--pm-scroll-thumb-hover:color-mix(in srgb,var(--pm-ink) 32%,transparent)}
+:where(.pm2-app) *{scrollbar-width:thin;scrollbar-color:var(--pm-scroll-thumb) transparent}
 body{font-family:var(--pm-font);font-size:16px;line-height:1.5;color:var(--pm-ink);background:var(--pm-app);-webkit-font-smoothing:antialiased}
 :focus-visible{outline:2px solid rgba(175,39,47,.5);outline-offset:2px}
 :focus:not(:focus-visible){outline:0}
@@ -45,7 +52,9 @@ body{font-family:var(--pm-font);font-size:16px;line-height:1.5;color:var(--pm-in
 .pm2-app.rail{--pm3-side:var(--pm3-rail)}
 .pm2-main{grid-area:main;min-width:0;background:var(--pm-app)}
 
-.pm3-side{grid-area:side;position:sticky;top:0;height:100vh;overflow-y:auto;overflow-x:hidden;background:var(--pm-card);border-right:1px solid var(--pm-border);display:flex;flex-direction:column;padding:18px 14px 12px;scrollbar-width:thin}
+.pm3-side{grid-area:side;position:sticky;top:0;height:100vh;height:100dvh;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;background:var(--pm-card);border-right:1px solid var(--pm-border);display:flex;flex-direction:column;padding:18px 14px 12px;scrollbar-width:thin}
+/* short screens (768px laptops): the sidebar scrolls, its items never squash */
+.pm3-side>*{flex-shrink:0}
 .pm3-brand{display:flex;align-items:center;gap:10px;padding:4px 8px 16px;text-decoration:none}
 .pm3-brand img{height:20px;width:auto}
 .pm3-brand span{font:700 11px/1 var(--pm-mono);letter-spacing:.14em;color:var(--pm-muted);border:1px solid var(--pm-border);border-radius:6px;padding:4px 6px}
@@ -97,7 +106,9 @@ body{font-family:var(--pm-font);font-size:16px;line-height:1.5;color:var(--pm-in
 .pm2-app.rail .pm3-me-link{flex:none}
 
 /* top bar: search + bell */
-.pm3-top{grid-area:top;position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:14px;padding:16px var(--pm3-gutter) 8px;background:linear-gradient(var(--pm-app) 75%,transparent)}
+.pm3-top{grid-area:top;position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:14px;padding:16px var(--pm3-gutter) 8px;background:var(--pm-app);box-shadow:0 1px 0 transparent;transition:box-shadow .15s ease}
+/* solid bar; a hairline appears only once the page has scrolled under it */
+.pm3-top.scrolled{box-shadow:0 1px 0 var(--pm-border)}
 .pm3-top-logo{display:none}
 .pm3-search{appearance:none;flex:0 1 560px;min-width:0;display:flex;align-items:center;gap:10px;height:48px;padding:0 16px;border-radius:999px;border:1px solid var(--pm-border);background:var(--pm-card);color:var(--pm-muted);font:500 16px var(--pm-font);cursor:pointer;text-align:left;box-shadow:0 1px 2px rgba(26,23,20,.04)}
 .pm3-search:hover{border-color:#CFC7B9}
@@ -372,6 +383,44 @@ table.pm-tbl th{background:none}
 
 /* Very wide monitors (owner's 2560px screen): scale the whole UI like a
    112% browser zoom so text is not tiny next to the reading-width cap. */
-@media (min-width:2200px){:root{zoom:1.12}.pm3-side{height:calc(100vh / 1.12)}}
+@media (min-width:2200px){:root{zoom:1.12}.pm3-side{height:calc(100vh / 1.12);height:calc(100dvh / 1.12)}}
 /* Inbox work surfaces on phones: same 16px gutter as every other page. */
 @media (max-width:760px){.pm2-wide{--pm3-gutter:16px}}
+
+/* ---------- 5. app-style pages (Oct 10) ----------
+   A work surface whose panes scroll on their own (Tickets, Email drafts):
+   put pm-fill-page on the page root and pm-fill on the card. On laptops the
+   shell becomes exactly one viewport tall, the card takes the space left
+   under the header with a 20px bottom margin, and the page itself does not
+   scroll. Header height can change freely (pure CSS, nothing measured).
+   Short windows keep a 420px card floor and the page scrolls instead.
+   Phones (760px and under) keep normal page scroll. */
+@media (min-width:761px){
+  .pm2-app:has(.pm-fill-page){height:100vh;height:100dvh}
+  .pm2-main:has(>.pm-fill-page){display:flex;flex-direction:column}
+  .pm-fill-page{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+  .pm-fill-page>.pm2-body{flex:1 1 0;min-height:0;display:flex;flex-direction:column;padding-bottom:20px}
+  .pm-fill-page .pm-fill{flex:1 1 0;min-height:420px}
+  .pm-fill-page>.pm2-body>:not(.pm-fill){flex:none}
+}
+/* >=2200px the root is zoomed 1.12: the fill shell is 100dvh / 1.12 CSS px
+   and the app's min-height (also scaled) must not push it past one screen.
+   Must come after the rule above to win on source order. */
+@media (min-width:2200px){.pm2-app:has(.pm-fill-page){height:calc(100dvh / 1.12);min-height:0}}
+
+/* Inbox tabs share one header: reserve two lines of summary on laptops so the
+   section tabs sit at the same height on every tab (one-line summaries and a
+   summary still loading no longer pull the tabs up). */
+@media (min-width:761px){
+  .pm2-wide .pm2-top .pm2-sum{min-height:3em}
+  .pm2-wide .pm2-top>div:first-child:not(:has(.pm2-sum))::after{content:"";display:block;font-size:17.5px;height:3em;margin-top:10px}
+}
+/* Short laptop windows (820px tall and under): the same compact header Live
+   chats uses (inbox.module.css), on every Inbox tab, so the tabs still line
+   up and the work panes get the height. The summary is one line there. */
+@media (max-height:820px) and (min-width:761px){
+  .pm2-wide .pm2-top{padding-top:12px;padding-bottom:8px}
+  .pm2-wide .pm2-top .pm2-h1{margin-top:4px}
+  .pm2-wide .pm2-top .pm2-sum{margin-top:4px;font-size:15.5px;min-height:1.5em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pm2-wide .pm2-top>div:first-child:not(:has(.pm2-sum))::after{font-size:15.5px;height:1.5em;margin-top:4px}
+}

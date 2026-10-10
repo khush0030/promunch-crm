@@ -14,3 +14,22 @@
 /* the draft: a soft card, clearly "our reply", no stripe */
 .detail :global(.pm2-draft-block){border-left:0;border:1px solid var(--pm-border);background:var(--pm-card2);border-radius:14px;padding:16px 18px}
 .detail :global(.pm2-draft-eyebrow){font:700 12px var(--pm-font);letter-spacing:0;text-transform:none;color:var(--pm-ink2);margin-bottom:8px}
+
+/* Laptop: the page does not scroll. The list (chips fixed on top) and the
+   email (title fixed, buttons pinned at the bottom) each scroll on their own,
+   same as Live chats. Phones keep normal page scroll (the list is hidden
+   there and the email reads top to bottom). */
+.listHead{flex:none;padding:14px 16px;border-bottom:1px solid var(--pm-line)}
+.listRows{min-height:0}
+@media (min-width:761px){
+  .grid{align-items:stretch}
+  .grid :global(.pm2-drafts-list){align-self:stretch;max-height:none;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+  .listRows{flex:1 1 0;overflow-y:auto;overscroll-behavior:contain}
+  .detail{display:flex;flex-direction:column;min-height:0}
+  .detail>:global(.pm2-panel){flex:1 1 0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .detail>:global(.pm2-panel)>:global(.pm2-p-head){flex:none;padding-bottom:14px;border-bottom:1px solid var(--pm-line)}
+  .detail>:global(.pm2-panel)>:global(.pm2-p-body){flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+  /* Approve / Edit / Rewrite / Skip stay on screen while a long email scrolls */
+  .detail :global(.pm2-draft-actions){position:sticky;bottom:-22px;z-index:1;margin:16px -22px -22px;padding:14px 22px;background:var(--pm-card);border-top:1px solid var(--pm-line)}
+  .detail :global(.pm2-draft-actions:not(:last-child)){margin-bottom:0}
+}
