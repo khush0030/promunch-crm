@@ -1,0 +1,164 @@
+{%- comment -%}
+  PROMUNCH Product structured data (schema.org JSON-LD).
+  File: snippets/promunch-product-jsonld.liquid
+
+  Render it ONCE, on product pages only, from layout/theme.liquid.
+  The exact lines to add are in THEME_INSTALL.md step 3.
+
+  Make sure no other Product JSON-LD is on the page (theme "structured_data"
+  filter or a reviews app). See THEME_INSTALL.md step 5.
+
+  What it outputs (all values come from Shopify, nothing is typed in here):
+    - name, description, images, url, brand PROMUNCH
+    - one Offer per variant (price, INR, stock, sku, GTIN)
+    - GTIN from the variant Barcode field, only when it is 8, 12, 13 or 14
+      digits AND the check digit is correct. Spaces and hyphens are ignored.
+      Anything else is skipped, so a typo never reaches Google.
+    - aggregateRating from the Shopify standard review metafields
+      (reviews.rating, reviews.rating_count) only when there is at least 1 rating
+    - protein from the product metafield custom.protein_per_pack, if filled
+
+  Do not edit below unless you know Liquid. No values here need filling in.
+{%- endcomment -%}
+{%- if product -%}
+  {%- assign pm_org_id = 'https://promunch.in/#organization' -%}
+  {%- assign pm_product_url = shop.url | append: product.url -%}
+  {%- assign pm_currency = cart.currency.iso_code | default: 'INR' -%}
+  {%- assign pm_variant_count = product.variants.size -%}
+
+  {%- comment -%} Plain-text description, whitespace collapsed, max ~500 characters {%- endcomment -%}
+  {%- assign pm_desc = product.description | replace: '<', ' <' | strip_html | replace: '&nbsp;', ' ' | replace: '&amp;', '&' | replace: '&#39;', "'" | replace: '&quot;', '"' | split: ' ' | join: ' ' | strip | truncate: 500 -%}
+  {%- if pm_desc == blank -%}{%- assign pm_desc = product.title -%}{%- endif -%}
+
+  {%- comment -%} Up to 5 product images, absolute https URLs {%- endcomment -%}
+  {%- capture pm_images -%}
+    {%- for pm_image in product.images limit: 5 -%}
+      {%- unless forloop.first -%},{%- endunless -%}
+      {{- pm_image | image_url: width: 1200 | prepend: 'https:' | json -}}
+    {%- endfor -%}
+  {%- endcapture -%}
+
+  {%- comment -%} One Offer per variant. GTIN is validated per variant. {%- endcomment -%}
+  {%- assign pm_first_gtin_key = '' -%}
+  {%- assign pm_first_gtin = '' -%}
+  {%- assign pm_first_sku = '' -%}
+  {%- capture pm_offers -%}
+    {%- for variant in product.variants -%}
+      {%- assign pm_is_first = forloop.first -%}
+      {%- comment -%} 1. Clean the barcode: drop spaces and hyphens {%- endcomment -%}
+      {%- assign pm_bc = variant.barcode | default: '' | strip | remove: ' ' | remove: '-' -%}
+      {%- comment -%} 2. All digits? Removing every digit must leave nothing. {%- endcomment -%}
+      {%- assign pm_bc_rest = pm_bc | remove: '0' | remove: '1' | remove: '2' | remove: '3' | remove: '4' | remove: '5' | remove: '6' | remove: '7' | remove: '8' | remove: '9' -%}
+      {%- assign pm_gtin_key = '' -%}
+      {%- if pm_bc != '' and pm_bc_rest == '' -%}
+        {%- comment -%} 3. Length decides the GTIN type {%- endcomment -%}
+        {%- case pm_bc.size -%}
+          {%- when 8 -%}{%- assign pm_gtin_key = 'gtin8' -%}
+          {%- when 12 -%}{%- assign pm_gtin_key = 'gtin12' -%}
+          {%- when 13 -%}{%- assign pm_gtin_key = 'gtin13' -%}
+          {%- when 14 -%}{%- assign pm_gtin_key = 'gtin14' -%}
+        {%- endcase -%}
+      {%- endif -%}
+      {%- if pm_gtin_key != '' -%}
+        {%- comment -%}
+          4. GS1 check digit (mod 10). Weights 3,1,3,1... from the digit next to
+          the check digit, moving left. A wrong check digit means a typo: skip it.
+        {%- endcomment -%}
+        {%- assign pm_digits = pm_bc | split: '' -%}
+        {%- assign pm_last = pm_bc.size | minus: 2 -%}
+        {%- assign pm_sum = 0 -%}
+        {%- for pm_i in (0..pm_last) -%}
+          {%- assign pm_d = pm_digits[pm_i] | plus: 0 -%}
+          {%- assign pm_dist = pm_last | minus: pm_i | modulo: 2 -%}
+          {%- if pm_dist == 0 -%}{%- assign pm_d = pm_d | times: 3 -%}{%- endif -%}
+          {%- assign pm_sum = pm_sum | plus: pm_d -%}
+        {%- endfor -%}
+        {%- assign pm_check = pm_sum | modulo: 10 -%}
+        {%- assign pm_check = 10 | minus: pm_check | modulo: 10 -%}
+        {%- assign pm_given = pm_digits | last | plus: 0 -%}
+        {%- if pm_check != pm_given -%}{%- assign pm_gtin_key = '' -%}{%- endif -%}
+      {%- endif -%}
+      {%- assign pm_sku = variant.sku | default: '' | strip -%}
+      {%- if pm_is_first -%}
+        {%- assign pm_first_gtin_key = pm_gtin_key -%}
+        {%- assign pm_first_gtin = pm_bc -%}
+        {%- assign pm_first_sku = pm_sku -%}
+      {%- endif -%}
+      {%- unless pm_is_first -%},{%- endunless -%}
+      {
+        "@type": "Offer",
+        "url": {{ shop.url | append: variant.url | json }},
+        "price": {{ variant.price | divided_by: 100.0 | json }},
+        "priceCurrency": {{ pm_currency | json }},
+        "availability": "https://schema.org/{% if variant.available %}InStock{% else %}OutOfStock{% endif %}",
+        "itemCondition": "https://schema.org/NewCondition",
+        "seller": {
+          "@type": "Organization",
+          "@id": {{ pm_org_id | json }},
+          "name": "PROMUNCH"
+        }
+        {%- if pm_variant_count > 1 -%}
+          ,"name": {{ product.title | append: ', ' | append: variant.title | json }}
+        {%- endif -%}
+        {%- if pm_sku != '' -%}
+          ,"sku": {{ pm_sku | json }}
+        {%- endif -%}
+        {%- if pm_gtin_key != '' -%}
+          ,{{ pm_gtin_key | json }}: {{ pm_bc | json }}
+        {%- endif -%}
+      }
+    {%- endfor -%}
+  {%- endcapture -%}
+
+  {%- comment -%} Reviews (Shopify standard metafields, synced by Judge.me) {%- endcomment -%}
+  {%- assign pm_rating = product.metafields.reviews.rating.value -%}
+  {%- assign pm_rating_count = product.metafields.reviews.rating_count.value | plus: 0 -%}
+
+  {%- comment -%} Protein, from product metafield custom.protein_per_pack (text) {%- endcomment -%}
+  {%- assign pm_protein = product.metafields.custom.protein_per_pack.value | default: '' | strip -%}
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "@id": {{ pm_product_url | append: '#product' | json }},
+  "name": {{ product.title | json }},
+  "url": {{ pm_product_url | json }},
+  "description": {{ pm_desc | json }},
+  "brand": {
+    "@type": "Brand",
+    "name": "PROMUNCH"
+  },
+  "offers": [{{ pm_offers }}]
+  {%- if pm_images != '' -%}
+  ,"image": [{{ pm_images }}]
+  {%- endif -%}
+  {%- if pm_variant_count == 1 -%}
+    {%- if pm_first_sku != '' -%}
+  ,"sku": {{ pm_first_sku | json }}
+    {%- endif -%}
+    {%- if pm_first_gtin_key != '' -%}
+  ,{{ pm_first_gtin_key | json }}: {{ pm_first_gtin | json }}
+    {%- endif -%}
+  {%- endif -%}
+  {%- if pm_rating and pm_rating_count > 0 -%}
+  ,"aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": {{ pm_rating.rating | round: 2 }},
+    "bestRating": {{ pm_rating.scale_max | default: 5 | round: 2 }},
+    "worstRating": {{ pm_rating.scale_min | default: 1 | round: 2 }},
+    "ratingCount": {{ pm_rating_count }}
+  }
+  {%- endif -%}
+  {%- if pm_protein != '' -%}
+  ,"additionalProperty": [
+    {
+      "@type": "PropertyValue",
+      "name": "Protein",
+      "value": {{ pm_protein | json }}
+    }
+  ]
+  {%- endif %}
+}
+</script>
+{%- endif -%}

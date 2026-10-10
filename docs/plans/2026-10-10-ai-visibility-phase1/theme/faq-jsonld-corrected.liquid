@@ -1,0 +1,97 @@
+{%- comment -%}
+  PROMUNCH FAQPage structured data, corrected 10 Oct 2026.
+  Paste this whole file into layout/theme.liquid IN PLACE OF the old FAQPage
+  block (the one that starts with the line  if page.handle == 'faqs'  and
+  ends with the matching endif line). See THEME_INSTALL.md step 4.
+
+  Why it changed: the old block said all PROMUNCH snacks are "100% roasted
+  (never fried)" and "completely gluten-free". Per the Master KB the roasted lines
+  are Soya Crunchies and Roasted Edamame (roasted in olive oil); Soya Sticks
+  and Soya Chips are FRIED. Gluten-free is not confirmed for the whole range, so it is left out.
+
+  Every answer here must also appear (in the same meaning) on the visible
+  FAQ page at promunch.in/pages/faqs. If the visible page still says
+  "never fried" or "gluten-free", fix the page text too.
+{%- endcomment -%}
+{% if page.handle == 'faqs' or template contains 'faq' %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What are PROMUNCH snacks made of?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "PROMUNCH makes high-protein savoury snacks from soya and edamame. The range has Roasted Edamame (roasted in olive oil), Soya Crunchies (roasted), and Soya Sticks and Soya Chips (fried). Check each pack label for the full ingredient list."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Are PROMUNCH snacks roasted or fried?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "It depends on the snack. Roasted Edamame is roasted in olive oil. Soya Crunchies are roasted, not fried. Soya Sticks and Soya Chips are fried, for a classic chip crunch."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How much protein is in PROMUNCH Roasted Edamame?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "PROMUNCH Roasted Edamame has 42 to 45 g of protein per 100 g, depending on the flavour. Himalayan Rock Salt has the most, at 45.3 g of protein per 100 g. Check each pack label for full nutrition facts."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which flavours does PROMUNCH make?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Roasted Edamame comes in Himalayan Rock Salt, Indori Chatka and Masala Mania. Soya Crunchies come in Tangy Pudina, Peri Peri, Cheese & Onion and Noodle Masala."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How can I eat PROMUNCH snacks?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "They are ready to eat straight from the pack. You can also add them to salads, soups, wraps and sandwiches for extra crunch and protein."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is shipping free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Shipping is free on orders of ₹599 and above. Orders below ₹599 have a ₹99 shipping charge."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do you offer cash on delivery?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Cash on delivery costs ₹50 extra. Prepaid orders get 5% off."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Where can I buy PROMUNCH snacks?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "You can buy PROMUNCH snacks on our website promunch.in and on Amazon India."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Who founded PROMUNCH?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "PROMUNCH was founded in 2021 by Parth Mutha and is based in Dewas, Madhya Pradesh, India. In 2025 Parth was named on the Forbes 30 Under 30 Asia list."
+      }
+    }
+  ]
+}
+</script>
+{% endif %}

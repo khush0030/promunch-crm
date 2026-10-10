@@ -1,0 +1,122 @@
+{%- comment -%}
+  PROMUNCH Organization + WebSite structured data (schema.org JSON-LD).
+  File: snippets/promunch-organization-jsonld.liquid
+
+  Render it once on every page, from layout/theme.liquid, just before the
+  closing head tag. The exact line to add is in THEME_INSTALL.md step 3.
+
+  ===================== THE ONLY PART YOU EDIT =====================
+  Paste each link between the single quotes, replacing PASTE_LINK_HERE.
+  A line still saying PASTE_LINK_HERE (or empty) is simply left out of the
+  output, so the code stays valid even if you fill only some of them.
+  Every link must start with https://
+  Do not use a single quote ( ' ) inside a link.
+{%- endcomment -%}
+{%- assign pm_link_instagram = 'https://www.instagram.com/promunch.snacks/' -%}
+{%- assign pm_link_facebook = 'https://www.facebook.com/promunch.snacks' -%}
+{%- assign pm_link_youtube = 'https://www.youtube.com/@PromunchYourMunchyPal' -%}
+{%- assign pm_link_amazon_store = 'PASTE_LINK_HERE' -%}
+{%- assign pm_link_linkedin_company = 'PASTE_LINK_HERE' -%}
+{%- assign pm_link_forbes_article = 'PASTE_LINK_HERE' -%}
+{%- assign pm_link_globalindian_article = 'PASTE_LINK_HERE' -%}
+{%- assign pm_link_parth_linkedin = 'PASTE_LINK_HERE' -%}
+{%- comment -%}
+  About page (brand facts). Publish the page /pages/about-promunch FIRST,
+  or set this to PASTE_LINK_HERE until it is live.
+{%- endcomment -%}
+{%- assign pm_link_about_page = 'https://promunch.in/pages/about-promunch' -%}
+{%- comment -%}
+  ================== DO NOT EDIT BELOW THIS LINE ==================
+{%- endcomment -%}
+{%- assign pm_org_id = 'https://promunch.in/#organization' -%}
+{%- assign pm_site_id = 'https://promunch.in/#website' -%}
+
+{%- comment -%} Logo: theme logo setting if set, else the storefront wordmark {%- endcomment -%}
+{%- if settings.logo -%}
+  {%- assign pm_logo = settings.logo | image_url: width: 600 | prepend: 'https:' -%}
+{%- else -%}
+  {%- assign pm_logo = 'https://promunch.in/cdn/shop/files/promuch.png?v=1784261565&width=400' -%}
+{%- endif -%}
+
+{%- comment -%} Brand profile links: keep only real https links {%- endcomment -%}
+{%- assign pm_org_links = pm_link_instagram | append: '|' | append: pm_link_facebook | append: '|' | append: pm_link_youtube | append: '|' | append: pm_link_amazon_store | append: '|' | append: pm_link_linkedin_company | append: '|' | append: pm_link_forbes_article | append: '|' | append: pm_link_globalindian_article | split: '|' -%}
+{%- assign pm_org_same_as = '' -%}
+{%- for pm_link in pm_org_links -%}
+  {%- assign pm_l = pm_link | strip -%}
+  {%- assign pm_head = pm_l | slice: 0, 8 -%}
+  {%- if pm_head == 'https://' -%}
+    {%- if pm_org_same_as != '' -%}{%- assign pm_org_same_as = pm_org_same_as | append: ',' -%}{%- endif -%}
+    {%- assign pm_l_json = pm_l | json -%}
+    {%- assign pm_org_same_as = pm_org_same_as | append: pm_l_json -%}
+  {%- endif -%}
+{%- endfor -%}
+
+{%- assign pm_about_link = pm_link_about_page | strip -%}
+{%- assign pm_about_head = pm_about_link | slice: 0, 8 -%}
+
+{%- assign pm_founder_link = pm_link_parth_linkedin | strip -%}
+{%- assign pm_founder_head = pm_founder_link | slice: 0, 8 -%}
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": {{ pm_org_id | json }},
+      "name": "PROMUNCH",
+      "url": "https://promunch.in",
+      "logo": {
+        "@type": "ImageObject",
+        "url": {{ pm_logo | json }}
+      },
+      "slogan": "Your Munchy Pal",
+      "description": "PROMUNCH is an Indian brand of high-protein savoury snacks: Roasted Edamame roasted in olive oil, roasted Soya Crunchies, and fried Soya Sticks and Soya Chips.",
+      "foundingDate": "2021",
+      "areaServed": "IN",
+      "email": "hello@promunch.in",
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "customer service",
+        "email": "hello@promunch.in",
+        "url": "https://wa.me/919981310247",
+        "areaServed": "IN"
+      },
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "28, AB Rd, Industrial Area No. 1",
+        "addressLocality": "Dewas",
+        "addressRegion": "Madhya Pradesh",
+        "postalCode": "455001",
+        "addressCountry": "IN"
+      },
+      "founder": {
+        "@type": "Person",
+        "@id": "https://promunch.in/#founder",
+        "name": "Parth Mutha",
+        "jobTitle": "Founder",
+        "award": "Forbes 30 Under 30 Asia 2025"
+        {%- if pm_founder_head == 'https://' -%}
+        ,"sameAs": [{{ pm_founder_link | json }}]
+        {%- endif %}
+      }
+      {%- if pm_about_head == 'https://' -%}
+      ,"mainEntityOfPage": {{ pm_about_link | json }}
+      {%- endif -%}
+      {%- if pm_org_same_as != '' -%}
+      ,"sameAs": [{{ pm_org_same_as }}]
+      {%- endif %}
+    },
+    {
+      "@type": "WebSite",
+      "@id": {{ pm_site_id | json }},
+      "name": "PROMUNCH",
+      "url": "https://promunch.in",
+      "inLanguage": "en-IN",
+      "publisher": {
+        "@id": {{ pm_org_id | json }}
+      }
+    }
+  ]
+}
+</script>

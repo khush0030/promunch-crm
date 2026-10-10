@@ -1,0 +1,43 @@
+{%- comment -%}
+  PROMUNCH WebPage structured data, corrected 10 Oct 2026.
+  Paste this whole file into layout/theme.liquid IN PLACE OF the old WebPage
+  block (the one with "description": "Discover healthy gluten-free and
+  soya-based snacks with PROMUNCH."). See THEME_INSTALL.md step 4.
+
+  Why it changed:
+    - The old text said "gluten-free". That is not confirmed for the whole
+      range (the Soya Sticks and Soya Chips are fried soya snacks with their
+      own labels), so it is removed.
+    - The old block told Google that EVERY page was the home page
+      (url was always https://promunch.in). This one uses each page's own
+      address and title, and links the page to the PROMUNCH Organization and
+      WebSite from snippets/promunch-organization-jsonld.liquid.
+{%- endcomment -%}
+{%- assign pm_site_desc = 'PROMUNCH makes high-protein savoury snacks in India: Roasted Edamame roasted in olive oil, roasted Soya Crunchies, and fried Soya Sticks and Soya Chips.' -%}
+{%- if request.page_type == 'index' or page_description == blank -%}
+  {%- assign pm_page_desc = pm_site_desc -%}
+{%- else -%}
+  {%- assign pm_page_desc = page_description | strip_html | strip -%}
+{%- endif -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "@id": {{ canonical_url | append: '#webpage' | json }},
+  "name": {{ page_title | default: shop.name | json }},
+  "url": {{ canonical_url | json }},
+  "description": {{ pm_page_desc | json }},
+  "inLanguage": "en-IN",
+  "isPartOf": {
+    "@id": "https://promunch.in/#website"
+  },
+  "publisher": {
+    "@id": "https://promunch.in/#organization"
+  }
+  {%- if template contains 'product' and product -%}
+  ,"mainEntity": {
+    "@id": {{ shop.url | append: product.url | append: '#product' | json }}
+  }
+  {%- endif %}
+}
+</script>

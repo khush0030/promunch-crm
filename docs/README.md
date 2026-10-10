@@ -64,6 +64,7 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 
 | Doc | What it answers |
 |---|---|
+| [2026-10-10 AI visibility phase 1](plans/2026-10-10-ai-visibility-phase1/README.md) | Response to the 10 Oct AI visibility audit (score 15/100): theme JSON-LD (Product with GTIN, Organization, corrected FAQ), brand facts page + llms.txt, GTIN in the Meta feed, Merchant Center setup. Paste-in kit; owner checklist inside |
 | [2026-10-08 Redesign handoff](plans/2026-10-08-redesign-handoff.md) | **START HERE to continue the redesign in any session (local or cloud):** branch `redesign/app-v2` state, owner decisions, open questions, merge+deploy runbook, safe QA tools in `scripts/redesign-qa/` |
 | [2026-10-07 Bulk order form + instant reply](plans/2026-10-07-bulk-inquiry-autoreply.md) | Pify replaced by CRM form: deal + WhatsApp lead ping + branded Resend auto-reply with order-type questions; install snippet |
 | [2026-09-15 CRM redesign](plans/2026-09-15-crm-redesign/IMPLEMENTATION_PLAN.md) | APPROVED 15 Sep: 6-hub navigation, PROMUNCH brand system, 34 screens laptop + phone (prototype: `index.html` + `screens.js` in the same folder, live at https://claude.ai/artifact/Wej9SQVrLomK5jGNp84PSZ); Phase 0-1 implementation plan (LIVE 17 Sep) |
