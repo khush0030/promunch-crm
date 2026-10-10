@@ -46,6 +46,7 @@ query CatalogSync($cursor: String) {
               price
               compareAtPrice
               sku
+              barcode
               image { url }
               inventoryQuantity
               availableForSale
@@ -96,6 +97,7 @@ Deno.serve(async (req) => {
     last_synced_at: string;
     image_url: string | null;
     sku: string | null;
+    barcode?: string | null;
   }> = [];
 
   // Product-level view (for the KB doc) — one entry per Shopify product, with
@@ -170,6 +172,9 @@ Deno.serve(async (req) => {
             last_synced_at: nowIso,
             image_url: String(v.image?.url ?? "").trim() || productImage,
             sku: String(v.sku ?? "").trim() || null,
+            // Raw Shopify Barcode (the owner enters EAN-13 GTINs here). Stored
+            // unvalidated; the Meta feed only emits it when the check digit is valid.
+            barcode: String(v.barcode ?? "").trim() || null,
           });
           prod.variants.push({
             title: variantTitle && variantTitle !== "Default Title" ? variantTitle : "",
@@ -194,7 +199,15 @@ Deno.serve(async (req) => {
   if (!rows.length) return j({ ok: true, synced: 0, deactivated: 0, note: "no active variants found" });
 
   // upsert all variants we saw
-  const { error: upErr } = await sb.from("wa_catalog_items").upsert(rows, { onConflict: "retailer_id" });
+  let { error: upErr } = await sb.from("wa_catalog_items").upsert(rows, { onConflict: "retailer_id" });
+  let barcodeColumn = true;
+  if (upErr && /PGRST204|42703/.test(String(upErr.code)) && /barcode/.test(upErr.message ?? "")) {
+    // Migration 20261010120000 not applied yet: sync everything except the barcode.
+    console.warn("[shopify-catalog-sync] wa_catalog_items.barcode missing; syncing without it until migration 20261010120000 is applied");
+    barcodeColumn = false;
+    for (const r of rows) delete r.barcode;
+    ({ error: upErr } = await sb.from("wa_catalog_items").upsert(rows, { onConflict: "retailer_id" }));
+  }
   if (upErr) return j({ ok: false, error: `upsert failed: ${upErr.message}` }, 500);
 
   // retire anything Shopify no longer returns (deleted / drafted products)
@@ -217,7 +230,7 @@ Deno.serve(async (req) => {
     kb = { ok: false, products: 0, error: String(e instanceof Error ? e.message : e) };
   }
 
-  return j({ ok: true, synced: rows.length, deactivated, pages, kb });
+  return j({ ok: true, synced: rows.length, deactivated, pages, kb, barcodeColumn });
 });
 
 // Build a readable prose catalog from live Shopify products and upsert it as the

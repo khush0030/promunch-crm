@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { normalizeGtin } from "@/lib/gtin";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ interface Row {
   image_url: string | null;
   sku: string | null;
   tags: string[] | null;
+  barcode?: string | null;
 }
 
 const HEADERS = [
@@ -52,16 +54,22 @@ const HEADERS = [
   "quantity_to_sell_on_facebook",
   "inventory",
   "mpn",
+  "gtin",
 ] as const;
 
+const COLUMNS =
+  "retailer_id,title,product_title,variant_title,description,category,price_inr," +
+  "compare_at_inr,in_stock,inventory_quantity,product_url,image_url,sku,tags";
+
 export async function GET() {
-  const { data, error } = await supabaseAdmin
-    .from("wa_catalog_items")
-    .select(
-      "retailer_id,title,product_title,variant_title,description,category,price_inr," +
-        "compare_at_inr,in_stock,inventory_quantity,product_url,image_url,sku,tags",
-    )
-    .order("sort", { ascending: true });
+  const load = (cols: string) =>
+    supabaseAdmin.from("wa_catalog_items").select(cols).order("sort", { ascending: true });
+  let { data, error } = await load(`${COLUMNS},barcode`);
+  if (error && /42703|PGRST204/.test(`${error.code}`) && /barcode/.test(error.message)) {
+    // Migration 20261010120000 not applied yet: serve the feed without GTINs
+    // rather than 500 the whole catalogue.
+    ({ data, error } = await load(COLUMNS));
+  }
 
   if (error) {
     return new NextResponse(`error: ${error.message}`, { status: 500 });
@@ -108,6 +116,8 @@ export async function GET() {
         String(qty),
         String(qty),
         r.sku || r.retailer_id,
+        // Only a GS1-valid barcode; a bad GTIN gets the item disapproved.
+        normalizeGtin(r.barcode) ?? "",
       ]
         .map(csv)
         .join(","),
