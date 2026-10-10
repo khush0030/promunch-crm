@@ -1,5 +1,7 @@
 # Meta ads: why we are still in "Learning", and when ROAS can turn
 
+**Visual version (start here):** [PROMUNCH-Meta-Ads-Health-Check-2026-10-10.pdf](PROMUNCH-Meta-Ads-Health-Check-2026-10-10.pdf). This file is the full written backup. Regenerate the PDF with `python3 build_report.py && node render_pdf.mjs` from this folder.
+
 Date: 10 Oct 2026. Source: the Meta Ads connector, read-only. Nothing in the ad account was changed.
 
 ## Scope and data limits
@@ -108,7 +110,7 @@ There is no honest way to promise a date for ROAS above 2 at this budget. The le
 2. **Make "broad" actually broad.** Test Advantage+ audience on (all-India) as its own ad set against the current 8-city one. Helium's numbers suggest this wins.
 3. **Add a retargeting ad set.** Audiences already exist (created 5 Oct): `Web | ATC + Checkout | 30d`, `Web | All visitors | 30d`, excluding `Web | Purchasers | 60d`. **No ad set uses them.** Edamame TOF alone produced 45 checkouts started but only 22 purchases. A ₹300 to 500/day retargeting ad set is usually the highest-ROAS spend for a brand our size.
 4. **Raise AOV.** Implied AOV (~₹650) sits just above the ₹599 free-shipping line. Bundles or combo packs that push carts to ₹900+ raise ROAS directly, with no change to the ads.
-5. **Fix purchase tracking.** In the pixel's quality report the Purchase event **has no match-quality score**, and Meta flags that Purchase is sent **without the click ID (fbc)**. It recommends connecting the Conversions API (similar advertisers saw a 100%+ median increase in additional conversions reported). The pixel logged about 59 Purchase events site-wide from 13 Sep to 10 Oct, while ads were credited with 22. Some of that gap is organic or WhatsApp traffic, but some is probably ad-driven sales Meta cannot match. That **understates reported ROAS and starves learning of signal**. Also worth checking: whether COD orders fire a Purchase event at all.
+5. **Fix purchase tracking.** In the pixel's quality report the Purchase event **has no match-quality score**, and Meta flags that Purchase is sent **without the click ID (fbc)**. It recommends connecting the Conversions API (similar advertisers saw a 100%+ median increase in additional conversions reported). The pixel logged at least 34 Purchase events site-wide from 13 Sep to 10 Oct (Meta reports two source rows, 34 and 25, which may overlap), while ads were credited with 22. Some of that gap is organic or WhatsApp traffic, but some is probably ad-driven sales Meta cannot match. That **understates reported ROAS and starves learning of signal**. Also worth checking: whether COD orders fire a Purchase event at all.
 6. **Decide on "first club".** Either label it a local partner test with its own success metric, or fold it into the main structure. Drop the iOS-only restriction unless there is a reason for it.
 
 ## 6. Account health signals from Meta

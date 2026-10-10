@@ -1,0 +1,261 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Meta Ads Health Check</title>
+<style>
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+body { margin:0; font-family: Inter, 'DejaVu Sans', sans-serif; color:#1A1714; background:#F1EBE0; }
+.page { width:210mm; height:297mm; padding:15mm 14mm 12mm; background:#FBF8F2; position:relative;
+  page-break-after: always; overflow:hidden; }
+.page:last-child { page-break-after: auto; }
+.eyebrow { font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:#6E665A; font-weight:700; }
+h1 { font-size:30px; line-height:1.1; margin:6px 0 6px; font-weight:800; letter-spacing:-.01em; }
+h2 { font-size:21px; margin:2px 0 4px; font-weight:800; letter-spacing:-.01em; }
+.lede { font-size:13px; color:#6E665A; margin:0 0 14px; line-height:1.45; max-width:165mm; }
+.card { background:#fff; border:1px solid #E8DFD0; border-radius:14px; padding:14px 16px; margin-bottom:12px; }
+.card h3 { font-size:13.5px; margin:0 0 2px; font-weight:700; }
+.card .sub { font-size:11px; color:#9A9081; margin:0 0 10px; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+.kpi { background:#fff; border:1px solid #E8DFD0; border-radius:14px; padding:12px 14px; }
+.kpi .l { font-size:11px; color:#6E665A; font-weight:600; }
+.kpi .v { font-size:27px; font-weight:800; margin-top:4px; letter-spacing:-.02em; }
+.kpi .n { font-size:10.5px; color:#9A9081; margin-top:2px; }
+.verdict { background:#1B2A20; color:#fff; border-radius:16px; padding:16px 18px; margin:12px 0; }
+.verdict .t { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:#E0A24E; font-weight:700; }
+.verdict p { font-size:15px; line-height:1.45; margin:6px 0 0; }
+.pts { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.pt { background:#fff; border:1px solid #E8DFD0; border-radius:14px; padding:12px 14px; font-size:12px; line-height:1.45; color:#6E665A; }
+.pt b { display:block; color:#1A1714; font-size:13px; margin-bottom:3px; }
+.pt .num { display:inline-flex; width:22px; height:22px; border-radius:50%; align-items:center; justify-content:center;
+  background:#1A1714; color:#fff; font-size:11px; font-weight:700; margin-bottom:6px; }
+.meter { height:12px; background:#f0eadf; border-radius:6px; overflow:hidden; margin:8px 0 4px; }
+.meter-fill { height:100%; border-radius:0 4px 4px 0; }
+.legend { display:flex; gap:18px; font-size:11px; color:#6E665A; margin:0 0 10px; flex-wrap:wrap; }
+.legend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+.note { font-size:11.5px; color:#6E665A; line-height:1.45; margin:6px 0 0; }
+.note b { color:#1A1714; }
+.foot { position:absolute; bottom:8mm; left:14mm; right:14mm; font-size:9px; color:#9A9081;
+  display:flex; justify-content:space-between; border-top:1px solid #E8DFD0; padding-top:5px; }
+.split { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.col h4 { margin:0 0 8px; font-size:13px; display:flex; align-items:center; gap:8px; }
+.col ul { margin:0; padding-left:0; list-style:none; }
+.col li { font-size:12px; color:#6E665A; line-height:1.4; padding:7px 0; border-top:1px solid #EFE8DB; }
+.col li b { color:#1A1714; }
+.chip { display:inline-block; font-size:10px; font-weight:700; border-radius:20px; padding:2px 8px; }
+.badge { width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:13px; color:#fff; font-weight:800; }
+table.plan { width:100%; border-collapse:collapse; font-size:11.5px; }
+table.plan th { text-align:left; font-size:10px; color:#9A9081; text-transform:uppercase; letter-spacing:.08em; padding:6px 8px; border-bottom:1px solid #E8DFD0; }
+table.plan td { padding:9px 8px; border-bottom:1px solid #EFE8DB; vertical-align:top; color:#6E665A; line-height:1.4; }
+table.plan td b { color:#1A1714; }
+.road { display:grid; grid-template-columns:repeat(3,1fr); gap:0; position:relative; margin-top:6px; }
+.road .m { padding:0 12px 0 0; }
+.road .dot { width:14px; height:14px; border-radius:50%; background:#1A1714; border:3px solid #fff; box-shadow:0 0 0 1px #1A1714; }
+.road .bar { position:absolute; top:6px; left:7px; right:20px; height:2px; background:#d9d1c3; z-index:0; }
+.road .m * { position:relative; z-index:1; }
+.road .d { font-size:12px; font-weight:800; margin-top:8px; }
+.road .x { font-size:11.5px; color:#6E665A; line-height:1.4; margin-top:3px; }
+.qs { counter-reset:q; margin:0; padding:0; list-style:none; }
+.qs li { counter-increment:q; font-size:12px; color:#1A1714; padding:7px 0 7px 30px; position:relative; border-top:1px solid #EFE8DB; line-height:1.4; }
+.qs li:before { content:counter(q); position:absolute; left:0; top:6px; width:20px; height:20px; border-radius:50%;
+  background:#E0A24E; color:#fff; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+</style></head><body>
+
+<!-- PAGE 1: summary -->
+<section class="page">
+  <div class="eyebrow">PROMUNCH · Meta ads health check · 10 Oct 2026</div>
+  <h1>Why our ads are stuck in<br>"Learning", and what fixes ROAS</h1>
+  <p class="lede">Read-only review of the sales campaign the new manager launched on 16 Sep, compared with the setup it replaced. Vippy Soya ad account, Meta-attributed numbers.</p>
+
+  <div class="grid4">
+    <div class="kpi"><div class="l">Spent (16 Sep–10 Oct)</div><div class="v">₹38.4K</div><div class="n">main ad set, 25 days</div></div>
+    <div class="kpi"><div class="l">Purchases</div><div class="v">22</div><div class="n">~6 a week</div></div>
+    <div class="kpi"><div class="l">Cost per purchase</div><div class="v">₹1,748</div><div class="n">previous setup: ₹1,008</div></div>
+    <div class="kpi"><div class="l">ROAS</div><div class="v" style="color:#C2492E">0.37</div><div class="n">₹0.37 back per ₹1 spent</div></div>
+  </div>
+
+  <div class="card" style="margin-top:12px">
+    <h3>Learning progress: 1 of 50 purchases needed</h3>
+    <p class="sub">Meta counts purchases in the 7 days after the last big edit. The last reset was 6 Oct.</p>
+    <div class="meter"><div class="meter-fill" style="width:2.0%;background:#eb6834"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:10.5px;color:#9A9081"><span>1 purchase since reset</span><span>50 needed</span></div>
+  </div>
+
+  <div class="verdict">
+    <div class="t">The short answer</div>
+    <p>It is <b>partly the budget and partly how the campaign is managed</b>. At ₹1,850 a day, no manager could get out of learning. But the ad set was also reset about <b>9 times in 25 days</b>, and the new setup is doing worse than the old one on every efficiency number. Learning alone will not fix ROAS. Five changes will.</p>
+  </div>
+
+  <div class="pts">
+    <div class="pt"><span class="num">1</span><b>Budget is too small for purchase learning</b>Learning needs ~50 purchases a week. We get 6. That would cost ₹7K to ₹12.5K a day.</div>
+    <div class="pt"><span class="num">2</span><b>The ad set never gets a clean week</b>Targeting, budget and creative changes every 2 to 3 days restart learning each time.</div>
+    <div class="pt"><span class="num">3</span><b>"Broad" targeting is not broad</b>8 cities, automatic audience off. The old all-India setup got 2.4x the clicks per view.</div>
+  </div>
+
+  <div class="card" style="margin-top:12px">
+    <h3>Where ROAS stands vs where it needs to be</h3>
+    <p class="sub">Break-even depends on our margin; 1.7 to 2.0 is an estimate for a ~₹650 order.</p>
+    <svg viewBox="0 0 690 128" width="690" height="128" role="img" aria-label="ROAS ladder from now to break-even" style="max-width:100%;height:auto" xmlns="http://www.w3.org/2000/svg"><rect x="20" y="54" width="650" height="14" rx="7" fill="#f4f0e8"/><rect x="522.3" y="54" width="88.6" height="14" fill="#cfe2c9"/><text x="20.0" y="88" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">0.0</text><text x="167.72727272727272" y="88" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">0.5</text><text x="315.45454545454544" y="88" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">1.0</text><text x="463.18181818181813" y="88" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">1.5</text><text x="610.9090909090909" y="88" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">2.0</text><circle cx="129.3" cy="61" r="8" fill="#eb6834" stroke="#FFFFFF" stroke-width="2"/><text x="129.3181818181818" y="40" font-size="10.5" fill="#6E665A" text-anchor="middle" font-weight="600">Now</text><text x="129.3181818181818" y="27" font-size="12.5" fill="#1A1714" text-anchor="middle" font-weight="800">0.37</text><circle cx="218.0" cy="61" r="8" fill="#2a78d6" stroke="#FFFFFF" stroke-width="2"/><text x="217.95454545454544" y="40" font-size="10.5" fill="#6E665A" text-anchor="middle" font-weight="600">Previous setup</text><text x="217.95454545454544" y="27" font-size="12.5" fill="#1A1714" text-anchor="middle" font-weight="800">0.67</text><circle cx="315.5" cy="61" r="8" fill="#1A1714" stroke="#FFFFFF" stroke-width="2"/><text x="315.45454545454544" y="110" font-size="10.5" fill="#6E665A" text-anchor="middle" font-weight="600">Target after fixes</text><text x="315.45454545454544" y="123" font-size="12.5" fill="#1A1714" text-anchor="middle" font-weight="800">~1.0</text><circle cx="566.6" cy="61" r="8" fill="#3F6B4F" stroke="#FFFFFF" stroke-width="2"/><text x="566.590909090909" y="40" font-size="10.5" fill="#6E665A" text-anchor="middle" font-weight="600">Break-even (est.)</text><text x="566.590909090909" y="27" font-size="12.5" fill="#1A1714" text-anchor="middle" font-weight="800">1.7–2.0</text></svg>
+  </div>
+  <div class="foot"><span>Source: Meta Ads connector (read-only). ROAS = Meta-attributed, 7-day click / 1-day view.</span><span>1 / 5</span></div>
+</section>
+
+<!-- PAGE 2: why learning -->
+<section class="page">
+  <div class="eyebrow">Question 1</div>
+  <h2>Why is it still in the learning phase?</h2>
+  <p class="lede">Two separate reasons. The first is maths, the second is management.</p>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>Reason A: not enough purchases</h3>
+      <p class="sub">Purchases per week, new setup vs Meta's learning threshold</p>
+      <svg viewBox="0 0 300 74" width="300" height="74" role="img" aria-label="Purchases per week vs needed" style="max-width:100%;height:auto" xmlns="http://www.w3.org/2000/svg"><line x1="104" y1="0" x2="104" y2="70" stroke="#ece6da"/><text x="96" y="17" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">We get</text><path d="M104,2 H116.08 Q120.08,2 120.08,6 V20 Q120.08,24 116.08,24 H104 Z" fill="#eb6834"/><text x="126.08" y="17" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">6</text><text x="96" y="51" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">Learning needs</text><path d="M104,36 H234.0 Q238.0,36 238.0,40 V54 Q238.0,58 234.0,58 H104 Z" fill="#c9c2b5"/><text x="244.0" y="51" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">50</text></svg>
+    </div>
+    <div class="card">
+      <h3>…and the budget cannot buy 50</h3>
+      <p class="sub">Daily budget to buy 50 purchases a week</p>
+      <svg viewBox="0 0 300 108" width="300" height="108" role="img" aria-label="Daily budget vs needed" style="max-width:100%;height:auto" xmlns="http://www.w3.org/2000/svg"><line x1="104" y1="0" x2="104" y2="104" stroke="#ece6da"/><text x="96" y="17" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">Our budget</text><path d="M104,2 H119.832 Q123.832,2 123.832,6 V20 Q123.832,24 119.832,24 H104 Z" fill="#eb6834"/><text x="129.832" y="17" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">₹1,850</text><text x="96" y="51" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">At old cost</text><path d="M104,36 H177.184 Q181.184,36 181.184,40 V54 Q181.184,58 177.184,58 H104 Z" fill="#c9c2b5"/><text x="187.184" y="51" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">₹7,200</text><text x="96" y="85" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">At today's cost</text><path d="M104,70 H234.0 Q238.0,70 238.0,74 V88 Q238.0,92 234.0,92 H104 Z" fill="#c9c2b5"/><text x="244.0" y="85" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">₹12,500</text></svg>
+    </div>
+  </div>
+  <p class="note" style="margin:-2px 0 12px"><b>What this means:</b> at this budget a purchase campaign stays in "Learning" or "Learning limited" for good. That label alone is not the problem. Small brands run profitably while learning-limited. <b>The real problem is the cost per purchase.</b></p>
+
+  <div class="card">
+    <h3>Reason B: the ad set keeps getting reset</h3>
+    <p class="sub">Daily spend (grey bars), each restart of learning (numbered orange lines), and each day's sales (one dot per purchase)</p>
+    <svg viewBox="0 0 690 250" width="690" height="250" role="img" aria-label="Daily spend with learning resets and daily sales" style="max-width:100%;height:auto" xmlns="http://www.w3.org/2000/svg"><line x1="34" y1="168.0" x2="680" y2="168.0" stroke="#ece6da"/><text x="28" y="172.0" font-size="9.5" fill="#9A9081" text-anchor="end" font-weight="400">₹0</text><line x1="34" y1="141.5" x2="680" y2="141.5" stroke="#ece6da"/><text x="28" y="145.51351351351352" font-size="9.5" fill="#9A9081" text-anchor="end" font-weight="400">₹1K</text><line x1="34" y1="115.0" x2="680" y2="115.0" stroke="#ece6da"/><text x="28" y="119.02702702702703" font-size="9.5" fill="#9A9081" text-anchor="end" font-weight="400">₹2K</text><line x1="34" y1="88.5" x2="680" y2="88.5" stroke="#ece6da"/><text x="28" y="92.54054054054055" font-size="9.5" fill="#9A9081" text-anchor="end" font-weight="400">₹3K</text><rect x="36.0" y="66" width="125.2" height="102" fill="#f4f0e8" rx="4"/><text x="98.6" y="79" font-size="9" fill="#6E665A" text-anchor="middle" font-weight="600">5 days, no edits</text><rect x="371.9" y="66" width="99.4" height="102" fill="#f4f0e8" rx="4"/><text x="421.6" y="79" font-size="9" fill="#6E665A" text-anchor="middle" font-weight="600">4 days, no edits</text><rect x="552.8" y="66" width="125.2" height="102" fill="#f4f0e8" rx="4"/><text x="615.4" y="79" font-size="9" fill="#6E665A" text-anchor="middle" font-weight="600">since last reset</text><path d="M38.92,168 V160.11405405405407 Q38.92,157.11405405405407 41.92,157.11405405405407 H51.92 Q54.92,157.11405405405407 54.92,160.11405405405407 V168 Z" fill="#c9c2b5"/><path d="M64.76,168 V150.07567567567568 Q64.76,147.07567567567568 67.76,147.07567567567568 H77.76 Q80.76,147.07567567567568 80.76,150.07567567567568 V168 Z" fill="#c9c2b5"/><path d="M90.60000000000001,168 V142.6064864864865 Q90.60000000000001,139.6064864864865 93.60000000000001,139.6064864864865 H103.60000000000001 Q106.60000000000001,139.6064864864865 106.60000000000001,142.6064864864865 V168 Z" fill="#c9c2b5"/><path d="M116.44,168 V140.4610810810811 Q116.44,137.4610810810811 119.44,137.4610810810811 H129.44 Q132.44,137.4610810810811 132.44,140.4610810810811 V168 Z" fill="#c9c2b5"/><path d="M142.28,168 V133.9454054054054 Q142.28,130.9454054054054 145.28,130.9454054054054 H155.28 Q158.28,130.9454054054054 158.28,133.9454054054054 V168 Z" fill="#c9c2b5"/><path d="M168.11999999999998,168 V135.3227027027027 Q168.11999999999998,132.3227027027027 171.11999999999998,132.3227027027027 H181.11999999999998 Q184.11999999999998,132.3227027027027 184.11999999999998,135.3227027027027 V168 Z" fill="#c9c2b5"/><path d="M193.95999999999998,168 V131.48216216216215 Q193.95999999999998,128.48216216216215 196.95999999999998,128.48216216216215 H206.95999999999998 Q209.95999999999998,128.48216216216215 209.95999999999998,131.48216216216215 V168 Z" fill="#c9c2b5"/><path d="M219.79999999999998,168 V121.6027027027027 Q219.79999999999998,118.6027027027027 222.79999999999998,118.6027027027027 H232.79999999999998 Q235.79999999999998,118.6027027027027 235.79999999999998,121.6027027027027 V168 Z" fill="#c9c2b5"/><path d="M245.64,168 V137.62702702702703 Q245.64,134.62702702702703 248.64,134.62702702702703 H258.64 Q261.64,134.62702702702703 261.64,137.62702702702703 V168 Z" fill="#c9c2b5"/><path d="M271.48,168 V131.95891891891893 Q271.48,128.95891891891893 274.48,128.95891891891893 H284.48 Q287.48,128.95891891891893 287.48,131.95891891891893 V168 Z" fill="#c9c2b5"/><path d="M297.32,168 V121.68216216216217 Q297.32,118.68216216216217 300.32,118.68216216216217 H310.32 Q313.32,118.68216216216217 313.32,121.68216216216217 V168 Z" fill="#c9c2b5"/><path d="M323.16,168 V112.14702702702704 Q323.16,109.14702702702704 326.16,109.14702702702704 H336.16 Q339.16,109.14702702702704 339.16,112.14702702702704 V168 Z" fill="#c9c2b5"/><path d="M349.0,168 V132.2237837837838 Q349.0,129.2237837837838 352.0,129.2237837837838 H362.0 Q365.0,129.2237837837838 365.0,132.2237837837838 V168 Z" fill="#c9c2b5"/><path d="M374.84000000000003,168 V117.20594594594596 Q374.84000000000003,114.20594594594596 377.84000000000003,114.20594594594596 H387.84000000000003 Q390.84000000000003,114.20594594594596 390.84000000000003,117.20594594594596 V168 Z" fill="#c9c2b5"/><path d="M400.68,168 V117.73567567567568 Q400.68,114.73567567567568 403.68,114.73567567567568 H413.68 Q416.68,114.73567567567568 416.68,117.73567567567568 V168 Z" fill="#c9c2b5"/><path d="M426.52000000000004,168 V122.76810810810811 Q426.52000000000004,119.76810810810811 429.52000000000004,119.76810810810811 H439.52000000000004 Q442.52000000000004,119.76810810810811 442.52000000000004,122.76810810810811 V168 Z" fill="#c9c2b5"/><path d="M452.36,168 V122.2118918918919 Q452.36,119.2118918918919 455.36,119.2118918918919 H465.36 Q468.36,119.2118918918919 468.36,122.2118918918919 V168 Z" fill="#c9c2b5"/><path d="M478.2,168 V130.68756756756756 Q478.2,127.68756756756757 481.2,127.68756756756757 H491.2 Q494.2,127.68756756756757 494.2,130.68756756756756 V168 Z" fill="#c9c2b5"/><path d="M504.04,168 V110.10756756756757 Q504.04,107.10756756756757 507.04,107.10756756756757 H517.04 Q520.04,107.10756756756757 520.04,110.10756756756757 V168 Z" fill="#c9c2b5"/><path d="M529.88,168 V114.7427027027027 Q529.88,111.7427027027027 532.88,111.7427027027027 H542.88 Q545.88,111.7427027027027 545.88,114.7427027027027 V168 Z" fill="#c9c2b5"/><path d="M555.7199999999999,168 V147.5064864864865 Q555.7199999999999,144.5064864864865 558.7199999999999,144.5064864864865 H568.7199999999999 Q571.7199999999999,144.5064864864865 571.7199999999999,147.5064864864865 V168 Z" fill="#c9c2b5"/><path d="M581.56,168 V122.71513513513514 Q581.56,119.71513513513514 584.56,119.71513513513514 H594.56 Q597.56,119.71513513513514 597.56,122.71513513513514 V168 Z" fill="#c9c2b5"/><path d="M607.4,168 V94.7718918918919 Q607.4,91.7718918918919 610.4,91.7718918918919 H620.4 Q623.4,91.7718918918919 623.4,94.7718918918919 V168 Z" fill="#c9c2b5"/><path d="M633.24,168 V133.9718918918919 Q633.24,130.9718918918919 636.24,130.9718918918919 H646.24 Q649.24,130.9718918918919 649.24,133.9718918918919 V168 Z" fill="#c9c2b5"/><path d="M659.0799999999999,168 V154.28702702702702 Q659.0799999999999,151.28702702702702 662.0799999999999,151.28702702702702 H672.0799999999999 Q675.0799999999999,151.28702702702702 675.0799999999999,154.28702702702702 V168 Z" fill="#c9c2b5"/><line x1="46.9" y1="30" x2="46.9" y2="168" stroke="#eb6834" stroke-width="2"/><circle cx="46.9" cy="22" r="9" fill="#eb6834" stroke="#FFFFFF" stroke-width="2"/><text x="46.92" y="26" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">1</text><line x1="176.1" y1="30" x2="176.1" y2="168" stroke="#eb6834" stroke-width="2"/><circle cx="176.1" cy="22" r="9" fill="#eb6834" stroke="#FFFFFF" stroke-width="2"/><text x="176.11999999999998" y="26" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">2</text><line x1="227.8" y1="30" x2="227.8" y2="168" stroke="#eb6834" stroke-width="2"/><circle cx="227.8" cy="22" r="9" fill="#eb6834" stroke="#FFFFFF" stroke-width="2"/><text x="227.79999999999998" y="26" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">3</text><line x1="279.5" y1="30" x2="279.5" y2="168" stroke="#eb6834" stroke-width="2"/><circle cx="279.5" cy="22" r="9" fill="#eb6834" stroke="#FFFFFF" stroke-width="2"/><text x="279.48" y="26" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">4</text><line x1="305.3" y1="30" x2="305.3" y2="168" stroke="#eb6834" stroke-width="2"/><circle cx="305.3" cy="22" r="9" fill="#eb6834" stroke="#FFFFFF" stroke-width="2"/><text x="305.32" y="26" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">5</text><line x1="382.8" y1="30" x2="382.8" y2="168" stroke="#eb6834" stroke-width="2"/><circle cx="382.8" cy="22" r="9" fill="#eb6834" stroke="#FFFFFF" stroke-width="2"/><text x="382.84000000000003" y="26" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">6</text><line x1="486.2" y1="30" x2="486.2" y2="168" stroke="#eb6834" stroke-width="2"/><circle cx="486.2" cy="22" r="9" fill="#eb6834" stroke="#FFFFFF" stroke-width="2"/><text x="486.2" y="26" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">7</text><line x1="537.9" y1="30" x2="537.9" y2="168" stroke="#eb6834" stroke-width="2"/><circle cx="537.9" cy="22" r="9" fill="#eb6834" stroke="#FFFFFF" stroke-width="2"/><text x="537.88" y="26" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">8</text><line x1="563.7" y1="30" x2="563.7" y2="168" stroke="#eb6834" stroke-width="2"/><circle cx="563.7" cy="22" r="9" fill="#eb6834" stroke="#FFFFFF" stroke-width="2"/><text x="563.7199999999999" y="26" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">9</text><text x="28" y="190" font-size="9.5" fill="#9A9081" text-anchor="end" font-weight="400">Sales</text><circle cx="124.4" cy="186" r="4" fill="#1A1714"/><circle cx="124.4" cy="196" r="4" fill="#1A1714"/><circle cx="150.3" cy="186" r="4" fill="#1A1714"/><circle cx="202.0" cy="186" r="4" fill="#1A1714"/><circle cx="202.0" cy="196" r="4" fill="#1A1714"/><circle cx="202.0" cy="206" r="4" fill="#1A1714"/><circle cx="227.8" cy="186" r="4" fill="#1A1714"/><circle cx="253.6" cy="186" r="4" fill="#1A1714"/><circle cx="253.6" cy="196" r="4" fill="#1A1714"/><circle cx="331.2" cy="186" r="4" fill="#1A1714"/><circle cx="331.2" cy="196" r="4" fill="#1A1714"/><circle cx="357.0" cy="186" r="4" fill="#1A1714"/><circle cx="382.8" cy="186" r="4" fill="#1A1714"/><circle cx="434.5" cy="186" r="4" fill="#1A1714"/><circle cx="434.5" cy="196" r="4" fill="#1A1714"/><circle cx="460.4" cy="186" r="4" fill="#1A1714"/><circle cx="486.2" cy="186" r="4" fill="#1A1714"/><circle cx="512.0" cy="186" r="4" fill="#1A1714"/><circle cx="512.0" cy="196" r="4" fill="#1A1714"/><circle cx="537.9" cy="186" r="4" fill="#1A1714"/><circle cx="537.9" cy="196" r="4" fill="#1A1714"/><circle cx="641.2" cy="186" r="4" fill="#1A1714"/><text x="46.92" y="242" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">16</text><text x="98.60000000000001" y="242" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">18</text><text x="150.28" y="242" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">20</text><text x="201.95999999999998" y="242" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">22</text><text x="253.64" y="242" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">24</text><text x="305.32" y="242" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">26</text><text x="357.0" y="242" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">28</text><text x="408.68" y="242" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">30</text><text x="434.52000000000004" y="242" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">1</text><text x="460.36" y="242" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">2</text><text x="512.04" y="242" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">4</text><text x="563.7199999999999" y="242" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">6</text><text x="615.4" y="242" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">8</text><text x="667.0799999999999" y="242" font-size="9.5" fill="#9A9081" text-anchor="middle" font-weight="400">10</text><text x="46.92" y="232" font-size="9" fill="#6E665A" text-anchor="start" font-weight="400"></text><text x="34" y="242" font-size="9" fill="#6E665A" text-anchor="start" font-weight="400"></text><text x="227.8" y="228" font-size="9.5" fill="#6E665A" text-anchor="middle" font-weight="600">September</text><text x="550.8" y="228" font-size="9.5" fill="#6E665A" text-anchor="middle" font-weight="600">October</text></svg>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px 14px;font-size:10.5px;color:#6E665A;margin-top:6px">
+      <div><b style="color:#1A1714">1.</b> 16 Sep · Launched + creative swap</div><div><b style="color:#1A1714">2.</b> 21 Sep · Targeting + budget +50%</div><div><b style="color:#1A1714">3.</b> 23 Sep · New ad added</div><div><b style="color:#1A1714">4.</b> 25 Sep · Targeting + budget</div><div><b style="color:#1A1714">5.</b> 26 Sep · Main creative swapped</div><div><b style="color:#1A1714">6.</b> 29 Sep · Diwali ad added</div><div><b style="color:#1A1714">7.</b> 3 Oct · Influencer ad added</div><div><b style="color:#1A1714">8.</b> 5 Oct · Targeting changed</div><div><b style="color:#1A1714">9.</b> 6 Oct · Targeting + best ad off</div>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="pt"><b>9 resets in 25 days</b>The longest stretch without a change was 5 days. Learning needs 7. It has never once had a full clean week.</div>
+    <div class="pt"><b>The best ad was switched off</b>On 6 Oct the only ad that reliably converts ("Edamame") was turned off for two days. Sales dropped to zero on 6, 7 and 8 Oct.</div>
+  </div>
+  <div class="foot"><span>Resets = targeting change, budget jump over ~20%, creative swap, ad added or paused (from Meta's change log).</span><span>2 / 5</span></div>
+</section>
+
+<!-- PAGE 3: new vs previous -->
+<section class="page">
+  <div class="eyebrow">Question 2</div>
+  <h2>Is the new setup working properly?</h2>
+  <p class="lede">Not yet. Compared with the campaign it replaced, it is behind on every number, and it is not improving week to week.</p>
+  <div class="legend"><span><i style="background:#2a78d6"></i>Previous setup (Helium, 12 Aug–10 Sep)</span><span><i style="background:#eb6834"></i>New manager's setup (Edamame TOF, 16 Sep–10 Oct)</span></div>
+  <div class="grid2">
+    <div class="card"><h3>Click-through rate</h3><p class="sub">&nbsp;</p><svg viewBox="0 0 300 74" width="300" height="74" role="img" aria-label="Click-through rate" style="max-width:100%;height:auto" xmlns="http://www.w3.org/2000/svg"><line x1="70" y1="0" x2="70" y2="70" stroke="#ece6da"/><text x="62" y="17" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">Previous</text><path d="M70,2 H234.0 Q238.0,2 238.0,6 V20 Q238.0,24 234.0,24 H70 Z" fill="#2a78d6"/><text x="244.0" y="17" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">2.31%</text><text x="62" y="51" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">New</text><path d="M70,36 H136.54545454545456 Q140.54545454545456,36 140.54545454545456,40 V54 Q140.54545454545456,58 136.54545454545456,58 H70 Z" fill="#eb6834"/><text x="146.54545454545456" y="51" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">0.97%</text></svg></div><div class="card"><h3>Visitors who add to cart</h3><p class="sub">&nbsp;</p><svg viewBox="0 0 300 74" width="300" height="74" role="img" aria-label="Visitors who add to cart" style="max-width:100%;height:auto" xmlns="http://www.w3.org/2000/svg"><line x1="70" y1="0" x2="70" y2="70" stroke="#ece6da"/><text x="62" y="17" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">Previous</text><path d="M70,2 H233.99999999999997 Q237.99999999999997,2 237.99999999999997,6 V20 Q237.99999999999997,24 233.99999999999997,24 H70 Z" fill="#2a78d6"/><text x="243.99999999999997" y="17" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">13.6%</text><text x="62" y="51" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">New</text><path d="M70,36 H161.11764705882354 Q165.11764705882354,36 165.11764705882354,40 V54 Q165.11764705882354,58 161.11764705882354,58 H70 Z" fill="#eb6834"/><text x="171.11764705882354" y="51" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">7.7%</text></svg></div><div class="card"><h3>Cost per purchase (lower is better)</h3><p class="sub">&nbsp;</p><svg viewBox="0 0 300 74" width="300" height="74" role="img" aria-label="Cost per purchase (lower is better)" style="max-width:100%;height:auto" xmlns="http://www.w3.org/2000/svg"><line x1="70" y1="0" x2="70" y2="70" stroke="#ece6da"/><text x="62" y="17" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">Previous</text><path d="M70,2 H162.8787185354691 Q166.8787185354691,2 166.8787185354691,6 V20 Q166.8787185354691,24 162.8787185354691,24 H70 Z" fill="#2a78d6"/><text x="172.8787185354691" y="17" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">₹1,008</text><text x="62" y="51" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">New</text><path d="M70,36 H234.0 Q238.0,36 238.0,40 V54 Q238.0,58 234.0,58 H70 Z" fill="#eb6834"/><text x="244.0" y="51" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">₹1,748</text></svg></div><div class="card"><h3>ROAS (higher is better)</h3><p class="sub">&nbsp;</p><svg viewBox="0 0 300 74" width="300" height="74" role="img" aria-label="ROAS (higher is better)" style="max-width:100%;height:auto" xmlns="http://www.w3.org/2000/svg"><line x1="70" y1="0" x2="70" y2="70" stroke="#ece6da"/><text x="62" y="17" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">Previous</text><path d="M70,2 H234.0 Q238.0,2 238.0,6 V20 Q238.0,24 234.0,24 H70 Z" fill="#2a78d6"/><text x="244.0" y="17" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">0.67</text><text x="62" y="51" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">New</text><path d="M70,36 H158.77611940298505 Q162.77611940298505,36 162.77611940298505,40 V54 Q162.77611940298505,58 158.77611940298505,58 H70 Z" fill="#eb6834"/><text x="168.77611940298505" y="51" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">0.37</text></svg></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>Weekly ROAS of the new setup</h3>
+      <p class="sub">Spend rose 60% after week 1. Sales did not follow. *4 days only</p>
+      <svg viewBox="0 0 300 210" width="300" height="210" role="img" aria-label="Weekly ROAS of the new setup" style="max-width:100%;height:auto" xmlns="http://www.w3.org/2000/svg"><line x1="30" y1="170.0" x2="294" y2="170.0" stroke="#ece6da"/><text x="24" y="174.0" font-size="9.5" fill="#9A9081" text-anchor="end" font-weight="400">0.0</text><line x1="30" y1="131.0" x2="294" y2="131.0" stroke="#ece6da"/><text x="24" y="135.0" font-size="9.5" fill="#9A9081" text-anchor="end" font-weight="400">0.5</text><line x1="30" y1="92.0" x2="294" y2="92.0" stroke="#ece6da"/><text x="24" y="96.0" font-size="9.5" fill="#9A9081" text-anchor="end" font-weight="400">1.0</text><line x1="30" y1="53.0" x2="294" y2="53.0" stroke="#ece6da"/><text x="24" y="57.0" font-size="9.5" fill="#9A9081" text-anchor="end" font-weight="400">1.5</text><line x1="30" y1="14.0" x2="294" y2="14.0" stroke="#ece6da"/><text x="24" y="18.0" font-size="9.5" fill="#9A9081" text-anchor="end" font-weight="400">2.0</text><rect x="30" y="14.0" width="264" height="23.4" fill="#e9f1e6"/><text x="290" y="27.0" font-size="9.5" fill="#3F6B4F" text-anchor="end" font-weight="600">Likely break-even zone</text><line x1="30" y1="117.7" x2="294" y2="117.7" stroke="#2a78d6" stroke-width="2"/><text x="290" y="112.74" font-size="9.5" fill="#1A1714" text-anchor="end" font-weight="600">Previous setup 0.67</text><path d="M51.0,170 V137.34 Q51.0,133.34 55.0,133.34 H71.0 Q75.0,133.34 75.0,137.34 V170 Z" fill="#eb6834"/><text x="63.0" y="128.34" font-size="11" fill="#1A1714" text-anchor="middle" font-weight="700">0.47</text><text x="63.0" y="185" font-size="9" fill="#6E665A" text-anchor="middle" font-weight="400">16–22 Sep</text><path d="M117.0,170 V144.36 Q117.0,140.36 121.0,140.36 H137.0 Q141.0,140.36 141.0,144.36 V170 Z" fill="#eb6834"/><text x="129.0" y="135.36" font-size="11" fill="#1A1714" text-anchor="middle" font-weight="700">0.38</text><text x="129.0" y="185" font-size="9" fill="#6E665A" text-anchor="middle" font-weight="400">23–29 Sep</text><path d="M183.0,170 V140.46 Q183.0,136.46 187.0,136.46 H203.0 Q207.0,136.46 207.0,140.46 V170 Z" fill="#eb6834"/><text x="195.0" y="131.46" font-size="11" fill="#1A1714" text-anchor="middle" font-weight="700">0.43</text><text x="195.0" y="185" font-size="9" fill="#6E665A" text-anchor="middle" font-weight="400">30 Sep–6 Oct</text><path d="M249.0,170 V165.42 Q249.0,161.42 253.0,161.42 H269.0 Q273.0,161.42 273.0,165.42 V170 Z" fill="#eb6834"/><text x="261.0" y="156.42" font-size="11" fill="#1A1714" text-anchor="middle" font-weight="700">0.11</text><text x="261.0" y="185" font-size="9" fill="#6E665A" text-anchor="middle" font-weight="400">7–10 Oct*</text></svg>
+    </div>
+    <div class="card">
+      <h3>Targeting: then vs now</h3>
+      <p class="sub">The campaign is named "Broad targeting"</p>
+      <table class="plan">
+        <tr><th></th><th>Previous</th><th>New</th></tr>
+        <tr><td><b>Area</b></td><td>All India</td><td>8 metro cities</td></tr>
+        <tr><td><b>Automatic audience</b></td><td>On</td><td style="color:#C2492E;font-weight:700">Off</td></tr>
+        <tr><td><b>Age</b></td><td>18–65</td><td>18–55</td></tr>
+        <tr><td><b>Excludes</b></td><td>None</td><td>IG engagers, 60 days</td></tr>
+      </table>
+      <p class="note">Meta's own recommendation on this ad set: turn automatic (Advantage+) audience on, for about 7% lower cost per purchase.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Caveat: the previous setup had only 14 purchases and different creatives, so treat it as a direction, not proof.</span><span>3 / 5</span></div>
+</section>
+
+<!-- PAGE 4: funnel + tracking + manager -->
+<section class="page">
+  <div class="eyebrow">Where the money leaks</div>
+  <h2>The funnel, and what Meta cannot see</h2>
+  <p class="lede">Two leaks on our side of the click, plus a tracking gap that makes results look worse and gives learning less to work with.</p>
+  <div class="card">
+    <h3>From click to purchase (new setup, 16 Sep–10 Oct)</h3>
+    <p class="sub">Bar length = number of people at each step</p>
+    <svg viewBox="0 0 654 200" width="654" height="200" role="img" aria-label="Purchase funnel for the new setup" style="max-width:100%;height:auto" xmlns="http://www.w3.org/2000/svg"><text x="130" y="16" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">Link clicks</text><path d="M140,0 H426.0 Q430.0,0 430.0,4 V20 Q430.0,24 426.0,24 H140 Z" fill="#eb6834"/><text x="438.0" y="16" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">1,185</text><text x="130" y="56" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">Landing page loaded</text><path d="M140,40 H297.76371308016877 Q301.76371308016877,40 301.76371308016877,44 V60 Q301.76371308016877,64 297.76371308016877,64 H140 Z" fill="#eb6834"/><text x="309.76371308016877" y="56" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">661</text><text x="480" y="50" font-size="11" fill="#6E665A" text-anchor="start" font-weight="400">56% of clicks</text><text x="480" y="64" font-size="10.5" fill="#C2492E" text-anchor="start" font-weight="700">▲ 44% drop before page loads</text><text x="130" y="96" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">Added to cart</text><path d="M140,80 H148.48101265822785 Q152.48101265822785,80 152.48101265822785,84 V100 Q152.48101265822785,104 148.48101265822785,104 H140 Z" fill="#eb6834"/><text x="160.48101265822785" y="96" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">51</text><text x="480" y="96" font-size="11" fill="#6E665A" text-anchor="start" font-weight="400">7.7% of visitors</text><text x="130" y="136" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">Started checkout</text><path d="M140,120 H147.0126582278481 Q151.0126582278481,120 151.0126582278481,124 V140 Q151.0126582278481,144 147.0126582278481,144 H140 Z" fill="#eb6834"/><text x="159.0126582278481" y="136" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">45</text><text x="480" y="136" font-size="11" fill="#6E665A" text-anchor="start" font-weight="400">88% of carts</text><text x="130" y="176" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">Purchased</text><path d="M140,160 H141.38396624472574 Q145.38396624472574,160 145.38396624472574,164 V180 Q145.38396624472574,184 141.38396624472574,184 H140 Z" fill="#eb6834"/><text x="153.38396624472574" y="176" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">22</text><text x="480" y="170" font-size="11" fill="#6E665A" text-anchor="start" font-weight="400">49% of checkouts</text><text x="480" y="184" font-size="10.5" fill="#C2492E" text-anchor="start" font-weight="700">▲ Half abandon at checkout</text></svg>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <h3>Some sales are not credited to ads</h3>
+      <p class="sub">Purchase events on the site vs those Meta matched to an ad</p>
+      <svg viewBox="0 0 300 74" width="300" height="74" role="img" aria-label="Pixel purchases vs credited" style="max-width:100%;height:auto" xmlns="http://www.w3.org/2000/svg"><line x1="150" y1="0" x2="150" y2="70" stroke="#ece6da"/><text x="142" y="17" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">Purchases the pixel saw</text><path d="M150,2 H234.0 Q238.0,2 238.0,6 V20 Q238.0,24 234.0,24 H150 Z" fill="#2a78d6"/><text x="244.0" y="17" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">34+</text><text x="142" y="51" font-size="11.5" fill="#1A1714" text-anchor="end" font-weight="500">Purchases credited to ads</text><path d="M150,36 H202.94117647058823 Q206.94117647058823,36 206.94117647058823,40 V54 Q206.94117647058823,58 202.94117647058823,58 H150 Z" fill="#eb6834"/><text x="212.94117647058823" y="51" font-size="12" fill="#1A1714" text-anchor="start" font-weight="700">22</text></svg>
+      <p class="note">Part of the gap is organic or WhatsApp sales. Part is probably ad sales Meta cannot match, because Purchase is sent <b>without the click ID</b>. Meta says fixing this typically doubles extra conversions reported.</p>
+    </div>
+    <div class="card">
+      <h3>Signal quality by event (out of 10)</h3>
+      <p class="sub">How well Meta can match each event to a person</p>
+      <svg viewBox="0 0 300 168" width="300" height="168" role="img" aria-label="Meta event match quality by event" style="max-width:100%;height:auto" xmlns="http://www.w3.org/2000/svg"><line x1="108" y1="0" x2="108" y2="162" stroke="#ece6da"/><text x="100" y="13" font-size="11" fill="#1A1714" text-anchor="end" font-weight="500">Page view</text><path d="M108,0 H181.0 Q185.0,0 185.0,4 V14 Q185.0,18 181.0,18 H108 Z" fill="#2a78d6"/><text x="191.0" y="13" font-size="11" fill="#1A1714" text-anchor="start" font-weight="700">5.5/10</text><text x="100" y="41" font-size="11" fill="#1A1714" text-anchor="end" font-weight="500">View product</text><path d="M108,28 H181.0 Q185.0,28 185.0,32 V42 Q185.0,46 181.0,46 H108 Z" fill="#2a78d6"/><text x="191.0" y="41" font-size="11" fill="#1A1714" text-anchor="start" font-weight="700">5.5/10</text><text x="100" y="69" font-size="11" fill="#1A1714" text-anchor="end" font-weight="500">Add to cart</text><path d="M108,56 H200.6 Q204.6,56 204.6,60 V70 Q204.6,74 200.6,74 H108 Z" fill="#2a78d6"/><text x="210.6" y="69" font-size="11" fill="#1A1714" text-anchor="start" font-weight="700">6.9/10</text><text x="100" y="97" font-size="11" fill="#1A1714" text-anchor="end" font-weight="500">Checkout started</text><path d="M108,84 H197.8 Q201.8,84 201.8,88 V98 Q201.8,102 197.8,102 H108 Z" fill="#2a78d6"/><text x="207.8" y="97" font-size="11" fill="#1A1714" text-anchor="start" font-weight="700">6.7/10</text><text x="100" y="125" font-size="11" fill="#1A1714" text-anchor="end" font-weight="500">Payment info</text><path d="M108,112 H234.2 Q238.2,112 238.2,116 V126 Q238.2,130 234.2,130 H108 Z" fill="#2a78d6"/><text x="244.2" y="125" font-size="11" fill="#1A1714" text-anchor="start" font-weight="700">9.3/10</text><text x="100" y="153" font-size="11" fill="#1A1714" text-anchor="end" font-weight="700">Purchase</text><rect x="108" y="140" width="140" height="18" fill="none" stroke="#C2492E" stroke-width="1.5" rx="4"/><text x="178.0" y="153" font-size="10.5" fill="#C2492E" text-anchor="middle" font-weight="700">Not reported</text></svg>
+      <p class="note">The event that matters most, <b>Purchase</b>, has no score at all.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>So, is it the new manager?</h3>
+    <p class="sub">Partly. Here is the split.</p>
+    <div class="split">
+      <div class="col"><h4><span class="badge" style="background:#3F6B4F">✓</span>Not their fault</h4><ul>
+        <li><b>Budget vs cost:</b> any manager would sit in learning at ₹1,850/day.</li>
+        <li><b>ROAS was already weak</b> before they joined (0.67).</li>
+        <li><b>Festive season:</b> ad costs are high (₹229 per 1,000 views).</li>
+        <li><b>Short time:</b> 3.5 weeks and ₹38K is a small sample.</li></ul></div>
+      <div class="col"><h4><span class="badge" style="background:#C2492E">!</span>Their part</h4><ul>
+        <li><b>~9 resets in 25 days</b>: no week ever ran clean.</li>
+        <li><b>Narrowed a "broad" campaign</b>: automatic audience off.</li>
+        <li><b>Creatives swapped in the live ad set</b> instead of tested separately; best ad paused for 2 days.</li>
+        <li><b>New ₹300/day ad set</b> is iOS-only and optimises for add to cart, so it can never learn.</li></ul></div>
+    </div>
+  </div>
+  <div class="foot"><span>Pixel count from Meta Events Manager, 13 Sep–10 Oct. Shopify cross-check was not run (no production access in this review).</span><span>4 / 5</span></div>
+</section>
+
+<!-- PAGE 5: when ROAS + plan -->
+<section class="page">
+  <div class="eyebrow">Question 3</div>
+  <h2>When can we see real return on ad spend?</h2>
+  <p class="lede">Not on the current setup. Exiting learning usually trims cost per purchase by 20 to 40%. We need roughly 5x. If the changes below start this week:</p>
+  <div class="card">
+    <div class="road"><div class="bar"></div>
+      <div class="m"><div class="dot"></div><div class="d">By ~17 Oct</div><div class="x">First clean 7 days. Cost per purchase should head back toward ₹1,000.</div></div>
+      <div class="m"><div class="dot"></div><div class="d">Late Oct to early Nov (Diwali)</div><div class="x">2 to 3 stable weeks. Prospecting ROAS ~0.65+, retargeting clearly above 1.</div></div>
+      <div class="m"><div class="dot"></div><div class="d">Mid to late Nov</div><div class="x">Decision point. Still above ₹1,200 per purchase after 4 clean weeks means the ad or offer is the problem, not learning.</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>The action plan, in order</h3>
+    <p class="sub">Highest effect first</p>
+    <table class="plan">
+      <tr><th style="width:24px">#</th><th>Do this</th><th>Why</th><th style="width:70px">Effect</th><th style="width:70px">Who</th></tr>
+      <tr><td><b>1</b></td><td><b>Freeze the main ad set for 7 days</b>; budget moves ±20% max, every 3–4 days</td><td>Gives learning its first clean week</td><td><span class="chip" style="background:#e9f1e6;color:#3F6B4F">High</span></td><td>Manager</td></tr>
+      <tr><td><b>2</b></td><td><b>Add a retargeting ad set</b> (₹300–500/day) using the cart, checkout and visitor audiences already built</td><td>45 checkouts started, 22 bought. These audiences exist but no ad uses them.</td><td><span class="chip" style="background:#e9f1e6;color:#3F6B4F">High</span></td><td>Manager</td></tr>
+      <tr><td><b>3</b></td><td><b>Fix purchase tracking</b>: Conversions API via the Shopify Meta app, send click ID and contact on Purchase, check COD orders fire it</td><td>Credits sales we are missing and feeds learning more signal</td><td><span class="chip" style="background:#e9f1e6;color:#3F6B4F">High</span></td><td>Us + manager</td></tr>
+      <tr><td><b>4</b></td><td><b>Raise order value</b> with bundles and combos aimed at ₹900+</td><td>Average order ~₹650, just over the ₹599 free-shipping line. ROAS rises in step.</td><td><span class="chip" style="background:#e9f1e6;color:#3F6B4F">High</span></td><td>Us</td></tr>
+      <tr><td><b>5</b></td><td><b>Test truly broad</b>: all-India, automatic audience on, as its own ad set</td><td>The old broad setup beat the narrow one on every number</td><td><span class="chip" style="background:#FAF1DD;color:#C98A1E">Medium</span></td><td>Manager</td></tr>
+      <tr><td><b>6</b></td><td><b>Test creatives in a separate ad set</b>, then move winners in</td><td>Stops creative swaps from resetting the main ad set</td><td><span class="chip" style="background:#FAF1DD;color:#C98A1E">Medium</span></td><td>Manager</td></tr>
+      <tr><td><b>7</b></td><td><b>Relabel or fold the "first club" ad set</b>; drop iOS-only unless there is a reason</td><td>At ₹300/day on add to cart it cannot learn</td><td><span class="chip" style="background:#f0eadf;color:#6E665A">Low</span></td><td>Manager</td></tr>
+    </table>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>Ask the manager</h3>
+      <ol class="qs">
+        <li>Why is automatic audience off in a campaign named "Broad targeting"?</li>
+        <li>Why is the "first club" ad set iOS-only and on add to cart?</li>
+        <li>What cost per purchase and ROAS are you aiming for, and by when?</li>
+        <li>Can we agree on 7 days with no edits, and test creatives separately?</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h3>Not covered in this report</h3>
+      <ul class="col" style="list-style:none;padding:0;margin:0">
+        <li style="font-size:12px;color:#6E665A;padding:6px 0;border-top:1px solid #EFE8DB"><b style="color:#1A1714">PROMUNCH Protein Snacks ad account</b>: Meta has not opened it to the connector yet.</li>
+        <li style="font-size:12px;color:#6E665A;padding:6px 0;border-top:1px solid #EFE8DB"><b style="color:#1A1714">Real Shopify revenue</b>: comparing it with spend gives true ROAS. Needs production read access.</li>
+        <li style="font-size:12px;color:#6E665A;padding:6px 0;border-top:1px solid #EFE8DB"><b style="color:#1A1714">Gross margin</b>: needed to set an exact break-even ROAS and target cost per purchase.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Nothing in the ad account was changed during this review.</span><span>5 / 5</span></div>
+</section>
+</body></html>
