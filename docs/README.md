@@ -94,6 +94,7 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 
 | Doc | What it answers |
 |---|---|
+| [2026-10-10 Meta ads learning-phase analysis](audits/2026-10-10-meta-ads-learning-phase/REPORT.md) | Why the new sales campaign is stuck in Learning (budget vs cost per purchase, ~9 resets in 25 days, narrowed targeting), new manager vs previous setup, realistic ROAS timeline, ranked fixes (Vippy Soya ad account, Meta-attributed numbers) |
 | [2026-10-09 Inbox fidelity audit](audits/2026-10-09-inbox-fidelity.md) | Live chats prototype vs build: missing third (customer) panel, channel switch, density; what the three-panel rebuild shipped and what is left |
 | [2026-10-08 Redesign fidelity audit](audits/2026-10-08-redesign-fidelity.md) | Approved prototype (round 8) vs `redesign/app-v2` build: why it feels different, ranked fix list (UI-only vs needs-backend), bugs found, functional verdict |
 | [2026-10-09 B2B + Deals fidelity audit](audits/2026-10-09-b2b-deals-fidelity.md) | B2B leads and Deals vs prototype `b2b.html`: screen-by-screen gaps, click-count friction (408 drafts had no review queue), what the rebuild covers, what still needs backend |
