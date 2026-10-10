@@ -113,3 +113,24 @@ export async function invokeOrmTick(source: string): Promise<{ ok: boolean; stat
     return { ok: false, status: 502, data: { error: e instanceof Error ? e.message : String(e) } };
   }
 }
+
+/**
+ * Starts an AI visibility run (edge `ai-visibility-tick`, requireInternal,
+ * service-role bearer). The edge takes the run lock and answers at once (409
+ * {busy} when a run is already going); the questions run in the background.
+ * Never throws.
+ */
+export async function invokeAiVisibilityTick(by: string | null): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-visibility-tick`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ trigger: "manual", by }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return { ok: res.ok && data.ok !== false, status: res.status, data };
+  } catch (e) {
+    return { ok: false, status: 502, data: { error: e instanceof Error ? e.message : String(e) } };
+  }
+}

@@ -256,7 +256,7 @@ export const NAV: NavSection[] = [
       },
       {
         // Reviews, comments and mentions across the web (ORM feed). One page,
-        // its Feed / Overview / Settings tabs are ?tab= section tabs.
+        // its Feed / Overview / AI visibility / Settings tabs are ?tab= section tabs.
         area: "Reputation",
         label: "Reputation",
         href: "/dashboard/reputation",
@@ -265,6 +265,8 @@ export const NAV: NavSection[] = [
         pages: [
           { label: "Feed", href: "/dashboard/reputation", also: ["/dashboard/reputation?tab=feed"] },
           { label: "Overview", href: "/dashboard/reputation?tab=overview" },
+          // Does AI name PROMUNCH when shoppers ask? (ai-visibility-tick)
+          { label: "AI visibility", href: "/dashboard/reputation?tab=ai" },
           { label: "Settings", href: "/dashboard/reputation?tab=settings" },
         ],
       },

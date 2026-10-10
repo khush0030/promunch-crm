@@ -110,6 +110,11 @@ describe("reputation", () => {
     expect(canCallApi(marketer, "/api/orm/mentions", "GET")).toBe(false);
     expect(canOpenPage(marketer, "/dashboard/reputation", null)).toBe(false);
     expect(apiRule("/api/orm/sources/judgeme/run")?.modules).toEqual(["reputation"]);
+    // AI visibility tab + routes ride on the same area
+    expect(canOpenHref(rep, "/dashboard/reputation?tab=ai")).toBe(true);
+    expect(canCallApi(rep, "/api/orm/ai-visibility", "GET")).toBe(true);
+    expect(canCallApi(rep, "/api/orm/ai-visibility/run", "POST")).toBe(true);
+    expect(canCallApi(marketer, "/api/orm/ai-visibility", "GET")).toBe(false);
     expect(apiRule("/api/ormX")).toBeNull();
   });
 });

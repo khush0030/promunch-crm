@@ -219,3 +219,19 @@ Apply the standalone migration AFTER deploying `voice-tick`.
 `wa-journey-tick` no longer handles voice rows. Both passes ship behind flags that
 default OFF (`voice_call_enabled`, `cod_voice_enabled`), so the job is a no-op
 until they are flipped. See [docs/whatsapp/VOICE_AGENT_SETUP.md](../whatsapp/VOICE_AGENT_SETUP.md).
+
+## 2026-10-10 update (AI visibility tracker)
+
+One new weekly job, scheduled standalone by
+`promunch-email-agent/supabase/migrations/20261010130100_ai_visibility_tick_cron.sql`
+(same inline Vault `service_role_key` pattern as `orm-tick`). Apply it AFTER
+`20261010130000_ai_visibility.sql` and AFTER `supabase functions deploy ai-visibility-tick`.
+
+| Job | Schedule | Target |
+|---|---|---|
+| `ai-visibility-tick` | `35 3 * * 1` (Mon 03:35 UTC, 09:05 IST) | Edge `ai-visibility-tick` with body `{"trigger":"cron"}`. Takes the run lock (one `ai_visibility_runs` row with status `running`), answers at once, then asks every active `ai_visibility_prompts` question through OpenAI with web search in the background (max `AI_VISIBILITY_MAX_PROMPTS`, default 25) and self-chains if the edge wall clock runs short. About $0.30 to $0.60 of OpenAI usage per run. Messages nobody. |
+
+Offset to `:35` to stay clear of `wa-weekly-summary` (Mon 03:30) and the `:X0`
+stampede. Admins can also start a run from Reputation → AI visibility → Run now
+(`POST /api/orm/ai-visibility/run`). Spec:
+[docs/plans/2026-10-10-ai-visibility-phase2/AI_VISIBILITY_TRACKER.md](../plans/2026-10-10-ai-visibility-phase2/AI_VISIBILITY_TRACKER.md).

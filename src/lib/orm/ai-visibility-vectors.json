@@ -1,0 +1,449 @@
+{
+  "_note": "Shared by src/lib/orm/ai-visibility.test.ts (vitest) and promunch-email-agent/supabase/functions/_shared/ai-visibility_test.ts (deno). Change both copies of the matching code and this file together.",
+  "brands": [
+    {
+      "name": "PROMUNCH",
+      "aliases": [
+        "pro munch",
+        "trypromunch"
+      ]
+    },
+    {
+      "name": "MuscleBlaze",
+      "aliases": [
+        "muscle blaze"
+      ]
+    },
+    {
+      "name": "RiteBite",
+      "aliases": [
+        "rite bite"
+      ]
+    },
+    {
+      "name": "Yoga Bar",
+      "aliases": [
+        "yoga bar"
+      ]
+    },
+    {
+      "name": "The Whole Truth",
+      "aliases": [
+        "the whole truth",
+        "whole truth"
+      ]
+    },
+    {
+      "name": "OZiva",
+      "aliases": [
+        "oziva"
+      ]
+    },
+    {
+      "name": "Unived",
+      "aliases": [
+        "unived"
+      ]
+    },
+    {
+      "name": "Happilo",
+      "aliases": [
+        "happilo"
+      ]
+    },
+    {
+      "name": "Farmley",
+      "aliases": [
+        "farmley"
+      ]
+    },
+    {
+      "name": "Optimum Nutrition",
+      "aliases": [
+        "optimum nutrition"
+      ]
+    },
+    {
+      "name": "Urban Platter",
+      "aliases": [
+        "urban platter"
+      ]
+    },
+    {
+      "name": "Nutraj",
+      "aliases": [
+        "nutraj"
+      ]
+    },
+    {
+      "name": "Pintola",
+      "aliases": [
+        "pintola"
+      ]
+    },
+    {
+      "name": "Slurrp Farm",
+      "aliases": [
+        "slurrp farm",
+        "slurp farm"
+      ]
+    },
+    {
+      "name": "Epigamia",
+      "aliases": [
+        "epigamia"
+      ]
+    },
+    {
+      "name": "Power Gummies",
+      "aliases": [
+        "power gummies"
+      ]
+    },
+    {
+      "name": "GNC",
+      "aliases": [
+        "gnc"
+      ]
+    },
+    {
+      "name": "Dimension",
+      "aliases": [
+        "Dimension"
+      ],
+      "caseSensitive": true
+    },
+    {
+      "name": "Nutrabay",
+      "aliases": [
+        "nutrabay"
+      ]
+    },
+    {
+      "name": "Alpino",
+      "aliases": [
+        "alpino"
+      ]
+    },
+    {
+      "name": "Haldiram's",
+      "aliases": [
+        "haldiram",
+        "haldirams"
+      ]
+    },
+    {
+      "name": "Bikaji",
+      "aliases": [
+        "bikaji"
+      ]
+    },
+    {
+      "name": "Bikano",
+      "aliases": [
+        "bikano"
+      ]
+    },
+    {
+      "name": "Too Yumm",
+      "aliases": [
+        "too yumm"
+      ]
+    },
+    {
+      "name": "Open Secret",
+      "aliases": [
+        "Open Secret",
+        "OpenSecret"
+      ],
+      "caseSensitive": true
+    },
+    {
+      "name": "Snackible",
+      "aliases": [
+        "snackible"
+      ]
+    },
+    {
+      "name": "Soulfull",
+      "aliases": [
+        "soulfull"
+      ]
+    },
+    {
+      "name": "True Elements",
+      "aliases": [
+        "true elements"
+      ]
+    },
+    {
+      "name": "Wingreens",
+      "aliases": [
+        "wingreens"
+      ]
+    },
+    {
+      "name": "Phab",
+      "aliases": [
+        "phab"
+      ]
+    },
+    {
+      "name": "The Eat Better Co",
+      "aliases": [
+        "eat better co",
+        "eat better company"
+      ]
+    },
+    {
+      "name": "Healthy Master",
+      "aliases": [
+        "healthy master"
+      ]
+    },
+    {
+      "name": "Mr. Makhana",
+      "aliases": [
+        "mr makhana"
+      ]
+    },
+    {
+      "name": "SuperYou",
+      "aliases": [
+        "super you"
+      ]
+    },
+    {
+      "name": "Amul",
+      "aliases": [
+        "amul"
+      ]
+    },
+    {
+      "name": "Cornitos",
+      "aliases": [
+        "cornitos"
+      ]
+    },
+    {
+      "name": "Myprotein",
+      "aliases": [
+        "myprotein",
+        "my protein"
+      ]
+    }
+  ],
+  "match": [
+    {
+      "name": "ours first",
+      "text": "PROMUNCH Roasted Edamame is a good pick, and MuscleBlaze sells protein bars.",
+      "expected": {
+        "brands": [
+          "PROMUNCH",
+          "MuscleBlaze"
+        ],
+        "promunch_named": true,
+        "promunch_rank": 1
+      }
+    },
+    {
+      "name": "ours third, spaced name and domain",
+      "text": "Try Yoga Bar, The Whole Truth and Pro Munch (promunch.in).",
+      "expected": {
+        "brands": [
+          "Yoga Bar",
+          "The Whole Truth",
+          "PROMUNCH"
+        ],
+        "promunch_named": true,
+        "promunch_rank": 3
+      }
+    },
+    {
+      "name": "hyphenated",
+      "text": "Pro-Munch soya sticks are crunchy.",
+      "expected": {
+        "brands": [
+          "PROMUNCH"
+        ],
+        "promunch_named": true,
+        "promunch_rank": 1
+      }
+    },
+    {
+      "name": "store domain only",
+      "text": "Order at trypromunch.in for the full range.",
+      "expected": {
+        "brands": [
+          "PROMUNCH"
+        ],
+        "promunch_named": true,
+        "promunch_rank": 1
+      }
+    },
+    {
+      "name": "inside a longer word is not us",
+      "text": "These promunchies are tasty and so are munchies from Farmley.",
+      "expected": {
+        "brands": [
+          "Farmley"
+        ],
+        "promunch_named": false,
+        "promunch_rank": null
+      }
+    },
+    {
+      "name": "markdown link target and bare URL are not mentions",
+      "text": "[Buy here](https://www.amazon.in/promunch-roasted/dp/B0X) or see https://www.muscleblaze.com/bars for more.",
+      "expected": {
+        "brands": [],
+        "promunch_named": false,
+        "promunch_rank": null
+      }
+    },
+    {
+      "name": "curly apostrophe",
+      "text": "Haldiram’s namkeen and Bikaji bhujia are everywhere.",
+      "expected": {
+        "brands": [
+          "Haldiram's",
+          "Bikaji"
+        ],
+        "promunch_named": false,
+        "promunch_rank": null
+      }
+    },
+    {
+      "name": "common words stay out (case sensitive brands)",
+      "text": "It is an open secret among gym goers, and adds a new dimension to snacking.",
+      "expected": {
+        "brands": [],
+        "promunch_named": false,
+        "promunch_rank": null
+      }
+    },
+    {
+      "name": "case sensitive brands when capitalised",
+      "text": "Open Secret cookies and Dimension protein bars.",
+      "expected": {
+        "brands": [
+          "Open Secret",
+          "Dimension"
+        ],
+        "promunch_named": false,
+        "promunch_rank": null
+      }
+    },
+    {
+      "name": "each brand once, ordered by first mention",
+      "text": "RiteBite Max Protein, then MuscleBlaze, then RiteBite again.",
+      "expected": {
+        "brands": [
+          "RiteBite",
+          "MuscleBlaze"
+        ],
+        "promunch_named": false,
+        "promunch_rank": null
+      }
+    },
+    {
+      "name": "joined and misspelt forms",
+      "text": "yogabar muesli, Slurp Farm millet puffs and OZIVA.",
+      "expected": {
+        "brands": [
+          "Yoga Bar",
+          "Slurrp Farm",
+          "OZiva"
+        ],
+        "promunch_named": false,
+        "promunch_rank": null
+      }
+    },
+    {
+      "name": "markdown bold",
+      "text": "1. **PROMUNCH** Roasted Edamame\n2. **Happilo** trail mix",
+      "expected": {
+        "brands": [
+          "PROMUNCH",
+          "Happilo"
+        ],
+        "promunch_named": true,
+        "promunch_rank": 1
+      }
+    },
+    {
+      "name": "dotted and spaced names",
+      "text": "Mr. Makhana, Super You wafers and the GNC store.",
+      "expected": {
+        "brands": [
+          "Mr. Makhana",
+          "SuperYou",
+          "GNC"
+        ],
+        "promunch_named": false,
+        "promunch_rank": null
+      }
+    },
+    {
+      "name": "nothing named",
+      "text": "Look for roasted chana and makhana from local stores.",
+      "expected": {
+        "brands": [],
+        "promunch_named": false,
+        "promunch_rank": null
+      }
+    },
+    {
+      "name": "empty",
+      "text": "",
+      "expected": {
+        "brands": [],
+        "promunch_named": false,
+        "promunch_rank": null
+      }
+    }
+  ],
+  "counts": [
+    {
+      "name": "mixed run",
+      "rows": [
+        {
+          "kind": "category",
+          "error": null,
+          "answer": "PROMUNCH and Farmley",
+          "promunch_named": true
+        },
+        {
+          "kind": "category",
+          "error": null,
+          "answer": "Farmley",
+          "promunch_named": false
+        },
+        {
+          "kind": "category",
+          "error": "OpenAI HTTP 400: web search not supported",
+          "answer": null,
+          "promunch_named": false
+        },
+        {
+          "kind": "brand",
+          "error": null,
+          "answer": "PROMUNCH sells soya snacks",
+          "promunch_named": true
+        },
+        {
+          "kind": "category",
+          "error": null,
+          "answer": "   ",
+          "promunch_named": false
+        }
+      ],
+      "expected": {
+        "answered": 3,
+        "errors": 2,
+        "category_answered": 2,
+        "named": 1
+      }
+    }
+  ]
+}

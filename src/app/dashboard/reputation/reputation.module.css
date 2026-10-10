@@ -371,3 +371,37 @@
 
 /* Phones: the fixed bottom tab bar (~72px, redesign.css) would cover this bar. */
 @media (max-width: 760px) { .saveBar { bottom: calc(72px + env(safe-area-inset-bottom)); } }
+
+/* ---- AI visibility ---- */
+.aiRunning {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; padding: 0 0 14px;
+  border-bottom: 1px solid var(--pm-border); font-size: 15.5px; color: var(--pm-ink2); line-height: 1.5;
+}
+.aiRunning b { color: var(--pm-ink); }
+.aiRunRow { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; margin-top: 10px; }
+.aiRunRow :global(.pm-btn) { white-space: nowrap; flex: none; }
+.aiRunRow .err { margin: 0; flex: 1 1 100%; }
+.aiList { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--pm-border); }
+.aiList > li { padding: 14px 0; border-bottom: 1px solid var(--pm-line); min-width: 0; }
+.aiRowTop { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; min-width: 0; }
+.aiTopic { font-size: 16px; color: var(--pm-ink); overflow-wrap: anywhere; }
+.aiStatus { margin-left: auto; }
+.aiBrands { margin: 6px 0 0; font-size: 15px; color: var(--pm-ink2); line-height: 1.5; overflow-wrap: anywhere; }
+.aiBrands:empty { display: none; }
+.aiToggle { margin-top: 6px; font-size: 15px; }
+.aiAnswer { margin-top: 12px; padding-left: 14px; border-left: 2px solid var(--pm-line); display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.aiQ { margin: 0; font-size: 15px; color: var(--pm-ink2); line-height: 1.5; overflow-wrap: anywhere; }
+.aiCites { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 1.45; }
+.aiCites a { color: var(--pm-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.aiBars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.aiBars li { display: grid; grid-template-columns: 170px minmax(0, 1fr) 76px; gap: 12px; align-items: center; font-size: 15px; }
+.aiBrand { font-weight: 600; color: var(--pm-ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aiOurs .aiBrand { color: var(--pm-ink); font-weight: 700; }
+.aiCount { text-align: right; color: var(--pm-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.aiFoot { margin: 28px 0 0; padding-top: 14px; border-top: 1px solid var(--pm-border); font-size: 15px; color: var(--pm-ink2); line-height: 1.5; }
+
+@media (max-width: 760px) {
+  .aiBars li { grid-template-columns: 104px minmax(0, 1fr) 64px; gap: 8px; }
+  .aiStatus { margin-left: 0; flex: 1 1 100%; }
+  .aiAnswer { padding-left: 10px; }
+}

@@ -126,7 +126,8 @@ describe("shell nav", () => {
     expect(page("/dashboard/sales/repeat")).toBe("Repeat & cohorts");
     expect(page("/dashboard/sales/products")).toBe("What people buy");
     expect(sectionTabs(at("/dashboard/influencers"), owner).map((p) => p.label)).toEqual(["Find", "Outreach", "Collabs", "Settings"]);
-    expect(sectionTabs(at("/dashboard/reputation", "overview"), owner).map((p) => p.label)).toEqual(["Feed", "Overview", "Settings"]);
+    expect(sectionTabs(at("/dashboard/reputation", "overview"), owner).map((p) => p.label)).toEqual(["Feed", "Overview", "AI visibility", "Settings"]);
+    expect(page("/dashboard/reputation", "ai")).toBe("AI visibility");
     expect(sectionTabs(at("/dashboard/admin"), owner).map((p) => p.label)).toEqual(["My profile", "Connections", "Team & access", "API keys", "Brand & email", "Security"]);
     const agent = accessOf({ email: "a@promunch.in", app_metadata: { role: "agent" } });
     expect(sectionTabs(at("/dashboard/settings"), agent).map((p) => p.label)).toEqual(["My profile", "Connections", "Team & access", "Brand & email"]);

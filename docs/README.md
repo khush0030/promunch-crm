@@ -64,6 +64,9 @@ Deeper WhatsApp ops docs live with the functions: `promunch-email-agent/docs/WHA
 
 | Doc | What it answers |
 |---|---|
+| [2026-10-10 AI visibility tracker](plans/2026-10-10-ai-visibility-phase2/AI_VISIBILITY_TRACKER.md) | Reputation → AI visibility tab: weekly `ai-visibility-tick` asks OpenAI (web search) 20 shopping questions, logs whether PROMUNCH and competitors are named plus cited sources; tables, cron, cost, deploy order |
+| [2026-10-10 AI visibility outreach kit](plans/2026-10-10-ai-visibility-phase2/outreach/README.md) | 37 listicle, press and creator targets (verified public contacts only), pitch drafts from Parth, follow-up, press kit checklist. Drafts only |
+| [2026-10-10 AI visibility content](plans/2026-10-10-ai-visibility-phase2/content/README.md) | Four sourced comparison articles for the Shopify blog + 15 FAQ entries, [CONFIRM] list |
 | [2026-10-10 AI visibility phase 1](plans/2026-10-10-ai-visibility-phase1/README.md) | Response to the 10 Oct AI visibility audit (score 15/100): theme JSON-LD (Product with GTIN, Organization, corrected FAQ), brand facts page + llms.txt, GTIN in the Meta feed, Merchant Center setup. Paste-in kit; owner checklist inside |
 | [2026-10-08 Redesign handoff](plans/2026-10-08-redesign-handoff.md) | **START HERE to continue the redesign in any session (local or cloud):** branch `redesign/app-v2` state, owner decisions, open questions, merge+deploy runbook, safe QA tools in `scripts/redesign-qa/` |
 | [2026-10-07 Bulk order form + instant reply](plans/2026-10-07-bulk-inquiry-autoreply.md) | Pify replaced by CRM form: deal + WhatsApp lead ping + branded Resend auto-reply with order-type questions; install snippet |

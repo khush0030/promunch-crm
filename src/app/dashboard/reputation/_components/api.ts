@@ -55,4 +55,5 @@ export const QK = {
   mention: (id: string) => ["orm", "mention", id] as const,
   summary: (days: number) => ["orm", "summary", days] as const,
   settings: ["orm", "settings"] as const,
+  aiVisibility: ["orm", "ai-visibility"] as const,
 };

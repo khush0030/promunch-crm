@@ -1,16 +1,18 @@
 "use client";
 
 // Reputation (ORM): one feed of every review, comment and mention of PROMUNCH
-// across the web. Tabs (Feed · Overview · Settings) are shell section tabs
-// (nav.ts pages, ?tab=overview|settings) and the open mention lives in ?m=<id>,
-// so WhatsApp alerts can deep-link a mention.
+// across the web. Tabs (Feed · Overview · AI visibility · Settings) are shell
+// section tabs (nav.ts pages, ?tab=overview|ai|settings) and the open mention
+// lives in ?m=<id>, so WhatsApp alerts can deep-link a mention.
 // Build contract: docs/plans/2026-10-08-orm-build-spec.md §7.
+// AI visibility: docs/plans/2026-10-10-ai-visibility-phase2/AI_VISIBILITY_TRACKER.md.
 // Audit: docs/audits/2026-10-09-creators-reputation-fidelity.md §2.
 
 import { Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Settings2 } from "lucide-react";
 import { PageHeader } from "@/components/pm";
+import { AiVisibilityTab } from "./_components/AiVisibilityTab";
 import { FeedTab } from "./_components/FeedTab";
 import { MentionDrawer } from "./_components/MentionDrawer";
 import { OverviewTab } from "./_components/OverviewTab";
@@ -18,14 +20,20 @@ import { SettingsTab } from "./_components/SettingsTab";
 import { useSummary } from "./_components/ui";
 import s from "./reputation.module.css";
 
-type TabKey = "feed" | "overview" | "settings";
-const TAB_KEYS: TabKey[] = ["feed", "overview", "settings"];
+type TabKey = "feed" | "overview" | "ai" | "settings";
+const TAB_KEYS: TabKey[] = ["feed", "overview", "ai", "settings"];
 const parseTab = (v: string | null): TabKey => (TAB_KEYS.includes(v as TabKey) ? (v as TabKey) : "feed");
 
-const TITLE: Record<TabKey, string> = { feed: "Reputation", overview: "Overview", settings: "Listening setup" };
+const TITLE: Record<TabKey, string> = {
+  feed: "Reputation",
+  overview: "Overview",
+  ai: "AI visibility",
+  settings: "Listening setup",
+};
 const SUBTITLE: Record<TabKey, string> = {
   feed: "Reviews, comments and mentions of PROMUNCH across the web, newest first.",
   overview: "How people feel about PROMUNCH and what they talk about.",
+  ai: "Does an AI assistant name PROMUNCH when shoppers in India ask what to buy?",
   settings: "Where we listen, what counts as a mention, and who gets alerts.",
 };
 
@@ -89,7 +97,7 @@ function ReputationInner() {
         title={TITLE[tab]}
         summary={summary}
         actions={
-          tab === "settings" ? undefined : (
+          tab === "settings" || tab === "ai" ? undefined : (
             <button type="button" className="pm-btn ghost" onClick={toSettings} title="Sources, keywords and alerts">
               <Settings2 size={15} /> Setup
             </button>
@@ -99,6 +107,7 @@ function ReputationInner() {
       <div className={s.body}>
         {tab === "feed" && <FeedTab onOpen={open} onSettings={toSettings} />}
         {tab === "overview" && <OverviewTab onSettings={toSettings} />}
+        {tab === "ai" && <AiVisibilityTab />}
         {tab === "settings" && <SettingsTab />}
       </div>
       {mentionId && <MentionDrawer key={mentionId} id={mentionId} onClose={close} />}

@@ -193,5 +193,8 @@ verify_jwt = false                    # invoked by pg_cron (*/15) with service-r
 [functions.orm-tick]
 verify_jwt = false                    # invoked by pg_cron (*/15) + Next.js "Run now" with service-role bearer; gated by requireInternal
 
+[functions.ai-visibility-tick]
+verify_jwt = false                    # invoked by pg_cron (weekly) + Next.js "Run now" + its own chain with service-role bearer; gated by requireInternal
+
 [functions.bulk-lead-alert]
 verify_jwt = false                    # bulk_inquiries insert trigger + pg_cron sweep (Vault service-role bearer); gated by requireInternal
